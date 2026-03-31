@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Backlog Tool Registry",
+  "description": "Schema for registering a backlog management tool with the autoharness framework. Provides the abstraction layer between harness agents and the specific backlog tool installed in the workspace.",
+  "type": "object",
+  "required": ["schema_version", "tool_name", "tool_type", "directory", "operations"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "tool_name": {
+      "type": "string",
+      "description": "Human-readable name of the backlog tool",
+      "examples": ["backlogit", "backlog-md"]
+    },
+    "tool_type": {
+      "type": "string",
+      "enum": ["mcp", "cli", "both"],
+      "description": "How the tool is accessed: MCP server, CLI, or both"
+    },
+    "directory": {
+      "type": "string",
+      "description": "Root directory for backlog files relative to workspace root",
+      "examples": [".backlogit", "backlog"]
+    },
+    "mcp_server": {
+      "type": "object",
+      "description": "MCP server configuration (required when tool_type is 'mcp' or 'both')",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command to start the MCP server",
+          "examples": ["backlogit mcp", "npx backlog-md mcp"]
+        },
+        "transport": {
+          "type": "string",
+          "enum": ["stdio", "sse", "http"],
+          "default": "stdio"
+        }
+      }
+    },
+    "cli": {
+      "type": "object",
+      "description": "CLI configuration (required when tool_type is 'cli' or 'both')",
+      "properties": {
+        "binary": {
+          "type": "string",
+          "description": "CLI binary name",
+          "examples": ["backlogit", "backlog"]
+        }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "description": "Maps abstract harness operations to tool-specific commands. Each operation maps to either an MCP tool name or CLI command.",
+      "required": ["create_task", "list_tasks", "get_task", "update_task", "move_task"],
+      "properties": {
+        "create_task": { "$ref": "#/$defs/operation" },
+        "list_tasks": { "$ref": "#/$defs/operation" },
+        "get_task": { "$ref": "#/$defs/operation" },
+        "update_task": { "$ref": "#/$defs/operation" },
+        "move_task": { "$ref": "#/$defs/operation" },
+        "delete_task": { "$ref": "#/$defs/operation" },
+        "search_tasks": { "$ref": "#/$defs/operation" },
+        "complete_task": { "$ref": "#/$defs/operation" },
+        "query": { "$ref": "#/$defs/operation" },
+        "sync_index": { "$ref": "#/$defs/operation" },
+        "append_comment": { "$ref": "#/$defs/operation" },
+        "log_telemetry": { "$ref": "#/$defs/operation" },
+        "save_memory": { "$ref": "#/$defs/operation" },
+        "create_checkpoint": { "$ref": "#/$defs/operation" },
+        "list_milestones": { "$ref": "#/$defs/operation" },
+        "add_milestone": { "$ref": "#/$defs/operation" }
+      }
+    },
+    "field_mapping": {
+      "type": "object",
+      "description": "Maps abstract field names to tool-specific parameter names",
+      "properties": {
+        "task_id": { "type": "string", "default": "id" },
+        "title": { "type": "string", "default": "title" },
+        "status": { "type": "string", "default": "status" },
+        "description": { "type": "string", "default": "description" },
+        "parent_id": { "type": "string", "default": "parent_id" },
+        "labels": { "type": "string", "default": "labels" },
+        "assignee": { "type": "string", "default": "assigned_to" },
+        "priority": { "type": "string", "default": "priority" },
+        "artifact_type": { "type": "string", "default": "artifact_type" }
+      }
+    },
+    "status_values": {
+      "type": "object",
+      "description": "Maps abstract status names to tool-specific status strings",
+      "properties": {
+        "todo": { "type": "string", "default": "To Do" },
+        "in_progress": { "type": "string", "default": "In Progress" },
+        "done": { "type": "string", "default": "Done" },
+        "blocked": { "type": "string", "default": "Blocked" }
+      }
+    },
+    "features": {
+      "type": "object",
+      "description": "Capabilities the tool supports beyond the core operations",
+      "properties": {
+        "sql_query": { "type": "boolean", "default": false },
+        "milestones": { "type": "boolean", "default": false },
+        "documents": { "type": "boolean", "default": false },
+        "telemetry": { "type": "boolean", "default": false },
+        "memory": { "type": "boolean", "default": false },
+        "checkpoints": { "type": "boolean", "default": false },
+        "comments": { "type": "boolean", "default": false },
+        "definition_of_done": { "type": "boolean", "default": false },
+        "workflow_guides": { "type": "boolean", "default": false },
+        "dependencies": { "type": "boolean", "default": false },
+        "sections": { "type": "boolean", "default": false },
+        "templates": { "type": "boolean", "default": false }
+      }
+    }
+  },
+  "$defs": {
+    "operation": {
+      "type": "object",
+      "properties": {
+        "mcp_tool": {
+          "type": "string",
+          "description": "MCP tool name to call for this operation"
+        },
+        "cli_command": {
+          "type": "string",
+          "description": "CLI command to run for this operation"
+        },
+        "params": {
+          "type": "object",
+          "description": "Parameter name mapping from abstract to tool-specific",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}

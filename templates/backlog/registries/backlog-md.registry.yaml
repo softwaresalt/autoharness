@@ -1,0 +1,119 @@
+schema_version: "1.0.0"
+tool_name: "backlog-md"
+tool_type: "both"
+directory: "backlog"
+
+mcp_server:
+  command: "npx backlog-md mcp"
+  transport: "stdio"
+
+cli:
+  binary: "backlog"
+
+operations:
+  create_task:
+    mcp_tool: "task_create"
+    cli_command: "backlog create --title {{title}}"
+    params:
+      title: "title"
+      status: "status"
+      description: "description"
+      parent_id: "parentTaskId"
+      labels: "labels"
+      assignee: "assignee"
+      priority: "priority"
+
+  list_tasks:
+    mcp_tool: "task_list"
+    cli_command: "backlog list"
+    params:
+      status: "status"
+      assignee: "assignee"
+      milestone: "milestone"
+      labels: "labels"
+
+  get_task:
+    mcp_tool: "task_view"
+    cli_command: "backlog view {{id}}"
+    params:
+      task_id: "id"
+
+  update_task:
+    mcp_tool: "task_edit"
+    cli_command: "backlog edit {{id}}"
+    params:
+      task_id: "id"
+      title: "title"
+      status: "status"
+      description: "description"
+      labels: "labels"
+      assignee: "assignee"
+      priority: "priority"
+
+  move_task:
+    mcp_tool: "task_edit"
+    cli_command: "backlog move {{id}} --status {{status}}"
+    params:
+      task_id: "id"
+      status: "status"
+
+  delete_task:
+    mcp_tool: "task_archive"
+    cli_command: "backlog archive {{id}}"
+    params:
+      task_id: "id"
+
+  search_tasks:
+    mcp_tool: "task_search"
+    cli_command: "backlog search {{query}}"
+    params:
+      query: "query"
+      status: "status"
+      priority: "priority"
+      limit: "limit"
+
+  complete_task:
+    mcp_tool: "task_complete"
+    cli_command: "backlog complete {{id}}"
+    params:
+      task_id: "id"
+
+  list_milestones:
+    mcp_tool: "milestone_list"
+    cli_command: "backlog milestone list"
+
+  add_milestone:
+    mcp_tool: "milestone_add"
+    cli_command: "backlog milestone add --name {{name}}"
+    params:
+      name: "name"
+
+field_mapping:
+  task_id: "id"
+  title: "title"
+  status: "status"
+  description: "description"
+  parent_id: "parentTaskId"
+  labels: "labels"
+  assignee: "assignee"
+  priority: "priority"
+
+status_values:
+  todo: "To Do"
+  in_progress: "In Progress"
+  done: "Done"
+  blocked: "Blocked"
+
+features:
+  sql_query: false
+  milestones: true
+  documents: true
+  telemetry: false
+  memory: false
+  checkpoints: false
+  comments: false
+  definition_of_done: true
+  workflow_guides: true
+  dependencies: true
+  sections: false
+  templates: false

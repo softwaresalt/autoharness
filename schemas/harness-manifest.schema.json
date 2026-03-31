@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Harness Manifest",
+  "description": "Schema for tracking the installed state of a harness in a target workspace",
+  "type": "object",
+  "required": ["schema_version", "installed_at", "autoharness_version", "profile_hash", "primitives_installed", "artifacts"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "installed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tuned_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "autoharness_version": {
+      "type": "string"
+    },
+    "profile_hash": {
+      "type": "string",
+      "description": "SHA-256 of the workspace profile used during installation"
+    },
+    "primitives_installed": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 8
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "primitive", "template", "checksum"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Workspace-relative path to the installed artifact"
+          },
+          "primitive": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "description": "Which primitive this artifact implements"
+          },
+          "template": {
+            "type": "string",
+            "description": "Name of the template used to generate this artifact"
+          },
+          "checksum": {
+            "type": "string",
+            "description": "SHA-256 of the installed file content"
+          }
+        }
+      }
+    },
+    "variables_used": {
+      "type": "object",
+      "description": "Map of template variable names to resolved values",
+      "additionalProperties": { "type": "string" }
+    },
+    "tuning_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "format": "date-time" },
+          "proposals_applied": { "type": "integer" },
+          "profile_hash": { "type": "string" }
+        }
+      }
+    }
+  }
+}

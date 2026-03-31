@@ -1,0 +1,142 @@
+schema_version: "1.0.0"
+tool_name: "backlogit"
+tool_type: "both"
+directory: ".backlogit"
+
+mcp_server:
+  command: "backlogit mcp"
+  transport: "stdio"
+
+cli:
+  binary: "backlogit"
+
+operations:
+  create_task:
+    mcp_tool: "backlogit_create_item"
+    cli_command: "backlogit add --type {{artifact_type}} --title {{title}}"
+    params:
+      title: "title"
+      type: "artifact_type"
+      status: "status"
+      description: "description"
+      parent_id: "parent_id"
+      labels: "labels"
+      assignee: "assigned_to"
+
+  list_tasks:
+    mcp_tool: "backlogit_list_items"
+    cli_command: "backlogit list"
+    params:
+      type: "type"
+      status: "status"
+      assignee: "assigned_to"
+
+  get_task:
+    mcp_tool: "backlogit_get_item"
+    cli_command: "backlogit get {{id}}"
+    params:
+      task_id: "id"
+      section: "section"
+
+  update_task:
+    mcp_tool: "backlogit_update_item"
+    cli_command: "backlogit update {{id}}"
+    params:
+      task_id: "id"
+      title: "title"
+      status: "status"
+      description: "description"
+      labels: "labels"
+      assignee: "assigned_to"
+      priority: "priority"
+
+  move_task:
+    mcp_tool: "backlogit_move_item"
+    cli_command: "backlogit move {{id}} --status {{status}}"
+    params:
+      task_id: "id"
+      status: "status"
+
+  delete_task:
+    mcp_tool: "backlogit_delete_item"
+    cli_command: "backlogit delete {{id}} --force"
+    params:
+      task_id: "id"
+
+  search_tasks:
+    mcp_tool: "backlogit_search_items"
+    cli_command: "backlogit search {{query}}"
+    params:
+      query: "query"
+      limit: "limit"
+
+  complete_task:
+    mcp_tool: "backlogit_move_item"
+    cli_command: "backlogit move {{id}} --status done"
+    params:
+      task_id: "id"
+      status: "status"
+
+  query:
+    mcp_tool: "backlogit_query_sql"
+    cli_command: "backlogit query {{sql}}"
+    params:
+      sql: "sql"
+
+  sync_index:
+    mcp_tool: "backlogit_sync_index"
+    cli_command: "backlogit sync"
+
+  append_comment:
+    mcp_tool: "backlogit_append_comment"
+    params:
+      task_id: "item_id"
+      actor: "actor"
+      comment: "comment"
+
+  log_telemetry:
+    mcp_tool: "backlogit_log_telemetry"
+    params:
+      event_type: "event_type"
+
+  save_memory:
+    mcp_tool: "backlogit_save_memory"
+    params:
+      key: "key"
+      summary: "summary"
+
+  create_checkpoint:
+    mcp_tool: "backlogit_create_checkpoint"
+    params:
+      state_dump: "state_dump"
+
+field_mapping:
+  task_id: "id"
+  title: "title"
+  status: "status"
+  description: "description"
+  parent_id: "parent_id"
+  labels: "labels"
+  assignee: "assigned_to"
+  priority: "priority"
+  artifact_type: "artifact_type"
+
+status_values:
+  todo: "queued"
+  in_progress: "active"
+  done: "done"
+  blocked: "blocked"
+
+features:
+  sql_query: true
+  milestones: false
+  documents: false
+  telemetry: true
+  memory: true
+  checkpoints: true
+  comments: true
+  definition_of_done: false
+  workflow_guides: false
+  dependencies: true
+  sections: true
+  templates: true
