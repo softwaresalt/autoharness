@@ -17,7 +17,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 * `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via: `AUTOHARNESS_HOME` env var → `autoharness home` CLI → agent directory traversal → `~/.autoharness/`.
 * `workspace_path`: (Required) Absolute path to the target workspace root. Must be a different directory from `autoharness_home`.
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
-* `primitives`: (Optional) Comma-separated list of primitive numbers (1-8) to install. Defaults to all.
+* `primitives`: (Optional) Comma-separated list of primitive numbers (1-9) to install. Defaults to all.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -98,7 +98,7 @@ Derive all template variables from the profile. The variable resolution table de
 
 #### Step 1.3: Select Primitive Set
 
-If `primitives` input is provided, filter the installation to only the requested primitives. Otherwise, install all 8.
+If `primitives` input is provided, filter the installation to only the requested primitives. Otherwise, install all 9.
 
 Map primitives to template groups:
 
@@ -110,8 +110,9 @@ Map primitives to template groups:
 | 4 - Orchestration | `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/build-feature`, `skills/fix-ci` |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
-| 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
+| 7 - Observability | `agents/review/*`, `agents/doc-ops`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
+| 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc`, `agents/doc-ops` |
 
 ### Phase 2: Template Composition
 
@@ -119,7 +120,7 @@ Map primitives to template groups:
 
 Generate the constitutional foundation first, as all other artifacts reference it:
 
-1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 8 universal principles.
+1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 9 universal principles.
 
 2. **AGENTS.md**: Generate the root AGENTS.md with technology-specific quality gates, code style conventions, error handling patterns, and terminal command policies.
 
@@ -138,6 +139,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `git-merge.instructions.md` — Universal (install as-is)
    * `pull-request.instructions.md` — Universal (install as-is)
    * `prompt-builder.instructions.md` — Universal (install as-is)
+   * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
 
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
 
@@ -269,7 +271,7 @@ installed_at: "{{ISO_8601_TIMESTAMP}}"
 autoharness_version: "1.0.0"
 autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
-primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8]
+primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9]
 artifacts:
   - path: ".github/instructions/constitution.instructions.md"
     primitive: 5

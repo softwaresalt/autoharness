@@ -148,6 +148,7 @@ Install only specific primitives:
 6. Injection Points & Dynamic Reminders
 7. Observability & Evaluation
 8. Workflow Policy
+9. Repository Knowledge & Agent Legibility
 
 ### Dry Run (Preview)
 
@@ -201,6 +202,7 @@ target-workspace/
       git-merge.instructions.md
       pull-request.instructions.md
       prompt-builder.instructions.md
+      architecture-doc.instructions.md
     policies/
       workflow-policies.md
     prompts/
