@@ -117,17 +117,31 @@ autoharness/                             # Global installation (e.g. ~/.autoharn
 
 ### 1. Install autoharness globally
 
-Clone the repository to your preferred global location:
+**With uv (recommended)**:
+
+```bash
+uv tool install git+https://github.com/softwaresalt/autoharness.git
+```
+
+Update when improvements are available:
+
+```bash
+uv tool upgrade autoharness
+```
+
+**With git clone** (alternative):
 
 ```bash
 git clone https://github.com/softwaresalt/autoharness.git ~/.autoharness
 ```
 
-Or set a custom location and export the environment variable:
+Update: `cd ~/.autoharness && git pull`
+
+**Verify** the installation:
 
 ```bash
-git clone https://github.com/softwaresalt/autoharness.git ~/tools/autoharness
-export AUTOHARNESS_HOME=~/tools/autoharness
+autoharness home      # prints the installation path
+autoharness version   # prints the version
 ```
 
 ### 2. Register with your AI coding environment

@@ -14,7 +14,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 
 ## Inputs
 
-* `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via the standard resolution order: `AUTOHARNESS_HOME` env var → agent directory traversal → `~/.autoharness/`.
+* `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via: `AUTOHARNESS_HOME` env var → `autoharness home` CLI → agent directory traversal → `~/.autoharness/`.
 * `workspace_path`: (Required) Absolute path to the target workspace root. Must be a different directory from `autoharness_home`.
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-8) to install. Defaults to all.

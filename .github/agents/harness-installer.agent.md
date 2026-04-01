@@ -28,10 +28,15 @@ This agent works across any AI coding environment: VS Code with GitHub Copilot, 
 Locate the autoharness installation (templates, schemas, registries). Resolution order:
 
 1. `AUTOHARNESS_HOME` environment variable (if set)
-2. The directory containing this agent definition (traverse up to the autoharness root)
-3. `~/.autoharness/` (default global installation path)
+2. Output of `autoharness home` CLI command (if `autoharness` is on PATH)
+3. The directory containing this agent definition (traverse up to the autoharness root)
+4. `~/.autoharness/` (default global installation path)
 
-If none resolve, halt and instruct the user to set `AUTOHARNESS_HOME` or run the autoharness setup.
+If none resolve, halt and instruct the user to install autoharness:
+
+```text
+uv tool install git+https://github.com/softwaresalt/autoharness.git
+```
 
 Confirm that `templates/`, `schemas/`, and `docs/` exist at the resolved path.
 

@@ -21,7 +21,7 @@ Invoke this skill periodically or when significant codebase changes occur:
 
 ## Inputs
 
-* `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via the standard resolution order: `AUTOHARNESS_HOME` env var → agent directory traversal → `~/.autoharness/`.
+* `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via: `AUTOHARNESS_HOME` env var → `autoharness home` CLI → agent directory traversal → `~/.autoharness/`.
 * `workspace_path`: (Required) Absolute path to the target workspace root.
 * `scope`: (Optional) Comma-separated list of tune targets: `instructions`, `agents`, `skills`, `policies`, `constitution`, `all`. Defaults to `all`.
 * `auto_apply`: (Optional, default false) When true, apply proposed changes without interactive review.

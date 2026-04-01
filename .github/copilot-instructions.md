@@ -52,7 +52,7 @@ The target workspace receives:
 * **Backlog structure** — `.backlog/` directory with task/plan/review directories
 * **Harness metadata** — `.autoharness/` with workspace profile, manifest, and backlog registry
 
-The `autoharness_home` path is resolved via: `AUTOHARNESS_HOME` env var → agent directory traversal → `~/.autoharness/`.
+The `autoharness_home` path is resolved via: `AUTOHARNESS_HOME` env var → `autoharness home` CLI → agent directory traversal → `~/.autoharness/`.
 
 ## Core Concepts
 

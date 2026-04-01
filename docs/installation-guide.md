@@ -24,11 +24,29 @@ autoharness is installed once to a global location and invoked against target wo
 
 ## Step 1: Install autoharness Globally
 
+### With uv (recommended)
+
+```bash
+uv tool install git+https://github.com/softwaresalt/autoharness.git
+```
+
+This installs `autoharness` as a global CLI tool. Agents resolve the installation path by running `autoharness home`.
+
+Update when improvements are available:
+
+```bash
+uv tool upgrade autoharness
+```
+
+### With git clone (alternative)
+
 Clone the repository to your preferred global location:
 
 ```bash
 git clone https://github.com/softwaresalt/autoharness.git ~/.autoharness
 ```
+
+Update: `cd ~/.autoharness && git pull`
 
 Or use a custom location and set the environment variable:
 
@@ -38,11 +56,21 @@ export AUTOHARNESS_HOME=~/tools/autoharness   # bash/zsh
 $env:AUTOHARNESS_HOME = "$HOME\tools\autoharness"  # PowerShell
 ```
 
+### Verify the installation
+
+```bash
+autoharness home      # prints the installation path
+autoharness version   # prints the version
+```
+
+### How agents find autoharness
+
 The `autoharness_home` path is resolved by agents in this order:
 
 1. `AUTOHARNESS_HOME` environment variable
-2. Directory traversal from the agent definition file
-3. `~/.autoharness/` default
+2. Output of `autoharness home` CLI command (if on PATH)
+3. Directory traversal from the agent definition file
+4. `~/.autoharness/` default
 
 ## Step 2: Register with Your AI Coding Environment
 
@@ -236,8 +264,11 @@ Recommended tuning schedule:
 To get new templates, improved agents, and updated schemas:
 
 ```bash
-cd ~/.autoharness
-git pull
+# If installed with uv
+uv tool upgrade autoharness
+
+# If installed with git clone
+cd ~/.autoharness && git pull
 ```
 
 Existing target workspace harnesses are not affected until you run the tuner against them. The tuner will detect template improvements and propose updates.
