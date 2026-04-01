@@ -6,14 +6,17 @@ description: "Multi-phase installation workflow that composes harness primitives
 
 Compose and install a complete agent harness into a target workspace. Uses the workspace profile from the workspace-discovery skill to customize universal templates for the target environment's specific technology stack, conventions, and workflow requirements.
 
+autoharness operates as a globally-installed tool. Templates are read from the autoharness home directory; only generated harness artifacts are written to the target workspace. The target workspace never contains autoharness engine files — only the output artifacts it needs to function.
+
 ## When to Use
 
 Invoke this skill after workspace-discovery has produced a profile, or let the harness-installer agent invoke it automatically. The skill handles template selection, variable substitution, artifact generation, and installation verification.
 
 ## Inputs
 
-* `workspace_path`: (Required) Absolute path to the target workspace root.
-* `profile_path`: (Required) Path to workspace profile YAML (typically `.autoharness/workspace-profile.yaml`).
+* `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via the standard resolution order: `AUTOHARNESS_HOME` env var → agent directory traversal → `~/.autoharness/`.
+* `workspace_path`: (Required) Absolute path to the target workspace root. Must be a different directory from `autoharness_home`.
+* `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-8) to install. Defaults to all.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
@@ -27,6 +30,20 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 ## Required Protocol
 
 ### Phase 1: Profile Loading and Validation
+
+#### Step 1.0: Validate autoharness Home
+
+Verify the `autoharness_home` path contains the expected structure:
+
+* `{autoharness_home}/templates/` — template files
+* `{autoharness_home}/schemas/` — JSON schemas for validation
+* `{autoharness_home}/templates/backlog/registries/` — pre-built backlog tool registries
+
+If any are missing, halt and report the issue. The autoharness installation may be corrupt or incomplete.
+
+Verify that `workspace_path` is NOT inside `autoharness_home` and vice versa.
+
+All template reads in subsequent phases use `{autoharness_home}/templates/` as the base path. All artifact writes use `{workspace_path}` as the base path.
 
 #### Step 1.1: Load Profile
 
@@ -128,7 +145,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
 
 If the workspace profile includes a detected backlog tool (`backlog_tool.detected: true`):
 
-1. **Copy the matching registry**: Load the pre-built registry from `templates/backlog/registries/{tool_name}.registry.yaml`
+1. **Copy the matching registry**: Load the pre-built registry from `{autoharness_home}/templates/backlog/registries/{tool_name}.registry.yaml`
 2. **Install as `.autoharness/backlog-registry.yaml`** in the target workspace
 3. **Resolve backlog template variables** from the registry into all templates
 4. **Add the backlog MCP server** to the tools list in all agent definitions that interact with the backlog
@@ -142,7 +159,7 @@ If no backlog tool is detected:
 
 If the user wants to use a tool not yet in the registry:
 
-1. Generate a skeleton registry from `schemas/backlog-tool-registry.schema.json`
+1. Generate a skeleton registry from `{autoharness_home}/schemas/backlog-tool-registry.schema.json`
 2. Present it to the user for completion
 3. Install the completed registry
 
@@ -250,6 +267,7 @@ Create `.autoharness/harness-manifest.yaml` recording:
 schema_version: "1.0.0"
 installed_at: "{{ISO_8601_TIMESTAMP}}"
 autoharness_version: "1.0.0"
+autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8]
 artifacts:

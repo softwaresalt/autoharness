@@ -6,6 +6,8 @@ description: "Discover target workspace technology stack, conventions, build too
 
 Scan a target workspace to produce a structured workspace profile that drives harness template composition. The profile captures everything the installer needs to customize agents, skills, instructions, and policies for the target environment.
 
+This skill is invoked from the globally-installed autoharness tool and operates read-only against the target workspace (aside from writing the profile output). It does not require autoharness to be installed in the target workspace.
+
 ## When to Use
 
 Invoke this skill as the first phase of harness installation or tuning. The workspace profile is the single source of truth that downstream template composition uses to generate workspace-specific artifacts.

@@ -6,36 +6,53 @@ description: "Shared development guidelines for the autoharness project"
 
 Last updated: 2026-03-31
 
-autoharness is an installable agent harness framework that composes AI coding assistant primitives into any repository workspace. It discovers workspace characteristics and generates customized agents, skills, instructions, policies, and constitutional foundations.
+autoharness is a globally-installed agent harness framework that composes AI coding assistant primitives into any repository workspace. It is installed once to a global location (e.g. `~/.autoharness/`) and invoked against target workspaces to discover their characteristics and generate customized agents, skills, instructions, policies, and constitutional foundations. The target workspace receives only the generated output artifacts — never autoharness engine files.
+
+autoharness is environment-agnostic: it works with VS Code + GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions.
 
 ## Project Structure
 
 ```text
-autoharness/
+autoharness/                             # Global installation root
   .github/
-    agents/                          # Agents that power autoharness itself
-      harness-installer.agent.md     # Workspace discovery + harness composition
-      harness-tuner.agent.md         # Iterative harness maintenance
+    agents/                              # Agents that power autoharness itself
+      harness-installer.agent.md         # Workspace discovery + harness composition
+      harness-tuner.agent.md             # Iterative harness maintenance
     skills/
-      install-harness/SKILL.md       # Multi-phase installation workflow
-      tune-harness/SKILL.md          # Maintenance and tuning workflow
-      workspace-discovery/SKILL.md   # Workspace tech stack discovery
+      install-harness/SKILL.md           # Multi-phase installation workflow
+      tune-harness/SKILL.md              # Maintenance and tuning workflow
+      workspace-discovery/SKILL.md       # Workspace tech stack discovery
     instructions/
       harness-architecture.instructions.md
     prompts/
       install-harness.prompt.md
       tune-harness.prompt.md
-  templates/                         # Parameterized templates for target workspaces
-    foundation/                      # Constitution, AGENTS.md, copilot-instructions
-    agents/                          # Agent definition templates
-    skills/                          # Skill workflow templates
-    instructions/                    # Instruction file templates
-    policies/                        # Policy registry templates
-    prompts/                         # Prompt templates
-    backlog/                         # Backlog structure templates
-  schemas/                           # JSON schemas for profiles and manifests
-  docs/                              # Documentation
+  templates/                             # Parameterized templates (read during install/tune)
+    foundation/                          # Constitution, AGENTS.md, copilot-instructions
+    agents/                              # Agent definition templates
+    skills/                              # Skill workflow templates
+    instructions/                        # Instruction file templates
+    policies/                            # Policy registry templates
+    prompts/                             # Prompt templates
+    backlog/                             # Backlog structure templates
+  schemas/                               # JSON schemas for profiles and manifests
+  docs/                                  # Documentation
 ```
+
+## Key Architectural Concept: Global Tool, Local Output
+
+The autoharness installation (`autoharness_home`) contains:
+* **Templates** — `.tmpl` files with `{{VARIABLE}}` placeholders, read-only during install/tune
+* **Schemas** — JSON schemas for validation of profiles, manifests, and registries
+* **Agents & Skills** — The installer, tuner, and discovery workflows that execute the install/tune pipeline
+* **Documentation** — Guides for installation, tuning, and customization
+
+The target workspace receives:
+* **Generated artifacts** — AGENTS.md, agent definitions, skills, instructions, policies, prompts
+* **Backlog structure** — `.backlog/` directory with task/plan/review directories
+* **Harness metadata** — `.autoharness/` with workspace profile, manifest, and backlog registry
+
+The `autoharness_home` path is resolved via: `AUTOHARNESS_HOME` env var → agent directory traversal → `~/.autoharness/`.
 
 ## Core Concepts
 

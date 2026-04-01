@@ -7,6 +7,8 @@ applyTo: '**'
 
 This document defines the reference architecture for the 8 irreducible primitives that compose any effective agent harness. Use this as a guide when creating, modifying, or reviewing harness templates and installed harness artifacts.
 
+autoharness operates as a global tool: templates and schemas live in the autoharness installation (`autoharness_home`), and only the generated harness artifacts are installed into target workspaces. All artifact paths below refer to locations in the target workspace after installation. The templates that produce them live in `{autoharness_home}/templates/`.
+
 ## Primitive 1: State and Context Management
 
 **Purpose**: Maintain durable state across sessions, manage the context window, and prevent token overflow.

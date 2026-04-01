@@ -9,15 +9,19 @@ This file defines the authoritative rules for working in the autoharness reposit
 
 ## Core Rules
 
-1. **Templates are the product.** This project produces template files, not application code. All templates must be technology-agnostic with `{{VARIABLE}}` placeholders for customization points.
+1. **Global tool, local output.** autoharness is installed globally and operated against target workspaces. Templates are read from `autoharness_home`; only generated artifacts are written to the target. Never mix autoharness engine files with target workspace output.
 
-2. **Discovery before generation.** Never generate harness artifacts without first running workspace discovery. The workspace profile drives all template composition.
+2. **Templates are the product.** This project produces template files, not application code. All templates must be technology-agnostic with `{{VARIABLE}}` placeholders for customization points.
 
-3. **Verify after installation.** Every installation must end with a verification pass that confirms no unresolved template variables remain and all cross-references resolve.
+3. **Environment agnostic.** All agents, skills, and generated artifacts must work across VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, and any environment supporting agent conventions. Do not use environment-specific APIs or assume a specific IDE.
 
-4. **Preserve existing work.** When installing into a workspace that already has harness artifacts, back up originals before overwriting. Offer merge install as an alternative.
+4. **Discovery before generation.** Never generate harness artifacts without first running workspace discovery. The workspace profile drives all template composition.
 
-5. **Tuning is non-destructive.** The tuner proposes changes for review. Auto-apply is opt-in, not default. Backups are mandatory before any modification.
+5. **Verify after installation.** Every installation must end with a verification pass that confirms no unresolved template variables remain and all cross-references resolve.
+
+6. **Preserve existing work.** When installing into a workspace that already has harness artifacts, back up originals before overwriting. Offer merge install as an alternative.
+
+7. **Tuning is non-destructive.** The tuner proposes changes for review. Auto-apply is opt-in, not default. Backups are mandatory before any modification.
 
 ## Quality Gates
 

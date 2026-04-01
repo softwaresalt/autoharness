@@ -1,15 +1,17 @@
 ---
 title: autoharness
-description: Installable agent harness framework that adapts AI coding assistant primitives to any repository workspace
+description: Globally-installed agent harness framework that generates AI coding assistant primitives into any target workspace
 ---
 
 # autoharness
 
-An installable agent harness framework that composes AI coding assistant primitives into any repository workspace. Each workspace has its own technology stack, goals, target platforms, and methodologies. autoharness discovers those characteristics, then generates and installs a customized set of agents, instructions, skills, prompts, policies, and constitutional foundations that conform to the workspace's unique needs.
+A globally-installed agent harness framework that composes AI coding assistant primitives into any repository workspace. Each workspace has its own technology stack, goals, target platforms, and methodologies. autoharness discovers those characteristics, then generates and installs a customized set of agents, instructions, skills, prompts, policies, and constitutional foundations that conform to the workspace's unique needs.
+
+autoharness is installed once in a global location and invoked against target workspaces — it does not install itself into the target. The target receives only the generated harness artifacts it needs to function.
 
 ## The Problem
 
-Modern AI coding assistants (GitHub Copilot, Claude Code, Cursor) operate more effectively when guided by structured harness artifacts: agent definitions, skill workflows, coding instructions, review personas, and workflow policies. Building these from scratch for every repository is tedious and error-prone. Maintaining them as the codebase evolves is worse.
+Modern AI coding assistants (GitHub Copilot, Claude Code, Cursor, Codex) operate more effectively when guided by structured harness artifacts: agent definitions, skill workflows, coding instructions, review personas, and workflow policies. Building these from scratch for every repository is tedious and error-prone. Maintaining them as the codebase evolves is worse.
 
 ## The Solution
 
@@ -17,6 +19,24 @@ autoharness extracts the **8 universal primitives** of any agent harness (identi
 
 1. **Install**: Discover the target workspace's profile (tech stack, conventions, tools) and compose a tailored harness from primitive templates.
 2. **Tune**: Iteratively adapt the installed harness as the codebase, documentation, and team conventions evolve over time.
+
+### Global Tool, Local Output
+
+```text
+┌──────────────────────────┐       ┌──────────────────────────┐
+│  autoharness (global)    │       │  target workspace        │
+│                          │       │                          │
+│  templates/              │──────▶│  AGENTS.md               │
+│  schemas/                │ reads │  .github/agents/         │
+│  agents/                 │ tmpl, │  .github/skills/         │
+│  skills/                 │ writes│  .github/instructions/   │
+│  docs/                   │ output│  .github/policies/       │
+│                          │       │  .backlog/               │
+│                          │       │  .autoharness/           │
+└──────────────────────────┘       └──────────────────────────┘
+```
+
+The target workspace never contains autoharness engine files. It gets only the finished, workspace-adapted harness artifacts.
 
 ## The 8 Primitives
 
@@ -58,11 +78,11 @@ If autoharness does not detect your backlog tool, or you use a custom tool, you 
 ## Project Structure
 
 ```text
-autoharness/
+autoharness/                             # Global installation (e.g. ~/.autoharness/)
   README.md                              # This file
-  AGENTS.md                              # Authoritative rules for agents in this repo
+  AGENTS.md                              # Rules for agents working on autoharness itself
   .github/
-    copilot-instructions.md              # Development guidelines for autoharness itself
+    copilot-instructions.md              # Dev guidelines for autoharness contributors
     agents/
       harness-installer.agent.md         # Discovers workspace, composes and installs harness
       harness-tuner.agent.md             # Iteratively adapts harness to codebase changes
@@ -75,103 +95,109 @@ autoharness/
     prompts/
       install-harness.prompt.md          # User-facing prompt to install a harness
       tune-harness.prompt.md             # User-facing prompt to tune an installed harness
-  templates/
+  templates/                             # Parameterized templates (read-only during install)
     foundation/                          # Constitutional and root-level templates
-      AGENTS.md.tmpl                     # Root AGENTS.md for target workspaces
-      copilot-instructions.md.tmpl       # Root copilot-instructions.md
-      constitution.instructions.md.tmpl  # Constitutional principles (tech-stack adapted)
+      AGENTS.md.tmpl
+      copilot-instructions.md.tmpl
+      constitution.instructions.md.tmpl
     agents/                              # Agent definition templates
-      backlog-harvester.agent.md.tmpl
-      build-orchestrator.agent.md.tmpl
-      harness-architect.agent.md.tmpl
-      doc-ops.agent.md.tmpl
-      memory.agent.md.tmpl
-      pr-review.agent.md.tmpl
-      prompt-builder.agent.md.tmpl
-      review/                            # Review persona templates
-        architecture-strategist.agent.md.tmpl
-        constitution-reviewer.agent.md.tmpl
-        scope-boundary-auditor.agent.md.tmpl
-        technology-reviewer.agent.md.tmpl  # Generic tech reviewer (adapts to stack)
-        concurrency-reviewer.agent.md.tmpl
-      research/
-        learnings-researcher.agent.md.tmpl
     skills/                              # Skill workflow templates
-      brainstorm/SKILL.md.tmpl
-      build-feature/SKILL.md.tmpl
-      compact-context/SKILL.md.tmpl
-      compound/SKILL.md.tmpl
-      fix-ci/SKILL.md.tmpl
-      impl-plan/SKILL.md.tmpl
-      plan-review/SKILL.md.tmpl
-      review/SKILL.md.tmpl
-    instructions/                        # Instruction templates
-      commit-message.instructions.md.tmpl
-      markdown.instructions.md.tmpl
-      writing-style.instructions.md.tmpl
-      git-merge.instructions.md.tmpl
-      pull-request.instructions.md.tmpl
-      prompt-builder.instructions.md.tmpl
-      technology.instructions.md.tmpl    # Generic tech instructions (adapts to stack)
-      backlog-integration.instructions.md.tmpl  # Backlog tool abstraction layer
-    policies/
-      workflow-policies.md.tmpl          # Workflow policy registry
-    prompts/
-      ping-loop.prompt.md.tmpl           # Heartbeat loop prompt
-    backlog/
-      config.yml.tmpl                    # Backlog configuration
-      queue.md.tmpl                      # Unrefined ideas queue
-      registries/                        # Pre-built backlog tool registries
-        backlogit.registry.yaml          # Registry for backlogit
-        backlog-md.registry.yaml         # Registry for backlog-md
-  schemas/
-    workspace-profile.schema.json        # Schema for workspace discovery output
-    harness-manifest.schema.json         # Schema for tracking installed harness state
-    backlog-tool-registry.schema.json    # Schema for backlog tool registration
-  docs/
-    primitives.md                        # Deep documentation of each primitive
-    installation-guide.md                # How to install into a workspace
-    tuning-guide.md                      # How to tune and maintain the harness
-    customization-guide.md               # How to customize templates for specific needs
+    instructions/                        # Instruction file templates
+    policies/                            # Policy registry templates
+    prompts/                             # Prompt templates
+    backlog/                             # Backlog structure and registry templates
+      registries/
+        backlogit.registry.yaml
+        backlog-md.registry.yaml
+  schemas/                               # JSON schemas for profiles, manifests, registries
+  docs/                                  # Documentation
 ```
 
 ## Quick Start
 
-### Install a harness into a workspace
+### 1. Install autoharness globally
 
-Open the target workspace in VS Code with autoharness in the multi-root workspace, then invoke the installer:
+Clone the repository to your preferred global location:
+
+```bash
+git clone https://github.com/softwaresalt/autoharness.git ~/.autoharness
+```
+
+Or set a custom location and export the environment variable:
+
+```bash
+git clone https://github.com/softwaresalt/autoharness.git ~/tools/autoharness
+export AUTOHARNESS_HOME=~/tools/autoharness
+```
+
+### 2. Register with your AI coding environment
+
+autoharness works across any environment that supports agent and skill conventions.
+
+**VS Code with GitHub Copilot** — Add autoharness as a workspace folder alongside your target project (multi-root workspace), or register its skills globally:
+
+```jsonc
+// .vscode/settings.json (in your target workspace)
+{
+  "github.copilot.chat.agentWorkspaceFolders": ["~/.autoharness"]
+}
+```
+
+**GitHub Copilot CLI** — Invoke with the autoharness directory available:
+
+```bash
+ghcp agent @harness-installer workspace=/path/to/target
+```
+
+**Claude Code** — Reference autoharness in your project config or invoke directly:
+
+```bash
+claude --agent ~/.autoharness/.github/agents/harness-installer.agent.md
+```
+
+**Cursor** — Add autoharness as an agent source in Cursor settings.
+
+**Codex** — Reference the autoharness AGENTS.md or invoke with system context.
+
+### 3. Install a harness into a target workspace
+
+From any registered environment:
 
 ```text
-@harness-installer Install a harness for this workspace
+@harness-installer workspace=/path/to/my-project
 ```
 
 The installer will:
 
-1. **Discover** the workspace profile (languages, frameworks, build tools, test runners, CI/CD)
+1. **Discover** the target workspace profile (languages, frameworks, build tools, test runners, CI/CD)
 2. **Present** a proposed harness configuration for your review
 3. **Generate** customized agents, skills, instructions, policies, and constitutional docs
-4. **Install** the artifacts into the workspace's `.github/` directory
+4. **Install** the artifacts into the target workspace's `.github/` directory
 5. **Verify** the installation is coherent and all cross-references resolve
 
-### Tune an existing harness
+### 4. Tune an existing harness
 
-After the codebase evolves, invoke the tuner to bring the harness up to date:
+After the codebase evolves, invoke the tuner:
 
 ```text
-@harness-tuner Tune the harness for current workspace state
+@harness-tuner workspace=/path/to/my-project
 ```
 
 ## Design Principles
 
-1. **Templates over code generation.** Harness artifacts are Markdown files with placeholder variables, not programmatically generated code. Human-readable, Git-friendly, and manually editable.
+1. **Global tool, local output.** autoharness is installed once globally and invoked against target workspaces. The target receives only generated harness artifacts — never autoharness engine files, templates, or schemas.
 
-2. **Discovery before composition.** The installer never guesses. It scans the workspace, identifies the tech stack, and presents findings before generating anything.
+2. **Environment agnostic.** The generated artifacts use standard paths (`.github/`, `AGENTS.md`, `.backlog/`) that work across VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, and any environment that supports agent conventions.
 
-3. **Primitives are universal; implementations are specific.** Every workspace needs state management, task decomposition, and workflow policies. The specific agents, review personas, and quality gates vary by technology and team conventions.
+3. **Templates over code generation.** Harness artifacts are Markdown files with placeholder variables, not programmatically generated code. Human-readable, Git-friendly, and manually editable.
 
-4. **Tuning is continuous.** Harnesses degrade as codebases evolve. The tuner agent detects drift between the installed harness and the current workspace state, then proposes targeted updates.
+4. **Discovery before composition.** The installer never guesses. It scans the workspace, identifies the tech stack, and presents findings before generating anything.
 
-5. **Composition over monolith.** Each primitive is independently installable. Teams can adopt the full framework or select specific primitives that address their needs.
+5. **Primitives are universal; implementations are specific.** Every workspace needs state management, task decomposition, and workflow policies. The specific agents, review personas, and quality gates vary by technology and team conventions.
+
+6. **Tuning is continuous.** Harnesses degrade as codebases evolve. The tuner agent detects drift between the installed harness and the current workspace state, then proposes targeted updates.
+
+7. **Composition over monolith.** Each primitive is independently installable. Teams can adopt the full framework or select specific primitives that address their needs.
 
 ## License
 

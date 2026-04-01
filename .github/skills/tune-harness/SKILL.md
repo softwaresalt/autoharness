@@ -6,6 +6,8 @@ description: "Maintenance and tuning workflow that iteratively adapts an install
 
 Analyze an installed agent harness against the current workspace state, detect drift, and propose targeted updates to keep the harness aligned with codebase evolution. Tuning is a non-destructive process: it proposes changes for review rather than silently overwriting artifacts.
 
+autoharness operates as a globally-installed tool. Templates for regenerating artifacts are read from the autoharness home directory; only updated harness artifacts are written to the target workspace.
+
 ## When to Use
 
 Invoke this skill periodically or when significant codebase changes occur:
@@ -19,6 +21,7 @@ Invoke this skill periodically or when significant codebase changes occur:
 
 ## Inputs
 
+* `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via the standard resolution order: `AUTOHARNESS_HOME` env var → agent directory traversal → `~/.autoharness/`.
 * `workspace_path`: (Required) Absolute path to the target workspace root.
 * `scope`: (Optional) Comma-separated list of tune targets: `instructions`, `agents`, `skills`, `policies`, `constitution`, `all`. Defaults to `all`.
 * `auto_apply`: (Optional, default false) When true, apply proposed changes without interactive review.
@@ -30,6 +33,15 @@ Invoke this skill periodically or when significant codebase changes occur:
 * Updated harness manifest
 
 ## Required Protocol
+
+### Phase 0: Validate autoharness Home
+
+Verify the `autoharness_home` path contains the expected structure:
+
+* `{autoharness_home}/templates/` — template files for artifact regeneration
+* `{autoharness_home}/schemas/` — JSON schemas for validation
+
+If any are missing, halt and report the issue. All template reads for regenerating artifacts use `{autoharness_home}/templates/` as the base path.
 
 ### Phase 1: Drift Detection
 

@@ -1,37 +1,108 @@
 ---
 title: Installation Guide
-description: Step-by-step guide for installing an agent harness into a target workspace
+description: Step-by-step guide for setting up autoharness globally and installing a harness into a target workspace
 ---
 
-## Prerequisites
+## Overview
 
-* VS Code with GitHub Copilot Chat enabled
-* autoharness repository available in a multi-root workspace alongside the target workspace
-* The target workspace should be a Git repository with at least basic project structure
-
-## Installation Methods
-
-### Method 1: Prompt-Based (Recommended)
-
-Open the target workspace alongside autoharness in a multi-root VS Code workspace.
-
-1. Open Copilot Chat
-2. Use the install prompt: `@harness-installer Install a harness for this workspace`
-3. Follow the interactive workflow:
-   * Confirm the target workspace
-   * Review the discovered profile
-   * Approve the installation plan
-   * Verify the installed artifacts
-
-### Method 2: Agent-Based (Programmatic)
-
-Invoke the harness-installer agent directly with specific parameters:
+autoharness is installed once to a global location and invoked against target workspaces. The target workspace receives only the generated harness artifacts — never autoharness engine files, templates, or schemas.
 
 ```text
-@harness-installer workspace=/path/to/target primitives=1,2,3,4,5,6,7,8
+┌──────────────────────────┐       ┌──────────────────────────┐
+│  autoharness (global)    │       │  target workspace        │
+│  ~/.autoharness/         │       │  ~/projects/my-app/      │
+│                          │       │                          │
+│  templates/              │──────▶│  AGENTS.md               │
+│  schemas/                │ reads │  .github/agents/         │
+│  .github/agents/         │ tmpl, │  .github/skills/         │
+│  .github/skills/         │ writes│  .github/instructions/   │
+│                          │ output│  .github/policies/       │
+│                          │       │  .backlog/               │
+│                          │       │  .autoharness/           │
+└──────────────────────────┘       └──────────────────────────┘
 ```
 
-### Method 3: Selective Installation
+## Step 1: Install autoharness Globally
+
+Clone the repository to your preferred global location:
+
+```bash
+git clone https://github.com/softwaresalt/autoharness.git ~/.autoharness
+```
+
+Or use a custom location and set the environment variable:
+
+```bash
+git clone https://github.com/softwaresalt/autoharness.git ~/tools/autoharness
+export AUTOHARNESS_HOME=~/tools/autoharness   # bash/zsh
+$env:AUTOHARNESS_HOME = "$HOME\tools\autoharness"  # PowerShell
+```
+
+The `autoharness_home` path is resolved by agents in this order:
+
+1. `AUTOHARNESS_HOME` environment variable
+2. Directory traversal from the agent definition file
+3. `~/.autoharness/` default
+
+## Step 2: Register with Your AI Coding Environment
+
+autoharness is environment-agnostic. Register it once in whichever environment(s) you use.
+
+### VS Code with GitHub Copilot
+
+Add autoharness as a workspace folder in a multi-root workspace alongside your target project. The agents, skills, and prompts are automatically discovered from the `.github/` directory.
+
+Alternatively, reference it in your VS Code settings:
+
+```jsonc
+// .vscode/settings.json (in your target workspace)
+{
+  "github.copilot.chat.agentWorkspaceFolders": ["~/.autoharness"]
+}
+```
+
+### GitHub Copilot CLI
+
+Invoke with the workspace argument:
+
+```bash
+ghcp agent @harness-installer workspace=/path/to/target
+```
+
+### Claude Code
+
+Reference the autoharness agent directly:
+
+```bash
+claude --agent ~/.autoharness/.github/agents/harness-installer.agent.md
+```
+
+### Cursor
+
+Add autoharness as an agent source in Cursor settings, pointing to `~/.autoharness/.github/agents/`.
+
+### Codex
+
+Reference the autoharness agents directory or pass the AGENTS.md as system context.
+
+## Step 3: Install a Harness into a Target Workspace
+
+### Full Installation (Recommended)
+
+```text
+@harness-installer workspace=/path/to/target
+```
+
+The installer will:
+
+1. **Resolve autoharness home** — locate templates and schemas
+2. **Discover** the target workspace profile (languages, frameworks, build tools, test runners, CI/CD)
+3. **Present** a proposed harness configuration for your review
+4. **Generate** customized agents, skills, instructions, policies, and constitutional docs
+5. **Install** the artifacts into the target workspace
+6. **Verify** the installation is coherent and all cross-references resolve
+
+### Selective Installation
 
 Install only specific primitives:
 
@@ -50,13 +121,21 @@ Install only specific primitives:
 7. Observability & Evaluation
 8. Workflow Policy
 
-## What Gets Installed
+### Dry Run (Preview)
 
-### Directory Structure
+Generate artifacts to a staging directory without installing:
+
+```text
+@harness-installer workspace=/path/to/target dry_run=true
+```
+
+## What Gets Installed in the Target
+
+The target workspace receives only generated harness artifacts:
 
 ```text
 target-workspace/
-  AGENTS.md                              # Root agent instructions
+  AGENTS.md                              # Root agent instructions (adapted to tech stack)
   .github/
     copilot-instructions.md              # Shared development guidelines
     agents/                              # Agent definitions
@@ -110,8 +189,10 @@ target-workspace/
     completed/
   .autoharness/
     workspace-profile.yaml               # Discovered workspace profile
-    harness-manifest.yaml                # Installation tracking
+    harness-manifest.yaml                # Installation tracking (includes autoharness_home)
 ```
+
+**Not installed in the target**: autoharness templates, schemas, installer/tuner agents, documentation, or any engine files.
 
 ## Post-Installation
 
@@ -123,6 +204,7 @@ The installer runs automatic verification. You can also manually check:
 2. Check that the constitution mentions your project's technology stack
 3. Verify `AGENTS.md` has the correct build/test/lint commands
 4. Confirm instruction file `applyTo` patterns match your file extensions
+5. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
 
 ### First Use
 
@@ -134,11 +216,13 @@ The installer runs automatic verification. You can also manually check:
 
 ### Ongoing Maintenance
 
-Run the tuner periodically:
+Run the tuner from the global autoharness installation against the target workspace:
 
 ```text
-@harness-tuner Tune the harness for current workspace state
+@harness-tuner workspace=/path/to/target
 ```
+
+The tuner reads updated templates from the global installation and proposes changes to the target workspace's harness artifacts.
 
 Recommended tuning schedule:
 
@@ -146,3 +230,14 @@ Recommended tuning schedule:
 * After adding new languages or frameworks
 * After changing CI/CD pipelines
 * Monthly for actively developed projects
+
+## Updating autoharness Itself
+
+To get new templates, improved agents, and updated schemas:
+
+```bash
+cd ~/.autoharness
+git pull
+```
+
+Existing target workspace harnesses are not affected until you run the tuner against them. The tuner will detect template improvements and propose updates.

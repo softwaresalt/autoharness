@@ -26,10 +26,12 @@ Agent harnesses degrade over time. Common causes:
 
 ## How to Tune
 
+The tuner is invoked from the global autoharness installation against a target workspace. It reads updated templates from autoharness home and proposes changes to the target's harness artifacts.
+
 ### Interactive Tuning (Recommended)
 
 ```text
-@harness-tuner Tune the harness for current workspace state
+@harness-tuner workspace=/path/to/target
 ```
 
 The tuner will:
@@ -46,11 +48,11 @@ The tuner will:
 Focus on specific areas:
 
 ```text
-@harness-tuner scope=instructions    # Only check instruction files
-@harness-tuner scope=agents          # Only check agent definitions
-@harness-tuner scope=skills          # Only check skill workflows
-@harness-tuner scope=policies        # Only check workflow policies
-@harness-tuner scope=constitution    # Only check constitutional docs
+@harness-tuner workspace=/path/to/target scope=instructions    # Only check instruction files
+@harness-tuner workspace=/path/to/target scope=agents          # Only check agent definitions
+@harness-tuner workspace=/path/to/target scope=skills          # Only check skill workflows
+@harness-tuner workspace=/path/to/target scope=policies        # Only check workflow policies
+@harness-tuner workspace=/path/to/target scope=constitution    # Only check constitutional docs
 ```
 
 ## Drift Categories
