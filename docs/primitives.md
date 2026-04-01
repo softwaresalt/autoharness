@@ -1,11 +1,11 @@
 ---
-title: The 8 Irreducible Harness Primitives
+title: The 9 Irreducible Harness Primitives
 description: Deep documentation of each primitive, its purpose, implementation patterns, and how autoharness adapts it per workspace
 ---
 
 ## Overview
 
-Through empirical evaluation of production agent harnesses, we identified 8 irreducible primitives that every effective harness implements. These primitives are technology-agnostic: a Rust project, a TypeScript monorepo, and a Python ML pipeline all need the same structural elements, though the specific implementations differ.
+Through empirical evaluation of production agent harnesses, we identified 9 irreducible primitives that every effective harness implements. These primitives are technology-agnostic: a Rust project, a TypeScript monorepo, and a Python ML pipeline all need the same structural elements, though the specific implementations differ.
 
 autoharness packages these primitives as customizable templates. The workspace-discovery skill identifies which technology-specific adaptations are needed, and the install-harness skill composes the final artifacts.
 
@@ -121,12 +121,15 @@ Layered safety controls:
 3. **Destructive approval workflow**: Deletions and removals require operator approval
 4. **Terminal command policy**: Destructive commands require approval regardless of permissive flags
 5. **Feature flags**: New agent-generated modules are gated behind feature flags
+6. **Architecture enforcement**: Custom linters and structural tests enforce dependency direction, naming conventions, and layering boundaries. Lint error messages are written for agent consumption, providing remediation instructions directly in context. Agents operate within strict boundaries but have freedom in implementation within those boundaries.
 
 ### Adaptation Points
 
 * Approval workflow integration depends on available communication channels
 * Terminal command auto-approve patterns are workspace-specific
 * Feature flag mechanisms differ by technology
+* Architecture enforcement linters are generated from the workspace's layering model and naming conventions
+* Lint error messages adapt to the primary language's toolchain (clippy for Rust, eslint for TypeScript, ruff for Python)
 
 ## Primitive 6: Injection Points and Dynamic Reminders
 
@@ -171,11 +174,15 @@ Findings use a structured severity and action system:
 
 Compound learnings capture post-mortem insights for future reference.
 
+4. **Entropy management and continuous cleanup**: Agents replicate patterns already present in the repository — including suboptimal ones. Over time, this leads to drift and architectural decay. Background cleanup agents run on a regular cadence to scan for deviations from established patterns, update quality grades, and open targeted refactoring PRs. This functions like garbage collection: technical debt is paid down continuously in small increments rather than compounding into painful bursts.
+
 ### Adaptation Points
 
 * Review personas adapt to the workspace's technology (Rust safety → Python type safety, etc.)
 * Conditional activation patterns match the workspace's concurrency and architecture patterns
 * Severity definitions may need calibration for different codebases
+* Entropy management cadence depends on the workspace's change velocity and team size
+* Cleanup scope is technology-specific (pattern deduplication, naming alignment, dependency hygiene)
 
 ## Primitive 8: Workflow Policy
 
@@ -207,3 +214,55 @@ Five core policies:
 * Policy violation actions depend on available communication channels
 * Gate points map to the workspace's specific pipeline stages
 * Additional policies may be needed for domain-specific concerns
+
+## Primitive 9: Repository Knowledge and Agent Legibility
+
+### The Problem
+
+Agents can only reason about what they can see in context. Knowledge that lives in chat threads, Google Docs, or people's heads is invisible to the agent. When the repository lacks structured, navigable documentation, agents guess at architecture, repeat solved problems, and make decisions that conflict with established patterns. A monolithic instruction file (the "one big AGENTS.md" approach) fails because it crowds out the task, makes everything equally "important," rots instantly, and resists mechanical validation.
+
+OpenAI's harness engineering experiment validated this: *"give Codex a map, not a 1,000-page instruction manual."*
+
+### The Solution
+
+The repository is structured as a self-maintaining knowledge base that agents can navigate through progressive disclosure:
+
+1. **AGENTS.md as table of contents**: A short (~100 line) entry point that serves as a map to deeper sources of truth. It points agents to the right documentation rather than containing everything itself.
+
+2. **Structured knowledge directory**: A `docs/` directory treated as the system of record for **durable knowledge** — information that persists and evolves with the codebase:
+   * `ARCHITECTURE.md` — Top-level map of domains, package layering, and dependency direction
+   * `design-docs/` — Catalogued design decisions and rationale (graduated from completed work)
+   * `product-specs/` — Product requirements and acceptance criteria
+   * `references/` — External documentation relevant to the codebase (llms.txt files, API docs)
+   * Quality grades per domain — tracking which areas are well-covered vs. fragile
+
+3. **Separation from backlog**: The `docs/` directory holds durable knowledge; the backlog directory (`.backlog/`, `.backlogit/`, or `backlog/`) holds active work items. These serve different lifecycles:
+
+   | Directory | Contains | Lifecycle |
+   |---|---|---|
+   | Backlog | Tasks, active plans, brainstorm drafts, reviews, session memory, compound learnings | Created → Active → Done → Archived |
+   | `docs/` | Architecture, design decisions, product specs, quality grades, references | Persists and evolves with codebase |
+
+   Plans, execution logs, and brainstorm documents live in the backlog because they're work items managed by the backlog tool. The *decisions and rationale* they produce graduate into `docs/` as durable design records.
+
+4. **Knowledge graduation**: When backlog work completes, the doc-ops agent evaluates whether it produced reference-worthy knowledge:
+   * **Architectural decisions** from completed plans → `docs/design-docs/` as design records
+   * **Hard-won solutions** from compound learnings → remain in backlog compound directory (already searchable)
+   * **New domain patterns** discovered during implementation → update `docs/ARCHITECTURE.md`
+   * **Product requirements** that emerged during brainstorm → `docs/product-specs/`
+
+   Graduation is not copying — it's distilling the durable insight from the ephemeral work artifact. The backlog item is archived by the backlog tool; the knowledge it produced lives on in `docs/`.
+
+5. **Progressive disclosure**: Agents start with a small, stable entry point and are taught where to look next, rather than being overwhelmed up front. Each level of documentation points deeper when needed.
+
+6. **Doc-gardening agent**: A background agent that runs on a regular cadence to scan for stale or obsolete documentation that no longer reflects the codebase. It opens targeted fix-up PRs to keep documentation in sync with code. It also runs the graduation process after features complete.
+
+7. **Mechanical enforcement**: CI-integrated checks validate that the knowledge base is up to date, cross-linked, and structurally correct. Custom linters verify documentation freshness, coverage, and ownership.
+
+### Adaptation Points
+
+* The `docs/` directory structure adapts to the workspace's existing documentation patterns
+* Doc-gardening frequency depends on the workspace's change velocity
+* Progressive disclosure depth varies by codebase complexity (a small CLI tool needs less than a large monorepo)
+* Architecture documentation captures whatever layering and domain boundaries the workspace uses
+* Quality grading categories adapt to the workspace's technology domains

@@ -1,11 +1,11 @@
 ---
-description: "Reference architecture for the 8 irreducible harness primitives and how they compose into a complete agent harness"
+description: "Reference architecture for the 9 irreducible harness primitives and how they compose into a complete agent harness"
 applyTo: '**'
 ---
 
 # Harness Architecture Instructions
 
-This document defines the reference architecture for the 8 irreducible primitives that compose any effective agent harness. Use this as a guide when creating, modifying, or reviewing harness templates and installed harness artifacts.
+This document defines the reference architecture for the 9 irreducible primitives that compose any effective agent harness. Use this as a guide when creating, modifying, or reviewing harness templates and installed harness artifacts.
 
 autoharness operates as a global tool: templates and schemas live in the autoharness installation (`autoharness_home`), and only the generated harness artifacts are installed into target workspaces. All artifact paths below refer to locations in the target workspace after installation. The templates that produce them live in `{autoharness_home}/templates/`.
 
@@ -83,12 +83,13 @@ autoharness operates as a global tool: templates and schemas live in the autohar
 
 ## Primitive 5: Tool Execution and Guardrails
 
-**Purpose**: Allow agents to mutate the environment safely with policy enforcement.
+**Purpose**: Allow agents to mutate the environment safely with policy enforcement and architectural boundary protection.
 
 **Key Artifacts**:
 
 * `constitution.instructions.md` — Principles III-V (workspace isolation, containment, destructive approval)
 * `workflow-policies.md` — P-001 through P-005
+* Custom architectural linters — Enforce dependency direction, naming, and layering (generated per workspace)
 
 **Design Rules**:
 
@@ -97,6 +98,8 @@ autoharness operates as a global tool: templates and schemas live in the autohar
 * CLI workspace containment: no writes outside cwd
 * Feature flags gate new agent-generated modules to prevent system instability
 * Terminal commands run one at a time (no chaining)
+* Architectural linters enforce structural boundaries with agent-readable error messages
+* Lint error messages include remediation instructions so agents can self-correct
 
 ## Primitive 6: Injection Points and Dynamic Reminders
 
@@ -117,7 +120,7 @@ autoharness operates as a global tool: templates and schemas live in the autohar
 
 ## Primitive 7: Observability and Evaluation
 
-**Purpose**: Track agent efficacy and output quality through automated evaluation.
+**Purpose**: Track agent efficacy and output quality through automated evaluation, and continuously manage codebase entropy.
 
 **Key Artifacts**:
 
@@ -125,6 +128,7 @@ autoharness operates as a global tool: templates and schemas live in the autohar
 * `review/SKILL.md` — Multi-persona code review
 * `plan-review/SKILL.md` — Multi-persona plan review
 * `compound/SKILL.md` — Post-mortem knowledge capture
+* `doc-ops.agent.md` — Documentation gardening and entropy cleanup
 
 **Design Rules**:
 
@@ -133,6 +137,8 @@ autoharness operates as a global tool: templates and schemas live in the autohar
 * Findings use a 4-level severity system (P0-P3) with action classes (safe_auto, gated_auto, manual, advisory)
 * Cross-model diversity is preferred (different models for different personas) but not blocking
 * Compound learnings capture hard-won solutions for future reference
+* Entropy management: background agents scan for pattern deviations, update quality grades, and open targeted refactoring PRs on a regular cadence
+* Cleanup agents function as garbage collection — paying down technical debt continuously in small increments
 
 ## Primitive 8: Workflow Policy
 
@@ -153,6 +159,29 @@ autoharness operates as a global tool: templates and schemas live in the autohar
 * P-005: Policy violation telemetry (all violations recorded and broadcast)
 * Policy violations are first-class observability signals
 
+## Primitive 9: Repository Knowledge and Agent Legibility
+
+**Purpose**: Structure the repository as a navigable, self-maintaining knowledge base that agents can reason over through progressive disclosure.
+
+**Key Artifacts**:
+
+* `AGENTS.md` — Short entry point (~100 lines) serving as table of contents, not encyclopedia
+* `docs/ARCHITECTURE.md` — Top-level map of domains, package layering, and dependency direction
+* `docs/` directory — Durable knowledge (design docs, product specs, quality grades, references)
+* `doc-ops.agent.md` — Documentation gardening agent that scans for stale docs, opens fix-up PRs, and graduates knowledge from completed backlog work
+* `architecture-doc.instructions.md` — Rules for maintaining architecture documentation
+
+**Design Rules**:
+
+* AGENTS.md is a map, not a manual — agents start with a small entry point and are taught where to look next
+* Repository knowledge is the system of record — anything not discoverable in the repo doesn't exist to the agent
+* `docs/` holds durable knowledge; the backlog directory holds active work items — different lifecycles, different concerns
+* Knowledge graduation: when backlog work completes, architectural decisions and design rationale are distilled into `docs/design-docs/`; compound learnings stay in the backlog's compound directory
+* Documentation is mechanically validated: CI checks verify freshness, cross-links, and structural correctness
+* Doc-gardening runs on a regular cadence (configurable), scanning for obsolete content that no longer reflects code
+* Progressive disclosure depth scales with codebase complexity
+* Quality grades per domain track which areas are well-documented vs. fragile
+
 ## Primitive Interaction Map
 
 ```text
@@ -166,16 +195,17 @@ autoharness operates as a global tool: templates and schemas live in the autohar
 │         │                        │                    │
 │         ▼                        ▼                    │
 │  3. Model Routing ───→ 5. Guardrails                 │
-│     (assign models)       (enforce safety)            │
-│         │                        │                    │
-│         ▼                        ▼                    │
+│     (assign models)       (enforce safety +           │
+│         │                  architecture)              │
+│         ▼                        │                    │
 │  6. Injection Points    7. Observability              │
-│     (surface rules)       (evaluate output)           │
-│         │                        │                    │
+│     (surface rules)       (evaluate output +          │
+│         │                  manage entropy)            │
 │         └────────┬───────────────┘                    │
 │                  ▼                                    │
-│         1. State & Context                            │
-│            (persist everything)                       │
+│  9. Repo Knowledge ──→ 1. State & Context            │
+│     (structure the       (persist everything)         │
+│      knowledge base)                                  │
 │                                                       │
 └─────────────────────────────────────────────────────┘
 ```

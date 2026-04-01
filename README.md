@@ -15,7 +15,7 @@ Modern AI coding assistants (GitHub Copilot, Claude Code, Cursor, Codex) operate
 
 ## The Solution
 
-autoharness extracts the **8 universal primitives** of any agent harness (identified through empirical evaluation of production harnesses) and packages them as customizable templates. Two core workflows drive the system:
+autoharness extracts the **9 universal primitives** of any agent harness (identified through empirical evaluation of production harnesses) and packages them as customizable templates. Two core workflows drive the system:
 
 1. **Install**: Discover the target workspace's profile (tech stack, conventions, tools) and compose a tailored harness from primitive templates.
 2. **Tune**: Iteratively adapt the installed harness as the codebase, documentation, and team conventions evolve over time.
@@ -38,7 +38,7 @@ autoharness extracts the **8 universal primitives** of any agent harness (identi
 
 The target workspace never contains autoharness engine files. It gets only the finished, workspace-adapted harness artifacts.
 
-## The 8 Primitives
+## The 9 Primitives
 
 Every effective agent harness implements these irreducible primitives, regardless of language, framework, or domain:
 
@@ -48,10 +48,11 @@ Every effective agent harness implements these irreducible primitives, regardles
 | 2 | **Task Granularity & Horizon Scoping** | Decompose work to prevent error compounding        | 2-hour rule, width isolation, atomic milestones            |
 | 3 | **Model Routing & Escalation**        | Match model capability to task complexity           | Tier configuration, escalation laddering, cost tracking    |
 | 4 | **Orchestration & Delegation**        | Sequence agents through a feature lifecycle         | Pipeline agents, handoff rules, stop conditions            |
-| 5 | **Tool Execution & Guardrails**       | Safe environment mutation with policy enforcement  | Approval workflows, feature flags, sandboxing              |
+| 5 | **Tool Execution & Guardrails**       | Safe environment mutation with policy enforcement  | Approval workflows, feature flags, architecture linters    |
 | 6 | **Injection Points & Dynamic Reminders** | Surface constraints exactly when needed          | applyTo patterns, instruction reinforcement, DoD checks    |
-| 7 | **Observability & Evaluation**        | Track agent efficacy and output quality             | Review personas, metrics, automated grading                |
+| 7 | **Observability & Evaluation**        | Track agent efficacy, output quality, and entropy  | Review personas, metrics, grading, cleanup agents          |
 | 8 | **Workflow Policy**                   | Cross-agent sequencing and gate enforcement         | Policy registry, preconditions, violation telemetry        |
+| 9 | **Repository Knowledge & Agent Legibility** | Structure the repo as a navigable knowledge base | Progressive disclosure, doc-gardening, architecture docs   |
 
 ## Backlog Tool Integration
 
@@ -91,7 +92,7 @@ autoharness/                             # Global installation (e.g. ~/.autoharn
       tune-harness/SKILL.md              # Maintenance and tuning workflow
       workspace-discovery/SKILL.md       # Discover workspace tech stack and conventions
     instructions/
-      harness-architecture.instructions.md  # How the 8 primitives work together
+      harness-architecture.instructions.md  # How the 9 primitives work together
     prompts/
       install-harness.prompt.md          # User-facing prompt to install a harness
       tune-harness.prompt.md             # User-facing prompt to tune an installed harness
