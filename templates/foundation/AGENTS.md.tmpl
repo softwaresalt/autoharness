@@ -136,8 +136,7 @@ This file is a map, not a manual. For deeper context, consult these sources:
 | Topic | Location |
 |---|---|
 | Architecture & domain boundaries | `docs/ARCHITECTURE.md` |
-| Design documentation | `docs/design-docs/` |
-| Execution plans (active work) | `docs/exec-plans/active/` |
+| Design decisions & rationale | `docs/design-docs/` |
 | Product specifications | `docs/product-specs/` |
 | Quality grades per domain | `docs/QUALITY_SCORE.md` |
 | External references | `docs/references/` |
@@ -145,9 +144,10 @@ This file is a map, not a manual. For deeper context, consult these sources:
 | Workflow policies | `.github/policies/workflow-policies.md` |
 | Constitutional principles | `.github/instructions/constitution.instructions.md` |
 
-When you need context about the codebase, navigate this structure rather than
-searching exhaustively. Start with `docs/ARCHITECTURE.md` for the domain map,
-then drill into specific areas as needed.
+Active work items (tasks, plans, brainstorm, reviews) live in the backlog
+directory, not in `docs/`. When completed work produces durable design decisions
+or architectural rationale, the doc-ops agent graduates that knowledge into
+`docs/design-docs/`.
 
 ---
 

@@ -167,14 +167,16 @@ autoharness operates as a global tool: templates and schemas live in the autohar
 
 * `AGENTS.md` — Short entry point (~100 lines) serving as table of contents, not encyclopedia
 * `docs/ARCHITECTURE.md` — Top-level map of domains, package layering, and dependency direction
-* `docs/` directory — Structured knowledge (design docs, exec plans, product specs, quality grades, references)
-* `doc-ops.agent.md` — Documentation gardening agent that scans for stale docs and opens fix-up PRs
+* `docs/` directory — Durable knowledge (design docs, product specs, quality grades, references)
+* `doc-ops.agent.md` — Documentation gardening agent that scans for stale docs, opens fix-up PRs, and graduates knowledge from completed backlog work
 * `architecture-doc.instructions.md` — Rules for maintaining architecture documentation
 
 **Design Rules**:
 
 * AGENTS.md is a map, not a manual — agents start with a small entry point and are taught where to look next
 * Repository knowledge is the system of record — anything not discoverable in the repo doesn't exist to the agent
+* `docs/` holds durable knowledge; the backlog directory holds active work items — different lifecycles, different concerns
+* Knowledge graduation: when backlog work completes, architectural decisions and design rationale are distilled into `docs/design-docs/`; compound learnings stay in the backlog's compound directory
 * Documentation is mechanically validated: CI checks verify freshness, cross-links, and structural correctness
 * Doc-gardening runs on a regular cadence (configurable), scanning for obsolete content that no longer reflects code
 * Progressive disclosure depth scales with codebase complexity

@@ -229,19 +229,35 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
 1. **AGENTS.md as table of contents**: A short (~100 line) entry point that serves as a map to deeper sources of truth. It points agents to the right documentation rather than containing everything itself.
 
-2. **Structured knowledge directory**: A `docs/` directory treated as the system of record:
+2. **Structured knowledge directory**: A `docs/` directory treated as the system of record for **durable knowledge** — information that persists and evolves with the codebase:
    * `ARCHITECTURE.md` — Top-level map of domains, package layering, and dependency direction
-   * `design-docs/` — Catalogued design documentation with verification status
-   * `exec-plans/` — Active and completed execution plans with progress logs
+   * `design-docs/` — Catalogued design decisions and rationale (graduated from completed work)
    * `product-specs/` — Product requirements and acceptance criteria
    * `references/` — External documentation relevant to the codebase (llms.txt files, API docs)
    * Quality grades per domain — tracking which areas are well-covered vs. fragile
 
-3. **Progressive disclosure**: Agents start with a small, stable entry point and are taught where to look next, rather than being overwhelmed up front. Each level of documentation points deeper when needed.
+3. **Separation from backlog**: The `docs/` directory holds durable knowledge; the backlog directory (`.backlog/`, `.backlogit/`, or `backlog/`) holds active work items. These serve different lifecycles:
 
-4. **Doc-gardening agent**: A background agent that runs on a regular cadence to scan for stale or obsolete documentation that no longer reflects the codebase. It opens targeted fix-up PRs to keep documentation in sync with code. This prevents the knowledge base from rotting.
+   | Directory | Contains | Lifecycle |
+   |---|---|---|
+   | Backlog | Tasks, active plans, brainstorm drafts, reviews, session memory, compound learnings | Created → Active → Done → Archived |
+   | `docs/` | Architecture, design decisions, product specs, quality grades, references | Persists and evolves with codebase |
 
-5. **Mechanical enforcement**: CI-integrated checks validate that the knowledge base is up to date, cross-linked, and structurally correct. Custom linters verify documentation freshness, coverage, and ownership.
+   Plans, execution logs, and brainstorm documents live in the backlog because they're work items managed by the backlog tool. The *decisions and rationale* they produce graduate into `docs/` as durable design records.
+
+4. **Knowledge graduation**: When backlog work completes, the doc-ops agent evaluates whether it produced reference-worthy knowledge:
+   * **Architectural decisions** from completed plans → `docs/design-docs/` as design records
+   * **Hard-won solutions** from compound learnings → remain in backlog compound directory (already searchable)
+   * **New domain patterns** discovered during implementation → update `docs/ARCHITECTURE.md`
+   * **Product requirements** that emerged during brainstorm → `docs/product-specs/`
+
+   Graduation is not copying — it's distilling the durable insight from the ephemeral work artifact. The backlog item is archived by the backlog tool; the knowledge it produced lives on in `docs/`.
+
+5. **Progressive disclosure**: Agents start with a small, stable entry point and are taught where to look next, rather than being overwhelmed up front. Each level of documentation points deeper when needed.
+
+6. **Doc-gardening agent**: A background agent that runs on a regular cadence to scan for stale or obsolete documentation that no longer reflects the codebase. It opens targeted fix-up PRs to keep documentation in sync with code. It also runs the graduation process after features complete.
+
+7. **Mechanical enforcement**: CI-integrated checks validate that the knowledge base is up to date, cross-linked, and structurally correct. Custom linters verify documentation freshness, coverage, and ownership.
 
 ### Adaptation Points
 

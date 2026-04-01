@@ -50,6 +50,53 @@ For each detected issue, either fix directly (for simple corrections) or open a 
 * Complex fixes: describe the issue, propose the change, open PR for review
 * Never silently delete documentation — propose removal with justification
 
+## Knowledge Graduation (Post-Feature Completion)
+
+Run this workflow after a feature completes (triggered by build-orchestrator or PR merge) to promote durable knowledge from backlog work items into `docs/`.
+
+The backlog directory holds active work — tasks, plans, brainstorm drafts, reviews, compound learnings. The `docs/` directory holds durable knowledge — architecture, design decisions, product specs. These are different lifecycles. Graduation bridges them.
+
+### Step K1: Scan Completed Work
+
+Review recently completed backlog items for knowledge worth preserving:
+
+* Completed execution plans in the backlog's `plans/` or `completed/` directory
+* Compound learnings captured during the feature build
+* Brainstorm documents that established product direction
+* Review artifacts that surfaced architectural decisions
+
+### Step K2: Identify Graduatable Knowledge
+
+Not everything graduates. Apply these filters:
+
+| Graduates to `docs/` | Stays in backlog |
+|---|---|
+| Architectural decisions and rationale | Task status and progress logs |
+| Design patterns chosen (and why alternatives were rejected) | Session memory and checkpoints |
+| New domain boundaries or dependency rules | Review comments and fix iterations |
+| Product requirements that emerged from brainstorm | Ephemeral brainstorm drafts |
+| API contracts or interface decisions | Compound learnings (already searchable in backlog) |
+
+### Step K3: Distill and Write
+
+For each piece of graduatable knowledge:
+
+1. **Distill** — extract the durable insight from the work artifact. Do not copy the plan verbatim; capture the *decision*, *rationale*, and *constraints* that future agents need.
+2. **Place** — write to the appropriate `docs/` location:
+   * Architectural decisions → `docs/design-docs/{feature-name}.md`
+   * Domain boundary changes → update `docs/ARCHITECTURE.md`
+   * Product requirements → `docs/product-specs/`
+   * Quality implications → update `docs/QUALITY_SCORE.md`
+3. **Cross-link** — add references between the new doc and related existing docs. Update the AGENTS.md progressive disclosure map if new top-level topics were added.
+4. **Verify** — confirm the graduated doc is accurate against the current codebase, not the plan's aspirational state.
+
+### Step K4: Update Quality Grades
+
+After graduation, reassess quality grades for affected domains:
+
+* Did the feature improve documentation coverage? Upgrade the grade.
+* Did the feature introduce new undocumented areas? Flag for future gardening.
+
 ## Quality Assessment
 
 ### Step 1: Discovery
