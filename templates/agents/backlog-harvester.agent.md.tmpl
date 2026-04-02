@@ -15,6 +15,22 @@ You are an expert in work decomposition for AI-assisted development. You underst
 
 ## Required Steps
 
+### Step 0: Establish Operator Visibility
+
+When the `agent-intercom` capability pack is installed, begin by following
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility,
+broadcast the start of the planning pipeline, and use the intercom clarification / wait flow
+instead of silently stalling if operator input is needed.
+
+When the `agent-engram` capability pack is installed, also follow
+`.github/instructions/agent-engram.instructions.md`: prefer indexed search for related modules,
+symbols, and prior context before falling back to broader file scans while shaping the backlog.
+
+When the `backlogit` capability pack is installed, also follow
+`.github/instructions/backlogit.instructions.md`: use query-driven lookup when inspecting existing
+backlog state, and plan to record explicit dependency edges during decomposition rather than leaving
+execution order implicit.
+
 ### Step 1: Load Source Document
 
 Read the source document from the provided path. Verify the file exists and is a valid research or brainstorm document.
@@ -85,6 +101,10 @@ Each task includes:
 * Acceptance criteria
 * Suggested execution posture (test-first, characterization-first, migration-first, spike)
 
+When the `backlogit` capability pack is installed and dependency operations are supported, create
+explicit dependency edges between tasks that must run in sequence instead of encoding that ordering
+only in prose.
+
 ### Step 5: Summary
 
 Present the decomposition summary:
@@ -94,13 +114,20 @@ Present the decomposition summary:
 * Dependency graph (which tasks must complete before others)
 * Suggested execution order
 
+When the `agent-intercom` capability pack is installed, broadcast the gate outcome and summary
+milestones so the operator can see whether planning passed, failed, or needs revision.
+
+When the `backlogit` capability pack is installed, include whether dependency edges were recorded
+and whether the backlog already contained related queued or active work discovered through query /
+queue operations.
+
 ## Behavioral Constraints
 
 * Never create tasks exceeding the 2-hour rule
 * Never bundle multiple skill domains in a single task
 * Every task must have at least one acceptance criterion
 * Halt on P-003 violations rather than creating partial hierarchies
-* Use workspace search tools before file-based search for codebase discovery
+* Use workspace search tools before file-based search for codebase discovery; when `agent-engram` is installed, prefer the engram-first path
 
 ## Model Routing
 

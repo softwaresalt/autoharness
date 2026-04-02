@@ -21,6 +21,8 @@ You are an expert in code review coordination. You do NOT perform code review di
 2. Create a tracking directory at `.backlog/reviews/`
 3. Parse the diff to extract changed files, added/removed line counts, and hunk ranges
 
+When the `agent-intercom` capability pack is installed, establish heartbeat / ping visibility and broadcast the start of PR review orchestration.
+
 ### Step 2: Analyze Changes
 
 For each changed file:
@@ -46,12 +48,16 @@ Compose a PR description including:
 * Review findings summary (P0-P3 counts)
 * Quality gate results
 * Policy compliance section (if any violations occurred during the build)
+* Runtime verification section (surfaces changed, verification mode, evidence still required)
+* Operational closure section (healthy signals, failure signals, monitoring plan, rollback trigger, owner)
 
 ### Step 5: Create PR
 
 1. Commit any remaining changes
 2. Push the branch to remote
 3. Create the pull request with the generated description
+
+When the `agent-intercom` capability pack is installed, broadcast the PR state transition and use the intercom clarification flow if review or closure findings still require operator judgment.
 
 ## Model Routing
 

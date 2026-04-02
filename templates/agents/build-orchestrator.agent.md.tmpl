@@ -17,15 +17,23 @@ You are the central execution coordinator. You do not write code directly. You d
 
 ### Step 1: Pre-Flight Checks
 
+1. When the `agent-intercom` capability pack is installed, follow `.github/instructions/agent-intercom.instructions.md` to establish heartbeat / ping visibility and broadcast the start of orchestration work
+1. When the `agent-engram` capability pack is installed, follow `.github/instructions/agent-engram.instructions.md` and verify the engram daemon / binding surface is available before depending on indexed analysis
+1. When the `backlogit` capability pack is installed, follow `.github/instructions/backlogit.instructions.md` and verify the backlogit queue / dependency / checkpoint surface is available before depending on those behaviors
 1. **P-001 Gate**: Check that no other features are `In Progress` in the backlog
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
 3. **Re-read constitution**: Load `.github/instructions/constitution.instructions.md` Principles I, II, IV
+4. If the task has elevated blast radius, uncertain root cause, or destructive potential, invoke **safety-modes** in the appropriate mode before modifying code
 
 ### Step 2: Build Ready Queue
 
 List all tasks with `harness-ready` label (P-002 gate) for the target feature using the backlog tool's list operation (see `backlog-integration.instructions.md`). Filter by `{{FIELD_LABELS}}: "harness-ready"` and `{{FIELD_STATUS}}: "{{STATUS_TODO}}"`. If no tasks are ready, halt and suggest running the harness-architect.
 
 Sort the queue by dependency order (tasks with no unfinished dependencies first).
+
+When the `backlogit` capability pack is installed and queue-aware operations are supported, prefer
+the queue operation to assemble the ready set. When dependency operations are supported, verify the
+dependency graph before claiming work rather than assuming the backlog ordering is already valid.
 
 ### Step 3: Execute Task Loop
 
@@ -34,6 +42,8 @@ For each task in the ready queue:
 #### Step 3.1: Claim Task
 
 Update task status to `{{STATUS_IN_PROGRESS}}` using the backlog tool's move operation.
+
+When the `agent-intercom` capability pack is installed, broadcast the task claim and current task ID.
 
 #### Step 3.2: Delegate to Build Feature
 
@@ -54,6 +64,10 @@ After the build-feature skill reports success:
 
 If any gate fails, return to the build-feature skill for a fix iteration.
 
+When the `agent-engram` capability pack is installed, prefer `list_symbols`, `map_code`, or
+`impact_analysis` before broad file scans when diagnosing repeated failures or validating the blast
+radius of a risky fix.
+
 #### Step 3.4: Review Gate
 
 Invoke the **review** skill in `report-only` mode against the changed files. If P0/P1 findings are reported, fix them before proceeding.
@@ -62,16 +76,32 @@ Invoke the **review** skill in `report-only` mode against the changed files. If 
 
 1. Commit changes with a conventional commit message
 2. Update task status to `{{STATUS_DONE}}` using the backlog tool's complete operation
-3. Write a memory checkpoint via the memory agent
-4. If the task required 3+ attempts, invoke the compound skill to capture learnings
+3. If the `backlogit` capability pack is installed and commit-tracking is supported, associate the commit with the task through the backlog tool's traceability operation
+4. Write a memory checkpoint via the memory agent
+5. If the task required 3+ attempts, invoke the compound skill to capture learnings
+
+If the `agent-intercom` capability pack is installed, broadcast task completion and any blocked / retry conditions that materially affect the batch.
+
+When the `backlogit` capability pack is installed and comments are supported, append a concise
+task comment summarizing the outcome, notable constraints, or handoff context that the next agent
+or operator should know.
 
 ### Step 4: Batch Completion
 
 After all tasks in the queue are complete:
 
 1. Run the full quality gate sequence one final time
-2. Push the feature branch
-3. Write a session memory summary
+2. Invoke the **pr-review** agent to update or create the PR and carry forward runtime verification / closure expectations
+3. If CI or automated review comments fail, invoke the **fix-ci** skill before proceeding
+4. If the changed work touches runtime surfaces or the runtime-verification skill is installed, invoke **runtime-verification** with the affected surfaces
+5. Invoke **operational-closure** to produce release-readiness, monitoring, rollback, and follow-up artifacts
+6. Push the feature branch (or update the existing PR branch)
+7. Write a session memory summary
+
+When the `agent-intercom` capability pack is installed, broadcast final readiness / blocked status and use the intercom clarification flow if unresolved operator guidance is needed before merge or deploy.
+
+When the `backlogit` capability pack is installed and checkpoint or memory operations are supported,
+persist a final session checkpoint or summary through backlogit before handing off or ending the batch.
 
 ## Circuit Breakers
 
@@ -91,6 +121,6 @@ This agent operates at **Tier 2 (Standard)** — orchestration, coordination, an
 
 ## Subagent Depth
 
-Maximum 2 hops. This agent invokes skills (build-feature, review, compound, memory) and those skills do not spawn further subagents.
+Maximum 2 hops. This agent invokes skills and agents (build-feature, review, pr-review, fix-ci, runtime-verification, operational-closure, compound, memory) and those skills do not spawn further subagents.
 
 Generated by autoharness | Template: build-orchestrator.agent.md.tmpl

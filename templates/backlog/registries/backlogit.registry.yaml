@@ -110,6 +110,48 @@ operations:
     params:
       state_dump: "state_dump"
 
+  get_queue:
+    mcp_tool: "backlogit_get_queue"
+    cli_command: "backlogit queue view"
+    params:
+      type: "type"
+      status: "status"
+      assigned_to: "assigned_to"
+      limit: "limit"
+      offset: "offset"
+      group_by: "group_by"
+
+  add_dependency:
+    mcp_tool: "backlogit_add_dependency"
+    cli_command: "backlogit dep add {{task_id}} {{depends_on}} --type {{dep_type}}"
+    params:
+      task_id: "item_id"
+      depends_on: "depends_on"
+      dep_type: "dep_type"
+
+  remove_dependency:
+    mcp_tool: "backlogit_remove_dependency"
+    cli_command: "backlogit dep remove {{task_id}} {{depends_on}}"
+    params:
+      task_id: "item_id"
+      depends_on: "depends_on"
+
+  get_dependencies:
+    mcp_tool: "backlogit_get_dependencies"
+    cli_command: "backlogit dep list {{task_id}}"
+    params:
+      task_id: "id"
+      reverse: "reverse"
+
+  track_commit:
+    mcp_tool: "backlogit_track_commit"
+    cli_command: "backlogit update {{task_id}} --commit {{sha}}"
+    params:
+      task_id: "item_id"
+      sha: "sha"
+      message: "message"
+      author: "author"
+
 field_mapping:
   task_id: "id"
   title: "title"
@@ -138,5 +180,7 @@ features:
   definition_of_done: false
   workflow_guides: false
   dependencies: true
+  queue: true
   sections: true
   templates: true
+  commit_tracking: true

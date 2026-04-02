@@ -24,12 +24,47 @@
       "type": "string",
       "description": "SHA-256 of the workspace profile used during installation"
     },
+    "install_preset": {
+      "type": ["string", "null"],
+      "enum": ["starter", "standard", "full", null],
+      "description": "Preset used when the harness was installed"
+    },
+    "capability_packs": {
+      "type": "array",
+      "description": "Optional capability packs enabled during installation",
+      "items": {
+        "type": "string",
+        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability"]
+      }
+    },
+    "capability_pack_overlays": {
+      "type": "array",
+      "description": "Structured record of which artifact classes each enabled capability pack was woven into",
+      "items": {
+        "type": "object",
+        "required": ["pack", "overlay_targets", "verification_checks"],
+        "properties": {
+          "pack": {
+            "type": "string",
+            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability"]
+          },
+          "overlay_targets": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "verification_checks": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
     "primitives_installed": {
       "type": "array",
       "items": {
         "type": "integer",
         "minimum": 1,
-        "maximum": 8
+        "maximum": 10
       }
     },
     "artifacts": {
@@ -45,7 +80,7 @@
           "primitive": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 8,
+            "maximum": 10,
             "description": "Which primitive this artifact implements"
           },
           "template": {

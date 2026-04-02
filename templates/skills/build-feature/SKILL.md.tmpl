@@ -23,6 +23,16 @@ Invoked by the build-orchestrator when a task has the `harness-ready` label. Not
 
 ## Required Protocol
 
+When the `agent-intercom` capability pack is installed, follow
+`.github/instructions/agent-intercom.instructions.md` throughout the loop: establish heartbeat /
+ping visibility up front, broadcast meaningful attempt transitions, and route any destructive
+actions through the intercom approval path rather than improvising local-only approval.
+
+When the `agent-engram` capability pack is installed, follow
+`.github/instructions/agent-engram.instructions.md` throughout the loop: prefer indexed symbol and
+impact lookup while diagnosing failures, verify the workspace is bound before trusting engram
+results, and refresh stale indexes before concluding the code graph is wrong.
+
 ### The Harness Loop (5-Attempt Circuit Breaker)
 
 ```text
@@ -65,6 +75,9 @@ Extract from the test output:
 * The file and line where the failure occurred
 * The expected vs. actual values (if applicable)
 
+When the `agent-engram` capability pack is installed, use engram-first lookup to inspect symbols,
+callers, and affected regions before expanding into broader file-based searches.
+
 #### Step 4: Re-read Standards
 
 Before writing any fix, re-read the relevant coding standards:
@@ -81,6 +94,8 @@ Apply targeted fixes to address the specific test failure. Do NOT:
 * Add unrelated changes
 * Refactor code not related to the failure
 * Skip error handling to shortcut a fix
+
+If the root cause is still unclear after repeated attempts, or the task touches a risky subsystem, invoke **safety-modes** in `investigate-first` or `freeze-scope` mode before continuing.
 
 #### Step 6: Verify Compilation
 
@@ -110,6 +125,7 @@ If all quality gates pass:
 * Maximum 5 attempts before circuit breaker trips
 * Re-read coding standards before every fix attempt
 * One file change per tool call; broadcast after each write
+* When the `agent-intercom` capability pack is installed, use intercom broadcasts for attempt milestones and file-write visibility
 
 ## Quality Criteria
 

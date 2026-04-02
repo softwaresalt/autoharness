@@ -110,6 +110,61 @@ Identify the project's organizational patterns:
 
 Record: `source_layout`, `test_layout`, `doc_layout`, `existing_harness_artifacts[]`.
 
+#### Step 1.5b: Runtime Surface Detection
+
+Detect whether the workspace has runtime surfaces that need post-build verification or operational closure:
+
+| Signal | Surface |
+|--------|---------|
+| Next.js / Vite / Angular / Rails views / templates / `public/` frontend assets | Web UI |
+| OpenAPI files, route declarations, controllers, `api/` or `routes/` directories | Public API |
+| Queue libraries, job workers, cron config, message consumers | Background jobs |
+| Dockerfile, Helm charts, Terraform, deployment workflows | Deployment manifests |
+
+Record: `runtime_surfaces{}` with booleans for `web_ui`, `public_api`, and `background_jobs`, plus `deployment_manifests[]` for discovered paths.
+
+#### Step 1.5c: Agent-Intercom Detection
+
+Detect whether the workspace is already configured for agent-intercom or a closely related remote-operator workflow:
+
+| Signal | Meaning |
+|--------|---------|
+| `.intercom/settings.json` exists | Workspace has explicit intercom policy/configuration markers |
+| `.vscode/mcp.json` or `.vscode/settings.json` references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
+| Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows | Harness may already be partially woven for intercom |
+
+Record: `agent_intercom{}` with the following structure:
+
+```yaml
+agent_intercom:
+  detected: true|false
+  mcp_configured: true|false
+  config_paths: []
+  instruction_markers: []
+  recommended: true|false
+```
+
+#### Step 1.5d: Agent-Engram Detection
+
+Detect whether the workspace is already configured for agent-engram or a closely related indexed-search workflow:
+
+| Signal | Meaning |
+|--------|---------|
+| `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` exists | Workspace has engram installation or persisted state markers |
+| `.vscode/mcp.json` or `.vscode/settings.json` references `agent-engram`, `engram`, or known engram tool names (`unified_search`, `query_memory`, `map_code`, `list_symbols`, `impact_analysis`, `query_graph`) | MCP server likely configured for the workspace |
+| Existing `AGENTS.md` / `.github/copilot-instructions.md` references Engram-first search, `.engram/`, or workspace binding / status checks | Harness may already be partially woven for engram |
+
+Record: `agent_engram{}` with the following structure:
+
+```yaml
+agent_engram:
+  detected: true|false
+  mcp_configured: true|false
+  config_paths: []
+  instruction_markers: []
+  recommended: true|false
+```
+
 #### Step 1.6: Backlog Tool Detection
 
 Detect installed backlog management tools by scanning for their workspace markers and configuration:
@@ -267,10 +322,41 @@ structure:
   test_layout: "{{TEST_LAYOUT}}"
   doc_layout: "{{DOC_LAYOUT}}"
 
+runtime_surfaces:
+  web_ui: false
+  public_api: false
+  background_jobs: false
+  deployment_manifests: []
+
 conventions:
   code_style: {}
   git: {}
   documentation: {}
+
+harness_recommendations:
+  preset: "{{RECOMMENDED_PRESET}}"
+  capability_packs: []
+  # Example when Engram is detected and recommended:
+  # capability_packs: ["agent-engram"]
+
+agent_intercom:
+  detected: false
+  mcp_configured: false
+  config_paths: []
+  instruction_markers: []
+  recommended: false
+
+agent_engram:
+  detected: false
+  mcp_configured: false
+  config_paths: []
+  instruction_markers: []
+  recommended: false
+  # Example when Engram is present:
+  # detected: true
+  # mcp_configured: true
+  # config_paths: [".vscode/mcp.json", ".engram/config.toml"]
+  # recommended: true
 
 existing_harness:
   has_harness: false
@@ -294,6 +380,15 @@ drift_report: null
 #### Step 4.2: Present for Review
 
 Display the profile summary to the user and wait for confirmation or corrections before the installer proceeds to template composition.
+
+The summary MUST include:
+
+* Recommended preset (`starter`, `standard`, or `full`)
+* Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true`)
+* Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
+* Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
+* Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
+* Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
 
 ## Quality Criteria
 

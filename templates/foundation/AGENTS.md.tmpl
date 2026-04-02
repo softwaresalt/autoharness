@@ -39,6 +39,50 @@ execution, regardless of permissive mode flags. Destructive commands include:
 file/directory deletion, force-overwrite, system config changes, VCS history
 alteration, data drops, system-level package changes, and untrusted code execution.
 
+### VI. Safety Modes for Risky Work
+
+When work has elevated blast radius, agents MUST enter an explicit safety mode before proceeding:
+
+* **careful** — enumerate risks and require approval before destructive or high-impact actions
+* **freeze-scope** — constrain edits to a declared directory or subsystem boundary
+* **investigate-first** — gather evidence before proposing or applying fixes
+
+### Capability Overlay — agent-intercom
+
+When the `agent-intercom` capability pack is installed, agents MUST also follow
+`.github/instructions/agent-intercom.instructions.md` and treat operator visibility as
+part of the normal workflow:
+
+* establish heartbeat / ping visibility at session start and during long-running work
+* broadcast milestone progress for planning, implementation, review, verification, and closure
+* route destructive terminal commands and destructive file operations through the configured intercom approval workflow
+* use transmit / standby style operator waits when blocked on clarification, approval, or handoff
+* warn clearly when intercom is unavailable and treat remote approval as unavailable rather than silently bypassed
+
+### Capability Overlay — agent-engram
+
+When the `agent-engram` capability pack is installed, agents MUST also follow
+`.github/instructions/agent-engram.instructions.md` and treat indexed retrieval as part of the
+normal workflow:
+
+* prefer engram MCP tools for context-related search before grep, glob, or broad file reading
+* verify the daemon / workspace binding state before relying on indexed search results
+* use symbol lookup, call-graph, and impact-analysis operations for blast-radius questions before manual caller hunting
+* refresh the index when results are stale after out-of-band edits
+* fall back to file-based search only when indexed results are unavailable, insufficient, or the query is truly text-oriented
+
+### Capability Overlay — backlogit
+
+When the `backlogit` capability pack is installed, agents MUST also follow
+`.github/instructions/backlogit.instructions.md` and treat the configured backlog tool as
+the operational system of record for planning and execution state:
+
+* prefer registry-backed backlogit MCP / CLI operations over ad hoc markdown scanning when querying task state
+* use queue-aware and dependency-aware operations when selecting or sequencing work
+* persist session continuity through backlogit memory / checkpoint operations when the registry advertises them
+* record meaningful comments and commit associations for traceability when those operations are available
+* refresh the backlog index after out-of-band edits before trusting query results
+
 ---
 
 ## Technical Constraints
@@ -94,10 +138,11 @@ Run in order. Do not skip any gate.
 
 1. **Harness before code**: Every feature MUST have a compiling but failing
    test harness before implementation begins.
-2. **Backlog-driven planning**: All task tracking uses `.backlog/tasks/`.
+2. **Backlog-driven planning**: All task tracking uses the configured backlog workspace and registry-backed operations; do not invent parallel task stores.
 3. **Branch per feature**: Each feature on a dedicated branch.
 4. **Commit discipline**: Conventional commits format (`feat:`, `fix:`, `docs:`, `test:`).
 5. **No dead code**: Placeholder modules replaced or removed before completion.
+6. **Closure before forgetfulness**: Runtime verification and operational closure happen before work is considered fully absorbed.
 
 ### Task Granularity (NON-NEGOTIABLE)
 
@@ -126,6 +171,7 @@ Run in order. Do not skip any gate.
 2. Check results between commands
 3. Use relative paths for output redirection
 4. Temporary output files go in `logs/`
+5. If the `agent-intercom` capability pack is installed, route destructive commands through its approval path instead of relying only on local confirmation
 
 ---
 
@@ -157,7 +203,8 @@ or architectural rationale, the doc-ops agent graduates that knowledge into
 Idea/Research → brainstorm skill → backlog-harvester agent
   → impl-plan skill → plan-review skill → task decomposition
   → harness-architect agent → build-orchestrator agent
-  → pr-review agent → fix-ci skill → Merge
+  → pr-review agent → fix-ci skill → runtime-verification skill
+  → operational-closure skill → Merge / Monitor
 ```
 
 ---

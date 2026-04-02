@@ -15,6 +15,10 @@ Invoke this skill periodically or when significant codebase changes occur:
 * New languages, frameworks, or build tools added to the project
 * Major directory restructuring
 * CI/CD pipeline changes
+* New runtime surfaces (web UI, API, background jobs, deployment manifests)
+* agent-intercom configuration added, removed, or partially woven into the workspace
+* agent-engram configured, removed, or partially woven into the workspace
+* backlogit detected or upgraded but the harness still only uses generic backlog CRUD guidance
 * After a large feature merge that introduces new patterns or conventions
 * When agent behavior becomes noticeably less effective
 * At regular intervals (recommended: monthly or after every major release)
@@ -71,6 +75,10 @@ For each installed artifact, check:
 * **Constitution**: Do technology-specific rules match the current stack?
 * **AGENTS.md**: Do quality gates and commands match current tooling?
 * **Backlog registry**: Does the registered backlog tool still match the installed tool? Has the tool been switched?
+* **Runtime verification and closure skills**: Do they match the current runtime surfaces and deployment model?
+* **Agent-intercom weaving**: If intercom markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference heartbeat, broadcast, approval-routing, and degraded-mode handling?
+* **Agent-engram weaving**: If engram markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference engram-first search, workspace binding, and freshness / fallback behavior?
+* **backlogit weaving**: If backlogit is the selected backlog tool, do instructions and backlog-aware agents consistently reference queue, query, dependency, memory, checkpoint, or traceability behaviors?
 
 Record: `health_report{}` with per-artifact status.
 
@@ -95,6 +103,33 @@ Compare the currently registered backlog tool (from `.autoharness/backlog-regist
 5. Update status values throughout (e.g., `queued` → `To Do`)
 6. Map the directory structure if different (e.g., `.backlogit/` → `backlog/`)
 7. Do NOT migrate task data — that is the backlog tool's responsibility
+
+#### Step 1.5: Preset and Capability-Pack Drift
+
+Compare the installed preset and capability packs in `.autoharness/harness-manifest.yaml` against the current workspace profile recommendations:
+
+| Scenario | Category | Action |
+|----------|----------|--------|
+| Same preset and packs still appropriate | Healthy | No action needed |
+| Same preset, missing recommended pack | Growth | Propose enabling the pack |
+| Installed pack no longer matches runtime surfaces | Cosmetic or Degrading | Propose disabling or retargeting the pack |
+| agent-intercom markers detected but `agent-intercom` pack missing | Growth or Degrading | Propose enabling the pack and weaving intercom guidance through the harness |
+| agent-engram markers detected but `agent-engram` pack missing | Growth or Degrading | Propose enabling the pack and weaving engram-first search guidance through the harness |
+| backlogit detected as the active backlog tool but `backlogit` pack missing | Growth or Degrading | Propose enabling the pack and weaving backlogit-native workflows through the harness |
+| Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
+
+#### Step 1.6: Overlay-Coherence Drift
+
+For every enabled capability pack, compare the manifest's declared overlay targets against the currently installed artifacts.
+
+Flag drift when:
+
+* the pack is enabled but one or more declared target artifacts are missing
+* only some of the targeted artifacts mention the pack's behavior delta
+* the workspace still contains woven overlay guidance after the pack was removed
+* the workspace now exposes new eligibility signals that should expand the overlay target set
+
+Treat partially woven overlays as a first-class drift category rather than a cosmetic doc mismatch.
 
 ### Phase 2: Change Proposal Generation
 
@@ -132,6 +167,10 @@ Scan for workspace patterns that suggest missing harness capabilities:
 * Security-sensitive patterns (auth, crypto, input validation) without security review
 * Infrastructure-as-code files without IaC instructions
 * Containerization (Dockerfile, docker-compose) without container instructions
+* Web UI or API runtime surfaces without matching runtime verification or operational closure guidance
+* Remote operator workflow markers without matching agent-intercom guidance in the harness
+* agent-engram markers or `.engram/` state without matching engram-first search guidance in the harness
+* backlogit-specific features available without matching backlogit-native guidance in the harness
 
 ### Phase 3: Proposal Review
 
@@ -186,6 +225,8 @@ If growth opportunities were accepted (new review personas, new instructions, ne
 1. Generate from templates using the current workspace profile
 2. Install to the appropriate directory
 3. Update cross-references in AGENTS.md and copilot-instructions.md
+4. Update manifest preset / capability-pack metadata when installation shape changes
+5. Update manifest overlay-target metadata when the pack's woven surface changes
 
 #### Step 4.3: Update Manifest
 

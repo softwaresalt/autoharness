@@ -22,6 +22,17 @@ Invoke when CI checks fail on a PR, or when automated review comments need to be
 
 ## Required Protocol
 
+When the `agent-intercom` capability pack is installed, follow
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility before
+the first reproduction loop, broadcast failing-check and fixed-check milestones, and use the
+intercom clarification / approval path if a repair would require destructive action or explicit
+operator judgment.
+
+When the `agent-engram` capability pack is installed, follow
+`.github/instructions/agent-engram.instructions.md`: verify the engram surface is available before
+relying on indexed search, and prefer code-graph or impact-analysis lookup while diagnosing the CI
+failure set.
+
 ### Step 1: Identify the PR
 
 Determine the PR number from the current branch. If no PR exists, halt.
@@ -56,6 +67,9 @@ Run the failing CI steps locally in order:
 
 Apply fixes for each failure. Use workspace search tools to understand context before modifying code.
 
+When the `agent-engram` capability pack is installed, prefer `list_symbols`, `map_code`,
+`impact_analysis`, and `query_memory` before broader grep or raw file scans.
+
 ### Step 6: Address Review Comments
 
 For each review comment:
@@ -82,11 +96,14 @@ All gates must pass before pushing.
 1. Commit fixes with a `fix:` conventional commit message
 2. Push to the branch
 3. Poll CI status until all checks pass or `max_iterations` is exhausted
+4. When CI is green, invoke `runtime-verification` if runtime surfaces were affected or the PR explicitly requires runtime evidence
+5. Update or append the operational validation section in the PR description so the next handoff includes monitoring and rollback expectations
 
 ## Circuit Breakers
 
 * Maximum `max_iterations` fix-push-poll cycles (default 5)
 * If 3 consecutive iterations fail on the same check, halt and report
+* If the same check fails twice in a row without a clear diagnosis, invoke `safety-modes` in `investigate-first` mode before applying further fixes
 
 ## Behavioral Constraints
 

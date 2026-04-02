@@ -15,7 +15,7 @@ Modern AI coding assistants (GitHub Copilot, Claude Code, Cursor, Codex) operate
 
 ## The Solution
 
-autoharness extracts the **9 universal primitives** of any agent harness (identified through empirical evaluation of production harnesses) and packages them as customizable templates. Two core workflows drive the system:
+autoharness extracts the **10 universal primitives** of an effective agent harness (identified through empirical evaluation of production harnesses) and packages them as customizable templates. Two core workflows drive the system:
 
 1. **Install**: Discover the target workspace's profile (tech stack, conventions, tools) and compose a tailored harness from primitive templates.
 2. **Tune**: Iteratively adapt the installed harness as the codebase, documentation, and team conventions evolve over time.
@@ -38,21 +38,59 @@ autoharness extracts the **9 universal primitives** of any agent harness (identi
 
 The target workspace never contains autoharness engine files. It gets only the finished, workspace-adapted harness artifacts.
 
-## The 9 Primitives
+## The 10 Primitives
 
 Every effective agent harness implements these irreducible primitives, regardless of language, framework, or domain:
 
 | # | Primitive                             | Purpose                                            | Key Artifacts                                              |
 |---|---------------------------------------|----------------------------------------------------|------------------------------------------------------------|
-| 1 | **State & Context Management**        | Durable memory, checkpoints, context compaction    | Memory agent, compact-context skill, checkpoint patterns   |
+| 1 | **State, Context & Knowledge Retrieval** | Durable memory, checkpoints, retrieval, compaction | Memory agent, learnings researcher, compact-context, compound |
 | 2 | **Task Granularity & Horizon Scoping** | Decompose work to prevent error compounding        | 2-hour rule, width isolation, atomic milestones            |
 | 3 | **Model Routing & Escalation**        | Match model capability to task complexity           | Tier configuration, escalation laddering, cost tracking    |
-| 4 | **Orchestration & Delegation**        | Sequence agents through a feature lifecycle         | Pipeline agents, handoff rules, stop conditions            |
-| 5 | **Tool Execution & Guardrails**       | Safe environment mutation with policy enforcement  | Approval workflows, feature flags, architecture linters    |
+| 4 | **Orchestration, Delegation & Lifecycle Handoffs** | Sequence agents through a feature lifecycle | Pipeline agents, handoff rules, stop conditions, verification handoffs |
+| 5 | **Tool Execution, Safety Modes & Guardrails** | Safe environment mutation with policy enforcement | Approval workflows, safety modes, feature flags, architecture linters |
 | 6 | **Injection Points & Dynamic Reminders** | Surface constraints exactly when needed          | applyTo patterns, instruction reinforcement, DoD checks    |
 | 7 | **Observability & Evaluation**        | Track agent efficacy, output quality, and entropy  | Review personas, metrics, grading, cleanup agents          |
 | 8 | **Workflow Policy**                   | Cross-agent sequencing and gate enforcement         | Policy registry, preconditions, violation telemetry        |
 | 9 | **Repository Knowledge & Agent Legibility** | Structure the repo as a navigable knowledge base | Progressive disclosure, doc-gardening, architecture docs   |
+| 10 | **Operational Closure & Feedback**   | Verify runtime behavior and close the delivery loop | Runtime verification, operational closure, monitoring plans |
+
+## Installation Presets and Capability Packs
+
+autoharness now supports a lighter-weight composition model so teams can adopt the framework without absorbing every moving part on day one.
+
+### Presets
+
+| Preset | Default Scope | Best For |
+|---|---|---|
+| **starter** | Core planning, execution, guardrails, and repo knowledge | Smaller repos, first adoption, low-ceremony teams |
+| **standard** | Full 10-primitive harness | Most application and service repositories |
+| **full** | Full 10-primitive harness plus recommended capability packs | Teams that want deeper verification and stronger operational guidance |
+
+### Capability Packs
+
+| Pack | Purpose |
+|---|---|
+| **agent-intercom** | Weaves remote operator visibility, heartbeat, approval routing, and steering waits through the harness lifecycle |
+| **agent-engram** | Weaves engram-first indexed search, code graph lookup, workspace binding, and query-driven context retrieval through analysis-heavy workflows |
+| **backlogit** | Deepens backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows |
+| **browser-verification** | Adds browser-aware runtime verification guidance for web-facing projects |
+| **strict-safety** | Emphasizes careful / freeze-scope / investigate-first operating modes |
+| **release-observability** | Strengthens operational closure with monitoring and validation checklists |
+
+### Formal overlay pattern
+
+Capability packs are **not extra primitives**. They are cross-cutting overlays that deepen one or more of the 10 primitives by weaving coordinated changes through multiple harness artifacts.
+
+Every capability pack should define:
+
+* **Eligibility signals** — what discovery looks for before recommending the pack
+* **Target artifacts** — which foundation docs, instructions, agents, skills, prompts, or policies are affected
+* **Behavior deltas** — what changes in the installed harness when the pack is enabled
+* **Verification checks** — how installation confirms the overlay was applied consistently
+* **Tuning drift rules** — how the tuner decides the overlay is missing, stale, or only partially woven
+
+See [Capability Packs](docs/capability-packs.md) for the full overlay contract.
 
 ## Backlog Tool Integration
 
@@ -92,7 +130,7 @@ autoharness/                             # Global installation (e.g. ~/.autoharn
       tune-harness/SKILL.md              # Maintenance and tuning workflow
       workspace-discovery/SKILL.md       # Discover workspace tech stack and conventions
     instructions/
-      harness-architecture.instructions.md  # How the 9 primitives work together
+      harness-architecture.instructions.md  # How the 10 primitives work together
     prompts/
       install-harness.prompt.md          # User-facing prompt to install a harness
       tune-harness.prompt.md             # User-facing prompt to tune an installed harness
@@ -179,7 +217,7 @@ claude --agent ~/.autoharness/.github/agents/harness-installer.agent.md
 From any registered environment:
 
 ```text
-@harness-installer workspace=/path/to/my-project
+@harness-installer workspace=/path/to/my-project preset=standard
 ```
 
 The installer will:
@@ -189,6 +227,13 @@ The installer will:
 3. **Generate** customized agents, skills, instructions, policies, and constitutional docs
 4. **Install** the artifacts into the target workspace's `.github/` directory
 5. **Verify** the installation is coherent and all cross-references resolve
+
+Optional examples:
+
+```text
+@harness-installer workspace=/path/to/my-project preset=starter
+@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,release-observability
+```
 
 ### 4. Tune an existing harness
 

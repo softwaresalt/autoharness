@@ -22,6 +22,7 @@ When invoked directly by a user:
 1. Gather the current session context (what was accomplished, what remains)
 2. Write a memory file to `.backlog/memory/{YYYY-MM-DD}/{descriptive-slug}-memory.md`
 3. Include: tasks completed, files modified, decisions made, failed approaches, open questions, next steps
+4. When the `backlogit` capability pack is installed and memory operations are supported, mirror a concise summary through the configured backlogit memory operation
 
 ### Checkpoint Mode
 
@@ -30,7 +31,8 @@ When invoked as a subagent by the build-orchestrator:
 1. Receive task context from the caller
 2. Write a checkpoint file to `.backlog/memory/{YYYY-MM-DD}/{task-id}-checkpoint.md`
 3. Include: task ID, files modified, decisions, errors resolved, review findings, context for next task
-4. Advisory: If checkpoint count > 10 for a feature, suggest invoking the compact-context skill
+4. When the `backlogit` capability pack is installed and checkpoint operations are supported, also persist a compact structured checkpoint through backlogit
+5. Advisory: If checkpoint count > 10 for a feature, suggest invoking the compact-context skill
 
 ## Memory File Structure
 
@@ -72,7 +74,14 @@ ms.date: {{DATE}}
 * No subagent spawning (leaf executor)
 * Do not modify code files
 * Do not make architectural or implementation decisions
-* Write to `.backlog/memory/` only
+* Always write the canonical markdown memory artifact to `.backlog/memory/`
+* When the `backlogit` capability pack is installed, backlogit memory or checkpoint calls may supplement the markdown artifact but do not replace it
+
+## Capability Overlay — backlogit
+
+When the `backlogit` capability pack is installed, follow `.github/instructions/backlogit.instructions.md`
+for memory, checkpoint, and traceability conventions. Use concise summaries rather than dumping raw
+conversation transcripts into backlogit memory fields.
 
 ## Model Routing
 

@@ -1,35 +1,55 @@
 ---
-title: The 9 Irreducible Harness Primitives
+title: The 10 Irreducible Harness Primitives
 description: Deep documentation of each primitive, its purpose, implementation patterns, and how autoharness adapts it per workspace
 ---
 
 ## Overview
 
-Through empirical evaluation of production agent harnesses, we identified 9 irreducible primitives that every effective harness implements. These primitives are technology-agnostic: a Rust project, a TypeScript monorepo, and a Python ML pipeline all need the same structural elements, though the specific implementations differ.
+Through empirical evaluation of production agent harnesses, we identified 10 irreducible primitives that every effective harness implements. These primitives are technology-agnostic: a Rust project, a TypeScript monorepo, and a Python ML pipeline all need the same structural elements, though the specific implementations differ.
 
 autoharness packages these primitives as customizable templates. The workspace-discovery skill identifies which technology-specific adaptations are needed, and the install-harness skill composes the final artifacts.
 
-## Primitive 1: State and Context Management
+## Capability packs are overlays, not primitives
+
+Capability packs are the mechanism autoharness uses for optional, cross-cutting composition on top of the 10 primitives.
+
+They do **not** add an eleventh primitive. Instead, a pack deepens existing primitives by weaving coordinated changes across multiple artifacts. For example, `agent-intercom` strengthens Primitive 4 (handoffs), Primitive 5 (approval routing), Primitive 6 (instruction injection), and Primitive 7/10 (operator visibility and closure signaling) without redefining the primitive model itself.
+
+Every formal capability pack follows the same overlay contract:
+
+1. **Eligibility signals** discovered from the workspace profile
+2. **Recommendation logic** that proposes the pack during discovery
+3. **Overlay targets** listing the artifacts that must be updated together
+4. **Behavior deltas** that describe what the enabled harness does differently
+5. **Verification checks** that confirm the pack is fully woven after installation
+6. **Tuning drift rules** that detect stale or partially applied overlays over time
+
+The full pattern lives in [Capability Packs](capability-packs.md).
+
+## Primitive 1: State, Context, and Knowledge Retrieval
 
 ### The Problem
 
-AI agents operate within finite context windows. Long-running sessions accumulate memory files, checkpoint files, and tracking artifacts that dilute the semantic density of the context. Without active management, agents experience "model drift" where adherence to core instructions degrades as the context fills with historical noise.
+AI agents operate within finite context windows and finite recall. Long-running sessions accumulate memory files, checkpoint files, and tracking artifacts that dilute the semantic density of the context. Even worse, solved problems from prior work are frequently invisible at the moment a new plan or review is being produced. Without active management and retrieval, agents repeat mistakes, re-run investigations, and lose adherence to core instructions as the context fills with historical noise.
 
 ### The Solution
 
-Three interconnected mechanisms manage state and context:
+Four interconnected mechanisms manage state, recall, and retrieval:
 
 1. **Memory Agent**: Persists session state in structured Markdown with YAML frontmatter. Supports manual saves (user-invoked) and checkpoints (build-orchestrator-invoked). Every checkpoint captures tasks completed, files modified, decisions made, failed approaches, and next steps.
 
-2. **Compact-Context Skill**: Monitors tracking artifact volume. When files exceed thresholds (default: 40 files or 500 KB), it summarizes and archives verbose originals, preserving only the dense, high-signal content.
+2. **Learnings Researcher**: Searches the compound library before planning and review work begins. Retrieval is not optional bookkeeping; it is the mechanism that turns institutional knowledge into immediate task context.
 
-3. **Compound Skill**: Captures hard-won solutions (build errors, debugging insights, configuration gotchas) in a searchable library. The learnings-researcher subagent retrieves relevant past solutions when similar problems recur.
+3. **Compact-Context Skill**: Monitors tracking artifact volume. When files exceed thresholds (default: 40 files or 500 KB), it summarizes and archives verbose originals, preserving only the dense, high-signal content.
+
+4. **Compound Skill**: Captures hard-won solutions (build errors, debugging insights, configuration gotchas) in a searchable library with reusable tags, categories, and citations back to the originating task, plan, or PR.
 
 ### Adaptation Points
 
 * Memory file paths adapt to the workspace's directory structure
+* Retrieval scope adapts to where durable learnings live (`.backlog/compound/`, `docs/solutions/`, or both)
 * Compaction thresholds are configurable per workspace
-* Compound categories adapt to the workspace's technology domain
+* Compound categories and ranking heuristics adapt to the workspace's technology domain
 
 ## Primitive 2: Task Granularity and Horizon Scoping
 
@@ -76,22 +96,24 @@ Agents are assigned to model tiers based on task complexity:
 * The tier assignments may shift based on the workspace's complexity
 * Escalation thresholds are configurable
 
-## Primitive 4: Orchestration and Delegation
+## Primitive 4: Orchestration, Delegation, and Lifecycle Handoffs
 
 ### The Problem
 
-Building a feature involves multiple distinct capabilities: planning, test harness construction, implementation, code review, and CI management. No single agent can perform all of these well, and attempting to do so within one context window leads to context overflow and instruction confusion.
+Building a feature involves multiple distinct capabilities: planning, test harness construction, implementation, code review, runtime verification, and CI management. No single agent can perform all of these well, and attempting to do so within one context window leads to context overflow and instruction confusion. Even when the implementation itself succeeds, many harnesses fail at the handoff boundaries: planning knowledge does not reach implementation, PR metadata does not reach deployment validation, and finished work never enters a structured closure loop.
 
 ### The Solution
 
-A pipeline of specialized agents, each with a narrow role:
+A pipeline of specialized agents, each with a narrow role and explicit handoff expectations:
 
 1. **Brainstorm Skill**: Explore requirements through dialogue
 2. **Backlog Harvester**: Plan → review → decompose into tasks
 3. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
-4. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality
-5. **PR Review**: Analyze diff, delegate to review personas, create PR
-6. **Fix-CI**: Resolve CI failures and review comments
+4. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality, and hand off to review/CI/runtime verification
+5. **PR Review**: Analyze diff, delegate to review personas, create PR, and attach verification/closure expectations
+6. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
+7. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
+8. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
 
 **Stop conditions** prevent infinite loops:
 
@@ -100,17 +122,25 @@ A pipeline of specialized agents, each with a narrow role:
 * Cycle limits on review-fix and CI-fix loops
 * Stall timeouts on long-running commands
 
+**Handoff contracts** keep lifecycle context intact:
+
+* Planning must emit verification and closure expectations, not just code change lists
+* Review must identify which runtime surfaces require validation
+* PR creation must carry forward operational validation and monitoring sections
+* Completion does not mean “green tests only” — it means the work is ready to enter Primitive 10
+
 ### Adaptation Points
 
 * Build/test/lint commands differ per technology
 * CI pipeline order varies across platforms
+* Runtime verification depth differs by project surface (CLI, API, browser, background jobs)
 * Stall timeouts may need adjustment for slower build systems
 
-## Primitive 5: Tool Execution and Guardrails
+## Primitive 5: Tool Execution, Safety Modes, and Guardrails
 
 ### The Problem
 
-Agents operating with filesystem access can create, modify, or delete any file. Without guardrails, a hallucinating agent could overwrite core configuration, delete source files, or execute destructive terminal commands.
+Agents operating with filesystem access can create, modify, or delete any file. Without guardrails, a hallucinating agent could overwrite core configuration, delete source files, or execute destructive terminal commands. Declarative rules alone are not enough: when risk rises, the harness needs explicit operating modes that slow the agent down, narrow its scope, and require investigation before mutation.
 
 ### The Solution
 
@@ -118,14 +148,19 @@ Layered safety controls:
 
 1. **Workspace containment**: All file operations resolve within the workspace root
 2. **Non-destructive direct writes**: File creation and modification proceed without approval
-3. **Destructive approval workflow**: Deletions and removals require operator approval
-4. **Terminal command policy**: Destructive commands require approval regardless of permissive flags
-5. **Feature flags**: New agent-generated modules are gated behind feature flags
-6. **Architecture enforcement**: Custom linters and structural tests enforce dependency direction, naming conventions, and layering boundaries. Lint error messages are written for agent consumption, providing remediation instructions directly in context. Agents operate within strict boundaries but have freedom in implementation within those boundaries.
+3. **Safety modes**: Interactive operating modes add structure when work is risky:
+   * **Careful mode** — enumerate risks, pause before destructive or high-blast-radius actions
+   * **Freeze-scope mode** — constrain edits to a declared directory or subsystem boundary
+   * **Investigate-first mode** — gather evidence before proposing or applying fixes
+4. **Destructive approval workflow**: Deletions and removals require operator approval
+5. **Terminal command policy**: Destructive commands require approval regardless of permissive flags
+6. **Feature flags**: New agent-generated modules are gated behind feature flags
+7. **Architecture enforcement**: Custom linters and structural tests enforce dependency direction, naming conventions, and layering boundaries. Lint error messages are written for agent consumption, providing remediation instructions directly in context. Agents operate within strict boundaries but have freedom in implementation within those boundaries.
 
 ### Adaptation Points
 
 * Approval workflow integration depends on available communication channels
+* Safety-mode prompts and freeze boundaries depend on the available UX (editor prompts, CLI confirmations, review comments)
 * Terminal command auto-approve patterns are workspace-specific
 * Feature flag mechanisms differ by technology
 * Architecture enforcement linters are generated from the workspace's layering model and naming conventions
@@ -266,3 +301,39 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 * Progressive disclosure depth varies by codebase complexity (a small CLI tool needs less than a large monorepo)
 * Architecture documentation captures whatever layering and domain boundaries the workspace uses
 * Quality grading categories adapt to the workspace's technology domains
+
+## Primitive 10: Operational Closure and Feedback
+
+### The Problem
+
+Many harnesses stop too early. The code compiles, the tests pass, and a PR exists — but the system still lacks release readiness, runtime verification evidence, monitoring expectations, and feedback capture. Without an explicit closure primitive, teams merge code that has never been validated against real runtime surfaces and never feeds production learnings back into the harness.
+
+### The Solution
+
+Operational closure turns “implementation complete” into “change safely closed over” through four mechanisms:
+
+1. **Runtime Verification Skill**: Validate the affected runtime surfaces using the right depth for the work. For a CLI tool this may be smoke commands; for an API this may be endpoint probes; for a web application this may include browser-backed validation.
+
+2. **Operational Closure Skill**: Produce structured closure artifacts covering release readiness, monitoring expectations, rollback triggers, ownership, validation windows, and follow-up actions.
+
+3. **PR and CI Handoff Sections**: Pull request descriptions and CI remediation workflows carry explicit runtime verification and operational validation sections so the release context survives past implementation.
+
+4. **Feedback Loop into the Harness**: Runtime findings, canary issues, and post-deploy observations become compound learnings, documentation updates, or tuning proposals. Primitive 10 is the bridge from delivery to adaptation.
+
+### Why It Matters as a Compositional Piece
+
+Primitive 10 is what closes the loop on the rest of the system:
+
+* Primitive 4 can now hand off to a defined closure mechanism rather than ending ambiguously at “PR created” or “CI green”
+* Primitive 7 gains runtime evidence rather than relying only on static review findings
+* Primitive 1 receives higher-quality learnings because they include runtime outcomes, not just build-time fixes
+* Primitive 9 stays current because operational learnings graduate back into durable repository knowledge
+
+Without Primitive 10, the harness is excellent at producing changes but weaker at proving the changes are safely absorbed by the running system.
+
+### Adaptation Points
+
+* Verification depth adapts to the project surface (library, CLI, API, browser UI, batch jobs)
+* Monitoring steps adapt to the workspace’s telemetry stack and deployment platform
+* Closure artifacts adapt to the team’s release process (merge, deploy, canary, handoff, maintenance window)
+* Feedback destinations adapt to where the workspace stores durable learnings (`.backlog/compound/`, `docs/`, issue trackers)

@@ -89,7 +89,56 @@ operations. They must never extend to destructive operations because a
 single misrouted destructive command can irrecoverably corrupt repositories
 or break system configuration.
 
-### VIII. Git-Friendly Persistence
+### VIII. Explicit Safety Modes for Elevated Risk
+
+When work involves destructive commands, production-impacting changes, uncertain root causes,
+or large blast radius, agents MUST switch into an explicit safety mode before proceeding:
+
+* **Careful mode** — enumerate risks, confirm intent, and pause before high-impact operations
+* **Freeze-scope mode** — constrain work to a declared path or subsystem boundary
+* **Investigate-first mode** — gather evidence and causal understanding before proposing fixes
+
+**Rationale**: Guardrails are more reliable when they are interactive and legible. Safety modes
+translate policy into an operating posture that both the agent and the operator can reason about.
+
+### Capability Overlay — agent-intercom
+
+When the workspace enables the `agent-intercom` capability pack, agents MUST use the configured
+intercom workflow for heartbeat, milestone broadcasting, destructive-operation approval routing,
+and operator steering waits. If the intercom path becomes unavailable, agents MUST warn that
+remote visibility is degraded and must not silently bypass approval steps that depend on it.
+
+**Rationale**: A remote operator cannot supervise or approve work they cannot see. When intercom
+is part of the harness, observability and approval routing become operational requirements rather
+than optional niceties.
+
+### Capability Overlay — agent-engram
+
+When the workspace enables the `agent-engram` capability pack, agents MUST use the configured
+engram workflow for indexed search, workspace binding and status checks, code-graph traversal,
+and freshness verification. Agents MUST prefer engram MCP tools over file-based search for
+context-related discovery, MUST refresh or verify stale index state before trusting query results,
+and MUST not hand-edit tool-managed `.engram/` artifacts as a substitute for lifecycle or sync
+operations.
+
+**Rationale**: Engram exists to compress codebase understanding into a queryable local index.
+Ignoring that index and falling back immediately to raw file reading wastes context budget and
+throws away the leverage the overlay was meant to provide.
+
+### Capability Overlay — backlogit
+
+When the workspace enables the `backlogit` capability pack, agents MUST use the configured
+backlogit workflow for queue selection, dependency management, token-efficient task lookup,
+continuity checkpoints, and task traceability. Agents MUST prefer backlogit query and queue
+operations over manual backlog scanning when those operations are available, MUST refresh the
+index after out-of-band edits before trusting query output, and MUST not bypass backlogit by
+creating parallel task state outside the configured backlog workspace.
+
+**Rationale**: backlogit exists to preserve agent context through targeted queries, explicit work
+ordering, and durable execution traces. Treating it as a thin file store would discard the very
+capabilities that justify enabling the overlay.
+
+### IX. Git-Friendly Persistence
 
 All workspace state managed by the agent harness MUST be serializable to
 human-readable, Git-mergeable files. Markdown with YAML frontmatter is the
@@ -136,6 +185,8 @@ Run in order. Do not skip any gate.
    messages follow conventional commits format (`feat:`, `fix:`, `docs:`, `test:`).
 5. **No dead code**: Placeholder modules MUST be replaced or removed before a
    feature is considered complete.
+6. **Operational closure**: Work is not complete at “green CI” if runtime validation,
+   monitoring setup, or release handoff remains unresolved.
 
 ### Task Granularity (NON-NEGOTIABLE)
 

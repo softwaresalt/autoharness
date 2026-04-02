@@ -118,7 +118,7 @@ Reference the autoharness agents directory or pass the AGENTS.md as system conte
 ### Full Installation (Recommended)
 
 ```text
-@harness-installer workspace=/path/to/target
+@harness-installer workspace=/path/to/target preset=standard
 ```
 
 The installer will:
@@ -130,12 +130,48 @@ The installer will:
 5. **Install** the artifacts into the target workspace
 6. **Verify** the installation is coherent and all cross-references resolve
 
+### Preset-Based Installation
+
+Choose the installation shape before fine-tuning primitives manually:
+
+```text
+@harness-installer workspace=/path/to/target preset=starter
+@harness-installer workspace=/path/to/target preset=full capability_packs=agent-intercom,browser-verification,release-observability
+```
+
+| Preset | Installs | Best For |
+|---|---|---|
+| `starter` | Core planning, execution, safety, workflow policy, and repository knowledge | First adoption, libraries, smaller repos |
+| `standard` | Full 10-primitive harness | Most repos |
+| `full` | Full 10-primitive harness plus recommended capability packs | Web apps, services, and higher-operational-maturity teams |
+
+### Capability Packs
+
+Capability packs deepen the harness without redefining the primitive model:
+
+| Pack | Adds |
+|---|---|
+| `agent-intercom` | Remote operator visibility, heartbeat, approval routing, and steering guidance woven through the installed harness |
+| `agent-engram` | Engram-first indexed search, code graph lookup, workspace binding, and query-driven context retrieval woven through analysis-heavy workflows |
+| `backlogit` | backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace guidance layered over generic backlog integration |
+| `browser-verification` | Browser-aware runtime verification guidance for web UIs |
+| `strict-safety` | Stronger default use of careful / freeze-scope / investigate-first modes |
+| `release-observability` | Richer operational closure and monitoring artifacts |
+
+`agent-intercom` is intentionally different from a narrow add-on. When enabled, autoharness should thread its workflow expectations into `AGENTS.md`, `copilot-instructions.md`, intercom-specific instructions, pipeline agents, long-running skills, and heartbeat prompts so operator visibility and approval routing become part of the normal harness behavior.
+
+`agent-engram` is also an overlay rather than a single search toggle. When enabled, autoharness should keep the generic search guidance in place while additionally teaching the harness to use Engram's higher-leverage indexed capabilities such as unified search, code graph lookup, workspace memory queries, lifecycle checks, and index freshness workflows.
+
+`backlogit` is also an overlay rather than a simple tool toggle. When enabled, autoharness should keep the generic backlog abstraction in place while additionally teaching the harness to use backlogit's higher-leverage features such as SQL query access, prioritized queue retrieval, dependency traversal, agent memory, checkpoints, comments, and commit traceability.
+
+All packs follow the formal overlay pattern documented in [Capability Packs](capability-packs.md). Packs are applied after the base primitive composition is chosen and before installation verification completes.
+
 ### Selective Installation
 
 Install only specific primitives:
 
 ```text
-@harness-installer workspace=/path/to/target primitives=1,4,5,8
+@harness-installer workspace=/path/to/target primitives=1,4,5,8,10
 ```
 
 **Primitive numbers:**
@@ -149,6 +185,7 @@ Install only specific primitives:
 7. Observability & Evaluation
 8. Workflow Policy
 9. Repository Knowledge & Agent Legibility
+10. Operational Closure & Feedback
 
 ### Dry Run (Preview)
 
@@ -191,10 +228,16 @@ target-workspace/
       compound/SKILL.md
       fix-ci/SKILL.md
       impl-plan/SKILL.md
+      operational-closure/SKILL.md
       plan-review/SKILL.md
       review/SKILL.md
+      runtime-verification/SKILL.md
+      safety-modes/SKILL.md
     instructions/
       constitution.instructions.md
+      agent-intercom.instructions.md      # Optional: installed when the pack is enabled
+      agent-engram.instructions.md        # Optional: installed when the agent-engram pack is enabled
+      backlogit.instructions.md           # Optional: installed when the backlogit pack is enabled
       {language}.instructions.md
       commit-message.instructions.md
       markdown.instructions.md
@@ -216,6 +259,7 @@ target-workspace/
     compound/
     reviews/
     memory/
+    closure/
     completed/
   .autoharness/
     workspace-profile.yaml               # Discovered workspace profile
@@ -234,7 +278,11 @@ The installer runs automatic verification. You can also manually check:
 2. Check that the constitution mentions your project's technology stack
 3. Verify `AGENTS.md` has the correct build/test/lint commands
 4. Confirm instruction file `applyTo` patterns match your file extensions
-5. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
+5. Confirm the selected preset and capability packs are recorded in `.autoharness/harness-manifest.yaml`
+6. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
+7. If `agent-intercom` is enabled, verify `.github/instructions/agent-intercom.instructions.md` exists and the installed agents/skills reference intercom heartbeat, broadcast, and approval usage where expected
+8. If `agent-engram` is enabled, verify `.github/instructions/agent-engram.instructions.md` exists and the installed agents/skills reference engram-first search, workspace binding, or indexed-fallback behaviors where expected
+9. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md` exists and the installed agents reference backlogit query / queue / memory / traceability behaviors where expected
 
 ### First Use
 
@@ -243,6 +291,11 @@ The installer runs automatic verification. You can also manually check:
 3. Review the generated plan and task decomposition
 4. Invoke the harness-architect for the feature
 5. Invoke the build-orchestrator to implement
+6. If the feature changes runtime behavior, run `runtime-verification`
+7. Capture release readiness and follow-up monitoring with `operational-closure`
+8. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
+9. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
+10. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
 
 ### Ongoing Maintenance
 
