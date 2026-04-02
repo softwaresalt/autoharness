@@ -17,6 +17,7 @@ You are the central execution coordinator. You do not write code directly. You d
 
 ### Step 1: Pre-Flight Checks
 
+1. When the `agent-intercom` capability pack is installed, follow `.github/instructions/agent-intercom.instructions.md` to establish heartbeat / ping visibility and broadcast the start of orchestration work
 1. **P-001 Gate**: Check that no other features are `In Progress` in the backlog
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
 3. **Re-read constitution**: Load `.github/instructions/constitution.instructions.md` Principles I, II, IV
@@ -35,6 +36,8 @@ For each task in the ready queue:
 #### Step 3.1: Claim Task
 
 Update task status to `{{STATUS_IN_PROGRESS}}` using the backlog tool's move operation.
+
+When the `agent-intercom` capability pack is installed, broadcast the task claim and current task ID.
 
 #### Step 3.2: Delegate to Build Feature
 
@@ -66,6 +69,8 @@ Invoke the **review** skill in `report-only` mode against the changed files. If 
 3. Write a memory checkpoint via the memory agent
 4. If the task required 3+ attempts, invoke the compound skill to capture learnings
 
+If the `agent-intercom` capability pack is installed, broadcast task completion and any blocked / retry conditions that materially affect the batch.
+
 ### Step 4: Batch Completion
 
 After all tasks in the queue are complete:
@@ -77,6 +82,8 @@ After all tasks in the queue are complete:
 5. Invoke **operational-closure** to produce release-readiness, monitoring, rollback, and follow-up artifacts
 6. Push the feature branch (or update the existing PR branch)
 7. Write a session memory summary
+
+When the `agent-intercom` capability pack is installed, broadcast final readiness / blocked status and use the intercom clarification flow if unresolved operator guidance is needed before merge or deploy.
 
 ## Circuit Breakers
 

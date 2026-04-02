@@ -15,6 +15,13 @@ You are an expert in work decomposition for AI-assisted development. You underst
 
 ## Required Steps
 
+### Step 0: Establish Operator Visibility
+
+When the `agent-intercom` capability pack is installed, begin by following
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility,
+broadcast the start of the planning pipeline, and use the intercom clarification / wait flow
+instead of silently stalling if operator input is needed.
+
 ### Step 1: Load Source Document
 
 Read the source document from the provided path. Verify the file exists and is a valid research or brainstorm document.
@@ -93,6 +100,9 @@ Present the decomposition summary:
 * Estimated total effort based on task count × 2 hours
 * Dependency graph (which tasks must complete before others)
 * Suggested execution order
+
+When the `agent-intercom` capability pack is installed, broadcast the gate outcome and summary
+milestones so the operator can see whether planning passed, failed, or needs revision.
 
 ## Behavioral Constraints
 

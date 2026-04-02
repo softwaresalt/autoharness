@@ -121,9 +121,26 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["browser-verification", "strict-safety", "release-observability"]
+            "enum": ["agent-intercom", "browser-verification", "strict-safety", "release-observability"]
           }
         }
+      }
+    },
+    "agent_intercom": {
+      "type": "object",
+      "description": "Detected agent-intercom integration markers and recommendation state",
+      "properties": {
+        "detected": { "type": "boolean" },
+        "mcp_configured": { "type": "boolean" },
+        "config_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "instruction_markers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "recommended": { "type": "boolean" }
       }
     },
     "existing_harness": {

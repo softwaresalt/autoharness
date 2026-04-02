@@ -123,6 +123,27 @@ Detect whether the workspace has runtime surfaces that need post-build verificat
 
 Record: `runtime_surfaces{}` with booleans for `web_ui`, `public_api`, and `background_jobs`, plus `deployment_manifests[]` for discovered paths.
 
+#### Step 1.5c: Agent-Intercom Detection
+
+Detect whether the workspace is already configured for agent-intercom or a closely related remote-operator workflow:
+
+| Signal | Meaning |
+|--------|---------|
+| `.intercom/settings.json` exists | Workspace has explicit intercom policy/configuration markers |
+| `.vscode/mcp.json` or `.vscode/settings.json` references `agent-intercom`, `agent-engram`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
+| Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows | Harness may already be partially woven for intercom |
+
+Record: `agent_intercom{}` with the following structure:
+
+```yaml
+agent_intercom:
+  detected: true|false
+  mcp_configured: true|false
+  config_paths: []
+  instruction_markers: []
+  recommended: true|false
+```
+
 #### Step 1.6: Backlog Tool Detection
 
 Detect installed backlog management tools by scanning for their workspace markers and configuration:
@@ -295,6 +316,13 @@ harness_recommendations:
   preset: "{{RECOMMENDED_PRESET}}"
   capability_packs: []
 
+agent_intercom:
+  detected: false
+  mcp_configured: false
+  config_paths: []
+  instruction_markers: []
+  recommended: false
+
 existing_harness:
   has_harness: false
   artifacts: []
@@ -322,6 +350,7 @@ The summary MUST include:
 
 * Recommended preset (`starter`, `standard`, or `full`)
 * Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true`)
+* Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
 * Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
 
 ## Quality Criteria

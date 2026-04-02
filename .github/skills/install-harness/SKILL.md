@@ -19,7 +19,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `preset`: (Optional, default `standard`) One of `starter`, `standard`, or `full`. Presets define the default primitive set and capability-pack defaults.
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-10) to install. Defaults to the selected preset.
-* `capability_packs`: (Optional) Comma-separated list of capability packs: `browser-verification`, `strict-safety`, `release-observability`.
+* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `browser-verification`, `strict-safety`, `release-observability`.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -98,6 +98,14 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{FIELD_LABELS}}` | Registry `field_mapping.labels` | `labels` | `labels` |
 | `{{BACKLOG_TOOLS}}` | Backlog MCP server name from registry | `backlog` | `backlog` |
 
+**Capability-Pack Variables** (derived from `capability_packs` and integration signals in the profile):
+
+| Template Variable | Source | Example (enabled) | Example (disabled) |
+|---|---|---|---|
+| `{{AGENT_INTERCOM_ENABLED}}` | `capability_packs` contains `agent-intercom` | `true` | `false` |
+| `{{AGENT_INTERCOM_DETECTED}}` | `agent_intercom.detected` | `true` | `false` |
+| `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.vscode/mcp.json, .intercom/settings.json` | empty |
+
 #### Step 1.3: Select Preset, Primitive Set, and Capability Packs
 
 Resolve the installation shape in this order:
@@ -115,6 +123,15 @@ Preset defaults:
 | `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | All recommended packs from the profile | Higher-operational-maturity teams |
 
 If `capability_packs` input is omitted, use the profile's `harness_recommendations.capability_packs` for `full`, or apply no optional packs for `starter`/`standard` unless a pack is strongly recommended by detected runtime surfaces.
+
+Capability-pack overlays:
+
+| Capability Pack | Overlay Behavior |
+|---|---|
+| `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, long-running skills, and the ping-loop prompt |
+| `browser-verification` | Strengthens browser-specific runtime verification guidance |
+| `strict-safety` | Makes safety-mode usage more explicit and more frequent |
+| `release-observability` | Deepens operational closure and post-release monitoring guidance |
 
 Map primitives to template groups:
 
@@ -143,6 +160,8 @@ Generate the constitutional foundation first, as all other artifacts reference i
 
 3. **copilot-instructions.md**: Generate shared development guidelines with project structure, commands, and conventions.
 
+If the `agent-intercom` capability pack is enabled, weave the intercom operating model into both files so heartbeat, milestone broadcasting, approval routing, and degraded-mode handling are part of the normal harness narrative.
+
 #### Step 2.2: Instruction Layer
 
 Generate instruction files. These use `applyTo` patterns to scope their rules:
@@ -159,6 +178,8 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
 
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
+
+4. **Capability-pack instructions**: When `agent-intercom` is enabled, install `agent-intercom.instructions.md` and use it as the authoritative reference for heartbeat, remote approval, operator steering, and standby workflows.
 
 #### Step 2.3: Backlog Tool Registration
 
@@ -190,6 +211,7 @@ Generate agent definitions. Each agent template has technology-specific sections
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
    * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
+   * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits
 
 2. **Support agents**: memory, doc-ops, prompt-builder
    * Minimal technology adaptation needed
@@ -223,6 +245,8 @@ Generate skill files:
    * `review/SKILL.md`
    * `runtime-verification/SKILL.md`
    * `safety-modes/SKILL.md`
+
+When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
 
 #### Step 2.5: Policy Layer
 
@@ -318,6 +342,7 @@ Verify all installed artifacts are internally consistent:
 * Every instruction's `applyTo` pattern matches at least one file in the workspace
 * Every policy references agents that were installed
 * The constitution references technology-specific rules that match the installed language instructions
+* If `agent-intercom` is enabled, the intercom instruction file is installed and the affected agents / skills reference heartbeat, broadcast, or approval-routing behavior consistently
 
 #### Step 4.2: Structural Validation
 

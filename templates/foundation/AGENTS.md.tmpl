@@ -47,6 +47,18 @@ When work has elevated blast radius, agents MUST enter an explicit safety mode b
 * **freeze-scope** — constrain edits to a declared directory or subsystem boundary
 * **investigate-first** — gather evidence before proposing or applying fixes
 
+### Capability Overlay — agent-intercom
+
+When the `agent-intercom` capability pack is installed, agents MUST also follow
+`.github/instructions/agent-intercom.instructions.md` and treat operator visibility as
+part of the normal workflow:
+
+* establish heartbeat / ping visibility at session start and during long-running work
+* broadcast milestone progress for planning, implementation, review, verification, and closure
+* route destructive terminal commands and destructive file operations through the configured intercom approval workflow
+* use transmit / standby style operator waits when blocked on clarification, approval, or handoff
+* warn clearly when intercom is unavailable and treat remote approval as unavailable rather than silently bypassed
+
 ---
 
 ## Technical Constraints
@@ -135,6 +147,7 @@ Run in order. Do not skip any gate.
 2. Check results between commands
 3. Use relative paths for output redirection
 4. Temporary output files go in `logs/`
+5. If the `agent-intercom` capability pack is installed, route destructive commands through its approval path instead of relying only on local confirmation
 
 ---
 

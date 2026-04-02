@@ -71,6 +71,7 @@ autoharness now supports a lighter-weight composition model so teams can adopt t
 
 | Pack | Purpose |
 |---|---|
+| **agent-intercom** | Weaves remote operator visibility, heartbeat, approval routing, and steering waits through the harness lifecycle |
 | **browser-verification** | Adds browser-aware runtime verification guidance for web-facing projects |
 | **strict-safety** | Emphasizes careful / freeze-scope / investigate-first operating modes |
 | **release-observability** | Strengthens operational closure with monitoring and validation checklists |
@@ -215,7 +216,7 @@ Optional examples:
 
 ```text
 @harness-installer workspace=/path/to/my-project preset=starter
-@harness-installer workspace=/path/to/my-project preset=full capability_packs=browser-verification,release-observability
+@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,release-observability
 ```
 
 ### 4. Tune an existing harness

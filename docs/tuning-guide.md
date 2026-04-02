@@ -12,6 +12,7 @@ Agent harnesses degrade over time. Common causes:
 * **Directory restructuring**: `applyTo` patterns in instruction files match no files after a rename
 * **CI pipeline changes**: Quality gate commands in the constitution no longer match CI steps
 * **Runtime surface changes**: A repo grows a web UI or public API but the harness still assumes static-only validation
+* **Operator workflow changes**: agent-intercom is configured (or removed) but the harness does not reflect the required heartbeat, broadcast, or approval-routing behavior
 * **Convention drift**: Team adopts new naming patterns not reflected in language instructions
 
 ## When to Tune
@@ -75,6 +76,8 @@ Harness works but produces suboptimal results. Artifacts are valid but miss new 
 
 Additional examples: a web UI exists but no browser-verification pack is enabled, operational closure templates omit monitoring expectations, safety-mode guidance is missing from risky maintenance workflows.
 
+Additional examples: agent-intercom is configured in `.vscode/mcp.json` or `.intercom/`, but the harness does not install the intercom instruction file or thread heartbeat / approval guidance through the execution pipeline.
+
 **Action**: Fix at next opportunity. Degrading drift reduces agent effectiveness.
 
 ### Growth
@@ -84,6 +87,8 @@ New capabilities that the harness could leverage. The workspace has evolved in w
 **Examples**: New database added (opportunity for database reviewer persona), Docker introduced (opportunity for container instructions), API documentation added (opportunity for API review).
 
 Additional examples: web UI added (opportunity for browser verification), deployment manifests added (opportunity for release observability pack), higher-risk production changes (opportunity for strict safety defaults).
+
+Additional examples: a team adopts remote operator approval and progress visibility through agent-intercom (opportunity for the `agent-intercom` capability pack and intercom-woven workflow guidance).
 
 **Action**: Evaluate and implement when beneficial.
 
@@ -101,6 +106,7 @@ All harness artifacts are regular Markdown files. You can edit them directly:
 * **Agents**: Update tool lists, modify behavioral constraints, adjust model routing
 * **Skills**: Change build/test commands, adjust circuit breaker limits
 * **Skill Packs**: Enable richer verification or safety packs without redesigning the harness
+* **Intercom Weaving**: Thread agent-intercom heartbeat, broadcast, approval, and standby guidance through the affected artifacts rather than adding a single isolated note
 * **Policies**: Add new policies or modify existing gate conditions
 * **Constitution**: Update quality gates, change error handling patterns
 

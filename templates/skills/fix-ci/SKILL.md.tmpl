@@ -22,6 +22,12 @@ Invoke when CI checks fail on a PR, or when automated review comments need to be
 
 ## Required Protocol
 
+When the `agent-intercom` capability pack is installed, follow
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility before
+the first reproduction loop, broadcast failing-check and fixed-check milestones, and use the
+intercom clarification / approval path if a repair would require destructive action or explicit
+operator judgment.
+
 ### Step 1: Identify the PR
 
 Determine the PR number from the current branch. If no PR exists, halt.

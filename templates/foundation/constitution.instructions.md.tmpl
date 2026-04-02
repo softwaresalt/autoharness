@@ -101,6 +101,17 @@ or large blast radius, agents MUST switch into an explicit safety mode before pr
 **Rationale**: Guardrails are more reliable when they are interactive and legible. Safety modes
 translate policy into an operating posture that both the agent and the operator can reason about.
 
+### Capability Overlay — agent-intercom
+
+When the workspace enables the `agent-intercom` capability pack, agents MUST use the configured
+intercom workflow for heartbeat, milestone broadcasting, destructive-operation approval routing,
+and operator steering waits. If the intercom path becomes unavailable, agents MUST warn that
+remote visibility is degraded and must not silently bypass approval steps that depend on it.
+
+**Rationale**: A remote operator cannot supervise or approve work they cannot see. When intercom
+is part of the harness, observability and approval routing become operational requirements rather
+than optional niceties.
+
 ### IX. Git-Friendly Persistence
 
 All workspace state managed by the agent harness MUST be serializable to

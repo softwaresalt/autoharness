@@ -21,6 +21,11 @@ Invoked by the backlog-harvester after impl-plan produces a plan file. Can also 
 
 ## Required Protocol
 
+When the `agent-intercom` capability pack is installed, follow
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility at the
+start of plan review, broadcast gate milestones, and use the intercom clarification flow when a
+failed or advisory verdict needs explicit operator input before proceeding.
+
 ### Step 1: Load and Parse Plan
 
 Read the plan file. Extract implementation units, dependency graph, decisions, and risks.

@@ -116,7 +116,7 @@ Artifacts to generate:
 Wait for user confirmation before proceeding. The user may request:
 
 * Select a preset (`starter`, `standard`, `full`)
-* Add capability packs (`browser-verification`, `strict-safety`, `release-observability`)
+* Add capability packs (`agent-intercom`, `browser-verification`, `strict-safety`, `release-observability`)
 * Exclude specific primitives (e.g., "skip model routing" or "no review personas")
 * Customize specific values (e.g., "our test command is `make test`")
 * Add custom scopes to commit messages
@@ -143,6 +143,7 @@ After installation completes, provide the user with:
 3. **Tuning reminder**: Explain that `@harness-tuner` should be invoked periodically to keep the harness aligned
 4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
 5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces
+6. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
 
 ## Behavioral Constraints
 

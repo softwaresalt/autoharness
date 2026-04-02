@@ -136,7 +136,7 @@ Choose the installation shape before fine-tuning primitives manually:
 
 ```text
 @harness-installer workspace=/path/to/target preset=starter
-@harness-installer workspace=/path/to/target preset=full capability_packs=browser-verification,release-observability
+@harness-installer workspace=/path/to/target preset=full capability_packs=agent-intercom,browser-verification,release-observability
 ```
 
 | Preset | Installs | Best For |
@@ -151,9 +151,12 @@ Capability packs deepen the harness without redefining the primitive model:
 
 | Pack | Adds |
 |---|---|
+| `agent-intercom` | Remote operator visibility, heartbeat, approval routing, and steering guidance woven through the installed harness |
 | `browser-verification` | Browser-aware runtime verification guidance for web UIs |
 | `strict-safety` | Stronger default use of careful / freeze-scope / investigate-first modes |
 | `release-observability` | Richer operational closure and monitoring artifacts |
+
+`agent-intercom` is intentionally different from a narrow add-on. When enabled, autoharness should thread its workflow expectations into `AGENTS.md`, `copilot-instructions.md`, intercom-specific instructions, pipeline agents, long-running skills, and heartbeat prompts so operator visibility and approval routing become part of the normal harness behavior.
 
 ### Selective Installation
 
@@ -224,6 +227,7 @@ target-workspace/
       safety-modes/SKILL.md
     instructions/
       constitution.instructions.md
+      agent-intercom.instructions.md      # Optional: installed when the pack is enabled
       {language}.instructions.md
       commit-message.instructions.md
       markdown.instructions.md
@@ -266,6 +270,7 @@ The installer runs automatic verification. You can also manually check:
 4. Confirm instruction file `applyTo` patterns match your file extensions
 5. Confirm the selected preset and capability packs are recorded in `.autoharness/harness-manifest.yaml`
 6. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
+7. If `agent-intercom` is enabled, verify `.github/instructions/agent-intercom.instructions.md` exists and the installed agents/skills reference intercom heartbeat, broadcast, and approval usage where expected
 
 ### First Use
 
@@ -276,6 +281,7 @@ The installer runs automatic verification. You can also manually check:
 5. Invoke the build-orchestrator to implement
 6. If the feature changes runtime behavior, run `runtime-verification`
 7. Capture release readiness and follow-up monitoring with `operational-closure`
+8. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
 
 ### Ongoing Maintenance
 

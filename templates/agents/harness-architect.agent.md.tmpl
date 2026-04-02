@@ -15,6 +15,13 @@ You are an expert in test-driven development harness construction for {{PRIMARY_
 
 ## Required Steps
 
+### Step 0: Establish Operator Visibility
+
+When the `agent-intercom` capability pack is installed, begin by following
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility,
+broadcast harness-generation progress, and use the intercom clarification flow if acceptance
+criteria or harness posture choices need operator confirmation.
+
 ### Step 1: Feature Branch Gate
 
 Verify you are on a feature branch (not `main`). If not, create one following the naming convention `feature/{feature-number}-{slug}`.
@@ -86,6 +93,9 @@ After both checks pass (P-004 gate satisfied):
 1. Update each task with `harness-ready` label using the backlog tool's update operation (`{{FIELD_LABELS}}: "harness-ready"`)
 2. Add an implementation note with the harness command
 3. Record the harness manifest: `Compilation: PASS`, `Red Phase: CONFIRMED`
+
+When the `agent-intercom` capability pack is installed, broadcast harness-ready outcomes so the
+operator can see when implementation is unblocked or when red-phase verification failed.
 
 ## Technology-Specific Patterns
 

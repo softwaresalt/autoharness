@@ -24,6 +24,11 @@ Invoke when reviewing code changes before creating a PR, as a build gate, or for
 
 ## Required Protocol
 
+When the `agent-intercom` capability pack is installed, begin by following
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility,
+broadcast review start and verdict milestones, and use the intercom approval workflow for any
+`gated_auto` action instead of relying on implicit local acceptance.
+
 ### Step 1: Analyze Changes
 
 Parse the diff or file list:
@@ -59,7 +64,7 @@ Collect findings from all personas:
 | Action Class | Criteria | Behavior |
 |---|---|---|
 | `safe_auto` | Deterministic fix, high confidence | Apply automatically (autofix mode) or present (interactive) |
-| `gated_auto` | Probable fix, needs verification | Present for approval before applying |
+| `gated_auto` | Probable fix, needs verification | Present for approval before applying; when `agent-intercom` is enabled, route this through the intercom approval workflow |
 | `manual` | Complex fix requiring human judgment | Create backlog task |
 | `advisory` | Informational, no action needed | Include in report |
 
