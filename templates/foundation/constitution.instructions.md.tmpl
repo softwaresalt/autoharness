@@ -112,6 +112,19 @@ remote visibility is degraded and must not silently bypass approval steps that d
 is part of the harness, observability and approval routing become operational requirements rather
 than optional niceties.
 
+### Capability Overlay — backlogit
+
+When the workspace enables the `backlogit` capability pack, agents MUST use the configured
+backlogit workflow for queue selection, dependency management, token-efficient task lookup,
+continuity checkpoints, and task traceability. Agents MUST prefer backlogit query and queue
+operations over manual backlog scanning when those operations are available, MUST refresh the
+index after out-of-band edits before trusting query output, and MUST not bypass backlogit by
+creating parallel task state outside the configured backlog workspace.
+
+**Rationale**: backlogit exists to preserve agent context through targeted queries, explicit work
+ordering, and durable execution traces. Treating it as a thin file store would discard the very
+capabilities that justify enabling the overlay.
+
 ### IX. Git-Friendly Persistence
 
 All workspace state managed by the agent harness MUST be serializable to

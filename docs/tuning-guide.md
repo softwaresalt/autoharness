@@ -13,6 +13,7 @@ Agent harnesses degrade over time. Common causes:
 * **CI pipeline changes**: Quality gate commands in the constitution no longer match CI steps
 * **Runtime surface changes**: A repo grows a web UI or public API but the harness still assumes static-only validation
 * **Operator workflow changes**: agent-intercom is configured (or removed) but the harness does not reflect the required heartbeat, broadcast, or approval-routing behavior
+* **Backlog workflow changes**: backlogit is present but the harness still uses only generic CRUD patterns and ignores queue, query, dependency, or checkpoint capabilities
 * **Convention drift**: Team adopts new naming patterns not reflected in language instructions
 
 ## When to Tune
@@ -80,6 +81,8 @@ Additional examples: a web UI exists but no browser-verification pack is enabled
 
 Additional examples: agent-intercom is configured in `.vscode/mcp.json` or `.intercom/`, but the harness does not install the intercom instruction file or thread heartbeat / approval guidance through the execution pipeline.
 
+Additional examples: backlogit is detected, but the harness never recommends the backlogit pack and therefore misses SQL query, queue, memory, checkpoint, comment, and commit-trace workflows.
+
 **Action**: Fix at next opportunity. Degrading drift reduces agent effectiveness.
 
 ### Growth
@@ -91,6 +94,8 @@ New capabilities that the harness could leverage. The workspace has evolved in w
 Additional examples: web UI added (opportunity for browser verification), deployment manifests added (opportunity for release observability pack), higher-risk production changes (opportunity for strict safety defaults).
 
 Additional examples: a team adopts remote operator approval and progress visibility through agent-intercom (opportunity for the `agent-intercom` capability pack and intercom-woven workflow guidance).
+
+Additional examples: a team standardizes on backlogit as its AI-native system of record (opportunity for the `backlogit` capability pack and deeper backlogit-native workflow guidance).
 
 **Action**: Evaluate and implement when beneficial.
 

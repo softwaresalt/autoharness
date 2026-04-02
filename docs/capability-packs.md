@@ -127,6 +127,7 @@ Partially woven overlays should be treated as a real harness-quality problem.
 | Pack | Primary Purpose | Typical Primitive Impact |
 |---|---|---|
 | `agent-intercom` | Remote operator visibility, approval routing, and standby handoffs | 4, 5, 6, 7, 10 |
+| `backlogit` | backlogit-native query, queue, memory, checkpoints, comments, and traceability | 1, 2, 4, 7, 8, 9 |
 | `browser-verification` | Browser-backed runtime confidence for web-facing work | 4, 7, 10 |
 | `strict-safety` | Stronger default safety posture for risky work | 5, 6, 8 |
 | `release-observability` | Richer monitoring and closure expectations | 7, 10 |
@@ -164,6 +165,40 @@ Partially woven overlays should be treated as a real harness-quality problem.
 * manifest records the overlay target set
 
 This is not a one-file add-on. It is a woven operational behavior layer.
+
+## Example: backlogit as a formal overlay
+
+`backlogit` is an example of a pack that sits on top of the generic backlog-tool abstraction and enables deeper, tool-native behavior when the workspace specifically uses backlogit.
+
+### Eligibility signals
+
+* `backlog_tool.tool_name == backlogit`
+* backlogit MCP or CLI registration is present
+* backlogit feature flags expose query, queue, memory, checkpoint, dependency, or traceability capabilities
+
+### Overlay targets
+
+* Foundation docs
+* `backlogit.instructions.md`
+* Backlog integration instructions
+* Orchestration / planning agents
+* Memory-related agents and workflows
+
+### Behavior deltas
+
+* prefer `backlogit_query_sql` for token-efficient backlog lookup
+* prefer `backlogit_get_queue` and dependency operations for ready-work selection
+* mirror session state via backlogit memory and checkpoint tools
+* use backlogit comments and commit tracking for traceability
+* rehydrate the index when direct Markdown edits or stale query results require it
+
+### Verification checks
+
+* backlogit registry exposes the advanced operations referenced by the pack
+* `backlogit.instructions.md` is installed
+* affected agents mention queue / memory / traceability behaviors consistently
+
+This pack does not replace generic backlog integration. It deepens it when backlogit is the selected backlog tool.
 
 ## Design rules
 

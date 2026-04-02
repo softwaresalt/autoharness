@@ -351,6 +351,7 @@ The summary MUST include:
 * Recommended preset (`starter`, `standard`, or `full`)
 * Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true`)
 * Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
+* Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
 * Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
 
 ## Quality Criteria

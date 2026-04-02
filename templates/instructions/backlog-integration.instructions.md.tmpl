@@ -89,6 +89,20 @@ Call {{OP_UPDATE_MCP}} with:
   {{FIELD_LABELS}}: "existing-label,harness-ready"
 ```
 
+## Advanced Patterns When Supported
+
+If the registry advertises advanced features, prefer them over ad hoc workarounds:
+
+* **Token-efficient lookup** — use the query operation when `features.sql_query` is true
+* **Ready-work selection** — use queue-aware operations when `features.queue` is true
+* **Dependency reasoning** — use dependency operations when `features.dependencies` is true
+* **Agent continuity** — use memory and checkpoint operations when `features.memory` or `features.checkpoints` are true
+* **Traceability** — use comment or commit-tracking operations when `features.comments` or `features.commit_tracking` are true
+* **Index freshness** — use sync / rehydration operations when the workspace was edited outside normal mutation tools
+
+If a tool-specific overlay instruction file is installed (for example,
+`.github/instructions/backlogit.instructions.md`), follow it in addition to this generic guide.
+
 ## Rules
 
 1. **Always use the backlog tool** for task management. Do not create markdown task files outside the `{{BACKLOG_DIRECTORY}}/` directory.

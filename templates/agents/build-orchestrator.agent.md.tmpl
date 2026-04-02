@@ -18,6 +18,7 @@ You are the central execution coordinator. You do not write code directly. You d
 ### Step 1: Pre-Flight Checks
 
 1. When the `agent-intercom` capability pack is installed, follow `.github/instructions/agent-intercom.instructions.md` to establish heartbeat / ping visibility and broadcast the start of orchestration work
+1. When the `backlogit` capability pack is installed, follow `.github/instructions/backlogit.instructions.md` and verify the backlogit queue / dependency / checkpoint surface is available before depending on those behaviors
 1. **P-001 Gate**: Check that no other features are `In Progress` in the backlog
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
 3. **Re-read constitution**: Load `.github/instructions/constitution.instructions.md` Principles I, II, IV
@@ -28,6 +29,10 @@ You are the central execution coordinator. You do not write code directly. You d
 List all tasks with `harness-ready` label (P-002 gate) for the target feature using the backlog tool's list operation (see `backlog-integration.instructions.md`). Filter by `{{FIELD_LABELS}}: "harness-ready"` and `{{FIELD_STATUS}}: "{{STATUS_TODO}}"`. If no tasks are ready, halt and suggest running the harness-architect.
 
 Sort the queue by dependency order (tasks with no unfinished dependencies first).
+
+When the `backlogit` capability pack is installed and queue-aware operations are supported, prefer
+the queue operation to assemble the ready set. When dependency operations are supported, verify the
+dependency graph before claiming work rather than assuming the backlog ordering is already valid.
 
 ### Step 3: Execute Task Loop
 
@@ -66,10 +71,15 @@ Invoke the **review** skill in `report-only` mode against the changed files. If 
 
 1. Commit changes with a conventional commit message
 2. Update task status to `{{STATUS_DONE}}` using the backlog tool's complete operation
-3. Write a memory checkpoint via the memory agent
-4. If the task required 3+ attempts, invoke the compound skill to capture learnings
+3. If the `backlogit` capability pack is installed and commit-tracking is supported, associate the commit with the task through the backlog tool's traceability operation
+4. Write a memory checkpoint via the memory agent
+5. If the task required 3+ attempts, invoke the compound skill to capture learnings
 
 If the `agent-intercom` capability pack is installed, broadcast task completion and any blocked / retry conditions that materially affect the batch.
+
+When the `backlogit` capability pack is installed and comments are supported, append a concise
+task comment summarizing the outcome, notable constraints, or handoff context that the next agent
+or operator should know.
 
 ### Step 4: Batch Completion
 
@@ -84,6 +94,9 @@ After all tasks in the queue are complete:
 7. Write a session memory summary
 
 When the `agent-intercom` capability pack is installed, broadcast final readiness / blocked status and use the intercom clarification flow if unresolved operator guidance is needed before merge or deploy.
+
+When the `backlogit` capability pack is installed and checkpoint or memory operations are supported,
+persist a final session checkpoint or summary through backlogit before handing off or ending the batch.
 
 ## Circuit Breakers
 

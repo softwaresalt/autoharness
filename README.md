@@ -72,6 +72,7 @@ autoharness now supports a lighter-weight composition model so teams can adopt t
 | Pack | Purpose |
 |---|---|
 | **agent-intercom** | Weaves remote operator visibility, heartbeat, approval routing, and steering waits through the harness lifecycle |
+| **backlogit** | Deepens backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows |
 | **browser-verification** | Adds browser-aware runtime verification guidance for web-facing projects |
 | **strict-safety** | Emphasizes careful / freeze-scope / investigate-first operating modes |
 | **release-observability** | Strengthens operational closure with monitoring and validation checklists |

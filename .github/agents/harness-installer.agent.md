@@ -116,7 +116,7 @@ Artifacts to generate:
 Wait for user confirmation before proceeding. The user may request:
 
 * Select a preset (`starter`, `standard`, `full`)
-* Add capability packs (`agent-intercom`, `browser-verification`, `strict-safety`, `release-observability`)
+* Add capability packs (`agent-intercom`, `backlogit`, `browser-verification`, `strict-safety`, `release-observability`)
 * Exclude specific primitives (e.g., "skip model routing" or "no review personas")
 * Customize specific values (e.g., "our test command is `make test`")
 * Add custom scopes to commit messages
@@ -144,6 +144,7 @@ After installation completes, provide the user with:
 4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
 5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces
 6. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
+7. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
 
 ## Behavioral Constraints
 

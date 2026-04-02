@@ -19,7 +19,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `preset`: (Optional, default `standard`) One of `starter`, `standard`, or `full`. Presets define the default primitive set and capability-pack defaults.
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-10) to install. Defaults to the selected preset.
-* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `browser-verification`, `strict-safety`, `release-observability`.
+* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `backlogit`, `browser-verification`, `strict-safety`, `release-observability`.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -129,6 +129,7 @@ Capability-pack overlays:
 | Capability Pack | Overlay Behavior |
 |---|---|
 | `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, long-running skills, and the ping-loop prompt |
+| `backlogit` | Installs `backlogit.instructions.md` and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace workflows through backlog-aware artifacts |
 | `browser-verification` | Strengthens browser-specific runtime verification guidance |
 | `strict-safety` | Makes safety-mode usage more explicit and more frequent |
 | `release-observability` | Deepens operational closure and post-release monitoring guidance |
@@ -163,6 +164,15 @@ Example overlay target map for `agent-intercom`:
 | Operator wait flows | pipeline agents and long-running skills that block on clarification |
 
 Do not model a capability pack as a single isolated artifact when its behavior is inherently cross-cutting.
+
+Example overlay target map for `backlogit`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Token-efficient lookup | foundation docs, backlog instructions, backlog-aware agents |
+| Ready-work selection | build-orchestrator and backlog-aware instructions |
+| Agent continuity | memory agent, foundation docs |
+| Traceability | backlog-aware agents and instructions |
 
 Map primitives to template groups:
 
@@ -211,6 +221,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
 
 4. **Capability-pack instructions**: When `agent-intercom` is enabled, install `agent-intercom.instructions.md` and use it as the authoritative reference for heartbeat, remote approval, operator steering, and standby workflows.
+   When `backlogit` is enabled, install `backlogit.instructions.md` and use it as the authoritative reference for backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows.
 
 #### Step 2.3: Backlog Tool Registration
 
@@ -243,6 +254,7 @@ Generate agent definitions. Each agent template has technology-specific sections
    * Adapt quality gate sequences
    * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
    * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits
+   * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
 
 2. **Support agents**: memory, doc-ops, prompt-builder
    * Minimal technology adaptation needed
@@ -378,6 +390,7 @@ Verify all installed artifacts are internally consistent:
 * Every policy references agents that were installed
 * The constitution references technology-specific rules that match the installed language instructions
 * If `agent-intercom` is enabled, the intercom instruction file is installed and the affected agents / skills reference heartbeat, broadcast, or approval-routing behavior consistently
+* If `backlogit` is enabled, the backlogit instruction file is installed and the affected agents / skills reference query, queue, checkpoint, or traceability behavior consistently
 * If any capability pack is enabled, its declared overlay targets and verification checks are satisfied rather than only the pack name being recorded
 
 #### Step 4.2: Structural Validation

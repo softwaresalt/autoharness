@@ -22,6 +22,11 @@ When the `agent-intercom` capability pack is installed, begin by following
 broadcast the start of the planning pipeline, and use the intercom clarification / wait flow
 instead of silently stalling if operator input is needed.
 
+When the `backlogit` capability pack is installed, also follow
+`.github/instructions/backlogit.instructions.md`: use query-driven lookup when inspecting existing
+backlog state, and plan to record explicit dependency edges during decomposition rather than leaving
+execution order implicit.
+
 ### Step 1: Load Source Document
 
 Read the source document from the provided path. Verify the file exists and is a valid research or brainstorm document.
@@ -92,6 +97,10 @@ Each task includes:
 * Acceptance criteria
 * Suggested execution posture (test-first, characterization-first, migration-first, spike)
 
+When the `backlogit` capability pack is installed and dependency operations are supported, create
+explicit dependency edges between tasks that must run in sequence instead of encoding that ordering
+only in prose.
+
 ### Step 5: Summary
 
 Present the decomposition summary:
@@ -103,6 +112,10 @@ Present the decomposition summary:
 
 When the `agent-intercom` capability pack is installed, broadcast the gate outcome and summary
 milestones so the operator can see whether planning passed, failed, or needs revision.
+
+When the `backlogit` capability pack is installed, include whether dependency edges were recorded
+and whether the backlog already contained related queued or active work discovered through query /
+queue operations.
 
 ## Behavioral Constraints
 
