@@ -15,6 +15,7 @@ Invoke this skill periodically or when significant codebase changes occur:
 * New languages, frameworks, or build tools added to the project
 * Major directory restructuring
 * CI/CD pipeline changes
+* New runtime surfaces (web UI, API, background jobs, deployment manifests)
 * After a large feature merge that introduces new patterns or conventions
 * When agent behavior becomes noticeably less effective
 * At regular intervals (recommended: monthly or after every major release)
@@ -71,6 +72,7 @@ For each installed artifact, check:
 * **Constitution**: Do technology-specific rules match the current stack?
 * **AGENTS.md**: Do quality gates and commands match current tooling?
 * **Backlog registry**: Does the registered backlog tool still match the installed tool? Has the tool been switched?
+* **Runtime verification and closure skills**: Do they match the current runtime surfaces and deployment model?
 
 Record: `health_report{}` with per-artifact status.
 
@@ -95,6 +97,17 @@ Compare the currently registered backlog tool (from `.autoharness/backlog-regist
 5. Update status values throughout (e.g., `queued` → `To Do`)
 6. Map the directory structure if different (e.g., `.backlogit/` → `backlog/`)
 7. Do NOT migrate task data — that is the backlog tool's responsibility
+
+#### Step 1.5: Preset and Capability-Pack Drift
+
+Compare the installed preset and capability packs in `.autoharness/harness-manifest.yaml` against the current workspace profile recommendations:
+
+| Scenario | Category | Action |
+|----------|----------|--------|
+| Same preset and packs still appropriate | Healthy | No action needed |
+| Same preset, missing recommended pack | Growth | Propose enabling the pack |
+| Installed pack no longer matches runtime surfaces | Cosmetic or Degrading | Propose disabling or retargeting the pack |
+| Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
 
 ### Phase 2: Change Proposal Generation
 
@@ -132,6 +145,7 @@ Scan for workspace patterns that suggest missing harness capabilities:
 * Security-sensitive patterns (auth, crypto, input validation) without security review
 * Infrastructure-as-code files without IaC instructions
 * Containerization (Dockerfile, docker-compose) without container instructions
+* Web UI or API runtime surfaces without matching runtime verification or operational closure guidance
 
 ### Phase 3: Proposal Review
 
@@ -186,6 +200,7 @@ If growth opportunities were accepted (new review personas, new instructions, ne
 1. Generate from templates using the current workspace profile
 2. Install to the appropriate directory
 3. Update cross-references in AGENTS.md and copilot-instructions.md
+4. Update manifest preset / capability-pack metadata when installation shape changes
 
 #### Step 4.3: Update Manifest
 

@@ -82,6 +82,8 @@ Apply targeted fixes to address the specific test failure. Do NOT:
 * Refactor code not related to the failure
 * Skip error handling to shortcut a fix
 
+If the root cause is still unclear after repeated attempts, or the task touches a risky subsystem, invoke **safety-modes** in `investigate-first` or `freeze-scope` mode before continuing.
+
 #### Step 6: Verify Compilation
 
 Run `{{BUILD_CHECK_COMMAND}}` to confirm the fix compiles. If compilation fails, fix compilation errors before returning to the harness loop.

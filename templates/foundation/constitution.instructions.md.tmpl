@@ -89,7 +89,19 @@ operations. They must never extend to destructive operations because a
 single misrouted destructive command can irrecoverably corrupt repositories
 or break system configuration.
 
-### VIII. Git-Friendly Persistence
+### VIII. Explicit Safety Modes for Elevated Risk
+
+When work involves destructive commands, production-impacting changes, uncertain root causes,
+or large blast radius, agents MUST switch into an explicit safety mode before proceeding:
+
+* **Careful mode** — enumerate risks, confirm intent, and pause before high-impact operations
+* **Freeze-scope mode** — constrain work to a declared path or subsystem boundary
+* **Investigate-first mode** — gather evidence and causal understanding before proposing fixes
+
+**Rationale**: Guardrails are more reliable when they are interactive and legible. Safety modes
+translate policy into an operating posture that both the agent and the operator can reason about.
+
+### IX. Git-Friendly Persistence
 
 All workspace state managed by the agent harness MUST be serializable to
 human-readable, Git-mergeable files. Markdown with YAML frontmatter is the
@@ -136,6 +148,8 @@ Run in order. Do not skip any gate.
    messages follow conventional commits format (`feat:`, `fix:`, `docs:`, `test:`).
 5. **No dead code**: Placeholder modules MUST be replaced or removed before a
    feature is considered complete.
+6. **Operational closure**: Work is not complete at “green CI” if runtime validation,
+   monitoring setup, or release handoff remains unresolved.
 
 ### Task Granularity (NON-NEGOTIABLE)
 

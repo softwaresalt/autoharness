@@ -17,7 +17,9 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 * `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via: `AUTOHARNESS_HOME` env var → `autoharness home` CLI → agent directory traversal → `~/.autoharness/`.
 * `workspace_path`: (Required) Absolute path to the target workspace root. Must be a different directory from `autoharness_home`.
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
-* `primitives`: (Optional) Comma-separated list of primitive numbers (1-9) to install. Defaults to all.
+* `preset`: (Optional, default `standard`) One of `starter`, `standard`, or `full`. Presets define the default primitive set and capability-pack defaults.
+* `primitives`: (Optional) Comma-separated list of primitive numbers (1-10) to install. Defaults to the selected preset.
+* `capability_packs`: (Optional) Comma-separated list of capability packs: `browser-verification`, `strict-safety`, `release-observability`.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -96,23 +98,38 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{FIELD_LABELS}}` | Registry `field_mapping.labels` | `labels` | `labels` |
 | `{{BACKLOG_TOOLS}}` | Backlog MCP server name from registry | `backlog` | `backlog` |
 
-#### Step 1.3: Select Primitive Set
+#### Step 1.3: Select Preset, Primitive Set, and Capability Packs
 
-If `primitives` input is provided, filter the installation to only the requested primitives. Otherwise, install all 9.
+Resolve the installation shape in this order:
+
+1. If `primitives` input is provided, use it directly.
+2. Otherwise, use the primitive set implied by `preset`.
+3. If no preset is provided, default to `standard`.
+
+Preset defaults:
+
+| Preset | Default Primitives | Default Capability Packs | Best For |
+|---|---|---|---|
+| `starter` | 1, 2, 4, 5, 6, 8, 9 | none | First-time adoption, smaller repos |
+| `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `strict-safety` when runtime risk is detected | Most repositories |
+| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | All recommended packs from the profile | Higher-operational-maturity teams |
+
+If `capability_packs` input is omitted, use the profile's `harness_recommendations.capability_packs` for `full`, or apply no optional packs for `starter`/`standard` unless a pack is strongly recommended by detected runtime surfaces.
 
 Map primitives to template groups:
 
 | Primitive | Template Groups |
 |---|---|
-| 1 - State & Context | `agents/memory`, `skills/compact-context`, `skills/compound` |
+| 1 - State & Context | `agents/memory`, `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/backlog-harvester` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
 | 4 - Orchestration | `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/build-feature`, `skills/fix-ci` |
-| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md` |
+| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
 | 7 - Observability | `agents/review/*`, `agents/doc-ops`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
 | 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc`, `agents/doc-ops` |
+| 10 - Operational Closure | `skills/runtime-verification`, `skills/operational-closure`, PR and CI handoff sections in pipeline templates |
 
 ### Phase 2: Template Composition
 
@@ -120,7 +137,7 @@ Map primitives to template groups:
 
 Generate the constitutional foundation first, as all other artifacts reference it:
 
-1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 9 universal principles.
+1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 10 universal principles.
 
 2. **AGENTS.md**: Generate the root AGENTS.md with technology-specific quality gates, code style conventions, error handling patterns, and terminal command policies.
 
@@ -201,8 +218,11 @@ Generate skill files:
    * `brainstorm/SKILL.md`
    * `compact-context/SKILL.md`
    * `compound/SKILL.md`
+   * `operational-closure/SKILL.md`
    * `plan-review/SKILL.md`
    * `review/SKILL.md`
+   * `runtime-verification/SKILL.md`
+   * `safety-modes/SKILL.md`
 
 #### Step 2.5: Policy Layer
 
@@ -234,6 +254,7 @@ Initialize the backlog directory:
   compound/           # Empty, ready for learnings
   reviews/            # Empty, ready for review artifacts
   memory/             # Empty, ready for session memory
+   closure/            # Empty, ready for runtime verification and closure artifacts
   completed/          # Empty, archive for done work
 ```
 
@@ -271,7 +292,9 @@ installed_at: "{{ISO_8601_TIMESTAMP}}"
 autoharness_version: "1.0.0"
 autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
-primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+install_preset: "{{PRESET}}"
+capability_packs: [{{CAPABILITY_PACKS}}]
+primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 artifacts:
   - path: ".github/instructions/constitution.instructions.md"
     primitive: 5
@@ -312,7 +335,9 @@ Harness Installation Complete
 ─────────────────────────────
 Workspace: {{PROJECT_NAME}}
 Language:  {{PRIMARY_LANGUAGE}}
-Primitives installed: 8/8
+Primitives installed: selected subset / 10
+Preset: {{PRESET}}
+Capability packs: {{CAPABILITY_PACKS_OR_NONE}}
 
 Artifacts created:
   Instructions:    {{count}}

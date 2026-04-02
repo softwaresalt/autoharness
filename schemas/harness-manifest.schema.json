@@ -24,12 +24,25 @@
       "type": "string",
       "description": "SHA-256 of the workspace profile used during installation"
     },
+    "install_preset": {
+      "type": ["string", "null"],
+      "enum": ["starter", "standard", "full", null],
+      "description": "Preset used when the harness was installed"
+    },
+    "capability_packs": {
+      "type": "array",
+      "description": "Optional capability packs enabled during installation",
+      "items": {
+        "type": "string",
+        "enum": ["browser-verification", "strict-safety", "release-observability"]
+      }
+    },
     "primitives_installed": {
       "type": "array",
       "items": {
         "type": "integer",
         "minimum": 1,
-        "maximum": 8
+        "maximum": 10
       }
     },
     "artifacts": {
@@ -45,7 +58,7 @@
           "primitive": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 8,
+            "maximum": 10,
             "description": "Which primitive this artifact implements"
           },
           "template": {

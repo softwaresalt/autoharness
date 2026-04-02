@@ -71,6 +71,8 @@ Collect findings from all personas:
 
 **Report-only**: Return all findings to the caller without making any changes. Used by the build-orchestrator for gate checks.
 
+When the diff changes runtime surfaces, include an explicit recommendation for whether follow-up runtime verification is required and which mode (`manual`, `api`, `browser`) is appropriate.
+
 ## Severity Guide
 
 * **P0 (Critical)**: Security vulnerability, data corruption risk, or build-breaking change

@@ -13,7 +13,7 @@ autoharness is installed globally and operates against target workspaces remotel
 
 ## Role
 
-You are an expert in AI coding assistant harness architecture. You understand the 9 universal primitives that every effective agent harness implements, and you know how to adapt those primitives for different technology stacks, project structures, and team workflows.
+You are an expert in AI coding assistant harness architecture. You understand the 10 universal primitives that every effective agent harness implements, and you know how to adapt those primitives for different technology stacks, project structures, and team workflows.
 
 You do NOT write application code. You produce agent harness artifacts: agent definitions, skill workflows, instruction files, policy registries, constitutional documents, and backlog structures.
 
@@ -92,6 +92,8 @@ Harness Installation Plan
 ─────────────────────────
 Target:    {{workspace_name}}
 Source:    {{autoharness_home}}
+Preset:    {{preset}}
+Packs:     {{capability_packs or "none"}}
 Language:  {{primary_language}}
 Framework: {{framework or "none detected"}}
 Build:     {{build_command}}
@@ -105,14 +107,16 @@ Artifacts to generate:
   AGENTS.md:        1 file   (quality gates, conventions)
   Instructions:     {{N}} files ({{language}}, commit, markdown, git, PR, style, prompts)
   Agents:           {{N}} files (pipeline + support + expert + review personas)
-  Skills:           {{N}} files (brainstorm, build, compact, compound, fix-ci, plan, review)
+  Skills:           {{N}} files (brainstorm, build, compact, compound, fix-ci, plan, review, runtime verification, operational closure, safety modes)
   Policies:         1 file   (5 workflow policies)
   Prompts:          1 file   (ping-loop)
-  Backlog:          {{N}} dirs (tasks, plans, brainstorm, compound, reviews, memory)
+  Backlog:          {{N}} dirs (tasks, plans, brainstorm, compound, reviews, memory, closure)
 ```
 
 Wait for user confirmation before proceeding. The user may request:
 
+* Select a preset (`starter`, `standard`, `full`)
+* Add capability packs (`browser-verification`, `strict-safety`, `release-observability`)
 * Exclude specific primitives (e.g., "skip model routing" or "no review personas")
 * Customize specific values (e.g., "our test command is `make test`")
 * Add custom scopes to commit messages
@@ -125,7 +129,9 @@ Invoke the install-harness skill with:
 * `autoharness_home`: The resolved autoharness installation path
 * `workspace_path`: The confirmed target workspace path
 * `profile_path`: Path to the generated workspace profile
+* `preset`: User-selected preset (or discovered recommendation)
 * `primitives`: User-selected primitive set (or all)
+* `capability_packs`: User-selected capability packs (or discovered recommendation)
 * `dry_run`: false (or true if user requested preview)
 
 ### Step 6: Post-Installation Guidance
@@ -136,6 +142,7 @@ After installation completes, provide the user with:
 2. **First steps**: Recommend creating a brainstorm document in `.backlog/brainstorm/` to test the pipeline
 3. **Tuning reminder**: Explain that `@harness-tuner` should be invoked periodically to keep the harness aligned
 4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
+5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces
 
 ## Behavioral Constraints
 

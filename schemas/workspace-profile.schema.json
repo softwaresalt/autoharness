@@ -88,12 +88,42 @@
         "doc_layout": { "type": "string" }
       }
     },
+    "runtime_surfaces": {
+      "type": "object",
+      "description": "Runtime surfaces that may require post-build verification and operational closure",
+      "properties": {
+        "web_ui": { "type": "boolean" },
+        "public_api": { "type": "boolean" },
+        "background_jobs": { "type": "boolean" },
+        "deployment_manifests": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "conventions": {
       "type": "object",
       "properties": {
         "code_style": { "type": "object" },
         "git": { "type": "object" },
         "documentation": { "type": "object" }
+      }
+    },
+    "harness_recommendations": {
+      "type": "object",
+      "description": "Recommended installation preset and optional capability packs derived during discovery",
+      "properties": {
+        "preset": {
+          "type": ["string", "null"],
+          "enum": ["starter", "standard", "full", null]
+        },
+        "capability_packs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["browser-verification", "strict-safety", "release-observability"]
+          }
+        }
       }
     },
     "existing_harness": {

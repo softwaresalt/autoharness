@@ -118,7 +118,7 @@ Reference the autoharness agents directory or pass the AGENTS.md as system conte
 ### Full Installation (Recommended)
 
 ```text
-@harness-installer workspace=/path/to/target
+@harness-installer workspace=/path/to/target preset=standard
 ```
 
 The installer will:
@@ -130,12 +130,37 @@ The installer will:
 5. **Install** the artifacts into the target workspace
 6. **Verify** the installation is coherent and all cross-references resolve
 
+### Preset-Based Installation
+
+Choose the installation shape before fine-tuning primitives manually:
+
+```text
+@harness-installer workspace=/path/to/target preset=starter
+@harness-installer workspace=/path/to/target preset=full capability_packs=browser-verification,release-observability
+```
+
+| Preset | Installs | Best For |
+|---|---|---|
+| `starter` | Core planning, execution, safety, workflow policy, and repository knowledge | First adoption, libraries, smaller repos |
+| `standard` | Full 10-primitive harness | Most repos |
+| `full` | Full 10-primitive harness plus recommended capability packs | Web apps, services, and higher-operational-maturity teams |
+
+### Capability Packs
+
+Capability packs deepen the harness without redefining the primitive model:
+
+| Pack | Adds |
+|---|---|
+| `browser-verification` | Browser-aware runtime verification guidance for web UIs |
+| `strict-safety` | Stronger default use of careful / freeze-scope / investigate-first modes |
+| `release-observability` | Richer operational closure and monitoring artifacts |
+
 ### Selective Installation
 
 Install only specific primitives:
 
 ```text
-@harness-installer workspace=/path/to/target primitives=1,4,5,8
+@harness-installer workspace=/path/to/target primitives=1,4,5,8,10
 ```
 
 **Primitive numbers:**
@@ -149,6 +174,7 @@ Install only specific primitives:
 7. Observability & Evaluation
 8. Workflow Policy
 9. Repository Knowledge & Agent Legibility
+10. Operational Closure & Feedback
 
 ### Dry Run (Preview)
 
@@ -191,8 +217,11 @@ target-workspace/
       compound/SKILL.md
       fix-ci/SKILL.md
       impl-plan/SKILL.md
+      operational-closure/SKILL.md
       plan-review/SKILL.md
       review/SKILL.md
+      runtime-verification/SKILL.md
+      safety-modes/SKILL.md
     instructions/
       constitution.instructions.md
       {language}.instructions.md
@@ -216,6 +245,7 @@ target-workspace/
     compound/
     reviews/
     memory/
+    closure/
     completed/
   .autoharness/
     workspace-profile.yaml               # Discovered workspace profile
@@ -234,7 +264,8 @@ The installer runs automatic verification. You can also manually check:
 2. Check that the constitution mentions your project's technology stack
 3. Verify `AGENTS.md` has the correct build/test/lint commands
 4. Confirm instruction file `applyTo` patterns match your file extensions
-5. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
+5. Confirm the selected preset and capability packs are recorded in `.autoharness/harness-manifest.yaml`
+6. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
 
 ### First Use
 
@@ -243,6 +274,8 @@ The installer runs automatic verification. You can also manually check:
 3. Review the generated plan and task decomposition
 4. Invoke the harness-architect for the feature
 5. Invoke the build-orchestrator to implement
+6. If the feature changes runtime behavior, run `runtime-verification`
+7. Capture release readiness and follow-up monitoring with `operational-closure`
 
 ### Ongoing Maintenance
 

@@ -110,6 +110,19 @@ Identify the project's organizational patterns:
 
 Record: `source_layout`, `test_layout`, `doc_layout`, `existing_harness_artifacts[]`.
 
+#### Step 1.5b: Runtime Surface Detection
+
+Detect whether the workspace has runtime surfaces that need post-build verification or operational closure:
+
+| Signal | Surface |
+|--------|---------|
+| Next.js / Vite / Angular / Rails views / templates / `public/` frontend assets | Web UI |
+| OpenAPI files, route declarations, controllers, `api/` or `routes/` directories | Public API |
+| Queue libraries, job workers, cron config, message consumers | Background jobs |
+| Dockerfile, Helm charts, Terraform, deployment workflows | Deployment manifests |
+
+Record: `runtime_surfaces{}` with booleans for `web_ui`, `public_api`, and `background_jobs`, plus `deployment_manifests[]` for discovered paths.
+
 #### Step 1.6: Backlog Tool Detection
 
 Detect installed backlog management tools by scanning for their workspace markers and configuration:
@@ -267,10 +280,20 @@ structure:
   test_layout: "{{TEST_LAYOUT}}"
   doc_layout: "{{DOC_LAYOUT}}"
 
+runtime_surfaces:
+  web_ui: false
+  public_api: false
+  background_jobs: false
+  deployment_manifests: []
+
 conventions:
   code_style: {}
   git: {}
   documentation: {}
+
+harness_recommendations:
+  preset: "{{RECOMMENDED_PRESET}}"
+  capability_packs: []
 
 existing_harness:
   has_harness: false
@@ -294,6 +317,12 @@ drift_report: null
 #### Step 4.2: Present for Review
 
 Display the profile summary to the user and wait for confirmation or corrections before the installer proceeds to template composition.
+
+The summary MUST include:
+
+* Recommended preset (`starter`, `standard`, or `full`)
+* Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true`)
+* Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
 
 ## Quality Criteria
 

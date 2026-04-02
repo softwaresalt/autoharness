@@ -39,6 +39,14 @@ execution, regardless of permissive mode flags. Destructive commands include:
 file/directory deletion, force-overwrite, system config changes, VCS history
 alteration, data drops, system-level package changes, and untrusted code execution.
 
+### VI. Safety Modes for Risky Work
+
+When work has elevated blast radius, agents MUST enter an explicit safety mode before proceeding:
+
+* **careful** — enumerate risks and require approval before destructive or high-impact actions
+* **freeze-scope** — constrain edits to a declared directory or subsystem boundary
+* **investigate-first** — gather evidence before proposing or applying fixes
+
 ---
 
 ## Technical Constraints
@@ -98,6 +106,7 @@ Run in order. Do not skip any gate.
 3. **Branch per feature**: Each feature on a dedicated branch.
 4. **Commit discipline**: Conventional commits format (`feat:`, `fix:`, `docs:`, `test:`).
 5. **No dead code**: Placeholder modules replaced or removed before completion.
+6. **Closure before forgetfulness**: Runtime verification and operational closure happen before work is considered fully absorbed.
 
 ### Task Granularity (NON-NEGOTIABLE)
 
@@ -157,7 +166,8 @@ or architectural rationale, the doc-ops agent graduates that knowledge into
 Idea/Research → brainstorm skill → backlog-harvester agent
   → impl-plan skill → plan-review skill → task decomposition
   → harness-architect agent → build-orchestrator agent
-  → pr-review agent → fix-ci skill → Merge
+  → pr-review agent → fix-ci skill → runtime-verification skill
+  → operational-closure skill → Merge / Monitor
 ```
 
 ---

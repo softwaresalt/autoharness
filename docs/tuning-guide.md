@@ -11,6 +11,7 @@ Agent harnesses degrade over time. Common causes:
 * **Build tool changes**: Migration from webpack to vite breaks build-feature skill commands
 * **Directory restructuring**: `applyTo` patterns in instruction files match no files after a rename
 * **CI pipeline changes**: Quality gate commands in the constitution no longer match CI steps
+* **Runtime surface changes**: A repo grows a web UI or public API but the harness still assumes static-only validation
 * **Convention drift**: Team adopts new naming patterns not reflected in language instructions
 
 ## When to Tune
@@ -20,6 +21,7 @@ Agent harnesses degrade over time. Common causes:
 | Major release shipped | Medium | Growth, Cosmetic |
 | New language/framework added | High | Breaking, Growth |
 | CI/CD pipeline modified | High | Breaking, Degrading |
+| Runtime verification surface added | High | Growth, Degrading |
 | Directory restructuring | High | Breaking |
 | Agent outputs degrading | Medium | Degrading |
 | Monthly maintenance window | Low | All categories |
@@ -71,6 +73,8 @@ Harness works but produces suboptimal results. Artifacts are valid but miss new 
 
 **Examples**: New framework added without review persona, new test patterns without matching instructions, stale architecture documentation.
 
+Additional examples: a web UI exists but no browser-verification pack is enabled, operational closure templates omit monitoring expectations, safety-mode guidance is missing from risky maintenance workflows.
+
 **Action**: Fix at next opportunity. Degrading drift reduces agent effectiveness.
 
 ### Growth
@@ -78,6 +82,8 @@ Harness works but produces suboptimal results. Artifacts are valid but miss new 
 New capabilities that the harness could leverage. The workspace has evolved in ways that create opportunities for new harness features.
 
 **Examples**: New database added (opportunity for database reviewer persona), Docker introduced (opportunity for container instructions), API documentation added (opportunity for API review).
+
+Additional examples: web UI added (opportunity for browser verification), deployment manifests added (opportunity for release observability pack), higher-risk production changes (opportunity for strict safety defaults).
 
 **Action**: Evaluate and implement when beneficial.
 
@@ -94,6 +100,7 @@ All harness artifacts are regular Markdown files. You can edit them directly:
 * **Instructions**: Adjust `applyTo` patterns, add/remove rules
 * **Agents**: Update tool lists, modify behavioral constraints, adjust model routing
 * **Skills**: Change build/test commands, adjust circuit breaker limits
+* **Skill Packs**: Enable richer verification or safety packs without redesigning the harness
 * **Policies**: Add new policies or modify existing gate conditions
 * **Constitution**: Update quality gates, change error handling patterns
 

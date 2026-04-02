@@ -79,17 +79,18 @@ The harness manifest tracks what was installed, which templates were used, and t
 
 The backlog tool registry is the abstraction layer between harness agents and the specific backlog management tool installed in a workspace. It maps abstract operations (create task, list tasks, move task) to tool-specific MCP tool names, CLI commands, field names, and status values. Pre-built registries for backlogit and backlog-md live in `templates/backlog/registries/`. Schema: `schemas/backlog-tool-registry.schema.json`.
 
-### The 9 Primitives
+### The 10 Primitives
 
-1. State & Context Management
+1. State, Context & Knowledge Retrieval
 2. Task Granularity & Horizon Scoping
 3. Model Routing & Escalation
-4. Orchestration & Delegation
-5. Tool Execution & Guardrails
+4. Orchestration, Delegation & Lifecycle Handoffs
+5. Tool Execution, Safety Modes & Guardrails
 6. Injection Points & Dynamic Reminders
 7. Observability & Evaluation
 8. Workflow Policy
 9. Repository Knowledge & Agent Legibility
+10. Operational Closure & Feedback
 
 ## Development Conventions
 
