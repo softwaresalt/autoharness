@@ -9,6 +9,23 @@ Through empirical evaluation of production agent harnesses, we identified 10 irr
 
 autoharness packages these primitives as customizable templates. The workspace-discovery skill identifies which technology-specific adaptations are needed, and the install-harness skill composes the final artifacts.
 
+## Capability packs are overlays, not primitives
+
+Capability packs are the mechanism autoharness uses for optional, cross-cutting composition on top of the 10 primitives.
+
+They do **not** add an eleventh primitive. Instead, a pack deepens existing primitives by weaving coordinated changes across multiple artifacts. For example, `agent-intercom` strengthens Primitive 4 (handoffs), Primitive 5 (approval routing), Primitive 6 (instruction injection), and Primitive 7/10 (operator visibility and closure signaling) without redefining the primitive model itself.
+
+Every formal capability pack follows the same overlay contract:
+
+1. **Eligibility signals** discovered from the workspace profile
+2. **Recommendation logic** that proposes the pack during discovery
+3. **Overlay targets** listing the artifacts that must be updated together
+4. **Behavior deltas** that describe what the enabled harness does differently
+5. **Verification checks** that confirm the pack is fully woven after installation
+6. **Tuning drift rules** that detect stale or partially applied overlays over time
+
+The full pattern lives in [Capability Packs](capability-packs.md).
+
 ## Primitive 1: State, Context, and Knowledge Retrieval
 
 ### The Problem

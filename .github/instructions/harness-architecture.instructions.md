@@ -9,6 +9,40 @@ This document defines the reference architecture for the 10 irreducible primitiv
 
 autoharness operates as a global tool: templates and schemas live in the autoharness installation (`autoharness_home`), and only the generated harness artifacts are installed into target workspaces. All artifact paths below refer to locations in the target workspace after installation. The templates that produce them live in `{autoharness_home}/templates/`.
 
+## Capability-Pack Overlay Pattern
+
+Capability packs are optional **overlay compositions** applied on top of the 10 primitives. They are not additional primitives and must not be treated as substitute architecture layers.
+
+### Overlay Rules
+
+* A capability pack may deepen one or more primitives, but it must not redefine the primitive model
+* Packs are applied **after** base primitive selection and **before** installation verification
+* Packs may touch multiple artifact classes at once: foundation docs, instruction files, agent definitions, skills, prompts, and policies
+* Packs must be woven coherently across all declared targets; a single isolated instruction file is not sufficient for a cross-cutting pack
+* Packs must remain optional. If disabled, the base primitive system still forms a coherent harness
+
+### Required Overlay Contract
+
+Every capability pack definition must include:
+
+* **Eligibility signals** — workspace markers that justify recommending the pack
+* **Recommendation logic** — how workspace discovery decides the pack should be proposed
+* **Overlay targets** — the exact artifacts or artifact classes affected by the pack
+* **Behavior deltas** — the workflow differences that appear when the pack is enabled
+* **Verification checks** — installation-time checks proving the overlay was applied consistently
+* **Tuning drift checks** — how tuning detects that the overlay is stale, missing, or partially woven
+
+### Example
+
+The `agent-intercom` pack is a model overlay because it changes how the harness behaves across multiple primitives and artifacts:
+
+* Primitive 4 — orchestration agents announce milestones and use operator wait flows
+* Primitive 5 — destructive actions route through approval workflows
+* Primitive 6 — intercom instructions are injected at the right moments
+* Primitive 7 / 10 — review, verification, and closure broadcast status and degraded-mode signals
+
+This is why `agent-intercom` must be woven through the harness rather than installed as a single detached add-on.
+
 ## Primitive 1: State, Context, and Knowledge Retrieval
 
 **Purpose**: Maintain durable state across sessions, retrieve relevant prior learnings at the point of work, manage the context window, and prevent token overflow.

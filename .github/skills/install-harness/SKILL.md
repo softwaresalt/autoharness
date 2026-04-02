@@ -133,6 +133,37 @@ Capability-pack overlays:
 | `strict-safety` | Makes safety-mode usage more explicit and more frequent |
 | `release-observability` | Deepens operational closure and post-release monitoring guidance |
 
+#### Step 1.3b: Apply the Formal Overlay Contract
+
+Treat every selected capability pack as a cross-cutting overlay rather than a single-file option.
+
+For each selected pack, define and apply:
+
+1. **Eligibility signals** — why the pack was selected or recommended
+2. **Overlay targets** — the artifact classes that must be updated together
+3. **Behavior deltas** — the changes to workflow behavior introduced by the pack
+4. **Verification checks** — how install verification proves the overlay is coherently woven
+
+Overlay targets may span:
+
+* Foundation docs (`AGENTS.md`, `copilot-instructions.md`, constitution)
+* Instruction files
+* Pipeline agents
+* Long-running or gating skills
+* Prompts
+* Policies
+
+Example overlay target map for `agent-intercom`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Startup / liveness | foundation docs, `ping-loop.prompt.md`, long-running agents / skills |
+| Approval routing | constitution, intercom instructions, risky execution skills |
+| Progress visibility | pipeline agents, review / verification / closure skills |
+| Operator wait flows | pipeline agents and long-running skills that block on clarification |
+
+Do not model a capability pack as a single isolated artifact when its behavior is inherently cross-cutting.
+
 Map primitives to template groups:
 
 | Primitive | Template Groups |
@@ -318,6 +349,10 @@ autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
 install_preset: "{{PRESET}}"
 capability_packs: [{{CAPABILITY_PACKS}}]
+capability_pack_overlays:
+   - pack: "{{PACK_NAME}}"
+      overlay_targets: [{{OVERLAY_TARGETS}}]
+      verification_checks: [{{OVERLAY_VERIFICATION_CHECKS}}]
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 artifacts:
   - path: ".github/instructions/constitution.instructions.md"
@@ -343,6 +378,7 @@ Verify all installed artifacts are internally consistent:
 * Every policy references agents that were installed
 * The constitution references technology-specific rules that match the installed language instructions
 * If `agent-intercom` is enabled, the intercom instruction file is installed and the affected agents / skills reference heartbeat, broadcast, or approval-routing behavior consistently
+* If any capability pack is enabled, its declared overlay targets and verification checks are satisfied rather than only the pack name being recorded
 
 #### Step 4.2: Structural Validation
 

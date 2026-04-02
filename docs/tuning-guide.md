@@ -31,6 +31,8 @@ Agent harnesses degrade over time. Common causes:
 
 The tuner is invoked from the global autoharness installation against a target workspace. It reads updated templates from autoharness home and proposes changes to the target's harness artifacts.
 
+Capability packs are tuned using the same overlay contract used during installation: eligibility signals, target artifacts, behavior deltas, verification checks, and drift heuristics. See [Capability Packs](capability-packs.md).
+
 ### Interactive Tuning (Recommended)
 
 ```text

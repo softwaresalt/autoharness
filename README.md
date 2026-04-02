@@ -76,6 +76,20 @@ autoharness now supports a lighter-weight composition model so teams can adopt t
 | **strict-safety** | Emphasizes careful / freeze-scope / investigate-first operating modes |
 | **release-observability** | Strengthens operational closure with monitoring and validation checklists |
 
+### Formal overlay pattern
+
+Capability packs are **not extra primitives**. They are cross-cutting overlays that deepen one or more of the 10 primitives by weaving coordinated changes through multiple harness artifacts.
+
+Every capability pack should define:
+
+* **Eligibility signals** — what discovery looks for before recommending the pack
+* **Target artifacts** — which foundation docs, instructions, agents, skills, prompts, or policies are affected
+* **Behavior deltas** — what changes in the installed harness when the pack is enabled
+* **Verification checks** — how installation confirms the overlay was applied consistently
+* **Tuning drift rules** — how the tuner decides the overlay is missing, stale, or only partially woven
+
+See [Capability Packs](docs/capability-packs.md) for the full overlay contract.
+
 ## Backlog Tool Integration
 
 A structured backlog tool is essential for effective agent harness operation. Agents need a machine-queryable work queue to pull tasks from, track status transitions, and manage decomposition hierarchies. autoharness supports pluggable backlog tools through a registry abstraction layer.

@@ -37,6 +37,28 @@
         "enum": ["agent-intercom", "browser-verification", "strict-safety", "release-observability"]
       }
     },
+    "capability_pack_overlays": {
+      "type": "array",
+      "description": "Structured record of which artifact classes each enabled capability pack was woven into",
+      "items": {
+        "type": "object",
+        "required": ["pack", "overlay_targets", "verification_checks"],
+        "properties": {
+          "pack": {
+            "type": "string",
+            "enum": ["agent-intercom", "browser-verification", "strict-safety", "release-observability"]
+          },
+          "overlay_targets": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "verification_checks": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
     "primitives_installed": {
       "type": "array",
       "items": {

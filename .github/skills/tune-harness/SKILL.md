@@ -112,6 +112,19 @@ Compare the installed preset and capability packs in `.autoharness/harness-manif
 | agent-intercom markers detected but `agent-intercom` pack missing | Growth or Degrading | Propose enabling the pack and weaving intercom guidance through the harness |
 | Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
 
+#### Step 1.6: Overlay-Coherence Drift
+
+For every enabled capability pack, compare the manifest's declared overlay targets against the currently installed artifacts.
+
+Flag drift when:
+
+* the pack is enabled but one or more declared target artifacts are missing
+* only some of the targeted artifacts mention the pack's behavior delta
+* the workspace still contains woven overlay guidance after the pack was removed
+* the workspace now exposes new eligibility signals that should expand the overlay target set
+
+Treat partially woven overlays as a first-class drift category rather than a cosmetic doc mismatch.
+
 ### Phase 2: Change Proposal Generation
 
 #### Step 2.1: Priority Ranking
@@ -205,6 +218,7 @@ If growth opportunities were accepted (new review personas, new instructions, ne
 2. Install to the appropriate directory
 3. Update cross-references in AGENTS.md and copilot-instructions.md
 4. Update manifest preset / capability-pack metadata when installation shape changes
+5. Update manifest overlay-target metadata when the pack's woven surface changes
 
 #### Step 4.3: Update Manifest
 
