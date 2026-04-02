@@ -286,7 +286,7 @@ Generate agent definitions. Each agent template has technology-specific sections
    * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
    * `learnings-researcher.agent.md` — Universal
 
-#### Step 2.4: Skill Layer
+#### Step 2.5: Skill Layer
 
 Generate skill files:
 
@@ -295,21 +295,21 @@ Generate skill files:
    * `fix-ci/SKILL.md` — Adapt CI pipeline order, tool-specific fix strategies
    * `impl-plan/SKILL.md` — Adapt execution postures for the technology
 
-2. **Universal skills** (minimal adaptation):
+2. **Universal skills** (minimal adaptation; install only when their governing primitives are selected):
    * `brainstorm/SKILL.md`
    * `compact-context/SKILL.md`
    * `compound/SKILL.md`
-   * `operational-closure/SKILL.md`
    * `plan-review/SKILL.md`
    * `review/SKILL.md`
-   * `runtime-verification/SKILL.md`
-   * `safety-modes/SKILL.md`
+   * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
+   * `runtime-verification/SKILL.md` — Install when Primitive 10 is selected
+   * `operational-closure/SKILL.md` — Install when Primitive 10 is selected
 
 When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
 
 When `agent-engram` is enabled, weave indexed-search guidance into research, planning, build, and repair skills rather than treating it as a generic footnote.
 
-#### Step 2.5: Policy Layer
+#### Step 2.6: Policy Layer
 
 Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 
@@ -319,13 +319,13 @@ Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 * P-004 (Red Phase Before Implementation) — Adapt compilation and test failure detection
 * P-005 (Policy Violation Telemetry) — Universal
 
-#### Step 2.6: Prompt Layer
+#### Step 2.7: Prompt Layer
 
 Generate prompt files:
 
 * `ping-loop.prompt.md` — Universal
 
-#### Step 2.7: Backlog Structure
+#### Step 2.8: Backlog Structure
 
 Initialize the backlog directory:
 
@@ -339,7 +339,7 @@ Initialize the backlog directory:
   compound/           # Empty, ready for learnings
   reviews/            # Empty, ready for review artifacts
   memory/             # Empty, ready for session memory
-   closure/            # Empty, ready for runtime verification and closure artifacts
+  closure/            # Empty, ready for runtime verification and closure artifacts
   completed/          # Empty, archive for done work
 ```
 
@@ -382,13 +382,13 @@ capability_packs: [{{CAPABILITY_PACKS}}]
 # Example when Engram is enabled:
 # capability_packs: ["agent-engram"]
 capability_pack_overlays:
-   - pack: "{{PACK_NAME}}"
-      overlay_targets: [{{OVERLAY_TARGETS}}]
-      verification_checks: [{{OVERLAY_VERIFICATION_CHECKS}}]
-   # Example agent-engram overlay:
-   # - pack: "agent-engram"
-   #   overlay_targets: ["foundation-docs", "instructions", "analysis-workflows"]
-   #   verification_checks: ["agent-engram instruction installed", "engram-first search guidance woven"]
+  - pack: "{{PACK_NAME}}"
+    overlay_targets: [{{OVERLAY_TARGETS}}]
+    verification_checks: [{{OVERLAY_VERIFICATION_CHECKS}}]
+  # Example agent-engram overlay:
+  # - pack: "agent-engram"
+  #   overlay_targets: ["foundation-docs", "instructions", "analysis-workflows"]
+  #   verification_checks: ["agent-engram instruction installed", "engram-first search guidance woven"]
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 artifacts:
   - path: ".github/instructions/constitution.instructions.md"

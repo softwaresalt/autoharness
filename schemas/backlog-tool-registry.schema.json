@@ -70,6 +70,11 @@
         "log_telemetry": { "$ref": "#/$defs/operation" },
         "save_memory": { "$ref": "#/$defs/operation" },
         "create_checkpoint": { "$ref": "#/$defs/operation" },
+        "get_queue": { "$ref": "#/$defs/operation" },
+        "add_dependency": { "$ref": "#/$defs/operation" },
+        "remove_dependency": { "$ref": "#/$defs/operation" },
+        "get_dependencies": { "$ref": "#/$defs/operation" },
+        "track_commit": { "$ref": "#/$defs/operation" },
         "list_milestones": { "$ref": "#/$defs/operation" },
         "add_milestone": { "$ref": "#/$defs/operation" }
       }
@@ -113,8 +118,10 @@
         "definition_of_done": { "type": "boolean", "default": false },
         "workflow_guides": { "type": "boolean", "default": false },
         "dependencies": { "type": "boolean", "default": false },
+        "queue": { "type": "boolean", "default": false },
         "sections": { "type": "boolean", "default": false },
-        "templates": { "type": "boolean", "default": false }
+        "templates": { "type": "boolean", "default": false },
+        "commit_tracking": { "type": "boolean", "default": false }
       }
     }
   },
