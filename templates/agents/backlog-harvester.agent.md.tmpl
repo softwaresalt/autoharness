@@ -22,6 +22,10 @@ When the `agent-intercom` capability pack is installed, begin by following
 broadcast the start of the planning pipeline, and use the intercom clarification / wait flow
 instead of silently stalling if operator input is needed.
 
+When the `agent-engram` capability pack is installed, also follow
+`.github/instructions/agent-engram.instructions.md`: prefer indexed search for related modules,
+symbols, and prior context before falling back to broader file scans while shaping the backlog.
+
 When the `backlogit` capability pack is installed, also follow
 `.github/instructions/backlogit.instructions.md`: use query-driven lookup when inspecting existing
 backlog state, and plan to record explicit dependency edges during decomposition rather than leaving
@@ -123,7 +127,7 @@ queue operations.
 * Never bundle multiple skill domains in a single task
 * Every task must have at least one acceptance criterion
 * Halt on P-003 violations rather than creating partial hierarchies
-* Use workspace search tools before file-based search for codebase discovery
+* Use workspace search tools before file-based search for codebase discovery; when `agent-engram` is installed, prefer the engram-first path
 
 ## Model Routing
 

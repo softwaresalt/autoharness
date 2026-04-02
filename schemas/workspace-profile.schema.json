@@ -121,7 +121,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["agent-intercom", "backlogit", "browser-verification", "strict-safety", "release-observability"]
+            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability"]
           }
         }
       }
@@ -129,6 +129,23 @@
     "agent_intercom": {
       "type": "object",
       "description": "Detected agent-intercom integration markers and recommendation state",
+      "properties": {
+        "detected": { "type": "boolean" },
+        "mcp_configured": { "type": "boolean" },
+        "config_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "instruction_markers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "recommended": { "type": "boolean" }
+      }
+    },
+    "agent_engram": {
+      "type": "object",
+      "description": "Detected agent-engram integration markers and recommendation state",
       "properties": {
         "detected": { "type": "boolean" },
         "mcp_configured": { "type": "boolean" },

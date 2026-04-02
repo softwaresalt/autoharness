@@ -18,6 +18,7 @@ You are the central execution coordinator. You do not write code directly. You d
 ### Step 1: Pre-Flight Checks
 
 1. When the `agent-intercom` capability pack is installed, follow `.github/instructions/agent-intercom.instructions.md` to establish heartbeat / ping visibility and broadcast the start of orchestration work
+1. When the `agent-engram` capability pack is installed, follow `.github/instructions/agent-engram.instructions.md` and verify the engram daemon / binding surface is available before depending on indexed analysis
 1. When the `backlogit` capability pack is installed, follow `.github/instructions/backlogit.instructions.md` and verify the backlogit queue / dependency / checkpoint surface is available before depending on those behaviors
 1. **P-001 Gate**: Check that no other features are `In Progress` in the backlog
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
@@ -62,6 +63,10 @@ After the build-feature skill reports success:
 3. **Full Test Suite**: `{{TEST_COMMAND}}`
 
 If any gate fails, return to the build-feature skill for a fix iteration.
+
+When the `agent-engram` capability pack is installed, prefer `list_symbols`, `map_code`, or
+`impact_analysis` before broad file scans when diagnosing repeated failures or validating the blast
+radius of a risky fix.
 
 #### Step 3.4: Review Gate
 

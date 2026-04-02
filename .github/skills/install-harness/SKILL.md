@@ -19,7 +19,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `preset`: (Optional, default `standard`) One of `starter`, `standard`, or `full`. Presets define the default primitive set and capability-pack defaults.
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-10) to install. Defaults to the selected preset.
-* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `backlogit`, `browser-verification`, `strict-safety`, `release-observability`.
+* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `strict-safety`, `release-observability`.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -105,6 +105,9 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{AGENT_INTERCOM_ENABLED}}` | `capability_packs` contains `agent-intercom` | `true` | `false` |
 | `{{AGENT_INTERCOM_DETECTED}}` | `agent_intercom.detected` | `true` | `false` |
 | `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.vscode/mcp.json, .intercom/settings.json` | empty |
+| `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
+| `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
+| `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.vscode/mcp.json, .engram/config.toml` | empty |
 
 #### Step 1.3: Select Preset, Primitive Set, and Capability Packs
 
@@ -129,6 +132,7 @@ Capability-pack overlays:
 | Capability Pack | Overlay Behavior |
 |---|---|
 | `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, long-running skills, and the ping-loop prompt |
+| `agent-engram` | Installs `agent-engram.instructions.md` and threads engram-first indexed search, workspace binding, freshness checks, and code-graph-driven analysis through foundation docs and analysis-heavy workflows |
 | `backlogit` | Installs `backlogit.instructions.md` and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace workflows through backlog-aware artifacts |
 | `browser-verification` | Strengthens browser-specific runtime verification guidance |
 | `strict-safety` | Makes safety-mode usage more explicit and more frequent |
@@ -174,6 +178,14 @@ Example overlay target map for `backlogit`:
 | Agent continuity | memory agent, foundation docs |
 | Traceability | backlog-aware agents and instructions |
 
+Example overlay target map for `agent-engram`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Indexed search routing | foundation docs, `agent-engram.instructions.md`, research / planning / build workflows |
+| Workspace binding and freshness | instructions plus workflows that depend on indexed results |
+| Code-graph blast radius analysis | harness / build / repair workflows that inspect symbols and callers |
+
 Map primitives to template groups:
 
 | Primitive | Template Groups |
@@ -203,6 +215,8 @@ Generate the constitutional foundation first, as all other artifacts reference i
 
 If the `agent-intercom` capability pack is enabled, weave the intercom operating model into both files so heartbeat, milestone broadcasting, approval routing, and degraded-mode handling are part of the normal harness narrative.
 
+If the `agent-engram` capability pack is enabled, weave the engram-first search operating model into both files so indexed lookup, workspace binding, and freshness / fallback behavior become part of the normal harness narrative.
+
 #### Step 2.2: Instruction Layer
 
 Generate instruction files. These use `applyTo` patterns to scope their rules:
@@ -221,6 +235,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
 
 4. **Capability-pack instructions**: When `agent-intercom` is enabled, install `agent-intercom.instructions.md` and use it as the authoritative reference for heartbeat, remote approval, operator steering, and standby workflows.
+   When `agent-engram` is enabled, install `agent-engram.instructions.md` and use it as the authoritative reference for engram-first search, workspace binding, index freshness, and indexed-search fallback workflows.
    When `backlogit` is enabled, install `backlogit.instructions.md` and use it as the authoritative reference for backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows.
 
 #### Step 2.3: Backlog Tool Registration
@@ -254,6 +269,7 @@ Generate agent definitions. Each agent template has technology-specific sections
    * Adapt quality gate sequences
    * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
    * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits
+   * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
    * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
 
 2. **Support agents**: memory, doc-ops, prompt-builder
@@ -290,6 +306,8 @@ Generate skill files:
    * `safety-modes/SKILL.md`
 
 When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
+
+When `agent-engram` is enabled, weave indexed-search guidance into research, planning, build, and repair skills rather than treating it as a generic footnote.
 
 #### Step 2.5: Policy Layer
 
@@ -361,10 +379,16 @@ autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
 install_preset: "{{PRESET}}"
 capability_packs: [{{CAPABILITY_PACKS}}]
+# Example when Engram is enabled:
+# capability_packs: ["agent-engram"]
 capability_pack_overlays:
    - pack: "{{PACK_NAME}}"
       overlay_targets: [{{OVERLAY_TARGETS}}]
       verification_checks: [{{OVERLAY_VERIFICATION_CHECKS}}]
+   # Example agent-engram overlay:
+   # - pack: "agent-engram"
+   #   overlay_targets: ["foundation-docs", "instructions", "analysis-workflows"]
+   #   verification_checks: ["agent-engram instruction installed", "engram-first search guidance woven"]
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 artifacts:
   - path: ".github/instructions/constitution.instructions.md"
@@ -390,6 +414,7 @@ Verify all installed artifacts are internally consistent:
 * Every policy references agents that were installed
 * The constitution references technology-specific rules that match the installed language instructions
 * If `agent-intercom` is enabled, the intercom instruction file is installed and the affected agents / skills reference heartbeat, broadcast, or approval-routing behavior consistently
+* If `agent-engram` is enabled, the engram instruction file is installed and the affected agents / skills reference indexed search, workspace binding, freshness, or fallback behavior consistently
 * If `backlogit` is enabled, the backlogit instruction file is installed and the affected agents / skills reference query, queue, checkpoint, or traceability behavior consistently
 * If any capability pack is enabled, its declared overlay targets and verification checks are satisfied rather than only the pack name being recorded
 

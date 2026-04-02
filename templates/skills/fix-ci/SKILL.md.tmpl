@@ -28,6 +28,11 @@ the first reproduction loop, broadcast failing-check and fixed-check milestones,
 intercom clarification / approval path if a repair would require destructive action or explicit
 operator judgment.
 
+When the `agent-engram` capability pack is installed, follow
+`.github/instructions/agent-engram.instructions.md`: verify the engram surface is available before
+relying on indexed search, and prefer code-graph or impact-analysis lookup while diagnosing the CI
+failure set.
+
 ### Step 1: Identify the PR
 
 Determine the PR number from the current branch. If no PR exists, halt.
@@ -61,6 +66,9 @@ Run the failing CI steps locally in order:
 ### Step 5: Fix
 
 Apply fixes for each failure. Use workspace search tools to understand context before modifying code.
+
+When the `agent-engram` capability pack is installed, prefer `list_symbols`, `map_code`,
+`impact_analysis`, and `query_memory` before broader grep or raw file scans.
 
 ### Step 6: Address Review Comments
 

@@ -152,12 +152,15 @@ Capability packs deepen the harness without redefining the primitive model:
 | Pack | Adds |
 |---|---|
 | `agent-intercom` | Remote operator visibility, heartbeat, approval routing, and steering guidance woven through the installed harness |
+| `agent-engram` | Engram-first indexed search, code graph lookup, workspace binding, and query-driven context retrieval woven through analysis-heavy workflows |
 | `backlogit` | backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace guidance layered over generic backlog integration |
 | `browser-verification` | Browser-aware runtime verification guidance for web UIs |
 | `strict-safety` | Stronger default use of careful / freeze-scope / investigate-first modes |
 | `release-observability` | Richer operational closure and monitoring artifacts |
 
 `agent-intercom` is intentionally different from a narrow add-on. When enabled, autoharness should thread its workflow expectations into `AGENTS.md`, `copilot-instructions.md`, intercom-specific instructions, pipeline agents, long-running skills, and heartbeat prompts so operator visibility and approval routing become part of the normal harness behavior.
+
+`agent-engram` is also an overlay rather than a single search toggle. When enabled, autoharness should keep the generic search guidance in place while additionally teaching the harness to use Engram's higher-leverage indexed capabilities such as unified search, code graph lookup, workspace memory queries, lifecycle checks, and index freshness workflows.
 
 `backlogit` is also an overlay rather than a simple tool toggle. When enabled, autoharness should keep the generic backlog abstraction in place while additionally teaching the harness to use backlogit's higher-leverage features such as SQL query access, prioritized queue retrieval, dependency traversal, agent memory, checkpoints, comments, and commit traceability.
 
@@ -233,6 +236,7 @@ target-workspace/
     instructions/
       constitution.instructions.md
       agent-intercom.instructions.md      # Optional: installed when the pack is enabled
+      agent-engram.instructions.md        # Optional: installed when the agent-engram pack is enabled
       backlogit.instructions.md           # Optional: installed when the backlogit pack is enabled
       {language}.instructions.md
       commit-message.instructions.md
@@ -277,7 +281,8 @@ The installer runs automatic verification. You can also manually check:
 5. Confirm the selected preset and capability packs are recorded in `.autoharness/harness-manifest.yaml`
 6. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
 7. If `agent-intercom` is enabled, verify `.github/instructions/agent-intercom.instructions.md` exists and the installed agents/skills reference intercom heartbeat, broadcast, and approval usage where expected
-8. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md` exists and the installed agents reference backlogit query / queue / memory / traceability behaviors where expected
+8. If `agent-engram` is enabled, verify `.github/instructions/agent-engram.instructions.md` exists and the installed agents/skills reference engram-first search, workspace binding, or indexed-fallback behaviors where expected
+9. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md` exists and the installed agents reference backlogit query / queue / memory / traceability behaviors where expected
 
 ### First Use
 
@@ -289,7 +294,8 @@ The installer runs automatic verification. You can also manually check:
 6. If the feature changes runtime behavior, run `runtime-verification`
 7. Capture release readiness and follow-up monitoring with `operational-closure`
 8. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
-9. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
+9. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
+10. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
 
 ### Ongoing Maintenance
 

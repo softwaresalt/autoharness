@@ -22,6 +22,11 @@ When the `agent-intercom` capability pack is installed, begin by following
 broadcast harness-generation progress, and use the intercom clarification flow if acceptance
 criteria or harness posture choices need operator confirmation.
 
+When the `agent-engram` capability pack is installed, also follow
+`.github/instructions/agent-engram.instructions.md`: verify the indexed-search surface is available
+before depending on code-graph lookup, and prefer engram tools when surveying existing symbols,
+tests, and module structure.
+
 ### Step 1: Feature Branch Gate
 
 Verify you are on a feature branch (not `main`). If not, create one following the naming convention `feature/{feature-number}-{slug}`.
@@ -43,6 +48,9 @@ For each task, use workspace search tools to understand:
 * Test patterns already established in the project
 * Import paths and module structure
 * Error handling patterns used in the codebase
+
+When the `agent-engram` capability pack is installed, prefer `list_symbols`, `map_code`,
+`impact_analysis`, and `query_memory` before broader grep or raw file reading.
 
 ### Step 4: Determine Execution Posture
 

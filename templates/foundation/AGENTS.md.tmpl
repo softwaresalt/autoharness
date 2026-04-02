@@ -59,6 +59,18 @@ part of the normal workflow:
 * use transmit / standby style operator waits when blocked on clarification, approval, or handoff
 * warn clearly when intercom is unavailable and treat remote approval as unavailable rather than silently bypassed
 
+### Capability Overlay — agent-engram
+
+When the `agent-engram` capability pack is installed, agents MUST also follow
+`.github/instructions/agent-engram.instructions.md` and treat indexed retrieval as part of the
+normal workflow:
+
+* prefer engram MCP tools for context-related search before grep, glob, or broad file reading
+* verify the daemon / workspace binding state before relying on indexed search results
+* use symbol lookup, call-graph, and impact-analysis operations for blast-radius questions before manual caller hunting
+* refresh the index when results are stale after out-of-band edits
+* fall back to file-based search only when indexed results are unavailable, insufficient, or the query is truly text-oriented
+
 ### Capability Overlay — backlogit
 
 When the `backlogit` capability pack is installed, agents MUST also follow

@@ -130,13 +130,34 @@ Detect whether the workspace is already configured for agent-intercom or a close
 | Signal | Meaning |
 |--------|---------|
 | `.intercom/settings.json` exists | Workspace has explicit intercom policy/configuration markers |
-| `.vscode/mcp.json` or `.vscode/settings.json` references `agent-intercom`, `agent-engram`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
+| `.vscode/mcp.json` or `.vscode/settings.json` references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
 | Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows | Harness may already be partially woven for intercom |
 
 Record: `agent_intercom{}` with the following structure:
 
 ```yaml
 agent_intercom:
+  detected: true|false
+  mcp_configured: true|false
+  config_paths: []
+  instruction_markers: []
+  recommended: true|false
+```
+
+#### Step 1.5d: Agent-Engram Detection
+
+Detect whether the workspace is already configured for agent-engram or a closely related indexed-search workflow:
+
+| Signal | Meaning |
+|--------|---------|
+| `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` exists | Workspace has engram installation or persisted state markers |
+| `.vscode/mcp.json` or `.vscode/settings.json` references `agent-engram`, `engram`, or known engram tool names (`unified_search`, `query_memory`, `map_code`, `list_symbols`, `impact_analysis`, `query_graph`) | MCP server likely configured for the workspace |
+| Existing `AGENTS.md` / `.github/copilot-instructions.md` references Engram-first search, `.engram/`, or workspace binding / status checks | Harness may already be partially woven for engram |
+
+Record: `agent_engram{}` with the following structure:
+
+```yaml
+agent_engram:
   detected: true|false
   mcp_configured: true|false
   config_paths: []
@@ -315,6 +336,8 @@ conventions:
 harness_recommendations:
   preset: "{{RECOMMENDED_PRESET}}"
   capability_packs: []
+  # Example when Engram is detected and recommended:
+  # capability_packs: ["agent-engram"]
 
 agent_intercom:
   detected: false
@@ -322,6 +345,18 @@ agent_intercom:
   config_paths: []
   instruction_markers: []
   recommended: false
+
+agent_engram:
+  detected: false
+  mcp_configured: false
+  config_paths: []
+  instruction_markers: []
+  recommended: false
+  # Example when Engram is present:
+  # detected: true
+  # mcp_configured: true
+  # config_paths: [".vscode/mcp.json", ".engram/config.toml"]
+  # recommended: true
 
 existing_harness:
   has_harness: false
@@ -351,6 +386,7 @@ The summary MUST include:
 * Recommended preset (`starter`, `standard`, or `full`)
 * Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true`)
 * Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
+* Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
 * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
 * Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
 

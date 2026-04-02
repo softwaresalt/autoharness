@@ -28,6 +28,11 @@ When the `agent-intercom` capability pack is installed, follow
 ping visibility up front, broadcast meaningful attempt transitions, and route any destructive
 actions through the intercom approval path rather than improvising local-only approval.
 
+When the `agent-engram` capability pack is installed, follow
+`.github/instructions/agent-engram.instructions.md` throughout the loop: prefer indexed symbol and
+impact lookup while diagnosing failures, verify the workspace is bound before trusting engram
+results, and refresh stale indexes before concluding the code graph is wrong.
+
 ### The Harness Loop (5-Attempt Circuit Breaker)
 
 ```text
@@ -69,6 +74,9 @@ Extract from the test output:
 * The assertion or error message
 * The file and line where the failure occurred
 * The expected vs. actual values (if applicable)
+
+When the `agent-engram` capability pack is installed, use engram-first lookup to inspect symbols,
+callers, and affected regions before expanding into broader file-based searches.
 
 #### Step 4: Re-read Standards
 

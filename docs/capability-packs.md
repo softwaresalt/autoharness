@@ -127,10 +127,45 @@ Partially woven overlays should be treated as a real harness-quality problem.
 | Pack | Primary Purpose | Typical Primitive Impact |
 |---|---|---|
 | `agent-intercom` | Remote operator visibility, approval routing, and standby handoffs | 4, 5, 6, 7, 10 |
+| `agent-engram` | Engram-first indexed search, code graph lookup, and workspace context retrieval | 1, 4, 6, 9 |
 | `backlogit` | backlogit-native query, queue, memory, checkpoints, comments, and traceability | 1, 2, 4, 7, 8, 9 |
 | `browser-verification` | Browser-backed runtime confidence for web-facing work | 4, 7, 10 |
 | `strict-safety` | Stronger default safety posture for risky work | 5, 6, 8 |
 | `release-observability` | Richer monitoring and closure expectations | 7, 10 |
+
+## Example: agent-engram as a formal overlay
+
+`agent-engram` is a pack for workspaces that use the Engram MCP daemon as a local code graph,
+semantic search, and workspace-memory layer.
+
+### Eligibility signals
+
+* `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` exists
+* `.vscode/mcp.json` or `.vscode/settings.json` references `agent-engram`, `engram`, or engram tool names
+* existing docs already describe Engram-first search, workspace binding, or `.engram/` persistence
+
+### Overlay targets
+
+* Foundation docs
+* `agent-engram.instructions.md`
+* Research / planning / harnessing / build / repair workflows
+* Search-strategy sections in shared guidance
+
+### Behavior deltas
+
+* prefer `unified_search`, `query_memory`, `list_symbols`, `map_code`, `impact_analysis`, and `query_graph` before grep / glob / raw file scans
+* verify the engram daemon and workspace binding state before relying on indexed results
+* use `sync_workspace` when results appear stale after out-of-band edits
+* fall back to file-based search only when indexed lookup is unavailable or insufficient
+* if semantic search is unavailable, fall back to `list_symbols` + `map_code` + `impact_analysis` rather than brute-force file reading
+
+### Verification checks
+
+* `agent-engram.instructions.md` is installed
+* affected agents and skills reference engram-first lookup and lifecycle checks consistently
+* manifest records the overlay target set
+
+This pack does not replace general search guidance. It deepens it when a workspace has Engram available.
 
 ## Example: agent-intercom as a formal overlay
 
