@@ -193,7 +193,7 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/memory`, `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/backlog-harvester` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/build-feature`, `skills/fix-ci` |
+| 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/build-feature`, `skills/fix-ci` |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
 | 7 - Observability | `agents/review/*`, `agents/doc-ops`, `skills/review`, `skills/plan-review` |
@@ -264,7 +264,7 @@ If the user wants to use a tool not yet in the registry:
 
 Generate agent definitions. Each agent template has technology-specific sections that vary:
 
-1. **Pipeline agents**: backlog-harvester, build-orchestrator, harness-architect, pr-review
+1. **Pipeline agents**: deliberator, backlog-harvester, build-orchestrator, harness-architect, pr-review
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
    * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
@@ -296,7 +296,7 @@ Generate skill files:
    * `impl-plan/SKILL.md` — Adapt execution postures for the technology
 
 2. **Universal skills** (minimal adaptation; install only when their governing primitives are selected):
-   * `brainstorm/SKILL.md`
+   * `deliberate/SKILL.md`
    * `compact-context/SKILL.md`
    * `compound/SKILL.md`
    * `plan-review/SKILL.md`
@@ -332,10 +332,11 @@ Initialize the backlog directory:
 ```text
 .backlog/
   config.yml          # Backlog tool configuration
-  queue.md            # Unrefined ideas
+  queue/
+    queue.md          # Unrefined ideas and stashed deliberation outcomes
   tasks/              # Empty, ready for task creation
   plans/              # Empty, ready for plans
-  brainstorm/         # Empty, ready for brainstorm docs
+  deliberate/         # Empty, ready for deliberation artifacts
   compound/           # Empty, ready for learnings
   reviews/            # Empty, ready for review artifacts
   memory/             # Empty, ready for session memory

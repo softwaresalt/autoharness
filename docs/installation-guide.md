@@ -205,6 +205,7 @@ target-workspace/
   .github/
     copilot-instructions.md              # Shared development guidelines
     agents/                              # Agent definitions
+      deliberator.agent.md
       backlog-harvester.agent.md
       build-orchestrator.agent.md
       harness-architect.agent.md
@@ -222,7 +223,7 @@ target-workspace/
       research/
         learnings-researcher.agent.md
     skills/
-      brainstorm/SKILL.md
+      deliberate/SKILL.md
       build-feature/SKILL.md
       compact-context/SKILL.md
       compound/SKILL.md
@@ -252,10 +253,11 @@ target-workspace/
       ping-loop.prompt.md
   .backlog/
     config.yml
-    queue.md
+    queue/
+      queue.md
     tasks/
     plans/
-    brainstorm/
+    deliberate/
     compound/
     reviews/
     memory/
@@ -286,9 +288,9 @@ The installer runs automatic verification. You can also manually check:
 
 ### First Use
 
-1. Create a feature idea in `.backlog/brainstorm/my-feature.md`
-2. Invoke the backlog-harvester: `@backlog-harvester source=.backlog/brainstorm/my-feature.md`
-3. Review the generated plan and task decomposition
+1. Invoke the deliberator: `@deliberator topic="my feature idea"`
+2. Review the decision artifact and promote to a plan or queue
+3. If promoted to plan, the backlog-harvester decomposes it into tasks
 4. Invoke the harness-architect for the feature
 5. Invoke the build-orchestrator to implement
 6. If the feature changes runtime behavior, run `runtime-verification`

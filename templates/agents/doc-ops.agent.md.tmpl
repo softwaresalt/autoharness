@@ -54,7 +54,7 @@ For each detected issue, either fix directly (for simple corrections) or open a 
 
 Run this workflow after a feature completes (triggered by build-orchestrator or PR merge) to promote durable knowledge from backlog work items into `docs/`.
 
-The backlog directory holds active work — tasks, plans, brainstorm drafts, reviews, compound learnings. The `docs/` directory holds durable knowledge — architecture, design decisions, product specs. These are different lifecycles. Graduation bridges them.
+The backlog directory holds active work — tasks, plans, deliberation artifacts, reviews, compound learnings. The `docs/` directory holds durable knowledge — architecture, design decisions, product specs. These are different lifecycles. Graduation bridges them.
 
 ### Step K1: Scan Completed Work
 
@@ -62,7 +62,7 @@ Review recently completed backlog items for knowledge worth preserving:
 
 * Completed execution plans in the backlog's `plans/` or `completed/` directory
 * Compound learnings captured during the feature build
-* Brainstorm documents that established product direction
+* Deliberation artifacts that established product direction and decisions
 * Review artifacts that surfaced architectural decisions
 
 ### Step K2: Identify Graduatable Knowledge
@@ -74,7 +74,7 @@ Not everything graduates. Apply these filters:
 | Architectural decisions and rationale | Task status and progress logs |
 | Design patterns chosen (and why alternatives were rejected) | Session memory and checkpoints |
 | New domain boundaries or dependency rules | Review comments and fix iterations |
-| Product requirements that emerged from brainstorm | Ephemeral brainstorm drafts |
+| Product requirements that emerged from deliberation | Ephemeral deliberation drafts |
 | API contracts or interface decisions | Compound learnings (already searchable in backlog) |
 
 ### Step K3: Distill and Write

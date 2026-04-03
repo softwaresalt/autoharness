@@ -106,7 +106,7 @@ Building a feature involves multiple distinct capabilities: planning, test harne
 
 A pipeline of specialized agents, each with a narrow role and explicit handoff expectations:
 
-1. **Brainstorm Skill**: Explore requirements through dialogue
+1. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
 2. **Backlog Harvester**: Plan → review → decompose into tasks
 3. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
 4. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality, and hand off to review/CI/runtime verification
@@ -275,16 +275,16 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
    | Directory | Contains | Lifecycle |
    |---|---|---|
-   | Backlog | Tasks, active plans, brainstorm drafts, reviews, session memory, compound learnings | Created → Active → Done → Archived |
+   | Backlog | Tasks, active plans, deliberation artifacts, reviews, session memory, compound learnings | Created → Active → Done → Archived |
    | `docs/` | Architecture, design decisions, product specs, quality grades, references | Persists and evolves with codebase |
 
-   Plans, execution logs, and brainstorm documents live in the backlog because they're work items managed by the backlog tool. The *decisions and rationale* they produce graduate into `docs/` as durable design records.
+   Plans, execution logs, and deliberation artifacts live in the backlog because they're work items managed by the backlog tool. The *decisions and rationale* they produce graduate into `docs/` as durable design records.
 
 4. **Knowledge graduation**: When backlog work completes, the doc-ops agent evaluates whether it produced reference-worthy knowledge:
    * **Architectural decisions** from completed plans → `docs/design-docs/` as design records
    * **Hard-won solutions** from compound learnings → remain in backlog compound directory (already searchable)
    * **New domain patterns** discovered during implementation → update `docs/ARCHITECTURE.md`
-   * **Product requirements** that emerged during brainstorm → `docs/product-specs/`
+   * **Product requirements** that emerged during deliberation → `docs/product-specs/`
 
    Graduation is not copying — it's distilling the durable insight from the ephemeral work artifact. The backlog item is archived by the backlog tool; the knowledge it produced lives on in `docs/`.
 

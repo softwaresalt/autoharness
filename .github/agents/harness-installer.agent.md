@@ -107,10 +107,10 @@ Artifacts to generate:
   AGENTS.md:        1 file   (quality gates, conventions)
   Instructions:     {{N}} files ({{language}}, commit, markdown, git, PR, style, prompts)
   Agents:           {{N}} files (pipeline + support + expert + review personas)
-  Skills:           {{N}} files (brainstorm, build, compact, compound, fix-ci, plan, review, runtime verification, operational closure, safety modes)
+  Skills:           {{N}} files (deliberate, build, compact, compound, fix-ci, plan, review, runtime verification, operational closure, safety modes)
   Policies:         1 file   (5 workflow policies)
   Prompts:          1 file   (ping-loop)
-  Backlog:          {{N}} dirs (tasks, plans, brainstorm, compound, reviews, memory, closure)
+  Backlog:          {{N}} dirs (tasks, plans, deliberate, queue, compound, reviews, memory, closure)
 ```
 
 Wait for user confirmation before proceeding. The user may request:
@@ -139,7 +139,7 @@ Invoke the install-harness skill with:
 After installation completes, provide the user with:
 
 1. **Quick start**: How to invoke key agents (`@build-orchestrator`, `@harness-architect`, etc.)
-2. **First steps**: Recommend creating a brainstorm document in `.backlog/brainstorm/` to test the pipeline
+2. **First steps**: Recommend invoking `@deliberator` with a topic to test the pipeline
 3. **Tuning reminder**: Explain that `@harness-tuner` should be invoked periodically to keep the harness aligned
 4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
 5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces

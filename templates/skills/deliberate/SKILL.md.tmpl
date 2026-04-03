@@ -1,0 +1,275 @@
+---
+description: "Interactively deliberate on a request or feature — frame the problem, research options, compare trade-offs, and produce a decision artifact that links into the backlog queue"
+---
+
+## Deliberate
+
+Explore WHAT to build and WHY through structured operator dialogue. Produces a
+decision artifact that captures the problem frame, research findings, evaluated
+options, recommendation, and backlog-link targets. The artifact feeds directly
+into `impl-plan` for technical planning or into the backlog queue as a stashed
+work item for future pursuit.
+
+This skill replaces the earlier `brainstorm` entry point with a richer protocol
+that adds explicit research synthesis, option comparison, and queue/stash
+linkage.
+
+## When to Use
+
+Invoke when the operator wants to think through a feature, request, or
+architectural question before committing to implementation. Use for:
+
+* Problem framing and requirements shaping
+* Targeted research and findings presentation
+* Option evaluation and trade-off analysis
+* Deferring work into a queue or stash for later pursuit
+* Any time the operator says "deliberate", "let's think through", "explore
+  options", "what are our choices", or "help me decide"
+
+## Inputs
+
+* `topic`: (Required) The feature idea, request, or question to deliberate on.
+* `depth`: (Optional) `lightweight`, `standard`, or `deep`. Defaults to `standard`.
+* `promote_to`: (Optional) Where the outcome should go after deliberation:
+  `plan` (feed into impl-plan), `queue` (stash for later), `both`, or `ask`
+  (ask the operator at the end). Defaults to `ask`.
+
+## Output
+
+A decision artifact at `{{BACKLOG_DIRECTORY}}/deliberate/{YYYY-MM-DD}-{slug}-deliberation.md`.
+
+When `promote_to` includes `queue`, also creates or updates a queue entry
+linking the decision artifact for future pursuit.
+
+When `promote_to` includes `plan`, the artifact path is passed to `impl-plan`
+as its source document.
+
+## Required Protocol
+
+When the `agent-intercom` capability pack is installed, follow
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat /
+ping visibility at the start of deliberation, broadcast major phase transitions,
+and use the intercom clarification flow when the operator needs to be consulted
+between phases.
+
+When the `agent-engram` capability pack is installed, follow
+`.github/instructions/agent-engram.instructions.md`: verify the engram search
+surface before relying on indexed discovery, and prefer engram-first lookup
+while researching the codebase.
+
+### Phase 1: Frame the Problem
+
+#### Step 1.1: Classify Depth
+
+| Depth | Criteria | Approach |
+|---|---|---|
+| **Lightweight** | Single, well-defined question | 1-2 questions, then document |
+| **Standard** | Multi-faceted feature or request | Full 5-phase protocol |
+| **Deep** | Complex system change or architectural decision | All phases + extended research + risk modeling |
+
+#### Step 1.2: Understand the Request
+
+Ask focused questions to establish:
+
+* The problem being solved (user pain, technical need, business goal)
+* Who cares about the outcome and why
+* Constraints and requirements (performance, compatibility, security, timeline)
+* Success criteria (how do we know we chose well?)
+* Scope boundaries (what is explicitly out of scope?)
+
+Capture the operator's answers as the **problem frame** section of the artifact.
+
+### Phase 2: Research
+
+#### Step 2.1: Retrieve Prior Knowledge
+
+Search the learnings library (`{{BACKLOG_DIRECTORY}}/compound/`) for relevant
+past solutions, decisions, and gotchas BEFORE deeper investigation. Treat
+retrieval as mandatory pre-research context, not optional.
+
+When the `agent-engram` capability pack is installed, prefer `unified_search`
+for broad discovery, `list_symbols` for inventory, and `query_memory` for prior
+session context.
+
+#### Step 2.2: Investigate the Codebase
+
+Use workspace search tools to understand:
+
+* Existing patterns and conventions relevant to the topic
+* Modules, symbols, and integration points that would be affected
+* Precedents — how similar problems were solved before
+* Constraints imposed by the current architecture
+
+#### Step 2.3: External Research (Deep only)
+
+For `deep` scope, investigate beyond the codebase:
+
+* Technology alternatives and ecosystem options
+* Known pitfalls, performance characteristics, and compatibility risks
+* Community consensus or best practices
+
+Present research findings to the operator before moving to options.
+
+### Phase 3: Evaluate Options
+
+#### Step 3.1: Identify Options
+
+Based on research, identify 2-4 viable approaches. For each option, specify:
+
+* **Name**: A short, descriptive label
+* **Description**: What this approach entails
+* **Pros**: Advantages and strengths
+* **Cons**: Disadvantages and risks
+* **Effort estimate**: Relative complexity (low / medium / high)
+* **Fit**: How well it matches the stated constraints and success criteria
+
+#### Step 3.2: Compare Trade-offs
+
+Present a structured comparison to the operator:
+
+| Criterion | Option A | Option B | Option C |
+|---|---|---|---|
+| Complexity | … | … | … |
+| Risk | … | … | … |
+| Alignment with constraints | … | … | … |
+
+#### Step 3.3: Discuss and Refine
+
+Engage the operator in evaluating the options. The operator may:
+
+* Ask for deeper analysis of a specific option
+* Introduce new constraints or preferences
+* Combine elements from multiple options
+* Request additional research
+
+Iterate until the operator is satisfied or explicitly defers the decision.
+
+### Phase 4: Decide and Link
+
+#### Step 4.1: Capture the Decision
+
+Record the operator's decision (or explicit deferral) with:
+
+* **Recommendation**: The chosen approach and rationale
+* **Rejected alternatives**: Why other options were set aside
+* **Unresolved questions**: Items that need further investigation
+* **Risks and mitigations**: Known risks of the chosen approach
+
+#### Step 4.2: Determine Promotion Path
+
+If `promote_to` was not specified or is `ask`, present the operator with
+promotion options:
+
+* **Plan now** → hand the artifact to `impl-plan` as a source document
+* **Queue for later** → create a queue entry linking the artifact
+* **Both** → plan immediately AND stash a queue reference for tracking
+* **None** → leave the artifact in `{{BACKLOG_DIRECTORY}}/deliberate/` without linking
+
+#### Step 4.3: Execute Promotion
+
+**When promoting to plan:**
+
+Pass the artifact path to the downstream planning flow. The artifact satisfies
+the same source-document contract that `impl-plan` expects:
+
+* Problem frame maps to requirements
+* Recommendation maps to chosen approach
+* Success criteria carry forward
+
+**When promoting to queue:**
+
+When the `backlogit` capability pack is installed and the backlog tool supports
+`create_task` operations, create a queue entry through the backlog tool:
+
+* Title derived from the deliberation topic
+* Description linking to the decision artifact path
+* Status set to `{{STATUS_TODO}}`
+* Labels include `deliberation-outcome`
+* Reference the artifact path in the description or a comment
+
+When no backlog tool is available, append a structured entry to
+`{{BACKLOG_DIRECTORY}}/queue/queue.md`:
+
+```markdown
+- **[{YYYY-MM-DD}] {topic}** — `{{BACKLOG_DIRECTORY}}/deliberate/{slug}-deliberation.md`
+  Status: queued | Decided: {yes/no/deferred}
+```
+
+When the `backlogit` capability pack is installed and comment operations are
+supported, append a summary comment to the created queue entry with the
+recommendation rationale.
+
+### Phase 5: Write the Decision Artifact
+
+Produce the artifact with this structure:
+
+```markdown
+---
+title: "{{TITLE}}"
+description: "{{ONE_LINE_DESCRIPTION}}"
+topic: "{{TOPIC}}"
+depth: "{{DEPTH}}"
+decision_status: "decided|deferred|exploring"
+promoted_to: "plan|queue|both|none"
+linked_artifacts:
+  - "{{LINKED_PLAN_OR_QUEUE_PATH}}"
+tags:
+  - "{{TAG_1}}"
+  - "{{TAG_2}}"
+---
+
+## Problem Frame
+
+{{PROBLEM_DESCRIPTION}}
+
+## Research Findings
+
+{{RESEARCH_SUMMARY}}
+
+## Options Evaluated
+
+### Option A: {{NAME}}
+
+{{DESCRIPTION_PROS_CONS}}
+
+### Option B: {{NAME}}
+
+{{DESCRIPTION_PROS_CONS}}
+
+## Trade-off Comparison
+
+| Criterion | Option A | Option B |
+|---|---|---|
+| … | … | … |
+
+## Decision
+
+{{RECOMMENDATION_AND_RATIONALE}}
+
+## Rejected Alternatives
+
+{{WHY_OTHER_OPTIONS_WERE_SET_ASIDE}}
+
+## Unresolved Questions
+
+{{ITEMS_NEEDING_FURTHER_INVESTIGATION}}
+
+## Risks and Mitigations
+
+{{KNOWN_RISKS_AND_MITIGATION_STRATEGIES}}
+```
+
+## Quality Criteria
+
+* Problem is clearly framed from the operator's perspective
+* Research findings are grounded in codebase evidence and prior learnings
+* At least 2 options are presented for standard and deep scopes
+* Trade-offs are structured and comparable, not vague prose
+* Decision rationale is explicit — the artifact should explain WHY, not just WHAT
+* Scope boundaries are explicit (what is NOT included)
+* Unresolved questions are captured for follow-up
+* Promotion path is executed — the artifact is linked, not orphaned
+* When backlog tool operations are available, queue entries are created through
+  the tool rather than only as markdown
+
+Generated by autoharness | Template: deliberate/SKILL.md.tmpl

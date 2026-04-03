@@ -8,15 +8,15 @@ Transform WHAT (requirements document) into HOW (implementation plan). Produces 
 
 ## When to Use
 
-Invoke when a brainstorm or research document is ready for technical planning. The output feeds into the plan-review skill for validation, then the backlog-harvester for decomposition.
+Invoke when a deliberation outcome or research document is ready for technical planning. The output feeds into the plan-review skill for validation, then the backlog-harvester for decomposition.
 
 ## Inputs
 
-* `source`: (Required) Path to source document (`.backlog/brainstorm/{file}.md` or `.backlog/research/{file}.md`).
+* `source`: (Required) Path to source document (`{{BACKLOG_DIRECTORY}}/deliberate/{file}.md` or `{{BACKLOG_DIRECTORY}}/research/{file}.md`).
 
 ## Output
 
-A plan file at `.backlog/plans/{YYYY-MM-DD}-{slug}-plan.md`.
+A plan file at `{{BACKLOG_DIRECTORY}}/plans/{YYYY-MM-DD}-{slug}-plan.md`.
 
 ## Required Protocol
 
