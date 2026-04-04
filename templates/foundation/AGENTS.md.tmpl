@@ -190,7 +190,7 @@ This file is a map, not a manual. For deeper context, consult these sources:
 | Workflow policies | `.github/policies/workflow-policies.md` |
 | Constitutional principles | `.github/instructions/constitution.instructions.md` |
 
-Active work items (tasks, plans, deliberations, reviews) live in the backlog
+Active work items (tasks, plans, deliberations, spikes, reviews) live in the backlog
 directory, not in `docs/`. When completed work produces durable design decisions
 or architectural rationale, the doc-ops agent graduates that knowledge into
 `docs/design-docs/`.
@@ -200,7 +200,7 @@ or architectural rationale, the doc-ops agent graduates that knowledge into
 ## Feature Pipeline
 
 ```text
-Idea/Research → deliberate skill → backlog-harvester agent
+Idea/Research → deliberate skill or spike skill → backlog-harvester agent
   → impl-plan skill → plan-review skill → task decomposition
   → harness-architect agent → build-orchestrator agent
   → pr-review agent → fix-ci skill → runtime-verification skill

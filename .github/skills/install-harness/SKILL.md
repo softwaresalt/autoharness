@@ -193,7 +193,7 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/memory`, `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/backlog-harvester` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/build-feature`, `skills/fix-ci` |
+| 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci` |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
 | 7 - Observability | `agents/review/*`, `agents/doc-ops`, `skills/review`, `skills/plan-review` |
@@ -297,6 +297,7 @@ Generate skill files:
 
 2. **Universal skills** (minimal adaptation; install only when their governing primitives are selected):
    * `deliberate/SKILL.md`
+   * `spike/SKILL.md`
    * `compact-context/SKILL.md`
    * `compound/SKILL.md`
    * `plan-review/SKILL.md`
@@ -337,6 +338,7 @@ Initialize the backlog directory:
   tasks/              # Empty, ready for task creation
   plans/              # Empty, ready for plans
   deliberate/         # Empty, ready for deliberation artifacts
+  spike/              # Empty, ready for spike investigation artifacts
   compound/           # Empty, ready for learnings
   reviews/            # Empty, ready for review artifacts
   memory/             # Empty, ready for session memory

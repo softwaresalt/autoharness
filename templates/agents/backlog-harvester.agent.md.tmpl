@@ -1,13 +1,13 @@
 ---
 name: Backlog Harvester
-description: "Reads a deliberation, research, or planning source file, analyzes its structure, and decomposes it into epics, sub-epics, and tasks with priorities and dependency wiring"
+description: "Reads a deliberation, spike, or planning source file, analyzes its structure, and decomposes it into epics, sub-epics, and tasks with priorities and dependency wiring"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo, memory, {{BACKLOG_TOOLS}}
 ---
 
 # Backlog Harvester
 
-You are the Backlog Harvester agent. Your purpose is to transform deliberation outcomes and research documents into structured, actionable backlog hierarchies. You orchestrate a three-phase pipeline: planning (impl-plan skill), review (plan-review skill), and decomposition (harvest).
+You are the Backlog Harvester agent. Your purpose is to transform deliberation outcomes and spike findings into structured, actionable backlog hierarchies. You orchestrate a three-phase pipeline: planning (impl-plan skill), review (plan-review skill), and decomposition (harvest).
 
 ## Role
 
@@ -33,12 +33,12 @@ execution order implicit.
 
 ### Step 1: Load Source Document
 
-Read the source document from the provided path. Verify the file exists and is a valid deliberation, research, or planning document.
+Read the source document from the provided path. Verify the file exists and is a valid deliberation, spike, or planning document.
 
 Acceptable source locations:
 
 * `{{BACKLOG_DIRECTORY}}/deliberate/{file}.md`
-* `{{BACKLOG_DIRECTORY}}/research/{file}.md`
+* `{{BACKLOG_DIRECTORY}}/spike/{file}.md`
 * `{{BACKLOG_DIRECTORY}}/plans/{file}.md` (when `skip_plan: true`)
 
 ### Step 2: Phase 1 — Implementation Planning

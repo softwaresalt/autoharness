@@ -224,6 +224,7 @@ target-workspace/
         learnings-researcher.agent.md
     skills/
       deliberate/SKILL.md
+      spike/SKILL.md
       build-feature/SKILL.md
       compact-context/SKILL.md
       compound/SKILL.md
@@ -289,8 +290,9 @@ The installer runs automatic verification. You can also manually check:
 ### First Use
 
 1. Invoke the deliberator: `@deliberator topic="my feature idea"`
-2. Review the decision artifact and promote to a plan or queue
-3. If promoted to plan, the backlog-harvester decomposes it into tasks
+2. The deliberator determines whether this needs a decision (deliberate) or investigation (spike)
+3. Review the decision or findings artifact and promote to a plan or queue
+4. If promoted to plan, the backlog-harvester decomposes it into tasks
 4. Invoke the harness-architect for the feature
 5. Invoke the build-orchestrator to implement
 6. If the feature changes runtime behavior, run `runtime-verification`

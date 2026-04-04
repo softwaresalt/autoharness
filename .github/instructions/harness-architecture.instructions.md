@@ -106,16 +106,17 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `harness-architect.agent.md` — TDD harness generation
 * `build-orchestrator.agent.md` — Implementation execution loop
 * `pr-review.agent.md` — PR lifecycle management
-* `deliberator.agent.md` — Interactive deliberation orchestration
+* `deliberator.agent.md` — Interactive deliberation and spike orchestration
 * `build-feature/SKILL.md` — Harness loop execution
 * `deliberate/SKILL.md` — Structured deliberation and decision capture
+* `spike/SKILL.md` — Time-boxed investigation and findings capture
 * `fix-ci/SKILL.md` — CI failure resolution
 * `runtime-verification/SKILL.md` — Runtime surface validation before closure
 * `operational-closure/SKILL.md` — Release readiness, monitoring, and feedback capture
 
 **Design Rules**:
 
-* Pipeline: Deliberate → Plan → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
+* Pipeline: Deliberate/Spike → Plan → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
 * Each agent declares its maximum subagent depth
 * Skills are leaf executors (no subagent spawning)
 * Handoff contracts preserve verification and closure expectations from planning through release
