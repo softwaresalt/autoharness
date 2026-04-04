@@ -47,13 +47,13 @@ code, prototyping, benchmarking, or evaluating external tools.
   * `plan` — promote to `impl-plan` for feature planning
   * `queue` — create a queue entry with link to the spike artifact
   * `learnings` — capture as a compound learning entry
-  * `none` — leave the artifact in `docs/decisions/` without linking
+  * `none` — leave the artifact in `{{DOCS_DECISIONS}}/` without linking
   * `ask` — ask the operator at the end
   * Combinations are valid (e.g., `plan,learnings`)
 
 ## Output
 
-A findings artifact at `docs/decisions/{YYYY-MM-DD}-{slug}-spike.md` (long-lived
+A findings artifact at `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-spike.md` (long-lived
 knowledge) with an optional work item in `{{BACKLOG_DIRECTORY}}/queue/` for
 workflow tracking.
 
@@ -99,8 +99,8 @@ When the `backlogit` capability pack is installed and search is supported, query
 the backlog for related spike items, deliberation outcomes, or tasks that may
 have already explored this question.
 
-* Search `docs/decisions/` for prior spike artifacts and deliberation outcomes
-* Search `docs/compound/` for relevant institutional learnings
+* Search `{{DOCS_DECISIONS}}/` for prior spike artifacts and deliberation outcomes
+* Search `{{DOCS_COMPOUND}}/` for relevant institutional learnings
 * Search `{{BACKLOG_DIRECTORY}}/queue/` for related active work items
 * If prior work exists, summarize what was already learned and what remains
   unknown
@@ -116,7 +116,7 @@ the spike focused and prevents scope creep within the time-box.
 
 Mandatory codebase investigation:
 
-* Search the compound learnings library (`docs/compound/`)
+* Search the compound learnings library (`{{DOCS_COMPOUND}}/`)
   FIRST — treat prior learnings as mandatory pre-investigation context
 * Analyze relevant code paths, modules, and patterns
 * Identify existing implementations that relate to the question
@@ -198,7 +198,7 @@ route the outcome (unless `promote_to` was pre-set):
   the spike artifact
 * **Learnings**: Findings are institutional knowledge — capture as a compound
   learning entry
-* **None**: Leave the artifact in `docs/decisions/` for manual reference
+* **None**: Leave the artifact in `{{DOCS_DECISIONS}}/` for manual reference
 
 The operator may choose multiple paths (e.g., both `plan` and `learnings`).
 
@@ -222,7 +222,7 @@ When the `backlogit` capability pack is NOT installed:
   ```
   - [{YYYY-MM-DD}] **Spike**: {goal summary}
     Conclusion: {proceed|pivot|defer|abandon} (confidence: {high|medium|low})
-    Artifact: `docs/decisions/{YYYY-MM-DD}-{slug}-spike.md`
+    Artifact: `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-spike.md`
     Linked feature: {feature reference or "standalone"}
   ```
 
@@ -236,7 +236,7 @@ them in future tasks.
 
 ### Phase 5: Write Findings Artifact
 
-Write the findings artifact to `docs/decisions/{YYYY-MM-DD}-{slug}-spike.md`:
+Write the findings artifact to `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-spike.md`:
 
 ```markdown
 ---

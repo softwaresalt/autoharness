@@ -12,11 +12,11 @@ Invoke when a deliberation outcome or spike findings document is ready for techn
 
 ## Inputs
 
-* `source`: (Required) Path to source document (`docs/decisions/{file}.md` for deliberation outcomes or spike findings).
+* `source`: (Required) Path to source document (`{{DOCS_DECISIONS}}/{file}.md` for deliberation outcomes or spike findings).
 
 ## Output
 
-A plan file at `docs/plans/{YYYY-MM-DD}-{slug}-plan.md`.
+A plan file at `{{DOCS_PLANS}}/{YYYY-MM-DD}-{slug}-plan.md`.
 
 ## Required Protocol
 
@@ -37,7 +37,7 @@ on indexed discovery, and prefer engram-first lookup while researching the codeb
 
 ### Phase 2: Research the Codebase
 
-Search the learnings library (`docs/compound/`) for relevant past solutions BEFORE deeper repo analysis. Treat retrieval as mandatory pre-planning context, not an optional fallback.
+Search the learnings library (`{{DOCS_COMPOUND}}/`) for relevant past solutions BEFORE deeper repo analysis. Treat retrieval as mandatory pre-planning context, not an optional fallback.
 
 Use workspace search tools to understand:
 

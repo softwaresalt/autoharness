@@ -1,12 +1,12 @@
 ---
-description: "Compact and consolidate memory, plan, and tracking artifacts into durable summaries in docs/ — mandatory workflow step, not advisory"
+description: "Compact and consolidate memory, plan, and tracking artifacts into durable summaries in {{DOCS_ROOT}}/ — mandatory workflow step, not advisory"
 ---
 
 ## Compact Context
 
-Scan `docs/memory/`, `docs/plans/`, and `docs/closure/` for stale or oversized artifacts, produce compacted summaries, and archive verbose originals. For plans with appended reviews, consolidate into a decided-plan that replaces the original plan + review verbosity.
+Scan `{{DOCS_MEMORY}}/`, `{{DOCS_PLANS}}/`, and `{{DOCS_CLOSURE}}/` for stale or oversized artifacts, produce compacted summaries, and archive verbose originals. For plans with appended reviews, consolidate into a decided-plan that replaces the original plan + review verbosity.
 
-This skill is a **mandatory workflow step** invoked explicitly by the memory agent (when checkpoint threshold is exceeded) and the build-orchestrator (at batch completion). It is NOT advisory — built-in AI assistant memory features do not write to `docs/`, so compaction is the only mechanism that ensures session knowledge is consolidated into durable, version-controlled artifacts.
+This skill is a **mandatory workflow step** invoked explicitly by the memory agent (when checkpoint threshold is exceeded) and the build-orchestrator (at batch completion). It is NOT advisory — built-in AI assistant memory features do not write to `{{DOCS_ROOT}}/`, so compaction is the only mechanism that ensures session knowledge is consolidated into durable, version-controlled artifacts.
 
 ## When to Use
 
@@ -14,7 +14,7 @@ Invoke as part of the standard workflow:
 
 * **Memory agent**: When checkpoint count for a feature exceeds 10 (mandatory trigger)
 * **Build-orchestrator**: At batch completion (Step 4), after writing the session memory summary
-* **Manual**: When `docs/memory/` file count > 40, total size > 500 KB, or the operator requests it
+* **Manual**: When `{{DOCS_MEMORY}}/` file count > 40, total size > 500 KB, or the operator requests it
 
 ## Inputs
 
@@ -25,9 +25,9 @@ Invoke as part of the standard workflow:
 
 ## Output
 
-* Compacted summary files in `docs/memory/` (for memory/checkpoints)
-* Decided-plan files in `docs/plans/` (for plans with appended reviews)
-* Compacted closure summaries in `docs/closure/` (for verification and closure records)
+* Compacted summary files in `{{DOCS_MEMORY}}/` (for memory/checkpoints)
+* Decided-plan files in `{{DOCS_PLANS}}/` (for plans with appended reviews)
+* Compacted closure summaries in `{{DOCS_CLOSURE}}/` (for verification and closure records)
 * Verbose originals moved to `{{BACKLOG_DIRECTORY}}/archive/`
 * Summary report of what was compacted
 
@@ -37,18 +37,18 @@ Invoke as part of the standard workflow:
 
 Scan the target directories:
 
-**Memory and checkpoints** (`docs/memory/`):
+**Memory and checkpoints** (`{{DOCS_MEMORY}}/`):
 
 * Count files and total size per date subdirectory
 * Identify files older than `threshold_days`
 * Cross-reference against active backlog work items (do not compact active task checkpoints)
 
-**Plans** (`docs/plans/`):
+**Plans** (`{{DOCS_PLANS}}/`):
 
 * Identify plans with appended review sections (plan-review skill appends findings)
 * Identify plans whose associated features are complete (all tasks Done)
 
-**Closure records** (`docs/closure/`):
+**Closure records** (`{{DOCS_CLOSURE}}/`):
 
 * Identify verification and closure artifacts for completed features
 
@@ -68,21 +68,21 @@ Mark artifacts as compaction candidates if:
 
 1. Read all candidate memory/checkpoint files in the group
 2. Generate a dense summary capturing: decisions made, files modified, key learnings, failed approaches, outcomes
-3. Write the compacted summary to `docs/memory/compacted/{YYYY-MM-DD}-{feature-or-slug}-compacted.md`
+3. Write the compacted summary to `{{DOCS_MEMORY}}/compacted/{YYYY-MM-DD}-{feature-or-slug}-compacted.md`
 4. Move verbose originals to `{{BACKLOG_DIRECTORY}}/archive/memory/`
 
 **Plan consolidation** (per-plan):
 
 1. Read the plan file including all appended review sections
 2. Extract: final decisions, implementation units that survived review, key constraints, rejected alternatives
-3. Write a decided-plan to `docs/plans/{YYYY-MM-DD}-{slug}-decided-plan.md` — a concise document containing only the actionable decisions and rationale, not the full deliberation history
+3. Write a decided-plan to `{{DOCS_PLANS}}/{YYYY-MM-DD}-{slug}-decided-plan.md` — a concise document containing only the actionable decisions and rationale, not the full deliberation history
 4. Move the verbose original plan to `{{BACKLOG_DIRECTORY}}/archive/plans/`
 
 **Closure compaction** (per-feature):
 
 1. Read verification and closure artifacts for the completed feature
 2. Generate a consolidated closure record: what was verified, healthy/failure signals, monitoring status, follow-up items
-3. Write the compacted closure to `docs/closure/{YYYY-MM-DD}-{slug}-closure-summary.md`
+3. Write the compacted closure to `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-closure-summary.md`
 4. Move verbose originals to `{{BACKLOG_DIRECTORY}}/archive/closure/`
 
 ### Phase 4: Report

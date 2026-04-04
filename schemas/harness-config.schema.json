@@ -3,6 +3,7 @@
   "title": "Harness Configuration",
   "description": "Operator-authored configuration that controls how autoharness installs and maintains the agent harness in this workspace. Place at .autoharness/config.yaml before running autoharness install or tune.",
   "type": "object",
+  "required": ["schema_version"],
   "properties": {
     "schema_version": {
       "type": "string",

@@ -37,7 +37,7 @@ architectural question before committing to implementation. Use for:
 
 ## Output
 
-A decision artifact at `docs/decisions/{YYYY-MM-DD}-{slug}-deliberation.md`.
+A decision artifact at `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-deliberation.md`.
 
 When `promote_to` includes `queue`, also creates or updates a work item in
 `{{BACKLOG_DIRECTORY}}/queue/` linking the decision artifact for future pursuit.
@@ -84,7 +84,7 @@ Capture the operator's answers as the **problem frame** section of the artifact.
 
 #### Step 2.1: Retrieve Prior Knowledge
 
-Search the learnings library (`docs/compound/`) for relevant
+Search the learnings library (`{{DOCS_COMPOUND}}/`) for relevant
 past solutions, decisions, and gotchas BEFORE deeper investigation. Treat
 retrieval as mandatory pre-research context, not optional.
 
@@ -164,7 +164,7 @@ promotion options:
 * **Plan now** → hand the artifact to `impl-plan` as a source document
 * **Queue for later** → create a queue entry linking the artifact
 * **Both** → plan immediately AND stash a queue reference for tracking
-* **None** → leave the artifact in `docs/decisions/` without linking
+* **None** → leave the artifact in `{{DOCS_DECISIONS}}/` without linking
 
 #### Step 4.3: Execute Promotion
 
@@ -192,7 +192,7 @@ When no backlog tool is available, append a structured entry to
 `{{BACKLOG_DIRECTORY}}/queue/.stash.md`:
 
 ```markdown
-- **[{YYYY-MM-DD}] {topic}** — `docs/decisions/{YYYY-MM-DD}-{slug}-deliberation.md`
+- **[{YYYY-MM-DD}] {topic}** — `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-deliberation.md`
   Status: queued | Decided: {yes/no/deferred}
 ```
 

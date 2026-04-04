@@ -1,48 +1,43 @@
 # autoharness Configuration
 #
-# Operator-authored configuration for autoharness harness installation and tuning.
-# Place this file at .autoharness/config.yaml in your workspace root BEFORE
-# running autoharness install. The installer reads this file to understand your
-# preferences and merges them with auto-detected workspace characteristics.
+# Resolved harness configuration for this workspace.
+# Written by autoharness install; updated by autoharness tune.
+# Operator edits to this file are preserved on re-install and tuning.
 #
-# Values here override auto-detection. Omit a field to let discovery decide.
 # Schema: schemas/harness-config.schema.json
 
 schema_version: "1.0.0"
 
 # Installation preset: starter | standard | full
-# preset: standard
+preset: {{INSTALL_PRESET}}
 
-# Capability packs to enable (uncomment as needed):
-# capability_packs:
-#   - backlogit
-#   - agent-intercom
-#   - agent-engram
+# Capability packs enabled for this workspace
+capability_packs: {{CAPABILITY_PACKS_YAML}}
 
 # Backlog tool configuration
-# backlog:
-#   tool: backlogit           # backlogit | backlog-md | manual
-#   directory: .backlogit     # Root directory for backlog files
-#   prefix_map:               # Work item type prefixes
-#     feature: "F"
-#     task: "T"
-#     spike: "S"
-#     deliberation: "D"
-#     bug: "B"
-#     epic: "E"
-#     subtask: "ST"
+backlog:
+  tool: {{BACKLOG_TOOL_NAME}}
+  directory: {{BACKLOG_DIRECTORY}}
+  prefix_map:
+    feature: "{{PREFIX_FEATURE}}"
+    task: "{{PREFIX_TASK}}"
+    spike: "{{PREFIX_SPIKE}}"
+    deliberation: "{{PREFIX_DELIBERATION}}"
+    bug: "{{PREFIX_BUG}}"
+    epic: "{{PREFIX_EPIC}}"
+    subtask: "{{PREFIX_SUBTASK}}"
 
 # Long-lived knowledge artifact directories
-# docs:
-#   root: docs                # Root directory for durable knowledge
-#   subdirectories:
-#     compound: compound      # Institutional learnings
-#     plans: plans            # Implementation plans
-#     decisions: decisions    # ADRs, deliberation outcomes, spike findings
-#     memory: memory          # Session state and checkpoints
-#     closure: closure        # Verification and closure records
-#     design_docs: design-docs
-#     product_specs: product-specs
+docs:
+  root: {{DOCS_ROOT}}
+  subdirectories:
+    compound: {{DOCS_COMPOUND_DIR}}
+    plans: {{DOCS_PLANS_DIR}}
+    decisions: {{DOCS_DECISIONS_DIR}}
+    memory: {{DOCS_MEMORY_DIR}}
+    closure: {{DOCS_CLOSURE_DIR}}
+    design_docs: {{DOCS_DESIGN_DOCS_DIR}}
+    product_specs: {{DOCS_PRODUCT_SPECS_DIR}}
 
 # Model routing preferences (map tiers to model identifiers)
 # model_routing:

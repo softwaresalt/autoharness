@@ -54,11 +54,12 @@ Check for `.autoharness/config.yaml` in the target workspace. If present:
 1. Validate against `{autoharness_home}/schemas/harness-config.schema.json`
 2. Extract operator preferences for: preset, capability packs, backlog configuration (tool, directory, prefix map), docs directory structure, model routing, and template variable overrides
 3. Merge with the workspace profile — operator config values take precedence over auto-detected profile values
-4. If the config specifies `backlog.prefix_map`, use those prefixes in the generated `config.yml` instead of the defaults
-5. If the config specifies `docs.root` or `docs.subdirectories`, use those paths for knowledge artifact output directories
-6. If the config specifies `overrides`, apply those template variable values directly, overriding any profile-derived values
+4. Derive `{{PREFIX_*}}` template variables from `backlog.prefix_map` (falling back to backlogit project YAML when backlogit pack is active, then schema defaults)
+5. Derive `{{DOCS_ROOT}}` and `{{DOCS_*}}` template variables from `docs.root` and `docs.subdirectories` (falling back to schema defaults)
+6. Derive `{{CAPABILITY_PACKS_YAML}}` from `capability_packs` list for config write-back
+7. If the config specifies `overrides`, apply those template variable values directly, overriding any profile-derived values
 
-If the file does not exist, proceed with profile-only installation using default values. The operator can create `.autoharness/config.yaml` later and re-run install or tune to apply preferences.
+If the file does not exist, proceed with profile-only installation using schema default values for all prefix and docs variables. After installation, the installer writes the resolved `.autoharness/config.yaml` recording the actual values used (see Step 3.4).
 
 #### Step 1.1: Load Profile
 
@@ -110,6 +111,49 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{FIELD_STATUS}}` | Registry `field_mapping.status` | `status` | `status` |
 | `{{FIELD_LABELS}}` | Registry `field_mapping.labels` | `labels` | `labels` |
 | `{{BACKLOG_TOOLS}}` | Backlog MCP server name from registry | `backlog` | `backlog` |
+
+**Prefix Variables** (derived from `config.backlog.prefix_map` → backlog tool auto-detection → schema defaults):
+
+| Template Variable | Source | Default |
+|---|---|---|
+| `{{PREFIX_FEATURE}}` | `config.backlog.prefix_map.feature` | `F` |
+| `{{PREFIX_TASK}}` | `config.backlog.prefix_map.task` | `T` |
+| `{{PREFIX_SPIKE}}` | `config.backlog.prefix_map.spike` | `S` |
+| `{{PREFIX_DELIBERATION}}` | `config.backlog.prefix_map.deliberation` | `D` |
+| `{{PREFIX_BUG}}` | `config.backlog.prefix_map.bug` | `B` |
+| `{{PREFIX_EPIC}}` | `config.backlog.prefix_map.epic` | `E` |
+| `{{PREFIX_SUBTASK}}` | `config.backlog.prefix_map.subtask` | `ST` |
+
+Resolution order: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML metadata (when backlogit capability pack is active) → (3) schema defaults above.
+
+**Docs Path Variables** (derived from `config.docs.root` and `config.docs.subdirectories` → schema defaults):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{DOCS_ROOT}}` | `config.docs.root` | `docs` | Root directory for durable knowledge |
+| `{{DOCS_COMPOUND}}` | `{DOCS_ROOT}/{config.docs.subdirectories.compound}` | `docs/compound` | Institutional learnings |
+| `{{DOCS_PLANS}}` | `{DOCS_ROOT}/{config.docs.subdirectories.plans}` | `docs/plans` | Implementation plans |
+| `{{DOCS_DECISIONS}}` | `{DOCS_ROOT}/{config.docs.subdirectories.decisions}` | `docs/decisions` | ADRs, deliberation outcomes, spike findings |
+| `{{DOCS_MEMORY}}` | `{DOCS_ROOT}/{config.docs.subdirectories.memory}` | `docs/memory` | Session state and checkpoints |
+| `{{DOCS_CLOSURE}}` | `{DOCS_ROOT}/{config.docs.subdirectories.closure}` | `docs/closure` | Verification, review, safety-check, closure records |
+| `{{DOCS_DESIGN_DOCS}}` | `{DOCS_ROOT}/{config.docs.subdirectories.design_docs}` | `docs/design-docs` | Graduated design decisions and rationale |
+| `{{DOCS_PRODUCT_SPECS}}` | `{DOCS_ROOT}/{config.docs.subdirectories.product_specs}` | `docs/product-specs` | Product requirements and acceptance criteria |
+
+Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema defaults. Docs path variables are computed paths (root + subdirectory name joined with `/`).
+
+**Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{INSTALL_PRESET}}` | Selected preset from Step 1.3 | `standard` | Installation preset name |
+| `{{CAPABILITY_PACKS_YAML}}` | YAML list from selected capability packs | `[]` | Rendered YAML array of enabled packs |
+| `{{DOCS_COMPOUND_DIR}}` | `config.docs.subdirectories.compound` | `compound` | Subdirectory name only (not full path) |
+| `{{DOCS_PLANS_DIR}}` | `config.docs.subdirectories.plans` | `plans` | Subdirectory name only |
+| `{{DOCS_DECISIONS_DIR}}` | `config.docs.subdirectories.decisions` | `decisions` | Subdirectory name only |
+| `{{DOCS_MEMORY_DIR}}` | `config.docs.subdirectories.memory` | `memory` | Subdirectory name only |
+| `{{DOCS_CLOSURE_DIR}}` | `config.docs.subdirectories.closure` | `closure` | Subdirectory name only |
+| `{{DOCS_DESIGN_DOCS_DIR}}` | `config.docs.subdirectories.design_docs` | `design-docs` | Subdirectory name only |
+| `{{DOCS_PRODUCT_SPECS_DIR}}` | `config.docs.subdirectories.product_specs` | `product-specs` | Subdirectory name only |
 
 **Capability-Pack Variables** (derived from `capability_packs` and integration signals in the profile):
 
@@ -363,25 +407,25 @@ The prefix map is configured in `config.yml` with concrete single or two-letter 
 
 | Type | Prefix | Example filename |
 |---|---|---|
-| Feature | `F` | `F-001-user-auth.md` |
-| Task | `T` | `T-001.001-add-login-endpoint.md` |
-| Spike | `S` | `S-002-evaluate-caching.md` |
-| Deliberation | `D` | `D-003-api-strategy.md` |
-| Bug | `B` | `B-004-null-pointer-fix.md` |
-| Epic | `E` | `E-005-auth-overhaul.md` |
-| Subtask | `ST` | `ST-001.001.001-write-unit-test.md` |
+| Feature | `{{PREFIX_FEATURE}}` | `F-001-user-auth.md` |
+| Task | `{{PREFIX_TASK}}` | `T-001.001-add-login-endpoint.md` |
+| Spike | `{{PREFIX_SPIKE}}` | `S-002-evaluate-caching.md` |
+| Deliberation | `{{PREFIX_DELIBERATION}}` | `D-003-api-strategy.md` |
+| Bug | `{{PREFIX_BUG}}` | `B-004-null-pointer-fix.md` |
+| Epic | `{{PREFIX_EPIC}}` | `E-005-auth-overhaul.md` |
+| Subtask | `{{PREFIX_SUBTASK}}` | `ST-001.001.001-write-unit-test.md` |
 
-When the `backlogit` capability pack is active, the installer reads prefixes from backlogit's project YAML metadata and overrides these defaults during installation.
+Prefix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
 
-Long-lived knowledge structure (in `docs/` at workspace root):
+Long-lived knowledge structure (in `{{DOCS_ROOT}}/` at workspace root):
 
 ```text
-docs/
-  compound/           # Institutional learnings organized by category
-  plans/              # Implementation plans (compacted: plan + reviews → decided-plan)
-  decisions/          # ADRs and deliberation outcomes
-  memory/             # Session state and checkpoints
-  closure/            # Runtime verification, code review, safety-check, and closure records
+{{DOCS_ROOT}}/
+  {{DOCS_COMPOUND}}/    # Institutional learnings organized by category
+  {{DOCS_PLANS}}/       # Implementation plans (compacted: plan + reviews → decided-plan)
+  {{DOCS_DECISIONS}}/   # ADRs and deliberation outcomes
+  {{DOCS_MEMORY}}/      # Session state and checkpoints
+  {{DOCS_CLOSURE}}/     # Runtime verification, code review, safety-check, and closure records
 ```
 
 Reviews are appended to the plan they review (not separate files). The compact-context skill consolidates plan + appended reviews into a decided-plan.
@@ -408,8 +452,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
-| Backlog config + stash | `{workspace}/{BACKLOG_DIRECTORY}/` (queue/, archive/, config.yml, queue/.stash.md) |
-| Knowledge directories | `{workspace}/docs/` (compound/, plans/, decisions/, memory/, closure/) |
+| Backlog config + stash | `{workspace}/{{BACKLOG_DIRECTORY}}/` (queue/, archive/, config.yml, queue/.stash.md) |
+| Knowledge directories | `{workspace}/{{DOCS_ROOT}}/` ({{DOCS_COMPOUND}}/, {{DOCS_PLANS}}/, {{DOCS_DECISIONS}}/, {{DOCS_MEMORY}}/, {{DOCS_CLOSURE}}/) |
 
 #### Step 3.3: Write Installation Manifest
 
@@ -446,6 +490,16 @@ variables_used:
   PRIMARY_LANGUAGE: "{{value}}"
   # ... all resolved variables
 ```
+
+#### Step 3.4: Write Resolved Configuration
+
+Write (or update) `.autoharness/config.yaml` using the `harness-config.yaml.tmpl` template with all resolved values. This records the actual configuration used during installation:
+
+* If an operator config existed, preserve all operator-provided values and fill in defaults for omitted fields
+* If no operator config existed, write a complete config with all schema defaults
+* The resolved config serves as input for future `tune-harness` runs and enables the tuner to detect configuration drift
+
+The installed config includes: `schema_version`, `preset`, `capability_packs`, `backlog` (tool, directory, prefix_map), `docs` (root, subdirectories), `model_routing`, and any `overrides` that were applied.
 
 ### Phase 4: Verification
 

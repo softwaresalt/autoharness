@@ -17,19 +17,17 @@ version: "1.0.0"
 #   Level 3: {prefix}-{NNN}.{NNN}.{NNN}      (subtasks)
 # Files are named: {prefix}-{NNN}-{slug}.md (or {prefix}-{NNN}.{NNN}-{slug}.md, etc.)
 #
-# Prefix map — default work item type prefixes.
+# Prefix map — work item type prefixes resolved from .autoharness/config.yaml.
 # These are single or two-letter codes used to prefix work item filenames
 # in the queue directory (e.g., F-001-user-auth.md, T-001.001-add-login.md).
-# When using backlogit, the installer reads prefixes from backlogit's project
-# config YAML and overrides these defaults during installation.
 prefix_map:
-  feature: "F"
-  task: "T"
-  spike: "S"
-  deliberation: "D"
-  bug: "B"
-  epic: "E"
-  subtask: "ST"
+  feature: "{{PREFIX_FEATURE}}"
+  task: "{{PREFIX_TASK}}"
+  spike: "{{PREFIX_SPIKE}}"
+  deliberation: "{{PREFIX_DELIBERATION}}"
+  bug: "{{PREFIX_BUG}}"
+  epic: "{{PREFIX_EPIC}}"
+  subtask: "{{PREFIX_SUBTASK}}"
 
 # Status values
 statuses:
@@ -53,5 +51,5 @@ labels:
   - "deliberation-outcome"
   - "spike"
 
-# Long-lived knowledge artifacts are stored in docs/, not in the backlog.
-# See docs/compound/, docs/plans/, docs/decisions/, docs/memory/, docs/closure/.
+# Long-lived knowledge artifacts are stored in {{DOCS_ROOT}}/, not in the backlog.
+# See {{DOCS_COMPOUND}}/, {{DOCS_PLANS}}/, {{DOCS_DECISIONS}}/, {{DOCS_MEMORY}}/, {{DOCS_CLOSURE}}/.

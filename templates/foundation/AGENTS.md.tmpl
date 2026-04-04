@@ -181,22 +181,22 @@ This file is a map, not a manual. For deeper context, consult these sources:
 
 | Topic | Location |
 |---|---|
-| Architecture & domain boundaries | `docs/ARCHITECTURE.md` |
-| Design decisions & rationale | `docs/design-docs/` |
-| Product specifications | `docs/product-specs/` |
-| Quality grades per domain | `docs/QUALITY_SCORE.md` |
-| External references | `docs/references/` |
+| Architecture & domain boundaries | `{{DOCS_ROOT}}/ARCHITECTURE.md` |
+| Design decisions & rationale | `{{DOCS_DESIGN_DOCS}}/` |
+| Product specifications | `{{DOCS_PRODUCT_SPECS}}/` |
+| Quality grades per domain | `{{DOCS_ROOT}}/QUALITY_SCORE.md` |
+| External references | `{{DOCS_ROOT}}/references/` |
 | Coding conventions | `.github/instructions/` |
 | Workflow policies | `.github/policies/workflow-policies.md` |
 | Constitutional principles | `.github/instructions/constitution.instructions.md` |
 
 Active work items (features, tasks, spikes, deliberations, bugs) are tracked as
 work items in the backlog queue (`{{BACKLOG_DIRECTORY}}/queue/`). Durable knowledge
-lives in `docs/`: compound learnings in `docs/compound/`, plans in `docs/plans/`,
-decisions and spike findings in `docs/decisions/`, session memory in `docs/memory/`,
-and closure records in `docs/closure/`. When completed work produces durable design
+lives in `{{DOCS_ROOT}}/`: compound learnings in `{{DOCS_COMPOUND}}/`, plans in `{{DOCS_PLANS}}/`,
+decisions and spike findings in `{{DOCS_DECISIONS}}/`, session memory in `{{DOCS_MEMORY}}/`,
+and closure records in `{{DOCS_CLOSURE}}/`. When completed work produces durable design
 decisions or architectural rationale, the doc-ops agent graduates that knowledge
-into `docs/design-docs/`.
+into `{{DOCS_DESIGN_DOCS}}/`.
 
 ---
 
@@ -216,7 +216,7 @@ Idea/Research → deliberate skill or spike skill → backlog-harvester agent
 
 When ending a work session, complete ALL steps:
 
-1. Write session memory to `docs/memory/` via the memory agent
+1. Write session memory to `{{DOCS_MEMORY}}/` via the memory agent
 2. Invoke **compact-context** to consolidate memory checkpoints and finalize decided-plans
 3. Run quality gates (if code changed)
 4. Update work item status via backlog tools
