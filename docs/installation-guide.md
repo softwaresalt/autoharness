@@ -255,16 +255,14 @@ target-workspace/
   .backlog/
     config.yml
     queue/
-      queue.md
-    tasks/
-    plans/
-    deliberate/
-    spike/
+      .stash.md
+    archive/
+  docs/
     compound/
-    reviews/
+    plans/
+    decisions/
     memory/
     closure/
-    completed/
   .autoharness/
     workspace-profile.yaml               # Discovered workspace profile
     harness-manifest.yaml                # Installation tracking (includes autoharness_home)

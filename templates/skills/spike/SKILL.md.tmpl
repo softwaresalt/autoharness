@@ -46,12 +46,15 @@ code, prototyping, benchmarking, or evaluating external tools.
 
 ## Output
 
-A findings artifact at `{{BACKLOG_DIRECTORY}}/spike/{YYYY-MM-DD}-{slug}-spike.md`.
+A findings artifact at `docs/decisions/{YYYY-MM-DD}-{slug}-spike.md` (long-lived
+knowledge) with an optional work item in `{{BACKLOG_DIRECTORY}}/queue/` for
+workflow tracking.
 
 When the `backlogit` capability pack is installed and `create_task` supports
-`artifact_type`, the spike is also created as a backlog item at conclusion with
-`artifact_type: spike`, `labels: ["spike"]`, and a status of
-`{{STATUS_DONE}}`.
+`artifact_type`, the spike is also created as a backlog work item at conclusion
+with `artifact_type: spike`, `labels: ["spike"]`, and a status of
+`{{STATUS_DONE}}`. The work item filename follows the configured prefix
+convention: `{prefix}-{id}-{slug}.md`.
 
 ## Required Protocol
 
@@ -89,9 +92,9 @@ When the `backlogit` capability pack is installed and search is supported, query
 the backlog for related spike items, deliberation outcomes, or tasks that may
 have already explored this question.
 
-* Search `{{BACKLOG_DIRECTORY}}/spike/` for prior spike artifacts
-* Search `{{BACKLOG_DIRECTORY}}/deliberate/` for related deliberation outcomes
-* Search `{{BACKLOG_DIRECTORY}}/compound/` for relevant learnings
+* Search `docs/decisions/` for prior spike artifacts and deliberation outcomes
+* Search `docs/compound/` for relevant institutional learnings
+* Search `{{BACKLOG_DIRECTORY}}/queue/` for related active work items
 * If prior work exists, summarize what was already learned and what remains
   unknown
 
@@ -106,7 +109,7 @@ the spike focused and prevents scope creep within the time-box.
 
 Mandatory codebase investigation:
 
-* Search the compound learnings library (`{{BACKLOG_DIRECTORY}}/compound/`)
+* Search the compound learnings library (`docs/compound/`)
   FIRST — treat prior learnings as mandatory pre-investigation context
 * Analyze relevant code paths, modules, and patterns
 * Identify existing implementations that relate to the question
@@ -188,7 +191,7 @@ route the outcome (unless `promote_to` was pre-set):
   the spike artifact
 * **Learnings**: Findings are institutional knowledge — capture as a compound
   learning entry
-* **None**: Leave the artifact in `spike/` for manual reference
+* **None**: Leave the artifact in `docs/decisions/` for manual reference
 
 The operator may choose multiple paths (e.g., both `plan` and `learnings`).
 
@@ -208,11 +211,11 @@ When the `backlogit` capability pack is installed and `create_task` is available
 When the `backlogit` capability pack is NOT installed:
 
 * If promoting to queue, append a spike entry to
-  `{{BACKLOG_DIRECTORY}}/queue/queue.md` with the format:
+  `{{BACKLOG_DIRECTORY}}/queue/.stash.md` with the format:
   ```
   - [{YYYY-MM-DD}] **Spike**: {goal summary}
     Conclusion: {proceed|pivot|defer|abandon} (confidence: {high|medium|low})
-    Artifact: `{{BACKLOG_DIRECTORY}}/spike/{YYYY-MM-DD}-{slug}-spike.md`
+    Artifact: `docs/decisions/{YYYY-MM-DD}-{slug}-spike.md`
     Linked feature: {feature reference or "standalone"}
   ```
 
@@ -226,7 +229,7 @@ them in future tasks.
 
 ### Phase 5: Write Findings Artifact
 
-Write the findings artifact to `{{BACKLOG_DIRECTORY}}/spike/{YYYY-MM-DD}-{slug}-spike.md`:
+Write the findings artifact to `docs/decisions/{YYYY-MM-DD}-{slug}-spike.md`:
 
 ```markdown
 ---

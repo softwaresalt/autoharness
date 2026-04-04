@@ -37,13 +37,12 @@ Read the source document from the provided path. Verify the file exists and is a
 
 Acceptable source locations:
 
-* `{{BACKLOG_DIRECTORY}}/deliberate/{file}.md`
-* `{{BACKLOG_DIRECTORY}}/spike/{file}.md`
-* `{{BACKLOG_DIRECTORY}}/plans/{file}.md` (when `skip_plan: true`)
+* `docs/decisions/{file}.md` (deliberation outcomes and spike findings)
+* `docs/plans/{file}.md` (when `skip_plan: true`)
 
 ### Step 2: Phase 1 — Implementation Planning
 
-Unless `skip_plan: true`, invoke the **impl-plan** skill with the source document. The skill produces a structured implementation plan at `{{BACKLOG_DIRECTORY}}/plans/{YYYY-MM-DD}-{slug}-plan.md`.
+Unless `skip_plan: true`, invoke the **impl-plan** skill with the source document. The skill produces a structured implementation plan at `docs/plans/{YYYY-MM-DD}-{slug}-plan.md`.
 
 ### Step 3: Phase 2 — Plan Review
 

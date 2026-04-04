@@ -46,7 +46,8 @@ When a change references another artifact (agent, skill, instruction, path), ver
 
 - Pipeline descriptions listing a skill that has no template
 - An agent referencing a skill directory that doesn't exist in `templates/skills/`
-- Backlog path references (`{{BACKLOG_DIRECTORY}}/spike/`, `{{BACKLOG_DIRECTORY}}/deliberate/`) that aren't reflected in the backlog structure section of install-harness SKILL.md
+- Backlog path references that don't use `{{BACKLOG_DIRECTORY}}/queue/` for work items, or reference non-existent subdirectories under the backlog root
+- Knowledge artifact paths that don't use `docs/` for long-lived content (compound/, plans/, decisions/, memory/, closure/)
 - Capability pack conditional blocks referencing instructions that have no template
 
 ### 5. Capability Pack Overlay Coherence

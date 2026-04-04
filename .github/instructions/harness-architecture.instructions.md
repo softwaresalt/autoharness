@@ -49,16 +49,18 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `memory.agent.md` — Persists session state to `.backlog/memory/`
+* `memory.agent.md` — Persists session state to `docs/memory/` (explicit file writes, not reliant on built-in AI assistant memory)
 * `research/learnings-researcher.agent.md` — Retrieves relevant prior solutions before planning and review
-* `compact-context/SKILL.md` — Archives stale tracking artifacts
-* `compound/SKILL.md` — Captures institutional knowledge
+* `compact-context/SKILL.md` — Mandatory workflow step: consolidates memory, plans, and closure artifacts in `docs/`; archives verbose originals
+* `compound/SKILL.md` — Captures institutional knowledge to `docs/compound/`
 
 **Design Rules**:
 
 * Memory files use structured Markdown with YAML frontmatter for searchability
 * Checkpoints capture: tasks completed, files modified, decisions, failed approaches, next steps
 * Learnings retrieval runs before planning and review work, not just after failures
+* Compact-context is a mandatory workflow step (invoked by memory agent at checkpoint threshold and by build-orchestrator at batch completion), not an advisory suggestion
+* Compact-context and memory agent operate at Tier 1 (Fast/Cheap) — recommended model: GPT-5.4-mini or equivalent
 * Compaction triggers when file count exceeds threshold (default 40) or total size exceeds 500 KB
 * Compound entries use searchable frontmatter fields: `problem_type`, `category`, `root_cause`, `tags`
 

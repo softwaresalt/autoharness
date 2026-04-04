@@ -110,7 +110,8 @@ Artifacts to generate:
   Skills:           {{N}} files (deliberate, spike, build, compact, compound, fix-ci, plan, review, runtime verification, operational closure, safety modes)
   Policies:         1 file   (5 workflow policies)
   Prompts:          1 file   (ping-loop)
-  Backlog:          {{N}} dirs (tasks, plans, deliberate, spike, queue, compound, reviews, memory, closure)
+  Backlog:          2 dirs  (queue, archive) + config.yml + .stash.md
+  Docs:             5 dirs  (compound, plans, decisions, memory, closure)
 ```
 
 Wait for user confirmation before proceeding. The user may request:

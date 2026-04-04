@@ -4,8 +4,28 @@
 project: "{{PROJECT_NAME}}"
 version: "1.0.0"
 
-# Task ID format
-id_format: "task-{feature}.{sequence}"
+# Directory layout
+#   {{BACKLOG_DIRECTORY}}/
+#     queue/            — Active work items (features, tasks, spikes, deliberations, bugs)
+#       .stash.md       — Parked ideas and deferred outcomes
+#     archive/          — Completed and archived work items
+
+# Work item ID format
+# Hierarchy is visible at the file system level through the ID structure:
+#   Level 1: {prefix}-{NNN}                  (epics / features)
+#   Level 2: {prefix}-{NNN}.{NNN}            (sub-epics / tasks)
+#   Level 3: {prefix}-{NNN}.{NNN}.{NNN}      (subtasks)
+# Files are named: {prefix}-{NNN}-{slug}.md (or {prefix}-{NNN}.{NNN}-{slug}.md, etc.)
+#
+# Prefix map — mirrors the backlog tool's type prefix configuration.
+# When using backlogit, these can be read from its project config YAML.
+# Override these to match your backlog tool's conventions.
+prefix_map:
+  feature: "{{PREFIX_FEATURE}}"
+  task: "{{PREFIX_TASK}}"
+  spike: "{{PREFIX_SPIKE}}"
+  deliberation: "{{PREFIX_DELIBERATION}}"
+  bug: "{{PREFIX_BUG}}"
 
 # Status values
 statuses:
@@ -28,3 +48,6 @@ labels:
   - "needs-review"
   - "deliberation-outcome"
   - "spike"
+
+# Long-lived knowledge artifacts are stored in docs/, not in the backlog.
+# See docs/compound/, docs/plans/, docs/decisions/, docs/memory/, docs/closure/.

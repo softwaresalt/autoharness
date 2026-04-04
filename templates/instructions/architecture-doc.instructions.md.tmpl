@@ -30,14 +30,16 @@ codebase.
 
 The `docs/` directory and the backlog directory serve different lifecycles:
 
-* **Backlog** (`.backlog/`, `.backlogit/`, `backlog/`) holds **active work**: tasks,
-  plans, deliberation artifacts, spike findings, reviews, session memory, compound
-  learnings. These are managed by the backlog tool and have status transitions
-  (created → active → done).
+* **Backlog** (`.backlog/`, `.backlogit/`, `backlog/`) holds **active work items**: features,
+  tasks, spikes, deliberations, and bugs in a flat `queue/` directory, typed by prefix
+  and identified by hierarchical IDs. These are managed by the backlog tool and have
+  status transitions (queued → active → done → archived).
 
-* **`docs/`** holds **durable knowledge**: architecture, design decisions, product
-  specs, quality grades. These persist and evolve with the codebase. They have no
-  "done" state.
+* **`docs/`** holds **durable knowledge**: architecture, design decisions, product specs,
+  quality grades, compound learnings (`docs/compound/`), implementation plans
+  (`docs/plans/`), spike and deliberation findings (`docs/decisions/`), session memory
+  (`docs/memory/`), and closure records (`docs/closure/`). These persist and evolve
+  with the codebase. They have no "done" state.
 
 Do NOT duplicate backlog content into `docs/`. Instead, use the knowledge graduation
 process to distill durable insights from completed work into `docs/` artifacts.
@@ -51,8 +53,9 @@ reference-worthy knowledge:
 * **New domain patterns** discovered during implementation → update `docs/ARCHITECTURE.md`
 * **Product requirements** that emerged during deliberation → `docs/product-specs/`
 * **Quality implications** → update `docs/QUALITY_SCORE.md`
-* **Compound learnings** (debugging insights, build errors) → stay in the backlog's
-  compound directory (already searchable by the learnings-researcher agent)
+* **Compound learnings** (debugging insights, build errors) → already in `docs/compound/`
+  (searchable by the learnings-researcher agent)
+* **Spike findings** → already in `docs/decisions/` (accessible for future planning)
 
 Graduation is distillation, not copying. Extract the decision, rationale, and
 constraints — not the execution log or task progress.

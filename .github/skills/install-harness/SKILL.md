@@ -328,23 +328,38 @@ Generate prompt files:
 
 #### Step 2.8: Backlog Structure
 
-Initialize the backlog directory:
+Initialize the backlog directory. Backlog tools are used **exclusively for workflow management** — active work items live in `queue/`, completed items move to `archive/`. Long-lived knowledge artifacts (compound learnings, plans, decisions, memory, closure records) are stored in `docs/` at the workspace root, not in the backlog.
 
 ```text
-.backlog/
-  config.yml          # Backlog tool configuration
-  queue/
-    queue.md          # Unrefined ideas and stashed deliberation outcomes
-  tasks/              # Empty, ready for task creation
-  plans/              # Empty, ready for plans
-  deliberate/         # Empty, ready for deliberation artifacts
-  spike/              # Empty, ready for spike investigation artifacts
-  compound/           # Empty, ready for learnings
-  reviews/            # Empty, ready for review artifacts
-  memory/             # Empty, ready for session memory
-  closure/            # Empty, ready for runtime verification and closure artifacts
-  completed/          # Empty, archive for done work
+{{BACKLOG_DIRECTORY}}/
+  config.yml          # Backlog tool configuration (prefix map, statuses, labels)
+  queue/              # Active work items — flat directory, no subdirectories
+    .stash.md         # Parked ideas and deferred outcomes not yet promoted
+  archive/            # Completed and archived work items
 ```
+
+Work items in `queue/` follow the naming convention:
+
+```text
+{prefix}-{NNN}-{slug}.md               # Level 1 (features, epics)
+{prefix}-{NNN}.{NNN}-{slug}.md         # Level 2 (tasks, sub-epics)
+{prefix}-{NNN}.{NNN}.{NNN}-{slug}.md   # Level 3 (subtasks)
+```
+
+The prefix map is configured in `config.yml` and should mirror the backlog tool's type prefix settings. When the `backlogit` capability pack is active, read prefixes from backlogit's project YAML metadata.
+
+Long-lived knowledge structure (in `docs/` at workspace root):
+
+```text
+docs/
+  compound/           # Institutional learnings organized by category
+  plans/              # Implementation plans (compacted: plan + reviews → decided-plan)
+  decisions/          # ADRs and deliberation outcomes
+  memory/             # Session state and checkpoints
+  closure/            # Runtime verification and operational closure records
+```
+
+Reviews are appended to the plan they review (not separate files). The compact-context skill consolidates plan + appended reviews into a decided-plan.
 
 ### Phase 3: Installation
 
@@ -368,7 +383,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
-| Backlog | `{workspace}/.backlog/` |
+| Backlog config + stash | `{workspace}/{BACKLOG_DIRECTORY}/` (queue/, archive/, config.yml, queue/.stash.md) |
+| Knowledge directories | `{workspace}/docs/` (compound/, plans/, decisions/, memory/, closure/) |
 
 #### Step 3.3: Write Installation Manifest
 

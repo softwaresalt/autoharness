@@ -54,28 +54,28 @@ For each detected issue, either fix directly (for simple corrections) or open a 
 
 Run this workflow after a feature completes (triggered by build-orchestrator or PR merge) to promote durable knowledge from backlog work items into `docs/`.
 
-The backlog directory holds active work — tasks, plans, deliberation artifacts, spike findings, reviews, compound learnings. The `docs/` directory holds durable knowledge — architecture, design decisions, product specs. These are different lifecycles. Graduation bridges them.
+The backlog directory holds active work — work items in the queue awaiting or undergoing execution. The `docs/` directory holds durable knowledge — architecture, design decisions, product specs, compound learnings, session memory, closure records. These are different lifecycles. Graduation bridges them.
 
 ### Step K1: Scan Completed Work
 
-Review recently completed backlog items for knowledge worth preserving:
+Review recently completed backlog work items and their associated knowledge artifacts:
 
-* Completed execution plans in the backlog's `plans/` or `completed/` directory
-* Compound learnings captured during the feature build
-* Deliberation artifacts that established product direction and decisions
-* Review artifacts that surfaced architectural decisions
+* Completed execution plans in `docs/plans/`
+* Compound learnings captured during the feature build in `docs/compound/`
+* Deliberation and spike artifacts that established product direction in `docs/decisions/`
+* Closure records produced during verification in `docs/closure/`
 
 ### Step K2: Identify Graduatable Knowledge
 
 Not everything graduates. Apply these filters:
 
-| Graduates to `docs/` | Stays in backlog |
+| Graduates to `docs/design-docs/` | Stays in current location |
 |---|---|
-| Architectural decisions and rationale | Task status and progress logs |
-| Design patterns chosen (and why alternatives were rejected) | Session memory and checkpoints |
-| New domain boundaries or dependency rules | Review comments and fix iterations |
-| Product requirements that emerged from deliberation or spike investigation | Ephemeral deliberation drafts or spike work artifacts |
-| API contracts or interface decisions | Compound learnings (already searchable in backlog) |
+| Architectural decisions and rationale | Task status and progress logs (backlog queue) |
+| Design patterns chosen (and why alternatives were rejected) | Session memory and checkpoints (docs/memory/) |
+| New domain boundaries or dependency rules | Ephemeral deliberation drafts (docs/decisions/) |
+| Product requirements that emerged from deliberation or spike investigation | Compound learnings (docs/compound/ — already searchable) |
+| API contracts or interface decisions | Closure records (docs/closure/ — already durable) |
 
 ### Step K3: Distill and Write
 
@@ -87,6 +87,7 @@ For each piece of graduatable knowledge:
    * Domain boundary changes → update `docs/ARCHITECTURE.md`
    * Product requirements → `docs/product-specs/`
    * Quality implications → update `docs/QUALITY_SCORE.md`
+   * Note: compound learnings, memory, decisions, and closure records are already in `docs/` — graduation applies only when distilled design knowledge should be elevated to `docs/design-docs/`
 3. **Cross-link** — add references between the new doc and related existing docs. Update the AGENTS.md progressive disclosure map if new top-level topics were added.
 4. **Verify** — confirm the graduated doc is accurate against the current codebase, not the plan's aspirational state.
 
