@@ -40,12 +40,11 @@ docs:
     product_specs: {{DOCS_PRODUCT_SPECS_DIR}}
 
 # Model routing preferences (map tiers to model identifiers)
-# model_routing:
-#   tier1: gpt-5.4-mini      # Fast/cheap: memory, docs, compaction
-#   tier2: claude-sonnet-4    # Standard: orchestration, code, review
-#   tier3: claude-opus-4.6    # Frontier: planning, architecture, analysis
+model_routing:
+  tier1: {{MODEL_ROUTING_TIER1}}      # Fast/cheap: memory, docs, compaction
+  tier2: {{MODEL_ROUTING_TIER2}}      # Standard: orchestration, code, review
+  tier3: {{MODEL_ROUTING_TIER3}}      # Frontier: planning, architecture, analysis
 
-# Explicit template variable overrides (use sparingly)
-# overrides:
-#   PROJECT_NAME: my-project
-#   PRIMARY_LANGUAGE: TypeScript
+# Explicit template variable overrides applied during install/tune (use sparingly —
+# prefer fixing the workspace setup over overriding discovery results)
+overrides: {{HARNESS_OVERRIDES_YAML}}
