@@ -34,6 +34,11 @@ When the `agent-intercom` capability pack is installed, begin by following
 broadcast review start and verdict milestones, and use the intercom approval workflow for any
 `gated_auto` action instead of relying on implicit local acceptance.
 
+When the `adversarial-review` capability pack is installed and this review surfaces 3 or more
+P0/P1 findings, recommend escalation to the `adversarial-review` agent for multi-model consensus
+validation before blocking the build. This surfaces findings that a single-model pass may have
+amplified or missed.
+
 ### Step 1: Analyze Changes
 
 Parse the diff or file list:

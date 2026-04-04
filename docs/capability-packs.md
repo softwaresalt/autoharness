@@ -132,6 +132,7 @@ Partially woven overlays should be treated as a real harness-quality problem.
 | `browser-verification` | Browser-backed runtime confidence for web-facing work | 4, 7, 10 |
 | `strict-safety` | Stronger default safety posture for risky work | 5, 6, 8 |
 | `release-observability` | Richer monitoring and closure expectations | 7, 10 |
+| `adversarial-review` | Multi-model parallel review with consensus-weighted findings and remediation queue | 7, 10 |
 
 ## Example: agent-engram as a formal overlay
 
@@ -245,3 +246,58 @@ When creating future packs, follow these rules:
 4. Prefer explicit overlay targets over fuzzy “this influences some files” language
 5. Verify the overlay as a system, not file by file in isolation
 6. Ensure tuning can detect partially applied overlays later
+## Example: adversarial-review as a formal overlay
+
+`adversarial-review` provides multi-model parallel review by dispatching independent reviewer
+agents across different model tiers, then assembling findings into a confidence-weighted consensus
+report. Agreement across models indicates high-confidence findings; unique findings from a single
+model are preserved as low-confidence observations. The output is a structured remediation queue
+with findings ordered by `confidence x severity`.
+
+### Eligibility signals
+
+* Workspace profile indicates security-sensitive domains (authentication, payments, data processing, PII handling)
+* CI configuration includes compliance gates, security scanning, or audit requirements
+* `strict-safety` capability pack is already selected (co-installation recommended)
+* Operator explicitly requests higher review confidence or multi-model validation
+* Workspace has significant codebase volume (>1000 source files) where single-model blind spots are more likely
+
+### Recommendation logic
+
+* **Automatically recommended** when `strict-safety` is also active
+* **Conditionally recommended** when workspace profile includes security or compliance signals
+* **Available on request** for all other workspaces that want higher review confidence
+
+### Overlay targets
+
+| Artifact | Change |
+|---|---|
+| `adversarial-review.agent.md` | New agent installed - implements the parallel dispatch + consensus-assembly protocol |
+| `review.agent.md` | Add escalation note: recommend adversarial-review when 3+ P0/P1 findings appear |
+| `build-orchestrator.agent.md` | Step 3.4 review gate invokes adversarial-review agent when pack is active |
+| `pr-review.agent.md` | Step 3 delegates to adversarial-review agent with `output_mode: full` |
+
+### Behavior deltas
+
+* Review gate in build-orchestrator uses N parallel reviewer agents (default 3) across Tier 1/2/3 models
+* PR pre-merge review produces consensus + majority + unique finding sections with confidence labels
+* HIGH-confidence consensus findings block gates identically to standard review P0/P1 findings
+* MEDIUM-confidence findings require explicit acknowledgment (fix or defer with rationale)
+* LOW-confidence findings are preserved as advisory observations
+* Remediation queue entries include confidence tier and action class
+* Structured bug/issue queue entries are ready for direct backlog creation
+
+### Verification checks
+
+* `adversarial-review.agent.md` is installed in `.github/agents/`
+* `build-orchestrator.agent.md` contains the `adversarial-review` conditional at the review gate step
+* `pr-review.agent.md` contains the `adversarial-review` conditional at the delegation step
+* `review.agent.md` contains the escalation note
+* Manifest records the overlay target set with `adversarial_review_enabled: true`
+
+### Tuning drift rules
+
+* Pack enabled but `adversarial-review.agent.md` is missing from `.github/agents/` - re-install agent
+* Pack enabled but `build-orchestrator` or `pr-review` does not contain the conditional blocks - re-weave
+* Pack disabled but agent file and conditional blocks remain - offer cleanup
+* Workspace has gained security or compliance signals since install - recommend enabling the pack

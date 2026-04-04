@@ -75,6 +75,8 @@ radius of a risky fix.
 
 Invoke the **review** agent in `report-only` mode against the changed files. If P0/P1 findings are reported, fix them before proceeding.
 
+When the `adversarial-review` capability pack is installed, invoke the **adversarial-review** agent instead with `mode: report-only` and `reviewers: 3`. HIGH-confidence consensus findings block the gate identically to standard review P0/P1 findings. MEDIUM-confidence findings are advisory but must be acknowledged in the task completion note.
+
 #### Step 3.5: Complete Task
 
 1. Commit changes with a conventional commit message

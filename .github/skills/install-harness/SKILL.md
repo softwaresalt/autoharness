@@ -242,6 +242,7 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
 | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
 | `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.vscode/mcp.json, .engram/config.toml` | empty |
+| `{{AGENT_ADVERSARIAL_REVIEW_ENABLED}}` | `capability_packs` contains `adversarial-review` | `true` | `false` |
 
 Note: These six variables are used internally by the installer during capability-pack detection and overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 

@@ -40,6 +40,8 @@ Invoke the **review** agent with:
 * Mode: `report-only` (when called by build-orchestrator) or `interactive` (when called directly)
 * The branch name for tracking
 
+When the `adversarial-review` capability pack is installed, invoke the **adversarial-review** agent instead with `output_mode: full`. Include the consensus confidence tier breakdown in the PR description's review findings summary.
+
 ### Step 4: Generate PR Description
 
 Compose a PR description including:
