@@ -385,7 +385,7 @@ Generate prompt files:
 
 #### Step 2.8: Backlog Structure
 
-Initialize the backlog directory. Backlog tools are used **exclusively for workflow management** — active work items live in `queue/`, completed items move to `archive/`. Long-lived knowledge artifacts (compound learnings, plans, decisions, memory, closure records) are stored in `docs/` at the workspace root, not in the backlog.
+Initialize the backlog directory. Backlog tools are used **exclusively for workflow management** — active work items live in `queue/`, completed items move to `archive/`. Long-lived knowledge artifacts (compound learnings, plans, decisions, memory, closure records) are stored in `{{DOCS_ROOT}}/` at the workspace root, not in the backlog.
 
 ```text
 {{BACKLOG_DIRECTORY}}/
@@ -417,15 +417,15 @@ The prefix map is configured in `config.yml` with concrete single or two-letter 
 
 Prefix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
 
-Long-lived knowledge structure (in `{{DOCS_ROOT}}/` at workspace root):
+Long-lived knowledge structure (full paths at workspace root):
 
 ```text
-{{DOCS_ROOT}}/
-  {{DOCS_COMPOUND}}/    # Institutional learnings organized by category
-  {{DOCS_PLANS}}/       # Implementation plans (compacted: plan + reviews → decided-plan)
-  {{DOCS_DECISIONS}}/   # ADRs and deliberation outcomes
-  {{DOCS_MEMORY}}/      # Session state and checkpoints
-  {{DOCS_CLOSURE}}/     # Runtime verification, code review, safety-check, and closure records
+{{DOCS_ROOT}}/          # Documentation root
+{{DOCS_COMPOUND}}/      # Institutional learnings organized by category
+{{DOCS_PLANS}}/         # Implementation plans (compacted: plan + reviews → decided-plan)
+{{DOCS_DECISIONS}}/     # ADRs and deliberation outcomes
+{{DOCS_MEMORY}}/        # Session state and checkpoints
+{{DOCS_CLOSURE}}/       # Runtime verification, code review, safety-check, and closure records
 ```
 
 Reviews are appended to the plan they review (not separate files). The compact-context skill consolidates plan + appended reviews into a decided-plan.
@@ -453,7 +453,7 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
 | Backlog config + stash | `{workspace}/{{BACKLOG_DIRECTORY}}/` (queue/, archive/, config.yml, queue/.stash.md) |
-| Knowledge directories | `{workspace}/{{DOCS_ROOT}}/` ({{DOCS_COMPOUND}}/, {{DOCS_PLANS}}/, {{DOCS_DECISIONS}}/, {{DOCS_MEMORY}}/, {{DOCS_CLOSURE}}/) |
+| Knowledge directories | `{workspace}/` ({{DOCS_COMPOUND}}/, {{DOCS_PLANS}}/, {{DOCS_DECISIONS}}/, {{DOCS_MEMORY}}/, {{DOCS_CLOSURE}}/) |
 
 #### Step 3.3: Write Installation Manifest
 

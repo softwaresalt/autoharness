@@ -78,8 +78,29 @@ Before running the installer, you can create an operator configuration file to t
 
 ```bash
 mkdir -p .autoharness
-# Copy the template as a starting point:
-cp $(autoharness home)/templates/harness-config.yaml.tmpl .autoharness/config.yaml
+cat > .autoharness/config.yaml <<'EOF'
+schema_version: "1.0.0"
+preset: standard
+capability_packs:
+  - backlogit
+  - agent-engram
+backlog:
+  tool: backlogit
+  prefix_map:
+    feature: "F"
+    task: "T"
+    spike: "S"
+    deliberation: "D"
+    bug: "B"
+    epic: "E"
+    subtask: "ST"
+docs:
+  root: docs
+model_routing:
+  tier1: gpt-5.4-mini
+overrides:
+  PROJECT_NAME: my-app
+EOF
 # Edit to your preferences:
 $EDITOR .autoharness/config.yaml
 ```
