@@ -203,7 +203,28 @@ route the outcome (unless `promote_to` was pre-set):
 
 The operator may choose multiple paths (e.g., both `plan` and `learnings`).
 
-#### Step 4.2: Create Backlog Item (When Applicable)
+#### Step 4.2: Promote to Implementation Plan (When Applicable)
+
+When `promote_to` includes `plan` (or `ask` resolved to `plan`):
+
+1. Invoke the **impl-plan** skill with the spike findings artifact as context:
+   * Pass the findings artifact path as the plan source
+   * Set the implementation scope to the recommendation from Step 3.2
+   * Include the spike's success criteria and constraints as planning constraints
+2. The impl-plan skill writes a plan document to `{{DOCS_PLANS}}/{YYYY-MM-DD}-{slug}-plan.md`
+3. Update the spike findings artifact's `promoted_to` frontmatter field to include `plan`
+   and add a `plan_artifact` field pointing to the generated plan path
+4. If `linked_feature` was provided, the impl-plan output should reference that feature
+   so the planning chain is traceable
+
+When `plan` is combined with other paths (e.g., `plan,learnings` or `plan,queue`),
+complete this step first, then continue with Steps 4.3 and 4.4 for the remaining paths.
+
+If the **backlog-harvester** agent is active (operator preference over direct impl-plan invocation),
+call backlog-harvester instead and pass the spike artifact as the planning seed. The
+backlog-harvester will invoke impl-plan internally and return the plan artifact path.
+
+#### Step 4.3: Create Backlog Item (When Applicable)
 
 When the `backlogit` capability pack is installed and `create_task` is available:
 
@@ -227,7 +248,7 @@ When the `backlogit` capability pack is NOT installed:
     Linked feature: {feature reference or "standalone"}
   ```
 
-#### Step 4.3: Capture as Compound Learning (When Applicable)
+#### Step 4.4: Capture as Compound Learning (When Applicable)
 
 If the promotion path includes `learnings` or the spike produced insights that
 would benefit future work, invoke the **compound** skill with the findings
