@@ -292,13 +292,13 @@ The installer runs automatic verification. You can also manually check:
 2. The deliberator determines whether this needs a decision (deliberate) or investigation (spike)
 3. Review the decision or findings artifact and promote to a plan or queue
 4. If promoted to plan, the backlog-harvester decomposes it into tasks
-4. Invoke the harness-architect for the feature
-5. Invoke the build-orchestrator to implement
-6. If the feature changes runtime behavior, run `runtime-verification`
-7. Capture release readiness and follow-up monitoring with `operational-closure`
-8. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
-9. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
-10. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
+5. Invoke the harness-architect for the feature
+6. Invoke the build-orchestrator to implement
+7. If the feature changes runtime behavior, run `runtime-verification`
+8. Capture release readiness and follow-up monitoring with `operational-closure`
+9. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
+10. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
+11. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
 
 ### Ongoing Maintenance
 

@@ -2,7 +2,7 @@
 name: Memory
 description: "Session state persistence for continuity across conversations — writes structured memory artifacts to docs/memory/ for long-lived retrieval"
 maturity: stable
-tools: vscode, execute, read, edit, search, memory
+tools: vscode, execute, read, edit, search, memory, agent
 ---
 
 # Memory
@@ -73,7 +73,7 @@ ms.date: {{DATE}}
 
 ## Behavioral Constraints
 
-* No subagent spawning (leaf executor) EXCEPT for mandatory compact-context invocation when checkpoint threshold is exceeded
+* Do not spawn subagents; remain a leaf executor. You may invoke the mandatory `compact-context` skill when the checkpoint threshold is exceeded
 * Do not modify code files
 * Do not make architectural or implementation decisions
 * Always write the canonical markdown memory artifact to `docs/memory/` — this is the durable record

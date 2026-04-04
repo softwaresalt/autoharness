@@ -346,7 +346,19 @@ Work items in `queue/` follow the naming convention:
 {prefix}-{NNN}.{NNN}.{NNN}-{slug}.md   # Level 3 (subtasks)
 ```
 
-The prefix map is configured in `config.yml` and should mirror the backlog tool's type prefix settings. When the `backlogit` capability pack is active, read prefixes from backlogit's project YAML metadata.
+The prefix map is configured in `config.yml` with concrete single or two-letter defaults:
+
+| Type | Prefix | Example filename |
+|---|---|---|
+| Feature | `F` | `F-001-user-auth.md` |
+| Task | `T` | `T-001.001-add-login-endpoint.md` |
+| Spike | `S` | `S-002-evaluate-caching.md` |
+| Deliberation | `D` | `D-003-api-strategy.md` |
+| Bug | `B` | `B-004-null-pointer-fix.md` |
+| Epic | `E` | `E-005-auth-overhaul.md` |
+| Subtask | `ST` | `ST-001.001.001-write-unit-test.md` |
+
+When the `backlogit` capability pack is active, the installer reads prefixes from backlogit's project YAML metadata and overrides these defaults during installation.
 
 Long-lived knowledge structure (in `docs/` at workspace root):
 
