@@ -1,0 +1,56 @@
+# autoharness Configuration
+#
+# Operator-authored configuration for autoharness harness installation and tuning.
+# Place this file at .autoharness/config.yaml in your workspace root BEFORE
+# running autoharness install. The installer reads this file to understand your
+# preferences and merges them with auto-detected workspace characteristics.
+#
+# Values here override auto-detection. Omit a field to let discovery decide.
+# Schema: schemas/harness-config.schema.json
+
+schema_version: "1.0.0"
+
+# Installation preset: starter | standard | full
+# preset: standard
+
+# Capability packs to enable (uncomment as needed):
+# capability_packs:
+#   - backlogit
+#   - agent-intercom
+#   - agent-engram
+
+# Backlog tool configuration
+# backlog:
+#   tool: backlogit           # backlogit | backlog-md | manual
+#   directory: .backlogit     # Root directory for backlog files
+#   prefix_map:               # Work item type prefixes
+#     feature: "F"
+#     task: "T"
+#     spike: "S"
+#     deliberation: "D"
+#     bug: "B"
+#     epic: "E"
+#     subtask: "ST"
+
+# Long-lived knowledge artifact directories
+# docs:
+#   root: docs                # Root directory for durable knowledge
+#   subdirectories:
+#     compound: compound      # Institutional learnings
+#     plans: plans            # Implementation plans
+#     decisions: decisions    # ADRs, deliberation outcomes, spike findings
+#     memory: memory          # Session state and checkpoints
+#     closure: closure        # Verification and closure records
+#     design_docs: design-docs
+#     product_specs: product-specs
+
+# Model routing preferences (map tiers to model identifiers)
+# model_routing:
+#   tier1: gpt-5.4-mini      # Fast/cheap: memory, docs, compaction
+#   tier2: claude-sonnet-4    # Standard: orchestration, code, review
+#   tier3: claude-opus-4.6    # Frontier: planning, architecture, analysis
+
+# Explicit template variable overrides (use sparingly)
+# overrides:
+#   PROJECT_NAME: my-project
+#   PRIMARY_LANGUAGE: TypeScript

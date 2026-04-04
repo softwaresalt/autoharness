@@ -68,21 +68,21 @@ Mark artifacts as compaction candidates if:
 
 1. Read all candidate memory/checkpoint files in the group
 2. Generate a dense summary capturing: decisions made, files modified, key learnings, failed approaches, outcomes
-3. Write the compacted summary to `docs/memory/{feature-or-date}-compacted.md`
+3. Write the compacted summary to `docs/memory/compacted/{YYYY-MM-DD}-{feature-or-slug}-compacted.md`
 4. Move verbose originals to `{{BACKLOG_DIRECTORY}}/archive/memory/`
 
 **Plan consolidation** (per-plan):
 
 1. Read the plan file including all appended review sections
 2. Extract: final decisions, implementation units that survived review, key constraints, rejected alternatives
-3. Write a decided-plan to `docs/plans/{slug}-decided-plan.md` — a concise document containing only the actionable decisions and rationale, not the full deliberation history
+3. Write a decided-plan to `docs/plans/{YYYY-MM-DD}-{slug}-decided-plan.md` — a concise document containing only the actionable decisions and rationale, not the full deliberation history
 4. Move the verbose original plan to `{{BACKLOG_DIRECTORY}}/archive/plans/`
 
 **Closure compaction** (per-feature):
 
 1. Read verification and closure artifacts for the completed feature
 2. Generate a consolidated closure record: what was verified, healthy/failure signals, monitoring status, follow-up items
-3. Write the compacted closure to `docs/closure/{slug}-closure-summary.md`
+3. Write the compacted closure to `docs/closure/{YYYY-MM-DD}-{slug}-closure-summary.md`
 4. Move verbose originals to `{{BACKLOG_DIRECTORY}}/archive/closure/`
 
 ### Phase 4: Report

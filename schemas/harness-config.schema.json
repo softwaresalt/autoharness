@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Harness Configuration",
+  "description": "Operator-authored configuration that controls how autoharness installs and maintains the agent harness in this workspace. Place at .autoharness/config.yaml before running autoharness install or tune.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version for forward compatibility"
+    },
+    "preset": {
+      "type": "string",
+      "enum": ["starter", "standard", "full"],
+      "default": "standard",
+      "description": "Installation preset controlling the default primitive set and capability pack defaults"
+    },
+    "capability_packs": {
+      "type": "array",
+      "description": "Capability packs to enable. Overrides preset defaults when specified.",
+      "items": {
+        "type": "string",
+        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability"]
+      }
+    },
+    "backlog": {
+      "type": "object",
+      "description": "Backlog tool and directory configuration",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "enum": ["backlogit", "backlog-md", "manual"],
+          "description": "Backlog tool to use. When set, overrides auto-detection."
+        },
+        "directory": {
+          "type": "string",
+          "description": "Root directory for the backlog (relative to workspace root). Defaults to the detected tool's directory or '.backlog'.",
+          "examples": [".backlogit", ".backlog", "backlog"]
+        },
+        "prefix_map": {
+          "type": "object",
+          "description": "Work item type prefixes. When using backlogit, these are read from backlogit's project config and merged here. Operator values override auto-detected values.",
+          "properties": {
+            "feature": { "type": "string", "default": "F" },
+            "task": { "type": "string", "default": "T" },
+            "spike": { "type": "string", "default": "S" },
+            "deliberation": { "type": "string", "default": "D" },
+            "bug": { "type": "string", "default": "B" },
+            "epic": { "type": "string", "default": "E" },
+            "subtask": { "type": "string", "default": "ST" }
+          },
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "description": "Long-lived knowledge artifact directory configuration",
+      "properties": {
+        "root": {
+          "type": "string",
+          "default": "docs",
+          "description": "Root directory for durable knowledge artifacts (relative to workspace root)"
+        },
+        "subdirectories": {
+          "type": "object",
+          "description": "Subdirectory names within the docs root. Override to match existing workspace conventions.",
+          "properties": {
+            "compound": { "type": "string", "default": "compound" },
+            "plans": { "type": "string", "default": "plans" },
+            "decisions": { "type": "string", "default": "decisions" },
+            "memory": { "type": "string", "default": "memory" },
+            "closure": { "type": "string", "default": "closure" },
+            "design_docs": { "type": "string", "default": "design-docs" },
+            "product_specs": { "type": "string", "default": "product-specs" }
+          }
+        }
+      }
+    },
+    "model_routing": {
+      "type": "object",
+      "description": "Model preferences for each routing tier. Agent definitions use tier labels; this maps tiers to specific model identifiers.",
+      "properties": {
+        "tier1": {
+          "type": "string",
+          "description": "Fast/cheap model for low-complexity tasks (memory, docs, prompt editing). E.g., 'gpt-5.4-mini', 'claude-haiku-4.5'",
+          "examples": ["gpt-5.4-mini", "claude-haiku-4.5"]
+        },
+        "tier2": {
+          "type": "string",
+          "description": "Standard model for routine tasks (orchestration, code writing, review). E.g., 'claude-sonnet-4', 'gpt-5.2'",
+          "examples": ["claude-sonnet-4", "gpt-5.2"]
+        },
+        "tier3": {
+          "type": "string",
+          "description": "Frontier model for complex tasks (planning, architecture, analysis). E.g., 'claude-opus-4.6', 'gpt-5.4'",
+          "examples": ["claude-opus-4.6", "gpt-5.4"]
+        }
+      }
+    },
+    "primitives": {
+      "type": "array",
+      "description": "Specific primitive numbers to install (1-10). Overrides preset when specified.",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "description": "Explicit overrides for template variables that take precedence over auto-detected values. Use sparingly — prefer correcting the workspace setup over overriding discovery.",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

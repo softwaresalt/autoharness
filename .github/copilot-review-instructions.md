@@ -10,11 +10,20 @@ autoharness is a **template-driven framework** that produces Markdown artifacts 
 
 ### 1. Template Variable Discipline
 
-- All template variables MUST use `{{UPPER_SNAKE_CASE}}` format
-- No nested variable references (`{{VAR1_{{VAR2}}}}` is never valid)
-- Every `{{VARIABLE}}` in a template must be resolvable from the workspace profile or documented in the install-harness SKILL.md variable resolution table
-- Installed output (non-`.tmpl` files) must NEVER contain unresolved `{{...}}` placeholders
-- Flag any variable that appears in a template but is not documented
+There are two distinct uses of `{{UPPER_SNAKE_CASE}}` placeholders in this project:
+
+**Install-time variables** — resolved by the installer when composing a template into a target workspace. These appear in `.tmpl` files and MUST:
+- Use `{{UPPER_SNAKE_CASE}}` format
+- Be documented in the install-harness SKILL.md variable resolution table or resolvable from the workspace profile
+- Never use nested references (`{{VAR1_{{VAR2}}}}` is never valid)
+- Never survive into installed output — if a `{{...}}` placeholder appears in non-`.tmpl` files, it is an installation error
+
+**Runtime fill-in placeholders** — intentionally left as `{{PLACEHOLDER}}` in installed output because they represent values that agents or operators fill in at runtime. These appear inside fenced code blocks, artifact examples, and template snippets within skill/agent definitions. They are NOT installation errors. Examples: `{{TITLE}}`, `{{DESCRIPTION}}`, `{{YYYY-MM-DD}}` inside example work item templates.
+
+When reviewing:
+- Flag undocumented install-time variables in `.tmpl` files
+- Do NOT flag `{{...}}` placeholders inside fenced code blocks or artifact examples — verify they are runtime fill-ins before flagging
+- Flag any `{{...}}` in installed (non-`.tmpl`) output that is not clearly a runtime fill-in inside an example block
 
 ### 2. File Naming Conventions
 

@@ -281,7 +281,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
    | `docs/plans/` | Implementation plans (compacted into decided-plans with appended reviews) | Persists after compaction |
    | `docs/decisions/` | Deliberation outcomes and spike findings | Persists and evolves with codebase |
    | `docs/memory/` | Session state, checkpoints (compacted periodically) | Persists after compaction |
-   | `docs/closure/` | Runtime verification and operational closure records | Persists with release history |
+   | `docs/closure/` | Runtime verification, code review, safety-check, and operational closure records | Persists with release history |
    | `docs/design-docs/` | Graduated architectural decisions and design rationale | Persists and evolves with codebase |
 
    Work items live in the backlog because they're managed by the backlog tool. The *knowledge artifacts* they produce live in `docs/` as durable records. The compact-context skill consolidates verbose memory and plans into dense summaries, archiving originals to the backlog's `archive/` directory.

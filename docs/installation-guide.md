@@ -72,7 +72,33 @@ The `autoharness_home` path is resolved by agents in this order:
 3. Directory traversal from the agent definition file
 4. `~/.autoharness/` default
 
-## Step 2: Register with Your AI Coding Environment
+## Step 2: Configure Your Workspace (Optional)
+
+Before running the installer, you can create an operator configuration file to tell autoharness how you want your harness set up. This is optional — autoharness auto-detects most settings — but it gives you explicit control over preferences that you want to persist across installations and tuning runs.
+
+```bash
+mkdir -p .autoharness
+# Copy the template as a starting point:
+cp $(autoharness home)/templates/harness-config.yaml.tmpl .autoharness/config.yaml
+# Edit to your preferences:
+$EDITOR .autoharness/config.yaml
+```
+
+The config file controls:
+
+| Setting | Example | Purpose |
+|---|---|---|
+| `preset` | `standard` | Installation shape (starter, standard, full) |
+| `capability_packs` | `[backlogit, agent-engram]` | Which packs to enable |
+| `backlog.tool` | `backlogit` | Override backlog tool auto-detection |
+| `backlog.prefix_map` | `{feature: "F", task: "T"}` | Work item type prefixes |
+| `docs.root` | `docs` | Where durable knowledge artifacts live |
+| `model_routing` | `{tier1: "gpt-5.4-mini"}` | Model preferences per tier |
+| `overrides` | `{PROJECT_NAME: "my-app"}` | Explicit template variable overrides |
+
+The installer and tuner both read this file. When tuning, changes to `config.yaml` are treated as intentional configuration updates (not drift) and are prioritized in the tuning report.
+
+## Step 3: Register with Your AI Coding Environment
 
 autoharness is environment-agnostic. Register it once in whichever environment(s) you use.
 
@@ -113,7 +139,7 @@ Add autoharness as an agent source in Cursor settings, pointing to `~/.autoharne
 
 Reference the autoharness agents directory or pass the AGENTS.md as system context.
 
-## Step 3: Install a Harness into a Target Workspace
+## Step 4: Install a Harness into a Target Workspace
 
 ### Full Installation (Recommended)
 
@@ -264,6 +290,7 @@ target-workspace/
     memory/
     closure/
   .autoharness/
+    config.yaml                          # Operator configuration (optional, created before install)
     workspace-profile.yaml               # Discovered workspace profile
     harness-manifest.yaml                # Installation tracking (includes autoharness_home)
 ```

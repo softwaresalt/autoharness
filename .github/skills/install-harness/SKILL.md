@@ -47,6 +47,19 @@ Verify that `workspace_path` is NOT inside `autoharness_home` and vice versa.
 
 All template reads in subsequent phases use `{autoharness_home}/templates/` as the base path. All artifact writes use `{workspace_path}` as the base path.
 
+#### Step 1.0b: Load Operator Configuration
+
+Check for `.autoharness/config.yaml` in the target workspace. If present:
+
+1. Validate against `{autoharness_home}/schemas/harness-config.schema.json`
+2. Extract operator preferences for: preset, capability packs, backlog configuration (tool, directory, prefix map), docs directory structure, model routing, and template variable overrides
+3. Merge with the workspace profile — operator config values take precedence over auto-detected profile values
+4. If the config specifies `backlog.prefix_map`, use those prefixes in the generated `config.yml` instead of the defaults
+5. If the config specifies `docs.root` or `docs.subdirectories`, use those paths for knowledge artifact output directories
+6. If the config specifies `overrides`, apply those template variable values directly, overriding any profile-derived values
+
+If the file does not exist, proceed with profile-only installation using default values. The operator can create `.autoharness/config.yaml` later and re-run install or tune to apply preferences.
+
 #### Step 1.1: Load Profile
 
 Read the workspace profile from `profile_path`. Validate against the workspace profile schema. If validation fails, halt and report the specific schema violations.
@@ -368,7 +381,7 @@ docs/
   plans/              # Implementation plans (compacted: plan + reviews → decided-plan)
   decisions/          # ADRs and deliberation outcomes
   memory/             # Session state and checkpoints
-  closure/            # Runtime verification and operational closure records
+  closure/            # Runtime verification, code review, safety-check, and closure records
 ```
 
 Reviews are appended to the plan they review (not separate files). The compact-context skill consolidates plan + appended reviews into a decided-plan.
@@ -408,6 +421,7 @@ installed_at: "{{ISO_8601_TIMESTAMP}}"
 autoharness_version: "1.0.0"
 autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
+config_hash: "{{SHA256_OF_CONFIG_OR_NULL}}"  # null if no .autoharness/config.yaml was present
 install_preset: "{{PRESET}}"
 capability_packs: [{{CAPABILITY_PACKS}}]
 # Example when Engram is enabled:

@@ -41,8 +41,15 @@ code, prototyping, benchmarking, or evaluating external tools.
   touch (e.g., "read-only — no production changes", "prototype in a branch only").
 * `linked_feature`: (Optional) Path or ID of a feature this spike informs. When
   provided, the findings artifact references this feature.
-* `promote_to`: (Optional) Where to route the outcome: `plan`, `queue`,
-  `learnings`, `ask`. Defaults to `ask`.
+* `promote_to`: (Optional) Where to route the outcome. Accepts a single value
+  or a comma-separated list for multiple paths: `plan`, `queue`, `learnings`,
+  `none`, `ask`. Defaults to `ask`.
+  * `plan` — promote to `impl-plan` for feature planning
+  * `queue` — create a queue entry with link to the spike artifact
+  * `learnings` — capture as a compound learning entry
+  * `none` — leave the artifact in `docs/decisions/` without linking
+  * `ask` — ask the operator at the end
+  * Combinations are valid (e.g., `plan,learnings`)
 
 ## Output
 

@@ -24,6 +24,10 @@
       "type": "string",
       "description": "SHA-256 of the workspace profile used during installation"
     },
+    "config_hash": {
+      "type": ["string", "null"],
+      "description": "SHA-256 of .autoharness/config.yaml at installation time. Null if no config was present. Used by the tuner to detect intentional configuration changes."
+    },
     "install_preset": {
       "type": ["string", "null"],
       "enum": ["starter", "standard", "full", null],

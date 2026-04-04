@@ -47,6 +47,15 @@ Verify the `autoharness_home` path contains the expected structure:
 
 If any are missing, halt and report the issue. All template reads for regenerating artifacts use `{autoharness_home}/templates/` as the base path.
 
+### Phase 0b: Load Operator Configuration
+
+Read `.autoharness/config.yaml` from the target workspace (if present). The operator config represents the intended harness configuration. During tuning, it serves two purposes:
+
+1. **Intent comparison**: If the operator config specifies preferences that differ from what's currently installed, those are intentional tuning targets (not drift)
+2. **Override preservation**: When regenerating artifacts, operator config values take precedence over both auto-detected values and previously installed values
+
+If the config was modified since the last installation (compare against the manifest's recorded config hash), flag this as an intentional configuration change and prioritize it in the tuning report.
+
 ### Phase 1: Drift Detection
 
 #### Step 1.1: Re-run Workspace Discovery
