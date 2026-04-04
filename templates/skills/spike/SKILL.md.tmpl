@@ -57,11 +57,12 @@ A findings artifact at `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-spike.md` (long-l
 knowledge) with an optional work item in `{{BACKLOG_DIRECTORY}}/queue/` for
 workflow tracking.
 
-When the `backlogit` capability pack is installed and `create_task` supports
-`artifact_type`, the spike is also created as a backlog work item at conclusion
-with `artifact_type: spike`, `labels: ["spike"]`, and a status of
-`{{STATUS_DONE}}`. The work item filename follows the configured prefix
-convention: `{prefix}-{id}-{slug}.md`.
+When the `backlogit` capability pack is installed and `promote_to` includes
+`queue` (or `ask` resolves to `queue`), the spike is also created as a backlog
+work item at conclusion with `artifact_type: spike`, `labels: ["spike"]`, and
+a status of `{{STATUS_DONE}}`. The work item filename follows the configured
+prefix convention: `{prefix}-{id}-{slug}.md`. If `promote_to` does not include
+`queue`, no backlog work item is created regardless of the installed capability pack.
 
 ## Required Protocol
 
