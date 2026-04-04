@@ -109,12 +109,12 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 1. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
 2. **Spike Skill**: Execute time-boxed investigations to answer technical questions, evaluate feasibility, and capture findings
 3. **Backlog Harvester**: Plan → review → decompose into tasks
-3. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
-4. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality, and hand off to review/CI/runtime verification
-5. **PR Review**: Analyze diff, delegate to review personas, create PR, and attach verification/closure expectations
-6. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
-7. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
-8. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
+4. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
+5. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality, and hand off to review/CI/runtime verification
+6. **PR Review**: Analyze diff, delegate to review personas, create PR, and attach verification/closure expectations
+7. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
+8. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
+9. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
 
 **Stop conditions** prevent infinite loops:
 

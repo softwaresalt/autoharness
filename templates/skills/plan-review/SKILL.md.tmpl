@@ -12,11 +12,11 @@ Invoked by the backlog-harvester after impl-plan produces a plan file. Can also 
 
 ## Inputs
 
-* `plan_path`: (Required) Path to the plan file (`.backlog/plans/{file}-plan.md`).
+* `plan_path`: (Required) Path to the plan file (`{{BACKLOG_DIRECTORY}}/plans/{YYYY-MM-DD}-{slug}-plan.md`).
 
 ## Output
 
-* Review file at `.backlog/reviews/{YYYY-MM-DD}-{slug}-plan-review.md`
+* Review file at `{{BACKLOG_DIRECTORY}}/reviews/{YYYY-MM-DD}-{slug}-plan-review.md`
 * Gate decision: `PASS`, `ADVISORY`, or `FAIL`
 
 ## Required Protocol

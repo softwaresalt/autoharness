@@ -259,6 +259,7 @@ target-workspace/
     tasks/
     plans/
     deliberate/
+    spike/
     compound/
     reviews/
     memory/

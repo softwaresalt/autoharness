@@ -49,10 +49,9 @@ code, prototyping, benchmarking, or evaluating external tools.
 A findings artifact at `{{BACKLOG_DIRECTORY}}/spike/{YYYY-MM-DD}-{slug}-spike.md`.
 
 When the `backlogit` capability pack is installed and `create_task` supports
-`artifact_type`, the spike is also created as a backlog item with
-`artifact_type: spike`, `labels: ["spike"]`, and a status of `{{STATUS_TODO}}`
-(promoted to `{{STATUS_IN_PROGRESS}}` when active, `{{STATUS_DONE}}` when
-concluded).
+`artifact_type`, the spike is also created as a backlog item at conclusion with
+`artifact_type: spike`, `labels: ["spike"]`, and a status of
+`{{STATUS_DONE}}`.
 
 ## Required Protocol
 
@@ -213,7 +212,7 @@ When the `backlogit` capability pack is NOT installed:
   ```
   - [{YYYY-MM-DD}] **Spike**: {goal summary}
     Conclusion: {proceed|pivot|defer|abandon} (confidence: {high|medium|low})
-    Artifact: `{{BACKLOG_DIRECTORY}}/spike/{file}.md`
+    Artifact: `{{BACKLOG_DIRECTORY}}/spike/{YYYY-MM-DD}-{slug}-spike.md`
     Linked feature: {feature reference or "standalone"}
   ```
 
