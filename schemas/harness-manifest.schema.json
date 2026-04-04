@@ -20,6 +20,10 @@
     "autoharness_version": {
       "type": "string"
     },
+    "autoharness_home": {
+      "type": ["string", "null"],
+      "description": "Absolute path to the autoharness installation used for this install run. Enables the tuner to locate templates for drift detection."
+    },
     "profile_hash": {
       "type": "string",
       "description": "SHA-256 of the workspace profile used during installation"

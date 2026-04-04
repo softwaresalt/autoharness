@@ -40,7 +40,7 @@ Attempt 1..5:
   1. Run harness_cmd → capture stdout/stderr
   2. If all tests pass → SUCCESS → exit loop
   3. Parse failure output → identify failing tests and error messages
-  4. Re-read coding standards (constitution Principle I, {{LANGUAGE_LOWER}}.instructions.md)
+  4. Re-read coding standards (constitution Principle I, {{PRIMARY_LANGUAGE_LOWER}}.instructions.md)
   5. Fix the code to address the specific failure
   6. Verify compilation: {{BUILD_CHECK_COMMAND}}
   7. If compilation fails → fix compilation errors first
@@ -83,7 +83,7 @@ callers, and affected regions before expanding into broader file-based searches.
 Before writing any fix, re-read the relevant coding standards:
 
 * Constitution Principle I (safety-first language practices)
-* Technology-specific instructions (`{{LANGUAGE_LOWER}}.instructions.md`)
+* Technology-specific instructions (`{{PRIMARY_LANGUAGE_LOWER}}.instructions.md`)
 * Any instruction files matching the files being modified
 
 #### Step 5: Fix the Code

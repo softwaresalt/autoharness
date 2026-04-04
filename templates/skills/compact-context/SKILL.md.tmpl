@@ -28,7 +28,7 @@ Invoke as part of the standard workflow:
 * Compacted summary files in `{{DOCS_MEMORY}}/` (for memory/checkpoints)
 * Decided-plan files in `{{DOCS_PLANS}}/` (for plans with appended reviews)
 * Compacted closure summaries in `{{DOCS_CLOSURE}}/` (for verification and closure records)
-* Verbose originals moved to `{{BACKLOG_DIRECTORY}}/archive/`
+* Verbose originals moved to `{{DOCS_ROOT}}/archive/`
 * Summary report of what was compacted
 
 ## Required Protocol
@@ -69,21 +69,21 @@ Mark artifacts as compaction candidates if:
 1. Read all candidate memory/checkpoint files in the group
 2. Generate a dense summary capturing: decisions made, files modified, key learnings, failed approaches, outcomes
 3. Write the compacted summary to `{{DOCS_MEMORY}}/compacted/{YYYY-MM-DD}-{feature-or-slug}-compacted.md`
-4. Move verbose originals to `{{BACKLOG_DIRECTORY}}/archive/memory/`
+4. Move verbose originals to `{{DOCS_ROOT}}/archive/memory/`
 
 **Plan consolidation** (per-plan):
 
 1. Read the plan file including all appended review sections
 2. Extract: final decisions, implementation units that survived review, key constraints, rejected alternatives
 3. Write a decided-plan to `{{DOCS_PLANS}}/{YYYY-MM-DD}-{slug}-decided-plan.md` — a concise document containing only the actionable decisions and rationale, not the full deliberation history
-4. Move the verbose original plan to `{{BACKLOG_DIRECTORY}}/archive/plans/`
+4. Move the verbose original plan to `{{DOCS_ROOT}}/archive/plans/`
 
 **Closure compaction** (per-feature):
 
 1. Read verification and closure artifacts for the completed feature
 2. Generate a consolidated closure record: what was verified, healthy/failure signals, monitoring status, follow-up items
 3. Write the compacted closure to `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-closure-summary.md`
-4. Move verbose originals to `{{BACKLOG_DIRECTORY}}/archive/closure/`
+4. Move verbose originals to `{{DOCS_ROOT}}/archive/closure/`
 
 ### Phase 4: Report
 
@@ -97,7 +97,7 @@ Summarize:
 
 ## Behavioral Constraints
 
-* Never delete files — always archive to `{{BACKLOG_DIRECTORY}}/archive/`
+* Never delete files — always archive to `{{DOCS_ROOT}}/archive/`
 * Never compact checkpoints for active (In Progress) work items
 * Preserve the most recent checkpoint for each completed task
 * All archive operations maintain a traceable path from the compacted summary back to the original verbose artifacts

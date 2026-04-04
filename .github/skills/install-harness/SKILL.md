@@ -73,20 +73,34 @@ Derive all template variables from the profile. The variable resolution table de
 |---|---|---|---|---|
 | `{{PROJECT_NAME}}` | Directory name of workspace | `my-service` | `my-app` | `my-api` |
 | `{{PRIMARY_LANGUAGE}}` | `languages.primary` | `Rust` | `TypeScript` | `Python` |
-| `{{LANGUAGE_EDITION}}` | Language version from config | `edition 2024` | `ES2022` | `3.12` |
+| `{{PRIMARY_LANGUAGE_LOWER}}` | `lowercase(languages.primary)` | `rust` | `typescript` | `python` |
+| `{{LANGUAGE_VERSION}}` | `languages.version` (detected from toolchain config) | `2024` | `ES2022` | `3.12` |
+| `{{LANGUAGE_NOTES}}` | Synthesized from language profile (key version/edition note) | `(Rust 2024 edition)` | `(strict mode)` | `(requires 3.12+)` |
 | `{{BUILD_COMMAND}}` | `build.command` | `cargo build` | `npm run build` | `python -m build` |
 | `{{TEST_COMMAND}}` | `test.command` | `cargo test` | `npm test` | `pytest` |
 | `{{LINT_COMMAND}}` | `lint.command` | `cargo clippy -- -D warnings` | `npm run lint` | `ruff check .` |
 | `{{FORMAT_COMMAND}}` | `format.command` | `cargo fmt --all -- --check` | `npx prettier --check .` | `ruff format --check .` |
 | `{{FORMAT_FIX_COMMAND}}` | Derived from format tool | `cargo fmt --all` | `npx prettier --write .` | `ruff format .` |
+| `{{BUILD_CHECK_COMMAND}}` | `build.check_command` (fast compilation check, no test) | `cargo check --all-targets` | `tsc --noEmit` | `python -m py_compile $(find src -name "*.py")` |
+| `{{FORMAT_CHECK_COMMAND}}` | `format.check_command` (read-only format gate) | `cargo fmt --all -- --check` | `npx prettier --check .` | `ruff format --check .` |
 | `{{TEST_DIR}}` | `test.directory` | `tests/` | `__tests__/` | `tests/` |
 | `{{SOURCE_DIR}}` | `structure.source_layout` | `src/` | `src/` | `src/` |
 | `{{CI_PLATFORM}}` | `ci.platform` | `GitHub Actions` | `GitHub Actions` | `GitHub Actions` |
-| `{{PACKAGE_MANAGER}}` | `build.tool` or detected | `cargo` | `npm` | `pip` |
+| `{{BUILD_TOOL}}` | `build.tool` | `cargo` | `npm` | `pip` |
+| `{{FORMATTER}}` | `format.tool` | `rustfmt` | `prettier` | `ruff` |
+| `{{LINTER}}` | `lint.tool` | `clippy` | `eslint` | `ruff` |
+| `{{TEST_RUNNER}}` | `test.runner` | `cargo test` | `jest` | `pytest` |
 | `{{UNSAFE_POLICY}}` | Language-specific safety rules | `#![forbid(unsafe_code)]` | `strict TypeScript` | `type hints required` |
 | `{{ERROR_PATTERN}}` | Language-specific error handling | `Result<T, Error>` | `try/catch + custom errors` | `raise/except` |
 | `{{DOC_COMMENT_STYLE}}` | Language convention | `/// doc comment` | `/** JSDoc */` | `"""docstring"""` |
-| `{{QUALITY_GATES}}` | Ordered from CI pipeline | check → clippy → fmt → test | lint → typecheck → test | lint → typecheck → test |
+| `{{QUALITY_GATE_1_NAME}}` | `ci.quality_gates[0]` (name) | `check` | `lint` | `lint` |
+| `{{QUALITY_GATE_1}}` | `ci.quality_gates[0]` (command) | `cargo check --all-targets` | `npm run lint` | `ruff check .` |
+| `{{QUALITY_GATE_2_NAME}}` | `ci.quality_gates[1]` (name) | `clippy` | `typecheck` | `typecheck` |
+| `{{QUALITY_GATE_2}}` | `ci.quality_gates[1]` (command) | `cargo clippy -- -D warnings` | `tsc --noEmit` | `mypy src/` |
+| `{{QUALITY_GATE_3_NAME}}` | `ci.quality_gates[2]` (name) | `fmt` | `test` | `test` |
+| `{{QUALITY_GATE_3}}` | `ci.quality_gates[2]` (command) | `cargo fmt --all -- --check` | `npm test` | `pytest` |
+| `{{QUALITY_GATE_4_NAME}}` | `ci.quality_gates[3]` (name, optional) | `test` | _(empty)_ | _(empty)_ |
+| `{{QUALITY_GATE_4}}` | `ci.quality_gates[3]` (command, optional) | `cargo test` | _(empty)_ | _(empty)_ |
 
 **Backlog Tool Variables** (derived from `backlog_tool` profile section):
 
@@ -102,6 +116,13 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_MOVE_MCP}}` | Registry `operations.move_task.mcp_tool` | `backlogit_move_item` | `task_edit` |
 | `{{OP_SEARCH_MCP}}` | Registry `operations.search_tasks.mcp_tool` | `backlogit_search_items` | `task_search` |
 | `{{OP_COMPLETE_MCP}}` | Registry `operations.complete_task.mcp_tool` | `backlogit_move_item` | `task_complete` |
+| `{{OP_CREATE_CLI}}` | Registry `operations.create_task.cli_command` | `backlogit add` | `backlog task create` |
+| `{{OP_LIST_CLI}}` | Registry `operations.list_tasks.cli_command` | `backlogit list` | `backlog task list` |
+| `{{OP_GET_CLI}}` | Registry `operations.get_task.cli_command` | `backlogit show {id}` | `backlog task view {id}` |
+| `{{OP_UPDATE_CLI}}` | Registry `operations.update_task.cli_command` | `backlogit update {id}` | `backlog task edit {id}` |
+| `{{OP_MOVE_CLI}}` | Registry `operations.move_task.cli_command` | `backlogit move {id} {status}` | `backlog task move {id}` |
+| `{{OP_SEARCH_CLI}}` | Registry `operations.search_tasks.cli_command` | `backlogit search {query}` | `backlog task search` |
+| `{{OP_COMPLETE_CLI}}` | Registry `operations.complete_task.cli_command` | `backlogit done {id}` | `backlog task complete {id}` |
 | `{{STATUS_TODO}}` | Registry `status_values.todo` | `queued` | `To Do` |
 | `{{STATUS_IN_PROGRESS}}` | Registry `status_values.in_progress` | `active` | `In Progress` |
 | `{{STATUS_DONE}}` | Registry `status_values.done` | `done` | `Done` |
@@ -110,7 +131,11 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{FIELD_TITLE}}` | Registry `field_mapping.title` | `title` | `title` |
 | `{{FIELD_STATUS}}` | Registry `field_mapping.status` | `status` | `status` |
 | `{{FIELD_LABELS}}` | Registry `field_mapping.labels` | `labels` | `labels` |
+| `{{FIELD_PARENT_ID}}` | Registry `field_mapping.parent_id` | `parent` | `parent_id` |
+| `{{FIELD_TYPE}}` | Registry `field_mapping.item_type` | `type` | `type` |
+| `{{FIELD_DESCRIPTION}}` | Registry `field_mapping.description` | `description` | `description` |
 | `{{BACKLOG_TOOLS}}` | Backlog MCP server name from registry | `backlog` | `backlog` |
+| `{{EXTENDED_OPERATIONS_TABLE}}` | Registry `advanced_operations` formatted as Markdown table | _(backlogit-specific ops table)_ | _(empty string if not supported)_ |
 
 **Prefix Variables** (derived from `config.backlog.prefix_map` → backlog tool auto-detection → schema defaults):
 
@@ -141,6 +166,54 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) backlogit proj
 
 Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema defaults. Docs path variables are computed paths (root + subdirectory name joined with `/`).
 
+**Foundation and Conventions Variables** (derived from workspace profile `conventions` and synthesized language knowledge):
+
+| Template Variable | Source | Example (Rust) | Example (TypeScript) | Example (Python) |
+|---|---|---|---|---|
+| `{{DATE}}` | Installation date (`YYYY-MM-DD`) | `2026-04-04` | `2026-04-04` | `2026-04-04` |
+| `{{PROJECT_DESCRIPTION}}` | `harness_recommendations.project_description` or synthesized from README | `"A Rust REST API service"` | `"A React web application"` | `"A Python data pipeline"` |
+| `{{PROJECT_STRUCTURE}}` | Synthesized directory tree from `structure.*` profile fields | _(directory tree block)_ | _(directory tree block)_ | _(directory tree block)_ |
+| `{{CI_NOTES}}` | `ci.notes` or synthesized from `ci.platform` | `"Uses GitHub Actions with matrix builds"` | `"GitHub Actions + Nx affected"` | `"GitHub Actions + tox"` |
+| `{{ADDITIONAL_STACK_ROWS}}` | Extra Markdown table rows for secondary tools (frameworks, DB, etc.) | _(0 or more rows)_ | _(0 or more rows)_ | _(0 or more rows)_ |
+| `{{ADDITIONAL_COMMANDS}}` | Extra command entries for workspace-specific commands | _(0 or more lines)_ | _(0 or more lines)_ | _(0 or more lines)_ |
+| `{{TEST_TIER_DESCRIPTION}}` | Synthesized from `test.*` profile fields | `"Unit: cargo test, Integration: cargo test --test"` | `"Unit: jest, E2E: playwright"` | `"Unit: pytest, Integration: pytest -m integration"` |
+| `{{NAMING_CONVENTIONS}}` | Synthesized language naming rules | `"snake_case for variables, PascalCase for types"` | `"camelCase for variables, PascalCase for types"` | `"snake_case for everything"` |
+| `{{DOCUMENTATION_CONVENTIONS}}` | Synthesized from language doc-comment style | `"/// doc comments on all public items"` | `"JSDoc on all exports"` | `"Google-style docstrings"` |
+| `{{ERROR_HANDLING_CONVENTIONS}}` | Synthesized language error patterns | `"Result<T, E> for fallible operations"` | `"throw Error subclasses, catch at boundaries"` | `"raise specific Exception subclasses"` |
+| `{{LINT_POLICY}}` | Synthesized from lint tool and profile strictness | `"All clippy warnings are hard errors"` | `"eslint --max-warnings 0"` | `"ruff check fails on any warning"` |
+| `{{ERROR_HANDLING_POLICY}}` | Synthesized from `conventions.code_style` | `"All errors must be propagated via Result"` | `"Unhandled promise rejections are errors"` | `"All exceptions must be typed"` |
+| `{{TEST_STRUCTURE}}` | Synthesized from `test.directory` and conventions | `"Unit tests in src/, integration tests in tests/"` | `"Unit tests in __tests__/, E2E in e2e/"` | `"Tests in tests/ directory"` |
+| `{{COMMIT_SCOPES}}` | Derived from `structure.source_layout` top-level directories | `"api, cli, core, db"` | `"app, api, lib, ui"` | `"api, core, utils"` |
+| `{{EXAMPLE_SCOPE}}` | First entry from `{{COMMIT_SCOPES}}` | `"api"` | `"app"` | `"api"` |
+
+**Technology Instruction Variables** (language-knowledge-derived; synthesized per primary language):
+
+| Template Variable | Source | Purpose |
+|---|---|---|
+| `{{LANGUAGE_FILE_GLOB}}` | Derived from `languages.primary` | File glob for language files (e.g., `**/*.rs`, `**/*.ts`, `**/*.py`) |
+| `{{LANGUAGE_VERSION_DETAIL}}` | `languages.version` with edition/variant notes | Full version string (e.g., `Rust 2024 edition`, `TypeScript 5.4 strict`, `Python 3.12`) |
+| `{{NAMING_RULES}}` | Synthesized language naming conventions | Bullet list of naming rules for the language |
+| `{{CODE_ORGANIZATION_RULES}}` | Synthesized from language conventions | Module/package organization rules |
+| `{{ERROR_HANDLING_RULES}}` | Synthesized from `{{ERROR_PATTERN}}` and language idioms | Error handling rules for the language |
+| `{{SAFETY_RULES}}` | Synthesized from `{{UNSAFE_POLICY}}` and language safety model | Safety/correctness rules |
+| `{{PERFORMANCE_RULES}}` | Synthesized from language performance idioms | Performance rules and anti-patterns |
+| `{{TESTING_RULES}}` | Synthesized from `test.*` profile fields | Testing conventions and rules |
+| `{{DOCUMENTATION_RULES}}` | Synthesized from `{{DOC_COMMENT_STYLE}}` | Documentation requirements |
+| `{{DEPENDENCY_RULES}}` | Synthesized from build tool conventions | Dependency management rules |
+| `{{ANTI_PATTERNS}}` | Synthesized language anti-patterns | Language-specific patterns to avoid |
+
+**Review Persona Variables** (language-knowledge-derived; synthesized per primary language):
+
+| Template Variable | Source | Purpose |
+|---|---|---|
+| `{{LANGUAGE_SAFETY_CHECKS}}` | Synthesized from language safety model | Bullet list of safety issues to check in code review |
+| `{{LANGUAGE_IDIOM_CHECKS}}` | Synthesized from language idiomatic patterns | Bullet list of idiomatic pattern checks |
+| `{{LANGUAGE_ERROR_HANDLING_CHECKS}}` | Synthesized from language error model | Bullet list of error handling review checks |
+| `{{LANGUAGE_PERFORMANCE_CHECKS}}` | Synthesized from language performance model | Bullet list of performance review checks |
+| `{{CONCURRENCY_PATTERNS}}` | Synthesized from language concurrency model | Comma-separated or bulleted concurrency patterns that trigger the concurrency reviewer |
+| `{{FILE_EXT}}` | Derived from `languages.primary` | File extension (e.g., `rs`, `ts`, `py`, `go`) |
+| `{{UNIMPLEMENTED_MARKER}}` | Derived from `languages.primary` | Language-specific stub marker (e.g., `unimplemented!()`, `throw new Error("Not implemented")`, `raise NotImplementedError`) |
+
 **Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
 
 | Template Variable | Source | Default | Description |
@@ -165,6 +238,8 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
 | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
 | `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.vscode/mcp.json, .engram/config.toml` | empty |
+
+Note: These six variables are used internally by the installer during capability-pack detection and overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
 #### Step 1.3: Select Preset, Primitive Set, and Capability Packs
 
@@ -253,7 +328,7 @@ Map primitives to template groups:
 | 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci` |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
-| 7 - Observability | `agents/review/*`, `agents/doc-ops`, `skills/review`, `skills/plan-review` |
+| 7 - Observability | `agents/review/*`, `agents/doc-ops`, `agents/review`, `agents/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
 | 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc`, `agents/doc-ops` |
 | 10 - Operational Closure | `skills/runtime-verification`, `skills/operational-closure`, PR and CI handoff sections in pipeline templates |
@@ -343,6 +418,10 @@ Generate agent definitions. Each agent template has technology-specific sections
    * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
    * `learnings-researcher.agent.md` — Universal
 
+5. **Orchestrating review agents**: `plan-review.agent.md`, `review.agent.md` — dispatch persona agents during plan and code review. Subagent depth: 1.
+   * Minimal technology adaptation needed
+   * Install as standard agents (not skills)
+
 #### Step 2.5: Skill Layer
 
 Generate skill files:
@@ -357,8 +436,6 @@ Generate skill files:
    * `spike/SKILL.md`
    * `compact-context/SKILL.md`
    * `compound/SKILL.md`
-   * `plan-review/SKILL.md`
-   * `review/SKILL.md`
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
    * `runtime-verification/SKILL.md` — Install when Primitive 10 is selected
    * `operational-closure/SKILL.md` — Install when Primitive 10 is selected

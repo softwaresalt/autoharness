@@ -24,6 +24,10 @@
           "type": "string",
           "description": "The primary programming language of the workspace"
         },
+        "version": {
+          "type": ["string", "null"],
+          "description": "Language version or edition detected from toolchain config (e.g., rust-toolchain.toml, package.json engines, .python-version)"
+        },
         "secondary": {
           "type": "array",
           "items": { "type": "string" }
@@ -39,7 +43,11 @@
       "required": ["tool", "command"],
       "properties": {
         "tool": { "type": "string" },
-        "command": { "type": "string" }
+        "command": { "type": "string" },
+        "check_command": {
+          "type": ["string", "null"],
+          "description": "Fast compilation-only check command (no tests). Defaults to build.command if null. E.g., cargo check --all-targets, tsc --noEmit."
+        }
       }
     },
     "test": {
@@ -63,6 +71,10 @@
       "properties": {
         "tool": { "type": "string" },
         "command": { "type": "string" },
+        "check_command": {
+          "type": ["string", "null"],
+          "description": "Read-only format check command (exits non-zero if formatting needed). Defaults to appending --check to format.command."
+        },
         "fix_command": { "type": "string" }
       }
     },

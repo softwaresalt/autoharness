@@ -49,10 +49,10 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `memory.agent.md` — Persists session state to `docs/memory/` (explicit file writes, not reliant on built-in AI assistant memory)
+* `memory.agent.md` — Persists session state to `docs/memory/` (default; configurable via `.autoharness/config.yaml`) — explicit file writes, not reliant on built-in AI assistant memory
 * `research/learnings-researcher.agent.md` — Retrieves relevant prior solutions before planning and review
-* `compact-context/SKILL.md` — Mandatory workflow step: consolidates memory, plans, and closure artifacts in `docs/`; archives verbose originals
-* `compound/SKILL.md` — Captures institutional knowledge to `docs/compound/`
+* `compact-context/SKILL.md` — Mandatory workflow step: consolidates memory, plans, and closure artifacts in the docs root; archives verbose originals to docs/archive/
+* `compound/SKILL.md` — Captures institutional knowledge to `docs/compound/` (default; configurable)
 
 **Design Rules**:
 
@@ -222,7 +222,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * AGENTS.md is a map, not a manual — agents start with a small entry point and are taught where to look next
 * Repository knowledge is the system of record — anything not discoverable in the repo doesn't exist to the agent
 * `docs/` holds durable knowledge; the backlog directory holds active work items — different lifecycles, different concerns
-* Knowledge graduation: when backlog work completes, architectural decisions and design rationale are distilled into `docs/design-docs/`; compound learnings stay in the backlog's compound directory
+* Knowledge graduation: when backlog work completes, architectural decisions and design rationale are distilled into `docs/design-docs/`; compound learnings are stored in `docs/compound/` (default; configurable) — NOT in the backlog
 * Documentation is mechanically validated: CI checks verify freshness, cross-links, and structural correctness
 * Doc-gardening runs on a regular cadence (configurable), scanning for obsolete content that no longer reflects code
 * Progressive disclosure depth scales with codebase complexity

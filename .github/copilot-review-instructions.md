@@ -54,9 +54,10 @@ Every template must have valid YAML frontmatter. Check for:
 When a change references another artifact (agent, skill, instruction, path), verify the target exists. Common violations:
 
 - Pipeline descriptions listing a skill that has no template
-- An agent referencing a skill directory that doesn't exist in `templates/skills/`
+- An agent referencing a skill directory that doesn't exist in `templates/skills/` or agent file that doesn't exist in `templates/agents/`
 - Backlog path references that don't use `{{BACKLOG_DIRECTORY}}/queue/` for work items, or reference non-existent subdirectories under the backlog root
-- Knowledge artifact paths that don't use `docs/` for long-lived content (compound/, plans/, decisions/, memory/, closure/)
+- Knowledge artifact paths in `.tmpl` files that use bare `docs/` instead of `{{DOCS_ROOT}}`, `{{DOCS_COMPOUND}}`, `{{DOCS_PLANS}}`, etc.
+- Knowledge artifact paths that use hardcoded `.backlog/`, `.backlogit/`, or `backlog/` instead of `{{BACKLOG_DIRECTORY}}/`
 - Capability pack conditional blocks referencing instructions that have no template
 
 ### 5. Capability Pack Overlay Coherence
@@ -103,8 +104,10 @@ Changes to templates that interact with schemas (workspace profile, harness mani
 
 - **Agents** orchestrate and may spawn subagents (up to their declared max depth)
 - **Skills** are leaf executors — they must NOT spawn subagents
-- Each agent must declare its **model routing tier** (Tier 1 Fast, Tier 2 Standard, Tier 3 Frontier) and **subagent depth**
+- Each agent must declare its **model routing tier** (Tier 1 Fast, Tier 2 Standard, Tier 3 Frontier) and **subagent depth** (maximum hops or "leaf executor")
 - Flag skills that reference spawning subagents or agents that omit tier/depth declarations
+- Flag any Skill template that dispatches named agents — it must be converted to an agent with subagent depth ≥ 1. "No subagents" is not the default; it must be declared explicitly.
+- Verify declared tier matches agent complexity: Tier 1 for leaf/memory/review-persona agents, Tier 2 for orchestrators and review agents, Tier 3 for deliberation and planning agents
 
 ## What NOT to Flag
 
@@ -113,3 +116,29 @@ Changes to templates that interact with schemas (workspace profile, harness mani
 - **Repeated content across templates** — each template must be self-contained since they are installed independently into target workspaces
 - **`{{VARIABLE}}` placeholders in `.tmpl` files** — these are intentional; only flag them in non-template output files
 - **Technology-specific content inside `{{VARIABLE}}` blocks** — that's the whole point of the template system
+- **`{{lower_snake_case}}` or `{{TITLE_CASE}}` inside fenced code blocks** — these are runtime fill-in placeholders, not install-time variables (see Rule 1 for the distinction)
+
+## Additional Review Rules
+
+### 11. Variable Completeness
+
+Cross-reference every `{{VARIABLE}}` used in `.tmpl` files against the variable resolution table in `.github/skills/install-harness/SKILL.md`. Flag:
+
+- Any variable in a `.tmpl` file that is absent from the resolution table — this is a CRITICAL violation; the installer cannot resolve it and will emit literal placeholder text
+- Variables in the resolution table that are not used by any `.tmpl` file — these are stale entries; flag them if they are **name collisions** with the actual variable name used in templates (e.g., table says `{{QUALITY_GATES}}` but templates use `{{QUALITY_GATE_1}}`), because they create false confidence
+
+### 12. Variable Naming Alias Consistency
+
+Flag semantically duplicate variables with different names. Each concept must have exactly one canonical variable name across the entire template set. Common aliases to watch for:
+
+- Lowercase language name: only `{{PRIMARY_LANGUAGE_LOWER}}` is valid — flag `{{LANG}}` or `{{LANGUAGE_LOWER}}`
+- Build tool name: only `{{BUILD_TOOL}}` is valid — flag `{{PACKAGE_MANAGER}}`
+- Language version: only `{{LANGUAGE_VERSION}}` is valid — flag `{{LANGUAGE_EDITION}}`
+
+### 13. Schema ↔ Variable Table Alignment
+
+When a template variable is added to the resolution table, verify that a corresponding property exists in `schemas/workspace-profile.schema.json` or `schemas/harness-config.schema.json` as the documented data source. A variable with no schema backing has no defined discovery mechanism.
+
+### 14. Variable Rename Backward Compatibility
+
+Flag variable renames between commits (e.g., `{{QUALITY_GATES}}` → `{{QUALITY_GATE_1}}`). Renames break any workspace that installed the prior template version without a migration path. Document renames explicitly in the commit message and add a tuning drift check.
