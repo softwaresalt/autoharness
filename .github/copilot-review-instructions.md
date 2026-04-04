@@ -142,3 +142,50 @@ When a template variable is added to the resolution table, verify that a corresp
 ### 14. Variable Rename Backward Compatibility
 
 Flag variable renames between commits (e.g., `{{QUALITY_GATES}}` → `{{QUALITY_GATE_1}}`). Renames break any workspace that installed the prior template version without a migration path. Document renames explicitly in the commit message and add a tuning drift check.
+
+## Adversarial Review Protocol (Multi-Model Consensus)
+
+For high-stakes reviews (architecture changes, security-touching code, large refactors), a single reviewer pass may
+miss issues due to model blind spots. The adversarial review protocol runs multiple independent reviewer agents in
+parallel across different models and assembles findings into a confidence-weighted consensus report.
+
+### When to Use
+
+* Pre-merge review for changes touching security, data integrity, or architectural boundaries
+* Periodic sweeps of modules with significant churn
+* Any review where a single-model pass felt inconclusive or where the stakes justify extra scrutiny
+
+### How It Works
+
+1. **Parallel dispatch**: Launch N reviewer agents simultaneously (default: 3), each using a different model tier:
+   - Reviewer-A: Tier 1 (fast/cheap) — catches obvious structural and naming violations
+   - Reviewer-B: Tier 2 (standard) — catches logic, architecture, and role boundary issues
+   - Reviewer-C: Tier 3 (frontier) — catches subtle semantic, security, and design issues
+
+2. **Independent review**: Each reviewer applies the full ruleset (Rules 1–14) independently, returning
+   structured JSON findings only.
+
+3. **Consensus assembly**: Aggregate all findings, classifying each by confidence:
+   - **HIGH confidence**: Flagged by all reviewers — require mandatory remediation
+   - **MEDIUM confidence**: Flagged by majority — require explicit acknowledgment (fix or defer with rationale)
+   - **LOW confidence**: Flagged by exactly one reviewer — preserved as observations; human judgment required
+
+4. **Remediation queue**: Order all findings by `confidence × severity`, then route to action classes:
+   - HIGH × CRITICAL/MAJOR → `safe_auto` (if deterministic fix) or `manual`
+   - MEDIUM × CRITICAL/MAJOR → `gated_auto` (confirm before applying)
+   - LOW × CRITICAL → `gated_auto` (unusual enough to flag despite single source)
+   - Any × MINOR → `advisory`
+
+5. **Bug queue output**: For each P0/P1 finding, produce a structured work item entry ready for the backlog.
+
+### Output Structure
+
+The adversarial review report contains four sections in this order:
+1. Consensus findings (HIGH confidence) with action class and recommended fix
+2. Majority findings (MEDIUM confidence) with rationale for inclusion
+3. Unique findings (LOW confidence) with which model flagged it
+4. Remediation plan: ordered action list with confidence, severity, and action class
+
+The `adversarial-review` agent template (`templates/agents/adversarial-review.agent.md.tmpl`) implements
+this protocol as a first-class harness capability installable into target workspaces.
+

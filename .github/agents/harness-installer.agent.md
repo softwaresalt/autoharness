@@ -19,7 +19,7 @@ You do NOT write application code. You produce agent harness artifacts: agent de
 
 ## Environment Agnostic
 
-This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions. The generated output artifacts use standard paths (`.github/`, `AGENTS.md`, `.backlog/`) that are recognized across all environments.
+This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions. The generated output artifacts use standard paths (`.github/`, `AGENTS.md`, the configured backlog directory) that are recognized across all environments.
 
 ## Required Steps
 
@@ -62,7 +62,7 @@ Scan the target workspace for existing harness artifacts:
 * `.github/copilot-instructions.md` — shared guidelines
 * `AGENTS.md` — root agent instructions
 * `.autoharness/` — previous autoharness installation
-* `.backlog/` — backlog structure
+* `.backlog/` or `.backlogit/` — detected backlog directory
 
 If an existing harness is found, present the findings and ask the user:
 

@@ -284,6 +284,8 @@ The repository is structured as a self-maintaining knowledge base that agents ca
    | `docs/closure/` | Runtime verification, code review, safety-check, and operational closure records | Persists with release history |
    | `docs/design-docs/` | Graduated architectural decisions and design rationale | Persists and evolves with codebase |
 
+   > **Note**: All `docs/` paths above reflect the default docs root (`docs/`). The root and all subdirectory names are configurable via `.autoharness/config.yaml` (`docs.root` and `docs.subdirectories`).
+
    Work items live in the backlog because they're managed by the backlog tool. The *knowledge artifacts* they produce live in `docs/` as durable records. The compact-context skill consolidates verbose memory and plans into dense summaries, archiving originals to `docs/archive/`.
 
 4. **Knowledge graduation**: When backlog work completes, the doc-ops agent evaluates whether it produced reference-worthy knowledge:

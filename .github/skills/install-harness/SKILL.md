@@ -343,7 +343,7 @@ Map primitives to template groups:
 
 Generate the constitutional foundation first, as all other artifacts reference it:
 
-1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 10 universal principles.
+1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 9 universal principles (I–IX).
 
 2. **AGENTS.md**: Generate the root AGENTS.md with technology-specific quality gates, code style conventions, error handling patterns, and terminal command policies.
 
@@ -422,7 +422,7 @@ Generate agent definitions. Each agent template has technology-specific sections
    * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
    * `learnings-researcher.agent.md` — Universal
 
-5. **Orchestrating review agents**: `plan-review.agent.md`, `review.agent.md` — dispatch persona agents during plan and code review. Subagent depth: 1.
+5. **Orchestrating review agents**: `plan-review.agent.md`, `review.agent.md`, `adversarial-review.agent.md` — dispatch persona agents during plan and code review. `review` and `plan-review` at subagent depth 1; `adversarial-review` at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed
    * Install as standard agents (not skills)
 

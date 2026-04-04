@@ -3,6 +3,8 @@ name: Build Orchestrator
 description: "Orchestrates feature builds by claiming tasks from the backlog and delegating to the build-feature skill with compiler-driven feedback loops"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo, memory, {{BACKLOG_TOOLS}}
+model_routing: "Tier 2 (Standard)"
+subagent_depth: 2
 ---
 
 # Build Orchestrator
@@ -71,7 +73,7 @@ radius of a risky fix.
 
 #### Step 3.4: Review Gate
 
-Invoke the **review** skill in `report-only` mode against the changed files. If P0/P1 findings are reported, fix them before proceeding.
+Invoke the **review** agent in `report-only` mode against the changed files. If P0/P1 findings are reported, fix them before proceeding.
 
 #### Step 3.5: Complete Task
 
