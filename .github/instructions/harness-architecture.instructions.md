@@ -49,16 +49,18 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `memory.agent.md` — Persists session state to `.backlog/memory/`
+* `memory.agent.md` — Persists session state to `docs/memory/` (default; configurable via `.autoharness/config.yaml`) — explicit file writes, not reliant on built-in AI assistant memory
 * `research/learnings-researcher.agent.md` — Retrieves relevant prior solutions before planning and review
-* `compact-context/SKILL.md` — Archives stale tracking artifacts
-* `compound/SKILL.md` — Captures institutional knowledge
+* `compact-context/SKILL.md` — Mandatory workflow step: consolidates memory, plans, and closure artifacts in the docs root; archives verbose originals to docs/archive/
+* `compound/SKILL.md` — Captures institutional knowledge to `docs/compound/` (default; configurable)
 
 **Design Rules**:
 
 * Memory files use structured Markdown with YAML frontmatter for searchability
 * Checkpoints capture: tasks completed, files modified, decisions, failed approaches, next steps
 * Learnings retrieval runs before planning and review work, not just after failures
+* Compact-context is a mandatory workflow step (invoked by memory agent at checkpoint threshold and by build-orchestrator at batch completion), not an advisory suggestion
+* Compact-context and memory agent operate at Tier 1 (Fast/Cheap) — recommended model: GPT-5.4-mini or equivalent
 * Compaction triggers when file count exceeds threshold (default 40) or total size exceeds 500 KB
 * Compound entries use searchable frontmatter fields: `problem_type`, `category`, `root_cause`, `tags`
 
@@ -106,14 +108,17 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `harness-architect.agent.md` — TDD harness generation
 * `build-orchestrator.agent.md` — Implementation execution loop
 * `pr-review.agent.md` — PR lifecycle management
+* `deliberator.agent.md` — Interactive deliberation and spike orchestration
 * `build-feature/SKILL.md` — Harness loop execution
+* `deliberate/SKILL.md` — Structured deliberation and decision capture
+* `spike/SKILL.md` — Time-boxed investigation and findings capture
 * `fix-ci/SKILL.md` — CI failure resolution
 * `runtime-verification/SKILL.md` — Runtime surface validation before closure
 * `operational-closure/SKILL.md` — Release readiness, monitoring, and feedback capture
 
 **Design Rules**:
 
-* Pipeline: Brainstorm → Plan → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
+* Pipeline: Deliberate/Spike → Plan → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
 * Each agent declares its maximum subagent depth
 * Skills are leaf executors (no subagent spawning)
 * Handoff contracts preserve verification and closure expectations from planning through release
@@ -217,7 +222,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * AGENTS.md is a map, not a manual — agents start with a small entry point and are taught where to look next
 * Repository knowledge is the system of record — anything not discoverable in the repo doesn't exist to the agent
 * `docs/` holds durable knowledge; the backlog directory holds active work items — different lifecycles, different concerns
-* Knowledge graduation: when backlog work completes, architectural decisions and design rationale are distilled into `docs/design-docs/`; compound learnings stay in the backlog's compound directory
+* Knowledge graduation: when backlog work completes, architectural decisions and design rationale are distilled into `docs/design-docs/`; compound learnings are stored in `docs/compound/` (default; configurable) — NOT in the backlog
 * Documentation is mechanically validated: CI checks verify freshness, cross-links, and structural correctness
 * Doc-gardening runs on a regular cadence (configurable), scanning for obsolete content that no longer reflects code
 * Progressive disclosure depth scales with codebase complexity

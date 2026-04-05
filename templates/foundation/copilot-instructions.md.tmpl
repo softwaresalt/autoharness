@@ -67,9 +67,10 @@ tokens proportional to file size.
 
 ## Session Memory Requirements
 
-* Working agent sessions SHOULD persist output to `.backlog/memory/` before the session ends.
+* Working agent sessions MUST persist output to `{{DOCS_MEMORY}}/` before the session ends — do NOT rely on built-in AI assistant memory features, which write to their own managed locations.
 * Content to capture: task IDs completed, files modified, decisions and rationale, failed approaches, open questions, and next steps.
-* File convention: `.backlog/memory/{YYYY-MM-DD}/{descriptive-slug}-memory.md`
+* File convention: `{{DOCS_MEMORY}}/{YYYY-MM-DD}/{descriptive-slug}-memory.md`
+* After writing memory, invoke the **compact-context** skill to consolidate stale checkpoints and finalize decided-plans. This is a mandatory workflow step, not advisory.
 
 ## Optional Capability Packs
 

@@ -72,7 +72,54 @@ The `autoharness_home` path is resolved by agents in this order:
 3. Directory traversal from the agent definition file
 4. `~/.autoharness/` default
 
-## Step 2: Register with Your AI Coding Environment
+## Step 2: Configure Your Workspace (Optional)
+
+Before running the installer, you can create an operator configuration file to tell autoharness how you want your harness set up. This is optional — autoharness auto-detects most settings — but it gives you explicit control over preferences that you want to persist across installations and tuning runs.
+
+```bash
+mkdir -p .autoharness
+cat > .autoharness/config.yaml <<'EOF'
+schema_version: "1.0.0"
+preset: standard
+capability_packs:
+  - backlogit
+  - agent-engram
+backlog:
+  tool: backlogit
+  prefix_map:
+    feature: "F"
+    task: "T"
+    spike: "S"
+    deliberation: "D"
+    bug: "B"
+    epic: "E"
+    subtask: "ST"
+docs:
+  root: docs
+model_routing:
+  tier1: gpt-5.4-mini
+overrides:
+  PROJECT_NAME: my-app
+EOF
+# Edit to your preferences:
+$EDITOR .autoharness/config.yaml
+```
+
+The config file controls:
+
+| Setting | Example | Purpose |
+|---|---|---|
+| `preset` | `standard` | Installation shape (starter, standard, full) |
+| `capability_packs` | `[backlogit, agent-engram]` | Which packs to enable |
+| `backlog.tool` | `backlogit` | Override backlog tool auto-detection |
+| `backlog.prefix_map` | `{feature: "F", task: "T"}` | Work item type prefixes |
+| `docs.root` | `docs` | Where durable knowledge artifacts live |
+| `model_routing` | `{tier1: "gpt-5.4-mini"}` | Model preferences per tier |
+| `overrides` | `{PROJECT_NAME: "my-app"}` | Explicit template variable overrides |
+
+The installer and tuner both read this file. When tuning, changes to `config.yaml` are treated as intentional configuration updates (not drift) and are prioritized in the tuning report.
+
+## Step 3: Register with Your AI Coding Environment
 
 autoharness is environment-agnostic. Register it once in whichever environment(s) you use.
 
@@ -113,7 +160,7 @@ Add autoharness as an agent source in Cursor settings, pointing to `~/.autoharne
 
 Reference the autoharness agents directory or pass the AGENTS.md as system context.
 
-## Step 3: Install a Harness into a Target Workspace
+## Step 4: Install a Harness into a Target Workspace
 
 ### Full Installation (Recommended)
 
@@ -205,6 +252,7 @@ target-workspace/
   .github/
     copilot-instructions.md              # Shared development guidelines
     agents/                              # Agent definitions
+      deliberator.agent.md
       backlog-harvester.agent.md
       build-orchestrator.agent.md
       harness-architect.agent.md
@@ -222,7 +270,8 @@ target-workspace/
       research/
         learnings-researcher.agent.md
     skills/
-      brainstorm/SKILL.md
+      deliberate/SKILL.md
+      spike/SKILL.md
       build-feature/SKILL.md
       compact-context/SKILL.md
       compound/SKILL.md
@@ -252,16 +301,17 @@ target-workspace/
       ping-loop.prompt.md
   .backlog/
     config.yml
-    queue.md
-    tasks/
-    plans/
-    brainstorm/
+    queue/
+      .stash.md
+    archive/
+  docs/
     compound/
-    reviews/
+    plans/
+    decisions/
     memory/
     closure/
-    completed/
   .autoharness/
+    config.yaml                          # Operator configuration (optional, created before install)
     workspace-profile.yaml               # Discovered workspace profile
     harness-manifest.yaml                # Installation tracking (includes autoharness_home)
 ```
@@ -286,16 +336,17 @@ The installer runs automatic verification. You can also manually check:
 
 ### First Use
 
-1. Create a feature idea in `.backlog/brainstorm/my-feature.md`
-2. Invoke the backlog-harvester: `@backlog-harvester source=.backlog/brainstorm/my-feature.md`
-3. Review the generated plan and task decomposition
-4. Invoke the harness-architect for the feature
-5. Invoke the build-orchestrator to implement
-6. If the feature changes runtime behavior, run `runtime-verification`
-7. Capture release readiness and follow-up monitoring with `operational-closure`
-8. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
-9. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
-10. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
+1. Invoke the deliberator: `@deliberator topic="my feature idea"`
+2. The deliberator determines whether this needs a decision (deliberate) or investigation (spike)
+3. Review the decision or findings artifact and promote to a plan or queue
+4. If promoted to plan, the backlog-harvester decomposes it into tasks
+5. Invoke the harness-architect for the feature
+6. Invoke the build-orchestrator to implement
+7. If the feature changes runtime behavior, run `runtime-verification`
+8. Capture release readiness and follow-up monitoring with `operational-closure`
+9. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
+10. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
+11. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
 
 ### Ongoing Maintenance
 

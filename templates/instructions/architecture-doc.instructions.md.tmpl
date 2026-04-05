@@ -1,6 +1,6 @@
 ---
 description: "Rules for maintaining architecture documentation and progressive disclosure knowledge structure"
-applyTo: '**/ARCHITECTURE.md,**/docs/**,**/AGENTS.md'
+applyTo: '**/ARCHITECTURE.md,**/{{DOCS_ROOT}}/**,**/AGENTS.md'
 ---
 
 # Architecture Documentation Instructions
@@ -16,42 +16,46 @@ codebase.
    deeper sources of truth, not contain them. Every section should be a signpost:
    "for X, see Y."
 
-2. **Structured docs/ directory.** Organize durable knowledge by purpose:
-   * `docs/ARCHITECTURE.md` — Top-level domain map and dependency direction
-   * `docs/design-docs/` — Graduated design decisions and rationale from completed work
-   * `docs/product-specs/` — Product requirements and acceptance criteria
-   * `docs/references/` — External documentation relevant to the codebase
-   * `docs/QUALITY_SCORE.md` — Quality grades per domain
+2. **Structured {{DOCS_ROOT}}/ directory.** Organize durable knowledge by purpose:
+   * `{{DOCS_ROOT}}/ARCHITECTURE.md` — Top-level domain map and dependency direction
+   * `{{DOCS_DESIGN_DOCS}}/` — Graduated design decisions and rationale from completed work
+   * `{{DOCS_PRODUCT_SPECS}}/` — Product requirements and acceptance criteria
+   * `{{DOCS_ROOT}}/references/` — External documentation relevant to the codebase
+   * `{{DOCS_ROOT}}/QUALITY_SCORE.md` — Quality grades per domain
 
 3. **Depth scales with complexity.** A small CLI tool needs minimal progressive
    disclosure. A large monorepo needs deeper layers.
 
-## Boundary: docs/ vs Backlog
+## Boundary: {{DOCS_ROOT}}/ vs Backlog
 
-The `docs/` directory and the backlog directory serve different lifecycles:
+The `{{DOCS_ROOT}}/` directory and the backlog directory serve different lifecycles:
 
-* **Backlog** (`.backlog/`, `.backlogit/`, `backlog/`) holds **active work**: tasks,
-  plans, brainstorm drafts, reviews, session memory, compound learnings. These are
-  managed by the backlog tool and have status transitions (created → active → done).
+* **Backlog** (`{{BACKLOG_DIRECTORY}}/`) holds **active work items**: features,
+  tasks, spikes, deliberations, and bugs in a flat `queue/` directory, typed by prefix
+  and identified by hierarchical IDs. These are managed by the backlog tool and have
+  status transitions (queued → active → done → archived).
 
-* **`docs/`** holds **durable knowledge**: architecture, design decisions, product
-  specs, quality grades. These persist and evolve with the codebase. They have no
-  "done" state.
+* **`{{DOCS_ROOT}}/`** holds **durable knowledge**: architecture, design decisions, product specs,
+  quality grades, compound learnings (`{{DOCS_COMPOUND}}/`), implementation plans
+  (`{{DOCS_PLANS}}/`), spike and deliberation findings (`{{DOCS_DECISIONS}}/`), session memory
+  (`{{DOCS_MEMORY}}/`), and closure records (`{{DOCS_CLOSURE}}/`). These persist and evolve
+  with the codebase. They have no "done" state.
 
-Do NOT duplicate backlog content into `docs/`. Instead, use the knowledge graduation
-process to distill durable insights from completed work into `docs/` artifacts.
+Do NOT duplicate backlog content into `{{DOCS_ROOT}}/`. Instead, use the knowledge graduation
+process to distill durable insights from completed work into `{{DOCS_ROOT}}/` artifacts.
 
 ## Knowledge Graduation
 
 When backlog work completes, the doc-ops agent evaluates whether it produced
 reference-worthy knowledge:
 
-* **Architectural decisions** from completed plans → `docs/design-docs/`
-* **New domain patterns** discovered during implementation → update `docs/ARCHITECTURE.md`
-* **Product requirements** that emerged during brainstorm → `docs/product-specs/`
-* **Quality implications** → update `docs/QUALITY_SCORE.md`
-* **Compound learnings** (debugging insights, build errors) → stay in the backlog's
-  compound directory (already searchable by the learnings-researcher agent)
+* **Architectural decisions** from completed plans → `{{DOCS_DESIGN_DOCS}}/`
+* **New domain patterns** discovered during implementation → update `{{DOCS_ROOT}}/ARCHITECTURE.md`
+* **Product requirements** that emerged during deliberation → `{{DOCS_PRODUCT_SPECS}}/`
+* **Quality implications** → update `{{DOCS_ROOT}}/QUALITY_SCORE.md`
+* **Compound learnings** (debugging insights, build errors) → already in `{{DOCS_COMPOUND}}/`
+  (searchable by the learnings-researcher agent)
+* **Spike findings** → already in `{{DOCS_DECISIONS}}/` (accessible for future planning)
 
 Graduation is distillation, not copying. Extract the decision, rationale, and
 constraints — not the execution log or task progress.

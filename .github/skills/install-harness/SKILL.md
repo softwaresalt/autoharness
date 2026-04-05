@@ -47,6 +47,20 @@ Verify that `workspace_path` is NOT inside `autoharness_home` and vice versa.
 
 All template reads in subsequent phases use `{autoharness_home}/templates/` as the base path. All artifact writes use `{workspace_path}` as the base path.
 
+#### Step 1.0b: Load Operator Configuration
+
+Check for `.autoharness/config.yaml` in the target workspace. If present:
+
+1. Validate against `{autoharness_home}/schemas/harness-config.schema.json`
+2. Extract operator preferences for: preset, capability packs, backlog configuration (tool, directory, prefix map), docs directory structure, model routing, and template variable overrides
+3. Merge with the workspace profile — operator config values take precedence over auto-detected profile values
+4. Derive `{{PREFIX_*}}` template variables from `backlog.prefix_map` (falling back to backlogit project YAML when backlogit pack is active, then schema defaults)
+5. Derive `{{DOCS_ROOT}}` and `{{DOCS_*}}` template variables from `docs.root` and `docs.subdirectories` (falling back to schema defaults)
+6. Derive `{{CAPABILITY_PACKS_YAML}}` from `capability_packs` list for config write-back
+7. If the config specifies `overrides`, apply those template variable values directly, overriding any profile-derived values
+
+If the file does not exist, proceed with profile-only installation using schema default values for all prefix and docs variables. After installation, the installer writes the resolved `.autoharness/config.yaml` recording the actual values used (see Step 3.4).
+
 #### Step 1.1: Load Profile
 
 Read the workspace profile from `profile_path`. Validate against the workspace profile schema. If validation fails, halt and report the specific schema violations.
@@ -59,20 +73,34 @@ Derive all template variables from the profile. The variable resolution table de
 |---|---|---|---|---|
 | `{{PROJECT_NAME}}` | Directory name of workspace | `my-service` | `my-app` | `my-api` |
 | `{{PRIMARY_LANGUAGE}}` | `languages.primary` | `Rust` | `TypeScript` | `Python` |
-| `{{LANGUAGE_EDITION}}` | Language version from config | `edition 2024` | `ES2022` | `3.12` |
+| `{{PRIMARY_LANGUAGE_LOWER}}` | `lowercase(languages.primary)` | `rust` | `typescript` | `python` |
+| `{{LANGUAGE_VERSION}}` | `languages.version` (detected from toolchain config) | `2024` | `ES2022` | `3.12` |
+| `{{LANGUAGE_NOTES}}` | Synthesized from language profile (key version/edition note) | `(Rust 2024 edition)` | `(strict mode)` | `(requires 3.12+)` |
 | `{{BUILD_COMMAND}}` | `build.command` | `cargo build` | `npm run build` | `python -m build` |
 | `{{TEST_COMMAND}}` | `test.command` | `cargo test` | `npm test` | `pytest` |
 | `{{LINT_COMMAND}}` | `lint.command` | `cargo clippy -- -D warnings` | `npm run lint` | `ruff check .` |
 | `{{FORMAT_COMMAND}}` | `format.command` | `cargo fmt --all -- --check` | `npx prettier --check .` | `ruff format --check .` |
 | `{{FORMAT_FIX_COMMAND}}` | Derived from format tool | `cargo fmt --all` | `npx prettier --write .` | `ruff format .` |
+| `{{BUILD_CHECK_COMMAND}}` | `build.check_command` (fast compilation check, no test) | `cargo check --all-targets` | `tsc --noEmit` | `python -m py_compile $(find src -name "*.py")` |
+| `{{FORMAT_CHECK_COMMAND}}` | `format.check_command` (read-only format gate) | `cargo fmt --all -- --check` | `npx prettier --check .` | `ruff format --check .` |
 | `{{TEST_DIR}}` | `test.directory` | `tests/` | `__tests__/` | `tests/` |
 | `{{SOURCE_DIR}}` | `structure.source_layout` | `src/` | `src/` | `src/` |
 | `{{CI_PLATFORM}}` | `ci.platform` | `GitHub Actions` | `GitHub Actions` | `GitHub Actions` |
-| `{{PACKAGE_MANAGER}}` | `build.tool` or detected | `cargo` | `npm` | `pip` |
+| `{{BUILD_TOOL}}` | `build.tool` | `cargo` | `npm` | `pip` |
+| `{{FORMATTER}}` | `format.tool` | `rustfmt` | `prettier` | `ruff` |
+| `{{LINTER}}` | `lint.tool` | `clippy` | `eslint` | `ruff` |
+| `{{TEST_RUNNER}}` | `test.runner` | `cargo test` | `jest` | `pytest` |
 | `{{UNSAFE_POLICY}}` | Language-specific safety rules | `#![forbid(unsafe_code)]` | `strict TypeScript` | `type hints required` |
 | `{{ERROR_PATTERN}}` | Language-specific error handling | `Result<T, Error>` | `try/catch + custom errors` | `raise/except` |
 | `{{DOC_COMMENT_STYLE}}` | Language convention | `/// doc comment` | `/** JSDoc */` | `"""docstring"""` |
-| `{{QUALITY_GATES}}` | Ordered from CI pipeline | check → clippy → fmt → test | lint → typecheck → test | lint → typecheck → test |
+| `{{QUALITY_GATE_1_NAME}}` | `ci.quality_gates[0]` (name) | `check` | `lint` | `lint` |
+| `{{QUALITY_GATE_1}}` | `ci.quality_gates[0]` (command) | `cargo check --all-targets` | `npm run lint` | `ruff check .` |
+| `{{QUALITY_GATE_2_NAME}}` | `ci.quality_gates[1]` (name) | `clippy` | `typecheck` | `typecheck` |
+| `{{QUALITY_GATE_2}}` | `ci.quality_gates[1]` (command) | `cargo clippy -- -D warnings` | `tsc --noEmit` | `mypy src/` |
+| `{{QUALITY_GATE_3_NAME}}` | `ci.quality_gates[2]` (name) | `fmt` | `test` | `test` |
+| `{{QUALITY_GATE_3}}` | `ci.quality_gates[2]` (command) | `cargo fmt --all -- --check` | `npm test` | `pytest` |
+| `{{QUALITY_GATE_4_NAME}}` | `ci.quality_gates[3]` (name, optional) | `test` | _(empty)_ | _(empty)_ |
+| `{{QUALITY_GATE_4}}` | `ci.quality_gates[3]` (command, optional) | `cargo test` | _(empty)_ | _(empty)_ |
 
 **Backlog Tool Variables** (derived from `backlog_tool` profile section):
 
@@ -88,6 +116,13 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_MOVE_MCP}}` | Registry `operations.move_task.mcp_tool` | `backlogit_move_item` | `task_edit` |
 | `{{OP_SEARCH_MCP}}` | Registry `operations.search_tasks.mcp_tool` | `backlogit_search_items` | `task_search` |
 | `{{OP_COMPLETE_MCP}}` | Registry `operations.complete_task.mcp_tool` | `backlogit_move_item` | `task_complete` |
+| `{{OP_CREATE_CLI}}` | Registry `operations.create_task.cli_command` | `backlogit add` | `backlog task create` |
+| `{{OP_LIST_CLI}}` | Registry `operations.list_tasks.cli_command` | `backlogit list` | `backlog task list` |
+| `{{OP_GET_CLI}}` | Registry `operations.get_task.cli_command` | `backlogit show {id}` | `backlog task view {id}` |
+| `{{OP_UPDATE_CLI}}` | Registry `operations.update_task.cli_command` | `backlogit update {id}` | `backlog task edit {id}` |
+| `{{OP_MOVE_CLI}}` | Registry `operations.move_task.cli_command` | `backlogit move {id} {status}` | `backlog task move {id}` |
+| `{{OP_SEARCH_CLI}}` | Registry `operations.search_tasks.cli_command` | `backlogit search {query}` | `backlog task search` |
+| `{{OP_COMPLETE_CLI}}` | Registry `operations.complete_task.cli_command` | `backlogit done {id}` | `backlog task complete {id}` |
 | `{{STATUS_TODO}}` | Registry `status_values.todo` | `queued` | `To Do` |
 | `{{STATUS_IN_PROGRESS}}` | Registry `status_values.in_progress` | `active` | `In Progress` |
 | `{{STATUS_DONE}}` | Registry `status_values.done` | `done` | `Done` |
@@ -96,7 +131,106 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{FIELD_TITLE}}` | Registry `field_mapping.title` | `title` | `title` |
 | `{{FIELD_STATUS}}` | Registry `field_mapping.status` | `status` | `status` |
 | `{{FIELD_LABELS}}` | Registry `field_mapping.labels` | `labels` | `labels` |
+| `{{FIELD_PARENT_ID}}` | Registry `field_mapping.parent_id` | `parent` | `parent_id` |
+| `{{FIELD_TYPE}}` | Registry `field_mapping.item_type` | `type` | `type` |
+| `{{FIELD_DESCRIPTION}}` | Registry `field_mapping.description` | `description` | `description` |
 | `{{BACKLOG_TOOLS}}` | Backlog MCP server name from registry | `backlog` | `backlog` |
+| `{{EXTENDED_OPERATIONS_TABLE}}` | Registry `advanced_operations` formatted as Markdown table | _(backlogit-specific ops table)_ | _(empty string if not supported)_ |
+
+**Prefix Variables** (derived from `config.backlog.prefix_map` → backlog tool auto-detection → schema defaults):
+
+| Template Variable | Source | Default |
+|---|---|---|
+| `{{PREFIX_FEATURE}}` | `config.backlog.prefix_map.feature` | `F` |
+| `{{PREFIX_TASK}}` | `config.backlog.prefix_map.task` | `T` |
+| `{{PREFIX_SPIKE}}` | `config.backlog.prefix_map.spike` | `S` |
+| `{{PREFIX_DELIBERATION}}` | `config.backlog.prefix_map.deliberation` | `D` |
+| `{{PREFIX_BUG}}` | `config.backlog.prefix_map.bug` | `B` |
+| `{{PREFIX_EPIC}}` | `config.backlog.prefix_map.epic` | `E` |
+| `{{PREFIX_SUBTASK}}` | `config.backlog.prefix_map.subtask` | `ST` |
+
+Resolution order: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML metadata (when backlogit capability pack is active) → (3) schema defaults above.
+
+**Docs Path Variables** (derived from `config.docs.root` and `config.docs.subdirectories` → schema defaults):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{DOCS_ROOT}}` | `config.docs.root` | `docs` | Root directory for durable knowledge |
+| `{{DOCS_COMPOUND}}` | `{DOCS_ROOT}/{config.docs.subdirectories.compound}` | `docs/compound` | Institutional learnings |
+| `{{DOCS_PLANS}}` | `{DOCS_ROOT}/{config.docs.subdirectories.plans}` | `docs/plans` | Implementation plans |
+| `{{DOCS_DECISIONS}}` | `{DOCS_ROOT}/{config.docs.subdirectories.decisions}` | `docs/decisions` | ADRs, deliberation outcomes, spike findings |
+| `{{DOCS_MEMORY}}` | `{DOCS_ROOT}/{config.docs.subdirectories.memory}` | `docs/memory` | Session state and checkpoints |
+| `{{DOCS_CLOSURE}}` | `{DOCS_ROOT}/{config.docs.subdirectories.closure}` | `docs/closure` | Verification, review, safety-check, closure records |
+| `{{DOCS_DESIGN_DOCS}}` | `{DOCS_ROOT}/{config.docs.subdirectories.design_docs}` | `docs/design-docs` | Graduated design decisions and rationale |
+| `{{DOCS_PRODUCT_SPECS}}` | `{DOCS_ROOT}/{config.docs.subdirectories.product_specs}` | `docs/product-specs` | Product requirements and acceptance criteria |
+
+Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema defaults. Docs path variables are computed paths (root + subdirectory name joined with `/`).
+
+**Foundation and Conventions Variables** (derived from workspace profile `conventions` and synthesized language knowledge):
+
+| Template Variable | Source | Example (Rust) | Example (TypeScript) | Example (Python) |
+|---|---|---|---|---|
+| `{{DATE}}` | Installation date (`YYYY-MM-DD`) | `2026-04-04` | `2026-04-04` | `2026-04-04` |
+| `{{PROJECT_DESCRIPTION}}` | `harness_recommendations.project_description` or synthesized from README | `"A Rust REST API service"` | `"A React web application"` | `"A Python data pipeline"` |
+| `{{PROJECT_STRUCTURE}}` | Synthesized directory tree from `structure.*` profile fields | _(directory tree block)_ | _(directory tree block)_ | _(directory tree block)_ |
+| `{{CI_NOTES}}` | `ci.notes` or synthesized from `ci.platform` | `"Uses GitHub Actions with matrix builds"` | `"GitHub Actions + Nx affected"` | `"GitHub Actions + tox"` |
+| `{{ADDITIONAL_STACK_ROWS}}` | Extra Markdown table rows for secondary tools (frameworks, DB, etc.) | _(0 or more rows)_ | _(0 or more rows)_ | _(0 or more rows)_ |
+| `{{ADDITIONAL_COMMANDS}}` | Extra command entries for workspace-specific commands | _(0 or more lines)_ | _(0 or more lines)_ | _(0 or more lines)_ |
+| `{{TEST_TIER_DESCRIPTION}}` | Synthesized from `test.*` profile fields | `"Unit: cargo test, Integration: cargo test --test"` | `"Unit: jest, E2E: playwright"` | `"Unit: pytest, Integration: pytest -m integration"` |
+| `{{NAMING_CONVENTIONS}}` | Synthesized language naming rules | `"snake_case for variables, PascalCase for types"` | `"camelCase for variables, PascalCase for types"` | `"snake_case for everything"` |
+| `{{DOCUMENTATION_CONVENTIONS}}` | Synthesized from language doc-comment style | `"/// doc comments on all public items"` | `"JSDoc on all exports"` | `"Google-style docstrings"` |
+| `{{ERROR_HANDLING_CONVENTIONS}}` | Synthesized language error patterns | `"Result<T, E> for fallible operations"` | `"throw Error subclasses, catch at boundaries"` | `"raise specific Exception subclasses"` |
+| `{{LINT_POLICY}}` | Synthesized from lint tool and profile strictness | `"All clippy warnings are hard errors"` | `"eslint --max-warnings 0"` | `"ruff check fails on any warning"` |
+| `{{ERROR_HANDLING_POLICY}}` | Synthesized from `conventions.code_style` | `"All errors must be propagated via Result"` | `"Unhandled promise rejections are errors"` | `"All exceptions must be typed"` |
+| `{{TEST_STRUCTURE}}` | Synthesized from `test.directory` and conventions | `"Unit tests in src/, integration tests in tests/"` | `"Unit tests in __tests__/, E2E in e2e/"` | `"Tests in tests/ directory"` |
+| `{{COMMIT_SCOPES}}` | Derived from `structure.source_layout` top-level directories | `"api, cli, core, db"` | `"app, api, lib, ui"` | `"api, core, utils"` |
+| `{{EXAMPLE_SCOPE}}` | First entry from `{{COMMIT_SCOPES}}` | `"api"` | `"app"` | `"api"` |
+
+**Technology Instruction Variables** (language-knowledge-derived; synthesized per primary language):
+
+| Template Variable | Source | Purpose |
+|---|---|---|
+| `{{LANGUAGE_FILE_GLOB}}` | Derived from `languages.primary` | File glob for language files (e.g., `**/*.rs`, `**/*.ts`, `**/*.py`) |
+| `{{LANGUAGE_VERSION_DETAIL}}` | `languages.version` with edition/variant notes | Full version string (e.g., `Rust 2024 edition`, `TypeScript 5.4 strict`, `Python 3.12`) |
+| `{{NAMING_RULES}}` | Synthesized language naming conventions | Bullet list of naming rules for the language |
+| `{{CODE_ORGANIZATION_RULES}}` | Synthesized from language conventions | Module/package organization rules |
+| `{{ERROR_HANDLING_RULES}}` | Synthesized from `{{ERROR_PATTERN}}` and language idioms | Error handling rules for the language |
+| `{{SAFETY_RULES}}` | Synthesized from `{{UNSAFE_POLICY}}` and language safety model | Safety/correctness rules |
+| `{{PERFORMANCE_RULES}}` | Synthesized from language performance idioms | Performance rules and anti-patterns |
+| `{{TESTING_RULES}}` | Synthesized from `test.*` profile fields | Testing conventions and rules |
+| `{{DOCUMENTATION_RULES}}` | Synthesized from `{{DOC_COMMENT_STYLE}}` | Documentation requirements |
+| `{{DEPENDENCY_RULES}}` | Synthesized from build tool conventions | Dependency management rules |
+| `{{ANTI_PATTERNS}}` | Synthesized language anti-patterns | Language-specific patterns to avoid |
+
+**Review Persona Variables** (language-knowledge-derived; synthesized per primary language):
+
+| Template Variable | Source | Purpose |
+|---|---|---|
+| `{{LANGUAGE_SAFETY_CHECKS}}` | Synthesized from language safety model | Bullet list of safety issues to check in code review |
+| `{{LANGUAGE_IDIOM_CHECKS}}` | Synthesized from language idiomatic patterns | Bullet list of idiomatic pattern checks |
+| `{{LANGUAGE_ERROR_HANDLING_CHECKS}}` | Synthesized from language error model | Bullet list of error handling review checks |
+| `{{LANGUAGE_PERFORMANCE_CHECKS}}` | Synthesized from language performance model | Bullet list of performance review checks |
+| `{{CONCURRENCY_PATTERNS}}` | Synthesized from language concurrency model | Comma-separated or bulleted concurrency patterns that trigger the concurrency reviewer |
+| `{{FILE_EXT}}` | Derived from `languages.primary` | File extension (e.g., `rs`, `ts`, `py`, `go`) |
+| `{{UNIMPLEMENTED_MARKER}}` | Derived from `languages.primary` | Language-specific stub marker (e.g., `unimplemented!()`, `throw new Error("Not implemented")`, `raise NotImplementedError`) |
+
+**Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{INSTALL_PRESET}}` | Selected preset from Step 1.3 | `standard` | Installation preset name |
+| `{{CAPABILITY_PACKS_YAML}}` | YAML list from selected capability packs | `[]` | Rendered YAML array of enabled packs |
+| `{{DOCS_COMPOUND_DIR}}` | `config.docs.subdirectories.compound` | `compound` | Subdirectory name only (not full path) |
+| `{{DOCS_PLANS_DIR}}` | `config.docs.subdirectories.plans` | `plans` | Subdirectory name only |
+| `{{DOCS_DECISIONS_DIR}}` | `config.docs.subdirectories.decisions` | `decisions` | Subdirectory name only |
+| `{{DOCS_MEMORY_DIR}}` | `config.docs.subdirectories.memory` | `memory` | Subdirectory name only |
+| `{{DOCS_CLOSURE_DIR}}` | `config.docs.subdirectories.closure` | `closure` | Subdirectory name only |
+| `{{DOCS_DESIGN_DOCS_DIR}}` | `config.docs.subdirectories.design_docs` | `design-docs` | Subdirectory name only |
+| `{{DOCS_PRODUCT_SPECS_DIR}}` | `config.docs.subdirectories.product_specs` | `product-specs` | Subdirectory name only |
+| `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1` | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks |
+| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2` | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review |
+| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
+| `{{HARNESS_OVERRIDES_YAML}}` | `config.overrides` map | `{}` | Inline YAML map of explicit template variable overrides; `{}` when no overrides are set |
 
 **Capability-Pack Variables** (derived from `capability_packs` and integration signals in the profile):
 
@@ -108,6 +242,9 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
 | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
 | `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.vscode/mcp.json, .engram/config.toml` | empty |
+| `{{AGENT_ADVERSARIAL_REVIEW_ENABLED}}` | `capability_packs` contains `adversarial-review` | `true` | `false` |
+
+Note: These six variables are used internally by the installer during capability-pack detection and overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
 #### Step 1.3: Select Preset, Primitive Set, and Capability Packs
 
@@ -193,10 +330,10 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/memory`, `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/backlog-harvester` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/build-feature`, `skills/fix-ci` |
+| 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci` |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
-| 7 - Observability | `agents/review/*`, `agents/doc-ops`, `skills/review`, `skills/plan-review` |
+| 7 - Observability | `agents/review/*`, `agents/doc-ops`, `agents/review`, `agents/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
 | 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc`, `agents/doc-ops` |
 | 10 - Operational Closure | `skills/runtime-verification`, `skills/operational-closure`, PR and CI handoff sections in pipeline templates |
@@ -207,7 +344,7 @@ Map primitives to template groups:
 
 Generate the constitutional foundation first, as all other artifacts reference it:
 
-1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 10 universal principles.
+1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 9 universal principles (I–IX).
 
 2. **AGENTS.md**: Generate the root AGENTS.md with technology-specific quality gates, code style conventions, error handling patterns, and terminal command policies.
 
@@ -264,7 +401,7 @@ If the user wants to use a tool not yet in the registry:
 
 Generate agent definitions. Each agent template has technology-specific sections that vary:
 
-1. **Pipeline agents**: backlog-harvester, build-orchestrator, harness-architect, pr-review
+1. **Pipeline agents**: deliberator, backlog-harvester, build-orchestrator, harness-architect, pr-review
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
    * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
@@ -286,6 +423,10 @@ Generate agent definitions. Each agent template has technology-specific sections
    * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
    * `learnings-researcher.agent.md` — Universal
 
+5. **Orchestrating review agents**: `plan-review.agent.md`, `review.agent.md`, `adversarial-review.agent.md` — dispatch persona agents during plan and code review. `review` and `plan-review` at subagent depth 1; `adversarial-review` at depth 2 (dispatches multiple parallel reviewer instances).
+   * Minimal technology adaptation needed
+   * Install as standard agents (not skills)
+
 #### Step 2.5: Skill Layer
 
 Generate skill files:
@@ -296,11 +437,10 @@ Generate skill files:
    * `impl-plan/SKILL.md` — Adapt execution postures for the technology
 
 2. **Universal skills** (minimal adaptation; install only when their governing primitives are selected):
-   * `brainstorm/SKILL.md`
+   * `deliberate/SKILL.md`
+   * `spike/SKILL.md`
    * `compact-context/SKILL.md`
    * `compound/SKILL.md`
-   * `plan-review/SKILL.md`
-   * `review/SKILL.md`
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
    * `runtime-verification/SKILL.md` — Install when Primitive 10 is selected
    * `operational-closure/SKILL.md` — Install when Primitive 10 is selected
@@ -327,21 +467,50 @@ Generate prompt files:
 
 #### Step 2.8: Backlog Structure
 
-Initialize the backlog directory:
+Initialize the backlog directory. Backlog tools are used **exclusively for workflow management** — active work items live in `queue/`, completed items move to `archive/`. Long-lived knowledge artifacts (compound learnings, plans, decisions, memory, closure records) are stored in `{{DOCS_ROOT}}/` at the workspace root, not in the backlog.
 
 ```text
-.backlog/
-  config.yml          # Backlog tool configuration
-  queue.md            # Unrefined ideas
-  tasks/              # Empty, ready for task creation
-  plans/              # Empty, ready for plans
-  brainstorm/         # Empty, ready for brainstorm docs
-  compound/           # Empty, ready for learnings
-  reviews/            # Empty, ready for review artifacts
-  memory/             # Empty, ready for session memory
-  closure/            # Empty, ready for runtime verification and closure artifacts
-  completed/          # Empty, archive for done work
+{{BACKLOG_DIRECTORY}}/
+  config.yml          # Backlog tool configuration (prefix map, statuses, labels)
+  queue/              # Active work items — flat directory, no subdirectories
+    .stash.md         # Parked ideas and deferred outcomes not yet promoted
+  archive/            # Completed and archived work items
 ```
+
+Work items in `queue/` follow the naming convention:
+
+```text
+{prefix}-{NNN}-{slug}.md               # Level 1 (features, epics)
+{prefix}-{NNN}.{NNN}-{slug}.md         # Level 2 (tasks, sub-epics)
+{prefix}-{NNN}.{NNN}.{NNN}-{slug}.md   # Level 3 (subtasks)
+```
+
+The prefix map is configured in `config.yml` with concrete single or two-letter defaults:
+
+| Type | Prefix | Example filename |
+|---|---|---|
+| Feature | `{{PREFIX_FEATURE}}` | `F-001-user-auth.md` |
+| Task | `{{PREFIX_TASK}}` | `T-001.001-add-login-endpoint.md` |
+| Spike | `{{PREFIX_SPIKE}}` | `S-002-evaluate-caching.md` |
+| Deliberation | `{{PREFIX_DELIBERATION}}` | `D-003-api-strategy.md` |
+| Bug | `{{PREFIX_BUG}}` | `B-004-null-pointer-fix.md` |
+| Epic | `{{PREFIX_EPIC}}` | `E-005-auth-overhaul.md` |
+| Subtask | `{{PREFIX_SUBTASK}}` | `ST-001.001.001-write-unit-test.md` |
+
+Prefix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
+
+Long-lived knowledge structure (full paths at workspace root):
+
+```text
+{{DOCS_ROOT}}/          # Documentation root
+{{DOCS_COMPOUND}}/      # Institutional learnings organized by category
+{{DOCS_PLANS}}/         # Implementation plans (compacted: plan + reviews → decided-plan)
+{{DOCS_DECISIONS}}/     # ADRs and deliberation outcomes
+{{DOCS_MEMORY}}/        # Session state and checkpoints
+{{DOCS_CLOSURE}}/       # Runtime verification, code review, safety-check, and closure records
+```
+
+Reviews are appended to the plan they review (not separate files). The compact-context skill consolidates plan + appended reviews into a decided-plan.
 
 ### Phase 3: Installation
 
@@ -365,7 +534,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
-| Backlog | `{workspace}/.backlog/` |
+| Backlog config + stash | `{workspace}/{{BACKLOG_DIRECTORY}}/` (queue/, archive/, config.yml, queue/.stash.md) |
+| Knowledge directories | `{workspace}/` ({{DOCS_COMPOUND}}/, {{DOCS_PLANS}}/, {{DOCS_DECISIONS}}/, {{DOCS_MEMORY}}/, {{DOCS_CLOSURE}}/) |
 
 #### Step 3.3: Write Installation Manifest
 
@@ -377,6 +547,7 @@ installed_at: "{{ISO_8601_TIMESTAMP}}"
 autoharness_version: "1.0.0"
 autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
+config_hash: "{{SHA256_OF_CONFIG_OR_NULL}}"  # null if no .autoharness/config.yaml was present
 install_preset: "{{PRESET}}"
 capability_packs: [{{CAPABILITY_PACKS}}]
 # Example when Engram is enabled:
@@ -401,6 +572,16 @@ variables_used:
   PRIMARY_LANGUAGE: "{{value}}"
   # ... all resolved variables
 ```
+
+#### Step 3.4: Write Resolved Configuration
+
+Write (or update) `.autoharness/config.yaml` using the `harness-config.yaml.tmpl` template with all resolved values. This records the actual configuration used during installation:
+
+* If an operator config existed, preserve all operator-provided values and fill in defaults for omitted fields
+* If no operator config existed, write a complete config with all schema defaults
+* The resolved config serves as input for future `tune-harness` runs and enables the tuner to detect configuration drift
+
+The installed config includes: `schema_version`, `preset`, `capability_packs`, `backlog` (tool, directory, prefix_map), `docs` (root, subdirectories), `model_routing`, and any `overrides` that were applied.
 
 ### Phase 4: Verification
 

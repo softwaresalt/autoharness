@@ -47,7 +47,7 @@ Four interconnected mechanisms manage state, recall, and retrieval:
 ### Adaptation Points
 
 * Memory file paths adapt to the workspace's directory structure
-* Retrieval scope adapts to where durable learnings live (`.backlog/compound/`, `docs/solutions/`, or both)
+* Retrieval scope adapts to where durable learnings live (`docs/compound/`, `docs/decisions/`, or configured paths)
 * Compaction thresholds are configurable per workspace
 * Compound categories and ranking heuristics adapt to the workspace's technology domain
 
@@ -106,14 +106,15 @@ Building a feature involves multiple distinct capabilities: planning, test harne
 
 A pipeline of specialized agents, each with a narrow role and explicit handoff expectations:
 
-1. **Brainstorm Skill**: Explore requirements through dialogue
-2. **Backlog Harvester**: Plan → review → decompose into tasks
-3. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
-4. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality, and hand off to review/CI/runtime verification
-5. **PR Review**: Analyze diff, delegate to review personas, create PR, and attach verification/closure expectations
-6. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
-7. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
-8. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
+1. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
+2. **Spike Skill**: Execute time-boxed investigations to answer technical questions, evaluate feasibility, and capture findings
+3. **Backlog Harvester**: Plan → review → decompose into tasks
+4. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
+5. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality, and hand off to review/CI/runtime verification
+6. **PR Review**: Analyze diff, delegate to review personas, create PR, and attach verification/closure expectations
+7. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
+8. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
+9. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
 
 **Stop conditions** prevent infinite loops:
 
@@ -271,22 +272,29 @@ The repository is structured as a self-maintaining knowledge base that agents ca
    * `references/` — External documentation relevant to the codebase (llms.txt files, API docs)
    * Quality grades per domain — tracking which areas are well-covered vs. fragile
 
-3. **Separation from backlog**: The `docs/` directory holds durable knowledge; the backlog directory (`.backlog/`, `.backlogit/`, or `backlog/`) holds active work items. These serve different lifecycles:
+3. **Separation from backlog**: The `docs/` directory holds durable knowledge; the backlog directory (`.backlog/`, `.backlogit/`, or `backlog/`) holds active work items in a flat `queue/` directory. These serve different lifecycles:
 
    | Directory | Contains | Lifecycle |
    |---|---|---|
-   | Backlog | Tasks, active plans, brainstorm drafts, reviews, session memory, compound learnings | Created → Active → Done → Archived |
-   | `docs/` | Architecture, design decisions, product specs, quality grades, references | Persists and evolves with codebase |
+   | Backlog `queue/` | Work items (features, tasks, spikes, deliberations, bugs) typed by prefix | Queued → Active → Done → Archived |
+   | `docs/compound/` | Institutional learnings organized by category | Persists and grows with codebase |
+   | `docs/plans/` | Implementation plans (compacted into decided-plans with appended reviews) | Persists after compaction |
+   | `docs/decisions/` | Deliberation outcomes and spike findings | Persists and evolves with codebase |
+   | `docs/memory/` | Session state, checkpoints (compacted periodically) | Persists after compaction |
+   | `docs/closure/` | Runtime verification, code review, safety-check, and operational closure records | Persists with release history |
+   | `docs/design-docs/` | Graduated architectural decisions and design rationale | Persists and evolves with codebase |
 
-   Plans, execution logs, and brainstorm documents live in the backlog because they're work items managed by the backlog tool. The *decisions and rationale* they produce graduate into `docs/` as durable design records.
+   > **Note**: All `docs/` paths above reflect the default docs root (`docs/`). The root and all subdirectory names are configurable via `.autoharness/config.yaml` (`docs.root` and `docs.subdirectories`).
+
+   Work items live in the backlog because they're managed by the backlog tool. The *knowledge artifacts* they produce live in `docs/` as durable records. The compact-context skill consolidates verbose memory and plans into dense summaries, archiving originals to `docs/archive/`.
 
 4. **Knowledge graduation**: When backlog work completes, the doc-ops agent evaluates whether it produced reference-worthy knowledge:
    * **Architectural decisions** from completed plans → `docs/design-docs/` as design records
-   * **Hard-won solutions** from compound learnings → remain in backlog compound directory (already searchable)
+   * **Hard-won solutions** from compound learnings → already in `docs/compound/` (searchable)
    * **New domain patterns** discovered during implementation → update `docs/ARCHITECTURE.md`
-   * **Product requirements** that emerged during brainstorm → `docs/product-specs/`
+   * **Product requirements** that emerged during deliberation or spike investigation → `docs/product-specs/`
 
-   Graduation is not copying — it's distilling the durable insight from the ephemeral work artifact. The backlog item is archived by the backlog tool; the knowledge it produced lives on in `docs/`.
+   Graduation is not copying — it's distilling the durable insight from the ephemeral work item. The backlog work item is archived by the backlog tool; the knowledge it produced lives on in `docs/`.
 
 5. **Progressive disclosure**: Agents start with a small, stable entry point and are taught where to look next, rather than being overwhelmed up front. Each level of documentation points deeper when needed.
 
@@ -336,4 +344,4 @@ Without Primitive 10, the harness is excellent at producing changes but weaker a
 * Verification depth adapts to the project surface (library, CLI, API, browser UI, batch jobs)
 * Monitoring steps adapt to the workspace’s telemetry stack and deployment platform
 * Closure artifacts adapt to the team’s release process (merge, deploy, canary, handoff, maintenance window)
-* Feedback destinations adapt to where the workspace stores durable learnings (`.backlog/compound/`, `docs/`, issue trackers)
+* Feedback destinations adapt to where the workspace stores durable learnings (`docs/compound/`, `docs/decisions/`, issue trackers)

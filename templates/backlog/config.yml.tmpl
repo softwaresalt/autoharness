@@ -4,8 +4,30 @@
 project: "{{PROJECT_NAME}}"
 version: "1.0.0"
 
-# Task ID format
-id_format: "task-{feature}.{sequence}"
+# Directory layout
+#   {{BACKLOG_DIRECTORY}}/
+#     queue/            — Active work items (features, tasks, spikes, deliberations, bugs)
+#       .stash.md       — Parked ideas and deferred outcomes
+#     archive/          — Completed and archived work items
+
+# Work item ID format
+# Hierarchy is visible at the file system level through the ID structure:
+#   Level 1: {prefix}-{NNN}                  (epics / features)
+#   Level 2: {prefix}-{NNN}.{NNN}            (sub-epics / tasks)
+#   Level 3: {prefix}-{NNN}.{NNN}.{NNN}      (subtasks)
+# Files are named: {prefix}-{NNN}-{slug}.md (or {prefix}-{NNN}.{NNN}-{slug}.md, etc.)
+#
+# Prefix map — work item type prefixes resolved from .autoharness/config.yaml.
+# These are single or two-letter codes used to prefix work item filenames
+# in the queue directory (e.g., F-001-user-auth.md, T-001.001-add-login.md).
+prefix_map:
+  feature: "{{PREFIX_FEATURE}}"
+  task: "{{PREFIX_TASK}}"
+  spike: "{{PREFIX_SPIKE}}"
+  deliberation: "{{PREFIX_DELIBERATION}}"
+  bug: "{{PREFIX_BUG}}"
+  epic: "{{PREFIX_EPIC}}"
+  subtask: "{{PREFIX_SUBTASK}}"
 
 # Status values
 statuses:
@@ -26,3 +48,8 @@ labels:
   - "harness-ready"
   - "blocked"
   - "needs-review"
+  - "deliberation-outcome"
+  - "spike"
+
+# Long-lived knowledge artifacts are stored in {{DOCS_ROOT}}/, not in the backlog.
+# See {{DOCS_COMPOUND}}/, {{DOCS_PLANS}}/, {{DOCS_DECISIONS}}/, {{DOCS_MEMORY}}/, {{DOCS_CLOSURE}}/.

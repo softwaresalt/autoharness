@@ -19,7 +19,7 @@ You do NOT write application code. You produce agent harness artifacts: agent de
 
 ## Environment Agnostic
 
-This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions. The generated output artifacts use standard paths (`.github/`, `AGENTS.md`, `.backlog/`) that are recognized across all environments.
+This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions. The generated output artifacts use standard paths (`.github/`, `AGENTS.md`, the configured backlog directory) that are recognized across all environments.
 
 ## Required Steps
 
@@ -62,7 +62,7 @@ Scan the target workspace for existing harness artifacts:
 * `.github/copilot-instructions.md` — shared guidelines
 * `AGENTS.md` — root agent instructions
 * `.autoharness/` — previous autoharness installation
-* `.backlog/` — backlog structure
+* `.backlog/` or `.backlogit/` — detected backlog directory
 
 If an existing harness is found, present the findings and ask the user:
 
@@ -106,11 +106,12 @@ Artifacts to generate:
   Constitution:     1 file   (adapted for {{primary_language}})
   AGENTS.md:        1 file   (quality gates, conventions)
   Instructions:     {{N}} files ({{language}}, commit, markdown, git, PR, style, prompts)
-  Agents:           {{N}} files (pipeline + support + expert + review personas)
-  Skills:           {{N}} files (brainstorm, build, compact, compound, fix-ci, plan, review, runtime verification, operational closure, safety modes)
+  Agents:           {{N}} files (pipeline + support + expert + review orchestrators + review personas)
+  Skills:           {{N}} files (deliberate, spike, build, compact, compound, fix-ci, impl-plan, runtime-verification, operational-closure, safety-modes)
   Policies:         1 file   (5 workflow policies)
   Prompts:          1 file   (ping-loop)
-  Backlog:          {{N}} dirs (tasks, plans, brainstorm, compound, reviews, memory, closure)
+  Backlog:          2 dirs  (queue, archive) + config.yml + .stash.md
+  Docs:             5 dirs  (compound, plans, decisions, memory, closure)
 ```
 
 Wait for user confirmation before proceeding. The user may request:
@@ -139,7 +140,7 @@ Invoke the install-harness skill with:
 After installation completes, provide the user with:
 
 1. **Quick start**: How to invoke key agents (`@build-orchestrator`, `@harness-architect`, etc.)
-2. **First steps**: Recommend creating a brainstorm document in `.backlog/brainstorm/` to test the pipeline
+2. **First steps**: Recommend invoking `@deliberator` with a topic to test the pipeline
 3. **Tuning reminder**: Explain that `@harness-tuner` should be invoked periodically to keep the harness aligned
 4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
 5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces

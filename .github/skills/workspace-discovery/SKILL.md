@@ -23,9 +23,19 @@ A YAML file at `.autoharness/workspace-profile.yaml` in the target workspace con
 
 ## Required Protocol
 
+### Phase 0: Load Operator Configuration
+
+Check for an operator-authored configuration file at `{workspace_path}/.autoharness/config.yaml`. If present:
+
+1. Validate against `schemas/harness-config.schema.json`
+2. Extract operator preferences: preset, capability packs, backlog tool/directory, prefix map, docs directory structure, model routing, template variable overrides
+3. These preferences take precedence over auto-detected values in subsequent phases — when the operator has explicitly specified a value, use it instead of detecting
+
+If the file does not exist, proceed with pure auto-detection. All fields are optional; the operator may specify only the settings they want to control.
+
 ### Phase 1: File System Scan
 
-Scan the workspace root to build an inventory of project characteristics.
+Scan the workspace root to build an inventory of project characteristics. When `.autoharness/config.yaml` provides explicit values, record those directly and skip detection for the corresponding field.
 
 #### Step 1.1: Language Detection
 

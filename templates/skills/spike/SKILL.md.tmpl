@@ -1,0 +1,342 @@
+---
+description: "Time-boxed investigation of a technical question, feasibility study, or proof-of-concept — produces a findings artifact with a recommendation and optional backlog linkage"
+---
+
+## Spike
+
+Execute a focused, time-boxed investigation to answer a specific technical
+question or evaluate feasibility. Produces a findings artifact that captures
+the investigation goal, approach, evidence, and recommendation. The artifact
+can be promoted to the planning pipeline, linked to a feature as a prerequisite,
+or captured as a compound learning for institutional knowledge.
+
+A spike replaces what was previously called "research" in the backlog structure.
+Unlike a deliberation (which produces a *decision* through interactive operator
+dialogue), a spike produces *findings* through hands-on investigation — reading
+code, prototyping, benchmarking, or evaluating external tools.
+
+## When to Use
+
+* The operator or deliberator identifies unknowns that require investigation
+  before committing to an implementation approach
+* A feature has technical risk that should be explored in isolation
+* A proof-of-concept is needed to validate feasibility
+* The team needs to evaluate external libraries, tools, or APIs
+* Performance characteristics need measurement before design decisions
+* Migration paths need assessment and comparison
+
+## When NOT to Use
+
+* The question can be answered through deliberation alone (use `deliberate`)
+* The work is implementation, not investigation (use `build-feature`)
+* The investigation is debugging a specific failure (that's a bug fix, not a spike)
+
+## Inputs
+
+* `goal`: (Required) The specific question the spike must answer, stated as a
+  question or hypothesis.
+* `time_box`: (Optional) Maximum duration for the investigation. Defaults to
+  `4h`. Accepted values: `1h`, `2h`, `4h`, `8h`.
+* `scope_constraints`: (Optional) Boundaries on what the spike may and may not
+  touch (e.g., "read-only — no production changes", "prototype in a branch only").
+* `linked_feature`: (Optional) Path or ID of a feature this spike informs. When
+  provided, the findings artifact references this feature.
+* `promote_to`: (Optional) Where to route the outcome. Accepts a single value
+  or a comma-separated list for multiple paths: `plan`, `queue`, `learnings`,
+  `none`, `ask`. Defaults to `ask`.
+  * `plan` — promote to `impl-plan` for feature planning
+  * `queue` — create a queue entry with link to the spike artifact
+  * `learnings` — capture as a compound learning entry
+  * `none` — leave the artifact in `{{DOCS_DECISIONS}}/` without linking
+  * `ask` — ask the operator at the end
+  * Combinations are valid (e.g., `plan,learnings`)
+
+## Output
+
+A findings artifact at `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-spike.md` (long-lived
+knowledge) with an optional work item in `{{BACKLOG_DIRECTORY}}/queue/` for
+workflow tracking.
+
+When the `backlogit` capability pack is installed and `promote_to` includes
+`queue` (or `ask` resolves to `queue`), the spike is also created as a backlog
+work item at conclusion with `artifact_type: spike`, `labels: ["spike"]`, and
+a status of `{{STATUS_DONE}}`. The work item filename follows the configured
+prefix convention: `{prefix}-{id}-{slug}.md`. If `promote_to` does not include
+`queue`, no backlog work item is created regardless of the installed capability pack.
+
+## Required Protocol
+
+### Phase 1: Scope
+
+#### Step 1.1: Confirm the Investigation Goal
+
+Restate the goal as a precise, answerable question. If the goal is vague,
+narrow it until you can describe what a successful answer looks like.
+
+Document:
+
+* **Goal question**: The specific question to answer
+* **Success criteria**: What constitutes a sufficient answer (e.g., "we can
+  demonstrate a working prototype", "we have latency numbers under load",
+  "we have a recommendation with trade-off analysis")
+* **Out of scope**: What this spike explicitly will NOT investigate
+
+#### Step 1.2: Establish Constraints
+
+* Confirm the time-box with the operator (default 4h)
+* Confirm scope constraints (read-only, branch-only, sandbox, etc.)
+* Confirm linked feature if applicable
+
+#### Step 1.3: Check Prior Work
+
+Search for prior spikes, deliberations, and compound learnings on the same
+topic to avoid repeating past investigations.
+
+When the `agent-engram` capability pack is installed, prefer indexed search for
+related modules, symbols, and prior context before falling back to broader
+file scans.
+
+When the `backlogit` capability pack is installed and search is supported, query
+the backlog for related spike items, deliberation outcomes, or tasks that may
+have already explored this question.
+
+* Search `{{DOCS_DECISIONS}}/` for prior spike artifacts and deliberation outcomes
+* Search `{{DOCS_COMPOUND}}/` for relevant institutional learnings
+* Search `{{BACKLOG_DIRECTORY}}/queue/` for related active work items
+* If prior work exists, summarize what was already learned and what remains
+  unknown
+
+### Phase 2: Investigate
+
+#### Step 2.1: Plan the Approach
+
+Before diving in, outline the investigation approach in 3-5 steps. This keeps
+the spike focused and prevents scope creep within the time-box.
+
+#### Step 2.2: Search the Codebase
+
+Mandatory codebase investigation:
+
+* Search the compound learnings library (`{{DOCS_COMPOUND}}/`)
+  FIRST — treat prior learnings as mandatory pre-investigation context
+* Analyze relevant code paths, modules, and patterns
+* Identify existing implementations that relate to the question
+
+When the `agent-engram` capability pack is installed, follow
+`.github/instructions/agent-engram.instructions.md`: prefer indexed search for
+related modules, symbols, and prior context before falling back to broader file
+scans.
+
+#### Step 2.3: Hands-On Investigation
+
+Execute the investigation approach:
+
+* Read relevant source code and documentation
+* Build prototypes or proofs-of-concept if the goal requires it
+* Run benchmarks or measurements if the goal involves performance
+* Evaluate external tools or libraries if the goal involves technology selection
+* Document evidence as you go — don't rely on memory
+
+**Time-box enforcement**: Track elapsed effort. If the investigation is
+approaching the time-box limit:
+
+1. Stop exploring new avenues
+2. Consolidate what you have learned so far
+3. Proceed to Phase 3 with current findings
+4. Note unresolved questions as "needs further investigation"
+
+#### Step 2.4: External Research (When Needed)
+
+If the codebase investigation is insufficient, conduct targeted external
+research. Focus on:
+
+* Official documentation for relevant libraries or tools
+* Known patterns and anti-patterns for the approach under evaluation
+* Community experience with similar migrations or integrations
+
+### Phase 3: Synthesize
+
+#### Step 3.1: Consolidate Findings
+
+Organize investigation evidence into a coherent narrative:
+
+* What was investigated
+* What was discovered (with evidence)
+* What was tried and failed (with reasons)
+* What remains uncertain
+
+#### Step 3.2: Form Recommendation
+
+Based on findings, produce one of:
+
+* **Proceed**: The investigation supports moving forward. Describe the
+  recommended approach and any caveats.
+* **Pivot**: The investigation suggests a different approach than originally
+  expected. Describe the alternative and why.
+* **Defer**: More investigation is needed, but the time-box has expired.
+  Describe what additional work is required and the remaining unknowns.
+* **Abandon**: The investigation reveals the approach is not viable. Describe
+  the evidence and suggest alternatives if any exist.
+
+#### Step 3.3: Assess Confidence
+
+Rate confidence in the recommendation:
+
+* **High**: Evidence is strong, multiple signals confirm the recommendation
+* **Medium**: Evidence supports the recommendation but some unknowns remain
+* **Low**: Limited evidence, significant unknowns persist — treat recommendation
+  as tentative
+
+### Phase 4: Conclude and Link
+
+#### Step 4.1: Determine Promotion Path
+
+Present the findings summary and recommendation to the operator. Ask where to
+route the outcome (unless `promote_to` was pre-set):
+
+* **Plan**: Findings are actionable — promote to `impl-plan` for feature planning
+* **Queue**: Findings inform future work — create a queue entry with link to
+  the spike artifact
+* **Learnings**: Findings are institutional knowledge — capture as a compound
+  learning entry
+* **None**: Leave the artifact in `{{DOCS_DECISIONS}}/` for manual reference
+
+The operator may choose multiple paths (e.g., both `plan` and `learnings`).
+
+#### Step 4.2: Promote to Implementation Plan (When Applicable)
+
+When `promote_to` includes `plan` (or `ask` resolved to `plan`):
+
+1. Invoke the **impl-plan** skill with the spike findings artifact as context:
+   * Pass the findings artifact path as the plan source
+   * Set the implementation scope to the recommendation from Step 3.2
+   * Include the spike's success criteria and constraints as planning constraints
+2. The impl-plan skill writes a plan document to `{{DOCS_PLANS}}/{YYYY-MM-DD}-{slug}-plan.md`
+3. Update the spike findings artifact's `promoted_to` frontmatter field to include `plan`
+   and add a `plan_artifact` field pointing to the generated plan path
+4. If `linked_feature` was provided, the impl-plan output should reference that feature
+   so the planning chain is traceable
+
+When `plan` is combined with other paths (e.g., `plan,learnings` or `plan,queue`),
+complete this step first, then continue with Steps 4.3 and 4.4 for the remaining paths.
+
+If the **backlog-harvester** agent is active (operator preference over direct impl-plan invocation),
+call backlog-harvester instead and pass the spike artifact as the planning seed. The
+backlog-harvester will invoke impl-plan internally and return the plan artifact path.
+
+#### Step 4.3: Create Backlog Item (When Applicable)
+
+When the `backlogit` capability pack is installed and `create_task` is available:
+
+1. Create a spike item with `artifact_type: spike`
+2. Set title: the goal question (shortened to 5-10 words)
+3. Set description: link to the findings artifact path
+4. Set labels: `["spike"]` plus `["deliberation-outcome"]` if the spike was
+   triggered from a deliberation
+5. Set status: `{{STATUS_DONE}}` (since the investigation is complete)
+6. If `linked_feature` was provided, set `parent_id` to link the spike to its
+   feature
+
+When the `backlogit` capability pack is NOT installed:
+
+* If promoting to queue, append a spike entry to
+  `{{BACKLOG_DIRECTORY}}/queue/.stash.md` with the format:
+  ```
+  - [{YYYY-MM-DD}] **Spike**: {goal summary}
+    Conclusion: {proceed|pivot|defer|abandon} (confidence: {high|medium|low})
+    Artifact: `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-spike.md`
+    Linked feature: {feature reference or "standalone"}
+  ```
+
+#### Step 4.4: Capture as Compound Learning (When Applicable)
+
+If the promotion path includes `learnings` or the spike produced insights that
+would benefit future work, invoke the **compound** skill with the findings
+as source material. The compound entry preserves the spike's key findings in
+the institutional knowledge base where the learnings-researcher can surface
+them in future tasks.
+
+### Phase 5: Write Findings Artifact
+
+Write the findings artifact to `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-spike.md`:
+
+```markdown
+---
+title: "{Goal question — short form}"
+type: spike
+date: {YYYY-MM-DD}
+time_box: "{time_box value}"
+conclusion: "{proceed|pivot|defer|abandon}"
+confidence: "{high|medium|low}"
+linked_feature: "{feature path or ID, or null}"
+promoted_to: ["{plan|queue|learnings|none}"]
+tags:
+  - "{domain tag}"
+  - "{technology tag}"
+---
+
+## Goal
+
+{Precise question or hypothesis}
+
+## Success Criteria
+
+{What constitutes a sufficient answer}
+
+## Scope Constraints
+
+{Boundaries on the investigation}
+
+## Investigation Approach
+
+{The 3-5 step approach taken}
+
+## Findings
+
+### What Was Discovered
+
+{Organized evidence and observations}
+
+### What Was Tried and Failed
+
+{Approaches that didn't work and why}
+
+### Remaining Unknowns
+
+{What is still uncertain}
+
+## Recommendation
+
+**Conclusion**: {proceed | pivot | defer | abandon}
+**Confidence**: {high | medium | low}
+
+{Detailed recommendation with reasoning}
+
+## Next Steps
+
+{Actions following from the recommendation}
+
+## References
+
+{Links to code paths, documentation, prototypes, benchmarks examined}
+```
+
+## Quality Criteria
+
+* Goal question is specific and answerable, not open-ended
+* Findings are grounded in evidence (code references, measurements, documentation) — not speculation
+* Failed approaches are documented with reasons — not silently omitted
+* Recommendation includes one of the four conclusion types with a confidence rating
+* Time-box was respected — the spike did not expand beyond its declared limit
+* If prior spikes or learnings existed on the topic, they were consulted and referenced
+* The artifact has valid YAML frontmatter with all required fields
+* If a backlog item was created, it has the correct `artifact_type: spike` and labels
+
+## Relationship to Other Workflows
+
+* **Deliberate**: Deliberation produces *decisions* through dialogue; spikes produce *findings* through investigation. A deliberation may trigger a spike when unknowns are identified during Phase 2 (Research).
+* **Impl-plan**: Spike findings with a `proceed` or `pivot` conclusion are valid source documents for impl-plan, just like deliberation outcomes.
+* **Compound**: Spike findings can be captured as compound learnings for the institutional knowledge base.
+* **Build-feature**: Spikes do NOT produce implementation code. If a spike creates a prototype, that prototype lives in a branch and is referenced in findings — it is not the deliverable.
+
+Generated by autoharness | Template: spike/SKILL.md.tmpl

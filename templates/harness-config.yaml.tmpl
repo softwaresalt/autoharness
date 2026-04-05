@@ -1,0 +1,50 @@
+# autoharness Configuration
+#
+# Resolved harness configuration for this workspace.
+# Written by autoharness install; updated by autoharness tune.
+# Operator edits to this file are preserved on re-install and tuning.
+#
+# Schema: schemas/harness-config.schema.json
+
+schema_version: "1.0.0"
+
+# Installation preset: starter | standard | full
+preset: {{INSTALL_PRESET}}
+
+# Capability packs enabled for this workspace
+capability_packs: {{CAPABILITY_PACKS_YAML}}
+
+# Backlog tool configuration
+backlog:
+  tool: {{BACKLOG_TOOL_NAME}}
+  directory: {{BACKLOG_DIRECTORY}}
+  prefix_map:
+    feature: "{{PREFIX_FEATURE}}"
+    task: "{{PREFIX_TASK}}"
+    spike: "{{PREFIX_SPIKE}}"
+    deliberation: "{{PREFIX_DELIBERATION}}"
+    bug: "{{PREFIX_BUG}}"
+    epic: "{{PREFIX_EPIC}}"
+    subtask: "{{PREFIX_SUBTASK}}"
+
+# Long-lived knowledge artifact directories
+docs:
+  root: {{DOCS_ROOT}}
+  subdirectories:
+    compound: {{DOCS_COMPOUND_DIR}}
+    plans: {{DOCS_PLANS_DIR}}
+    decisions: {{DOCS_DECISIONS_DIR}}
+    memory: {{DOCS_MEMORY_DIR}}
+    closure: {{DOCS_CLOSURE_DIR}}
+    design_docs: {{DOCS_DESIGN_DOCS_DIR}}
+    product_specs: {{DOCS_PRODUCT_SPECS_DIR}}
+
+# Model routing preferences (map tiers to model identifiers)
+model_routing:
+  tier1: {{MODEL_ROUTING_TIER1}}      # Fast/cheap: memory, docs, compaction
+  tier2: {{MODEL_ROUTING_TIER2}}      # Standard: orchestration, code, review
+  tier3: {{MODEL_ROUTING_TIER3}}      # Frontier: planning, architecture, analysis
+
+# Explicit template variable overrides applied during install/tune (use sparingly —
+# prefer fixing the workspace setup over overriding discovery results)
+overrides: {{HARNESS_OVERRIDES_YAML}}
