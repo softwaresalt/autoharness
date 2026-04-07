@@ -100,7 +100,7 @@ Agents are assigned to model tiers based on task complexity:
 
 ### The Problem
 
-Building a feature involves multiple distinct capabilities: planning, test harness construction, implementation, code review, runtime verification, and CI management. No single agent can perform all of these well, and attempting to do so within one context window leads to context overflow and instruction confusion. Even when the implementation itself succeeds, many harnesses fail at the handoff boundaries: planning knowledge does not reach implementation, PR metadata does not reach deployment validation, and finished work never enters a structured closure loop.
+Shipping a top-level release unit — whether a feature or a chore — involves multiple distinct capabilities: planning, test harness construction, implementation, code review, runtime verification, and CI management. No single agent can perform all of these well, and attempting to do so within one context window leads to context overflow and instruction confusion. Even when the implementation itself succeeds, many harnesses fail at the handoff boundaries: planning knowledge does not reach implementation, PR metadata does not reach deployment validation, and finished work never enters a structured closure loop.
 
 ### The Solution
 
@@ -239,7 +239,7 @@ Five core policies:
 
 | Policy | Gate | Purpose |
 |---|---|---|
-| P-001 | Build orchestrator pre-flight | Only one feature in progress at a time |
+| P-001 | Build orchestrator pre-flight | Only one top-level release unit (feature or chore) in progress at a time |
 | P-002 | Task claiming | TDD gate — `harness-ready` label required |
 | P-003 | Pre-harvest | Decomposition chain integrity validated |
 | P-004 | Harness approval | Red phase confirmed before implementation |
@@ -276,7 +276,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
    | Directory | Contains | Lifecycle |
    |---|---|---|
-   | Backlog `queue/` | Work items (features, tasks, spikes, deliberations, bugs) typed by prefix | Queued → Active → Done → Archived |
+   | Backlog `queue/` | Work items (features, chores, tasks, spikes, deliberations, bugs) typed by prefix | Queued → Active → Done → Archived |
    | `docs/compound/` | Institutional learnings organized by category | Persists and grows with codebase |
    | `docs/plans/` | Implementation plans (compacted into decided-plans with appended reviews) | Persists after compaction |
    | `docs/decisions/` | Deliberation outcomes and spike findings | Persists and evolves with codebase |
@@ -298,7 +298,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
 5. **Progressive disclosure**: Agents start with a small, stable entry point and are taught where to look next, rather than being overwhelmed up front. Each level of documentation points deeper when needed.
 
-6. **Doc-gardening agent**: A background agent that runs on a regular cadence to scan for stale or obsolete documentation that no longer reflects the codebase. It opens targeted fix-up PRs to keep documentation in sync with code. It also runs the graduation process after features complete.
+6. **Doc-gardening agent**: A background agent that runs on a regular cadence to scan for stale or obsolete documentation that no longer reflects the codebase. It opens targeted fix-up PRs to keep documentation in sync with code. It also runs the graduation process after features or chores complete.
 
 7. **Mechanical enforcement**: CI-integrated checks validate that the knowledge base is up to date, cross-linked, and structurally correct. Custom linters verify documentation freshness, coverage, and ownership.
 

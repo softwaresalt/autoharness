@@ -18,7 +18,7 @@ All production code MUST be written in {{PRIMARY_LANGUAGE}} ({{LANGUAGE_VERSION}
 
 ### II. Test-First Development (NON-NEGOTIABLE)
 
-Every feature MUST have tests written before implementation code. The test
+Every feature or chore MUST have tests written before implementation code. The test
 directory structure ({{TEST_STRUCTURE}}) MUST be maintained. All tests MUST
 pass via `{{TEST_COMMAND}}` before any code is merged.
 
@@ -136,10 +136,10 @@ Run in order. Do not skip any gate.
 
 ## Development Workflow
 
-1. **Harness before code**: Every feature MUST have a compiling but failing
+1. **Harness before code**: Every feature or chore MUST have a compiling but failing
    test harness before implementation begins.
 2. **Backlog-driven planning**: All task tracking uses the configured backlog workspace and registry-backed operations; do not invent parallel task stores.
-3. **Branch per feature**: Each feature on a dedicated branch.
+3. **Branch per release unit**: Each feature or chore on a dedicated branch.
 4. **Commit discipline**: Conventional commits format (`feat:`, `fix:`, `docs:`, `test:`).
 5. **No dead code**: Placeholder modules replaced or removed before completion.
 6. **Closure before forgetfulness**: Runtime verification and operational closure happen before work is considered fully absorbed.
@@ -190,7 +190,7 @@ This file is a map, not a manual. For deeper context, consult these sources:
 | Workflow policies | `.github/policies/workflow-policies.md` |
 | Constitutional principles | `.github/instructions/constitution.instructions.md` |
 
-Active work items (features, tasks, spikes, deliberations, bugs) are tracked as
+Active work items (features, chores, tasks, spikes, deliberations, bugs) are tracked as
 work items in the backlog queue (`{{BACKLOG_DIRECTORY}}/queue/`). Durable knowledge
 lives in `{{DOCS_ROOT}}/`: compound learnings in `{{DOCS_COMPOUND}}/`, plans in `{{DOCS_PLANS}}/`,
 decisions and spike findings in `{{DOCS_DECISIONS}}/`, session memory in `{{DOCS_MEMORY}}/`,
@@ -200,7 +200,7 @@ into `{{DOCS_DESIGN_DOCS}}/`.
 
 ---
 
-## Feature Pipeline
+## Release Unit Pipeline
 
 ```text
 Idea/Research → deliberate skill or spike skill → backlog-harvester agent

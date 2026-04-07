@@ -17,7 +17,7 @@ silent failures, and state loss during unattended agent operation.
 
 ### II. Test-First Development (NON-NEGOTIABLE)
 
-Every feature MUST have tests written before implementation code. The test
+Every feature or chore MUST have tests written before implementation code. The test
 directory structure ({{TEST_STRUCTURE}}) MUST be maintained. All tests MUST
 pass via `{{TEST_COMMAND}}` before any code is merged. Steps: write test,
 confirm it fails (red), implement, confirm it passes (green). Never write
@@ -176,15 +176,15 @@ Run in order. Do not skip any gate.
 
 ## Development Workflow
 
-1. **Harness before code**: Every feature MUST have a compiling but failing
+1. **Harness before code**: Every feature or chore MUST have a compiling but failing
    test harness before implementation begins.
 2. **Backlog-driven planning**: All task tracking MUST use the backlog system.
    Static markdown task lists outside `{{BACKLOG_DIRECTORY}}/` are not permitted.
-3. **Branch per feature**: Each feature MUST be developed on a dedicated branch.
+3. **Branch per release unit**: Each feature or chore MUST be developed on a dedicated branch.
 4. **Commit discipline**: Each commit MUST be coherent and buildable. Commit
    messages follow conventional commits format (`feat:`, `fix:`, `docs:`, `test:`).
 5. **No dead code**: Placeholder modules MUST be replaced or removed before a
-   feature is considered complete.
+   release unit is considered complete.
 6. **Operational closure**: Work is not complete at “green CI” if runtime validation,
    monitoring setup, or release handoff remains unresolved.
 

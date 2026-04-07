@@ -142,6 +142,7 @@ Derive all template variables from the profile. The variable resolution table de
 | Template Variable | Source | Default |
 |---|---|---|
 | `{{PREFIX_FEATURE}}` | `config.backlog.prefix_map.feature` | `F` |
+| `{{PREFIX_CHORE}}` | `config.backlog.prefix_map.chore` | `C` |
 | `{{PREFIX_TASK}}` | `config.backlog.prefix_map.task` | `T` |
 | `{{PREFIX_SPIKE}}` | `config.backlog.prefix_map.spike` | `S` |
 | `{{PREFIX_DELIBERATION}}` | `config.backlog.prefix_map.deliberation` | `D` |
@@ -453,7 +454,7 @@ When `agent-engram` is enabled, weave indexed-search guidance into research, pla
 
 Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 
-* P-001 (Single-Feature Completion) — Universal
+* P-001 (Single-Release-Unit Completion) — Universal
 * P-002 (TDD Gate) — Adapt test commands and red-phase detection
 * P-003 (Decomposition Chain) — Universal
 * P-004 (Red Phase Before Implementation) — Adapt compilation and test failure detection
@@ -480,7 +481,7 @@ Initialize the backlog directory. Backlog tools are used **exclusively for workf
 Work items in `queue/` follow the naming convention:
 
 ```text
-{prefix}-{NNN}-{slug}.md               # Level 1 (features, epics)
+{prefix}-{NNN}-{slug}.md               # Level 1 (features, chores, epics)
 {prefix}-{NNN}.{NNN}-{slug}.md         # Level 2 (tasks, sub-epics)
 {prefix}-{NNN}.{NNN}.{NNN}-{slug}.md   # Level 3 (subtasks)
 ```
@@ -490,6 +491,7 @@ The prefix map is configured in `config.yml` with concrete single or two-letter 
 | Type | Prefix | Example filename |
 |---|---|---|
 | Feature | `{{PREFIX_FEATURE}}` | `F-001-user-auth.md` |
+| Chore | `{{PREFIX_CHORE}}` | `C-002-python-312-migration.md` |
 | Task | `{{PREFIX_TASK}}` | `T-001.001-add-login-endpoint.md` |
 | Spike | `{{PREFIX_SPIKE}}` | `S-002-evaluate-caching.md` |
 | Deliberation | `{{PREFIX_DELIBERATION}}` | `D-003-api-strategy.md` |
@@ -497,7 +499,7 @@ The prefix map is configured in `config.yml` with concrete single or two-letter 
 | Epic | `{{PREFIX_EPIC}}` | `E-005-auth-overhaul.md` |
 | Subtask | `{{PREFIX_SUBTASK}}` | `ST-001.001.001-write-unit-test.md` |
 
-Prefix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
+Prefix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, C, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
 
 Long-lived knowledge structure (full paths at workspace root):
 

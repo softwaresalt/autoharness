@@ -47,7 +47,7 @@ Every effective agent harness implements these irreducible primitives, regardles
 | 1 | **State, Context & Knowledge Retrieval** | Durable memory, checkpoints, retrieval, compaction | Memory agent, learnings researcher, compact-context, compound |
 | 2 | **Task Granularity & Horizon Scoping** | Decompose work to prevent error compounding        | 2-hour rule, width isolation, atomic milestones            |
 | 3 | **Model Routing & Escalation**        | Match model capability to task complexity           | Tier configuration, escalation laddering, cost tracking    |
-| 4 | **Orchestration, Delegation & Lifecycle Handoffs** | Sequence agents through a feature lifecycle | Pipeline agents, handoff rules, stop conditions, verification handoffs |
+| 4 | **Orchestration, Delegation & Lifecycle Handoffs** | Sequence agents through a feature/chore lifecycle | Pipeline agents, handoff rules, stop conditions, verification handoffs |
 | 5 | **Tool Execution, Safety Modes & Guardrails** | Safe environment mutation with policy enforcement | Approval workflows, safety modes, feature flags, architecture linters |
 | 6 | **Injection Points & Dynamic Reminders** | Surface constraints exactly when needed          | applyTo patterns, instruction reinforcement, DoD checks    |
 | 7 | **Observability & Evaluation**        | Track agent efficacy, output quality, and entropy  | Review personas, metrics, grading, cleanup agents          |
@@ -91,6 +91,12 @@ Every capability pack should define:
 * **Tuning drift rules** — how the tuner decides the overlay is missing, stale, or only partially woven
 
 See [Capability Packs](docs/capability-packs.md) for the full overlay contract.
+
+For the current first-party backlogit guidance, including what is stable now
+versus what is still incubating in backlogit's next workflow revision, see
+[Backlogit Operating Model](docs/backlogit-operating-model.md),
+[Backlogit Compatibility Matrix](docs/backlogit-compatibility-matrix.md), and
+[Backlogit Graduation Checklist](docs/backlogit-graduation-checklist.md).
 
 ## Backlog Tool Integration
 

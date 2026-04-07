@@ -88,6 +88,7 @@ backlog:
   tool: backlogit
   prefix_map:
     feature: "F"
+    chore: "C"
     task: "T"
     spike: "S"
     deliberation: "D"
@@ -112,7 +113,7 @@ The config file controls:
 | `preset` | `standard` | Installation shape (starter, standard, full) |
 | `capability_packs` | `[backlogit, agent-engram]` | Which packs to enable |
 | `backlog.tool` | `backlogit` | Override backlog tool auto-detection |
-| `backlog.prefix_map` | `{feature: "F", task: "T"}` | Work item type prefixes |
+| `backlog.prefix_map` | `{feature: "F", chore: "C", task: "T"}` | Work item type prefixes |
 | `docs.root` | `docs` | Where durable knowledge artifacts live |
 | `model_routing` | `{tier1: "gpt-5.4-mini"}` | Model preferences per tier |
 | `overrides` | `{PROJECT_NAME: "my-app"}` | Explicit template variable overrides |
@@ -210,6 +211,11 @@ Capability packs deepen the harness without redefining the primitive model:
 `agent-engram` is also an overlay rather than a single search toggle. When enabled, autoharness should keep the generic search guidance in place while additionally teaching the harness to use Engram's higher-leverage indexed capabilities such as unified search, code graph lookup, workspace memory queries, lifecycle checks, and index freshness workflows.
 
 `backlogit` is also an overlay rather than a simple tool toggle. When enabled, autoharness should keep the generic backlog abstraction in place while additionally teaching the harness to use backlogit's higher-leverage features such as SQL query access, prioritized queue retrieval, dependency traversal, agent memory, checkpoints, comments, and commit traceability.
+
+Use [Backlogit Operating Model](backlogit-operating-model.md) as the contract for
+what `autoharness` should consume today. If backlogit evolves a new internal
+workflow, promote only the validated external contract into `autoharness`, not
+the in-progress implementation details.
 
 All packs follow the formal overlay pattern documented in [Capability Packs](capability-packs.md). Packs are applied after the base primitive composition is chosen and before installation verification completes.
 
@@ -336,13 +342,13 @@ The installer runs automatic verification. You can also manually check:
 
 ### First Use
 
-1. Invoke the deliberator: `@deliberator topic="my feature idea"`
+1. Invoke the deliberator: `@deliberator topic="my feature or chore idea"`
 2. The deliberator determines whether this needs a decision (deliberate) or investigation (spike)
 3. Review the decision or findings artifact and promote to a plan or queue
 4. If promoted to plan, the backlog-harvester decomposes it into tasks
-5. Invoke the harness-architect for the feature
+5. Invoke the harness-architect for the resulting feature or chore
 6. Invoke the build-orchestrator to implement
-7. If the feature changes runtime behavior, run `runtime-verification`
+7. If the feature or chore changes runtime behavior, run `runtime-verification`
 8. Capture release readiness and follow-up monitoring with `operational-closure`
 9. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
 10. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results

@@ -13,7 +13,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 ---
 
-## P-001: Single-Feature Completion
+## P-001: Single-Release-Unit Completion
 
 | Field      | Value                          |
 |------------|--------------------------------|
@@ -21,11 +21,11 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Applies To | `build-orchestrator`           |
 | Gate Point | Pre-flight (Step 1)            |
 
-**Statement**: The build-orchestrator must complete one feature through to PR merge before starting a new feature. Parallel in-flight features create branch conflicts, context fragmentation, and agent interference.
+**Statement**: The build-orchestrator must complete one top-level release unit (feature or chore) through to PR merge before starting a new one. Parallel in-flight release units create branch conflicts, context fragmentation, and agent interference.
 
-**Precondition**: No backlog tasks with status `In Progress` exist under any feature number other than the current feature.
+**Precondition**: No backlog tasks with status `In Progress` exist under any top-level work item other than the current feature or chore.
 
-**Postcondition**: All tasks under the current feature are `Done` before the orchestrator claims work on a new feature.
+**Postcondition**: All tasks under the current top-level work item are `Done` before the orchestrator claims work on a new feature or chore.
 
 **Violation Action**: Halt. Do not proceed until the conflict is resolved or the operator explicitly overrides with `skip_policy: P-001`.
 
@@ -65,7 +65,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 1. The source document exists at the declared path
 2. The plan file references the source document
-3. Every sub-epic references the plan and feature epic
+3. Every sub-epic references the plan and its top-level feature or chore work item
 4. Every task references its parent sub-epic
 5. Every task includes at least one acceptance criterion
 

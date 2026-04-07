@@ -236,6 +236,33 @@ This is not a one-file add-on. It is a woven operational behavior layer.
 
 This pack does not replace generic backlog integration. It deepens it when backlogit is the selected backlog tool.
 
+### Stable versus incubating guidance
+
+For backlogit, `autoharness` should distinguish between **stable external
+contract** and **incubating internal workflow**.
+
+Stable backlogit contract that can be woven now:
+
+* query-driven lookup
+* queue-aware work selection
+* dependency operations
+* memory and checkpoints
+* comments and commit traceability
+* metadata discovery and command-map export
+
+Incubating backlogit workflow that should remain in backlogit until proven:
+
+* `groomer` and `shipper` agent choreography
+* shipment artifacts and shipment-scoped branch assumptions
+* stash JSONL and related storage transitions
+* unfinalized file naming or lifecycle rules tied to the emerging two-agent model
+
+Use [Backlogit Operating Model](backlogit-operating-model.md) for the current
+boundary, [Backlogit Compatibility Matrix](backlogit-compatibility-matrix.md)
+for surface-by-surface status, and
+[Backlogit Graduation Checklist](backlogit-graduation-checklist.md) before
+promoting incubating workflow changes into templates.
+
 ## Design rules
 
 When creating future packs, follow these rules:

@@ -100,7 +100,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 ## Primitive 4: Orchestration, Delegation, and Lifecycle Handoffs
 
-**Purpose**: Sequence agents through the feature lifecycle with clear handoffs, preserved release context, and stop conditions.
+**Purpose**: Sequence agents through the feature/chore lifecycle with clear handoffs, preserved release context, and stop conditions.
 
 **Key Artifacts**:
 
@@ -198,7 +198,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 **Design Rules**:
 
 * Policies are declarative: precondition, postcondition, gate point, violation action
-* P-001: Single-feature completion (no parallel features)
+* P-001: Single top-level release-unit completion (no parallel features or chores)
 * P-002: TDD gate (`harness-ready` label required before implementation)
 * P-003: Decomposition chain integrity (validated parent-child references)
 * P-004: Red phase before implementation (tests compile and fail)
