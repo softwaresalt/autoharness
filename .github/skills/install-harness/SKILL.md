@@ -86,6 +86,7 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{TEST_DIR}}` | `test.directory` | `tests/` | `__tests__/` | `tests/` |
 | `{{SOURCE_DIR}}` | `structure.source_layout` | `src/` | `src/` | `src/` |
 | `{{CI_PLATFORM}}` | `ci.platform` | `GitHub Actions` | `GitHub Actions` | `GitHub Actions` |
+| `{{CI_WORKFLOW_GLOB}}` | Derived from `ci.platform` | `**/.github/workflows/*.yml` | `**/.github/workflows/*.yml` | `**/.github/workflows/*.yml` |
 | `{{BUILD_TOOL}}` | `build.tool` | `cargo` | `npm` | `pip` |
 | `{{FORMATTER}}` | `format.tool` | `rustfmt` | `prettier` | `ruff` |
 | `{{LINTER}}` | `lint.tool` | `clippy` | `eslint` | `ruff` |
@@ -93,6 +94,12 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{UNSAFE_POLICY}}` | Language-specific safety rules | `#![forbid(unsafe_code)]` | `strict TypeScript` | `type hints required` |
 | `{{ERROR_PATTERN}}` | Language-specific error handling | `Result<T, Error>` | `try/catch + custom errors` | `raise/except` |
 | `{{DOC_COMMENT_STYLE}}` | Language convention | `/// doc comment` | `/** JSDoc */` | `"""docstring"""` |
+| `{{LANGUAGE_FILE_GLOB}}` | Language convention | `**/*.rs` | `**/*.ts,**/*.tsx` | `**/*.py` |
+| `{{UNIMPLEMENTED_MARKER}}` | Language convention | `unimplemented!("Worker: ...")` | `throw new Error("Not implemented: ...")` | `raise NotImplementedError("...")` |
+| `{{MCP_SDK}}` | `frameworks.mcp_sdk` (when detected) | _(N/A)_ | `@modelcontextprotocol/sdk` | `mcp` |
+| `{{MCP_TRANSPORT}}` | `frameworks.mcp_transport` (when detected) | _(N/A)_ | `stdio` | `stdio` |
+| `{{MCP_PROJECT_STRUCTURE}}` | Derived from language and project layout | _(N/A)_ | _(project tree)_ | _(project tree)_ |
+| `{{REPOSITORY_OPERATING_MODEL}}` | Derived from workspace architecture | _(brief description)_ | _(brief description)_ | _(brief description)_ |
 | `{{QUALITY_GATE_1_NAME}}` | `ci.quality_gates[0]` (name) | `check` | `lint` | `lint` |
 | `{{QUALITY_GATE_1}}` | `ci.quality_gates[0]` (command) | `cargo check --all-targets` | `npm run lint` | `ruff check .` |
 | `{{QUALITY_GATE_2_NAME}}` | `ci.quality_gates[1]` (name) | `clippy` | `typecheck` | `typecheck` |
@@ -331,7 +338,7 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/memory`, `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/backlog-harvester` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci` |
+| 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect` |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
 | 7 - Observability | `agents/review/*`, `agents/doc-ops`, `agents/review`, `agents/plan-review` |
@@ -345,7 +352,7 @@ Map primitives to template groups:
 
 Generate the constitutional foundation first, as all other artifacts reference it:
 
-1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 9 universal principles (I–IX).
+1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 10 universal principles (I–X).
 
 2. **AGENTS.md**: Generate the root AGENTS.md with technology-specific quality gates, code style conventions, error handling patterns, and terminal command policies.
 
@@ -359,7 +366,7 @@ If the `agent-engram` capability pack is enabled, weave the engram-first search 
 
 Generate instruction files. These use `applyTo` patterns to scope their rules:
 
-1. **Technology instructions** (`{language}.instructions.md`): Language-specific coding conventions, error handling, naming, documentation standards. Use `technology.instructions.md.tmpl` as the base.
+1. **Technology instructions** (`{language}.instructions.md`): Language-specific coding conventions, error handling, naming, documentation standards. Use the language-specific variant template when available (`technology-go.instructions.md.tmpl`, `technology-typescript.instructions.md.tmpl`, `technology-python.instructions.md.tmpl`, `technology-rust.instructions.md.tmpl`). Fall back to the generic `technology.instructions.md.tmpl` skeleton for languages without a variant.
 
 2. **Universal instructions** (no technology adaptation needed):
    * `commit-message.instructions.md` — Adapt scopes to match workspace directory structure
@@ -369,6 +376,9 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `pull-request.instructions.md` — Universal (install as-is)
    * `prompt-builder.instructions.md` — Universal (install as-is)
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
+   * `ci-security.instructions.md` — CI/CD security and hygiene conventions. Adapt `{{CI_WORKFLOW_GLOB}}` to match the workspace CI platform (e.g., `**/.github/workflows/*.yml` for GitHub Actions). Install when the workspace uses a CI system detected during discovery.
+   * `workflows.instructions.md` — CI/CD workflow structural conventions (job naming, artifacts, caching, matrix, reusable workflows). Install alongside `ci-security.instructions.md` when a CI system is detected.
+   * `mcp-server.instructions.md` — MCP server development conventions. Install when workspace-discovery detects an MCP server project (MCP SDK in dependencies). Resolves `{{MCP_SDK}}`, `{{MCP_TRANSPORT}}`, `{{MCP_PROJECT_STRUCTURE}}`.
 
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
 
@@ -442,6 +452,9 @@ Generate skill files:
    * `spike/SKILL.md`
    * `compact-context/SKILL.md`
    * `compound/SKILL.md`
+   * `harness-architect/SKILL.md` — Install when Primitive 4 is selected. Adapts test patterns, failure markers, and file placement for `{{PRIMARY_LANGUAGE}}`
+   * `harvest/SKILL.md` — Install when Primitive 4 is selected. Resolves backlog tool variables from the registry
+   * `pr-lifecycle/SKILL.md` — Install when Primitive 4 is selected. Language-agnostic; uses `gh` CLI
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
    * `runtime-verification/SKILL.md` — Install when Primitive 10 is selected
    * `operational-closure/SKILL.md` — Install when Primitive 10 is selected

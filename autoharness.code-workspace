@@ -2,7 +2,15 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../backlogit"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"chat.tools.terminal.autoApprove": {
+			".github/skills/install-harness/SKILL.md": true
+		},
+		"powershell.cwd": "autoharness"
+	}
 }
