@@ -23,7 +23,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 **Statement**: The build-orchestrator must complete one top-level release unit (feature or chore) through to PR merge before starting a new one. Parallel in-flight release units create branch conflicts, context fragmentation, and agent interference.
 
-**Precondition**: No backlog tasks with status `In Progress` exist under any top-level work item other than the current feature or chore.
+**Precondition**: No backlog tasks with status `Active` exist under any top-level work item other than the current feature or chore.
 
 **Postcondition**: All tasks under the current top-level work item are `Done` before the orchestrator claims work on a new feature or chore.
 

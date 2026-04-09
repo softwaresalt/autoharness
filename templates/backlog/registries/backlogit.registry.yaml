@@ -164,8 +164,8 @@ field_mapping:
   artifact_type: "artifact_type"
 
 status_values:
-  todo: "queued"
-  in_progress: "active"
+  queued: "queued"
+  active: "active"
   done: "done"
   blocked: "blocked"
 

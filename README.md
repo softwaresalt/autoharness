@@ -113,7 +113,7 @@ A structured backlog tool is essential for effective agent harness operation. Ag
 
 1. **Detection**: The workspace-discovery skill scans for backlog tool markers (config files, directories, MCP registrations)
 2. **Registry**: A pre-built registry YAML maps abstract operations (create, list, update, move) to the tool's specific MCP tool names and CLI commands
-3. **Abstraction**: All agent templates reference abstract operations (`{{OP_CREATE_MCP}}`, `{{STATUS_TODO}}`), which are resolved to tool-specific values during installation
+3. **Abstraction**: All agent templates reference abstract operations (`{{OP_CREATE_MCP}}`, `{{STATUS_QUEUED}}`), which are resolved to tool-specific values during installation
 4. **Migration**: The harness-tuner detects tool switches and generates migration proposals that update all harness references
 
 ### Manual Registration

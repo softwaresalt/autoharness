@@ -98,10 +98,10 @@
       "type": "object",
       "description": "Maps abstract status names to tool-specific status strings",
       "properties": {
-        "todo": { "type": "string", "default": "To Do" },
-        "in_progress": { "type": "string", "default": "In Progress" },
-        "done": { "type": "string", "default": "Done" },
-        "blocked": { "type": "string", "default": "Blocked" }
+        "queued": { "type": "string", "default": "queued" },
+        "active": { "type": "string", "default": "active" },
+        "done": { "type": "string", "default": "done" },
+        "blocked": { "type": "string", "default": "blocked" }
       }
     },
     "features": {

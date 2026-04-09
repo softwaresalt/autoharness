@@ -130,8 +130,8 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_MOVE_CLI}}` | Registry `operations.move_task.cli_command` | `backlogit move {id} {status}` | `backlog task move {id}` |
 | `{{OP_SEARCH_CLI}}` | Registry `operations.search_tasks.cli_command` | `backlogit search {query}` | `backlog task search` |
 | `{{OP_COMPLETE_CLI}}` | Registry `operations.complete_task.cli_command` | `backlogit done {id}` | `backlog task complete {id}` |
-| `{{STATUS_TODO}}` | Registry `status_values.todo` | `queued` | `To Do` |
-| `{{STATUS_IN_PROGRESS}}` | Registry `status_values.in_progress` | `active` | `In Progress` |
+| `{{STATUS_QUEUED}}` | Registry `status_values.queued` | `queued` | `To Do` |
+| `{{STATUS_ACTIVE}}` | Registry `status_values.active` | `active` | `In Progress` |
 | `{{STATUS_DONE}}` | Registry `status_values.done` | `done` | `Done` |
 | `{{STATUS_BLOCKED}}` | Registry `status_values.blocked` | `blocked` | `Blocked` |
 | `{{FIELD_TASK_ID}}` | Registry `field_mapping.task_id` | `id` | `id` |

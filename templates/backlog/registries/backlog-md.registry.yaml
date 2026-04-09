@@ -99,8 +99,8 @@ field_mapping:
   priority: "priority"
 
 status_values:
-  todo: "To Do"
-  in_progress: "In Progress"
+  queued: "To Do"
+  active: "In Progress"
   done: "Done"
   blocked: "Blocked"
 

@@ -35,8 +35,24 @@
       }
     },
     "frameworks": {
-      "type": "array",
-      "items": { "type": "string" }
+      "type": "object",
+      "description": "Detected frameworks and specialized SDK integrations",
+      "properties": {
+        "list": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of detected frameworks (e.g., React, FastAPI, Cobra)"
+        },
+        "mcp_sdk": {
+          "type": ["string", "null"],
+          "description": "MCP SDK detected in dependencies (e.g., mcp-go, @modelcontextprotocol/sdk, mcp)"
+        },
+        "mcp_transport": {
+          "type": ["string", "null"],
+          "enum": ["stdio", "sse", "streamable-http", null],
+          "description": "MCP transport mechanism detected when MCP SDK is present"
+        }
+      }
     },
     "build": {
       "type": "object",

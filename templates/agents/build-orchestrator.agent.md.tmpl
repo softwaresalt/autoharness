@@ -23,14 +23,14 @@ You are the central execution coordinator. You do not write code directly. You d
 * When the `agent-engram` capability pack is installed, follow `.github/instructions/agent-engram.instructions.md` and verify the engram daemon / binding surface is available before depending on indexed analysis
 * When the `backlogit` capability pack is installed, follow `.github/instructions/backlogit.instructions.md` and verify the backlogit queue / dependency / checkpoint surface is available before depending on those behaviors
 
-1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `In Progress` in the backlog
+1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
 3. **Re-read constitution**: Load `.github/instructions/constitution.instructions.md` Principles I, II, IV
 4. If the task has elevated blast radius, uncertain root cause, or destructive potential, invoke **safety-modes** in the appropriate mode before modifying code
 
 ### Step 2: Build Ready Queue
 
-List all tasks with `harness-ready` label (P-002 gate) for the target feature or chore using the backlog tool's list operation (see `backlog-integration.instructions.md`). Filter by `{{FIELD_LABELS}}: "harness-ready"` and `{{FIELD_STATUS}}: "{{STATUS_TODO}}"`. If no tasks are ready, halt and suggest running the harness-architect.
+List all tasks with `harness-ready` label (P-002 gate) for the target feature or chore using the backlog tool's list operation (see `backlog-integration.instructions.md`). Filter by `{{FIELD_LABELS}}: "harness-ready"` and `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`. If no tasks are ready, halt and suggest running the harness-architect.
 
 Sort the queue by dependency order (tasks with no unfinished dependencies first).
 
@@ -44,7 +44,7 @@ For each task in the ready queue:
 
 #### Step 3.1: Claim Task
 
-Update task status to `{{STATUS_IN_PROGRESS}}` using the backlog tool's move operation.
+Update task status to `{{STATUS_ACTIVE}}` using the backlog tool's move operation.
 
 When the `agent-intercom` capability pack is installed, broadcast the task claim and current task ID.
 
