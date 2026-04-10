@@ -36,7 +36,7 @@ AI agents operate within finite context windows and finite recall. Long-running 
 
 Four interconnected mechanisms manage state, recall, and retrieval:
 
-1. **Memory Agent**: Persists session state in structured Markdown with YAML frontmatter. Supports manual saves (user-invoked) and checkpoints (build-orchestrator-invoked). Every checkpoint captures tasks completed, files modified, decisions made, failed approaches, and next steps.
+1. **Session Continuity Protocols**: State persistence is inline in the stage and ship agents. Every checkpoint captures tasks completed, files modified, decisions made, failed approaches, and next steps.
 
 2. **Learnings Researcher**: Searches the compound library before planning and review work begins. Retrieval is not optional bookkeeping; it is the mechanism that turns institutional knowledge into immediate task context.
 
@@ -84,9 +84,9 @@ Agents are assigned to model tiers based on task complexity:
 
 | Tier | Model Class | Typical Agents | Use Cases |
 |---|---|---|---|
-| **Tier 1** | Fast/Cheap | memory, doc-ops, prompt-builder, learnings-researcher | State persistence, docs, prompt editing |
-| **Tier 2** | Standard | build-orchestrator, pr-review, language-engineer | Code writing, orchestration, review |
-| **Tier 3** | Frontier | backlog-harvester, harness-architect | Architecture, planning, complex analysis |
+| **Tier 1** | Fast/Cheap | prompt-builder, learnings-researcher | Prompt editing, knowledge search |
+| **Tier 2** | Standard | ship, language-engineer | Code writing, orchestration, review |
+| **Tier 3** | Frontier | stage, harness-architect | Architecture, planning, complex analysis |
 
 **Escalation**: When a Tier 1 or Tier 2 agent fails 3 consecutive times, the orchestrator escalates to a Tier 3 model and retries before halting. This prevents cheaper models from being stuck on tasks above their capability.
 
@@ -108,13 +108,12 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 
 1. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
 2. **Spike Skill**: Execute time-boxed investigations to answer technical questions, evaluate feasibility, and capture findings
-3. **Backlog Harvester**: Plan → review → decompose into tasks
+3. **Stage Agent**: Triage stash → deliberate/spike → plan → review → harvest into backlog
 4. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
-5. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality, and hand off to review/CI/runtime verification
-6. **PR Review**: Analyze diff, delegate to review personas, create PR, and attach verification/closure expectations
-7. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
-8. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
-9. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
+5. **Ship Agent**: Claim tasks, delegate to build-feature skill, verify quality, manage review/CI/PR lifecycle, runtime verification, and operational closure
+6. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
+7. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
+8. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
 
 **Stop conditions** prevent infinite loops:
 
@@ -179,7 +178,7 @@ Instructions are loaded dynamically based on relevance:
 
 1. **applyTo patterns**: Instruction files declare glob patterns. An instruction about Rust conventions loads only when the agent touches `.rs` files.
 
-2. **Instruction reinforcement**: The build-feature skill re-reads coding standards before every fix attempt. The build-orchestrator re-reads constitution principles at session start.
+2. **Instruction reinforcement**: The build-feature skill re-reads coding standards before every fix attempt. The ship agent re-reads constitution principles at session start.
 
 3. **Definition of Done checks**: Before completing a task, agents verify acceptance criteria from the task file.
 
@@ -224,7 +223,7 @@ Compound learnings capture post-mortem insights for future reference.
 
 ### The Problem
 
-Agent definitions describe what an agent does, but nothing prevents invoking agents out of sequence. Without cross-agent policies, the build-orchestrator could claim a task before the harness-architect generates the test harness, violating the TDD mandate.
+Agent definitions describe what an agent does, but nothing prevents invoking agents out of sequence. Without cross-agent policies, the ship agent could claim a task before the harness-architect generates the test harness, violating the TDD mandate.
 
 ### The Solution
 
@@ -239,7 +238,7 @@ Five core policies:
 
 | Policy | Gate | Purpose |
 |---|---|---|
-| P-001 | Build orchestrator pre-flight | Only one top-level release unit (feature or chore) in progress at a time |
+| P-001 | Ship agent pre-flight | Only one top-level release unit (feature or chore) in progress at a time |
 | P-002 | Task claiming | TDD gate — `harness-ready` label required |
 | P-003 | Pre-harvest | Decomposition chain integrity validated |
 | P-004 | Harness approval | Red phase confirmed before implementation |
@@ -288,7 +287,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
    Work items live in the backlog because they're managed by the backlog tool. The *knowledge artifacts* they produce live in `docs/` as durable records. The compact-context skill consolidates verbose memory and plans into dense summaries, archiving originals to `docs/archive/`.
 
-4. **Knowledge graduation**: When backlog work completes, the doc-ops agent evaluates whether it produced reference-worthy knowledge:
+4. **Knowledge graduation**: When backlog work completes, the ship agent evaluates during post-merge closure whether the work produced reference-worthy knowledge:
    * **Architectural decisions** from completed plans → `docs/design-docs/` as design records
    * **Hard-won solutions** from compound learnings → already in `docs/compound/` (searchable)
    * **New domain patterns** discovered during implementation → update `docs/ARCHITECTURE.md`
@@ -298,7 +297,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
 5. **Progressive disclosure**: Agents start with a small, stable entry point and are taught where to look next, rather than being overwhelmed up front. Each level of documentation points deeper when needed.
 
-6. **Doc-gardening agent**: A background agent that runs on a regular cadence to scan for stale or obsolete documentation that no longer reflects the codebase. It opens targeted fix-up PRs to keep documentation in sync with code. It also runs the graduation process after features or chores complete.
+6. **Doc-gardening**: The ship agent runs doc-gardening as part of its post-merge closure protocol to scan for stale or obsolete documentation that no longer reflects the codebase. It applies targeted fixes to keep documentation in sync with code and runs the graduation process after features or chores complete.
 
 7. **Mechanical enforcement**: CI-integrated checks validate that the knowledge base is up to date, cross-linked, and structurally correct. Custom linters verify documentation freshness, coverage, and ownership.
 

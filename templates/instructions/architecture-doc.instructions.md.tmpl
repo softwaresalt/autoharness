@@ -46,8 +46,8 @@ process to distill durable insights from completed work into `{{DOCS_ROOT}}/` ar
 
 ## Knowledge Graduation
 
-When backlog work completes, the doc-ops agent evaluates whether it produced
-reference-worthy knowledge:
+When backlog work completes, the ship agent evaluates whether it produced
+reference-worthy knowledge as part of its post-merge closure protocol:
 
 * **Architectural decisions** from completed plans → `{{DOCS_DESIGN_DOCS}}/`
 * **New domain patterns** discovered during implementation → update `{{DOCS_ROOT}}/ARCHITECTURE.md`
@@ -85,9 +85,9 @@ Documentation is stale when:
 * New domains or modules have been added without corresponding documentation
 * Cross-links point to moved or deleted targets
 
-## The Doc-Ops Agent
+## Documentation Gardening
 
-The `doc-ops` agent runs periodic doc-gardening sweeps. When it finds staleness:
+The ship agent runs doc-gardening as part of its post-merge closure protocol. When staleness is found:
 
 * Simple fixes (path corrections, command updates) are applied directly
 * Complex fixes are proposed as PRs with clear descriptions

@@ -17,7 +17,7 @@ code, prototyping, benchmarking, or evaluating external tools.
 
 ## When to Use
 
-* The operator or deliberator identifies unknowns that require investigation
+* The operator or stage agent identifies unknowns that require investigation
   before committing to an implementation approach
 * A feature or chore has technical risk that should be explored in isolation
 * A proof-of-concept is needed to validate feasibility
@@ -220,9 +220,9 @@ When `promote_to` includes `plan` (or `ask` resolved to `plan`):
 When `plan` is combined with other paths (e.g., `plan,learnings` or `plan,queue`),
 complete this step first, then continue with Steps 4.3 and 4.4 for the remaining paths.
 
-If the **backlog-harvester** agent is active (operator preference over direct impl-plan invocation),
-call backlog-harvester instead and pass the spike artifact as the planning seed. The
-backlog-harvester will invoke impl-plan internally and return the plan artifact path.
+If the **stage** agent is active (operator preference over direct impl-plan invocation),
+call stage instead and pass the spike artifact as the planning seed. The
+stage agent will invoke impl-plan internally and return the plan artifact path.
 
 #### Step 4.3: Create Backlog Item (When Applicable)
 

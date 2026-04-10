@@ -44,7 +44,7 @@ Every effective agent harness implements these irreducible primitives, regardles
 
 | # | Primitive                             | Purpose                                            | Key Artifacts                                              |
 |---|---------------------------------------|----------------------------------------------------|------------------------------------------------------------|
-| 1 | **State, Context & Knowledge Retrieval** | Durable memory, checkpoints, retrieval, compaction | Memory agent, learnings researcher, compact-context, compound |
+| 1 | **State, Context & Knowledge Retrieval** | Durable memory, checkpoints, retrieval, compaction | Session continuity protocols, learnings researcher, compact-context, compound |
 | 2 | **Task Granularity & Horizon Scoping** | Decompose work to prevent error compounding        | 2-hour rule, width isolation, atomic milestones            |
 | 3 | **Model Routing & Escalation**        | Match model capability to task complexity           | Tier configuration, escalation laddering, cost tracking    |
 | 4 | **Orchestration, Delegation & Lifecycle Handoffs** | Sequence agents through a feature/chore lifecycle | Pipeline agents, handoff rules, stop conditions, verification handoffs |

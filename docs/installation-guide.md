@@ -258,15 +258,11 @@ target-workspace/
   .github/
     copilot-instructions.md              # Shared development guidelines
     agents/                              # Agent definitions
-      deliberator.agent.md
-      backlog-harvester.agent.md
-      build-orchestrator.agent.md
-      harness-architect.agent.md
-      pr-review.agent.md
-      memory.agent.md
-      doc-ops.agent.md
+      stage.agent.md
+      ship.agent.md
       prompt-builder.agent.md
       {language}-engineer.agent.md       # Technology-specific expert
+      deprecated/                        # Superseded agents kept for reference
       review/                            # Review personas
         architecture-strategist.agent.md
         constitution-reviewer.agent.md
@@ -282,9 +278,12 @@ target-workspace/
       compact-context/SKILL.md
       compound/SKILL.md
       fix-ci/SKILL.md
+      harness-architect/SKILL.md
+      harvest/SKILL.md
       impl-plan/SKILL.md
       operational-closure/SKILL.md
       plan-review/SKILL.md
+      pr-lifecycle/SKILL.md
       review/SKILL.md
       runtime-verification/SKILL.md
       safety-modes/SKILL.md
@@ -342,14 +341,14 @@ The installer runs automatic verification. You can also manually check:
 
 ### First Use
 
-1. Invoke the deliberator: `@deliberator topic="my feature or chore idea"`
-2. The deliberator determines whether this needs a decision (deliberate) or investigation (spike)
+1. Invoke the stage agent: `@stage topic="my feature or chore idea"`
+2. The stage agent determines whether this needs a decision (deliberate) or investigation (spike)
 3. Review the decision or findings artifact and promote to a plan or queue
-4. If promoted to plan, the backlog-harvester decomposes it into tasks
-5. Invoke the harness-architect for the resulting feature or chore
-6. Invoke the build-orchestrator to implement
-7. If the feature or chore changes runtime behavior, run `runtime-verification`
-8. Capture release readiness and follow-up monitoring with `operational-closure`
+4. If promoted to plan, the stage agent decomposes it into tasks via the harvest skill
+5. Invoke the ship agent to implement the feature or chore
+6. The ship agent handles harness generation, build, review, CI, and PR lifecycle
+7. If the feature or chore changes runtime behavior, ship runs `runtime-verification`
+8. Ship captures release readiness and follow-up monitoring with `operational-closure`
 9. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
 10. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
 11. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows

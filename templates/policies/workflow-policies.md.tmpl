@@ -18,10 +18,10 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Field      | Value                          |
 |------------|--------------------------------|
 | Policy ID  | P-001                          |
-| Applies To | `build-orchestrator`           |
+| Applies To | `ship`           |
 | Gate Point | Pre-flight (Step 1)            |
 
-**Statement**: The build-orchestrator must complete one top-level release unit (feature or chore) through to PR merge before starting a new one. Parallel in-flight release units create branch conflicts, context fragmentation, and agent interference.
+**Statement**: The ship agent must complete one top-level release unit (feature or chore) through to PR merge before starting a new one. Parallel in-flight release units create branch conflicts, context fragmentation, and agent interference.
 
 **Precondition**: No backlog tasks with status `Active` exist under any top-level work item other than the current feature or chore.
 
@@ -36,16 +36,16 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Field      | Value                                                        |
 |------------|--------------------------------------------------------------|
 | Policy ID  | P-002                                                        |
-| Applies To | `build-orchestrator` (consumer), `harness-architect` (producer) |
+| Applies To | `ship` (consumer), `harness-architect` (producer) |
 | Gate Point | Queue building (Step 2) and task claiming (Step 3)           |
 
-**Statement**: The build-orchestrator may only claim and implement a task after the harness-architect has confirmed that the test harness compiles and all tests fail in the red phase.
+**Statement**: The ship agent may only claim and implement a task after the harness-architect has confirmed that the test harness compiles and all tests fail in the red phase.
 
-**Precondition** (build-orchestrator): The task carries the `harness-ready` label.
+**Precondition** (ship): The task carries the `harness-ready` label.
 
 **Postcondition** (harness-architect): The task has `harness-ready` label, the harness compiles (`{{BUILD_CHECK_COMMAND}}`), and all tests fail with expected failure markers.
 
-**Enforcement** (build-orchestrator): Filter ready queue to only tasks carrying the `harness-ready` label.
+**Enforcement** (ship): Filter ready queue to only tasks carrying the `harness-ready` label.
 
 **Violation Action**: Halt and suggest running the harness-architect.
 
@@ -56,7 +56,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Field      | Value                  |
 |------------|------------------------|
 | Policy ID  | P-003                  |
-| Applies To | `backlog-harvester`    |
+| Applies To | `stage`    |
 | Gate Point | Pre-harvest validation |
 
 **Statement**: Each stage of the decomposition chain must reference its parent artifact and pass structural validation before the next stage may proceed.

@@ -6,14 +6,14 @@ description: "Compact and consolidate memory, plan, and tracking artifacts into 
 
 Scan `{{DOCS_MEMORY}}/`, `{{DOCS_PLANS}}/`, and `{{DOCS_CLOSURE}}/` for stale or oversized artifacts, produce compacted summaries, and archive verbose originals. For plans with appended reviews, consolidate into a decided-plan that replaces the original plan + review verbosity.
 
-This skill is a **mandatory workflow step** invoked explicitly by the memory agent (when checkpoint threshold is exceeded) and the build-orchestrator (at batch completion). It is NOT advisory — built-in AI assistant memory features do not write to `{{DOCS_ROOT}}/`, so compaction is the only mechanism that ensures session knowledge is consolidated into durable, version-controlled artifacts.
+This skill is a **mandatory workflow step** invoked explicitly by the stage or ship agent (when checkpoint threshold is exceeded or at batch completion). It is NOT advisory — built-in AI assistant memory features do not write to `{{DOCS_ROOT}}/`, so compaction is the only mechanism that ensures session knowledge is consolidated into durable, version-controlled artifacts.
 
 ## When to Use
 
 Invoke as part of the standard workflow:
 
-* **Memory agent**: When checkpoint count for a feature or chore exceeds 10 (mandatory trigger)
-* **Build-orchestrator**: At batch completion (Step 4), after writing the session memory summary
+* **Stage or Ship agent**: When checkpoint count for a feature or chore exceeds 10 (mandatory trigger)
+* **Ship agent**: At batch completion (Step 5), after writing the session memory summary
 * **Manual**: When `{{DOCS_MEMORY}}/` file count > 40, total size > 500 KB, or the operator requests it
 
 ## Inputs
@@ -45,7 +45,7 @@ Scan the target directories:
 
 **Plans** (`{{DOCS_PLANS}}/`):
 
-* Identify plans with appended review sections (plan-review agent appends findings)
+* Identify plans with appended review sections (plan-review skill appends findings)
 * Identify plans whose associated feature or chore is complete (all tasks Done)
 
 **Closure records** (`{{DOCS_CLOSURE}}/`):

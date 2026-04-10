@@ -13,7 +13,7 @@ Code review via tiered reviewer personas. Each persona evaluates changes from it
 
 ## When to Use
 
-Invoke when reviewing code changes before creating a PR, as a build gate, or for standalone review. Typically invoked by the pr-review agent or build-orchestrator.
+Invoke when reviewing code changes before creating a PR, as a build gate, or for standalone review. Typically invoked by the ship agent.
 
 ## Inputs
 
@@ -84,7 +84,7 @@ Collect findings from all personas:
 
 **Autofix**: Apply all `safe_auto` fixes. Create backlog tasks for `manual` items. Report all findings.
 
-**Report-only**: Return all findings to the caller without making any changes. Used by the build-orchestrator for gate checks.
+**Report-only**: Return all findings to the caller without making any changes. Used by the ship agent for gate checks.
 
 When the diff changes runtime surfaces, include an explicit recommendation for whether follow-up runtime verification is required and which mode (`manual`, `api`, `browser`) is appropriate.
 

@@ -201,8 +201,8 @@ work items in the backlog queue (`{{BACKLOG_DIRECTORY}}/queue/`). Durable knowle
 lives in `{{DOCS_ROOT}}/`: compound learnings in `{{DOCS_COMPOUND}}/`, plans in `{{DOCS_PLANS}}/`,
 decisions and spike findings in `{{DOCS_DECISIONS}}/`, session memory in `{{DOCS_MEMORY}}/`,
 and closure records in `{{DOCS_CLOSURE}}/`. When completed work produces durable design
-decisions or architectural rationale, the doc-ops agent graduates that knowledge
-into `{{DOCS_DESIGN_DOCS}}/`.
+decisions or architectural rationale, the ship agent graduates that knowledge
+into `{{DOCS_DESIGN_DOCS}}/` as part of its post-merge closure protocol.
 
 ---
 
@@ -220,19 +220,32 @@ The table below is maintained as agents are superseded:
 
 | Deprecated Agent | Superseded By | Reason |
 |---|---|---|
-| _(none yet)_ | | |
+| `backlog-harvester` | `stage` + `harvest` skill | Stage absorbs triage, deliberation routing, planning, and harvest orchestration |
+| `build-orchestrator` | `ship` + `build-feature` skill | Ship absorbs harness generation, build execution, review, CI, and PR lifecycle |
+| `deliberator` | `stage` + `deliberate` / `spike` skills | Stage routes ideas directly to deliberate or spike skills |
+| `doc-ops` | `ship` post-merge closure protocol | Ship handles knowledge graduation and doc gardening after merge |
+| `memory` | Stage and Ship session continuity protocols | Session persistence is inline in both primary agents |
+| `pr-review` | `ship` + `pr-lifecycle` skill | Ship manages the full PR lifecycle including review delegation |
+| `review` (agent) | `review` skill | Converted from agent to skill; dispatches persona subagents |
+| `plan-review` (agent) | `plan-review` skill | Converted from agent to skill; dispatches persona subagents |
+| `harness-architect` (agent) | `harness-architect` skill | Converted from agent to skill; invoked by ship agent |
 
 ---
 
 ## Release Unit Pipeline
 
 ```text
-Idea/Research → deliberate skill or spike skill → backlog-harvester agent
-  → impl-plan skill → plan-review agent → harvest skill
-  → harness-architect agent → build-orchestrator agent
-  → review skill → pr-lifecycle skill → fix-ci skill
-  → runtime-verification skill → operational-closure skill
-  → Merge / Monitor
+Idea/Research
+  → Stage agent
+     → deliberate skill or spike skill
+     → impl-plan skill → plan-review skill → harvest skill
+  → ready backlog
+  → Ship agent
+     → harness-architect skill → build-feature skill
+     → review skill → fix-ci skill → pr-lifecycle skill
+     → runtime-verification skill → operational-closure skill
+  → user-approved merge
+  → Ship post-merge closure
 ```
 
 ---
@@ -242,7 +255,7 @@ Idea/Research → deliberate skill or spike skill → backlog-harvester agent
 Every working session MUST persist state before ending. Skipping these
 steps causes knowledge loss across sessions:
 
-1. Write session memory to `{{DOCS_MEMORY}}/` via the memory agent — include task IDs completed, files modified, decisions, failed approaches, and next steps
+1. Write session memory to `{{DOCS_MEMORY}}/` — include task IDs completed, files modified, decisions, failed approaches, and next steps
 2. Capture compound learnings via the compound skill when hard-won solutions were discovered
 3. Invoke **compact-context** when tracking files exceed the configured threshold
 4. Run quality gates (if code changed)

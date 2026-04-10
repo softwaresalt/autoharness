@@ -300,13 +300,12 @@ with findings ordered by `confidence x severity`.
 | Artifact | Change |
 |---|---|
 | `adversarial-review.agent.md` | New agent installed - implements the parallel dispatch + consensus-assembly protocol |
-| `review.agent.md` | Add escalation note: recommend adversarial-review when 3+ P0/P1 findings appear |
-| `build-orchestrator.agent.md` | Step 3.4 review gate invokes adversarial-review agent when pack is active |
-| `pr-review.agent.md` | Step 3 delegates to adversarial-review agent with `output_mode: full` |
+| `review/SKILL.md` | Add escalation note: recommend adversarial-review when 3+ P0/P1 findings appear |
+| `ship.agent.md` | Step 4.4 review gate invokes adversarial-review agent when pack is active |
 
 ### Behavior deltas
 
-* Review gate in build-orchestrator uses N parallel reviewer agents (default 3) across Tier 1/2/3 models
+* Review gate in ship agent uses N parallel reviewer agents (default 3) across Tier 1/2/3 models
 * PR pre-merge review produces consensus + majority + unique finding sections with confidence labels
 * HIGH-confidence consensus findings block gates identically to standard review P0/P1 findings
 * MEDIUM-confidence findings require explicit acknowledgment (fix or defer with rationale)
@@ -317,14 +316,13 @@ with findings ordered by `confidence x severity`.
 ### Verification checks
 
 * `adversarial-review.agent.md` is installed in `.github/agents/`
-* `build-orchestrator.agent.md` contains the `adversarial-review` conditional at the review gate step
-* `pr-review.agent.md` contains the `adversarial-review` conditional at the delegation step
-* `review.agent.md` contains the escalation note
+* `ship.agent.md` contains the `adversarial-review` conditional at the review gate step
+* `review/SKILL.md` contains the escalation note
 * Manifest records the overlay target set with `adversarial_review_enabled: true`
 
 ### Tuning drift rules
 
 * Pack enabled but `adversarial-review.agent.md` is missing from `.github/agents/` - re-install agent
-* Pack enabled but `build-orchestrator` or `pr-review` does not contain the conditional blocks - re-weave
+* Pack enabled but `ship.agent.md` does not contain the conditional blocks - re-weave
 * Pack disabled but agent file and conditional blocks remain - offer cleanup
 * Workspace has gained security or compliance signals since install - recommend enabling the pack

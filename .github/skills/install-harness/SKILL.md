@@ -319,8 +319,8 @@ Example overlay target map for `backlogit`:
 | Overlay Element | Required Targets |
 |---|---|
 | Token-efficient lookup | foundation docs, backlog instructions, backlog-aware agents |
-| Ready-work selection | build-orchestrator and backlog-aware instructions |
-| Agent continuity | memory agent, foundation docs |
+| Ready-work selection | ship agent and backlog-aware instructions |
+| Agent continuity | stage and ship session continuity, foundation docs |
 | Traceability | backlog-aware agents and instructions |
 
 Example overlay target map for `agent-engram`:
@@ -335,15 +335,15 @@ Map primitives to template groups:
 
 | Primitive | Template Groups |
 |---|---|
-| 1 - State & Context | `agents/memory`, `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
-| 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/backlog-harvester` |
+| 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
+| 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect` |
+| 4 - Orchestration | `agents/stage`, `agents/ship`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect` |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
-| 7 - Observability | `agents/review/*`, `agents/doc-ops`, `agents/review`, `agents/plan-review` |
+| 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
-| 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc`, `agents/doc-ops` |
+| 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc` |
 | 10 - Operational Closure | `skills/runtime-verification`, `skills/operational-closure`, PR and CI handoff sections in pipeline templates |
 
 ### Phase 2: Template Composition
@@ -412,7 +412,7 @@ If the user wants to use a tool not yet in the registry:
 
 Generate agent definitions. Each agent template has technology-specific sections that vary:
 
-1. **Pipeline agents**: deliberator, backlog-harvester, build-orchestrator, harness-architect, pr-review
+1. **Pipeline agents**: stage, ship, harness-architect
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
    * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
@@ -420,7 +420,7 @@ Generate agent definitions. Each agent template has technology-specific sections
    * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
    * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
 
-2. **Support agents**: memory, doc-ops, prompt-builder
+2. **Support agents**: prompt-builder
    * Minimal technology adaptation needed
    * Adapt file path patterns for the workspace structure
 
@@ -434,9 +434,9 @@ Generate agent definitions. Each agent template has technology-specific sections
    * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
    * `learnings-researcher.agent.md` — Universal
 
-5. **Orchestrating review agents**: `plan-review.agent.md`, `review.agent.md`, `adversarial-review.agent.md` — dispatch persona agents during plan and code review. `review` and `plan-review` at subagent depth 1; `adversarial-review` at depth 2 (dispatches multiple parallel reviewer instances).
+5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed
-   * Install as standard agents (not skills)
+   * Install as skills (not agents)
 
 #### Step 2.5: Skill Layer
 
