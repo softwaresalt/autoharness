@@ -214,11 +214,29 @@ After build execution (Step 4) and CI remediation, evaluate whether the work unc
 2. Capture compound learnings via the compound skill when hard-won solutions were discovered.
 3. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
 
+### Context Overflow Protocol
+
+When remaining context capacity drops below 20%:
+
+1. Immediately write a mid-task checkpoint to `{{DOCS_MEMORY}}/` capturing:
+   current task ID, files modified so far, build/test state, decisions made,
+   next planned step, and any in-flight PR or review state.
+2. Invoke the `compact-context` skill to reclaim space.
+3. If compact-context cannot reclaim sufficient capacity, halt the current task
+   with status `context-overflow`, record the checkpoint path as the resumption
+   point, and exit the session.
+
+### Resumption Protocol
+
+On session start, check `{{DOCS_MEMORY}}/` for a checkpoint with status
+`context-overflow`. If found, restore context from that checkpoint and resume
+from the recorded next step rather than restarting the pipeline.
+
 ## Model Routing
 
 This agent operates at **Tier 2 (Standard)** — orchestration, coordination, and quality verification.
 
-**Escalation**: When 3 consecutive task failures occur, escalate the build-feature skill invocation to a Tier 3 model before halting.
+**Escalation**: When 3 consecutive task failures occur, escalate to operator: present the failures with context, request guidance on whether to retry with a different approach, skip the task, or halt the session. If the environment supports model selection, suggest retrying the failing task with a frontier-tier model.
 
 ## Subagent Depth
 

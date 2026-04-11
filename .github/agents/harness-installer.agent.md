@@ -155,7 +155,8 @@ After installation completes, provide the user with:
 10. **Browser-verification reminder**: Point out the `browser-verification` instruction file and the need to verify server readiness plus browser tooling before relying on browser-backed runtime confidence
 11. **Continuous-learning reminder**: Point out the `continuous-learning` instruction file plus the `observe`, `learn`, and `evolve` skills when the pack is enabled
 12. **Strict-safety reminder**: Point out the `strict-safety` instruction file plus the `plan-harden` and `safety-modes` workflows when the pack is enabled
-13. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
+13. **Release-observability reminder**: Point out the `release-observability` instruction file and the monitoring plan, observation window, and rollback trigger expectations when the pack is enabled
+14. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
 
 ## Behavioral Constraints
 

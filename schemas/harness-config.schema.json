@@ -27,7 +27,7 @@
     },
     "install_layers": {
       "type": "array",
-      "description": "Explicit artifact-class layers to compose. Use to clarify or constrain preset-derived composition without redefining primitives or capability packs.",
+      "description": "Explicit artifact-class layers to compose. Use to clarify or constrain preset-derived composition. The 'overlays' layer MUST be present when capability_packs is non-empty and SHOULD NOT be present when capability_packs is empty.",
       "items": {
         "type": "string",
         "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
@@ -120,6 +120,35 @@
           "minimum": 1,
           "default": 3,
           "description": "Minimum corroborating observations before an instinct is considered ready to evolve into a learned artifact"
+        }
+      }
+    },
+    "strict_safety": {
+      "type": "object",
+      "description": "Configuration for the optional strict-safety capability pack. Defines action classification and approval rules for risky work.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether strict-safety action classification is active"
+        },
+        "action_risk_levels": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["low", "moderate", "high", "destructive"] },
+          "default": ["low", "moderate", "high", "destructive"],
+          "description": "Recognized ActionRisk classification levels"
+        },
+        "action_result_states": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["planned", "approved", "blocked", "applied", "rolled-back", "abandoned"] },
+          "default": ["planned", "approved", "blocked", "applied", "rolled-back", "abandoned"],
+          "description": "Recognized ActionResult lifecycle states"
+        },
+        "require_approval_for": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["destructive", "high"] },
+          "default": ["destructive"],
+          "description": "ActionRisk levels that require explicit operator approval before execution"
         }
       }
     },

@@ -229,14 +229,42 @@ effort and approaches 0% beyond 4 hours. All task decomposition enforces these r
 | Tier                    | Model Class  | Agents                                         | Rationale                       |
 |-------------------------|--------------|------------------------------------------------|---------------------------------|
 | **Tier 1 (Fast/Cheap)** | Smaller model | prompt-builder, learnings-researcher          | Low-complexity tasks            |
-| **Tier 2 (Standard)**  | Medium model | ship, {{PRIMARY_LANGUAGE_LOWER}}-engineer                    | Routine code and coordination   |
-| **Tier 3 (Frontier)**  | Large model  | stage, harness-architect                       | Deep analysis and architecture  |
+| **Tier 2 (Standard)**  | Medium model | ship, {{PRIMARY_LANGUAGE_LOWER}}-engineer, harness-architect | Routine code, scaffolding, coordination |
+| **Tier 3 (Frontier)**  | Large model  | stage                                          | Deep analysis and architecture  |
 
 ## Governance
 
 This constitution supersedes all other development practices in this
 workspace. All code reviews and automated checks MUST verify compliance
 with these principles.
+
+### Enforcement Language
+
+| Level | Meaning | Mechanism |
+|---|---|---|
+| **NON-NEGOTIABLE** | Agent MUST comply. Violations trigger P-005 telemetry and halt. | CI gates, policy checks, or runtime containment |
+| **MUST** | Agent MUST comply. Violations are flagged; self-correction is expected. | Agent workflow logic, review findings |
+| **SHOULD** | Recommended practice. Deviations are acceptable with documented rationale. | Advisory review findings |
+| **MAY** | Optional practice at agent discretion. | — |
+
+### Enforcement Model
+
+| Principle | Level | Enforcement Mechanism |
+|---|---|---|
+| I. Safety-First Language | MUST | CI quality gates (`{{LINT_COMMAND}}`, `{{BUILD_COMMAND}}`) |
+| II. Test-First Development | NON-NEGOTIABLE | P-002/P-004 policies; harness-architect red phase; build-feature green phase |
+| III. Workspace Isolation | MUST | Agent runtime path resolution within workspace root |
+| IV. CLI Containment | NON-NEGOTIABLE | Agent runtime cwd boundary enforcement |
+| V. Structured Observability | MUST | Broadcasting, commit messages, structured reporting |
+| VI. Single Responsibility | SHOULD | Code review persona checks on dependency additions |
+| VII. Destructive Approval | NON-NEGOTIABLE | P-005 violation telemetry; strict-safety enforcement when enabled |
+| VIII. Safety Modes | MUST | safety-modes skill invocation; strict-safety decision gate when enabled |
+| IX. Git-Friendly Persistence | SHOULD | Markdown + YAML frontmatter convention |
+| X. Context Efficiency | SHOULD | Query-first data access patterns |
+
+For principles marked NON-NEGOTIABLE without runtime enforcement (II, IV),
+agents that observe violations MUST broadcast a P-005 event and halt rather
+than proceeding.
 
 - **Amendments**: Any change to this constitution MUST be documented
   with a version bump, rationale, and sync impact report. Principle

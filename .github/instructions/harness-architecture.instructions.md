@@ -214,7 +214,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `workflow-policies.md` — Policy registry with P-001 through P-005
+* `workflow-policies.md` — Policy registry with P-001 through P-006
 * Agent definitions (each references applicable policies at gate points)
 
 **Design Rules**:
@@ -225,6 +225,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * P-003: Decomposition chain integrity (validated parent-child references)
 * P-004: Red phase before implementation (tests compile and fail)
 * P-005: Policy violation telemetry (all violations recorded and broadcast)
+* P-006: Plan hardening gate (risky plans must be hardened before review)
 * Policy violations are first-class observability signals
 
 ## Primitive 9: Repository Knowledge and Agent Legibility

@@ -377,6 +377,55 @@ reviewable rather than hidden inside generic "be careful" language.
 * pack disabled but strict-safety-specific action-contract language remains woven through the harness - offer cleanup
 * workspace gained higher-risk runtime or migration signals since install - recommend enabling the pack
 
+## Example: release-observability as a formal overlay
+
+`release-observability` is a pack for workspaces with deployable services, runtime
+surfaces, or rollout-sensitive behavior that benefit from explicit monitoring,
+alerting, and rollback discipline beyond what operational-closure provides by default.
+
+### Eligibility signals
+
+* deployment manifests, Dockerfiles, Helm charts, or similar rollout infrastructure are present
+* the workspace has runtime surfaces (APIs, web UIs, background jobs, scheduled tasks)
+* prior closure artifacts lack monitoring plans, observation windows, or rollback triggers
+* operators want structured release confidence rather than "green CI means safe"
+
+### Recommendation logic
+
+* **Automatically recommended** for `deployable-service` or `web-app` stack packs
+* **Conditionally recommended** for `api-service` or `background-worker` when runtime risk is present
+* **Not recommended by default** for `library` or `cli-tool` stack packs
+
+### Overlay targets
+
+| Artifact | Change |
+|---|---|
+| `release-observability.instructions.md` | New instruction file installed with monitoring plan, pre-deploy audit, observation window, and rollback trigger rules |
+| `AGENTS.md` / `copilot-instructions.md` | Add release-observability overlay guidance |
+| `operational-closure/SKILL.md` | Deepen closure checklist with monitoring plan integration, observation windows, and rollback trigger discipline |
+| `runtime-verification/SKILL.md` | Reference the monitoring plan and rollback triggers during verification |
+
+### Behavior deltas
+
+* every runtime-affecting release unit produces a monitoring plan before merge
+* pre-deploy audits verify feature flags, rollback paths, and cross-service awareness
+* post-deploy observation windows have explicit owner, duration, and active monitoring
+* rollback triggers name specific metrics and thresholds rather than vague "if things go wrong"
+* closure artifacts carry monitoring and rollback artifacts as structured sections
+
+### Verification checks
+
+* `release-observability.instructions.md` is installed
+* foundation docs mention the overlay
+* operational-closure and runtime-verification skills reference monitoring plan and rollback expectations consistently
+
+### Tuning drift rules
+
+* pack enabled but the instruction file is missing - re-install it
+* pack enabled but closure artifacts omit monitoring plans or rollback triggers - re-weave the overlay
+* pack disabled but monitoring-specific overlay language remains in the harness - offer cleanup
+* workspace gained deployable-service or runtime surfaces since install - recommend enabling the pack
+
 ## Conditional reviewer note
 
 The `agent-native-parity-reviewer` is intentionally **not** a capability pack. It

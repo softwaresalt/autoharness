@@ -296,7 +296,7 @@
       "description": "Detected backlog management tool and its configuration",
       "properties": {
         "detected": { "type": "boolean" },
-        "tool_name": { "type": ["string", "null"], "enum": ["backlogit", "backlog-md", "manual", null] },
+        "tool_name": { "type": ["string", "null"], "enum": ["backlogit", "backlog-md", "manual", null], "description": "When 'manual', no registry is expected. The harness installs a minimal backlog directory structure (queue/, archive/) without tool integration." },
         "directory": { "type": ["string", "null"] },
         "tool_type": { "type": ["string", "null"], "enum": ["mcp", "cli", "both", null] },
         "mcp_registered": { "type": "boolean" },

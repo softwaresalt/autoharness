@@ -325,25 +325,38 @@ target-workspace/
       harness-architect/SKILL.md
       harvest/SKILL.md
       impl-plan/SKILL.md
+      plan-harden/SKILL.md
       operational-closure/SKILL.md
       plan-review/SKILL.md
       pr-lifecycle/SKILL.md
       review/SKILL.md
       runtime-verification/SKILL.md
       safety-modes/SKILL.md
+      observe/SKILL.md                    # Optional: continuous-learning pack
+      learn/SKILL.md                      # Optional: continuous-learning pack
+      evolve/SKILL.md                     # Optional: continuous-learning pack
     instructions/
       constitution.instructions.md
-      agent-intercom.instructions.md      # Optional: installed when the pack is enabled
-      agent-engram.instructions.md        # Optional: installed when the agent-engram pack is enabled
-      backlogit.instructions.md           # Optional: installed when the backlogit pack is enabled
-      {language}.instructions.md
-      commit-message.instructions.md
-      markdown.instructions.md
-      writing-style.instructions.md
-      git-merge.instructions.md
-      pull-request.instructions.md
-      prompt-builder.instructions.md
-      architecture-doc.instructions.md
+      {language}.instructions.md          # Language-specific conventions
+      commit-message.instructions.md      # Conventional commits scoping
+      markdown.instructions.md            # Markdown conventions
+      writing-style.instructions.md       # Prose style rules
+      git-merge.instructions.md           # Merge practices
+      pull-request.instructions.md        # PR conventions
+      prompt-builder.instructions.md      # Prompt authoring conventions
+      architecture-doc.instructions.md    # Architecture documentation rules
+      ci-security.instructions.md         # CI/CD security (when CI detected)
+      workflows.instructions.md           # CI/CD workflow structure (when CI detected)
+      mcp-server.instructions.md          # MCP server conventions (when MCP detected)
+      backlog-integration.instructions.md # Backlog tool mapping (when backlog detected)
+      agent-intercom.instructions.md      # Optional: agent-intercom pack
+      agent-engram.instructions.md        # Optional: agent-engram pack
+      backlogit.instructions.md           # Optional: backlogit pack
+      browser-verification.instructions.md # Optional: browser-verification pack
+      continuous-learning.instructions.md # Optional: continuous-learning pack
+      strict-safety.instructions.md       # Optional: strict-safety pack
+      release-observability.instructions.md # Optional: release-observability pack
+      adversarial-review.instructions.md  # Optional: adversarial-review pack
     policies/
       workflow-policies.md
     prompts/
@@ -366,6 +379,39 @@ target-workspace/
 ```
 
 **Not installed in the target**: autoharness templates, schemas, installer/tuner agents, documentation, or any engine files.
+
+### Review Personas
+
+Review personas are specialized subagents spawned by the `review` and
+`plan-review` skills. They are not invoked directly.
+
+**Always-on (every review)**:
+
+| Persona | Focus |
+|---|---|
+| Constitution Reviewer | Map changes against constitutional principles |
+| {Language} Reviewer | Language-specific safety, correctness, and idiom checks |
+| Learnings Researcher | Search compound library for related past issues |
+
+**Conditional (activated by diff content)**:
+
+| Persona | Trigger | Focus |
+|---|---|---|
+| Architecture Strategist | Module boundaries, dependency changes | Cohesion, coupling, layering |
+| Concurrency Reviewer | Concurrent/async patterns (if applicable) | Race conditions, deadlocks |
+| Scope Boundary Auditor | Changes spanning multiple domains | Scope creep, YAGNI |
+| Agent-Native Parity Reviewer | MCP tools, agent-facing actions | User/agent workflow symmetry |
+
+Cross-model diversity is preferred (different models for different personas)
+but not blocking.
+
+### Support Agents
+
+| Agent | Purpose |
+|---|---|
+| `{language}-engineer.agent.md` | Technology-specific implementation expert |
+| `prompt-builder.agent.md` | Prompt authoring assistant |
+| `learnings-researcher.agent.md` | Compound library search and retrieval |
 
 ## Post-Installation
 

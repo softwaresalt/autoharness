@@ -100,17 +100,43 @@ Invoke the **spike** skill for items that require hands-on exploration. The skil
 
 ### Step 3: Implementation Planning
 
+#### Step 3.0: Gate Bypass Guard
+
+If both `skip_plan: true` AND `skip_review: true`, require the operator to also
+set `force_harvest_no_gates: true`. Without this explicit override:
+
+* Halt and broadcast a P-005 violation: "All planning and review gates bypassed
+  without explicit force_harvest_no_gates override."
+* Do not proceed to harvest.
+
+This guard prevents risky plans from silently bypassing every gate.
+
+#### Step 3.1: Plan Generation
+
 Unless `skip_plan: true`:
 
 1. Invoke the **impl-plan** skill on the accepted deliberation artifact, spike findings, or other approved source document.
 2. Capture the resulting plan path and treat it as the single planning source of truth for the rest of the session.
-3. If the plan's hardening signals indicate elevated risk, invoke the **plan-harden** skill before review and keep the same plan path as the source of truth.
-4. Confirm that implementation units are backlog-sized, dependency-aware, and ready for downstream execution by the ship agent.
 
 Acceptable source locations:
 
 * `{{DOCS_DECISIONS}}/{file}.md` (deliberation outcomes and spike findings)
 * `{{DOCS_PLANS}}/{file}.md` (when `skip_plan: true`)
+
+#### Step 3.2: Plan Hardening Gate (P-006)
+
+After impl-plan completes, read the plan's `Requires plan hardening` conclusion:
+
+* If `Requires plan hardening: yes` — invoke the **plan-harden** skill and keep the same plan path as the source of truth.
+* If `Requires plan hardening: no` — proceed to plan review.
+* If the field is absent — treat as `yes` (fail-safe) and invoke plan-harden.
+
+Do not skip this check. P-006 requires that plans declaring hardening signals
+must be hardened before plan-review can gate them.
+
+#### Step 3.3: Confirm Readiness
+
+Confirm that implementation units are backlog-sized, dependency-aware, and ready for downstream execution by the ship agent.
 
 ### Step 4: Plan Review Gating
 
@@ -118,15 +144,19 @@ Unless `skip_review: true`:
 
 1. Invoke the **plan-review** skill with the generated plan.
 2. Plans with hardening signals must carry a `## Plan Hardening` section or equivalent high-risk detail before they can pass the gate.
-3. Reject plans that fail the review threshold. Do not harvest them.
-4. Allow only passing or explicitly advisory outcomes to continue.
-5. Record review findings so the harvested backlog carries the right context.
 
 The review gate produces a verdict:
 
-* **PASS**: Proceed to decomposition
-* **ADVISORY**: Present findings to user; proceed if user confirms
-* **FAIL**: Halt; plan must be revised before decomposition
+* **PASS**: Proceed to decomposition.
+* **ADVISORY**: Present findings to user; proceed if user confirms.
+* **FAIL**: Present the failing findings to the operator and offer:
+  (a) re-invoke impl-plan or plan-harden with the revised source,
+  (b) accept a revised plan path from the operator and re-invoke plan-review,
+  (c) halt and record the FAIL as a P-005 violation.
+  Maximum 2 plan-review re-entry cycles per plan. After 2 consecutive FAILs,
+  halt and require operator intervention.
+
+Record review findings so the harvested backlog carries the right context.
 
 ### Step 5: Harvest (Decomposition)
 
@@ -244,12 +274,31 @@ When the `backlogit` capability pack is installed and checkpoint operations are 
 2. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
 3. Capture compound learnings via the compound skill when hard-won solutions were discovered.
 
+### Context Overflow Protocol
+
+When remaining context capacity drops below 20%:
+
+1. Immediately write a mid-task checkpoint to `{{DOCS_MEMORY}}/` capturing:
+   current task or step ID, files modified so far, decisions made, next planned
+   step, and any in-flight state.
+2. Invoke the `compact-context` skill to reclaim space.
+3. If compact-context cannot reclaim sufficient capacity, halt the current task
+   with status `context-overflow`, record the checkpoint path as the resumption
+   point, and exit the session.
+
+### Resumption Protocol
+
+On session start, check `{{DOCS_MEMORY}}/` for a checkpoint with status
+`context-overflow`. If found, restore context from that checkpoint and resume
+from the recorded next step rather than restarting the pipeline.
+
 ## Behavioral Constraints
 
 * Never create tasks exceeding the 2-hour rule
 * Never bundle multiple skill domains in a single task
 * Every task must have at least one acceptance criterion
 * Halt on P-003 violations rather than creating partial hierarchies
+* Halt on P-006 violations — do not skip plan-harden when impl-plan declares hardening is required
 * Never skip the framing phase — understanding the problem is not optional
 * Never present fewer than 2 options for standard/deep deliberations
 * Always let the operator make the final decision; recommend but do not dictate

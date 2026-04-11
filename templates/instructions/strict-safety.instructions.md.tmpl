@@ -51,6 +51,8 @@ Record the outcome after the action is reviewed or attempted:
 
 1. Do not let destructive or high-blast-radius work stay implicit.
 2. Require operator approval before any `ActionRisk: destructive` action.
+   Proceeding without approval is a policy violation — broadcast a P-005 event
+   and halt.
 3. Prefer approval for `ActionRisk: high` when the action changes production
    config, data shape, exposed contracts, or broad shared surfaces.
 4. Carry risky actions forward into runtime verification and operational closure

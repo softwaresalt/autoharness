@@ -35,7 +35,7 @@
         },
         "transport": {
           "type": "string",
-          "enum": ["stdio", "sse", "http"],
+          "enum": ["stdio", "sse", "http", "streamable-http"],
           "default": "stdio"
         }
       }
@@ -125,9 +125,38 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "tool_type": { "enum": ["mcp", "both"] } }
+      },
+      "then": {
+        "required": ["mcp_server"],
+        "properties": {
+          "mcp_server": { "required": ["command"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "tool_type": { "enum": ["cli", "both"] } }
+      },
+      "then": {
+        "required": ["cli"],
+        "properties": {
+          "cli": { "required": ["binary"] }
+        }
+      }
+    }
+  ],
   "$defs": {
     "operation": {
       "type": "object",
+      "description": "At least one of mcp_tool or cli_command must be provided",
+      "anyOf": [
+        { "required": ["mcp_tool"] },
+        { "required": ["cli_command"] }
+      ],
       "properties": {
         "mcp_tool": {
           "type": "string",

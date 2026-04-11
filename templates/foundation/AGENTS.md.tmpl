@@ -61,37 +61,37 @@ approval path or rollback state implicit.
 ### Capability Overlay — agent-intercom
 
 When the `agent-intercom` capability pack is installed, agents MUST also follow
-`.github/instructions/agent-intercom.instructions.md` and treat operator visibility as
-part of the normal workflow:
+`.github/instructions/agent-intercom.instructions.md` and the constitutional
+overlay principles in `.github/instructions/constitution.instructions.md`:
 
 * establish heartbeat / ping visibility at session start and during long-running work
 * broadcast milestone progress for planning, implementation, review, verification, and closure
-* route destructive terminal commands and destructive file operations through the configured intercom approval workflow
-* use transmit / standby style operator waits when blocked on clarification, approval, or handoff
-* warn clearly when intercom is unavailable and treat remote approval as unavailable rather than silently bypassed
+* route destructive operations through the configured intercom approval workflow
+* use transmit / standby flows when blocked on clarification or handoff
+* warn clearly when intercom is unavailable
 
 ### Capability Overlay — agent-engram
 
 When the `agent-engram` capability pack is installed, agents MUST also follow
-`.github/instructions/agent-engram.instructions.md` and treat indexed retrieval as part of the
-normal workflow:
+`.github/instructions/agent-engram.instructions.md` and the constitutional
+overlay principles in `.github/instructions/constitution.instructions.md`:
 
 * prefer engram MCP tools for context-related search before grep, glob, or broad file reading
-* verify the daemon / workspace binding state before relying on indexed search results
-* use symbol lookup, call-graph, and impact-analysis operations for blast-radius questions before manual caller hunting
+* verify the daemon / workspace binding state before relying on indexed results
+* use symbol lookup, call-graph, and impact-analysis operations for blast-radius questions
 * refresh the index when results are stale after out-of-band edits
-* fall back to file-based search only when indexed results are unavailable, insufficient, or the query is truly text-oriented
+* fall back to file-based search only when indexed results are unavailable or insufficient
 
 ### Capability Overlay — backlogit
 
 When the `backlogit` capability pack is installed, agents MUST also follow
-`.github/instructions/backlogit.instructions.md` and treat the configured backlog tool as
-the operational system of record for planning and execution state:
+`.github/instructions/backlogit.instructions.md` and the constitutional
+overlay principles in `.github/instructions/constitution.instructions.md`:
 
-* prefer registry-backed backlogit MCP / CLI operations over ad hoc markdown scanning when querying task state
+* prefer registry-backed backlogit operations over ad hoc markdown scanning
 * use queue-aware and dependency-aware operations when selecting or sequencing work
-* persist session continuity through backlogit memory / checkpoint operations when the registry advertises them
-* record meaningful comments and commit associations for traceability when those operations are available
+* persist session continuity through backlogit memory / checkpoint operations
+* record meaningful comments and commit associations for traceability
 * refresh the backlog index after out-of-band edits before trusting query results
 
 ### Capability Overlay — browser-verification
@@ -129,6 +129,31 @@ explicit review surface:
 * keep `ActionResult` visible as work moves from planning to review and closure
 * require explicit approval for destructive actions and prefer approval for high-blast-radius actions
 * carry risky action records into verification and closure when rollout safety depends on them
+
+### Capability Overlay — release-observability
+
+When the `release-observability` capability pack is installed, agents MUST also follow
+`.github/instructions/release-observability.instructions.md` and treat monitoring,
+alerting, and rollback expectations as required outputs rather than optional extras:
+
+* produce a monitoring plan before merge for every runtime-affecting release unit
+* complete a pre-deploy audit checklist for changes with runtime, migration, or rollout risk
+* define an explicit post-deploy observation window with owner and duration
+* declare at least one rollback trigger with named metric and threshold
+* carry release-observability artifacts into operational closure
+
+### Capability Overlay — adversarial-review
+
+When the `adversarial-review` capability pack is installed, agents MUST also follow
+`.github/instructions/adversarial-review.instructions.md` and treat multi-model
+consensus review as a higher-confidence gate for security-sensitive or
+compliance-critical work:
+
+* escalate from standard review when 3+ P0/P1 findings are surfaced or the work is security-sensitive
+* dispatch parallel reviewer instances across different model tiers
+* assemble consensus-weighted findings: HIGH (all agree), MEDIUM (majority), LOW (single reviewer)
+* treat HIGH-confidence P0/P1 findings as gate-blocking just like standard review findings
+* feed remediation queue entries into backlog for structured follow-up
 
 ---
 

@@ -48,7 +48,7 @@
     },
     "install_layers": {
       "type": "array",
-      "description": "Explicit artifact-class layers composed during installation",
+      "description": "Explicit artifact-class layers composed during installation. The 'overlays' layer MUST be present when capability_packs is non-empty.",
       "items": {
         "type": "string",
         "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]

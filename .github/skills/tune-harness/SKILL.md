@@ -104,14 +104,21 @@ For each installed artifact, check:
 * **AGENTS.md**: Do quality gates and commands match current tooling?
 * **Backlog registry**: Does the registered backlog tool still match the installed tool? Has the tool been switched?
 * **Runtime verification and closure skills**: Do they match the current runtime surfaces and deployment model?
-* **Risky-plan hardening**: Do stage, impl-plan, plan-harden, and plan-review still agree on when risky plans must be hardened before harvest?
+* **Risky-plan hardening coherence**: Verify the plan-hardening pipeline is consistent:
+  1. impl-plan template still includes the `Plan Hardening Signals` section and concludes with `Requires plan hardening: yes|no`
+  2. stage agent Step 3 references the `Requires plan hardening` conclusion and invokes plan-harden when `yes`
+  3. plan-harden template references `{{DOCS_PLANS}}/` and appends a `## Plan Hardening` section
+  4. plan-review Step 1 extracts hardening signals and the gate decision table includes the hardening-required-but-missing FAIL condition
+  If any of these four checks fail, flag as P1 Degrading drift.
 * **Agent-intercom weaving**: If intercom markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference heartbeat, broadcast, approval-routing, and degraded-mode handling?
 * **Agent-engram weaving**: If engram markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference engram-first search, workspace binding, and freshness / fallback behavior?
 * **backlogit weaving**: If backlogit is the selected backlog tool, do instructions and backlog-aware agents consistently reference queue, query, dependency, memory, checkpoint, or traceability behaviors?
 * **Browser-verification weaving**: If browser tooling and web UI surfaces exist, do AGENTS.md, copilot-instructions, runtime verification, operational closure, and the browser-verification instruction file consistently reference server readiness, route selection, headed/headless choice, and human checkpoints?
 * **Continuous-learning weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, the continuous-learning instruction file, and the `observe` / `learn` / `evolve` skills consistently reference observation capture, instinct formation, and promotion thresholds?
 * **Strict-safety weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `strict-safety.instructions.md`, `safety-modes`, `plan-harden`, review, and closure workflows consistently reference `ProposedAction`, `ActionRisk`, `ActionResult`, and approval expectations?
+* **Release-observability weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `release-observability.instructions.md`, operational-closure, and runtime-verification consistently reference monitoring plans, observation windows, and rollback triggers?
 * **Agent-native parity reviewer**: If MCP or parity-sensitive agent tooling is now present, does the review layer install and route `agent-native-parity-reviewer.agent.md` where appropriate?
+* **Deprecated agents**: If deprecated agent files are found in `.github/agents/` that match AGENTS.md's deprecation table, flag as P2 Degrading drift and propose removal with a note that the functionality has been absorbed into the active agent/skill set.
 
 Record: `health_report{}` with per-artifact status and any `compound-refresh`
 recommendations for stale institutional knowledge.
@@ -321,12 +328,15 @@ Update `.autoharness/harness-manifest.yaml`:
 
 ### Phase 5: Verification
 
-Run the same verification checks as the install-harness skill Phase 4:
+Run the same verification algorithm as the install-harness skill Phase 4:
 
-* Cross-reference validation
-* Structural validation
-* No unresolved template variables
-* Updated report
+* **Step 4.1 (Template Variable Sweep)** — scan for unresolved `{{...}}` outside code fences
+* **Step 4.2 (Cross-Reference Sweep)** — verify agent→skill, agent→tool, instruction→file, policy→agent, constitution→language, and layer→artifact consistency
+* **Step 4.3 (Overlay Coherence Sweep)** — verify each enabled pack's targets exist and reference the pack's behavior keywords
+* **Step 4.4 (Structural Validation)** — YAML frontmatter, code fence pairing, table column counts, file path resolution
+
+Report any failures alongside the tuning report so the operator can address
+both drift and verification issues in a single pass.
 
 ## Quality Criteria
 
