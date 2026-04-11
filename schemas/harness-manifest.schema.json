@@ -37,6 +37,23 @@
       "enum": ["starter", "standard", "full", null],
       "description": "Preset used when the harness was installed"
     },
+    "primary_stack_pack": {
+      "type": ["string", "null"],
+      "description": "Primary stack classification selected during composition"
+    },
+    "stack_packs": {
+      "type": "array",
+      "description": "Additive stack classifications active during installation",
+      "items": { "type": "string" }
+    },
+    "install_layers": {
+      "type": "array",
+      "description": "Explicit artifact-class layers composed during installation",
+      "items": {
+        "type": "string",
+        "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+      }
+    },
     "capability_packs": {
       "type": "array",
       "description": "Optional capability packs enabled during installation",

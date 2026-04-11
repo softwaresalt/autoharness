@@ -54,6 +54,15 @@
         }
       }
     },
+    "primary_stack_pack": {
+      "type": ["string", "null"],
+      "description": "Primary normalized stack classification chosen from detected additive stack packs (for example web-app, api-service, background-worker, mcp-server, cli-tool, or library)"
+    },
+    "stack_packs": {
+      "type": "array",
+      "description": "Additive normalized stack classifications detected in the workspace and used to refine preset, layer, and overlay recommendations",
+      "items": { "type": "string" }
+    },
     "build": {
       "type": "object",
       "required": ["tool", "command"],
@@ -155,6 +164,60 @@
           "items": {
             "type": "string",
             "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+          }
+        },
+        "install_layers": {
+          "type": "array",
+          "description": "Explicit artifact-class layers the installer should compose, derived from preset, stack packs, runtime surfaces, and selected overlays",
+          "items": {
+            "type": "string",
+            "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+          }
+        },
+        "recommendation_reasons": {
+          "type": "object",
+          "description": "Structured reasons explaining why discovery recommended a preset, capability packs, and install layers",
+          "properties": {
+            "preset": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "capability_packs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["item", "because"],
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+                  },
+                  "because": { "type": "string" },
+                  "signals": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "install_layers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["item", "because"],
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+                  },
+                  "because": { "type": "string" },
+                  "signals": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
           }
         }
       }

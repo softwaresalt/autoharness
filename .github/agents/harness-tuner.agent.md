@@ -94,6 +94,7 @@ After tuning completes, present:
 * Any breaking drift that was detected and resolved
 * Missing or user-modified artifacts surfaced by the checksum scan
 * Any partially woven capability packs or conditional reviewer drift that was detected
+* Any stack-pack, install-layer, or preset-composition drift that was detected
 * New capabilities that were added (growth opportunities)
 * Recommendations for manual review
 

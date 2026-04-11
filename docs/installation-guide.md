@@ -81,6 +81,18 @@ mkdir -p .autoharness
 cat > .autoharness/config.yaml <<'EOF'
 schema_version: "1.0.0"
 preset: standard
+primary_stack_pack: api-service
+stack_packs:
+  - api-service
+  - deployable-service
+install_layers:
+  - foundation
+  - instructions
+  - workflow
+  - review
+  - runtime
+  - backlog
+  - knowledge
 capability_packs:
   - backlogit
   - agent-engram
@@ -117,6 +129,9 @@ The config file controls:
 | Setting | Example | Purpose |
 |---|---|---|
 | `preset` | `standard` | Installation shape (starter, standard, full) |
+| `primary_stack_pack` | `api-service` | Preferred primary stack classification when multiple additive stack packs are present |
+| `stack_packs` | `[api-service, deployable-service]` | Additive workspace-shape signals used for composition |
+| `install_layers` | `[foundation, instructions, workflow, review, runtime, backlog, knowledge]` | Explicit artifact-class composition derived from the chosen preset and overlays |
 | `capability_packs` | `[backlogit, agent-engram]` | Which packs to enable |
 | `backlog.tool` | `backlogit` | Override backlog tool auto-detection |
 | `backlog.prefix_map` | `{feature: "F", chore: "C", task: "T"}` | Work item type prefixes |
@@ -180,7 +195,7 @@ The installer will:
 
 1. **Resolve autoharness home** — locate templates and schemas
 2. **Discover** the target workspace profile (languages, frameworks, build tools, test runners, CI/CD)
-3. **Present** a proposed harness configuration for your review
+3. **Present** a proposed harness configuration for your review, including stack packs, install layers, and why the preset/packs were recommended
 4. **Generate** customized agents, skills, instructions, policies, and constitutional docs
 5. **Install** the artifacts into the target workspace
 6. **Verify** the installation is coherent and all cross-references resolve
@@ -199,6 +214,12 @@ Choose the installation shape before fine-tuning primitives manually:
 | `starter` | Core planning, execution, safety, workflow policy, and repository knowledge | First adoption, libraries, smaller repos |
 | `standard` | Full 10-primitive harness | Most repos |
 | `full` | Full 10-primitive harness plus recommended capability packs | Web apps, services, and higher-operational-maturity teams |
+
+Discovery also proposes additive `stack_packs` and explicit `install_layers` so
+the installer can explain why a repo is being treated as a `web-app`,
+`api-service`, `mcp-server`, `library`, or similar shape, and which artifact
+classes (`foundation`, `review`, `runtime`, `overlays`, and so on) should be
+present in the final harness.
 
 ### Capability Packs
 

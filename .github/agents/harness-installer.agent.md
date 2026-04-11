@@ -93,6 +93,9 @@ Harness Installation Plan
 Target:    {{workspace_name}}
 Source:    {{autoharness_home}}
 Preset:    {{preset}}
+Primary:   {{primary_stack_pack or "none"}}
+Stacks:    {{stack_packs or "none"}}
+Layers:    {{install_layers or "derived from preset"}}
 Packs:     {{capability_packs or "none"}}
 Language:  {{primary_language}}
 Framework: {{framework or "none detected"}}
@@ -120,6 +123,7 @@ Wait for user confirmation before proceeding. The user may request:
 * Add capability packs (`agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`)
 * Exclude specific primitives (e.g., "skip model routing" or "no review personas")
 * Customize specific values (e.g., "our test command is `make test`")
+* Override composition signals (for example primary stack pack or explicit install layers)
 * Add custom scopes to commit messages
 * Specify model preferences for agent tiers
 

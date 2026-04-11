@@ -28,7 +28,7 @@ A YAML file at `.autoharness/workspace-profile.yaml` in the target workspace con
 Check for an operator-authored configuration file at `{workspace_path}/.autoharness/config.yaml`. If present:
 
 1. Validate against `schemas/harness-config.schema.json`
-2. Extract operator preferences: preset, capability packs, backlog tool/directory, prefix map, docs directory structure, model routing, template variable overrides
+2. Extract operator preferences: preset, primary stack pack, stack packs, install layers, capability packs, backlog tool/directory, prefix map, docs directory structure, model routing, template variable overrides
 3. These preferences take precedence over auto-detected values in subsequent phases — when the operator has explicitly specified a value, use it instead of detecting
 
 If the file does not exist, proceed with pure auto-detection. All fields are optional; the operator may specify only the settings they want to control.
@@ -204,6 +204,38 @@ agent_native:
   recommended_reviewer: true|false
 ```
 
+#### Step 1.5f: Stack-Pack Normalization
+
+Normalize discovered signals into additive stack packs so the installer and tuner
+can reason about composition more explicitly than a preset name alone.
+
+Suggested normalization:
+
+| Signal | Stack Pack |
+|--------|------------|
+| `runtime_surfaces.web_ui == true` | `web-app` |
+| `runtime_surfaces.public_api == true` | `api-service` |
+| `runtime_surfaces.background_jobs == true` | `background-worker` |
+| `runtime_surfaces.deployment_manifests[]` not empty | `deployable-service` |
+| `frameworks.mcp_sdk` present or `agent_native.detected == true` | `mcp-server` |
+| CLI frameworks / layouts detected (for example Cobra, Clap, Click, Typer, Commander, `cmd/`, `bin/`) | `cli-tool` |
+| No stronger runtime signal and the workspace looks package-like or reusable | `library` |
+
+Choose `primary_stack_pack` deterministically:
+
+1. Use the operator-configured `primary_stack_pack` when present.
+2. Otherwise prefer the strongest detected runtime-facing stack in this order:
+   `web-app` -> `api-service` -> `mcp-server` -> `background-worker` -> `cli-tool` -> `library`.
+3. If no normalized stack pack is justified, leave it `null` and explain why in
+   the recommendation summary.
+
+Record:
+
+```yaml
+primary_stack_pack: "web-app"|null
+stack_packs: []
+```
+
 #### Step 1.6: Backlog Tool Detection
 
 Detect installed backlog management tools by scanning for their workspace markers and configuration:
@@ -312,6 +344,7 @@ When `existing_profile` is provided, compare the current scan against the previo
 * Build/test tools changed
 * CI pipeline modified
 * New source directories created
+* Primary stack or additive stack-pack composition changed
 * Existing harness artifacts that reference stale paths, removed tools, or outdated conventions
 * Manifest-tracked harness artifacts that are missing or checksum-divergent, excluding any paths matched by `.autoharness/drift-ignore`
 
@@ -338,6 +371,9 @@ frameworks:
   list: []
   mcp_sdk: null
   mcp_transport: null
+
+primary_stack_pack: null
+stack_packs: []
 
 build:
   tool: "{{BUILD_TOOL}}"
@@ -381,6 +417,11 @@ conventions:
 harness_recommendations:
   preset: "{{RECOMMENDED_PRESET}}"
   capability_packs: []
+  install_layers: []
+  recommendation_reasons:
+    preset: []
+    capability_packs: []
+    install_layers: []
   # Example when Engram is detected and recommended:
   # capability_packs: ["agent-engram"]
 
@@ -448,13 +489,16 @@ Display the profile summary to the user and wait for confirmation or corrections
 
 The summary MUST include:
 
+* Primary stack pack and additive stack packs detected from the workspace
 * Recommended preset (`starter`, `standard`, or `full`)
+* Recommended install layers derived from preset, stack packs, runtime surfaces, and overlays
 * Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true` and browser tooling is present)
 * Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
 * Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
 * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
 * Whether the conditional agent-native parity reviewer is recommended because MCP or parity-sensitive agent tooling surfaces were detected
 * Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
+* Plain-language reasons for the recommended preset, packs, and install layers rather than only the final names
 
 ## Quality Criteria
 

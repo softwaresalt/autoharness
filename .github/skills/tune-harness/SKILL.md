@@ -136,13 +136,18 @@ Compare the currently registered backlog tool (from `.autoharness/backlog-regist
 6. Map the directory structure if different (e.g., `.backlogit/` → `backlog/`)
 7. Do NOT migrate task data — that is the backlog tool's responsibility
 
-#### Step 1.6: Preset and Capability-Pack Drift
+#### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
 
-Compare the installed preset and capability packs in `.autoharness/harness-manifest.yaml` against the current workspace profile recommendations:
+Compare the installed preset, primary stack pack, additive stack packs, install
+layers, and capability packs in `.autoharness/harness-manifest.yaml` against the
+current workspace profile recommendations:
 
 | Scenario | Category | Action |
 |----------|----------|--------|
-| Same preset and packs still appropriate | Healthy | No action needed |
+| Same preset, stack packs, layers, and packs still appropriate | Healthy | No action needed |
+| Primary stack pack shifted (for example `library` -> `web-app`) | Growth or Degrading | Propose recomposing install layers and any affected guidance |
+| Additive stack packs changed materially | Growth or Degrading | Propose updating the recorded composition model and any affected recommendations |
+| Installed layers no longer match recommended layers | Growth or Degrading | Propose expanding or reducing the affected artifact classes |
 | Same preset, missing recommended pack | Growth | Propose enabling the pack |
 | Installed pack no longer matches runtime surfaces | Cosmetic or Degrading | Propose disabling or retargeting the pack |
 | agent-intercom markers detected but `agent-intercom` pack missing | Growth or Degrading | Propose enabling the pack and weaving intercom guidance through the harness |
@@ -151,6 +156,10 @@ Compare the installed preset and capability packs in `.autoharness/harness-manif
 | Browser tooling and web UI detected but `browser-verification` pack missing | Growth or Degrading | Propose enabling the pack and weaving browser-verification guidance through runtime verification and closure |
 | Recurring observation/learning workflow desired but `continuous-learning` pack missing | Growth | Propose enabling the pack and installing observe / learn / evolve workflows |
 | Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
+
+Use the profile's structured recommendation reasons when available so proposals
+can explain **why** the preset, layers, or packs changed rather than only
+listing the new target values.
 
 #### Step 1.7: Overlay-Coherence Drift
 
@@ -200,6 +209,10 @@ Checksum-based drift findings should cite whether the artifact is `missing`,
 `user-modified`, or `ignored` so the operator can tell whether the proposal is
 recovery, retuning, or intentional local divergence.
 
+When discovery produced recommendation reasons, include the relevant preset,
+install-layer, or capability-pack rationale in the proposal body so operators can
+see the causal signals behind the retune.
+
 #### Step 2.3: Detect New Primitive Opportunities
 
 Scan for workspace patterns that suggest missing harness capabilities:
@@ -231,6 +244,14 @@ Generate and display the tuning report:
 - Degrading changes: {{count}}
 - Growth opportunities: {{count}}
 - Cosmetic adjustments: {{count}}
+
+### Composition
+- Installed primary stack pack: {{INSTALLED_PRIMARY_STACK_PACK}}
+- Current primary stack pack: {{CURRENT_PRIMARY_STACK_PACK}}
+- Installed stack packs: {{INSTALLED_STACK_PACKS}}
+- Current stack packs: {{CURRENT_STACK_PACKS}}
+- Installed layers: {{INSTALLED_INSTALL_LAYERS}}
+- Recommended layers: {{RECOMMENDED_INSTALL_LAYERS}}
 
 ### Checksum Scan
 - Missing installed artifacts: {{count}}
@@ -275,7 +296,7 @@ If growth opportunities were accepted (new review personas, new instructions, ne
 1. Generate from templates using the current workspace profile
 2. Install to the appropriate directory
 3. Update cross-references in AGENTS.md and copilot-instructions.md
-4. Update manifest preset / capability-pack metadata when installation shape changes
+4. Update manifest preset / stack-pack / install-layer / capability-pack metadata when installation shape changes
 5. Update manifest overlay-target metadata when the pack's woven surface changes
 6. If the workspace now requires the agent-native parity reviewer, install the
    reviewer agent and update plan-review / review routing guidance together
@@ -288,6 +309,7 @@ Update `.autoharness/harness-manifest.yaml`:
 * Record which proposals were applied
 * Update artifact checksums
 * Store the new workspace profile hash
+* Store the new primary stack pack, additive stack packs, install layers, preset, and capability-pack metadata when composition changed
 
 ### Phase 5: Verification
 

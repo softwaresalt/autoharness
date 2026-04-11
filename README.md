@@ -67,6 +67,16 @@ autoharness now supports a lighter-weight composition model so teams can adopt t
 | **standard** | Full 10-primitive harness | Most application and service repositories |
 | **full** | Full 10-primitive harness plus recommended capability packs | Teams that want deeper verification and stronger operational guidance |
 
+### Stack packs and install layers
+
+Discovery also normalizes workspace signals into additive `stack_packs` and
+explicit `install_layers` so install/tune can explain composition more clearly:
+
+| Concept | Examples | Purpose |
+|---|---|---|
+| `primary_stack_pack` / `stack_packs` | `web-app`, `api-service`, `background-worker`, `deployable-service`, `mcp-server`, `cli-tool`, `library` | Capture multiple concurrent workspace shapes without inventing a new architecture model |
+| `install_layers` | `foundation`, `instructions`, `workflow`, `review`, `runtime`, `backlog`, `knowledge`, `overlays` | Make preset-to-artifact-class composition explicit so install/tune can explain and compare what should be present |
+
 ### Capability Packs
 
 | Pack | Purpose |
@@ -236,7 +246,7 @@ From any registered environment:
 The installer will:
 
 1. **Discover** the target workspace profile (languages, frameworks, build tools, test runners, CI/CD)
-2. **Present** a proposed harness configuration for your review
+2. **Present** a proposed harness configuration for your review, including the detected stack packs, install layers, and recommendation rationale
 3. **Generate** customized agents, skills, instructions, policies, and constitutional docs
 4. **Install** the artifacts into the target workspace's `.github/` directory
 5. **Verify** the installation is coherent and all cross-references resolve

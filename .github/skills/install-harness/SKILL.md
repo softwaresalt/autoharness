@@ -52,11 +52,11 @@ All template reads in subsequent phases use `{autoharness_home}/templates/` as t
 Check for `.autoharness/config.yaml` in the target workspace. If present:
 
 1. Validate against `{autoharness_home}/schemas/harness-config.schema.json`
-2. Extract operator preferences for: preset, capability packs, backlog configuration (tool, directory, prefix map), docs directory structure, model routing, and template variable overrides
+2. Extract operator preferences for: preset, primary stack pack, stack packs, install layers, capability packs, backlog configuration (tool, directory, prefix map), docs directory structure, model routing, and template variable overrides
 3. Merge with the workspace profile — operator config values take precedence over auto-detected profile values
 4. Derive `{{PREFIX_*}}` template variables from `backlog.prefix_map` (falling back to backlogit project YAML when backlogit pack is active, then schema defaults)
 5. Derive `{{DOCS_ROOT}}` and `{{DOCS_*}}` template variables from `docs.root` and `docs.subdirectories` (falling back to schema defaults)
-6. Derive `{{CAPABILITY_PACKS_YAML}}` from `capability_packs` list for config write-back
+6. Derive `{{PRIMARY_STACK_PACK}}`, `{{STACK_PACKS_YAML}}`, `{{INSTALL_LAYERS_YAML}}`, and `{{CAPABILITY_PACKS_YAML}}` from the merged composition state for config write-back
 7. If the config specifies `overrides`, apply those template variable values directly, overriding any profile-derived values
 
 If the file does not exist, proceed with profile-only installation using schema default values for all prefix and docs variables. After installation, the installer writes the resolved `.autoharness/config.yaml` recording the actual values used (see Step 3.4).
@@ -227,6 +227,9 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | Template Variable | Source | Default | Description |
 |---|---|---|---|
 | `{{INSTALL_PRESET}}` | Selected preset from Step 1.3 | `standard` | Installation preset name |
+| `{{PRIMARY_STACK_PACK}}` | Selected primary stack pack | `web-app` | Primary additive stack classification used during composition |
+| `{{STACK_PACKS_YAML}}` | YAML list from selected stack packs | `["web-app", "deployable-service"]` | Rendered YAML array of additive stack packs |
+| `{{INSTALL_LAYERS_YAML}}` | YAML list from resolved install layers | `["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge"]` | Rendered YAML array of explicit artifact-class layers |
 | `{{CAPABILITY_PACKS_YAML}}` | YAML list from selected capability packs | `[]` | Rendered YAML array of enabled packs |
 | `{{DOCS_COMPOUND_DIR}}` | `config.docs.subdirectories.compound` | `compound` | Subdirectory name only (not full path) |
 | `{{DOCS_PLANS_DIR}}` | `config.docs.subdirectories.plans` | `plans` | Subdirectory name only |
@@ -268,6 +271,15 @@ Resolve the installation shape in this order:
 1. If `primitives` input is provided, use it directly.
 2. Otherwise, use the primitive set implied by `preset`.
 3. If no preset is provided, default to `standard`.
+4. Resolve `primary_stack_pack` from operator config first, then from the
+   workspace profile.
+5. Resolve additive `stack_packs` from operator config first, then from the
+   workspace profile.
+6. Resolve `capability_packs` from explicit input first, then operator config,
+   then profile recommendations.
+7. Resolve `install_layers` from operator config first; otherwise use
+   `harness_recommendations.install_layers`; otherwise derive them from the
+   selected preset and whether overlays are enabled.
 
 Preset defaults:
 
@@ -278,6 +290,40 @@ Preset defaults:
 | `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | All recommended packs from the profile | Higher-operational-maturity teams |
 
 If `capability_packs` input is omitted, use the profile's `harness_recommendations.capability_packs` for `full`, or apply no optional packs for `starter`/`standard` unless a pack is strongly recommended by detected runtime surfaces.
+
+Additive stack packs are descriptive composition inputs rather than substitute
+architectures. They capture multiple concurrent workspace shapes such as
+`web-app`, `api-service`, `background-worker`, `deployable-service`,
+`mcp-server`, `cli-tool`, or `library`.
+
+Install-layer defaults:
+
+| Preset | Default Install Layers |
+|---|---|
+| `starter` | `foundation`, `instructions`, `workflow`, `backlog`, `knowledge` |
+| `standard` | `starter` layers + `review`, `runtime` |
+| `full` | `standard` layers + `overlays` when recommended or explicitly selected packs are enabled |
+
+Add the `overlays` layer whenever one or more capability packs are selected,
+even if the chosen preset is `starter` or `standard`.
+
+Treat install layers as **explicit artifact-class composition**, not as a second
+primitive system:
+
+| Install Layer | Primary Artifact Classes |
+|---|---|
+| `foundation` | `AGENTS.md`, `copilot-instructions.md`, constitution |
+| `instructions` | language instructions, workflow instructions, integration instructions |
+| `workflow` | stage/ship/support agents, core skills, policies, prompts |
+| `review` | review personas plus `review` / `plan-review` routing |
+| `runtime` | runtime verification, operational closure, runtime-facing handoff guidance |
+| `backlog` | backlog registry, backlog config, backlog integration guidance |
+| `knowledge` | docs-root structure, compound/memory/closure/plans conventions |
+| `overlays` | capability-pack-specific instructions plus woven overlay targets |
+
+If operator-specified `install_layers` contradict the selected primitive set,
+halt and ask for correction rather than silently producing an incoherent
+composition.
 
 Capability-pack overlays:
 
@@ -373,6 +419,25 @@ Map primitives to template groups:
 
 ### Phase 2: Template Composition
 
+#### Step 2.0: Resolve Layer Scope
+
+Use `install_layers` as the explicit artifact-class composition contract for the
+selected preset and overlays:
+
+| Install Layer | Primary Phase 2 Targets |
+|---|---|
+| `foundation` | Step 2.1 |
+| `instructions` | Step 2.2 |
+| `workflow` | Step 2.4, Step 2.5, Step 2.6, Step 2.7 |
+| `review` | Review personas plus `review` / `plan-review` routing in Step 2.4 and Step 2.5 |
+| `runtime` | `runtime-verification`, `operational-closure`, and runtime-facing handoff text |
+| `backlog` | Step 2.2 backlog integration plus Step 2.3 and Step 2.8 |
+| `knowledge` | Docs-root conventions, compound/memory/closure/plans structure |
+| `overlays` | Capability-pack instruction files and woven overlay target updates |
+
+Stack packs influence why layers are present and which overlays are recommended,
+but they do not replace the layer contract itself.
+
 #### Step 2.1: Foundation Layer
 
 Generate the constitutional foundation first, as all other artifacts reference it:
@@ -463,7 +528,8 @@ Generate agent definitions. Each agent template has technology-specific sections
 
 3. **Expert agent**: Generate a technology-specific expert agent (equivalent to `rust-engineer.agent.md` but for the target language). Name it `{language}-engineer.agent.md`.
 
-4. **Review personas**: Generate from review persona templates
+4. **Review personas**: Generate from review persona templates when the `review`
+   layer is active
    * `architecture-strategist.agent.md` — Universal with domain adaptation
    * `constitution-reviewer.agent.md` — References local constitution
    * `scope-boundary-auditor.agent.md` — Universal
@@ -472,7 +538,7 @@ Generate agent definitions. Each agent template has technology-specific sections
     * `agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
     * `learnings-researcher.agent.md` — Universal
 
-5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
+5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. Install when the `review` layer is active. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed
    * Install as skills (not agents)
 
@@ -495,8 +561,8 @@ Generate skill files:
    * `harvest/SKILL.md` — Install when Primitive 4 is selected. Resolves backlog tool variables from the registry
    * `pr-lifecycle/SKILL.md` — Install when Primitive 4 is selected. Language-agnostic; uses `gh` CLI
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
-    * `runtime-verification/SKILL.md` — Install when Primitive 10 is selected
-    * `operational-closure/SKILL.md` — Install when Primitive 10 is selected
+    * `runtime-verification/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
+    * `operational-closure/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
 
 When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
@@ -612,6 +678,9 @@ autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
 config_hash: "{{SHA256_OF_CONFIG_OR_NULL}}"  # null if no .autoharness/config.yaml was present
 install_preset: "{{PRESET}}"
+primary_stack_pack: {{PRIMARY_STACK_PACK}}
+stack_packs: [{{STACK_PACKS}}]
+install_layers: [{{INSTALL_LAYERS}}]
 capability_packs: [{{CAPABILITY_PACKS}}]
 # Example when Engram is enabled:
 # capability_packs: ["agent-engram"]
@@ -644,7 +713,8 @@ Write (or update) `.autoharness/config.yaml` using the `harness-config.yaml.tmpl
 * If no operator config existed, write a complete config with all schema defaults
 * The resolved config serves as input for future `tune-harness` runs and enables the tuner to detect configuration drift
 
-The installed config includes: `schema_version`, `preset`, `capability_packs`,
+The installed config includes: `schema_version`, `preset`,
+`primary_stack_pack`, `stack_packs`, `install_layers`, `capability_packs`,
 `backlog` (tool, directory, prefix_map), `docs` (root, subdirectories),
 `continuous_learning`, `model_routing`, and any `overrides` that were applied.
 
@@ -665,6 +735,7 @@ Verify all installed artifacts are internally consistent:
 * If `browser-verification` is enabled, the browser-verification instruction file is installed and runtime / closure workflows reference server readiness, route selection, headed/headless choice, and human checkpoints consistently
 * If `continuous-learning` is enabled, the continuous-learning instruction file plus `observe`, `learn`, and `evolve` skills are installed and the harness references evidence-backed promotion rather than hidden prompt drift
 * If `agent_native.recommended_reviewer` is true, the review layer includes `agent-native-parity-reviewer.agent.md` and the review routing logic can select it for parity-sensitive work
+* The recorded `install_layers` match the artifact classes actually installed (for example, `review` implies review personas plus `review` / `plan-review`; `runtime` implies runtime verification and closure artifacts; `overlays` implies pack-specific instruction files or woven overlay targets)
 * If any capability pack is enabled, its declared overlay targets and verification checks are satisfied rather than only the pack name being recorded
 
 #### Step 4.2: Structural Validation
@@ -683,8 +754,11 @@ Harness Installation Complete
 ─────────────────────────────
 Workspace: {{PROJECT_NAME}}
 Language:  {{PRIMARY_LANGUAGE}}
+Primary stack: {{PRIMARY_STACK_PACK_OR_NONE}}
+Stack packs: {{STACK_PACKS_OR_NONE}}
 Primitives installed: selected subset / 10
 Preset: {{PRESET}}
+Install layers: {{INSTALL_LAYERS_OR_NONE}}
 Capability packs: {{CAPABILITY_PACKS_OR_NONE}}
 
 Artifacts created:

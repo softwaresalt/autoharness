@@ -16,6 +16,23 @@
       "default": "standard",
       "description": "Installation preset controlling the default primitive set and capability pack defaults"
     },
+    "primary_stack_pack": {
+      "type": ["string", "null"],
+      "description": "Primary stack classification to prefer when multiple additive stack packs are present. Overrides auto-detected primary stack selection when set."
+    },
+    "stack_packs": {
+      "type": "array",
+      "description": "Additive stack classifications to treat as active for composition. Overrides detected stack packs when specified.",
+      "items": { "type": "string" }
+    },
+    "install_layers": {
+      "type": "array",
+      "description": "Explicit artifact-class layers to compose. Use to clarify or constrain preset-derived composition without redefining primitives or capability packs.",
+      "items": {
+        "type": "string",
+        "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+      }
+    },
     "capability_packs": {
       "type": "array",
       "description": "Capability packs to enable. Overrides preset defaults when specified.",

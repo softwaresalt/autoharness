@@ -12,6 +12,7 @@ Agent harnesses degrade over time. Common causes:
 * **Directory restructuring**: `applyTo` patterns in instruction files match no files after a rename
 * **CI pipeline changes**: Quality gate commands in the constitution no longer match CI steps
 * **Runtime surface changes**: A repo grows a web UI or public API but the harness still assumes static-only validation
+* **Composition-model changes**: The repo shifts from `library` to `api-service` or gains new additive stack packs, but the installed harness still reflects the older composition shape
 * **Operator workflow changes**: agent-intercom is configured (or removed) but the harness does not reflect the required heartbeat, broadcast, or approval-routing behavior
 * **Indexed-search workflow changes**: agent-engram is configured (or removed) but the harness does not reflect engram-first search, binding, or freshness behavior
 * **Backlog workflow changes**: backlogit is present but the harness still uses only generic CRUD patterns and ignores queue, query, dependency, or checkpoint capabilities
@@ -89,6 +90,8 @@ Additional examples: the workspace now exposes MCP tool handlers or agent-facing
 
 Additional examples: the team wants recurring workflow observations to become explicit harness guidance, but the `continuous-learning` pack and its `observe` / `learn` / `evolve` workflows are missing.
 
+Additional examples: discovery now classifies the repo as `web-app` + `deployable-service`, but the installed composition still lacks the expected `runtime` or `overlays` layers.
+
 Additional examples: agent-intercom is configured in `.vscode/mcp.json` or `.intercom/`, but the harness does not install the intercom instruction file or thread heartbeat / approval guidance through the execution pipeline.
 
 Additional examples: agent-engram is configured in `.vscode/mcp.json` or `.engram/`, but the harness never installs the engram instruction file and still defaults to grep-heavy repo exploration even when indexed lookup is available.
@@ -114,6 +117,8 @@ Additional examples: a team standardizes on backlogit as its AI-native system of
 Additional examples: a team wants recurring practice captured as explicit repository knowledge (opportunity for the `continuous-learning` capability pack and the observe / learn / evolve workflow).
 
 Additional examples: a product starts exposing MCP tools or agent-facing actions that must stay aligned with user-visible flows (opportunity for the `agent-native-parity-reviewer` persona).
+
+Additional examples: discovery now detects additive stack packs such as `web-app`, `api-service`, or `mcp-server`, creating an opportunity to clarify install layers and composition reasoning in the resolved config and manifest.
 
 **Action**: Evaluate and implement when beneficial.
 
