@@ -68,6 +68,11 @@ Routing rules:
 
 When the `agent-intercom` capability pack is installed, call `ping` at session start. If reachable, broadcast at every step. If unreachable, warn the operator that visibility is degraded.
 
+When the `strict-safety` capability pack is installed, also follow
+`.github/instructions/strict-safety.instructions.md`: for high-risk diffs, call
+out the `ProposedAction`, `ActionRisk`, approval, and rollback gaps that should
+be visible before merge or deployment.
+
 | Event | Level | Message prefix |
 |---|---|---|
 | Review start | info | `[REVIEW] Starting {mode} review of {scope}` |
@@ -156,6 +161,11 @@ As each persona returns:
 2. No side effects: no edits, no review artifact, no follow-up items
 
 When the diff changes runtime surfaces, include an explicit recommendation for whether follow-up runtime verification is required and which mode (`manual`, `api`, `browser`) is appropriate.
+
+When the diff includes destructive potential, contract changes, migrations,
+security-sensitive edits, or other high-blast-radius work, include an explicit
+recommendation for whether strict-safety action classification or approval
+follow-up is required before merge or deployment.
 
 When the `adversarial-review` capability pack is installed and this review surfaces 3 or more
 P0/P1 findings, recommend escalation to the `adversarial-review` agent for multi-model consensus

@@ -43,7 +43,7 @@ The `agent-intercom` pack is a model overlay because it changes how the harness 
 
 This is why `agent-intercom` must be woven through the harness rather than installed as a single detached add-on.
 
-`browser-verification` and `continuous-learning` follow the same rule:
+`browser-verification`, `continuous-learning`, and `strict-safety` follow the same rule:
 
 * `browser-verification` deepens Primitive 4 and 10 by weaving browser-specific
   verification discipline through foundation docs, instructions, runtime
@@ -51,6 +51,9 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `continuous-learning` deepens Primitive 1, 6, 7, and 9 by weaving observation
   capture, instinct formation, and learned-artifact promotion through explicit
   instructions and skills
+* `strict-safety` deepens Primitive 5, 6, 8, and 10 by weaving explicit
+  `ProposedAction` / `ActionRisk` / `ActionResult` guidance through safety,
+  planning, review, and closure workflows
 
 ## Primitive 1: State, Context, and Knowledge Retrieval
 
@@ -116,7 +119,8 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `stage.agent.md` — Stash-to-backlog pipeline (triage → deliberate/spike → impl-plan → plan-review → harvest)
+* `stage.agent.md` — Stash-to-backlog pipeline (triage → deliberate/spike → impl-plan → plan-harden when needed → plan-review → harvest)
+* `plan-harden/SKILL.md` — Risk-triggered hardening of high-blast-radius plans before review
 * `ship.agent.md` — Backlog-to-shipped pipeline (harness → build → review → PR → fix-ci → closure)
 * `harness-architect/SKILL.md` — TDD harness generation
 * `build-feature/SKILL.md` — Harness loop execution
@@ -129,7 +133,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Design Rules**:
 
-* Pipeline: Deliberate/Spike → Plan → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
+* Pipeline: Deliberate/Spike → Plan → Plan-Harden (when needed) → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
 * Each agent declares its maximum subagent depth
 * Skills are leaf executors (no subagent spawning)
 * Handoff contracts preserve verification and closure expectations from planning through release
@@ -145,12 +149,14 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `constitution.instructions.md` — Principles III-V (workspace isolation, containment, destructive approval)
 * `workflow-policies.md` — P-001 through P-005
 * `safety-modes/SKILL.md` — Interactive careful / freeze-scope / investigate-first workflows
+* `strict-safety.instructions.md` — Optional overlay instructions that make risky actions explicit and reviewable
 * Custom architectural linters — Enforce dependency direction, naming, and layering (generated per workspace)
 
 **Design Rules**:
 
 * File creation and modification proceed directly (non-destructive)
 * Safety modes are explicit and user-legible when risk increases
+* Optional strict-safety overlays classify risky work as `ProposedAction`, `ActionRisk`, and `ActionResult`
 * Destructive operations (deletion, directory removal) require approval workflow
 * CLI workspace containment: no writes outside cwd
 * Feature flags gate new agent-generated modules to prevent system instability

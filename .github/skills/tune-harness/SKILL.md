@@ -104,11 +104,13 @@ For each installed artifact, check:
 * **AGENTS.md**: Do quality gates and commands match current tooling?
 * **Backlog registry**: Does the registered backlog tool still match the installed tool? Has the tool been switched?
 * **Runtime verification and closure skills**: Do they match the current runtime surfaces and deployment model?
+* **Risky-plan hardening**: Do stage, impl-plan, plan-harden, and plan-review still agree on when risky plans must be hardened before harvest?
 * **Agent-intercom weaving**: If intercom markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference heartbeat, broadcast, approval-routing, and degraded-mode handling?
 * **Agent-engram weaving**: If engram markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference engram-first search, workspace binding, and freshness / fallback behavior?
 * **backlogit weaving**: If backlogit is the selected backlog tool, do instructions and backlog-aware agents consistently reference queue, query, dependency, memory, checkpoint, or traceability behaviors?
 * **Browser-verification weaving**: If browser tooling and web UI surfaces exist, do AGENTS.md, copilot-instructions, runtime verification, operational closure, and the browser-verification instruction file consistently reference server readiness, route selection, headed/headless choice, and human checkpoints?
 * **Continuous-learning weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, the continuous-learning instruction file, and the `observe` / `learn` / `evolve` skills consistently reference observation capture, instinct formation, and promotion thresholds?
+* **Strict-safety weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `strict-safety.instructions.md`, `safety-modes`, `plan-harden`, review, and closure workflows consistently reference `ProposedAction`, `ActionRisk`, `ActionResult`, and approval expectations?
 * **Agent-native parity reviewer**: If MCP or parity-sensitive agent tooling is now present, does the review layer install and route `agent-native-parity-reviewer.agent.md` where appropriate?
 
 Record: `health_report{}` with per-artifact status and any `compound-refresh`
@@ -155,6 +157,8 @@ current workspace profile recommendations:
 | backlogit detected as the active backlog tool but `backlogit` pack missing | Growth or Degrading | Propose enabling the pack and weaving backlogit-native workflows through the harness |
 | Browser tooling and web UI detected but `browser-verification` pack missing | Growth or Degrading | Propose enabling the pack and weaving browser-verification guidance through runtime verification and closure |
 | Recurring observation/learning workflow desired but `continuous-learning` pack missing | Growth | Propose enabling the pack and installing observe / learn / evolve workflows |
+| Elevated runtime, migration, or security risk detected but `strict-safety` pack missing | Growth or Degrading | Propose enabling the pack and weaving explicit action classification through risky workflows |
+| Risky-plan hardening guidance missing or stale | Degrading | Propose retuning stage, plan-harden, and plan-review together so risky plans are hardened before harvest |
 | Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
 
 Use the profile's structured recommendation reasons when available so proposals
@@ -229,6 +233,7 @@ Scan for workspace patterns that suggest missing harness capabilities:
 * Browser automation tooling without the browser-verification overlay
 * MCP or agent-facing product surfaces without the agent-native parity reviewer
 * Repeated recurring-practice evidence without the continuous-learning overlay
+* High-risk runtime or migration work without strict-safety or plan-hardening guidance
 
 ### Phase 3: Proposal Review
 
@@ -300,6 +305,9 @@ If growth opportunities were accepted (new review personas, new instructions, ne
 5. Update manifest overlay-target metadata when the pack's woven surface changes
 6. If the workspace now requires the agent-native parity reviewer, install the
    reviewer agent and update plan-review / review routing guidance together
+7. If risky-plan hardening or strict-safety expectations changed, update
+   `plan-harden`, safety-mode, review, and closure artifacts together rather
+   than patching only one surface
 
 #### Step 4.3: Update Manifest
 

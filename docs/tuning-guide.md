@@ -84,7 +84,7 @@ Harness works but produces suboptimal results. Artifacts are valid but miss new 
 
 **Examples**: New framework added without review persona, new test patterns without matching instructions, stale architecture documentation.
 
-Additional examples: a web UI exists but no browser-verification pack is enabled, operational closure templates omit monitoring expectations, safety-mode guidance is missing from risky maintenance workflows.
+Additional examples: a web UI exists but no browser-verification pack is enabled, operational closure templates omit monitoring expectations, safety-mode guidance is missing from risky maintenance workflows, or risky plans never pass through `plan-harden` before review.
 
 Additional examples: the workspace now exposes MCP tool handlers or agent-facing product actions, but the review layer still lacks the `agent-native-parity-reviewer` persona and parity-focused routing guidance.
 
@@ -106,7 +106,7 @@ New capabilities that the harness could leverage. The workspace has evolved in w
 
 **Examples**: New database added (opportunity for database reviewer persona), Docker introduced (opportunity for container instructions), API documentation added (opportunity for API review).
 
-Additional examples: web UI added (opportunity for browser verification), deployment manifests added (opportunity for release observability pack), higher-risk production changes (opportunity for strict safety defaults).
+Additional examples: web UI added (opportunity for browser verification), deployment manifests added (opportunity for release observability pack), higher-risk production changes (opportunity for strict safety defaults and explicit action classification).
 
 Additional examples: a team adopts remote operator approval and progress visibility through agent-intercom (opportunity for the `agent-intercom` capability pack and intercom-woven workflow guidance).
 
@@ -154,6 +154,7 @@ All harness artifacts are regular Markdown files. You can edit them directly:
 * **Skill Packs**: Enable richer verification or safety packs without redesigning the harness
 * **Intercom Weaving**: Thread agent-intercom heartbeat, broadcast, approval, and standby guidance through the affected artifacts rather than adding a single isolated note
 * **Continuous Learning**: Keep the observation lifecycle explicit by tuning `continuous-learning.instructions.md` and the `observe` / `learn` / `evolve` skills together
+* **Strict Safety**: Tune `strict-safety.instructions.md`, `plan-harden`, `safety-modes`, review, and closure guidance together so risky actions stay legible across the workflow
 * **Conditional Reviewers**: Install or retarget `agent-native-parity-reviewer.agent.md` when agent-facing product surfaces appear
 * **Policies**: Add new policies or modify existing gate conditions
 * **Constitution**: Update quality gates, change error handling patterns

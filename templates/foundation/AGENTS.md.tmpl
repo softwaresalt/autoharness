@@ -53,6 +53,11 @@ When work has elevated blast radius, agents MUST enter an explicit safety mode b
 * **freeze-scope** — constrain edits to a declared directory or subsystem boundary
 * **investigate-first** — gather evidence before proposing or applying fixes
 
+When the `strict-safety` capability pack is installed, agents MUST also follow
+`.github/instructions/strict-safety.instructions.md`: express risky work as
+`ProposedAction`, `ActionRisk`, and `ActionResult` rather than leaving the
+approval path or rollback state implicit.
+
 ### Capability Overlay — agent-intercom
 
 When the `agent-intercom` capability pack is installed, agents MUST also follow
@@ -112,6 +117,18 @@ practice as a first-class input to harness evolution:
 * use `observe`, `learn`, and `evolve` to cluster recurring practice into instincts and learned artifacts
 * promote learned rules only when multiple corroborating observations justify them
 * treat learned artifacts as reviewable harness outputs, not invisible prompt drift
+
+### Capability Overlay — strict-safety
+
+When the `strict-safety` capability pack is installed, agents MUST also follow
+`.github/instructions/strict-safety.instructions.md` and treat risky work as an
+explicit review surface:
+
+* classify risky steps as `ProposedAction` entries before execution
+* assign the most conservative `ActionRisk` and route approval accordingly
+* keep `ActionResult` visible as work moves from planning to review and closure
+* require explicit approval for destructive actions and prefer approval for high-blast-radius actions
+* carry risky action records into verification and closure when rollout safety depends on them
 
 ---
 
@@ -265,7 +282,7 @@ The table below is maintained as agents are superseded:
 Idea/Research
   → Stage agent
      → deliberate skill or spike skill
-     → impl-plan skill → plan-review skill → harvest skill
+     → impl-plan skill → plan-harden skill (when needed) → plan-review skill → harvest skill
   → ready backlog
    → Ship agent
       → harness-architect skill → build-feature skill

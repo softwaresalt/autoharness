@@ -86,7 +86,7 @@ explicit `install_layers` so install/tune can explain composition more clearly:
 | **backlogit** | Deepens backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows |
 | **browser-verification** | Adds browser-aware runtime verification and closure discipline for web-facing projects |
 | **continuous-learning** | Adds observation capture, instinct formation, and promotion into explicit learned instructions or skills |
-| **strict-safety** | Emphasizes careful / freeze-scope / investigate-first operating modes |
+| **strict-safety** | Emphasizes careful / freeze-scope / investigate-first modes with explicit `ProposedAction` / `ActionRisk` / `ActionResult` tracking |
 | **release-observability** | Strengthens operational closure with monitoring and validation checklists |
 | **adversarial-review** | Adds multi-model consensus review and escalation for higher-confidence blocking findings |
 
@@ -255,7 +255,7 @@ Optional examples:
 
 ```text
 @harness-installer workspace=/path/to/my-project preset=starter
-@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,release-observability,adversarial-review
+@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review
 ```
 
 ### 4. Tune an existing harness

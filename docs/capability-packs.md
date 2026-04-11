@@ -132,7 +132,7 @@ Partially woven overlays should be treated as a real harness-quality problem.
 | `backlogit` | backlogit-native query, queue, memory, checkpoints, comments, and traceability | 1, 2, 4, 7, 8, 9 |
 | `browser-verification` | Browser-backed runtime confidence for web-facing work | 4, 7, 10 |
 | `continuous-learning` | Observation capture, instinct formation, and promotion into explicit learned artifacts | 1, 6, 7, 9, 10 |
-| `strict-safety` | Stronger default safety posture for risky work | 5, 6, 8 |
+| `strict-safety` | Stronger default safety posture for risky work with explicit action classification | 5, 6, 8, 10 |
 | `release-observability` | Richer monitoring and closure expectations | 7, 10 |
 | `adversarial-review` | Multi-model parallel review with consensus-weighted findings and remediation queue | 7, 10 |
 
@@ -328,6 +328,54 @@ on invisible prompt drift.
 * pack enabled but one or more lifecycle skills are missing - re-install them
 * pack disabled but learned-artifact promotion rules remain woven into the harness - offer cleanup
 * workspace wants explicit recurring-practice capture but the pack is absent - recommend enabling it
+
+## Example: strict-safety as a formal overlay
+
+`strict-safety` is a pack for workspaces that want risky work to be explicit and
+reviewable rather than hidden inside generic "be careful" language.
+
+### Eligibility signals
+
+* public APIs, migrations, security-sensitive behavior, or rollout-critical runtime surfaces are present
+* the workspace regularly performs high-blast-radius maintenance, data, or configuration changes
+* operators want approval and rollback expectations to stay visible across planning, review, and closure
+
+### Recommendation logic
+
+* **Automatically recommended** when the workspace has elevated runtime, migration, or security risk
+* **Conditionally recommended** for deployable services and other repos with broad blast radius
+* **Not recommended by default** for low-risk documentation or single-script repos
+
+### Overlay targets
+
+| Artifact | Change |
+|---|---|
+| `strict-safety.instructions.md` | New instruction file installed with the `ProposedAction` / `ActionRisk` / `ActionResult` contract |
+| `AGENTS.md` / `copilot-instructions.md` | Add strict-safety overlay guidance and explicit action-classification language |
+| `safety-modes/SKILL.md` | Make action classification explicit in careful / freeze-scope / investigate-first workflows |
+| `plan-harden/SKILL.md` | Carry risky-action and rollback detail into high-risk plans before review |
+| `review/SKILL.md` / `runtime-verification/SKILL.md` / `operational-closure/SKILL.md` | Keep approval, rollback, and risky-action outcomes visible through review, verification, and closure |
+
+### Behavior deltas
+
+* risky work is expressed as `ProposedAction` entries before execution
+* each risky action receives an explicit `ActionRisk` classification
+* destructive actions require approval and high-blast-radius actions prefer approval
+* risky action outcomes remain visible as `ActionResult` in review, verification, and closure artifacts
+* strict-safety strengthens legibility without creating an ATV-style executor or command broker
+
+### Verification checks
+
+* `strict-safety.instructions.md` is installed
+* foundation docs reference the strict-safety overlay consistently
+* `safety-modes`, `plan-harden`, review, runtime verification, and closure workflows reference the action contract where relevant
+
+### Tuning drift rules
+
+* pack enabled but the strict-safety instruction file is missing - re-install it
+* pack enabled but risky-work workflows lack `ProposedAction` / `ActionRisk` / `ActionResult` language - re-weave the overlay
+* pack disabled but strict-safety-specific action-contract language remains woven through the harness - offer cleanup
+* workspace gained higher-risk runtime or migration signals since install - recommend enabling the pack
 
 ## Conditional reviewer note
 

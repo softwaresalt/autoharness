@@ -206,7 +206,7 @@ Choose the installation shape before fine-tuning primitives manually:
 
 ```text
 @harness-installer workspace=/path/to/target preset=starter
-@harness-installer workspace=/path/to/target preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,release-observability,adversarial-review
+@harness-installer workspace=/path/to/target preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review
 ```
 
 | Preset | Installs | Best For |
@@ -232,7 +232,7 @@ Capability packs deepen the harness without redefining the primitive model:
 | `backlogit` | backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace guidance layered over generic backlog integration |
 | `browser-verification` | Browser-aware runtime verification and closure guidance for web UIs |
 | `continuous-learning` | Observation capture, instinct formation, and promotion into explicit learned instructions or skills |
-| `strict-safety` | Stronger default use of careful / freeze-scope / investigate-first modes |
+| `strict-safety` | Stronger default use of careful / freeze-scope / investigate-first modes plus explicit `ProposedAction` / `ActionRisk` / `ActionResult` tracking |
 | `release-observability` | Richer operational closure and monitoring artifacts |
 | `adversarial-review` | Multi-model consensus review and escalation for higher-confidence review gates |
 
@@ -245,6 +245,11 @@ Capability packs deepen the harness without redefining the primitive model:
 `browser-verification` is also an overlay rather than a one-off test note. When enabled, autoharness should teach the harness to verify server readiness, choose headed vs headless runs deliberately, select routes from changed surfaces, and record human checkpoints for external flows.
 
 `continuous-learning` is also an overlay rather than a hidden prompt behavior. When enabled, autoharness should install an explicit observation lifecycle (`observe`, `learn`, `evolve`) and persist recurring-practice state under `.autoharness/continuous-learning/`.
+
+`strict-safety` is also an overlay rather than a generic caution toggle. When
+enabled, autoharness should install explicit action-risk/result guidance and
+keep risky planning, review, verification, and closure states legible instead
+of leaving them implicit.
 
 Use [Backlogit Operating Model](backlogit-operating-model.md) as the contract for
 what `autoharness` should consume today. If backlogit evolves a new internal

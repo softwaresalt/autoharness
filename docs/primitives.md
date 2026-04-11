@@ -15,7 +15,7 @@ Capability packs are the mechanism autoharness uses for optional, cross-cutting 
 
 They do **not** add an eleventh primitive. Instead, a pack deepens existing primitives by weaving coordinated changes across multiple artifacts. For example, `agent-intercom` strengthens Primitive 4 (handoffs), Primitive 5 (approval routing), Primitive 6 (instruction injection), and Primitive 7/10 (operator visibility and closure signaling) without redefining the primitive model itself.
 
-`browser-verification` and `continuous-learning` follow the same overlay model:
+`browser-verification`, `continuous-learning`, and `strict-safety` follow the same overlay model:
 they deepen existing primitives through coordinated changes across instructions,
 foundation docs, and skills rather than by creating new architecture layers.
 
@@ -120,12 +120,13 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 
 1. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
 2. **Spike Skill**: Execute time-boxed investigations to answer technical questions, evaluate feasibility, and capture findings
-3. **Stage Agent**: Triage stash → deliberate/spike → plan → review → harvest into backlog
-4. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
-5. **Ship Agent**: Claim tasks, delegate to build-feature skill, verify quality, manage review/CI/PR lifecycle, runtime verification, and operational closure
-6. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
-7. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
-8. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
+3. **Stage Agent**: Triage stash → deliberate/spike → plan → harden risky plans → review → harvest into backlog
+4. **Plan-Harden Skill**: Deepen high-risk plans with concrete verification, rollback, and action-risk detail before plan review
+5. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
+6. **Ship Agent**: Claim tasks, delegate to build-feature skill, verify quality, manage review/CI/PR lifecycle, runtime verification, and operational closure
+7. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
+8. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
+9. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
 
 **Stop conditions** prevent infinite loops:
 
@@ -137,6 +138,7 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 **Handoff contracts** keep lifecycle context intact:
 
 * Planning must emit verification and closure expectations, not just code change lists
+* Risky plans must emit hardening signals early enough that `plan-harden` can tighten them before review and harvest
 * Review must identify which runtime surfaces require validation
 * PR creation must carry forward operational validation and monitoring sections
 * Completion does not mean “green tests only” — it means the work is ready to enter Primitive 10
@@ -165,15 +167,17 @@ Layered safety controls:
    * **Careful mode** — enumerate risks, pause before destructive or high-blast-radius actions
    * **Freeze-scope mode** — constrain edits to a declared directory or subsystem boundary
    * **Investigate-first mode** — gather evidence before proposing or applying fixes
-4. **Destructive approval workflow**: Deletions and removals require operator approval
-5. **Terminal command policy**: Destructive commands require approval regardless of permissive flags
-6. **Feature flags**: New agent-generated modules are gated behind feature flags
-7. **Architecture enforcement**: Custom linters and structural tests enforce dependency direction, naming conventions, and layering boundaries. Lint error messages are written for agent consumption, providing remediation instructions directly in context. Agents operate within strict boundaries but have freedom in implementation within those boundaries.
+4. **Action contract for risky work**: When the `strict-safety` overlay is enabled, risky work is expressed as `ProposedAction`, `ActionRisk`, and `ActionResult` so approval and rollback states stay legible
+5. **Destructive approval workflow**: Deletions and removals require operator approval
+6. **Terminal command policy**: Destructive commands require approval regardless of permissive flags
+7. **Feature flags**: New agent-generated modules are gated behind feature flags
+8. **Architecture enforcement**: Custom linters and structural tests enforce dependency direction, naming conventions, and layering boundaries. Lint error messages are written for agent consumption, providing remediation instructions directly in context. Agents operate within strict boundaries but have freedom in implementation within those boundaries.
 
 ### Adaptation Points
 
 * Approval workflow integration depends on available communication channels
 * Safety-mode prompts and freeze boundaries depend on the available UX (editor prompts, CLI confirmations, review comments)
+* Action classification detail depends on whether the workspace enabled the `strict-safety` overlay
 * Terminal command auto-approve patterns are workspace-specific
 * Feature flag mechanisms differ by technology
 * Architecture enforcement linters are generated from the workspace's layering model and naming conventions

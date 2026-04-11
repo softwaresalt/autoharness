@@ -334,7 +334,7 @@ Capability-pack overlays:
 | `backlogit` | Installs `backlogit.instructions.md` and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace workflows through backlog-aware artifacts |
 | `browser-verification` | Installs `browser-verification.instructions.md` and threads server readiness, route selection, headed/headless choice, and human-checkpoint handling through runtime verification and closure workflows |
 | `continuous-learning` | Installs `continuous-learning.instructions.md` and `observe` / `learn` / `evolve` skills so recurring workflow practice can be captured, clustered, and promoted into explicit learned artifacts |
-| `strict-safety` | Makes safety-mode usage more explicit and more frequent |
+| `strict-safety` | Installs `strict-safety.instructions.md` and threads explicit `ProposedAction` / `ActionRisk` / `ActionResult` guidance through risky planning, safety, review, and closure workflows |
 | `release-observability` | Deepens operational closure and post-release monitoring guidance |
 | `adversarial-review` | Enables the standalone multi-model adversarial-review agent and review escalation path for higher-confidence consensus findings |
 
@@ -402,6 +402,14 @@ Example overlay target map for `continuous-learning`:
 | Observation lifecycle | `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` |
 | Learned-artifact promotion | tuning / maintenance guidance and explicit `learned-*` artifact pathways |
 
+Example overlay target map for `strict-safety`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Action contract | foundation docs, `strict-safety.instructions.md`, `safety-modes/SKILL.md` |
+| Risky-plan legibility | `stage.agent.md`, `impl-plan/SKILL.md`, `plan-harden/SKILL.md`, `plan-review/SKILL.md` |
+| Approval / rollback visibility | review, runtime-verification, and operational-closure workflows |
+
 Map primitives to template groups:
 
 | Primitive | Template Groups |
@@ -409,8 +417,8 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/stage`, `agents/ship`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect` |
-| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
+| 4 - Orchestration | `agents/stage`, `agents/ship`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect` |
+| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, optional `instructions/strict-safety` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
 | 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
@@ -462,6 +470,10 @@ capture into both files so observation storage, evidence-backed instincts, and
 promotion into explicit learned artifacts become part of the normal harness
 narrative.
 
+If the `strict-safety` capability pack is enabled, weave explicit risky-action
+classification into both files so `ProposedAction`, `ActionRisk`, approval, and
+`ActionResult` language becomes part of the normal harness narrative.
+
 #### Step 2.2: Instruction Layer
 
 Generate instruction files. These use `applyTo` patterns to scope their rules:
@@ -487,6 +499,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    When `backlogit` is enabled, install `backlogit.instructions.md` and use it as the authoritative reference for backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows.
    When `browser-verification` is enabled, install `browser-verification.instructions.md` and use it as the authoritative reference for browser-ready server checks, route selection, headed/headless choice, and human checkpoints.
    When `continuous-learning` is enabled, install `continuous-learning.instructions.md` and use it as the authoritative reference for observation capture, instinct formation, and learned-artifact promotion.
+   When `strict-safety` is enabled, install `strict-safety.instructions.md` and use it as the authoritative reference for `ProposedAction`, `ActionRisk`, `ActionResult`, approval routing, and risky-work legibility.
 
 #### Step 2.3: Backlog Tool Registration
 
@@ -517,10 +530,11 @@ Generate agent definitions. Each agent template has technology-specific sections
 1. **Pipeline agents**: stage, ship, harness-architect
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
-   * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
-   * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits
-   * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
-   * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
+    * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
+    * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits
+    * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
+    * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
+    * When `strict-safety` is enabled, keep risky planning and approval vocabulary visible through stage, review, verification, and closure handoffs
 
 2. **Support agents**: prompt-builder
    * Minimal technology adaptation needed
@@ -552,10 +566,11 @@ Generate skill files:
    * `impl-plan/SKILL.md` — Adapt execution postures for the technology
 
 2. **Universal skills** (minimal adaptation; install only when their governing primitives are selected):
-   * `deliberate/SKILL.md`
-   * `spike/SKILL.md`
-   * `compact-context/SKILL.md`
-   * `compound/SKILL.md`
+    * `deliberate/SKILL.md`
+    * `spike/SKILL.md`
+    * `plan-harden/SKILL.md` — Install when Primitive 4 is selected so risky plans can be strengthened before review
+    * `compact-context/SKILL.md`
+    * `compound/SKILL.md`
    * `compound-refresh/SKILL.md` — Install when Primitive 1 is selected so the workspace can maintain stale or overlapping institutional learnings over time
    * `harness-architect/SKILL.md` — Install when Primitive 4 is selected. Adapts test patterns, failure markers, and file placement for `{{PRIMARY_LANGUAGE}}`
    * `harvest/SKILL.md` — Install when Primitive 4 is selected. Resolves backlog tool variables from the registry
@@ -575,6 +590,10 @@ an implicit manual step.
 
 When `continuous-learning` is enabled, install and reference the observation
 lifecycle skills rather than relying on invisible prompt behavior.
+
+When `strict-safety` is enabled, weave the action contract through `plan-harden`,
+`safety-modes`, review, and closure skills rather than treating the pack as a
+single isolated instruction file.
 
 #### Step 2.6: Policy Layer
 
@@ -734,6 +753,7 @@ Verify all installed artifacts are internally consistent:
 * If `backlogit` is enabled, the backlogit instruction file is installed and the affected agents / skills reference query, queue, checkpoint, or traceability behavior consistently
 * If `browser-verification` is enabled, the browser-verification instruction file is installed and runtime / closure workflows reference server readiness, route selection, headed/headless choice, and human checkpoints consistently
 * If `continuous-learning` is enabled, the continuous-learning instruction file plus `observe`, `learn`, and `evolve` skills are installed and the harness references evidence-backed promotion rather than hidden prompt drift
+* If `strict-safety` is enabled, the strict-safety instruction file is installed and the affected planning / safety / review / closure workflows reference `ProposedAction`, `ActionRisk`, `ActionResult`, and approval rules consistently
 * If `agent_native.recommended_reviewer` is true, the review layer includes `agent-native-parity-reviewer.agent.md` and the review routing logic can select it for parity-sensitive work
 * The recorded `install_layers` match the artifact classes actually installed (for example, `review` implies review personas plus `review` / `plan-review`; `runtime` implies runtime verification and closure artifacts; `overlays` implies pack-specific instruction files or woven overlay targets)
 * If any capability pack is enabled, its declared overlay targets and verification checks are satisfied rather than only the pack name being recorded

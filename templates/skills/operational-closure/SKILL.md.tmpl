@@ -34,6 +34,12 @@ When the `browser-verification` capability pack is installed, also follow
 verification evidence, human-checkpoint outcomes, and browser-specific post-deploy
 checks into the closure artifact instead of treating them as side notes.
 
+When the `strict-safety` capability pack is installed, also follow
+`.github/instructions/strict-safety.instructions.md`: carry the risky
+`ProposedAction` entries, their `ActionRisk`, approval path, and final
+`ActionResult` into closure artifacts when those details matter to rollout,
+monitoring, or rollback.
+
 ### Step 1: Gather Closure Context
 
 Collect:
@@ -41,6 +47,7 @@ Collect:
 * Summary of the change
 * CI status and unresolved review items
 * Runtime verification results (if available)
+* Any risky actions that required approval, rollback planning, or explicit containment
 * Affected runtime surfaces
 * Deployment or release path, if applicable
 * Invariants that must remain true after release
@@ -54,6 +61,7 @@ The closure artifact MUST include:
 * **Pre-deploy audits** — migrations, flags, config, access, or rollout prerequisites that must be checked before release
 * **Deployment or rollout path** — merge-only, deploy, canary, phased rollout, maintenance window, or handoff path
 * **Post-deploy checks** — the first concrete observations or smoke checks to run after release
+* **Risky action record** — the `ProposedAction` entries that materially affected rollout or rollback, their `ActionRisk`, and final `ActionResult`
 * **Healthy signals** — what success should look like
 * **Failure signals** — what indicates rollback or intervention is needed
 * **Monitoring plan** — logs, dashboards, alerts, or smoke checks to watch
@@ -86,6 +94,7 @@ Operational closure is the compositional bridge from code production to safe abs
 
 * Closure artifacts include concrete release and monitoring signals, not generic advice
 * Pre-deploy and post-deploy checks are explicit when the change has runtime or rollout risk
+* Risky actions and their outcomes are visible when they affect release safety
 * Rollback triggers and rollback procedures are explicit and actionable
 * Ownership and validation windows are recorded
 * Durable runtime learnings are fed back into the harness when appropriate
