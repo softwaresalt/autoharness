@@ -153,8 +153,12 @@ The review gate produces a verdict:
   (a) re-invoke impl-plan or plan-harden with the revised source,
   (b) accept a revised plan path from the operator and re-invoke plan-review,
   (c) halt and record the FAIL as a P-005 violation.
-  Maximum 2 plan-review re-entry cycles per plan. After 2 consecutive FAILs,
-  halt and require operator intervention.
+
+**Cycle tracking**: Track the plan-review attempt count by appending a
+`<!-- plan-review-attempt: N -->` comment to the plan file after each FAIL.
+Read this counter before each re-invocation. Maximum 2 re-entry cycles per
+plan. After 2 consecutive FAILs (attempt count reaches 3), halt and require
+operator intervention.
 
 Record review findings so the harvested backlog carries the right context.
 
@@ -239,6 +243,8 @@ When the `agent-intercom` capability pack is installed:
 | Triage start | `broadcast` | `info` | `[STAGE] Reviewing stash entry: {stash_id}` |
 | Deliberation handoff | `broadcast` | `info` | `[STAGE] Routing to deliberate skill: {stash_id}` |
 | Spike handoff | `broadcast` | `info` | `[STAGE] Routing to spike skill: {stash_id}` |
+| Gate bypass blocked | `broadcast` | `warning` | `[STAGE] Gate bypass detected without force_harvest_no_gates override` |
+| Gate bypass override | `broadcast` | `warning` | `[STAGE] All planning and review gates bypassed with force_harvest_no_gates` |
 | Plan written | `broadcast` | `success` | `[STAGE] Plan written: {plan_path}` |
 | Plan hardened | `broadcast` | `info` | `[STAGE] Plan hardened: {plan_path}` |
 | Review gate | `broadcast` | `info` | `[STAGE] Review gate: {PASS\|ADVISORY\|FAIL}` |
@@ -276,7 +282,9 @@ When the `backlogit` capability pack is installed and checkpoint operations are 
 
 ### Context Overflow Protocol
 
-When remaining context capacity drops below 20%:
+When context pressure is high — indicated by accumulated memory checkpoints
+exceeding 10 files, total tracking artifact size exceeding 500 KB, or the agent
+noticing degraded instruction adherence:
 
 1. Immediately write a mid-task checkpoint to `{{DOCS_MEMORY}}/` capturing:
    current task or step ID, files modified so far, decisions made, next planned

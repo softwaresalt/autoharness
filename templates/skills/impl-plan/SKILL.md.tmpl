@@ -89,10 +89,11 @@ Document key technical decisions with the reasoning behind each choice.
 
 Identify potential issues, unknowns, and mitigation strategies.
 
-#### Plan Hardening Signals
+#### Plan Hardening Signals (REQUIRED)
 
-Explicitly record whether the plan needs hardening before review. Mark each
-signal as present or absent and include a short justification:
+Every plan MUST include this section. Explicitly record whether the plan needs
+hardening before review. Mark each signal as present or absent and include a
+short justification:
 
 * public API, schema, or contract change
 * security, auth, permission, or compliance-sensitive behavior
@@ -100,7 +101,9 @@ signal as present or absent and include a short justification:
 * external integration, operator checkpoint, or external dependency
 * high runtime, rollout, or rollback risk
 
-Conclude with `Requires plan hardening: yes|no`.
+Conclude with `Requires plan hardening: yes|no`. This conclusion is mandatory —
+P-006 treats its absence as `yes` (fail-safe). Even trivial plans must include
+`Requires plan hardening: no` to pass the gate without unnecessary hardening.
 
 #### Runtime Verification and Closure
 
@@ -122,7 +125,7 @@ verification, or rollback expectations from scratch.
 * Decisions include rationale (not just the choice)
 * Risks identify mitigations
 * Relevant prior learnings are surfaced before planning concludes
-* Plans record whether `plan-harden` is required before review
+* Plans record whether `plan-harden` is required before review — this field is mandatory, not optional
 * Plans include runtime verification and closure expectations for changed runtime surfaces
 
 ## Model Routing

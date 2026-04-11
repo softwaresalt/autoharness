@@ -236,6 +236,32 @@ primary_stack_pack: "web-app"|null
 stack_packs: []
 ```
 
+#### Step 1.5g: Capability Pack Signal Detection
+
+Scan for signals that indicate specific capability packs should be recommended.
+This step covers packs whose eligibility depends on workspace characteristics
+beyond what earlier steps already detect (agent-intercom, agent-engram, and
+backlogit are detected through their tool markers; browser-verification is
+detected through `runtime_surfaces.browser_tooling`).
+
+**strict-safety signals**:
+
+* public API surface present (`runtime_surfaces.public_api == true`)
+* migration or schema management files detected (Alembic, Flyway, Prisma, ActiveRecord migrations, etc.)
+* security-sensitive patterns present (auth modules, crypto usage, PII handling, payment integration)
+* deployment infrastructure suggests rollout-critical surfaces (Kubernetes manifests, Helm charts, Docker Compose with production profiles)
+
+Record: `strict_safety_signals: []` (list of detected signal descriptions)
+
+**release-observability signals**:
+
+* deployment manifests detected (Dockerfiles, Helm charts, Terraform, CloudFormation, Kubernetes YAML)
+* runtime surfaces exist (`runtime_surfaces.public_api`, `runtime_surfaces.web_ui`, `runtime_surfaces.background_jobs`)
+* monitoring or alerting configuration present (Prometheus rules, Grafana dashboards, Datadog config, PagerDuty integration)
+* CI/CD pipelines include deployment steps (deploy jobs, release workflows, canary configurations)
+
+Record: `release_observability_signals: []` (list of detected signal descriptions)
+
 #### Step 1.6: Backlog Tool Detection
 
 Detect installed backlog management tools by scanning for their workspace markers and configuration:
@@ -496,6 +522,8 @@ The summary MUST include:
 * Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
 * Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
 * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
+* Whether the `strict-safety` pack is recommended because security-sensitive, migration, or high-blast-radius signals were detected
+* Whether the `release-observability` pack is recommended because deployment infrastructure and runtime surfaces were detected
 * Whether the conditional agent-native parity reviewer is recommended because MCP or parity-sensitive agent tooling surfaces were detected
 * Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
 * Plain-language reasons for the recommended preset, packs, and install layers rather than only the final names

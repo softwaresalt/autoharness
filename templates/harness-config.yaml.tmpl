@@ -54,6 +54,12 @@ continuous_learning:
   environment_adapter: "{{CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER}}"
   promotion_threshold: {{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}
 
+# Optional strict-safety capability-pack configuration
+strict_safety:
+  enabled: {{STRICT_SAFETY_ENABLED}}
+  require_approval_for:
+    - destructive
+
 # Model routing preferences (map tiers to model identifiers)
 model_routing:
   tier1: {{MODEL_ROUTING_TIER1}}      # Fast/cheap: memory, docs, compaction
