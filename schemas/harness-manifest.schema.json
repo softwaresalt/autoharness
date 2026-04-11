@@ -37,12 +37,29 @@
       "enum": ["starter", "standard", "full", null],
       "description": "Preset used when the harness was installed"
     },
+    "primary_stack_pack": {
+      "type": ["string", "null"],
+      "description": "Primary stack classification selected during composition"
+    },
+    "stack_packs": {
+      "type": "array",
+      "description": "Additive stack classifications active during installation",
+      "items": { "type": "string" }
+    },
+    "install_layers": {
+      "type": "array",
+      "description": "Explicit artifact-class layers composed during installation. The 'overlays' layer MUST be present when capability_packs is non-empty.",
+      "items": {
+        "type": "string",
+        "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+      }
+    },
     "capability_packs": {
       "type": "array",
       "description": "Optional capability packs enabled during installation",
       "items": {
         "type": "string",
-        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability"]
+        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
       }
     },
     "capability_pack_overlays": {
@@ -52,10 +69,10 @@
         "type": "object",
         "required": ["pack", "overlay_targets", "verification_checks"],
         "properties": {
-          "pack": {
-            "type": "string",
-            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability"]
-          },
+            "pack": {
+              "type": "string",
+              "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+            },
           "overlay_targets": {
             "type": "array",
             "items": { "type": "string" }

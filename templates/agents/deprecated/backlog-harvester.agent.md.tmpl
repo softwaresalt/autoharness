@@ -1,6 +1,6 @@
 ---
 name: Backlog Harvester
-description: "Reads a deliberation, spike, or planning source file, analyzes its structure, and decomposes it into epics, sub-epics, and tasks with priorities and dependency wiring"
+description: "Reads a deliberation, spike, or planning source file, analyzes its structure, and decomposes it into top-level release units, sub-epics, and tasks with priorities and dependency wiring"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo, memory, {{BACKLOG_TOOLS}}
 model_routing: "Tier 3 (Frontier)"
@@ -62,27 +62,30 @@ Before creating any backlog entries, validate the decomposition chain:
 
 1. Source document exists at declared path
 2. Plan references source document
-3. Sub-epic candidates reference plan and feature epic
+3. Sub-epic candidates reference plan and the top-level feature or chore work item
 4. Task candidates reference parent sub-epic
 5. Every task includes at least one acceptance criterion
 
 If any check fails, halt with a P-003 violation broadcast.
 
-#### Step 4.1: Create Epic
+#### Step 4.1: Create Top-Level Release Unit
 
-Create the top-level feature epic using the backlog tool's create operation (see `backlog-integration.instructions.md` for the tool-specific MCP call or CLI command):
+Determine whether the work is a **feature** (net-new user-facing or product capability) or a **chore** (technical debt, maintenance, migration, dependency hygiene, or internal improvement that still ships as a coordinated release unit).
+
+Create the top-level parent work item using the backlog tool's create operation (see `backlog-integration.instructions.md` for the tool-specific MCP call or CLI command):
 
 * Title derived from the plan's primary objective
-* Description summarizing the feature scope
+* Description summarizing the top-level release scope
 * Reference to the source document and plan
-* Use `{{FIELD_TYPE}}: "epic"` to set the artifact type
+* When the backlog tool supports explicit work-item kinds, use `{{FIELD_TYPE}}: "feature"` or `{{FIELD_TYPE}}: "chore"` accordingly
+* When the backlog tool does not support explicit kinds, encode the distinction through the configured prefix, labels, or title convention while keeping the item as the parent of all decomposed tasks
 
 #### Step 4.2: Create Sub-Epics
 
 For each major implementation unit in the plan, create a sub-epic with:
 
 * Title matching the plan section
-* Parent reference to the feature epic via `{{FIELD_PARENT_ID}}`
+* Parent reference to the top-level feature or chore work item via `{{FIELD_PARENT_ID}}`
 * Scope boundary description
 
 #### Step 4.3: Create Tasks

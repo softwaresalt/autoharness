@@ -28,7 +28,7 @@ A YAML file at `.autoharness/workspace-profile.yaml` in the target workspace con
 Check for an operator-authored configuration file at `{workspace_path}/.autoharness/config.yaml`. If present:
 
 1. Validate against `schemas/harness-config.schema.json`
-2. Extract operator preferences: preset, capability packs, backlog tool/directory, prefix map, docs directory structure, model routing, template variable overrides
+2. Extract operator preferences: preset, primary stack pack, stack packs, install layers, capability packs, backlog tool/directory, prefix map, docs directory structure, model routing, template variable overrides
 3. These preferences take precedence over auto-detected values in subsequent phases — when the operator has explicitly specified a value, use it instead of detecting
 
 If the file does not exist, proceed with pure auto-detection. All fields are optional; the operator may specify only the settings they want to control.
@@ -131,7 +131,12 @@ Detect whether the workspace has runtime surfaces that need post-build verificat
 | Queue libraries, job workers, cron config, message consumers | Background jobs |
 | Dockerfile, Helm charts, Terraform, deployment workflows | Deployment manifests |
 
-Record: `runtime_surfaces{}` with booleans for `web_ui`, `public_api`, and `background_jobs`, plus `deployment_manifests[]` for discovered paths.
+Also detect browser-verification tooling from package dependencies or config files
+such as Playwright, Cypress, Puppeteer, Selenium, or equivalent browser runners.
+
+Record: `runtime_surfaces{}` with booleans for `web_ui`, `public_api`, and
+`background_jobs`, `browser_tooling[]`, plus `deployment_manifests[]` for
+discovered paths.
 
 #### Step 1.5c: Agent-Intercom Detection
 
@@ -174,6 +179,88 @@ agent_engram:
   instruction_markers: []
   recommended: true|false
 ```
+
+#### Step 1.5e: Agent-Native Surface Detection
+
+Detect whether the workspace exposes agent-facing product surfaces that justify a
+parity-focused reviewer:
+
+| Signal | Meaning |
+|--------|---------|
+| `frameworks.mcp_sdk` or MCP transport dependencies are present | Workspace likely exposes MCP or agent-facing tool surfaces |
+| `mcp-server.instructions.md`, tool handler directories, or tool schemas are present | Explicit agent tooling surface exists |
+| Existing docs describe parity between UI actions and agent actions, or agent-only workflow concerns | Product likely requires user/agent parity review |
+| Tool manifests, capability schemas, or action handlers suggest users and agents must share the same business operation surface | Parity-sensitive design likely matters |
+
+Record: `agent_native{}` with the following structure:
+
+```yaml
+agent_native:
+  detected: true|false
+  mcp_sdk_present: true|false
+  mcp_transport: "stdio"|"sse"|"streamable-http"|null
+  agent_tooling_markers: []
+  user_agent_parity_required: true|false
+  recommended_reviewer: true|false
+```
+
+#### Step 1.5f: Stack-Pack Normalization
+
+Normalize discovered signals into additive stack packs so the installer and tuner
+can reason about composition more explicitly than a preset name alone.
+
+Suggested normalization:
+
+| Signal | Stack Pack |
+|--------|------------|
+| `runtime_surfaces.web_ui == true` | `web-app` |
+| `runtime_surfaces.public_api == true` | `api-service` |
+| `runtime_surfaces.background_jobs == true` | `background-worker` |
+| `runtime_surfaces.deployment_manifests[]` not empty | `deployable-service` |
+| `frameworks.mcp_sdk` present or `agent_native.detected == true` | `mcp-server` |
+| CLI frameworks / layouts detected (for example Cobra, Clap, Click, Typer, Commander, `cmd/`, `bin/`) | `cli-tool` |
+| No stronger runtime signal and the workspace looks package-like or reusable | `library` |
+
+Choose `primary_stack_pack` deterministically:
+
+1. Use the operator-configured `primary_stack_pack` when present.
+2. Otherwise prefer the strongest detected runtime-facing stack in this order:
+   `web-app` -> `api-service` -> `mcp-server` -> `background-worker` -> `cli-tool` -> `library`.
+3. If no normalized stack pack is justified, leave it `null` and explain why in
+   the recommendation summary.
+
+Record:
+
+```yaml
+primary_stack_pack: "web-app"|null
+stack_packs: []
+```
+
+#### Step 1.5g: Capability Pack Signal Detection
+
+Scan for signals that indicate specific capability packs should be recommended.
+This step covers packs whose eligibility depends on workspace characteristics
+beyond what earlier steps already detect (agent-intercom, agent-engram, and
+backlogit are detected through their tool markers; browser-verification is
+detected through `runtime_surfaces.browser_tooling`).
+
+**strict-safety signals**:
+
+* public API surface present (`runtime_surfaces.public_api == true`)
+* migration or schema management files detected (Alembic, Flyway, Prisma, ActiveRecord migrations, etc.)
+* security-sensitive patterns present (auth modules, crypto usage, PII handling, payment integration)
+* deployment infrastructure suggests rollout-critical surfaces (Kubernetes manifests, Helm charts, Docker Compose with production profiles)
+
+Record: `strict_safety_signals: []` (list of detected signal descriptions)
+
+**release-observability signals**:
+
+* deployment manifests detected (Dockerfiles, Helm charts, Terraform, CloudFormation, Kubernetes YAML)
+* runtime surfaces exist (`runtime_surfaces.public_api`, `runtime_surfaces.web_ui`, `runtime_surfaces.background_jobs`)
+* monitoring or alerting configuration present (Prometheus rules, Grafana dashboards, Datadog config, PagerDuty integration)
+* CI/CD pipelines include deployment steps (deploy jobs, release workflows, canary configurations)
+
+Record: `release_observability_signals: []` (list of detected signal descriptions)
 
 #### Step 1.6: Backlog Tool Detection
 
@@ -283,9 +370,12 @@ When `existing_profile` is provided, compare the current scan against the previo
 * Build/test tools changed
 * CI pipeline modified
 * New source directories created
+* Primary stack or additive stack-pack composition changed
 * Existing harness artifacts that reference stale paths, removed tools, or outdated conventions
+* Manifest-tracked harness artifacts that are missing or checksum-divergent, excluding any paths matched by `.autoharness/drift-ignore`
 
-Record: `drift_report{}` with categorized changes.
+Record: `drift_report{}` with categorized changes, optional checksum-scan
+results, and initial recommendations.
 
 ### Phase 4: Profile Assembly
 
@@ -303,7 +393,13 @@ languages:
   primary: "{{PRIMARY_LANGUAGE}}"
   secondary: []
 
-frameworks: []
+frameworks:
+  list: []
+  mcp_sdk: null
+  mcp_transport: null
+
+primary_stack_pack: null
+stack_packs: []
 
 build:
   tool: "{{BUILD_TOOL}}"
@@ -336,6 +432,7 @@ runtime_surfaces:
   web_ui: false
   public_api: false
   background_jobs: false
+  browser_tooling: []
   deployment_manifests: []
 
 conventions:
@@ -346,6 +443,11 @@ conventions:
 harness_recommendations:
   preset: "{{RECOMMENDED_PRESET}}"
   capability_packs: []
+  install_layers: []
+  recommendation_reasons:
+    preset: []
+    capability_packs: []
+    install_layers: []
   # Example when Engram is detected and recommended:
   # capability_packs: ["agent-engram"]
 
@@ -368,6 +470,14 @@ agent_engram:
   # config_paths: [".vscode/mcp.json", ".engram/config.toml"]
   # recommended: true
 
+agent_native:
+  detected: false
+  mcp_sdk_present: false
+  mcp_transport: null
+  agent_tooling_markers: []
+  user_agent_parity_required: false
+  recommended_reviewer: false
+
 existing_harness:
   has_harness: false
   artifacts: []
@@ -385,6 +495,18 @@ backlog_tool:
   features: {}
 
 drift_report: null
+# Example in tuning mode:
+# drift_report:
+#   changes: []
+#   checksum_scan:
+#     manifest_present: true
+#     ignore_file: ".autoharness/drift-ignore"
+#     checked_artifacts: 12
+#     missing_count: 0
+#     user_modified_count: 1
+#     ignored_count: 0
+#     artifacts: []
+#   recommendations: []
 ```
 
 #### Step 4.2: Present for Review
@@ -393,12 +515,18 @@ Display the profile summary to the user and wait for confirmation or corrections
 
 The summary MUST include:
 
+* Primary stack pack and additive stack packs detected from the workspace
 * Recommended preset (`starter`, `standard`, or `full`)
-* Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true`)
+* Recommended install layers derived from preset, stack packs, runtime surfaces, and overlays
+* Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true` and browser tooling is present)
 * Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
 * Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
 * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
+* Whether the `strict-safety` pack is recommended because security-sensitive, migration, or high-blast-radius signals were detected
+* Whether the `release-observability` pack is recommended because deployment infrastructure and runtime surfaces were detected
+* Whether the conditional agent-native parity reviewer is recommended because MCP or parity-sensitive agent tooling surfaces were detected
 * Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
+* Plain-language reasons for the recommended preset, packs, and install layers rather than only the final names
 
 ## Quality Criteria
 
@@ -406,3 +534,4 @@ The summary MUST include:
 * Language detection is verified against at least 2 signals (file extensions alone are insufficient)
 * Build and test commands are verified to exist in configuration files, not assumed
 * The profile is valid YAML and conforms to `schemas/workspace-profile.schema.json`
+* When tuning mode is active and a manifest exists, checksum-scan results are captured or explicitly omitted with a reason

@@ -70,11 +70,12 @@ Read and parse:
 
 * `.autoharness/harness-manifest.yaml` — installed artifact inventory and checksums
 * `.autoharness/workspace-profile.yaml` — the profile used during installation
+* `.autoharness/drift-ignore` — optional ignore patterns for intentional local harness customizations
 * Previous tuning reports in `.autoharness/tuning-reports/` (if any)
 
 ### Step 4: Invoke Workspace Discovery (Delta Mode)
 
-Invoke the workspace-discovery skill with `existing_profile` set to the current workspace profile. This produces a fresh profile with a drift report highlighting what changed since the last installation or tuning.
+Invoke the workspace-discovery skill with `existing_profile` set to the current workspace profile. This produces a fresh profile with a drift report highlighting what changed since the last installation or tuning, including checksum-based artifact drift when a manifest is present.
 
 ### Step 5: Invoke Tune Harness
 
@@ -85,16 +86,20 @@ Invoke the tune-harness skill with:
 * `scope`: User-specified scope or `all`
 * `auto_apply`: false (always interactive unless the user explicitly requests auto-apply)
 
-### Step 5: Present Results
+### Step 6: Present Results
 
 After tuning completes, present:
 
 * Summary of changes applied
 * Any breaking drift that was detected and resolved
+* Missing or user-modified artifacts surfaced by the checksum scan
+* Any partially woven capability packs or conditional reviewer drift that was detected
+* Any plan-hardening or strict-safety drift that was detected
+* Any stack-pack, install-layer, or preset-composition drift that was detected
 * New capabilities that were added (growth opportunities)
 * Recommendations for manual review
 
-### Step 6: Schedule Next Tuning
+### Step 7: Schedule Next Tuning
 
 Suggest the user create a reminder or recurring task:
 
@@ -107,6 +112,7 @@ Suggest the user create a reminder or recurring task:
 * Always present change proposals for review in interactive mode
 * Prioritize breaking changes over cosmetic improvements
 * Do not suggest changes that would break currently-working agent workflows
+* Do not treat files covered by `.autoharness/drift-ignore` as accidental drift without explicitly surfacing that ignore state
 * When in doubt about whether a change is beneficial, present it as a P2/P3 proposal rather than P0/P1
 
 ## Model Routing

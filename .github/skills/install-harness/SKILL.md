@@ -19,7 +19,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `preset`: (Optional, default `standard`) One of `starter`, `standard`, or `full`. Presets define the default primitive set and capability-pack defaults.
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-10) to install. Defaults to the selected preset.
-* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `strict-safety`, `release-observability`.
+* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -52,11 +52,11 @@ All template reads in subsequent phases use `{autoharness_home}/templates/` as t
 Check for `.autoharness/config.yaml` in the target workspace. If present:
 
 1. Validate against `{autoharness_home}/schemas/harness-config.schema.json`
-2. Extract operator preferences for: preset, capability packs, backlog configuration (tool, directory, prefix map), docs directory structure, model routing, and template variable overrides
+2. Extract operator preferences for: preset, primary stack pack, stack packs, install layers, capability packs, backlog configuration (tool, directory, prefix map), docs directory structure, model routing, and template variable overrides
 3. Merge with the workspace profile — operator config values take precedence over auto-detected profile values
 4. Derive `{{PREFIX_*}}` template variables from `backlog.prefix_map` (falling back to backlogit project YAML when backlogit pack is active, then schema defaults)
 5. Derive `{{DOCS_ROOT}}` and `{{DOCS_*}}` template variables from `docs.root` and `docs.subdirectories` (falling back to schema defaults)
-6. Derive `{{CAPABILITY_PACKS_YAML}}` from `capability_packs` list for config write-back
+6. Derive `{{PRIMARY_STACK_PACK}}`, `{{STACK_PACKS_YAML}}`, `{{INSTALL_LAYERS_YAML}}`, and `{{CAPABILITY_PACKS_YAML}}` from the merged composition state for config write-back
 7. If the config specifies `overrides`, apply those template variable values directly, overriding any profile-derived values
 
 If the file does not exist, proceed with profile-only installation using schema default values for all prefix and docs variables. After installation, the installer writes the resolved `.autoharness/config.yaml` recording the actual values used (see Step 3.4).
@@ -86,6 +86,7 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{TEST_DIR}}` | `test.directory` | `tests/` | `__tests__/` | `tests/` |
 | `{{SOURCE_DIR}}` | `structure.source_layout` | `src/` | `src/` | `src/` |
 | `{{CI_PLATFORM}}` | `ci.platform` | `GitHub Actions` | `GitHub Actions` | `GitHub Actions` |
+| `{{CI_WORKFLOW_GLOB}}` | Derived from `ci.platform` | `**/.github/workflows/*.yml` | `**/.github/workflows/*.yml` | `**/.github/workflows/*.yml` |
 | `{{BUILD_TOOL}}` | `build.tool` | `cargo` | `npm` | `pip` |
 | `{{FORMATTER}}` | `format.tool` | `rustfmt` | `prettier` | `ruff` |
 | `{{LINTER}}` | `lint.tool` | `clippy` | `eslint` | `ruff` |
@@ -93,6 +94,12 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{UNSAFE_POLICY}}` | Language-specific safety rules | `#![forbid(unsafe_code)]` | `strict TypeScript` | `type hints required` |
 | `{{ERROR_PATTERN}}` | Language-specific error handling | `Result<T, Error>` | `try/catch + custom errors` | `raise/except` |
 | `{{DOC_COMMENT_STYLE}}` | Language convention | `/// doc comment` | `/** JSDoc */` | `"""docstring"""` |
+| `{{LANGUAGE_FILE_GLOB}}` | Language convention | `**/*.rs` | `**/*.ts,**/*.tsx` | `**/*.py` |
+| `{{UNIMPLEMENTED_MARKER}}` | Language convention | `unimplemented!("Worker: ...")` | `throw new Error("Not implemented: ...")` | `raise NotImplementedError("...")` |
+| `{{MCP_SDK}}` | `frameworks.mcp_sdk` (when detected) | _(N/A)_ | `@modelcontextprotocol/sdk` | `mcp` |
+| `{{MCP_TRANSPORT}}` | `frameworks.mcp_transport` (when detected) | _(N/A)_ | `stdio` | `stdio` |
+| `{{MCP_PROJECT_STRUCTURE}}` | Derived from language and project layout | _(N/A)_ | _(project tree)_ | _(project tree)_ |
+| `{{REPOSITORY_OPERATING_MODEL}}` | Derived from workspace architecture | _(brief description)_ | _(brief description)_ | _(brief description)_ |
 | `{{QUALITY_GATE_1_NAME}}` | `ci.quality_gates[0]` (name) | `check` | `lint` | `lint` |
 | `{{QUALITY_GATE_1}}` | `ci.quality_gates[0]` (command) | `cargo check --all-targets` | `npm run lint` | `ruff check .` |
 | `{{QUALITY_GATE_2_NAME}}` | `ci.quality_gates[1]` (name) | `clippy` | `typecheck` | `typecheck` |
@@ -123,8 +130,8 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_MOVE_CLI}}` | Registry `operations.move_task.cli_command` | `backlogit move {id} {status}` | `backlog task move {id}` |
 | `{{OP_SEARCH_CLI}}` | Registry `operations.search_tasks.cli_command` | `backlogit search {query}` | `backlog task search` |
 | `{{OP_COMPLETE_CLI}}` | Registry `operations.complete_task.cli_command` | `backlogit done {id}` | `backlog task complete {id}` |
-| `{{STATUS_TODO}}` | Registry `status_values.todo` | `queued` | `To Do` |
-| `{{STATUS_IN_PROGRESS}}` | Registry `status_values.in_progress` | `active` | `In Progress` |
+| `{{STATUS_QUEUED}}` | Registry `status_values.queued` | `queued` | `To Do` |
+| `{{STATUS_ACTIVE}}` | Registry `status_values.active` | `active` | `In Progress` |
 | `{{STATUS_DONE}}` | Registry `status_values.done` | `done` | `Done` |
 | `{{STATUS_BLOCKED}}` | Registry `status_values.blocked` | `blocked` | `Blocked` |
 | `{{FIELD_TASK_ID}}` | Registry `field_mapping.task_id` | `id` | `id` |
@@ -142,6 +149,7 @@ Derive all template variables from the profile. The variable resolution table de
 | Template Variable | Source | Default |
 |---|---|---|
 | `{{PREFIX_FEATURE}}` | `config.backlog.prefix_map.feature` | `F` |
+| `{{PREFIX_CHORE}}` | `config.backlog.prefix_map.chore` | `C` |
 | `{{PREFIX_TASK}}` | `config.backlog.prefix_map.task` | `T` |
 | `{{PREFIX_SPIKE}}` | `config.backlog.prefix_map.spike` | `S` |
 | `{{PREFIX_DELIBERATION}}` | `config.backlog.prefix_map.deliberation` | `D` |
@@ -219,6 +227,9 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | Template Variable | Source | Default | Description |
 |---|---|---|---|
 | `{{INSTALL_PRESET}}` | Selected preset from Step 1.3 | `standard` | Installation preset name |
+| `{{PRIMARY_STACK_PACK}}` | Selected primary stack pack | `web-app` | Primary additive stack classification used during composition |
+| `{{STACK_PACKS_YAML}}` | YAML list from selected stack packs | `["web-app", "deployable-service"]` | Rendered YAML array of additive stack packs |
+| `{{INSTALL_LAYERS_YAML}}` | YAML list from resolved install layers | `["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge"]` | Rendered YAML array of explicit artifact-class layers |
 | `{{CAPABILITY_PACKS_YAML}}` | YAML list from selected capability packs | `[]` | Rendered YAML array of enabled packs |
 | `{{DOCS_COMPOUND_DIR}}` | `config.docs.subdirectories.compound` | `compound` | Subdirectory name only (not full path) |
 | `{{DOCS_PLANS_DIR}}` | `config.docs.subdirectories.plans` | `plans` | Subdirectory name only |
@@ -227,6 +238,10 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{DOCS_CLOSURE_DIR}}` | `config.docs.subdirectories.closure` | `closure` | Subdirectory name only |
 | `{{DOCS_DESIGN_DOCS_DIR}}` | `config.docs.subdirectories.design_docs` | `design-docs` | Subdirectory name only |
 | `{{DOCS_PRODUCT_SPECS_DIR}}` | `config.docs.subdirectories.product_specs` | `product-specs` | Subdirectory name only |
+| `{{CONTINUOUS_LEARNING_DIR}}` | `config.continuous_learning.directory` | `.autoharness/continuous-learning` | Repo-local directory for observation, instinct, and learned-artifact state |
+| `{{CONTINUOUS_LEARNING_CAPTURE_HOOKS}}` | `config.continuous_learning.capture_hooks` | `false` | Whether environment-specific hook capture is enabled |
+| `{{CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER}}` | `config.continuous_learning.environment_adapter` | `none` | Optional hook-capture adapter name |
+| `{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}` | `config.continuous_learning.promotion_threshold` | `3` | Minimum corroborating observations before promotion to a learned artifact |
 | `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1` | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks |
 | `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2` | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review |
 | `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
@@ -242,9 +257,12 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
 | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
 | `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.vscode/mcp.json, .engram/config.toml` | empty |
+| `{{BROWSER_VERIFICATION_ENABLED}}` | `capability_packs` contains `browser-verification` | `true` | `false` |
+| `{{CONTINUOUS_LEARNING_ENABLED}}` | `capability_packs` contains `continuous-learning` | `true` | `false` |
+| `{{AGENT_NATIVE_REVIEWER_RECOMMENDED}}` | `agent_native.recommended_reviewer` | `true` | `false` |
 | `{{AGENT_ADVERSARIAL_REVIEW_ENABLED}}` | `capability_packs` contains `adversarial-review` | `true` | `false` |
 
-Note: These six variables are used internally by the installer during capability-pack detection and overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
+Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
 #### Step 1.3: Select Preset, Primitive Set, and Capability Packs
 
@@ -253,6 +271,15 @@ Resolve the installation shape in this order:
 1. If `primitives` input is provided, use it directly.
 2. Otherwise, use the primitive set implied by `preset`.
 3. If no preset is provided, default to `standard`.
+4. Resolve `primary_stack_pack` from operator config first, then from the
+   workspace profile.
+5. Resolve additive `stack_packs` from operator config first, then from the
+   workspace profile.
+6. Resolve `capability_packs` from explicit input first, then operator config,
+   then profile recommendations.
+7. Resolve `install_layers` from operator config first; otherwise use
+   `harness_recommendations.install_layers`; otherwise derive them from the
+   selected preset and whether overlays are enabled.
 
 Preset defaults:
 
@@ -264,6 +291,45 @@ Preset defaults:
 
 If `capability_packs` input is omitted, use the profile's `harness_recommendations.capability_packs` for `full`, or apply no optional packs for `starter`/`standard` unless a pack is strongly recommended by detected runtime surfaces.
 
+Additive stack packs are descriptive composition inputs rather than substitute
+architectures. They capture multiple concurrent workspace shapes such as
+`web-app`, `api-service`, `background-worker`, `deployable-service`,
+`mcp-server`, `cli-tool`, or `library`.
+
+Install-layer defaults:
+
+| Preset | Default Install Layers |
+|---|---|
+| `starter` | `foundation`, `instructions`, `workflow`, `backlog`, `knowledge` |
+| `standard` | `starter` layers + `review`, `runtime` |
+| `full` | `standard` layers + `overlays` when recommended or explicitly selected packs are enabled |
+
+Add the `overlays` layer whenever one or more capability packs are selected,
+even if the chosen preset is `starter` or `standard`.
+
+If `capability_packs` is non-empty but `install_layers` does not include
+`overlays`, add `overlays` automatically and warn the operator. If
+`install_layers` includes `overlays` but `capability_packs` is empty, warn the
+operator that the overlays layer has no packs to weave.
+
+Treat install layers as **explicit artifact-class composition**, not as a second
+primitive system:
+
+| Install Layer | Primary Artifact Classes |
+|---|---|
+| `foundation` | `AGENTS.md`, `copilot-instructions.md`, constitution |
+| `instructions` | language instructions, workflow instructions, integration instructions |
+| `workflow` | stage/ship/support agents, core skills, policies, prompts |
+| `review` | review personas plus `review` / `plan-review` routing |
+| `runtime` | runtime verification, operational closure, runtime-facing handoff guidance |
+| `backlog` | backlog registry, backlog config, backlog integration guidance |
+| `knowledge` | docs-root structure, compound/memory/closure/plans conventions |
+| `overlays` | capability-pack-specific instructions plus woven overlay targets |
+
+If operator-specified `install_layers` contradict the selected primitive set,
+halt and ask for correction rather than silently producing an incoherent
+composition.
+
 Capability-pack overlays:
 
 | Capability Pack | Overlay Behavior |
@@ -271,9 +337,12 @@ Capability-pack overlays:
 | `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, long-running skills, and the ping-loop prompt |
 | `agent-engram` | Installs `agent-engram.instructions.md` and threads engram-first indexed search, workspace binding, freshness checks, and code-graph-driven analysis through foundation docs and analysis-heavy workflows |
 | `backlogit` | Installs `backlogit.instructions.md` and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace workflows through backlog-aware artifacts |
-| `browser-verification` | Strengthens browser-specific runtime verification guidance |
-| `strict-safety` | Makes safety-mode usage more explicit and more frequent |
+| `browser-verification` | Installs `browser-verification.instructions.md` and threads server readiness, route selection, headed/headless choice, and human-checkpoint handling through runtime verification and closure workflows |
+| `continuous-learning` | Installs `continuous-learning.instructions.md` and `observe` / `learn` / `evolve` skills so recurring workflow practice can be captured, clustered, and promoted into explicit learned artifacts |
+| `strict-safety` | Installs `strict-safety.instructions.md` and threads explicit `ProposedAction` / `ActionRisk` / `ActionResult` guidance through risky planning, safety, review, and closure workflows |
+| `release-observability` | Installs `release-observability.instructions.md` and threads monitoring plan, pre-deploy audit, observation window, and rollback trigger expectations through operational closure and runtime verification workflows |
 | `release-observability` | Deepens operational closure and post-release monitoring guidance |
+| `adversarial-review` | Enables the standalone multi-model adversarial-review agent and review escalation path for higher-confidence consensus findings |
 
 #### Step 1.3b: Apply the Formal Overlay Contract
 
@@ -311,8 +380,8 @@ Example overlay target map for `backlogit`:
 | Overlay Element | Required Targets |
 |---|---|
 | Token-efficient lookup | foundation docs, backlog instructions, backlog-aware agents |
-| Ready-work selection | build-orchestrator and backlog-aware instructions |
-| Agent continuity | memory agent, foundation docs |
+| Ready-work selection | ship agent and backlog-aware instructions |
+| Agent continuity | stage and ship session continuity, foundation docs |
 | Traceability | backlog-aware agents and instructions |
 
 Example overlay target map for `agent-engram`:
@@ -323,28 +392,79 @@ Example overlay target map for `agent-engram`:
 | Workspace binding and freshness | instructions plus workflows that depend on indexed results |
 | Code-graph blast radius analysis | harness / build / repair workflows that inspect symbols and callers |
 
+Example overlay target map for `browser-verification`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Browser workflow rules | foundation docs, `browser-verification.instructions.md` |
+| Verification discipline | `runtime-verification/SKILL.md`, closure-facing skills |
+| Human checkpoints | runtime verification and closure artifacts that mention external flows |
+
+Example overlay target map for `continuous-learning`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Observation capture rules | foundation docs, `continuous-learning.instructions.md` |
+| Observation lifecycle | `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` |
+| Learned-artifact promotion | tuning / maintenance guidance and explicit `learned-*` artifact pathways |
+
+Example overlay target map for `strict-safety`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Action contract | foundation docs, `strict-safety.instructions.md`, `safety-modes/SKILL.md` |
+| Risky-plan legibility | `stage.agent.md`, `impl-plan/SKILL.md`, `plan-harden/SKILL.md`, `plan-review/SKILL.md` |
+| Approval / rollback visibility | review, runtime-verification, and operational-closure workflows |
+
+Example overlay target map for `release-observability`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Monitoring plan discipline | foundation docs, `release-observability.instructions.md`, `operational-closure/SKILL.md` |
+| Rollback trigger requirements | `operational-closure/SKILL.md`, `runtime-verification/SKILL.md` |
+| Observation windows | closure-facing skills and PR lifecycle handoff sections |
+
 Map primitives to template groups:
 
 | Primitive | Template Groups |
 |---|---|
-| 1 - State & Context | `agents/memory`, `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
-| 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/backlog-harvester` |
+| 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh` |
+| 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/deliberator`, `agents/backlog-harvester`, `agents/build-orchestrator`, `agents/harness-architect`, `agents/pr-review`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci` |
-| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes` |
+| 4 - Orchestration | `agents/stage`, `agents/ship`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect` |
+| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, optional `instructions/strict-safety` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
-| 7 - Observability | `agents/review/*`, `agents/doc-ops`, `agents/review`, `agents/plan-review` |
+| 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
-| 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc`, `agents/doc-ops` |
+| 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc` |
 | 10 - Operational Closure | `skills/runtime-verification`, `skills/operational-closure`, PR and CI handoff sections in pipeline templates |
 
 ### Phase 2: Template Composition
+
+#### Step 2.0: Resolve Layer Scope
+
+Use `install_layers` as the explicit artifact-class composition contract for the
+selected preset and overlays:
+
+| Install Layer | Primary Phase 2 Targets |
+|---|---|
+| `foundation` | Step 2.1 |
+| `instructions` | Step 2.2 |
+| `workflow` | Step 2.4, Step 2.5, Step 2.6, Step 2.7 |
+| `review` | Review personas plus `review` / `plan-review` routing in Step 2.4 and Step 2.5 |
+| `runtime` | `runtime-verification`, `operational-closure`, and runtime-facing handoff text |
+| `backlog` | Step 2.2 backlog integration plus Step 2.3 and Step 2.8 |
+| `knowledge` | Docs-root conventions, compound/memory/closure/plans structure |
+| `overlays` | Capability-pack instruction files and woven overlay target updates |
+
+Stack packs influence why layers are present and which overlays are recommended,
+but they do not replace the layer contract itself.
 
 #### Step 2.1: Foundation Layer
 
 Generate the constitutional foundation first, as all other artifacts reference it:
 
-1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 9 universal principles (I–IX).
+1. **Constitution** (`constitution.instructions.md`): Adapt principles for the target technology. Replace language-specific rules (e.g., `unsafe` code policy becomes TypeScript strict mode, Python type-hint enforcement, etc.). Preserve all 10 universal principles (I–X).
 
 2. **AGENTS.md**: Generate the root AGENTS.md with technology-specific quality gates, code style conventions, error handling patterns, and terminal command policies.
 
@@ -354,11 +474,29 @@ If the `agent-intercom` capability pack is enabled, weave the intercom operating
 
 If the `agent-engram` capability pack is enabled, weave the engram-first search operating model into both files so indexed lookup, workspace binding, and freshness / fallback behavior become part of the normal harness narrative.
 
+If the `browser-verification` capability pack is enabled, weave browser
+verification discipline into both files so server readiness, route selection,
+headed/headless choice, and human-checkpoint expectations become part of the
+normal harness narrative.
+
+If the `continuous-learning` capability pack is enabled, weave recurring-practice
+capture into both files so observation storage, evidence-backed instincts, and
+promotion into explicit learned artifacts become part of the normal harness
+narrative.
+
+If the `strict-safety` capability pack is enabled, weave explicit risky-action
+classification into both files so `ProposedAction`, `ActionRisk`, approval, and
+`ActionResult` language becomes part of the normal harness narrative.
+
+If the `release-observability` capability pack is enabled, weave monitoring plan,
+pre-deploy audit, observation window, and rollback trigger expectations into both
+files so structured release confidence becomes part of the normal harness narrative.
+
 #### Step 2.2: Instruction Layer
 
 Generate instruction files. These use `applyTo` patterns to scope their rules:
 
-1. **Technology instructions** (`{language}.instructions.md`): Language-specific coding conventions, error handling, naming, documentation standards. Use `technology.instructions.md.tmpl` as the base.
+1. **Technology instructions** (`{language}.instructions.md`): Language-specific coding conventions, error handling, naming, documentation standards. Use the language-specific variant template when available (`technology-go.instructions.md.tmpl`, `technology-typescript.instructions.md.tmpl`, `technology-python.instructions.md.tmpl`, `technology-rust.instructions.md.tmpl`). Fall back to the generic `technology.instructions.md.tmpl` skeleton for languages without a variant.
 
 2. **Universal instructions** (no technology adaptation needed):
    * `commit-message.instructions.md` — Adapt scopes to match workspace directory structure
@@ -368,16 +506,30 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `pull-request.instructions.md` — Universal (install as-is)
    * `prompt-builder.instructions.md` — Universal (install as-is)
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
+   * `ci-security.instructions.md` — CI/CD security and hygiene conventions. Adapt `{{CI_WORKFLOW_GLOB}}` to match the workspace CI platform (e.g., `**/.github/workflows/*.yml` for GitHub Actions). Install when the workspace uses a CI system detected during discovery.
+   * `workflows.instructions.md` — CI/CD workflow structural conventions (job naming, artifacts, caching, matrix, reusable workflows). Install alongside `ci-security.instructions.md` when a CI system is detected.
+   * `mcp-server.instructions.md` — MCP server development conventions. Install when workspace-discovery detects an MCP server project (MCP SDK in dependencies). Resolves `{{MCP_SDK}}`, `{{MCP_TRANSPORT}}`, `{{MCP_PROJECT_STRUCTURE}}`.
 
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
 
 4. **Capability-pack instructions**: When `agent-intercom` is enabled, install `agent-intercom.instructions.md` and use it as the authoritative reference for heartbeat, remote approval, operator steering, and standby workflows.
    When `agent-engram` is enabled, install `agent-engram.instructions.md` and use it as the authoritative reference for engram-first search, workspace binding, index freshness, and indexed-search fallback workflows.
    When `backlogit` is enabled, install `backlogit.instructions.md` and use it as the authoritative reference for backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows.
+   When `browser-verification` is enabled, install `browser-verification.instructions.md` and use it as the authoritative reference for browser-ready server checks, route selection, headed/headless choice, and human checkpoints.
+   When `continuous-learning` is enabled, install `continuous-learning.instructions.md` and use it as the authoritative reference for observation capture, instinct formation, and learned-artifact promotion.
+   When `strict-safety` is enabled, install `strict-safety.instructions.md` and use it as the authoritative reference for `ProposedAction`, `ActionRisk`, `ActionResult`, approval routing, and risky-work legibility.
+   When `release-observability` is enabled, install `release-observability.instructions.md` and use it as the authoritative reference for monitoring plans, pre-deploy audits, observation windows, and rollback trigger discipline.
+   When `adversarial-review` is enabled, install `adversarial-review.instructions.md` and use it as the authoritative reference for multi-model dispatch, consensus assembly, confidence tiers, and remediation queue structure.
 
 #### Step 2.3: Backlog Tool Registration
 
 If the workspace profile includes a detected backlog tool (`backlog_tool.detected: true`):
+
+If `tool_name` is `"manual"`: skip registry installation, generate minimal
+backlog structure (queue/, archive/), skip backlog MCP tool registration in
+agent definitions. Agents will use file-based backlog scanning only.
+
+Otherwise:
 
 1. **Copy the matching registry**: Load the pre-built registry from `{autoharness_home}/templates/backlog/registries/{tool_name}.registry.yaml`
 2. **Install as `.autoharness/backlog-registry.yaml`** in the target workspace
@@ -399,33 +551,42 @@ If the user wants to use a tool not yet in the registry:
 
 #### Step 2.4: Agent Layer
 
-Generate agent definitions. Each agent template has technology-specific sections that vary:
+Generate agent definitions. Each agent template has technology-specific sections that vary.
 
-1. **Pipeline agents**: deliberator, backlog-harvester, build-orchestrator, harness-architect, pr-review
+**Deprecated agent exclusion**: Do not install agent templates from
+`{autoharness_home}/templates/agents/deprecated/`. If an existing workspace
+contains deprecated agent files listed in AGENTS.md's deprecation table (during
+merge install), flag them for removal.
+
+1. **Pipeline agents**: stage, ship, harness-architect
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
-   * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
-   * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits
-   * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
-   * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
+    * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
+    * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits
+    * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
+    * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
+    * When `strict-safety` is enabled, keep risky planning and approval vocabulary visible through stage, review, verification, and closure handoffs
+    * When `release-observability` is enabled, ensure operational-closure and runtime-verification carry monitoring plan, observation window, and rollback trigger expectations
 
-2. **Support agents**: memory, doc-ops, prompt-builder
+2. **Support agents**: prompt-builder
    * Minimal technology adaptation needed
    * Adapt file path patterns for the workspace structure
 
 3. **Expert agent**: Generate a technology-specific expert agent (equivalent to `rust-engineer.agent.md` but for the target language). Name it `{language}-engineer.agent.md`.
 
-4. **Review personas**: Generate from review persona templates
+4. **Review personas**: Generate from review persona templates when the `review`
+   layer is active
    * `architecture-strategist.agent.md` — Universal with domain adaptation
    * `constitution-reviewer.agent.md` — References local constitution
    * `scope-boundary-auditor.agent.md` — Universal
-   * `technology-reviewer.agent.md` → `{language}-reviewer.agent.md` — Fully technology-specific
-   * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
-   * `learnings-researcher.agent.md` — Universal
+    * `technology-reviewer.agent.md` → `{language}-reviewer.agent.md` — Fully technology-specific
+    * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
+    * `agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
+    * `learnings-researcher.agent.md` — Universal
 
-5. **Orchestrating review agents**: `plan-review.agent.md`, `review.agent.md`, `adversarial-review.agent.md` — dispatch persona agents during plan and code review. `review` and `plan-review` at subagent depth 1; `adversarial-review` at depth 2 (dispatches multiple parallel reviewer instances).
+5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. Install when the `review` layer is active. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed
-   * Install as standard agents (not skills)
+   * Install as skills (not agents)
 
 #### Step 2.5: Skill Layer
 
@@ -437,27 +598,49 @@ Generate skill files:
    * `impl-plan/SKILL.md` — Adapt execution postures for the technology
 
 2. **Universal skills** (minimal adaptation; install only when their governing primitives are selected):
-   * `deliberate/SKILL.md`
-   * `spike/SKILL.md`
-   * `compact-context/SKILL.md`
-   * `compound/SKILL.md`
+    * `deliberate/SKILL.md`
+    * `spike/SKILL.md`
+    * `plan-harden/SKILL.md` — Install when Primitive 4 is selected so risky plans can be strengthened before review
+    * `compact-context/SKILL.md`
+    * `compound/SKILL.md`
+   * `compound-refresh/SKILL.md` — Install when Primitive 1 is selected so the workspace can maintain stale or overlapping institutional learnings over time
+   * `harness-architect/SKILL.md` — Install when Primitive 4 is selected. Adapts test patterns, failure markers, and file placement for `{{PRIMARY_LANGUAGE}}`
+   * `harvest/SKILL.md` — Install when Primitive 4 is selected. Resolves backlog tool variables from the registry
+   * `pr-lifecycle/SKILL.md` — Install when Primitive 4 is selected. Language-agnostic; uses `gh` CLI
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
-   * `runtime-verification/SKILL.md` — Install when Primitive 10 is selected
-   * `operational-closure/SKILL.md` — Install when Primitive 10 is selected
+    * `runtime-verification/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
+    * `operational-closure/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
+    * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
 
 When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
 
 When `agent-engram` is enabled, weave indexed-search guidance into research, planning, build, and repair skills rather than treating it as a generic footnote.
 
+When `browser-verification` is enabled, weave browser-specific guidance into
+runtime verification and operational closure rather than leaving browser work as
+an implicit manual step.
+
+When `continuous-learning` is enabled, install and reference the observation
+lifecycle skills rather than relying on invisible prompt behavior.
+
+When `strict-safety` is enabled, weave the action contract through `plan-harden`,
+`safety-modes`, review, and closure skills rather than treating the pack as a
+single isolated instruction file.
+
+When `release-observability` is enabled, weave monitoring plan and rollback trigger
+expectations through `runtime-verification` and `operational-closure` rather than
+treating the pack as a standalone instruction file.
+
 #### Step 2.6: Policy Layer
 
 Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 
-* P-001 (Single-Feature Completion) — Universal
+* P-001 (Single-Release-Unit Completion) — Universal
 * P-002 (TDD Gate) — Adapt test commands and red-phase detection
 * P-003 (Decomposition Chain) — Universal
 * P-004 (Red Phase Before Implementation) — Adapt compilation and test failure detection
 * P-005 (Policy Violation Telemetry) — Universal
+* P-006 (Plan Hardening Gate) — Universal
 
 #### Step 2.7: Prompt Layer
 
@@ -480,7 +663,7 @@ Initialize the backlog directory. Backlog tools are used **exclusively for workf
 Work items in `queue/` follow the naming convention:
 
 ```text
-{prefix}-{NNN}-{slug}.md               # Level 1 (features, epics)
+{prefix}-{NNN}-{slug}.md               # Level 1 (features, chores, epics)
 {prefix}-{NNN}.{NNN}-{slug}.md         # Level 2 (tasks, sub-epics)
 {prefix}-{NNN}.{NNN}.{NNN}-{slug}.md   # Level 3 (subtasks)
 ```
@@ -490,6 +673,7 @@ The prefix map is configured in `config.yml` with concrete single or two-letter 
 | Type | Prefix | Example filename |
 |---|---|---|
 | Feature | `{{PREFIX_FEATURE}}` | `F-001-user-auth.md` |
+| Chore | `{{PREFIX_CHORE}}` | `C-002-python-312-migration.md` |
 | Task | `{{PREFIX_TASK}}` | `T-001.001-add-login-endpoint.md` |
 | Spike | `{{PREFIX_SPIKE}}` | `S-002-evaluate-caching.md` |
 | Deliberation | `{{PREFIX_DELIBERATION}}` | `D-003-api-strategy.md` |
@@ -497,7 +681,7 @@ The prefix map is configured in `config.yml` with concrete single or two-letter 
 | Epic | `{{PREFIX_EPIC}}` | `E-005-auth-overhaul.md` |
 | Subtask | `{{PREFIX_SUBTASK}}` | `ST-001.001.001-write-unit-test.md` |
 
-Prefix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
+Prefix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, C, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
 
 Long-lived knowledge structure (full paths at workspace root):
 
@@ -539,7 +723,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 
 #### Step 3.3: Write Installation Manifest
 
-Create `.autoharness/harness-manifest.yaml` recording:
+Create `.autoharness/harness-manifest.yaml` recording install-time checksums that
+the tuner can later re-hash for deterministic drift detection:
 
 ```yaml
 schema_version: "1.0.0"
@@ -549,6 +734,9 @@ autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
 config_hash: "{{SHA256_OF_CONFIG_OR_NULL}}"  # null if no .autoharness/config.yaml was present
 install_preset: "{{PRESET}}"
+primary_stack_pack: {{PRIMARY_STACK_PACK}}
+stack_packs: [{{STACK_PACKS}}]
+install_layers: [{{INSTALL_LAYERS}}]
 capability_packs: [{{CAPABILITY_PACKS}}]
 # Example when Engram is enabled:
 # capability_packs: ["agent-engram"]
@@ -581,30 +769,68 @@ Write (or update) `.autoharness/config.yaml` using the `harness-config.yaml.tmpl
 * If no operator config existed, write a complete config with all schema defaults
 * The resolved config serves as input for future `tune-harness` runs and enables the tuner to detect configuration drift
 
-The installed config includes: `schema_version`, `preset`, `capability_packs`, `backlog` (tool, directory, prefix_map), `docs` (root, subdirectories), `model_routing`, and any `overrides` that were applied.
+The installed config includes: `schema_version`, `preset`,
+`primary_stack_pack`, `stack_packs`, `install_layers`, `capability_packs`,
+`backlog` (tool, directory, prefix_map), `docs` (root, subdirectories),
+`continuous_learning`, `model_routing`, and any `overrides` that were applied.
 
 ### Phase 4: Verification
 
-#### Step 4.1: Cross-Reference Validation
+#### Step 4.1: Template Variable Sweep
+
+Scan every installed artifact for unresolved template variables:
+
+1. Search all installed `.md` files for `{{` followed by `}}`
+2. Exclude occurrences inside fenced code blocks (between ` ``` ` markers) that
+   are intentional examples
+3. For each match, record the file path, line number, and variable name
+4. **FAIL** verification if any unresolved variables are found outside code fences
+
+#### Step 4.2: Cross-Reference Sweep
 
 Verify all installed artifacts are internally consistent:
 
-* Every agent's `tools:` field references tools that exist in the workspace (or are standard VS Code tools)
-* Every agent's skill references point to installed skill SKILL.md files
-* Every instruction's `applyTo` pattern matches at least one file in the workspace
-* Every policy references agents that were installed
-* The constitution references technology-specific rules that match the installed language instructions
-* If `agent-intercom` is enabled, the intercom instruction file is installed and the affected agents / skills reference heartbeat, broadcast, or approval-routing behavior consistently
-* If `agent-engram` is enabled, the engram instruction file is installed and the affected agents / skills reference indexed search, workspace binding, freshness, or fallback behavior consistently
-* If `backlogit` is enabled, the backlogit instruction file is installed and the affected agents / skills reference query, queue, checkpoint, or traceability behavior consistently
-* If any capability pack is enabled, its declared overlay targets and verification checks are satisfied rather than only the pack name being recorded
+1. **Agent → Skill references**: For each agent, verify every skill name
+   mentioned in the agent body resolves to an installed
+   `.github/skills/{name}/SKILL.md` file. Report missing skills.
+2. **Agent → Tool references**: For each agent's `tools:` frontmatter field,
+   verify referenced tools exist in the workspace or are standard environment
+   tools. Report missing tools.
+3. **Instruction → File references**: For each instruction file's `applyTo`
+   glob pattern, verify the pattern matches at least one file in the workspace.
+   Report orphaned patterns.
+4. **Policy → Agent references**: For each policy in the registry, verify the
+   `Applies To` agents were installed. Report dangling references.
+5. **Constitution → Language consistency**: Verify the constitution's
+   technology-specific rules reference the same language as the installed
+   language instruction file.
+6. **Layer → Artifact consistency**: Verify the recorded `install_layers` match
+   the artifact classes actually installed:
+   * `review` → review personas plus `review` / `plan-review` skills present
+   * `runtime` → `runtime-verification` and `operational-closure` skills present
+   * `overlays` → at least one pack-specific instruction file present
+   * `knowledge` → docs-root directories exist
 
-#### Step 4.2: Structural Validation
+#### Step 4.3: Overlay Coherence Sweep
 
-* All YAML frontmatter is valid
-* All Markdown files pass basic structural checks (headings, code fences closed)
-* No template variables remain unresolved (no `{{...}}` in output files)
-* File paths in cross-references resolve to actual files
+For each enabled capability pack:
+
+1. Load the pack's declared overlay targets from the manifest
+2. Verify each target artifact exists
+3. For each target, verify the artifact contains at least one reference to the
+   pack's core behavior keyword (e.g., `agent-intercom` → "heartbeat" or
+   "broadcast"; `strict-safety` → "ProposedAction" or "ActionRisk";
+   `release-observability` → "monitoring plan" or "rollback trigger")
+4. **FAIL** verification if any target artifact is missing or lacks the
+   expected behavior reference — this indicates a partially woven overlay
+
+#### Step 4.4: Structural Validation
+
+1. Validate YAML frontmatter in all installed `.md` files (parse as YAML;
+   report syntax errors)
+2. Verify all Markdown code fences are properly closed (matching ` ``` ` pairs)
+3. Verify all Markdown tables have consistent column counts per table
+4. Verify file paths in cross-references resolve to actual files
 
 #### Step 4.3: Report
 
@@ -615,8 +841,11 @@ Harness Installation Complete
 ─────────────────────────────
 Workspace: {{PROJECT_NAME}}
 Language:  {{PRIMARY_LANGUAGE}}
+Primary stack: {{PRIMARY_STACK_PACK_OR_NONE}}
+Stack packs: {{STACK_PACKS_OR_NONE}}
 Primitives installed: selected subset / 10
 Preset: {{PRESET}}
+Install layers: {{INSTALL_LAYERS_OR_NONE}}
 Capability packs: {{CAPABILITY_PACKS_OR_NONE}}
 
 Artifacts created:

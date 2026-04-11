@@ -1,0 +1,95 @@
+---
+description: "CI/CD security and hygiene conventions for {{CI_PLATFORM}} workflow files"
+applyTo: '{{CI_WORKFLOW_GLOB}}'
+---
+
+# CI Security Instructions
+
+These instructions define required security conventions and structural
+expectations for CI/CD workflows. All workflow files matching
+`{{CI_WORKFLOW_GLOB}}` MUST comply with these rules.
+
+## Dependency Pinning
+
+All third-party CI actions or reusable steps MUST be pinned to an
+immutable reference (full commit SHA for GitHub Actions, digest for
+container images). Mutable version tags MUST NOT be used as the sole
+reference. A semantic version MAY be included as a trailing comment
+for readability.
+
+**Required pattern (GitHub Actions):**
+
+```yaml
+uses: actions/checkout@<full-sha> # v4.2.2
+```
+
+**Forbidden patterns:**
+
+```yaml
+uses: actions/checkout@v4
+uses: actions/checkout@v4.2.2
+```
+
+Local reusable workflows referenced via relative paths are excluded
+from SHA pinning requirements.
+
+## Permissions
+
+Workflows MUST declare explicit permissions following the principle of
+least privilege. The default permission set is `contents: read`.
+Additional permissions MUST be granted at the job level and only when
+required for a specific capability.
+
+```yaml
+permissions:
+  contents: read
+```
+
+Job-level additions:
+
+```yaml
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      deployments: write
+```
+
+## Credentials and Secrets
+
+Workflows MUST NOT persist credentials by default. Credential
+persistence MUST be enabled only when explicitly required. Secrets
+and tokens MUST be scoped to the minimum required permissions.
+
+```yaml
+- uses: actions/checkout@<full-sha> # v4.2.2
+  with:
+    persist-credentials: false
+```
+
+## Workflow Structure
+
+Workflows MUST follow these structural expectations:
+
+* Use descriptive names for workflows and jobs.
+* Group related jobs with dependency declarations.
+* Use concurrency controls to prevent duplicate runs when the CI
+  platform supports them.
+* Prefer reusable or composite workflows for common patterns.
+
+## Reusable Workflows
+
+When defining reusable workflows, use explicit typed inputs and outputs.
+Consuming workflows reference reusable definitions by relative path or
+SHA-pinned repository reference.
+
+## Runner Selection
+
+Workflows SHOULD run on the default hosted runner tier for the CI
+platform unless a specific capability requires a different runner type.
+Self-hosted runners require additional hardening considerations:
+
+* Avoid persisting state between runs.
+* Pin tool versions explicitly rather than relying on pre-installed
+  tooling.
+* Apply network and access controls appropriate to the environment.

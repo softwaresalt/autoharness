@@ -35,7 +35,32 @@
       }
     },
     "frameworks": {
+      "type": "object",
+      "description": "Detected frameworks and specialized SDK integrations",
+      "properties": {
+        "list": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of detected frameworks (e.g., React, FastAPI, Cobra)"
+        },
+        "mcp_sdk": {
+          "type": ["string", "null"],
+          "description": "MCP SDK detected in dependencies (e.g., mcp-go, @modelcontextprotocol/sdk, mcp)"
+        },
+        "mcp_transport": {
+          "type": ["string", "null"],
+          "enum": ["stdio", "sse", "streamable-http", null],
+          "description": "MCP transport mechanism detected when MCP SDK is present"
+        }
+      }
+    },
+    "primary_stack_pack": {
+      "type": ["string", "null"],
+      "description": "Primary normalized stack classification chosen from detected additive stack packs (for example web-app, api-service, background-worker, mcp-server, cli-tool, or library)"
+    },
+    "stack_packs": {
       "type": "array",
+      "description": "Additive normalized stack classifications detected in the workspace and used to refine preset, layer, and overlay recommendations",
       "items": { "type": "string" }
     },
     "build": {
@@ -107,6 +132,11 @@
         "web_ui": { "type": "boolean" },
         "public_api": { "type": "boolean" },
         "background_jobs": { "type": "boolean" },
+        "browser_tooling": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Detected browser automation or browser QA tooling relevant to runtime verification"
+        },
         "deployment_manifests": {
           "type": "array",
           "items": { "type": "string" }
@@ -133,7 +163,61 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability"]
+            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+          }
+        },
+        "install_layers": {
+          "type": "array",
+          "description": "Explicit artifact-class layers the installer should compose, derived from preset, stack packs, runtime surfaces, and selected overlays",
+          "items": {
+            "type": "string",
+            "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+          }
+        },
+        "recommendation_reasons": {
+          "type": "object",
+          "description": "Structured reasons explaining why discovery recommended a preset, capability packs, and install layers",
+          "properties": {
+            "preset": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "capability_packs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["item", "because"],
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+                  },
+                  "because": { "type": "string" },
+                  "signals": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "install_layers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["item", "because"],
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+                  },
+                  "because": { "type": "string" },
+                  "signals": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -172,6 +256,24 @@
         "recommended": { "type": "boolean" }
       }
     },
+    "agent_native": {
+      "type": "object",
+      "description": "Detected agent-native or MCP-heavy product signals that justify a parity-focused reviewer persona",
+      "properties": {
+        "detected": { "type": "boolean" },
+        "mcp_sdk_present": { "type": "boolean" },
+        "mcp_transport": {
+          "type": ["string", "null"],
+          "enum": ["stdio", "sse", "streamable-http", null]
+        },
+        "agent_tooling_markers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "user_agent_parity_required": { "type": "boolean" },
+        "recommended_reviewer": { "type": "boolean" }
+      }
+    },
     "existing_harness": {
       "type": "object",
       "properties": {
@@ -194,7 +296,7 @@
       "description": "Detected backlog management tool and its configuration",
       "properties": {
         "detected": { "type": "boolean" },
-        "tool_name": { "type": ["string", "null"], "enum": ["backlogit", "backlog-md", "manual", null] },
+        "tool_name": { "type": ["string", "null"], "enum": ["backlogit", "backlog-md", "manual", null], "description": "When 'manual', no registry is expected. The harness installs a minimal backlog directory structure (queue/, archive/) without tool integration." },
         "directory": { "type": ["string", "null"] },
         "tool_type": { "type": ["string", "null"], "enum": ["mcp", "cli", "both", null] },
         "mcp_registered": { "type": "boolean" },
@@ -222,6 +324,50 @@
               },
               "description": { "type": "string" },
               "affected_artifacts": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "checksum_scan": {
+          "type": ["object", "null"],
+          "properties": {
+            "manifest_present": { "type": "boolean" },
+            "ignore_file": { "type": ["string", "null"] },
+            "checked_artifacts": { "type": "integer", "minimum": 0 },
+            "missing_count": { "type": "integer", "minimum": 0 },
+            "user_modified_count": { "type": "integer", "minimum": 0 },
+            "ignored_count": { "type": "integer", "minimum": 0 },
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "classification": {
+                    "type": "string",
+                    "enum": ["missing", "user-modified", "unchanged", "ignored"]
+                  },
+                  "manifest_checksum": { "type": ["string", "null"] },
+                  "current_checksum": { "type": ["string", "null"] },
+                  "reason": { "type": ["string", "null"] }
+                }
+              }
+            }
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "priority": {
+                "type": "string",
+                "enum": ["P0", "P1", "P2", "P3"]
+              },
+              "summary": { "type": "string" },
+              "related_artifacts": {
                 "type": "array",
                 "items": { "type": "string" }
               }

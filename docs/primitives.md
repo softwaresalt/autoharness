@@ -15,6 +15,10 @@ Capability packs are the mechanism autoharness uses for optional, cross-cutting 
 
 They do **not** add an eleventh primitive. Instead, a pack deepens existing primitives by weaving coordinated changes across multiple artifacts. For example, `agent-intercom` strengthens Primitive 4 (handoffs), Primitive 5 (approval routing), Primitive 6 (instruction injection), and Primitive 7/10 (operator visibility and closure signaling) without redefining the primitive model itself.
 
+`browser-verification`, `continuous-learning`, and `strict-safety` follow the same overlay model:
+they deepen existing primitives through coordinated changes across instructions,
+foundation docs, and skills rather than by creating new architecture layers.
+
 Every formal capability pack follows the same overlay contract:
 
 1. **Eligibility signals** discovered from the workspace profile
@@ -34,9 +38,9 @@ AI agents operate within finite context windows and finite recall. Long-running 
 
 ### The Solution
 
-Four interconnected mechanisms manage state, recall, and retrieval:
+Five interconnected mechanisms manage state, recall, and retrieval:
 
-1. **Memory Agent**: Persists session state in structured Markdown with YAML frontmatter. Supports manual saves (user-invoked) and checkpoints (build-orchestrator-invoked). Every checkpoint captures tasks completed, files modified, decisions made, failed approaches, and next steps.
+1. **Session Continuity Protocols**: State persistence is inline in the stage and ship agents. Every checkpoint captures tasks completed, files modified, decisions made, failed approaches, and next steps.
 
 2. **Learnings Researcher**: Searches the compound library before planning and review work begins. Retrieval is not optional bookkeeping; it is the mechanism that turns institutional knowledge into immediate task context.
 
@@ -44,12 +48,20 @@ Four interconnected mechanisms manage state, recall, and retrieval:
 
 4. **Compound Skill**: Captures hard-won solutions (build errors, debugging insights, configuration gotchas) in a searchable library with reusable tags, categories, and citations back to the originating task, plan, or PR.
 
+5. **Compound-Refresh Skill**: Reviews existing compound entries, consolidates overlap, updates drifted guidance, and marks uncertain learnings stale instead of letting the knowledge base quietly diverge from current code reality.
+
+6. **Continuous-Learning Overlay (optional)**: The `observe`, `learn`, and `evolve`
+skills can capture recurring workflow practice as observations, cluster those
+observations into instincts, and promote mature patterns into explicit
+`learned-*` artifacts when the workspace wants a formal learning loop.
+
 ### Adaptation Points
 
 * Memory file paths adapt to the workspace's directory structure
 * Retrieval scope adapts to where durable learnings live (`docs/compound/`, `docs/decisions/`, or configured paths)
 * Compaction thresholds are configurable per workspace
 * Compound categories and ranking heuristics adapt to the workspace's technology domain
+* Knowledge-maintenance cadence adapts to repository change velocity and how quickly compound learnings become stale
 
 ## Primitive 2: Task Granularity and Horizon Scoping
 
@@ -84,9 +96,9 @@ Agents are assigned to model tiers based on task complexity:
 
 | Tier | Model Class | Typical Agents | Use Cases |
 |---|---|---|---|
-| **Tier 1** | Fast/Cheap | memory, doc-ops, prompt-builder, learnings-researcher | State persistence, docs, prompt editing |
-| **Tier 2** | Standard | build-orchestrator, pr-review, language-engineer | Code writing, orchestration, review |
-| **Tier 3** | Frontier | backlog-harvester, harness-architect | Architecture, planning, complex analysis |
+| **Tier 1** | Fast/Cheap | prompt-builder, learnings-researcher | Prompt editing, knowledge search |
+| **Tier 2** | Standard | ship, language-engineer | Code writing, orchestration, review |
+| **Tier 3** | Frontier | stage, harness-architect | Architecture, planning, complex analysis |
 
 **Escalation**: When a Tier 1 or Tier 2 agent fails 3 consecutive times, the orchestrator escalates to a Tier 3 model and retries before halting. This prevents cheaper models from being stuck on tasks above their capability.
 
@@ -100,7 +112,7 @@ Agents are assigned to model tiers based on task complexity:
 
 ### The Problem
 
-Building a feature involves multiple distinct capabilities: planning, test harness construction, implementation, code review, runtime verification, and CI management. No single agent can perform all of these well, and attempting to do so within one context window leads to context overflow and instruction confusion. Even when the implementation itself succeeds, many harnesses fail at the handoff boundaries: planning knowledge does not reach implementation, PR metadata does not reach deployment validation, and finished work never enters a structured closure loop.
+Shipping a top-level release unit — whether a feature or a chore — involves multiple distinct capabilities: planning, test harness construction, implementation, code review, runtime verification, and CI management. No single agent can perform all of these well, and attempting to do so within one context window leads to context overflow and instruction confusion. Even when the implementation itself succeeds, many harnesses fail at the handoff boundaries: planning knowledge does not reach implementation, PR metadata does not reach deployment validation, and finished work never enters a structured closure loop.
 
 ### The Solution
 
@@ -108,10 +120,10 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 
 1. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
 2. **Spike Skill**: Execute time-boxed investigations to answer technical questions, evaluate feasibility, and capture findings
-3. **Backlog Harvester**: Plan → review → decompose into tasks
-4. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
-5. **Build Orchestrator**: Claim tasks, delegate to build-feature skill, verify quality, and hand off to review/CI/runtime verification
-6. **PR Review**: Analyze diff, delegate to review personas, create PR, and attach verification/closure expectations
+3. **Stage Agent**: Triage stash → deliberate/spike → plan → harden risky plans → review → harvest into backlog
+4. **Plan-Harden Skill**: Deepen high-risk plans with concrete verification, rollback, and action-risk detail before plan review
+5. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
+6. **Ship Agent**: Claim tasks, delegate to build-feature skill, verify quality, manage review/CI/PR lifecycle, runtime verification, and operational closure
 7. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
 8. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
 9. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
@@ -126,6 +138,7 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 **Handoff contracts** keep lifecycle context intact:
 
 * Planning must emit verification and closure expectations, not just code change lists
+* Risky plans must emit hardening signals early enough that `plan-harden` can tighten them before review and harvest
 * Review must identify which runtime surfaces require validation
 * PR creation must carry forward operational validation and monitoring sections
 * Completion does not mean “green tests only” — it means the work is ready to enter Primitive 10
@@ -135,6 +148,7 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 * Build/test/lint commands differ per technology
 * CI pipeline order varies across platforms
 * Runtime verification depth differs by project surface (CLI, API, browser, background jobs)
+* Browser-facing products may enable the `browser-verification` overlay so runtime verification and closure explicitly model server readiness, route selection, headed/headless execution, and human checkpoints
 * Stall timeouts may need adjustment for slower build systems
 
 ## Primitive 5: Tool Execution, Safety Modes, and Guardrails
@@ -153,15 +167,17 @@ Layered safety controls:
    * **Careful mode** — enumerate risks, pause before destructive or high-blast-radius actions
    * **Freeze-scope mode** — constrain edits to a declared directory or subsystem boundary
    * **Investigate-first mode** — gather evidence before proposing or applying fixes
-4. **Destructive approval workflow**: Deletions and removals require operator approval
-5. **Terminal command policy**: Destructive commands require approval regardless of permissive flags
-6. **Feature flags**: New agent-generated modules are gated behind feature flags
-7. **Architecture enforcement**: Custom linters and structural tests enforce dependency direction, naming conventions, and layering boundaries. Lint error messages are written for agent consumption, providing remediation instructions directly in context. Agents operate within strict boundaries but have freedom in implementation within those boundaries.
+4. **Action contract for risky work**: When the `strict-safety` overlay is enabled, risky work is expressed as `ProposedAction`, `ActionRisk`, and `ActionResult` so approval and rollback states stay legible
+5. **Destructive approval workflow**: Deletions and removals require operator approval
+6. **Terminal command policy**: Destructive commands require approval regardless of permissive flags
+7. **Feature flags**: New agent-generated modules are gated behind feature flags
+8. **Architecture enforcement**: Custom linters and structural tests enforce dependency direction, naming conventions, and layering boundaries. Lint error messages are written for agent consumption, providing remediation instructions directly in context. Agents operate within strict boundaries but have freedom in implementation within those boundaries.
 
 ### Adaptation Points
 
 * Approval workflow integration depends on available communication channels
 * Safety-mode prompts and freeze boundaries depend on the available UX (editor prompts, CLI confirmations, review comments)
+* Action classification detail depends on whether the workspace enabled the `strict-safety` overlay
 * Terminal command auto-approve patterns are workspace-specific
 * Feature flag mechanisms differ by technology
 * Architecture enforcement linters are generated from the workspace's layering model and naming conventions
@@ -179,7 +195,7 @@ Instructions are loaded dynamically based on relevance:
 
 1. **applyTo patterns**: Instruction files declare glob patterns. An instruction about Rust conventions loads only when the agent touches `.rs` files.
 
-2. **Instruction reinforcement**: The build-feature skill re-reads coding standards before every fix attempt. The build-orchestrator re-reads constitution principles at session start.
+2. **Instruction reinforcement**: The build-feature skill re-reads coding standards before every fix attempt. The ship agent re-reads constitution principles at session start.
 
 3. **Definition of Done checks**: Before completing a task, agents verify acceptance criteria from the task file.
 
@@ -201,7 +217,8 @@ Multi-persona review evaluates every change from multiple perspectives:
 
 1. **Always-on reviewers**: Constitution compliance and language-specific safety/correctness
 2. **Conditional reviewers**: Architecture, concurrency, scope boundary — activated based on diff content
-3. **Cross-model diversity**: When possible, different reviewer personas use different models to reduce blind spots
+3. **Agent-native parity reviewer (conditional)**: Activated when the workspace exposes MCP-heavy or parity-sensitive agent-facing product surfaces and the review needs to verify symmetry between user-visible workflows and agent workflows
+4. **Cross-model diversity**: When possible, different reviewer personas use different models to reduce blind spots
 
 Findings use a structured severity and action system:
 
@@ -210,21 +227,30 @@ Findings use a structured severity and action system:
 
 Compound learnings capture post-mortem insights for future reference.
 
-4. **Entropy management and continuous cleanup**: Agents replicate patterns already present in the repository — including suboptimal ones. Over time, this leads to drift and architectural decay. Background cleanup agents run on a regular cadence to scan for deviations from established patterns, update quality grades, and open targeted refactoring PRs. This functions like garbage collection: technical debt is paid down continuously in small increments rather than compounding into painful bursts.
+5. **Entropy management and continuous cleanup**: Agents replicate patterns already present in the repository — including suboptimal ones. Over time, this leads to drift and architectural decay. Background cleanup agents run on a regular cadence to scan for deviations from established patterns, update quality grades, and open targeted refactoring PRs. This functions like garbage collection: technical debt is paid down continuously in small increments rather than compounding into painful bursts.
+
+6. **Deterministic drift scanning**: The tuner compares manifest checksums against installed harness artifacts, classifies missing or user-modified files, honors explicit ignore patterns, and feeds that evidence into maintenance recommendations instead of relying only on heuristic drift guesses.
+
+7. **Continuous-learning loop (optional)**: When the `continuous-learning` pack
+is enabled, recurring observations are captured explicitly, clustered into
+evidence-backed instincts, and promoted into reviewable learned artifacts rather
+than being left as invisible prompt drift.
 
 ### Adaptation Points
 
 * Review personas adapt to the workspace's technology (Rust safety → Python type safety, etc.)
 * Conditional activation patterns match the workspace's concurrency and architecture patterns
+* Agent-native parity review is only activated when discovery finds MCP or parity-sensitive agent-facing surfaces
 * Severity definitions may need calibration for different codebases
 * Entropy management cadence depends on the workspace's change velocity and team size
 * Cleanup scope is technology-specific (pattern deduplication, naming alignment, dependency hygiene)
+* Drift-ignore rules may be needed for repositories that intentionally maintain local harness customizations
 
 ## Primitive 8: Workflow Policy
 
 ### The Problem
 
-Agent definitions describe what an agent does, but nothing prevents invoking agents out of sequence. Without cross-agent policies, the build-orchestrator could claim a task before the harness-architect generates the test harness, violating the TDD mandate.
+Agent definitions describe what an agent does, but nothing prevents invoking agents out of sequence. Without cross-agent policies, the ship agent could claim a task before the harness-architect generates the test harness, violating the TDD mandate.
 
 ### The Solution
 
@@ -239,7 +265,7 @@ Five core policies:
 
 | Policy | Gate | Purpose |
 |---|---|---|
-| P-001 | Build orchestrator pre-flight | Only one feature in progress at a time |
+| P-001 | Ship agent pre-flight | Only one top-level release unit (feature or chore) in progress at a time |
 | P-002 | Task claiming | TDD gate — `harness-ready` label required |
 | P-003 | Pre-harvest | Decomposition chain integrity validated |
 | P-004 | Harness approval | Red phase confirmed before implementation |
@@ -276,7 +302,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
    | Directory | Contains | Lifecycle |
    |---|---|---|
-   | Backlog `queue/` | Work items (features, tasks, spikes, deliberations, bugs) typed by prefix | Queued → Active → Done → Archived |
+   | Backlog `queue/` | Work items (features, chores, tasks, spikes, deliberations, bugs) typed by prefix | Queued → Active → Done → Archived |
    | `docs/compound/` | Institutional learnings organized by category | Persists and grows with codebase |
    | `docs/plans/` | Implementation plans (compacted into decided-plans with appended reviews) | Persists after compaction |
    | `docs/decisions/` | Deliberation outcomes and spike findings | Persists and evolves with codebase |
@@ -286,9 +312,9 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
    > **Note**: All `docs/` paths above reflect the default docs root (`docs/`). The root and all subdirectory names are configurable via `.autoharness/config.yaml` (`docs.root` and `docs.subdirectories`).
 
-   Work items live in the backlog because they're managed by the backlog tool. The *knowledge artifacts* they produce live in `docs/` as durable records. The compact-context skill consolidates verbose memory and plans into dense summaries, archiving originals to `docs/archive/`.
+   Work items live in the backlog because they're managed by the backlog tool. The *knowledge artifacts* they produce live in `docs/` as durable records. The compact-context skill consolidates verbose memory and plans into dense summaries, archiving originals to `docs/archive/`. The compound-refresh skill keeps the compound library aligned with current code and architecture reality by updating, consolidating, or marking stale learnings after change lands.
 
-4. **Knowledge graduation**: When backlog work completes, the doc-ops agent evaluates whether it produced reference-worthy knowledge:
+4. **Knowledge graduation**: When backlog work completes, the ship agent evaluates during post-merge closure whether the work produced reference-worthy knowledge:
    * **Architectural decisions** from completed plans → `docs/design-docs/` as design records
    * **Hard-won solutions** from compound learnings → already in `docs/compound/` (searchable)
    * **New domain patterns** discovered during implementation → update `docs/ARCHITECTURE.md`
@@ -298,7 +324,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
 5. **Progressive disclosure**: Agents start with a small, stable entry point and are taught where to look next, rather than being overwhelmed up front. Each level of documentation points deeper when needed.
 
-6. **Doc-gardening agent**: A background agent that runs on a regular cadence to scan for stale or obsolete documentation that no longer reflects the codebase. It opens targeted fix-up PRs to keep documentation in sync with code. It also runs the graduation process after features complete.
+6. **Doc-gardening**: The ship agent runs doc-gardening as part of its post-merge closure protocol to scan for stale or obsolete documentation that no longer reflects the codebase. It applies targeted fixes to keep documentation in sync with code and runs the graduation process after features or chores complete.
 
 7. **Mechanical enforcement**: CI-integrated checks validate that the knowledge base is up to date, cross-linked, and structurally correct. Custom linters verify documentation freshness, coverage, and ownership.
 
@@ -320,9 +346,9 @@ Many harnesses stop too early. The code compiles, the tests pass, and a PR exist
 
 Operational closure turns “implementation complete” into “change safely closed over” through four mechanisms:
 
-1. **Runtime Verification Skill**: Validate the affected runtime surfaces using the right depth for the work. For a CLI tool this may be smoke commands; for an API this may be endpoint probes; for a web application this may include browser-backed validation.
+1. **Runtime Verification Skill**: Validate the affected runtime surfaces using the right depth for the work. This includes environment prechecks, route or scenario selection tied to the changed surface, and explicit human stop points when automation cannot complete the flow (for example OAuth, payments, email, or SMS).
 
-2. **Operational Closure Skill**: Produce structured closure artifacts covering release readiness, monitoring expectations, rollback triggers, ownership, validation windows, and follow-up actions.
+2. **Operational Closure Skill**: Produce structured closure artifacts covering release readiness, invariants, pre-deploy audits, post-deploy checks, monitoring expectations, rollback triggers and procedures, ownership, validation windows, and follow-up actions.
 
 3. **PR and CI Handoff Sections**: Pull request descriptions and CI remediation workflows carry explicit runtime verification and operational validation sections so the release context survives past implementation.
 

@@ -12,6 +12,7 @@ Agent harnesses degrade over time. Common causes:
 * **Directory restructuring**: `applyTo` patterns in instruction files match no files after a rename
 * **CI pipeline changes**: Quality gate commands in the constitution no longer match CI steps
 * **Runtime surface changes**: A repo grows a web UI or public API but the harness still assumes static-only validation
+* **Composition-model changes**: The repo shifts from `library` to `api-service` or gains new additive stack packs, but the installed harness still reflects the older composition shape
 * **Operator workflow changes**: agent-intercom is configured (or removed) but the harness does not reflect the required heartbeat, broadcast, or approval-routing behavior
 * **Indexed-search workflow changes**: agent-engram is configured (or removed) but the harness does not reflect engram-first search, binding, or freshness behavior
 * **Backlog workflow changes**: backlogit is present but the harness still uses only generic CRUD patterns and ignores queue, query, dependency, or checkpoint capabilities
@@ -35,6 +36,10 @@ The tuner is invoked from the global autoharness installation against a target w
 
 Capability packs are tuned using the same overlay contract used during installation: eligibility signals, target artifacts, behavior deltas, verification checks, and drift heuristics. See [Capability Packs](capability-packs.md).
 
+The tuner also uses `.autoharness/harness-manifest.yaml` as a checksum inventory
+of generated artifacts. When `.autoharness/drift-ignore` exists, matching paths
+are treated as intentional local divergence rather than unexpected drift.
+
 ### Interactive Tuning (Recommended)
 
 ```text
@@ -45,10 +50,11 @@ The tuner will:
 
 1. Re-run workspace discovery to produce a fresh profile
 2. Compare against the profile used during installation
-3. Categorize each difference by impact
-4. Scan all harness artifacts for health issues
-5. Present a prioritized list of proposed changes
-6. Apply changes you approve (with backups)
+3. Compare manifest checksums against installed artifacts and classify missing, user-modified, unchanged, or ignored paths
+4. Categorize each difference by impact
+5. Scan all harness artifacts for health issues
+6. Present a prioritized list of proposed changes
+7. Apply changes you approve (with backups)
 
 ### Scoped Tuning
 
@@ -78,7 +84,13 @@ Harness works but produces suboptimal results. Artifacts are valid but miss new 
 
 **Examples**: New framework added without review persona, new test patterns without matching instructions, stale architecture documentation.
 
-Additional examples: a web UI exists but no browser-verification pack is enabled, operational closure templates omit monitoring expectations, safety-mode guidance is missing from risky maintenance workflows.
+Additional examples: a web UI exists but no browser-verification pack is enabled, operational closure templates omit monitoring expectations, safety-mode guidance is missing from risky maintenance workflows, or risky plans never pass through `plan-harden` before review.
+
+Additional examples: the workspace now exposes MCP tool handlers or agent-facing product actions, but the review layer still lacks the `agent-native-parity-reviewer` persona and parity-focused routing guidance.
+
+Additional examples: the team wants recurring workflow observations to become explicit harness guidance, but the `continuous-learning` pack and its `observe` / `learn` / `evolve` workflows are missing.
+
+Additional examples: discovery now classifies the repo as `web-app` + `deployable-service`, but the installed composition still lacks the expected `runtime` or `overlays` layers.
 
 Additional examples: agent-intercom is configured in `.vscode/mcp.json` or `.intercom/`, but the harness does not install the intercom instruction file or thread heartbeat / approval guidance through the execution pipeline.
 
@@ -94,13 +106,19 @@ New capabilities that the harness could leverage. The workspace has evolved in w
 
 **Examples**: New database added (opportunity for database reviewer persona), Docker introduced (opportunity for container instructions), API documentation added (opportunity for API review).
 
-Additional examples: web UI added (opportunity for browser verification), deployment manifests added (opportunity for release observability pack), higher-risk production changes (opportunity for strict safety defaults).
+Additional examples: web UI added (opportunity for browser verification), deployment manifests added (opportunity for release observability pack), higher-risk production changes (opportunity for strict safety defaults and explicit action classification).
 
 Additional examples: a team adopts remote operator approval and progress visibility through agent-intercom (opportunity for the `agent-intercom` capability pack and intercom-woven workflow guidance).
 
 Additional examples: a team adopts agent-engram for code graph indexing and workspace memory (opportunity for the `agent-engram` capability pack and engram-first search guidance).
 
 Additional examples: a team standardizes on backlogit as its AI-native system of record (opportunity for the `backlogit` capability pack and deeper backlogit-native workflow guidance).
+
+Additional examples: a team wants recurring practice captured as explicit repository knowledge (opportunity for the `continuous-learning` capability pack and the observe / learn / evolve workflow).
+
+Additional examples: a product starts exposing MCP tools or agent-facing actions that must stay aligned with user-visible flows (opportunity for the `agent-native-parity-reviewer` persona).
+
+Additional examples: discovery now detects additive stack packs such as `web-app`, `api-service`, or `mcp-server`, creating an opportunity to clarify install layers and composition reasoning in the resolved config and manifest.
 
 **Action**: Evaluate and implement when beneficial.
 
@@ -109,6 +127,22 @@ Additional examples: a team standardizes on backlogit as its AI-native system of
 Functional but may cause minor confusion. Version numbers updated, minor naming changes, additional config files added.
 
 **Action**: Fix in batch during maintenance windows.
+
+## Deterministic Artifact Drift Scanning
+
+During tuning, autoharness re-hashes every manifest-tracked artifact and
+classifies it before generating proposals.
+
+| Classification | Meaning |
+|---|---|
+| `missing` | The manifest expects the artifact, but the file is gone |
+| `user-modified` | The file exists, but its checksum no longer matches the installed manifest |
+| `unchanged` | The file still matches the installed manifest |
+| `ignored` | The file matches a pattern in `.autoharness/drift-ignore` and is treated as an intentional local customization |
+
+Use `.autoharness/drift-ignore` to suppress known local harness customizations
+that should not be treated as accidental drift. Ignored files should still be
+reviewed occasionally, but they should not drown out genuine breakage.
 
 ## Manual Tuning
 
@@ -119,6 +153,9 @@ All harness artifacts are regular Markdown files. You can edit them directly:
 * **Skills**: Change build/test commands, adjust circuit breaker limits
 * **Skill Packs**: Enable richer verification or safety packs without redesigning the harness
 * **Intercom Weaving**: Thread agent-intercom heartbeat, broadcast, approval, and standby guidance through the affected artifacts rather than adding a single isolated note
+* **Continuous Learning**: Keep the observation lifecycle explicit by tuning `continuous-learning.instructions.md` and the `observe` / `learn` / `evolve` skills together
+* **Strict Safety**: Tune `strict-safety.instructions.md`, `plan-harden`, `safety-modes`, review, and closure guidance together so risky actions stay legible across the workflow
+* **Conditional Reviewers**: Install or retarget `agent-native-parity-reviewer.agent.md` when agent-facing product surfaces appear
 * **Policies**: Add new policies or modify existing gate conditions
 * **Constitution**: Update quality gates, change error handling patterns
 
@@ -131,3 +168,4 @@ After manual changes, run the tuner to verify consistency.
 3. **Keep backups** — the tuner creates them automatically in `.autoharness/backups/`
 4. **Test agents after tuning** — run a simple task through the pipeline to verify
 5. **Track tuning history** — the manifest records when and what was tuned
+6. **Use drift-ignore sparingly** — only for intentional local divergence, not as a way to hide real harness breakage

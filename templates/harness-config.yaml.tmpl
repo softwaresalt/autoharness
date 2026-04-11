@@ -11,6 +11,13 @@ schema_version: "1.0.0"
 # Installation preset: starter | standard | full
 preset: {{INSTALL_PRESET}}
 
+# Additive stack classification used for composition
+primary_stack_pack: {{PRIMARY_STACK_PACK}}
+stack_packs: {{STACK_PACKS_YAML}}
+
+# Explicit artifact-class layers selected for installation
+install_layers: {{INSTALL_LAYERS_YAML}}
+
 # Capability packs enabled for this workspace
 capability_packs: {{CAPABILITY_PACKS_YAML}}
 
@@ -20,6 +27,7 @@ backlog:
   directory: {{BACKLOG_DIRECTORY}}
   prefix_map:
     feature: "{{PREFIX_FEATURE}}"
+    chore: "{{PREFIX_CHORE}}"
     task: "{{PREFIX_TASK}}"
     spike: "{{PREFIX_SPIKE}}"
     deliberation: "{{PREFIX_DELIBERATION}}"
@@ -38,6 +46,19 @@ docs:
     closure: {{DOCS_CLOSURE_DIR}}
     design_docs: {{DOCS_DESIGN_DOCS_DIR}}
     product_specs: {{DOCS_PRODUCT_SPECS_DIR}}
+
+# Optional continuous-learning capability-pack configuration
+continuous_learning:
+  directory: "{{CONTINUOUS_LEARNING_DIR}}"
+  capture_hooks: {{CONTINUOUS_LEARNING_CAPTURE_HOOKS}}
+  environment_adapter: "{{CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER}}"
+  promotion_threshold: {{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}
+
+# Optional strict-safety capability-pack configuration
+strict_safety:
+  enabled: {{STRICT_SAFETY_ENABLED}}
+  require_approval_for:
+    - destructive
 
 # Model routing preferences (map tiers to model identifiers)
 model_routing:

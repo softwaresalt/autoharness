@@ -52,9 +52,9 @@ For each detected issue, either fix directly (for simple corrections) or open a 
 * Complex fixes: describe the issue, propose the change, open PR for review
 * Never silently delete documentation — propose removal with justification
 
-## Knowledge Graduation (Post-Feature Completion)
+## Knowledge Graduation (Post-Release-Unit Completion)
 
-Run this workflow after a feature completes (triggered by build-orchestrator or PR merge) to promote durable knowledge from backlog work items into `{{DOCS_ROOT}}/`.
+Run this workflow after a feature or chore completes (triggered by ship agent or PR merge) to promote durable knowledge from backlog work items into `{{DOCS_ROOT}}/`.
 
 The backlog directory holds active work — work items in the queue awaiting or undergoing execution. The `{{DOCS_ROOT}}/` directory holds durable knowledge — architecture, design decisions, product specs, compound learnings, session memory, closure records. These are different lifecycles. Graduation bridges them.
 
@@ -63,7 +63,7 @@ The backlog directory holds active work — work items in the queue awaiting or 
 Review recently completed backlog work items and their associated knowledge artifacts:
 
 * Completed execution plans in `{{DOCS_PLANS}}/`
-* Compound learnings captured during the feature build in `{{DOCS_COMPOUND}}/`
+* Compound learnings captured during the feature or chore execution in `{{DOCS_COMPOUND}}/`
 * Deliberation and spike artifacts that established product direction in `{{DOCS_DECISIONS}}/`
 * Closure records produced during verification in `{{DOCS_CLOSURE}}/`
 
@@ -85,7 +85,7 @@ For each piece of graduatable knowledge:
 
 1. **Distill** — extract the durable insight from the work artifact. Do not copy the plan verbatim; capture the *decision*, *rationale*, and *constraints* that future agents need.
 2. **Place** — write to the appropriate `{{DOCS_ROOT}}/` location:
-   * Architectural decisions → `{{DOCS_DESIGN_DOCS}}/{feature-name}.md`
+   * Architectural decisions → `{{DOCS_DESIGN_DOCS}}/{release-unit-name}.md`
    * Domain boundary changes → update `{{DOCS_ROOT}}/ARCHITECTURE.md`
    * Product requirements → `{{DOCS_PRODUCT_SPECS}}/`
    * Quality implications → update `{{DOCS_ROOT}}/QUALITY_SCORE.md`
@@ -97,8 +97,8 @@ For each piece of graduatable knowledge:
 
 After graduation, reassess quality grades for affected domains:
 
-* Did the feature improve documentation coverage? Upgrade the grade.
-* Did the feature introduce new undocumented areas? Flag for future gardening.
+* Did the feature or chore improve documentation coverage? Upgrade the grade.
+* Did the feature or chore introduce new undocumented areas? Flag for future gardening.
 
 ## Quality Assessment
 
@@ -119,7 +119,7 @@ Based on discovery, create a documentation quality plan:
 
 * Files that need style/structure compliance updates
 * Documentation that is outdated (references removed functions, wrong paths)
-* Features that lack documentation entirely
+* Features or chores that lack documentation entirely
 * Progressive disclosure integrity (are all entry point links valid?)
 * Quality grade accuracy per domain
 
@@ -129,7 +129,7 @@ Apply documentation fixes:
 
 * Style and structure compliance (per `markdown.instructions.md` and `writing-style.instructions.md`)
 * Accuracy updates (correct paths, function names, API signatures)
-* Gap filling (new documentation for undocumented features)
+* Gap filling (new documentation for undocumented features or chores)
 * Progressive disclosure repairs (fix broken navigation chains)
 
 ### Step 4: Validate

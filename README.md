@@ -44,10 +44,10 @@ Every effective agent harness implements these irreducible primitives, regardles
 
 | # | Primitive                             | Purpose                                            | Key Artifacts                                              |
 |---|---------------------------------------|----------------------------------------------------|------------------------------------------------------------|
-| 1 | **State, Context & Knowledge Retrieval** | Durable memory, checkpoints, retrieval, compaction | Memory agent, learnings researcher, compact-context, compound |
+| 1 | **State, Context & Knowledge Retrieval** | Durable memory, checkpoints, retrieval, compaction | Session continuity protocols, learnings researcher, compact-context, compound |
 | 2 | **Task Granularity & Horizon Scoping** | Decompose work to prevent error compounding        | 2-hour rule, width isolation, atomic milestones            |
 | 3 | **Model Routing & Escalation**        | Match model capability to task complexity           | Tier configuration, escalation laddering, cost tracking    |
-| 4 | **Orchestration, Delegation & Lifecycle Handoffs** | Sequence agents through a feature lifecycle | Pipeline agents, handoff rules, stop conditions, verification handoffs |
+| 4 | **Orchestration, Delegation & Lifecycle Handoffs** | Sequence agents through a feature/chore lifecycle | Pipeline agents, handoff rules, stop conditions, verification handoffs |
 | 5 | **Tool Execution, Safety Modes & Guardrails** | Safe environment mutation with policy enforcement | Approval workflows, safety modes, feature flags, architecture linters |
 | 6 | **Injection Points & Dynamic Reminders** | Surface constraints exactly when needed          | applyTo patterns, instruction reinforcement, DoD checks    |
 | 7 | **Observability & Evaluation**        | Track agent efficacy, output quality, and entropy  | Review personas, metrics, grading, cleanup agents          |
@@ -67,6 +67,16 @@ autoharness now supports a lighter-weight composition model so teams can adopt t
 | **standard** | Full 10-primitive harness | Most application and service repositories |
 | **full** | Full 10-primitive harness plus recommended capability packs | Teams that want deeper verification and stronger operational guidance |
 
+### Stack packs and install layers
+
+Discovery also normalizes workspace signals into additive `stack_packs` and
+explicit `install_layers` so install/tune can explain composition more clearly:
+
+| Concept | Examples | Purpose |
+|---|---|---|
+| `primary_stack_pack` / `stack_packs` | `web-app`, `api-service`, `background-worker`, `deployable-service`, `mcp-server`, `cli-tool`, `library` | Capture multiple concurrent workspace shapes without inventing a new architecture model |
+| `install_layers` | `foundation`, `instructions`, `workflow`, `review`, `runtime`, `backlog`, `knowledge`, `overlays` | Make preset-to-artifact-class composition explicit so install/tune can explain and compare what should be present |
+
 ### Capability Packs
 
 | Pack | Purpose |
@@ -74,9 +84,11 @@ autoharness now supports a lighter-weight composition model so teams can adopt t
 | **agent-intercom** | Weaves remote operator visibility, heartbeat, approval routing, and steering waits through the harness lifecycle |
 | **agent-engram** | Weaves engram-first indexed search, code graph lookup, workspace binding, and query-driven context retrieval through analysis-heavy workflows |
 | **backlogit** | Deepens backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows |
-| **browser-verification** | Adds browser-aware runtime verification guidance for web-facing projects |
-| **strict-safety** | Emphasizes careful / freeze-scope / investigate-first operating modes |
+| **browser-verification** | Adds browser-aware runtime verification and closure discipline for web-facing projects |
+| **continuous-learning** | Adds observation capture, instinct formation, and promotion into explicit learned instructions or skills |
+| **strict-safety** | Emphasizes careful / freeze-scope / investigate-first modes with explicit `ProposedAction` / `ActionRisk` / `ActionResult` tracking |
 | **release-observability** | Strengthens operational closure with monitoring and validation checklists |
+| **adversarial-review** | Adds multi-model consensus review and escalation for higher-confidence blocking findings |
 
 ### Formal overlay pattern
 
@@ -91,6 +103,17 @@ Every capability pack should define:
 * **Tuning drift rules** — how the tuner decides the overlay is missing, stale, or only partially woven
 
 See [Capability Packs](docs/capability-packs.md) for the full overlay contract.
+
+Discovery can also recommend conditional review-layer adaptations. For example,
+workspaces with MCP-heavy or agent-facing product surfaces can add the
+`agent-native-parity-reviewer` persona without introducing a new primitive or
+capability pack.
+
+For the current first-party backlogit guidance, including what is stable now
+versus what is still incubating in backlogit's next workflow revision, see
+[Backlogit Operating Model](docs/backlogit-operating-model.md),
+[Backlogit Compatibility Matrix](docs/backlogit-compatibility-matrix.md), and
+[Backlogit Graduation Checklist](docs/backlogit-graduation-checklist.md).
 
 ## Backlog Tool Integration
 
@@ -107,7 +130,7 @@ A structured backlog tool is essential for effective agent harness operation. Ag
 
 1. **Detection**: The workspace-discovery skill scans for backlog tool markers (config files, directories, MCP registrations)
 2. **Registry**: A pre-built registry YAML maps abstract operations (create, list, update, move) to the tool's specific MCP tool names and CLI commands
-3. **Abstraction**: All agent templates reference abstract operations (`{{OP_CREATE_MCP}}`, `{{STATUS_TODO}}`), which are resolved to tool-specific values during installation
+3. **Abstraction**: All agent templates reference abstract operations (`{{OP_CREATE_MCP}}`, `{{STATUS_QUEUED}}`), which are resolved to tool-specific values during installation
 4. **Migration**: The harness-tuner detects tool switches and generates migration proposals that update all harness references
 
 ### Manual Registration
@@ -223,7 +246,7 @@ From any registered environment:
 The installer will:
 
 1. **Discover** the target workspace profile (languages, frameworks, build tools, test runners, CI/CD)
-2. **Present** a proposed harness configuration for your review
+2. **Present** a proposed harness configuration for your review, including the detected stack packs, install layers, and recommendation rationale
 3. **Generate** customized agents, skills, instructions, policies, and constitutional docs
 4. **Install** the artifacts into the target workspace's `.github/` directory
 5. **Verify** the installation is coherent and all cross-references resolve
@@ -232,7 +255,7 @@ Optional examples:
 
 ```text
 @harness-installer workspace=/path/to/my-project preset=starter
-@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,release-observability
+@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review
 ```
 
 ### 4. Tune an existing harness
@@ -242,6 +265,10 @@ After the codebase evolves, invoke the tuner:
 ```text
 @harness-tuner workspace=/path/to/my-project
 ```
+
+The tuner combines workspace rediscovery with manifest checksum scanning so it
+can distinguish missing or locally modified harness artifacts from ordinary
+profile drift.
 
 ## Design Principles
 
@@ -255,7 +282,7 @@ After the codebase evolves, invoke the tuner:
 
 5. **Primitives are universal; implementations are specific.** Every workspace needs state management, task decomposition, and workflow policies. The specific agents, review personas, and quality gates vary by technology and team conventions.
 
-6. **Tuning is continuous.** Harnesses degrade as codebases evolve. The tuner agent detects drift between the installed harness and the current workspace state, then proposes targeted updates.
+6. **Tuning is continuous.** Harnesses degrade as codebases evolve. The tuner agent detects drift between the installed harness and the current workspace state using both workspace rediscovery and manifest-tracked artifact checksums, then proposes targeted updates.
 
 7. **Composition over monolith.** Each primitive is independently installable. Teams can adopt the full framework or select specific primitives that address their needs.
 

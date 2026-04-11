@@ -13,19 +13,19 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 ---
 
-## P-001: Single-Feature Completion
+## P-001: Single-Release-Unit Completion
 
 | Field      | Value                          |
 |------------|--------------------------------|
 | Policy ID  | P-001                          |
-| Applies To | `build-orchestrator`           |
+| Applies To | `ship`           |
 | Gate Point | Pre-flight (Step 1)            |
 
-**Statement**: The build-orchestrator must complete one feature through to PR merge before starting a new feature. Parallel in-flight features create branch conflicts, context fragmentation, and agent interference.
+**Statement**: The ship agent must complete one top-level release unit (feature or chore) through to PR merge before starting a new one. Parallel in-flight release units create branch conflicts, context fragmentation, and agent interference.
 
-**Precondition**: No backlog tasks with status `In Progress` exist under any feature number other than the current feature.
+**Precondition**: No backlog tasks with status `Active` exist under any top-level work item other than the current feature or chore.
 
-**Postcondition**: All tasks under the current feature are `Done` before the orchestrator claims work on a new feature.
+**Postcondition**: All tasks under the current top-level work item are `Done` before the orchestrator claims work on a new feature or chore.
 
 **Violation Action**: Halt. Do not proceed until the conflict is resolved or the operator explicitly overrides with `skip_policy: P-001`.
 
@@ -36,16 +36,16 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Field      | Value                                                        |
 |------------|--------------------------------------------------------------|
 | Policy ID  | P-002                                                        |
-| Applies To | `build-orchestrator` (consumer), `harness-architect` (producer) |
+| Applies To | `ship` (consumer), `harness-architect` (producer) |
 | Gate Point | Queue building (Step 2) and task claiming (Step 3)           |
 
-**Statement**: The build-orchestrator may only claim and implement a task after the harness-architect has confirmed that the test harness compiles and all tests fail in the red phase.
+**Statement**: The ship agent may only claim and implement a task after the harness-architect has confirmed that the test harness compiles and all tests fail in the red phase.
 
-**Precondition** (build-orchestrator): The task carries the `harness-ready` label.
+**Precondition** (ship): The task carries the `harness-ready` label.
 
 **Postcondition** (harness-architect): The task has `harness-ready` label, the harness compiles (`{{BUILD_CHECK_COMMAND}}`), and all tests fail with expected failure markers.
 
-**Enforcement** (build-orchestrator): Filter ready queue to only tasks carrying the `harness-ready` label.
+**Enforcement** (ship): Filter ready queue to only tasks carrying the `harness-ready` label.
 
 **Violation Action**: Halt and suggest running the harness-architect.
 
@@ -56,7 +56,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Field      | Value                  |
 |------------|------------------------|
 | Policy ID  | P-003                  |
-| Applies To | `backlog-harvester`    |
+| Applies To | `stage`    |
 | Gate Point | Pre-harvest validation |
 
 **Statement**: Each stage of the decomposition chain must reference its parent artifact and pass structural validation before the next stage may proceed.
@@ -65,7 +65,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 1. The source document exists at the declared path
 2. The plan file references the source document
-3. Every sub-epic references the plan and feature epic
+3. Every sub-epic references the plan and its top-level feature or chore work item
 4. Every task references its parent sub-epic
 5. Every task includes at least one acceptance criterion
 
@@ -109,8 +109,32 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 ---
 
+## P-006: Plan Hardening Gate
+
+| Field      | Value                                    |
+|------------|------------------------------------------|
+| Policy ID  | P-006                                    |
+| Applies To | `stage`                                  |
+| Gate Point | Post-planning, pre-review (Step 3→4)     |
+
+**Statement**: Plans that declare hardening signals must invoke plan-harden before plan-review can gate them. Plans that skip this step when hardening is required must be rejected.
+
+**Precondition**: One of the following must be true:
+
+1. The impl-plan output contains `Requires plan hardening: no`
+2. The plan-harden skill has been invoked and has appended a `## Plan Hardening` section to the plan
+
+If the impl-plan output does not contain a `Requires plan hardening` conclusion, treat hardening as required (fail-safe).
+
+**Postcondition**: The plan entering plan-review either carries a `## Plan Hardening` section (when hardening was required) or an explicit `Requires plan hardening: no` conclusion.
+
+**Violation Action**: Halt. Do not proceed to plan-review or harvest. Broadcast a P-005 violation event.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
 |---------|--------------|------------------|----------------------------|
 | 1.0.0   | {{DATE}}     | Initial registry | Generated by autoharness   |
+| 1.1.0   | {{DATE}}     | Added P-006      | Plan hardening gate enforcement |

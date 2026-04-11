@@ -43,26 +43,41 @@ The `agent-intercom` pack is a model overlay because it changes how the harness 
 
 This is why `agent-intercom` must be woven through the harness rather than installed as a single detached add-on.
 
+`browser-verification`, `continuous-learning`, and `strict-safety` follow the same rule:
+
+* `browser-verification` deepens Primitive 4 and 10 by weaving browser-specific
+  verification discipline through foundation docs, instructions, runtime
+  verification, and operational closure
+* `continuous-learning` deepens Primitive 1, 6, 7, and 9 by weaving observation
+  capture, instinct formation, and learned-artifact promotion through explicit
+  instructions and skills
+* `strict-safety` deepens Primitive 5, 6, 8, and 10 by weaving explicit
+  `ProposedAction` / `ActionRisk` / `ActionResult` guidance through safety,
+  planning, review, and closure workflows
+
 ## Primitive 1: State, Context, and Knowledge Retrieval
 
 **Purpose**: Maintain durable state across sessions, retrieve relevant prior learnings at the point of work, manage the context window, and prevent token overflow.
 
 **Key Artifacts**:
 
-* `memory.agent.md` — Persists session state to `docs/memory/` (default; configurable via `.autoharness/config.yaml`) — explicit file writes, not reliant on built-in AI assistant memory
+* `stage.agent.md` — Session state persistence is inline in both primary agents
 * `research/learnings-researcher.agent.md` — Retrieves relevant prior solutions before planning and review
 * `compact-context/SKILL.md` — Mandatory workflow step: consolidates memory, plans, and closure artifacts in the docs root; archives verbose originals to docs/archive/
 * `compound/SKILL.md` — Captures institutional knowledge to `docs/compound/` (default; configurable)
+* `compound-refresh/SKILL.md` — Maintains existing compound entries so stale or overlapping learnings are refreshed instead of silently drifting
+* `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Optional `continuous-learning` overlay skills for capturing recurring practice and promoting mature patterns into explicit learned artifacts
 
 **Design Rules**:
 
 * Memory files use structured Markdown with YAML frontmatter for searchability
 * Checkpoints capture: tasks completed, files modified, decisions, failed approaches, next steps
 * Learnings retrieval runs before planning and review work, not just after failures
-* Compact-context is a mandatory workflow step (invoked by memory agent at checkpoint threshold and by build-orchestrator at batch completion), not an advisory suggestion
-* Compact-context and memory agent operate at Tier 1 (Fast/Cheap) — recommended model: GPT-5.4-mini or equivalent
+* Compact-context is a mandatory workflow step (invoked by stage or ship agent at checkpoint threshold and at batch completion), not an advisory suggestion
+* Session continuity protocols in stage and ship agents handle state persistence at Tier 1 (Fast/Cheap) — recommended model: GPT-5.4-mini or equivalent
 * Compaction triggers when file count exceeds threshold (default 40) or total size exceeds 500 KB
 * Compound entries use searchable frontmatter fields: `problem_type`, `category`, `root_cause`, `tags`
+* Knowledge maintenance is evidence-backed: when existing learnings drift, prefer update / consolidate / mark-stale workflows over cosmetic churn
 
 ## Primitive 2: Task Granularity and Horizon Scoping
 
@@ -71,7 +86,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 **Key Artifacts**:
 
 * Embedded in `AGENTS.md` (Task Granularity section)
-* `backlog-harvester.agent.md` — Enforces granularity during decomposition
+* `stage.agent.md` — Enforces granularity during decomposition via harvest skill
 * `impl-plan/SKILL.md` — Produces granular implementation units
 
 **Design Rules**:
@@ -89,7 +104,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 **Key Artifacts**:
 
 * Agent definitions (each declares its tier)
-* `build-orchestrator.agent.md` — Implements escalation logic
+* `ship.agent.md` — Implements escalation logic
 
 **Design Rules**:
 
@@ -100,25 +115,25 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 ## Primitive 4: Orchestration, Delegation, and Lifecycle Handoffs
 
-**Purpose**: Sequence agents through the feature lifecycle with clear handoffs, preserved release context, and stop conditions.
+**Purpose**: Sequence agents through the feature/chore lifecycle with clear handoffs, preserved release context, and stop conditions.
 
 **Key Artifacts**:
 
-* `backlog-harvester.agent.md` — Planning pipeline (impl-plan → plan-review → harvest)
-* `harness-architect.agent.md` — TDD harness generation
-* `build-orchestrator.agent.md` — Implementation execution loop
-* `pr-review.agent.md` — PR lifecycle management
-* `deliberator.agent.md` — Interactive deliberation and spike orchestration
+* `stage.agent.md` — Stash-to-backlog pipeline (triage → deliberate/spike → impl-plan → plan-harden when needed → plan-review → harvest)
+* `plan-harden/SKILL.md` — Risk-triggered hardening of high-blast-radius plans before review
+* `ship.agent.md` — Backlog-to-shipped pipeline (harness → build → review → PR → fix-ci → closure)
+* `harness-architect/SKILL.md` — TDD harness generation
 * `build-feature/SKILL.md` — Harness loop execution
 * `deliberate/SKILL.md` — Structured deliberation and decision capture
 * `spike/SKILL.md` — Time-boxed investigation and findings capture
 * `fix-ci/SKILL.md` — CI failure resolution
+* `pr-lifecycle/SKILL.md` — PR creation and follow-up
 * `runtime-verification/SKILL.md` — Runtime surface validation before closure
 * `operational-closure/SKILL.md` — Release readiness, monitoring, and feedback capture
 
 **Design Rules**:
 
-* Pipeline: Deliberate/Spike → Plan → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
+* Pipeline: Deliberate/Spike → Plan → Plan-Harden (when needed) → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
 * Each agent declares its maximum subagent depth
 * Skills are leaf executors (no subagent spawning)
 * Handoff contracts preserve verification and closure expectations from planning through release
@@ -134,12 +149,14 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `constitution.instructions.md` — Principles III-V (workspace isolation, containment, destructive approval)
 * `workflow-policies.md` — P-001 through P-005
 * `safety-modes/SKILL.md` — Interactive careful / freeze-scope / investigate-first workflows
+* `strict-safety.instructions.md` — Optional overlay instructions that make risky actions explicit and reviewable
 * Custom architectural linters — Enforce dependency direction, naming, and layering (generated per workspace)
 
 **Design Rules**:
 
 * File creation and modification proceed directly (non-destructive)
 * Safety modes are explicit and user-legible when risk increases
+* Optional strict-safety overlays classify risky work as `ProposedAction`, `ActionRisk`, and `ActionResult`
 * Destructive operations (deletion, directory removal) require approval workflow
 * CLI workspace containment: no writes outside cwd
 * Feature flags gate new agent-generated modules to prevent system instability
@@ -155,7 +172,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 * Instruction files with `applyTo` glob patterns
 * `build-feature/SKILL.md` — Instruction reinforcement at each fix iteration
-* `build-orchestrator.agent.md` — Constitution re-read at session start
+* `ship.agent.md` — Constitution re-read at session start
 
 **Design Rules**:
 
@@ -173,18 +190,23 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Review persona agents (`review/` directory)
 * `review/SKILL.md` — Multi-persona code review
 * `plan-review/SKILL.md` — Multi-persona plan review
+* `review/agent-native-parity-reviewer.agent.md` — Conditional reviewer for MCP-heavy or parity-sensitive agent-facing product surfaces
 * `compound/SKILL.md` — Post-mortem knowledge capture
-* `doc-ops.agent.md` — Documentation gardening and entropy cleanup
+* `compound-refresh/SKILL.md` — Knowledge-maintenance workflow for stale institutional learnings
+* Ship agent post-merge closure — Documentation gardening and entropy cleanup
 
 **Design Rules**:
 
 * Review personas are leaf executors with domain-specific focus
 * Always-on personas review every change; conditional personas activate based on diff content
+* Agent-native parity review is conditional: enable it when the workspace exposes MCP tools or agent-facing product surfaces that must preserve parity with user-visible workflows
 * Findings use a 4-level severity system (P0-P3) with action classes (safe_auto, gated_auto, manual, advisory)
 * Cross-model diversity is preferred (different models for different personas) but not blocking
 * Compound learnings capture hard-won solutions for future reference
-* Entropy management: background agents scan for pattern deviations, update quality grades, and open targeted refactoring PRs on a regular cadence
-* Cleanup agents function as garbage collection — paying down technical debt continuously in small increments
+* Optional continuous-learning workflows may capture recurring practice as observations, cluster them into instincts, and promote mature patterns into explicit learned artifacts
+* Tune should perform deterministic checksum-based artifact scans so missing or user-modified harness files are treated as first-class maintenance signals
+* Entropy management: the ship agent's post-merge closure scans for pattern deviations, updates quality grades, and applies documentation fixes
+* Cleanup functions as garbage collection — paying down technical debt continuously in small increments
 
 ## Primitive 8: Workflow Policy
 
@@ -192,17 +214,18 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `workflow-policies.md` — Policy registry with P-001 through P-005
+* `workflow-policies.md` — Policy registry with P-001 through P-006
 * Agent definitions (each references applicable policies at gate points)
 
 **Design Rules**:
 
 * Policies are declarative: precondition, postcondition, gate point, violation action
-* P-001: Single-feature completion (no parallel features)
+* P-001: Single top-level release-unit completion (no parallel features or chores)
 * P-002: TDD gate (`harness-ready` label required before implementation)
 * P-003: Decomposition chain integrity (validated parent-child references)
 * P-004: Red phase before implementation (tests compile and fail)
 * P-005: Policy violation telemetry (all violations recorded and broadcast)
+* P-006: Plan hardening gate (risky plans must be hardened before review)
 * Policy violations are first-class observability signals
 
 ## Primitive 9: Repository Knowledge and Agent Legibility
@@ -214,7 +237,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `AGENTS.md` — Short entry point (~100 lines) serving as table of contents, not encyclopedia
 * `docs/ARCHITECTURE.md` — Top-level map of domains, package layering, and dependency direction
 * `docs/` directory — Durable knowledge (design docs, product specs, quality grades, references)
-* `doc-ops.agent.md` — Documentation gardening agent that scans for stale docs, opens fix-up PRs, and graduates knowledge from completed backlog work
+* Ship agent post-merge closure — Documentation gardening that scans for stale docs, applies fixes, and graduates knowledge from completed backlog work
 * `architecture-doc.instructions.md` — Rules for maintaining architecture documentation
 
 **Design Rules**:
@@ -224,7 +247,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `docs/` holds durable knowledge; the backlog directory holds active work items — different lifecycles, different concerns
 * Knowledge graduation: when backlog work completes, architectural decisions and design rationale are distilled into `docs/design-docs/`; compound learnings are stored in `docs/compound/` (default; configurable) — NOT in the backlog
 * Documentation is mechanically validated: CI checks verify freshness, cross-links, and structural correctness
-* Doc-gardening runs on a regular cadence (configurable), scanning for obsolete content that no longer reflects code
+* Doc-gardening runs as part of ship agent post-merge closure, scanning for obsolete content that no longer reflects code
 * Progressive disclosure depth scales with codebase complexity
 * Quality grades per domain track which areas are well-documented vs. fragile
 
@@ -236,12 +259,14 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 * `runtime-verification/SKILL.md` — Validates affected runtime surfaces with the appropriate depth
 * `operational-closure/SKILL.md` — Produces release-readiness, monitoring, rollback, and follow-up artifacts
-* `pr-review.agent.md` — Carries verification and closure expectations into PR descriptions
+* `ship.agent.md` — Carries verification and closure expectations into PR descriptions via pr-lifecycle skill
 * `fix-ci/SKILL.md` — Ensures green CI is not the final stop when runtime validation is still required
 
 **Design Rules**:
 
 * Green tests are necessary but not sufficient; runtime validation requirements must be explicit
+* Runtime verification records environment prechecks, affected-surface heuristics, and human verification stop points when automation cannot finish the flow
+* When the `browser-verification` overlay is enabled, runtime verification and closure explicitly model server readiness, route selection, headed/headless choice, and human checkpoints for external flows
 * Closure artifacts record healthy signals, failure signals, validation windows, rollback triggers, and owner
 * Runtime findings feed back into compound learnings, documentation updates, and tuning proposals
 * Primitive 10 is the formal handoff from “implemented” to “safely absorbed by the running system”

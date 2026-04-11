@@ -73,25 +73,57 @@ Classify each detected change by impact and urgency:
 | **Cosmetic** | Function unaffected | Minor version bumps, additional config files |
 | **Growth** | New capabilities to harness | New languages in project, new documentation patterns |
 
-#### Step 1.3: Scan Harness Artifact Health
+#### Step 1.3: Deterministic Artifact Drift Scan
+
+Use `.autoharness/harness-manifest.yaml` as the source of truth for installed
+generated artifacts:
+
+* re-hash every manifest-listed artifact that still exists
+* classify at least:
+  * `missing`
+  * `user-modified`
+  * `unchanged`
+* support ignore patterns from `.autoharness/drift-ignore`; classify matching
+  paths as `ignored` rather than surfacing them as drift
+* record per-artifact path, manifest checksum, current checksum, classification,
+  and reason
+
+Record the result under `drift_report.checksum_scan{}` so later proposals can
+distinguish broken installs from intentional local customization.
+
+#### Step 1.4: Scan Harness Artifact Health
 
 For each installed artifact, check:
 
 * **Instruction files**: Do `applyTo` glob patterns match files that still exist?
 * **Agent files**: Do referenced skills, tools, and file paths resolve?
 * **Skill files**: Do build/test/lint commands match current tooling?
+* **Compound library**: Are existing learnings stale, duplicated, contradicted by current code, or strong candidates for `compound-refresh`?
 * **Policies**: Do referenced agents and gate points still apply?
 * **Constitution**: Do technology-specific rules match the current stack?
 * **AGENTS.md**: Do quality gates and commands match current tooling?
 * **Backlog registry**: Does the registered backlog tool still match the installed tool? Has the tool been switched?
 * **Runtime verification and closure skills**: Do they match the current runtime surfaces and deployment model?
+* **Risky-plan hardening coherence**: Verify the plan-hardening pipeline is consistent:
+  1. impl-plan template still includes the `Plan Hardening Signals` section and concludes with `Requires plan hardening: yes|no`
+  2. stage agent Step 3 references the `Requires plan hardening` conclusion and invokes plan-harden when `yes`
+  3. plan-harden template references `{{DOCS_PLANS}}/` and appends a `## Plan Hardening` section
+  4. plan-review Step 1 extracts hardening signals and the gate decision table includes the hardening-required-but-missing FAIL condition
+  If any of these four checks fail, flag as P1 Degrading drift.
 * **Agent-intercom weaving**: If intercom markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference heartbeat, broadcast, approval-routing, and degraded-mode handling?
 * **Agent-engram weaving**: If engram markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference engram-first search, workspace binding, and freshness / fallback behavior?
 * **backlogit weaving**: If backlogit is the selected backlog tool, do instructions and backlog-aware agents consistently reference queue, query, dependency, memory, checkpoint, or traceability behaviors?
+* **Browser-verification weaving**: If browser tooling and web UI surfaces exist, do AGENTS.md, copilot-instructions, runtime verification, operational closure, and the browser-verification instruction file consistently reference server readiness, route selection, headed/headless choice, and human checkpoints?
+* **Continuous-learning weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, the continuous-learning instruction file, and the `observe` / `learn` / `evolve` skills consistently reference observation capture, instinct formation, and promotion thresholds?
+* **Strict-safety weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `strict-safety.instructions.md`, `safety-modes`, `plan-harden`, review, and closure workflows consistently reference `ProposedAction`, `ActionRisk`, `ActionResult`, and approval expectations?
+* **Release-observability weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `release-observability.instructions.md`, operational-closure, and runtime-verification consistently reference monitoring plans, observation windows, and rollback triggers?
+* **Agent-native parity reviewer**: If MCP or parity-sensitive agent tooling is now present, does the review layer install and route `agent-native-parity-reviewer.agent.md` where appropriate?
+* **Deprecated agents**: If deprecated agent files are found in `.github/agents/` that match AGENTS.md's deprecation table, flag as P2 Degrading drift and propose removal with a note that the functionality has been absorbed into the active agent/skill set.
 
-Record: `health_report{}` with per-artifact status.
+Record: `health_report{}` with per-artifact status and any `compound-refresh`
+recommendations for stale institutional knowledge.
 
-#### Step 1.4: Backlog Tool Migration Detection
+#### Step 1.5: Backlog Tool Migration Detection
 
 Compare the currently registered backlog tool (from `.autoharness/backlog-registry.yaml`) against what workspace-discovery detected:
 
@@ -113,21 +145,34 @@ Compare the currently registered backlog tool (from `.autoharness/backlog-regist
 6. Map the directory structure if different (e.g., `.backlogit/` → `backlog/`)
 7. Do NOT migrate task data — that is the backlog tool's responsibility
 
-#### Step 1.5: Preset and Capability-Pack Drift
+#### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
 
-Compare the installed preset and capability packs in `.autoharness/harness-manifest.yaml` against the current workspace profile recommendations:
+Compare the installed preset, primary stack pack, additive stack packs, install
+layers, and capability packs in `.autoharness/harness-manifest.yaml` against the
+current workspace profile recommendations:
 
 | Scenario | Category | Action |
 |----------|----------|--------|
-| Same preset and packs still appropriate | Healthy | No action needed |
+| Same preset, stack packs, layers, and packs still appropriate | Healthy | No action needed |
+| Primary stack pack shifted (for example `library` -> `web-app`) | Growth or Degrading | Propose recomposing install layers and any affected guidance |
+| Additive stack packs changed materially | Growth or Degrading | Propose updating the recorded composition model and any affected recommendations |
+| Installed layers no longer match recommended layers | Growth or Degrading | Propose expanding or reducing the affected artifact classes |
 | Same preset, missing recommended pack | Growth | Propose enabling the pack |
 | Installed pack no longer matches runtime surfaces | Cosmetic or Degrading | Propose disabling or retargeting the pack |
 | agent-intercom markers detected but `agent-intercom` pack missing | Growth or Degrading | Propose enabling the pack and weaving intercom guidance through the harness |
 | agent-engram markers detected but `agent-engram` pack missing | Growth or Degrading | Propose enabling the pack and weaving engram-first search guidance through the harness |
 | backlogit detected as the active backlog tool but `backlogit` pack missing | Growth or Degrading | Propose enabling the pack and weaving backlogit-native workflows through the harness |
+| Browser tooling and web UI detected but `browser-verification` pack missing | Growth or Degrading | Propose enabling the pack and weaving browser-verification guidance through runtime verification and closure |
+| Recurring observation/learning workflow desired but `continuous-learning` pack missing | Growth | Propose enabling the pack and installing observe / learn / evolve workflows |
+| Elevated runtime, migration, or security risk detected but `strict-safety` pack missing | Growth or Degrading | Propose enabling the pack and weaving explicit action classification through risky workflows |
+| Risky-plan hardening guidance missing or stale | Degrading | Propose retuning stage, plan-harden, and plan-review together so risky plans are hardened before harvest |
 | Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
 
-#### Step 1.6: Overlay-Coherence Drift
+Use the profile's structured recommendation reasons when available so proposals
+can explain **why** the preset, layers, or packs changed rather than only
+listing the new target values.
+
+#### Step 1.7: Overlay-Coherence Drift
 
 For every enabled capability pack, compare the manifest's declared overlay targets against the currently installed artifacts.
 
@@ -139,6 +184,10 @@ Flag drift when:
 * the workspace now exposes new eligibility signals that should expand the overlay target set
 
 Treat partially woven overlays as a first-class drift category rather than a cosmetic doc mismatch.
+
+Separately, treat conditional reviewer drift as real harness drift when the
+workspace now requires parity-sensitive review but the review layer still lacks
+`agent-native-parity-reviewer.agent.md` or the routing logic to invoke it.
 
 ### Phase 2: Change Proposal Generation
 
@@ -167,6 +216,14 @@ For each detected issue, generate a specific change proposal:
     + applyTo: '**/*.py'
 ```
 
+Checksum-based drift findings should cite whether the artifact is `missing`,
+`user-modified`, or `ignored` so the operator can tell whether the proposal is
+recovery, retuning, or intentional local divergence.
+
+When discovery produced recommendation reasons, include the relevant preset,
+install-layer, or capability-pack rationale in the proposal body so operators can
+see the causal signals behind the retune.
+
 #### Step 2.3: Detect New Primitive Opportunities
 
 Scan for workspace patterns that suggest missing harness capabilities:
@@ -180,6 +237,10 @@ Scan for workspace patterns that suggest missing harness capabilities:
 * Remote operator workflow markers without matching agent-intercom guidance in the harness
 * agent-engram markers or `.engram/` state without matching engram-first search guidance in the harness
 * backlogit-specific features available without matching backlogit-native guidance in the harness
+* Browser automation tooling without the browser-verification overlay
+* MCP or agent-facing product surfaces without the agent-native parity reviewer
+* Repeated recurring-practice evidence without the continuous-learning overlay
+* High-risk runtime or migration work without strict-safety or plan-hardening guidance
 
 ### Phase 3: Proposal Review
 
@@ -195,6 +256,19 @@ Generate and display the tuning report:
 - Degrading changes: {{count}}
 - Growth opportunities: {{count}}
 - Cosmetic adjustments: {{count}}
+
+### Composition
+- Installed primary stack pack: {{INSTALLED_PRIMARY_STACK_PACK}}
+- Current primary stack pack: {{CURRENT_PRIMARY_STACK_PACK}}
+- Installed stack packs: {{INSTALLED_STACK_PACKS}}
+- Current stack packs: {{CURRENT_STACK_PACKS}}
+- Installed layers: {{INSTALLED_INSTALL_LAYERS}}
+- Recommended layers: {{RECOMMENDED_INSTALL_LAYERS}}
+
+### Checksum Scan
+- Missing installed artifacts: {{count}}
+- User-modified artifacts: {{count}}
+- Ignored artifacts: {{count}}
 
 ### Proposed Changes (ordered by priority)
 
@@ -234,8 +308,13 @@ If growth opportunities were accepted (new review personas, new instructions, ne
 1. Generate from templates using the current workspace profile
 2. Install to the appropriate directory
 3. Update cross-references in AGENTS.md and copilot-instructions.md
-4. Update manifest preset / capability-pack metadata when installation shape changes
+4. Update manifest preset / stack-pack / install-layer / capability-pack metadata when installation shape changes
 5. Update manifest overlay-target metadata when the pack's woven surface changes
+6. If the workspace now requires the agent-native parity reviewer, install the
+   reviewer agent and update plan-review / review routing guidance together
+7. If risky-plan hardening or strict-safety expectations changed, update
+   `plan-harden`, safety-mode, review, and closure artifacts together rather
+   than patching only one surface
 
 #### Step 4.3: Update Manifest
 
@@ -245,20 +324,25 @@ Update `.autoharness/harness-manifest.yaml`:
 * Record which proposals were applied
 * Update artifact checksums
 * Store the new workspace profile hash
+* Store the new primary stack pack, additive stack packs, install layers, preset, and capability-pack metadata when composition changed
 
 ### Phase 5: Verification
 
-Run the same verification checks as the install-harness skill Phase 4:
+Run the same verification algorithm as the install-harness skill Phase 4:
 
-* Cross-reference validation
-* Structural validation
-* No unresolved template variables
-* Updated report
+* **Step 4.1 (Template Variable Sweep)** — scan for unresolved `{{...}}` outside code fences
+* **Step 4.2 (Cross-Reference Sweep)** — verify agent→skill, agent→tool, instruction→file, policy→agent, constitution→language, and layer→artifact consistency
+* **Step 4.3 (Overlay Coherence Sweep)** — verify each enabled pack's targets exist and reference the pack's behavior keywords
+* **Step 4.4 (Structural Validation)** — YAML frontmatter, code fence pairing, table column counts, file path resolution
+
+Report any failures alongside the tuning report so the operator can address
+both drift and verification issues in a single pass.
 
 ## Quality Criteria
 
 * All breaking drift is addressed (either fixed or explicitly acknowledged)
 * No harness artifact references non-existent files after tuning
+* Checksum scan classifies every manifest-tracked artifact or intentional ignore outcome
 * Backup copies exist for every modified artifact
 * The tuning report is comprehensive and actionable
 * The harness manifest reflects the post-tuning state

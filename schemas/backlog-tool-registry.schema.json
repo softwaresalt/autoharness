@@ -35,7 +35,7 @@
         },
         "transport": {
           "type": "string",
-          "enum": ["stdio", "sse", "http"],
+          "enum": ["stdio", "sse", "http", "streamable-http"],
           "default": "stdio"
         }
       }
@@ -98,10 +98,10 @@
       "type": "object",
       "description": "Maps abstract status names to tool-specific status strings",
       "properties": {
-        "todo": { "type": "string", "default": "To Do" },
-        "in_progress": { "type": "string", "default": "In Progress" },
-        "done": { "type": "string", "default": "Done" },
-        "blocked": { "type": "string", "default": "Blocked" }
+        "queued": { "type": "string", "default": "queued" },
+        "active": { "type": "string", "default": "active" },
+        "done": { "type": "string", "default": "done" },
+        "blocked": { "type": "string", "default": "blocked" }
       }
     },
     "features": {
@@ -125,9 +125,38 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "tool_type": { "enum": ["mcp", "both"] } }
+      },
+      "then": {
+        "required": ["mcp_server"],
+        "properties": {
+          "mcp_server": { "required": ["command"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "tool_type": { "enum": ["cli", "both"] } }
+      },
+      "then": {
+        "required": ["cli"],
+        "properties": {
+          "cli": { "required": ["binary"] }
+        }
+      }
+    }
+  ],
   "$defs": {
     "operation": {
       "type": "object",
+      "description": "At least one of mcp_tool or cli_command must be provided",
+      "anyOf": [
+        { "required": ["mcp_tool"] },
+        { "required": ["cli_command"] }
+      ],
       "properties": {
         "mcp_tool": {
           "type": "string",

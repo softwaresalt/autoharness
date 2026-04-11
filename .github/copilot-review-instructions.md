@@ -32,7 +32,7 @@ Enforce these naming patterns strictly:
 | Artifact Type | Pattern | Example |
 |---|---|---|
 | Template | `{name}.{ext}.tmpl` | `constitution.instructions.md.tmpl` |
-| Agent definition | `{name}.agent.md` | `deliberator.agent.md` |
+| Agent definition | `{name}.agent.md` | `stage.agent.md` |
 | Skill | `{skill-name}/SKILL.md` | `spike/SKILL.md` |
 | Instruction | `{name}.instructions.md` | `agent-engram.instructions.md` |
 | Prompt | `{name}.prompt.md` | `ping-loop.prompt.md` |
@@ -103,11 +103,10 @@ Changes to templates that interact with schemas (workspace profile, harness mani
 ### 10. Agent and Skill Role Boundaries
 
 - **Agents** orchestrate and may spawn subagents (up to their declared max depth)
-- **Skills** are leaf executors — they must NOT spawn subagents
+- **Skills** may spawn persona subagents for review workflows (review, plan-review) but must declare their subagent depth
 - Each agent must declare its **model routing tier** (Tier 1 Fast, Tier 2 Standard, Tier 3 Frontier) and **subagent depth** (maximum hops or "leaf executor")
-- Flag skills that reference spawning subagents or agents that omit tier/depth declarations
-- Flag any Skill template that dispatches named agents — it must be converted to an agent with subagent depth ≥ 1. "No subagents" is not the default; it must be declared explicitly.
-- Verify declared tier matches agent complexity: Tier 1 for leaf/memory/review-persona agents, Tier 2 for orchestrators and review agents, Tier 3 for deliberation and planning agents
+- Flag skills that spawn subagents without declaring subagent depth
+- Verify declared tier matches complexity: Tier 1 for leaf/persona agents, Tier 2 for ship and review skills, Tier 3 for stage and planning skills
 
 ## What NOT to Flag
 

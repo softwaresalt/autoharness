@@ -8,12 +8,13 @@ Validate that the change works in the runtime surfaces it actually affects. Gree
 
 ## When to Use
 
-Invoke after CI is green, before merge, after merge, or after deployment whenever the work changes a runtime surface:
+Invoke after CI is green, before merge, after merge, or after deployment whenever the work changes a runtime surface or rollout-sensitive behavior:
 
 * CLI behavior
 * Public APIs
 * Browser-visible UI flows
 * Background jobs or scheduled tasks
+* Deployments, migrations, or feature-flagged release paths
 
 ## Inputs
 
@@ -25,7 +26,7 @@ Invoke after CI is green, before merge, after merge, or after deployment wheneve
 ## Output
 
 * Verification report at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-runtime-verification.md`
-* Pass/fail verdict with evidence, follow-up risks, and recommended next action
+* PASS / PASS WITH FOLLOW-UP / FAIL / BLOCKED verdict with evidence, follow-up risks, and recommended next action
 
 ## Required Protocol
 
@@ -34,7 +35,24 @@ When the `agent-intercom` capability pack is installed, follow
 verified, keep the operator informed of pass / follow-up / fail outcomes, and use the intercom
 clarification or standby flow when manual operator confirmation is part of the verification path.
 
-### Step 1: Determine Verification Depth
+When the `browser-verification` capability pack is installed, also follow
+`.github/instructions/browser-verification.instructions.md`: verify server
+availability first, choose headed vs headless mode intentionally, derive routes
+from changed surfaces, and call out explicit human checkpoints for external
+flows.
+
+When the `strict-safety` capability pack is installed, also follow
+`.github/instructions/strict-safety.instructions.md`: when verification exists
+to prove or contain a risky action, keep the relevant `ProposedAction`,
+`ActionRisk`, and current `ActionResult` visible in the verification record
+rather than treating them as hidden implementation detail.
+
+When the `release-observability` capability pack is installed, also follow
+`.github/instructions/release-observability.instructions.md`: reference the
+monitoring plan and rollback triggers during verification so the verification
+report can confirm whether monitoring is active and rollback paths are ready.
+
+### Step 1: Determine Verification Depth and Invariants
 
 Choose the lowest-cost verification that still gives confidence:
 
@@ -43,41 +61,101 @@ Choose the lowest-cost verification that still gives confidence:
 * **Browser** → verify user-visible flows, rendering, navigation, and critical interactions
 * **Background job** → confirm trigger path, observable side effects, and logs or queue state
 
-If `surface=auto`, infer the surface from the changed files and PR context.
+If `surface=auto`, infer the surface from the changed files and PR context. Record
+the main invariants that must still hold after the change.
 
-### Step 2: Select Verification Mode
+### Step 2: Run Environment Prechecks
+
+Before exercising the runtime surface, verify:
+
+* the build or deployable artifact under test is the expected one
+* the target environment, service, or dev server is reachable
+* required ports, URLs, fixtures, credentials, and seed data are available
+* browser tooling exists when browser mode is requested
+* human verification dependencies (OAuth, email inbox access, SMS, payment sandbox, native dialogs) are known up front
+
+If the environment cannot support meaningful verification, return **BLOCKED**
+with the exact missing prerequisite instead of pretending the surface was tested.
+
+### Step 3: Select Verification Mode
 
 * Use **browser** mode only when browser tooling is available or the workspace enabled the `browser-verification` capability pack
 * Use **api** mode when HTTP or RPC verification is sufficient
 * Use **manual** mode when the runtime surface cannot be exercised automatically in the current environment
 
-### Step 3: Execute Verification
+When browser mode is selected:
+
+* prefer **headless** for deterministic smoke coverage
+* prefer **headed** for visual regressions, step-through debugging, or flows that
+  require human handoff
+* treat OAuth, payments, email, SMS, CAPTCHAs, native dialogs, and other
+  operator-dependent flows as explicit human verification stop points
+
+### Step 4: Select Targets and Scenarios
+
+Choose scenarios from the changed surface, not from convenience alone:
+
+* use the explicit `target` when provided
+* otherwise infer the most relevant commands, endpoints, routes, jobs, or pages
+  from changed files, router mappings, API handlers, and PR context
+* for browser work, prioritize routes tied to changed components plus one adjacent
+  critical path that could regress as a side effect
+
+### Step 5: Execute Verification
 
 Record:
 
 * What was verified
+* Any relevant risky action and current `ActionResult` when the verification is tied to a high-risk, destructive, migration, or rollback-sensitive step
 * The exact commands, URLs, or scenarios used
 * Expected behavior
 * Observed behavior
 * Evidence collected (logs, responses, screenshots, or notes)
 
-### Step 4: Decide Verification Status
+For browser-backed verification:
+
+* confirm the server is available before launching the browser
+* record whether verification ran headed or headless
+* pause at declared human stop points and capture what the operator must confirm
+
+### Step 6: Decide Verification Status
 
 Return one of:
 
 * **PASS** — the runtime surface behaved as expected
 * **PASS WITH FOLLOW-UP** — usable but additional monitoring or cleanup is required
 * **FAIL** — the runtime surface did not behave as expected
+* **BLOCKED** — meaningful verification could not proceed because a required environment dependency was missing
 
-### Step 5: Feed Operational Closure
+### Step 7: Feed Operational Closure
 
-If verification passed or produced follow-up work, hand the findings to `operational-closure` so the monitoring plan, rollback triggers, and owner are updated accordingly.
+Hand the following to `operational-closure` as a structured handoff:
+
+* **Verification verdict**: PASS, PASS WITH FOLLOW-UP, FAIL, or BLOCKED
+* **Runtime surfaces verified**: which surfaces were exercised and how
+* **Evidence collected**: commands, URLs, responses, logs, screenshots, or notes
+* **BLOCKED prerequisites**: if BLOCKED, the exact missing dependency or environment gap
+* **Risky action state**: any `ProposedAction` entries and their current `ActionResult` when verification is tied to a high-risk or rollback-sensitive path
+* **Follow-up recommendations**: monitoring, cleanup, or additional verification needed
+
+The ship agent MUST invoke operational-closure even when verification is BLOCKED —
+a BLOCKED verdict is not equivalent to PASS and must be recorded as a closure
+condition.
 
 ## Quality Criteria
 
 * Verification targets the runtime surface actually changed by the work
+* Environment prechecks are recorded, not implied
 * Evidence is specific enough that another operator could reproduce it
-* Browser verification is used when UI changes require it and tooling exists
+* Browser verification chooses headed vs headless intentionally rather than by habit
+* Route or scenario selection is traceable to the changed surface
+* Human verification stop points are explicit when automation cannot complete the flow
+* Risky actions remain legible when verification is proving a high-risk or rollback-sensitive path
 * Follow-up risks are explicit, not implied
+
+
+## Model Routing
+
+This skill operates at **Tier 2 (Standard)** — runtime surface validation follows defined protocol.
 
 Generated by autoharness | Template: runtime-verification/SKILL.md.tmpl

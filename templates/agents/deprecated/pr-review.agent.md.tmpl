@@ -37,7 +37,7 @@ For each changed file:
 Invoke the **review** agent with:
 
 * The list of changed files and their diffs
-* Mode: `report-only` (when called by build-orchestrator) or `interactive` (when called directly)
+* Mode: `report-only` (when called by ship agent) or `interactive` (when called directly)
 * The branch name for tracking
 
 When the `adversarial-review` capability pack is installed, invoke the **adversarial-review** agent instead with `output_mode: full`. Include the consensus confidence tier breakdown in the PR description's review findings summary.

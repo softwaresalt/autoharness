@@ -36,8 +36,8 @@ Use these operations for all backlog interactions. The operation names are abstr
 
 | Abstract Status | Tool-Specific Value |
 |----------------|---------------------|
-| To Do | `{{STATUS_TODO}}` |
-| In Progress | `{{STATUS_IN_PROGRESS}}` |
+| Queued | `{{STATUS_QUEUED}}` |
+| Active | `{{STATUS_ACTIVE}}` |
 | Done | `{{STATUS_DONE}}` |
 | Blocked | `{{STATUS_BLOCKED}}` |
 
@@ -53,18 +53,18 @@ Use these operations for all backlog interactions. The operation names are abstr
 Call {{OP_CREATE_MCP}} with:
   {{FIELD_TITLE}}: "Task title"
   {{FIELD_TYPE}}: "task"
-  {{FIELD_STATUS}}: "{{STATUS_TODO}}"
+  {{FIELD_STATUS}}: "{{STATUS_QUEUED}}"
   {{FIELD_DESCRIPTION}}: "Task description"
   {{FIELD_PARENT_ID}}: "parent-task-id"  (if applicable)
   {{FIELD_LABELS}}: "label1,label2"      (if applicable)
 ```
 
-### Claiming a Task (Status → In Progress)
+### Claiming a Task (Status → Active)
 
 ```text
 Call {{OP_MOVE_MCP}} with:
   {{FIELD_TASK_ID}}: "task-id"
-  {{FIELD_STATUS}}: "{{STATUS_IN_PROGRESS}}"
+  {{FIELD_STATUS}}: "{{STATUS_ACTIVE}}"
 ```
 
 ### Completing a Task
@@ -78,7 +78,7 @@ Call {{OP_COMPLETE_MCP}} with:
 
 ```text
 Call {{OP_LIST_MCP}} with:
-  {{FIELD_STATUS}}: "{{STATUS_TODO}}"
+  {{FIELD_STATUS}}: "{{STATUS_QUEUED}}"
 ```
 
 ### Adding a Label

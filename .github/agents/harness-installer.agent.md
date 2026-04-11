@@ -93,6 +93,9 @@ Harness Installation Plan
 Target:    {{workspace_name}}
 Source:    {{autoharness_home}}
 Preset:    {{preset}}
+Primary:   {{primary_stack_pack or "none"}}
+Stacks:    {{stack_packs or "none"}}
+Layers:    {{install_layers or "derived from preset"}}
 Packs:     {{capability_packs or "none"}}
 Language:  {{primary_language}}
 Framework: {{framework or "none detected"}}
@@ -107,7 +110,7 @@ Artifacts to generate:
   AGENTS.md:        1 file   (quality gates, conventions)
   Instructions:     {{N}} files ({{language}}, commit, markdown, git, PR, style, prompts)
   Agents:           {{N}} files (pipeline + support + expert + review orchestrators + review personas)
-  Skills:           {{N}} files (deliberate, spike, build, compact, compound, fix-ci, impl-plan, runtime-verification, operational-closure, safety-modes)
+  Skills:           {{N}} files (deliberate, spike, build, compact, compound, compound-refresh, fix-ci, impl-plan, plan-harden, runtime-verification, operational-closure, safety-modes, plus observe/learn/evolve when continuous-learning is enabled)
   Policies:         1 file   (5 workflow policies)
   Prompts:          1 file   (ping-loop)
   Backlog:          2 dirs  (queue, archive) + config.yml + .stash.md
@@ -117,9 +120,10 @@ Artifacts to generate:
 Wait for user confirmation before proceeding. The user may request:
 
 * Select a preset (`starter`, `standard`, `full`)
-* Add capability packs (`agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `strict-safety`, `release-observability`)
+* Add capability packs (`agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`)
 * Exclude specific primitives (e.g., "skip model routing" or "no review personas")
 * Customize specific values (e.g., "our test command is `make test`")
+* Override composition signals (for example primary stack pack or explicit install layers)
 * Add custom scopes to commit messages
 * Specify model preferences for agent tiers
 
@@ -139,14 +143,20 @@ Invoke the install-harness skill with:
 
 After installation completes, provide the user with:
 
-1. **Quick start**: How to invoke key agents (`@build-orchestrator`, `@harness-architect`, etc.)
-2. **First steps**: Recommend invoking `@deliberator` with a topic to test the pipeline
+1. **Quick start**: How to invoke key agents (`@stage`, `@ship`, etc.)
+2. **First steps**: Recommend invoking `@stage` with a topic to test the pipeline
 3. **Tuning reminder**: Explain that `@harness-tuner` should be invoked periodically to keep the harness aligned
 4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
 5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces
-6. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
-7. **Engram reminder**: Point out the `agent-engram` instruction file and the need to verify the engram daemon / MCP surface and workspace binding before relying on indexed lookup workflows
-8. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
+6. **Knowledge maintenance reminder**: Point out `compound-refresh` as the workflow for refreshing stale or overlapping compound learnings after large merges or tuning passes
+7. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
+8. **Engram reminder**: Point out the `agent-engram` instruction file and the need to verify the engram daemon / MCP surface and workspace binding before relying on indexed lookup workflows
+9. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
+10. **Browser-verification reminder**: Point out the `browser-verification` instruction file and the need to verify server readiness plus browser tooling before relying on browser-backed runtime confidence
+11. **Continuous-learning reminder**: Point out the `continuous-learning` instruction file plus the `observe`, `learn`, and `evolve` skills when the pack is enabled
+12. **Strict-safety reminder**: Point out the `strict-safety` instruction file plus the `plan-harden` and `safety-modes` workflows when the pack is enabled
+13. **Release-observability reminder**: Point out the `release-observability` instruction file and the monitoring plan, observation window, and rollback trigger expectations when the pack is enabled
+14. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
 
 ## Behavioral Constraints
 

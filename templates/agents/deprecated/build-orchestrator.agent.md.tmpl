@@ -1,6 +1,6 @@
 ---
 name: Build Orchestrator
-description: "Orchestrates feature builds by claiming tasks from the backlog and delegating to the build-feature skill with compiler-driven feedback loops"
+description: "Orchestrates feature and chore execution by claiming tasks from the backlog and delegating to the build-feature skill with compiler-driven feedback loops"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo, memory, {{BACKLOG_TOOLS}}
 model_routing: "Tier 2 (Standard)"
@@ -23,14 +23,14 @@ You are the central execution coordinator. You do not write code directly. You d
 * When the `agent-engram` capability pack is installed, follow `.github/instructions/agent-engram.instructions.md` and verify the engram daemon / binding surface is available before depending on indexed analysis
 * When the `backlogit` capability pack is installed, follow `.github/instructions/backlogit.instructions.md` and verify the backlogit queue / dependency / checkpoint surface is available before depending on those behaviors
 
-1. **P-001 Gate**: Check that no other features are `In Progress` in the backlog
+1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
 3. **Re-read constitution**: Load `.github/instructions/constitution.instructions.md` Principles I, II, IV
 4. If the task has elevated blast radius, uncertain root cause, or destructive potential, invoke **safety-modes** in the appropriate mode before modifying code
 
 ### Step 2: Build Ready Queue
 
-List all tasks with `harness-ready` label (P-002 gate) for the target feature using the backlog tool's list operation (see `backlog-integration.instructions.md`). Filter by `{{FIELD_LABELS}}: "harness-ready"` and `{{FIELD_STATUS}}: "{{STATUS_TODO}}"`. If no tasks are ready, halt and suggest running the harness-architect.
+List all tasks with `harness-ready` label (P-002 gate) for the target feature or chore using the backlog tool's list operation (see `backlog-integration.instructions.md`). Filter by `{{FIELD_LABELS}}: "harness-ready"` and `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`. If no tasks are ready, halt and suggest running the harness-architect.
 
 Sort the queue by dependency order (tasks with no unfinished dependencies first).
 
@@ -44,7 +44,7 @@ For each task in the ready queue:
 
 #### Step 3.1: Claim Task
 
-Update task status to `{{STATUS_IN_PROGRESS}}` using the backlog tool's move operation.
+Update task status to `{{STATUS_ACTIVE}}` using the backlog tool's move operation.
 
 When the `agent-intercom` capability pack is installed, broadcast the task claim and current task ID.
 
@@ -100,7 +100,7 @@ After all tasks in the queue are complete:
 3. If CI or automated review comments fail, invoke the **fix-ci** skill before proceeding
 4. If the changed work touches runtime surfaces or the runtime-verification skill is installed, invoke **runtime-verification** with the affected surfaces
 5. Invoke **operational-closure** to produce release-readiness, monitoring, rollback, and follow-up artifacts
-6. Push the feature branch (or update the existing PR branch)
+6. Push the feature or chore branch (or update the existing PR branch)
 7. Write a session memory summary via the memory agent to `{{DOCS_MEMORY}}/`
 8. **Mandatory**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence.
 

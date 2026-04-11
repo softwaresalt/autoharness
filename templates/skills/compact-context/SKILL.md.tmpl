@@ -6,14 +6,14 @@ description: "Compact and consolidate memory, plan, and tracking artifacts into 
 
 Scan `{{DOCS_MEMORY}}/`, `{{DOCS_PLANS}}/`, and `{{DOCS_CLOSURE}}/` for stale or oversized artifacts, produce compacted summaries, and archive verbose originals. For plans with appended reviews, consolidate into a decided-plan that replaces the original plan + review verbosity.
 
-This skill is a **mandatory workflow step** invoked explicitly by the memory agent (when checkpoint threshold is exceeded) and the build-orchestrator (at batch completion). It is NOT advisory — built-in AI assistant memory features do not write to `{{DOCS_ROOT}}/`, so compaction is the only mechanism that ensures session knowledge is consolidated into durable, version-controlled artifacts.
+This skill is a **mandatory workflow step** invoked explicitly by the stage or ship agent (when checkpoint threshold is exceeded or at batch completion). It is NOT advisory — built-in AI assistant memory features do not write to `{{DOCS_ROOT}}/`, so compaction is the only mechanism that ensures session knowledge is consolidated into durable, version-controlled artifacts.
 
 ## When to Use
 
 Invoke as part of the standard workflow:
 
-* **Memory agent**: When checkpoint count for a feature exceeds 10 (mandatory trigger)
-* **Build-orchestrator**: At batch completion (Step 4), after writing the session memory summary
+* **Stage or Ship agent**: When checkpoint count for a feature or chore exceeds 10 (mandatory trigger)
+* **Ship agent**: At batch completion (Step 5), after writing the session memory summary
 * **Manual**: When `{{DOCS_MEMORY}}/` file count > 40, total size > 500 KB, or the operator requests it
 
 ## Inputs
@@ -45,30 +45,30 @@ Scan the target directories:
 
 **Plans** (`{{DOCS_PLANS}}/`):
 
-* Identify plans with appended review sections (plan-review agent appends findings)
-* Identify plans whose associated features are complete (all tasks Done)
+* Identify plans with appended review sections (plan-review skill appends findings)
+* Identify plans whose associated feature or chore is complete (all tasks Done)
 
 **Closure records** (`{{DOCS_CLOSURE}}/`):
 
-* Identify verification and closure artifacts for completed features
+* Identify verification and closure artifacts for completed features or chores
 
 ### Phase 2: Identify Candidates
 
 Mark artifacts as compaction candidates if:
 
 * **Memory files**: Older than threshold AND not referenced by any active work item
-* **Memory files**: Part of a completed feature (all tasks Done)
+* **Memory files**: Part of a completed feature or chore (all tasks Done)
 * **Memory files**: Superseded by a more recent checkpoint for the same task
-* **Plans**: Feature is complete AND plan has appended review content ready for consolidation
-* **Closure records**: Feature is complete AND more than `threshold_days` old
+* **Plans**: Feature or chore is complete AND plan has appended review content ready for consolidation
+* **Closure records**: Feature or chore is complete AND more than `threshold_days` old
 
 ### Phase 3: Compact
 
-**Memory compaction** (per-feature or per-date group):
+**Memory compaction** (per-release-unit or per-date group):
 
 1. Read all candidate memory/checkpoint files in the group
 2. Generate a dense summary capturing: decisions made, files modified, key learnings, failed approaches, outcomes
-3. Write the compacted summary to `{{DOCS_MEMORY}}/compacted/{YYYY-MM-DD}-{feature-or-slug}-compacted.md`
+3. Write the compacted summary to `{{DOCS_MEMORY}}/compacted/{YYYY-MM-DD}-{release-unit-or-slug}-compacted.md`
 4. Move verbose originals to `{{DOCS_ROOT}}/archive/memory/`
 
 **Plan consolidation** (per-plan):
@@ -78,9 +78,9 @@ Mark artifacts as compaction candidates if:
 3. Write a decided-plan to `{{DOCS_PLANS}}/{YYYY-MM-DD}-{slug}-decided-plan.md` — a concise document containing only the actionable decisions and rationale, not the full deliberation history
 4. Move the verbose original plan to `{{DOCS_ROOT}}/archive/plans/`
 
-**Closure compaction** (per-feature):
+**Closure compaction** (per-release-unit):
 
-1. Read verification and closure artifacts for the completed feature
+1. Read verification and closure artifacts for the completed feature or chore
 2. Generate a consolidated closure record: what was verified, healthy/failure signals, monitoring status, follow-up items
 3. Write the compacted closure to `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-closure-summary.md`
 4. Move verbose originals to `{{DOCS_ROOT}}/archive/closure/`
@@ -98,7 +98,7 @@ Summarize:
 ## Behavioral Constraints
 
 * Never delete files — always archive to `{{DOCS_ROOT}}/archive/`
-* Never compact checkpoints for active (In Progress) work items
+* Never compact checkpoints for active (Active status) work items
 * Preserve the most recent checkpoint for each completed task
 * All archive operations maintain a traceable path from the compacted summary back to the original verbose artifacts
 * Decided-plans must preserve all final decisions and their rationale — compaction removes verbosity, not substance

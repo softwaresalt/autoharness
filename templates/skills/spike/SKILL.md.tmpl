@@ -7,7 +7,7 @@ description: "Time-boxed investigation of a technical question, feasibility stud
 Execute a focused, time-boxed investigation to answer a specific technical
 question or evaluate feasibility. Produces a findings artifact that captures
 the investigation goal, approach, evidence, and recommendation. The artifact
-can be promoted to the planning pipeline, linked to a feature as a prerequisite,
+can be promoted to the planning pipeline, linked to a feature or chore as a prerequisite,
 or captured as a compound learning for institutional knowledge.
 
 A spike replaces what was previously called "research" in the backlog structure.
@@ -17,9 +17,9 @@ code, prototyping, benchmarking, or evaluating external tools.
 
 ## When to Use
 
-* The operator or deliberator identifies unknowns that require investigation
+* The operator or stage agent identifies unknowns that require investigation
   before committing to an implementation approach
-* A feature has technical risk that should be explored in isolation
+* A feature or chore has technical risk that should be explored in isolation
 * A proof-of-concept is needed to validate feasibility
 * The team needs to evaluate external libraries, tools, or APIs
 * Performance characteristics need measurement before design decisions
@@ -39,12 +39,12 @@ code, prototyping, benchmarking, or evaluating external tools.
   `4h`. Accepted values: `1h`, `2h`, `4h`, `8h`.
 * `scope_constraints`: (Optional) Boundaries on what the spike may and may not
   touch (e.g., "read-only — no production changes", "prototype in a branch only").
-* `linked_feature`: (Optional) Path or ID of a feature this spike informs. When
-  provided, the findings artifact references this feature.
+* `linked_parent_work_item`: (Optional) Path or ID of a feature or chore this spike informs. When
+  provided, the findings artifact references that top-level release unit.
 * `promote_to`: (Optional) Where to route the outcome. Accepts a single value
   or a comma-separated list for multiple paths: `plan`, `queue`, `learnings`,
   `none`, `ask`. Defaults to `ask`.
-  * `plan` — promote to `impl-plan` for feature planning
+  * `plan` — promote to `impl-plan` for feature or chore planning
   * `queue` — create a queue entry with link to the spike artifact
   * `learnings` — capture as a compound learning entry
   * `none` — leave the artifact in `{{DOCS_DECISIONS}}/` without linking
@@ -85,7 +85,7 @@ Document:
 
 * Confirm the time-box with the operator (default 4h)
 * Confirm scope constraints (read-only, branch-only, sandbox, etc.)
-* Confirm linked feature if applicable
+* Confirm linked feature or chore if applicable
 
 #### Step 1.3: Check Prior Work
 
@@ -194,7 +194,7 @@ Rate confidence in the recommendation:
 Present the findings summary and recommendation to the operator. Ask where to
 route the outcome (unless `promote_to` was pre-set):
 
-* **Plan**: Findings are actionable — promote to `impl-plan` for feature planning
+* **Plan**: Findings are actionable — promote to `impl-plan` for feature or chore planning
 * **Queue**: Findings inform future work — create a queue entry with link to
   the spike artifact
 * **Learnings**: Findings are institutional knowledge — capture as a compound
@@ -214,15 +214,15 @@ When `promote_to` includes `plan` (or `ask` resolved to `plan`):
 2. The impl-plan skill writes a plan document to `{{DOCS_PLANS}}/{YYYY-MM-DD}-{slug}-plan.md`
 3. Update the spike findings artifact's `promoted_to` frontmatter field to include `plan`
    and add a `plan_artifact` field pointing to the generated plan path
-4. If `linked_feature` was provided, the impl-plan output should reference that feature
+4. If `linked_parent_work_item` was provided, the impl-plan output should reference that feature or chore
    so the planning chain is traceable
 
 When `plan` is combined with other paths (e.g., `plan,learnings` or `plan,queue`),
 complete this step first, then continue with Steps 4.3 and 4.4 for the remaining paths.
 
-If the **backlog-harvester** agent is active (operator preference over direct impl-plan invocation),
-call backlog-harvester instead and pass the spike artifact as the planning seed. The
-backlog-harvester will invoke impl-plan internally and return the plan artifact path.
+If the **stage** agent is active (operator preference over direct impl-plan invocation),
+call stage instead and pass the spike artifact as the planning seed. The
+stage agent will invoke impl-plan internally and return the plan artifact path.
 
 #### Step 4.3: Create Backlog Item (When Applicable)
 
@@ -234,8 +234,8 @@ When the `backlogit` capability pack is installed and `create_task` is available
 4. Set labels: `["spike"]` plus `["deliberation-outcome"]` if the spike was
    triggered from a deliberation
 5. Set status: `{{STATUS_DONE}}` (since the investigation is complete)
-6. If `linked_feature` was provided, set `parent_id` to link the spike to its
-   feature
+6. If `linked_parent_work_item` was provided, set `parent_id` to link the spike to its
+  feature or chore
 
 When the `backlogit` capability pack is NOT installed:
 
@@ -245,7 +245,7 @@ When the `backlogit` capability pack is NOT installed:
   - [{YYYY-MM-DD}] **Spike**: {goal summary}
     Conclusion: {proceed|pivot|defer|abandon} (confidence: {high|medium|low})
     Artifact: `{{DOCS_DECISIONS}}/{YYYY-MM-DD}-{slug}-spike.md`
-    Linked feature: {feature reference or "standalone"}
+    Linked parent work item: {feature/chore reference or "standalone"}
   ```
 
 #### Step 4.4: Capture as Compound Learning (When Applicable)
@@ -268,7 +268,7 @@ date: {YYYY-MM-DD}
 time_box: "{time_box value}"
 conclusion: "{proceed|pivot|defer|abandon}"
 confidence: "{high|medium|low}"
-linked_feature: "{feature path or ID, or null}"
+linked_parent_work_item: "{feature or chore path/ID, or null}"
 promoted_to: ["{plan|queue|learnings|none}"]
 tags:
   - "{domain tag}"
@@ -338,5 +338,17 @@ tags:
 * **Impl-plan**: Spike findings with a `proceed` or `pivot` conclusion are valid source documents for impl-plan, just like deliberation outcomes.
 * **Compound**: Spike findings can be captured as compound learnings for the institutional knowledge base.
 * **Build-feature**: Spikes do NOT produce implementation code. If a spike creates a prototype, that prototype lives in a branch and is referenced in findings — it is not the deliverable.
+
+## Resumption Protocol
+
+If the skill is interrupted (context overflow, session timeout, or operator
+halt), write a checkpoint to `{{DOCS_MEMORY}}/` capturing: current phase,
+evidence gathered, hypotheses formed, and next step. On re-invocation, check
+for an existing checkpoint. If found, resume from the recorded phase rather
+than restarting from scratch.
+
+## Model Routing
+
+This skill operates at **Tier 3 (Frontier)** — open-ended investigation requires deep analysis.
 
 Generated by autoharness | Template: spike/SKILL.md.tmpl
