@@ -85,6 +85,10 @@ Harness works but produces suboptimal results. Artifacts are valid but miss new 
 
 Additional examples: a web UI exists but no browser-verification pack is enabled, operational closure templates omit monitoring expectations, safety-mode guidance is missing from risky maintenance workflows.
 
+Additional examples: the workspace now exposes MCP tool handlers or agent-facing product actions, but the review layer still lacks the `agent-native-parity-reviewer` persona and parity-focused routing guidance.
+
+Additional examples: the team wants recurring workflow observations to become explicit harness guidance, but the `continuous-learning` pack and its `observe` / `learn` / `evolve` workflows are missing.
+
 Additional examples: agent-intercom is configured in `.vscode/mcp.json` or `.intercom/`, but the harness does not install the intercom instruction file or thread heartbeat / approval guidance through the execution pipeline.
 
 Additional examples: agent-engram is configured in `.vscode/mcp.json` or `.engram/`, but the harness never installs the engram instruction file and still defaults to grep-heavy repo exploration even when indexed lookup is available.
@@ -106,6 +110,10 @@ Additional examples: a team adopts remote operator approval and progress visibil
 Additional examples: a team adopts agent-engram for code graph indexing and workspace memory (opportunity for the `agent-engram` capability pack and engram-first search guidance).
 
 Additional examples: a team standardizes on backlogit as its AI-native system of record (opportunity for the `backlogit` capability pack and deeper backlogit-native workflow guidance).
+
+Additional examples: a team wants recurring practice captured as explicit repository knowledge (opportunity for the `continuous-learning` capability pack and the observe / learn / evolve workflow).
+
+Additional examples: a product starts exposing MCP tools or agent-facing actions that must stay aligned with user-visible flows (opportunity for the `agent-native-parity-reviewer` persona).
 
 **Action**: Evaluate and implement when beneficial.
 
@@ -140,6 +148,8 @@ All harness artifacts are regular Markdown files. You can edit them directly:
 * **Skills**: Change build/test commands, adjust circuit breaker limits
 * **Skill Packs**: Enable richer verification or safety packs without redesigning the harness
 * **Intercom Weaving**: Thread agent-intercom heartbeat, broadcast, approval, and standby guidance through the affected artifacts rather than adding a single isolated note
+* **Continuous Learning**: Keep the observation lifecycle explicit by tuning `continuous-learning.instructions.md` and the `observe` / `learn` / `evolve` skills together
+* **Conditional Reviewers**: Install or retarget `agent-native-parity-reviewer.agent.md` when agent-facing product surfaces appear
 * **Policies**: Add new policies or modify existing gate conditions
 * **Constitution**: Update quality gates, change error handling patterns
 

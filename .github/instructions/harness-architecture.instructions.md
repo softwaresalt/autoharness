@@ -43,6 +43,15 @@ The `agent-intercom` pack is a model overlay because it changes how the harness 
 
 This is why `agent-intercom` must be woven through the harness rather than installed as a single detached add-on.
 
+`browser-verification` and `continuous-learning` follow the same rule:
+
+* `browser-verification` deepens Primitive 4 and 10 by weaving browser-specific
+  verification discipline through foundation docs, instructions, runtime
+  verification, and operational closure
+* `continuous-learning` deepens Primitive 1, 6, 7, and 9 by weaving observation
+  capture, instinct formation, and learned-artifact promotion through explicit
+  instructions and skills
+
 ## Primitive 1: State, Context, and Knowledge Retrieval
 
 **Purpose**: Maintain durable state across sessions, retrieve relevant prior learnings at the point of work, manage the context window, and prevent token overflow.
@@ -54,6 +63,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `compact-context/SKILL.md` — Mandatory workflow step: consolidates memory, plans, and closure artifacts in the docs root; archives verbose originals to docs/archive/
 * `compound/SKILL.md` — Captures institutional knowledge to `docs/compound/` (default; configurable)
 * `compound-refresh/SKILL.md` — Maintains existing compound entries so stale or overlapping learnings are refreshed instead of silently drifting
+* `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Optional `continuous-learning` overlay skills for capturing recurring practice and promoting mature patterns into explicit learned artifacts
 
 **Design Rules**:
 
@@ -174,6 +184,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Review persona agents (`review/` directory)
 * `review/SKILL.md` — Multi-persona code review
 * `plan-review/SKILL.md` — Multi-persona plan review
+* `review/agent-native-parity-reviewer.agent.md` — Conditional reviewer for MCP-heavy or parity-sensitive agent-facing product surfaces
 * `compound/SKILL.md` — Post-mortem knowledge capture
 * `compound-refresh/SKILL.md` — Knowledge-maintenance workflow for stale institutional learnings
 * Ship agent post-merge closure — Documentation gardening and entropy cleanup
@@ -182,9 +193,11 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 * Review personas are leaf executors with domain-specific focus
 * Always-on personas review every change; conditional personas activate based on diff content
+* Agent-native parity review is conditional: enable it when the workspace exposes MCP tools or agent-facing product surfaces that must preserve parity with user-visible workflows
 * Findings use a 4-level severity system (P0-P3) with action classes (safe_auto, gated_auto, manual, advisory)
 * Cross-model diversity is preferred (different models for different personas) but not blocking
 * Compound learnings capture hard-won solutions for future reference
+* Optional continuous-learning workflows may capture recurring practice as observations, cluster them into instincts, and promote mature patterns into explicit learned artifacts
 * Tune should perform deterministic checksum-based artifact scans so missing or user-modified harness files are treated as first-class maintenance signals
 * Entropy management: the ship agent's post-merge closure scans for pattern deviations, updates quality grades, and applies documentation fixes
 * Cleanup functions as garbage collection — paying down technical debt continuously in small increments
@@ -246,6 +259,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 * Green tests are necessary but not sufficient; runtime validation requirements must be explicit
 * Runtime verification records environment prechecks, affected-surface heuristics, and human verification stop points when automation cannot finish the flow
+* When the `browser-verification` overlay is enabled, runtime verification and closure explicitly model server readiness, route selection, headed/headless choice, and human checkpoints for external flows
 * Closure artifacts record healthy signals, failure signals, validation windows, rollback triggers, and owner
 * Runtime findings feed back into compound learnings, documentation updates, and tuning proposals
 * Primitive 10 is the formal handoff from “implemented” to “safely absorbed by the running system”

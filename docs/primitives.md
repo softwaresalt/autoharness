@@ -15,6 +15,10 @@ Capability packs are the mechanism autoharness uses for optional, cross-cutting 
 
 They do **not** add an eleventh primitive. Instead, a pack deepens existing primitives by weaving coordinated changes across multiple artifacts. For example, `agent-intercom` strengthens Primitive 4 (handoffs), Primitive 5 (approval routing), Primitive 6 (instruction injection), and Primitive 7/10 (operator visibility and closure signaling) without redefining the primitive model itself.
 
+`browser-verification` and `continuous-learning` follow the same overlay model:
+they deepen existing primitives through coordinated changes across instructions,
+foundation docs, and skills rather than by creating new architecture layers.
+
 Every formal capability pack follows the same overlay contract:
 
 1. **Eligibility signals** discovered from the workspace profile
@@ -45,6 +49,11 @@ Five interconnected mechanisms manage state, recall, and retrieval:
 4. **Compound Skill**: Captures hard-won solutions (build errors, debugging insights, configuration gotchas) in a searchable library with reusable tags, categories, and citations back to the originating task, plan, or PR.
 
 5. **Compound-Refresh Skill**: Reviews existing compound entries, consolidates overlap, updates drifted guidance, and marks uncertain learnings stale instead of letting the knowledge base quietly diverge from current code reality.
+
+6. **Continuous-Learning Overlay (optional)**: The `observe`, `learn`, and `evolve`
+skills can capture recurring workflow practice as observations, cluster those
+observations into instincts, and promote mature patterns into explicit
+`learned-*` artifacts when the workspace wants a formal learning loop.
 
 ### Adaptation Points
 
@@ -137,6 +146,7 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 * Build/test/lint commands differ per technology
 * CI pipeline order varies across platforms
 * Runtime verification depth differs by project surface (CLI, API, browser, background jobs)
+* Browser-facing products may enable the `browser-verification` overlay so runtime verification and closure explicitly model server readiness, route selection, headed/headless execution, and human checkpoints
 * Stall timeouts may need adjustment for slower build systems
 
 ## Primitive 5: Tool Execution, Safety Modes, and Guardrails
@@ -203,7 +213,8 @@ Multi-persona review evaluates every change from multiple perspectives:
 
 1. **Always-on reviewers**: Constitution compliance and language-specific safety/correctness
 2. **Conditional reviewers**: Architecture, concurrency, scope boundary — activated based on diff content
-3. **Cross-model diversity**: When possible, different reviewer personas use different models to reduce blind spots
+3. **Agent-native parity reviewer (conditional)**: Activated when the workspace exposes MCP-heavy or parity-sensitive agent-facing product surfaces and the review needs to verify symmetry between user-visible workflows and agent workflows
+4. **Cross-model diversity**: When possible, different reviewer personas use different models to reduce blind spots
 
 Findings use a structured severity and action system:
 
@@ -212,14 +223,20 @@ Findings use a structured severity and action system:
 
 Compound learnings capture post-mortem insights for future reference.
 
-4. **Entropy management and continuous cleanup**: Agents replicate patterns already present in the repository — including suboptimal ones. Over time, this leads to drift and architectural decay. Background cleanup agents run on a regular cadence to scan for deviations from established patterns, update quality grades, and open targeted refactoring PRs. This functions like garbage collection: technical debt is paid down continuously in small increments rather than compounding into painful bursts.
+5. **Entropy management and continuous cleanup**: Agents replicate patterns already present in the repository — including suboptimal ones. Over time, this leads to drift and architectural decay. Background cleanup agents run on a regular cadence to scan for deviations from established patterns, update quality grades, and open targeted refactoring PRs. This functions like garbage collection: technical debt is paid down continuously in small increments rather than compounding into painful bursts.
 
-5. **Deterministic drift scanning**: The tuner compares manifest checksums against installed harness artifacts, classifies missing or user-modified files, honors explicit ignore patterns, and feeds that evidence into maintenance recommendations instead of relying only on heuristic drift guesses.
+6. **Deterministic drift scanning**: The tuner compares manifest checksums against installed harness artifacts, classifies missing or user-modified files, honors explicit ignore patterns, and feeds that evidence into maintenance recommendations instead of relying only on heuristic drift guesses.
+
+7. **Continuous-learning loop (optional)**: When the `continuous-learning` pack
+is enabled, recurring observations are captured explicitly, clustered into
+evidence-backed instincts, and promoted into reviewable learned artifacts rather
+than being left as invisible prompt drift.
 
 ### Adaptation Points
 
 * Review personas adapt to the workspace's technology (Rust safety → Python type safety, etc.)
 * Conditional activation patterns match the workspace's concurrency and architecture patterns
+* Agent-native parity review is only activated when discovery finds MCP or parity-sensitive agent-facing surfaces
 * Severity definitions may need calibration for different codebases
 * Entropy management cadence depends on the workspace's change velocity and team size
 * Cleanup scope is technology-specific (pattern deduplication, naming alignment, dependency hygiene)

@@ -19,7 +19,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the h
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `preset`: (Optional, default `standard`) One of `starter`, `standard`, or `full`. Presets define the default primitive set and capability-pack defaults.
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-10) to install. Defaults to the selected preset.
-* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `strict-safety`, `release-observability`.
+* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -235,6 +235,10 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{DOCS_CLOSURE_DIR}}` | `config.docs.subdirectories.closure` | `closure` | Subdirectory name only |
 | `{{DOCS_DESIGN_DOCS_DIR}}` | `config.docs.subdirectories.design_docs` | `design-docs` | Subdirectory name only |
 | `{{DOCS_PRODUCT_SPECS_DIR}}` | `config.docs.subdirectories.product_specs` | `product-specs` | Subdirectory name only |
+| `{{CONTINUOUS_LEARNING_DIR}}` | `config.continuous_learning.directory` | `.autoharness/continuous-learning` | Repo-local directory for observation, instinct, and learned-artifact state |
+| `{{CONTINUOUS_LEARNING_CAPTURE_HOOKS}}` | `config.continuous_learning.capture_hooks` | `false` | Whether environment-specific hook capture is enabled |
+| `{{CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER}}` | `config.continuous_learning.environment_adapter` | `none` | Optional hook-capture adapter name |
+| `{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}` | `config.continuous_learning.promotion_threshold` | `3` | Minimum corroborating observations before promotion to a learned artifact |
 | `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1` | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks |
 | `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2` | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review |
 | `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
@@ -250,9 +254,12 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
 | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
 | `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.vscode/mcp.json, .engram/config.toml` | empty |
+| `{{BROWSER_VERIFICATION_ENABLED}}` | `capability_packs` contains `browser-verification` | `true` | `false` |
+| `{{CONTINUOUS_LEARNING_ENABLED}}` | `capability_packs` contains `continuous-learning` | `true` | `false` |
+| `{{AGENT_NATIVE_REVIEWER_RECOMMENDED}}` | `agent_native.recommended_reviewer` | `true` | `false` |
 | `{{AGENT_ADVERSARIAL_REVIEW_ENABLED}}` | `capability_packs` contains `adversarial-review` | `true` | `false` |
 
-Note: These six variables are used internally by the installer during capability-pack detection and overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
+Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
 #### Step 1.3: Select Preset, Primitive Set, and Capability Packs
 
@@ -279,9 +286,11 @@ Capability-pack overlays:
 | `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, long-running skills, and the ping-loop prompt |
 | `agent-engram` | Installs `agent-engram.instructions.md` and threads engram-first indexed search, workspace binding, freshness checks, and code-graph-driven analysis through foundation docs and analysis-heavy workflows |
 | `backlogit` | Installs `backlogit.instructions.md` and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace workflows through backlog-aware artifacts |
-| `browser-verification` | Strengthens browser-specific runtime verification guidance |
+| `browser-verification` | Installs `browser-verification.instructions.md` and threads server readiness, route selection, headed/headless choice, and human-checkpoint handling through runtime verification and closure workflows |
+| `continuous-learning` | Installs `continuous-learning.instructions.md` and `observe` / `learn` / `evolve` skills so recurring workflow practice can be captured, clustered, and promoted into explicit learned artifacts |
 | `strict-safety` | Makes safety-mode usage more explicit and more frequent |
 | `release-observability` | Deepens operational closure and post-release monitoring guidance |
+| `adversarial-review` | Enables the standalone multi-model adversarial-review agent and review escalation path for higher-confidence consensus findings |
 
 #### Step 1.3b: Apply the Formal Overlay Contract
 
@@ -331,6 +340,22 @@ Example overlay target map for `agent-engram`:
 | Workspace binding and freshness | instructions plus workflows that depend on indexed results |
 | Code-graph blast radius analysis | harness / build / repair workflows that inspect symbols and callers |
 
+Example overlay target map for `browser-verification`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Browser workflow rules | foundation docs, `browser-verification.instructions.md` |
+| Verification discipline | `runtime-verification/SKILL.md`, closure-facing skills |
+| Human checkpoints | runtime verification and closure artifacts that mention external flows |
+
+Example overlay target map for `continuous-learning`:
+
+| Overlay Element | Required Targets |
+|---|---|
+| Observation capture rules | foundation docs, `continuous-learning.instructions.md` |
+| Observation lifecycle | `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` |
+| Learned-artifact promotion | tuning / maintenance guidance and explicit `learned-*` artifact pathways |
+
 Map primitives to template groups:
 
 | Primitive | Template Groups |
@@ -362,6 +387,16 @@ If the `agent-intercom` capability pack is enabled, weave the intercom operating
 
 If the `agent-engram` capability pack is enabled, weave the engram-first search operating model into both files so indexed lookup, workspace binding, and freshness / fallback behavior become part of the normal harness narrative.
 
+If the `browser-verification` capability pack is enabled, weave browser
+verification discipline into both files so server readiness, route selection,
+headed/headless choice, and human-checkpoint expectations become part of the
+normal harness narrative.
+
+If the `continuous-learning` capability pack is enabled, weave recurring-practice
+capture into both files so observation storage, evidence-backed instincts, and
+promotion into explicit learned artifacts become part of the normal harness
+narrative.
+
 #### Step 2.2: Instruction Layer
 
 Generate instruction files. These use `applyTo` patterns to scope their rules:
@@ -385,6 +420,8 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
 4. **Capability-pack instructions**: When `agent-intercom` is enabled, install `agent-intercom.instructions.md` and use it as the authoritative reference for heartbeat, remote approval, operator steering, and standby workflows.
    When `agent-engram` is enabled, install `agent-engram.instructions.md` and use it as the authoritative reference for engram-first search, workspace binding, index freshness, and indexed-search fallback workflows.
    When `backlogit` is enabled, install `backlogit.instructions.md` and use it as the authoritative reference for backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows.
+   When `browser-verification` is enabled, install `browser-verification.instructions.md` and use it as the authoritative reference for browser-ready server checks, route selection, headed/headless choice, and human checkpoints.
+   When `continuous-learning` is enabled, install `continuous-learning.instructions.md` and use it as the authoritative reference for observation capture, instinct formation, and learned-artifact promotion.
 
 #### Step 2.3: Backlog Tool Registration
 
@@ -430,9 +467,10 @@ Generate agent definitions. Each agent template has technology-specific sections
    * `architecture-strategist.agent.md` — Universal with domain adaptation
    * `constitution-reviewer.agent.md` — References local constitution
    * `scope-boundary-auditor.agent.md` — Universal
-   * `technology-reviewer.agent.md` → `{language}-reviewer.agent.md` — Fully technology-specific
-   * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
-   * `learnings-researcher.agent.md` — Universal
+    * `technology-reviewer.agent.md` → `{language}-reviewer.agent.md` — Fully technology-specific
+    * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
+    * `agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
+    * `learnings-researcher.agent.md` — Universal
 
 5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed
@@ -457,12 +495,20 @@ Generate skill files:
    * `harvest/SKILL.md` — Install when Primitive 4 is selected. Resolves backlog tool variables from the registry
    * `pr-lifecycle/SKILL.md` — Install when Primitive 4 is selected. Language-agnostic; uses `gh` CLI
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
-   * `runtime-verification/SKILL.md` — Install when Primitive 10 is selected
-   * `operational-closure/SKILL.md` — Install when Primitive 10 is selected
+    * `runtime-verification/SKILL.md` — Install when Primitive 10 is selected
+    * `operational-closure/SKILL.md` — Install when Primitive 10 is selected
+    * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
 
 When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
 
 When `agent-engram` is enabled, weave indexed-search guidance into research, planning, build, and repair skills rather than treating it as a generic footnote.
+
+When `browser-verification` is enabled, weave browser-specific guidance into
+runtime verification and operational closure rather than leaving browser work as
+an implicit manual step.
+
+When `continuous-learning` is enabled, install and reference the observation
+lifecycle skills rather than relying on invisible prompt behavior.
 
 #### Step 2.6: Policy Layer
 
@@ -598,7 +644,9 @@ Write (or update) `.autoharness/config.yaml` using the `harness-config.yaml.tmpl
 * If no operator config existed, write a complete config with all schema defaults
 * The resolved config serves as input for future `tune-harness` runs and enables the tuner to detect configuration drift
 
-The installed config includes: `schema_version`, `preset`, `capability_packs`, `backlog` (tool, directory, prefix_map), `docs` (root, subdirectories), `model_routing`, and any `overrides` that were applied.
+The installed config includes: `schema_version`, `preset`, `capability_packs`,
+`backlog` (tool, directory, prefix_map), `docs` (root, subdirectories),
+`continuous_learning`, `model_routing`, and any `overrides` that were applied.
 
 ### Phase 4: Verification
 
@@ -614,6 +662,9 @@ Verify all installed artifacts are internally consistent:
 * If `agent-intercom` is enabled, the intercom instruction file is installed and the affected agents / skills reference heartbeat, broadcast, or approval-routing behavior consistently
 * If `agent-engram` is enabled, the engram instruction file is installed and the affected agents / skills reference indexed search, workspace binding, freshness, or fallback behavior consistently
 * If `backlogit` is enabled, the backlogit instruction file is installed and the affected agents / skills reference query, queue, checkpoint, or traceability behavior consistently
+* If `browser-verification` is enabled, the browser-verification instruction file is installed and runtime / closure workflows reference server readiness, route selection, headed/headless choice, and human checkpoints consistently
+* If `continuous-learning` is enabled, the continuous-learning instruction file plus `observe`, `learn`, and `evolve` skills are installed and the harness references evidence-backed promotion rather than hidden prompt drift
+* If `agent_native.recommended_reviewer` is true, the review layer includes `agent-native-parity-reviewer.agent.md` and the review routing logic can select it for parity-sensitive work
 * If any capability pack is enabled, its declared overlay targets and verification checks are satisfied rather than only the pack name being recorded
 
 #### Step 4.2: Structural Validation

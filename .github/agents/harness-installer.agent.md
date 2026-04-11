@@ -107,7 +107,7 @@ Artifacts to generate:
   AGENTS.md:        1 file   (quality gates, conventions)
   Instructions:     {{N}} files ({{language}}, commit, markdown, git, PR, style, prompts)
   Agents:           {{N}} files (pipeline + support + expert + review orchestrators + review personas)
-  Skills:           {{N}} files (deliberate, spike, build, compact, compound, compound-refresh, fix-ci, impl-plan, runtime-verification, operational-closure, safety-modes)
+  Skills:           {{N}} files (deliberate, spike, build, compact, compound, compound-refresh, fix-ci, impl-plan, runtime-verification, operational-closure, safety-modes, plus observe/learn/evolve when continuous-learning is enabled)
   Policies:         1 file   (5 workflow policies)
   Prompts:          1 file   (ping-loop)
   Backlog:          2 dirs  (queue, archive) + config.yml + .stash.md
@@ -117,7 +117,7 @@ Artifacts to generate:
 Wait for user confirmation before proceeding. The user may request:
 
 * Select a preset (`starter`, `standard`, `full`)
-* Add capability packs (`agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `strict-safety`, `release-observability`)
+* Add capability packs (`agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`)
 * Exclude specific primitives (e.g., "skip model routing" or "no review personas")
 * Customize specific values (e.g., "our test command is `make test`")
 * Add custom scopes to commit messages
@@ -148,6 +148,9 @@ After installation completes, provide the user with:
 7. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
 8. **Engram reminder**: Point out the `agent-engram` instruction file and the need to verify the engram daemon / MCP surface and workspace binding before relying on indexed lookup workflows
 9. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
+10. **Browser-verification reminder**: Point out the `browser-verification` instruction file and the need to verify server readiness plus browser tooling before relying on browser-backed runtime confidence
+11. **Continuous-learning reminder**: Point out the `continuous-learning` instruction file plus the `observe`, `learn`, and `evolve` skills when the pack is enabled
+12. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
 
 ## Behavioral Constraints
 

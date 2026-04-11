@@ -131,7 +131,12 @@ Detect whether the workspace has runtime surfaces that need post-build verificat
 | Queue libraries, job workers, cron config, message consumers | Background jobs |
 | Dockerfile, Helm charts, Terraform, deployment workflows | Deployment manifests |
 
-Record: `runtime_surfaces{}` with booleans for `web_ui`, `public_api`, and `background_jobs`, plus `deployment_manifests[]` for discovered paths.
+Also detect browser-verification tooling from package dependencies or config files
+such as Playwright, Cypress, Puppeteer, Selenium, or equivalent browser runners.
+
+Record: `runtime_surfaces{}` with booleans for `web_ui`, `public_api`, and
+`background_jobs`, `browser_tooling[]`, plus `deployment_manifests[]` for
+discovered paths.
 
 #### Step 1.5c: Agent-Intercom Detection
 
@@ -173,6 +178,30 @@ agent_engram:
   config_paths: []
   instruction_markers: []
   recommended: true|false
+```
+
+#### Step 1.5e: Agent-Native Surface Detection
+
+Detect whether the workspace exposes agent-facing product surfaces that justify a
+parity-focused reviewer:
+
+| Signal | Meaning |
+|--------|---------|
+| `frameworks.mcp_sdk` or MCP transport dependencies are present | Workspace likely exposes MCP or agent-facing tool surfaces |
+| `mcp-server.instructions.md`, tool handler directories, or tool schemas are present | Explicit agent tooling surface exists |
+| Existing docs describe parity between UI actions and agent actions, or agent-only workflow concerns | Product likely requires user/agent parity review |
+| Tool manifests, capability schemas, or action handlers suggest users and agents must share the same business operation surface | Parity-sensitive design likely matters |
+
+Record: `agent_native{}` with the following structure:
+
+```yaml
+agent_native:
+  detected: true|false
+  mcp_sdk_present: true|false
+  mcp_transport: "stdio"|"sse"|"streamable-http"|null
+  agent_tooling_markers: []
+  user_agent_parity_required: true|false
+  recommended_reviewer: true|false
 ```
 
 #### Step 1.6: Backlog Tool Detection
@@ -305,7 +334,10 @@ languages:
   primary: "{{PRIMARY_LANGUAGE}}"
   secondary: []
 
-frameworks: []
+frameworks:
+  list: []
+  mcp_sdk: null
+  mcp_transport: null
 
 build:
   tool: "{{BUILD_TOOL}}"
@@ -338,6 +370,7 @@ runtime_surfaces:
   web_ui: false
   public_api: false
   background_jobs: false
+  browser_tooling: []
   deployment_manifests: []
 
 conventions:
@@ -369,6 +402,14 @@ agent_engram:
   # mcp_configured: true
   # config_paths: [".vscode/mcp.json", ".engram/config.toml"]
   # recommended: true
+
+agent_native:
+  detected: false
+  mcp_sdk_present: false
+  mcp_transport: null
+  agent_tooling_markers: []
+  user_agent_parity_required: false
+  recommended_reviewer: false
 
 existing_harness:
   has_harness: false
@@ -408,10 +449,11 @@ Display the profile summary to the user and wait for confirmation or corrections
 The summary MUST include:
 
 * Recommended preset (`starter`, `standard`, or `full`)
-* Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true`)
+* Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true` and browser tooling is present)
 * Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
 * Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
 * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
+* Whether the conditional agent-native parity reviewer is recommended because MCP or parity-sensitive agent tooling surfaces were detected
 * Whether Primitive 10 should be emphasized because deployment or runtime surfaces were detected
 
 ## Quality Criteria

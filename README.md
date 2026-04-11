@@ -74,9 +74,11 @@ autoharness now supports a lighter-weight composition model so teams can adopt t
 | **agent-intercom** | Weaves remote operator visibility, heartbeat, approval routing, and steering waits through the harness lifecycle |
 | **agent-engram** | Weaves engram-first indexed search, code graph lookup, workspace binding, and query-driven context retrieval through analysis-heavy workflows |
 | **backlogit** | Deepens backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows |
-| **browser-verification** | Adds browser-aware runtime verification guidance for web-facing projects |
+| **browser-verification** | Adds browser-aware runtime verification and closure discipline for web-facing projects |
+| **continuous-learning** | Adds observation capture, instinct formation, and promotion into explicit learned instructions or skills |
 | **strict-safety** | Emphasizes careful / freeze-scope / investigate-first operating modes |
 | **release-observability** | Strengthens operational closure with monitoring and validation checklists |
+| **adversarial-review** | Adds multi-model consensus review and escalation for higher-confidence blocking findings |
 
 ### Formal overlay pattern
 
@@ -91,6 +93,11 @@ Every capability pack should define:
 * **Tuning drift rules** — how the tuner decides the overlay is missing, stale, or only partially woven
 
 See [Capability Packs](docs/capability-packs.md) for the full overlay contract.
+
+Discovery can also recommend conditional review-layer adaptations. For example,
+workspaces with MCP-heavy or agent-facing product surfaces can add the
+`agent-native-parity-reviewer` persona without introducing a new primitive or
+capability pack.
 
 For the current first-party backlogit guidance, including what is stable now
 versus what is still incubating in backlogit's next workflow revision, see
@@ -238,7 +245,7 @@ Optional examples:
 
 ```text
 @harness-installer workspace=/path/to/my-project preset=starter
-@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,release-observability
+@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,release-observability,adversarial-review
 ```
 
 ### 4. Tune an existing harness

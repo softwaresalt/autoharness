@@ -84,6 +84,7 @@ preset: standard
 capability_packs:
   - backlogit
   - agent-engram
+  - continuous-learning
 backlog:
   tool: backlogit
   prefix_map:
@@ -97,6 +98,11 @@ backlog:
     subtask: "ST"
 docs:
   root: docs
+continuous_learning:
+  directory: .autoharness/continuous-learning
+  capture_hooks: false
+  environment_adapter: none
+  promotion_threshold: 3
 model_routing:
   tier1: gpt-5.4-mini
 overrides:
@@ -115,6 +121,7 @@ The config file controls:
 | `backlog.tool` | `backlogit` | Override backlog tool auto-detection |
 | `backlog.prefix_map` | `{feature: "F", chore: "C", task: "T"}` | Work item type prefixes |
 | `docs.root` | `docs` | Where durable knowledge artifacts live |
+| `continuous_learning` | `{directory: ".autoharness/continuous-learning"}` | Repo-local observation and learned-artifact settings for the optional continuous-learning pack |
 | `model_routing` | `{tier1: "gpt-5.4-mini"}` | Model preferences per tier |
 | `overrides` | `{PROJECT_NAME: "my-app"}` | Explicit template variable overrides |
 
@@ -184,7 +191,7 @@ Choose the installation shape before fine-tuning primitives manually:
 
 ```text
 @harness-installer workspace=/path/to/target preset=starter
-@harness-installer workspace=/path/to/target preset=full capability_packs=agent-intercom,browser-verification,release-observability
+@harness-installer workspace=/path/to/target preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,release-observability,adversarial-review
 ```
 
 | Preset | Installs | Best For |
@@ -202,9 +209,11 @@ Capability packs deepen the harness without redefining the primitive model:
 | `agent-intercom` | Remote operator visibility, heartbeat, approval routing, and steering guidance woven through the installed harness |
 | `agent-engram` | Engram-first indexed search, code graph lookup, workspace binding, and query-driven context retrieval woven through analysis-heavy workflows |
 | `backlogit` | backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace guidance layered over generic backlog integration |
-| `browser-verification` | Browser-aware runtime verification guidance for web UIs |
+| `browser-verification` | Browser-aware runtime verification and closure guidance for web UIs |
+| `continuous-learning` | Observation capture, instinct formation, and promotion into explicit learned instructions or skills |
 | `strict-safety` | Stronger default use of careful / freeze-scope / investigate-first modes |
 | `release-observability` | Richer operational closure and monitoring artifacts |
+| `adversarial-review` | Multi-model consensus review and escalation for higher-confidence review gates |
 
 `agent-intercom` is intentionally different from a narrow add-on. When enabled, autoharness should thread its workflow expectations into `AGENTS.md`, `copilot-instructions.md`, intercom-specific instructions, pipeline agents, long-running skills, and heartbeat prompts so operator visibility and approval routing become part of the normal harness behavior.
 
@@ -212,12 +221,20 @@ Capability packs deepen the harness without redefining the primitive model:
 
 `backlogit` is also an overlay rather than a simple tool toggle. When enabled, autoharness should keep the generic backlog abstraction in place while additionally teaching the harness to use backlogit's higher-leverage features such as SQL query access, prioritized queue retrieval, dependency traversal, agent memory, checkpoints, comments, and commit traceability.
 
+`browser-verification` is also an overlay rather than a one-off test note. When enabled, autoharness should teach the harness to verify server readiness, choose headed vs headless runs deliberately, select routes from changed surfaces, and record human checkpoints for external flows.
+
+`continuous-learning` is also an overlay rather than a hidden prompt behavior. When enabled, autoharness should install an explicit observation lifecycle (`observe`, `learn`, `evolve`) and persist recurring-practice state under `.autoharness/continuous-learning/`.
+
 Use [Backlogit Operating Model](backlogit-operating-model.md) as the contract for
 what `autoharness` should consume today. If backlogit evolves a new internal
 workflow, promote only the validated external contract into `autoharness`, not
 the in-progress implementation details.
 
 All packs follow the formal overlay pattern documented in [Capability Packs](capability-packs.md). Packs are applied after the base primitive composition is chosen and before installation verification completes.
+
+Separately, discovery may recommend the `agent-native-parity-reviewer` persona
+when the workspace exposes MCP-heavy or agent-facing product surfaces that need
+user/agent parity review.
 
 ### Selective Installation
 

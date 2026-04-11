@@ -107,6 +107,9 @@ For each installed artifact, check:
 * **Agent-intercom weaving**: If intercom markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference heartbeat, broadcast, approval-routing, and degraded-mode handling?
 * **Agent-engram weaving**: If engram markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference engram-first search, workspace binding, and freshness / fallback behavior?
 * **backlogit weaving**: If backlogit is the selected backlog tool, do instructions and backlog-aware agents consistently reference queue, query, dependency, memory, checkpoint, or traceability behaviors?
+* **Browser-verification weaving**: If browser tooling and web UI surfaces exist, do AGENTS.md, copilot-instructions, runtime verification, operational closure, and the browser-verification instruction file consistently reference server readiness, route selection, headed/headless choice, and human checkpoints?
+* **Continuous-learning weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, the continuous-learning instruction file, and the `observe` / `learn` / `evolve` skills consistently reference observation capture, instinct formation, and promotion thresholds?
+* **Agent-native parity reviewer**: If MCP or parity-sensitive agent tooling is now present, does the review layer install and route `agent-native-parity-reviewer.agent.md` where appropriate?
 
 Record: `health_report{}` with per-artifact status and any `compound-refresh`
 recommendations for stale institutional knowledge.
@@ -145,6 +148,8 @@ Compare the installed preset and capability packs in `.autoharness/harness-manif
 | agent-intercom markers detected but `agent-intercom` pack missing | Growth or Degrading | Propose enabling the pack and weaving intercom guidance through the harness |
 | agent-engram markers detected but `agent-engram` pack missing | Growth or Degrading | Propose enabling the pack and weaving engram-first search guidance through the harness |
 | backlogit detected as the active backlog tool but `backlogit` pack missing | Growth or Degrading | Propose enabling the pack and weaving backlogit-native workflows through the harness |
+| Browser tooling and web UI detected but `browser-verification` pack missing | Growth or Degrading | Propose enabling the pack and weaving browser-verification guidance through runtime verification and closure |
+| Recurring observation/learning workflow desired but `continuous-learning` pack missing | Growth | Propose enabling the pack and installing observe / learn / evolve workflows |
 | Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
 
 #### Step 1.7: Overlay-Coherence Drift
@@ -159,6 +164,10 @@ Flag drift when:
 * the workspace now exposes new eligibility signals that should expand the overlay target set
 
 Treat partially woven overlays as a first-class drift category rather than a cosmetic doc mismatch.
+
+Separately, treat conditional reviewer drift as real harness drift when the
+workspace now requires parity-sensitive review but the review layer still lacks
+`agent-native-parity-reviewer.agent.md` or the routing logic to invoke it.
 
 ### Phase 2: Change Proposal Generation
 
@@ -204,6 +213,9 @@ Scan for workspace patterns that suggest missing harness capabilities:
 * Remote operator workflow markers without matching agent-intercom guidance in the harness
 * agent-engram markers or `.engram/` state without matching engram-first search guidance in the harness
 * backlogit-specific features available without matching backlogit-native guidance in the harness
+* Browser automation tooling without the browser-verification overlay
+* MCP or agent-facing product surfaces without the agent-native parity reviewer
+* Repeated recurring-practice evidence without the continuous-learning overlay
 
 ### Phase 3: Proposal Review
 
@@ -265,6 +277,8 @@ If growth opportunities were accepted (new review personas, new instructions, ne
 3. Update cross-references in AGENTS.md and copilot-instructions.md
 4. Update manifest preset / capability-pack metadata when installation shape changes
 5. Update manifest overlay-target metadata when the pack's woven surface changes
+6. If the workspace now requires the agent-native parity reviewer, install the
+   reviewer agent and update plan-review / review routing guidance together
 
 #### Step 4.3: Update Manifest
 

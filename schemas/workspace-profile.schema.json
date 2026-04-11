@@ -123,6 +123,11 @@
         "web_ui": { "type": "boolean" },
         "public_api": { "type": "boolean" },
         "background_jobs": { "type": "boolean" },
+        "browser_tooling": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Detected browser automation or browser QA tooling relevant to runtime verification"
+        },
         "deployment_manifests": {
           "type": "array",
           "items": { "type": "string" }
@@ -149,7 +154,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability"]
+            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
           }
         }
       }
@@ -186,6 +191,24 @@
           "items": { "type": "string" }
         },
         "recommended": { "type": "boolean" }
+      }
+    },
+    "agent_native": {
+      "type": "object",
+      "description": "Detected agent-native or MCP-heavy product signals that justify a parity-focused reviewer persona",
+      "properties": {
+        "detected": { "type": "boolean" },
+        "mcp_sdk_present": { "type": "boolean" },
+        "mcp_transport": {
+          "type": ["string", "null"],
+          "enum": ["stdio", "sse", "streamable-http", null]
+        },
+        "agent_tooling_markers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "user_agent_parity_required": { "type": "boolean" },
+        "recommended_reviewer": { "type": "boolean" }
       }
     },
     "existing_harness": {

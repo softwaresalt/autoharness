@@ -89,6 +89,30 @@ the operational system of record for planning and execution state:
 * record meaningful comments and commit associations for traceability when those operations are available
 * refresh the backlog index after out-of-band edits before trusting query results
 
+### Capability Overlay — browser-verification
+
+When the `browser-verification` capability pack is installed, agents MUST also follow
+`.github/instructions/browser-verification.instructions.md` and treat browser-backed runtime
+verification as a disciplined workflow rather than an ad hoc manual check:
+
+* verify server availability and target environment before opening a browser
+* choose headed vs headless mode intentionally based on the verification goal
+* select routes from changed surfaces and adjacent critical paths rather than convenience
+* use explicit human checkpoints for OAuth, payment, email, SMS, CAPTCHA, or other external flows
+* feed browser findings into runtime verification and operational closure artifacts
+
+### Capability Overlay — continuous-learning
+
+When the `continuous-learning` capability pack is installed, agents MUST also follow
+`.github/instructions/continuous-learning.instructions.md` and treat recurring observed
+practice as a first-class input to harness evolution:
+
+* capture normalized observations under `{{CONTINUOUS_LEARNING_DIR}}/`
+* keep hook capture environment-specific and optional rather than assuming one IDE workflow
+* use `observe`, `learn`, and `evolve` to cluster recurring practice into instincts and learned artifacts
+* promote learned rules only when multiple corroborating observations justify them
+* treat learned artifacts as reviewable harness outputs, not invisible prompt drift
+
 ---
 
 ## Technical Constraints

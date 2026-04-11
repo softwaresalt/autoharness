@@ -98,6 +98,7 @@ Use a different model from the caller when available to force genuine diversity 
 | **Architecture Strategist** | Module boundaries, new abstractions, dependency changes | Different from caller |
 | **Concurrency Reviewer** | Concurrent/async patterns | Different from caller |
 | **Scope Boundary Auditor** | Changes spanning multiple domains or exceeding expected scope | Different from caller |
+| **Agent-Native Parity Reviewer** | MCP SDKs, tool handlers, agent-exposed actions, or user/agent parity-critical flows | Different from caller |
 
 ## Workflow
 
@@ -111,7 +112,7 @@ Use a different model from the caller when available to force genuine diversity 
 ### Step 2: Route Personas
 
 1. Always-on: spawn Constitution Reviewer, {{PRIMARY_LANGUAGE}} Reviewer, Learnings Researcher
-2. Conditional: analyze changed file paths and content patterns to select additional personas
+2. Conditional: analyze changed file paths, content patterns, and workspace agent-native signals to select additional personas
 3. Broadcast the routing decision with persona count
 
 ### Step 3: Spawn Persona Subagents

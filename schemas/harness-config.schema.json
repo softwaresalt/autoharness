@@ -21,7 +21,7 @@
       "description": "Capability packs to enable. Overrides preset defaults when specified.",
       "items": {
         "type": "string",
-        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "strict-safety", "release-observability", "adversarial-review"]
+        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
       }
     },
     "backlog": {
@@ -76,6 +76,33 @@
             "design_docs": { "type": "string", "default": "design-docs" },
             "product_specs": { "type": "string", "default": "product-specs" }
           }
+        }
+      }
+    },
+    "continuous_learning": {
+      "type": "object",
+      "description": "Configuration for the optional continuous-learning capability pack",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "default": ".autoharness/continuous-learning",
+          "description": "Repo-local directory for observations, instincts, and evolved learned artifacts metadata"
+        },
+        "capture_hooks": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable environment-specific hook capture when the workspace and selected adapter support it"
+        },
+        "environment_adapter": {
+          "type": "string",
+          "default": "none",
+          "description": "Optional environment-specific capture adapter name, such as 'copilot-hooks' or a custom adapter"
+        },
+        "promotion_threshold": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3,
+          "description": "Minimum corroborating observations before an instinct is considered ready to evolve into a learned artifact"
         }
       }
     },

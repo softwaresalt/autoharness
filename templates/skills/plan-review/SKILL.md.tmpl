@@ -41,7 +41,8 @@ appended reviews into a decided-plan.
 
 ## Reviewer Personas
 
-Spawn all personas. Use different models when available to force genuine diversity of critique.
+Spawn all always-on personas and any triggered cross-model personas. Use different
+models when available to force genuine diversity of critique.
 
 ### Always-On Personas (same model as caller)
 
@@ -57,6 +58,7 @@ Spawn all personas. Use different models when available to force genuine diversi
 | Persona Subagent | Focus | Suggested Model |
 |---|---|---|
 | **Architecture Strategist** | Cohesion, coupling, module boundaries, dependency chains. | Different from caller |
+| **Agent-Native Parity Reviewer** | Plans that expose MCP tools, agent-facing actions, or user/agent parity-sensitive workflows. | Different from caller |
 
 If cross-model invocation is not available, run all personas with the caller's model. Multi-model is preferred but not blocking.
 
@@ -71,7 +73,8 @@ If cross-model invocation is not available, run all personas with the caller's m
 
 ### Step 2: Spawn Reviewer Subagents
 
-Spawn all persona subagents. Each receives:
+Spawn all always-on personas plus the cross-model personas whose trigger
+conditions are met. Each receives:
 
 - The full plan content
 - The origin requirements doc (if any)

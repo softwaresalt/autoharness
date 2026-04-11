@@ -25,6 +25,7 @@ Some optional capabilities are too cross-cutting to model as a single generated 
 Examples:
 
 * browser-backed validation needs changes to verification guidance, possibly review expectations, and installer recommendations
+* continuous learning needs changes to observation capture, maintenance workflows, and learned-artifact promotion paths
 * stricter safety postures need changes to foundation docs, risky execution skills, and tuning guidance
 * `agent-intercom` needs heartbeat, operator visibility, approval routing, and standby behavior threaded through the whole lifecycle
 
@@ -130,6 +131,7 @@ Partially woven overlays should be treated as a real harness-quality problem.
 | `agent-engram` | Engram-first indexed search, code graph lookup, and workspace context retrieval | 1, 4, 6, 9 |
 | `backlogit` | backlogit-native query, queue, memory, checkpoints, comments, and traceability | 1, 2, 4, 7, 8, 9 |
 | `browser-verification` | Browser-backed runtime confidence for web-facing work | 4, 7, 10 |
+| `continuous-learning` | Observation capture, instinct formation, and promotion into explicit learned artifacts | 1, 6, 7, 9, 10 |
 | `strict-safety` | Stronger default safety posture for risky work | 5, 6, 8 |
 | `release-observability` | Richer monitoring and closure expectations | 7, 10 |
 | `adversarial-review` | Multi-model parallel review with consensus-weighted findings and remediation queue | 7, 10 |
@@ -235,6 +237,104 @@ This is not a one-file add-on. It is a woven operational behavior layer.
 * affected agents mention queue / memory / traceability behaviors consistently
 
 This pack does not replace generic backlog integration. It deepens it when backlogit is the selected backlog tool.
+
+## Example: browser-verification as a formal overlay
+
+`browser-verification` is a pack for workspaces with real web-facing runtime
+surfaces and browser-capable verification tooling.
+
+### Eligibility signals
+
+* `runtime_surfaces.web_ui == true`
+* browser tooling detected such as Playwright, Cypress, Puppeteer, Selenium, or equivalent
+* runtime verification or closure work regularly depends on route-level browser confidence
+
+### Recommendation logic
+
+* **Automatically recommended** when the workspace has a web UI plus browser automation tooling
+* **Conditionally recommended** when the workspace has a web UI but browser verification is only partly documented
+* **Not recommended** for back-end-only or non-browser products
+
+### Overlay targets
+
+| Artifact | Change |
+|---|---|
+| `browser-verification.instructions.md` | New instruction file installed with server-readiness, route-selection, headed/headless, and human-checkpoint rules |
+| `AGENTS.md` / `copilot-instructions.md` | Add browser-verification overlay guidance |
+| `runtime-verification/SKILL.md` | Reference the browser-verification operating model explicitly |
+| `operational-closure/SKILL.md` | Carry browser findings and blocked checkpoints into closure artifacts |
+
+### Behavior deltas
+
+* browser verification starts only after confirming server availability and target environment
+* route selection is driven by changed surfaces and adjacent critical paths
+* headed vs headless mode is chosen intentionally and recorded
+* external or operator-assisted flows become explicit checkpoints instead of silent test gaps
+
+### Verification checks
+
+* `browser-verification.instructions.md` is installed
+* foundation docs mention the overlay
+* runtime verification and closure skills reference the browser workflow consistently
+
+### Tuning drift rules
+
+* browser tooling and web UI exist but the pack is missing - recommend enabling it
+* pack enabled but instruction file or woven workflow references are missing - re-weave the overlay
+* pack disabled but browser-specific overlay language remains - offer cleanup
+
+## Example: continuous-learning as a formal overlay
+
+`continuous-learning` is a pack for workspaces that want to capture recurring
+agent and operator practice as explicit repository knowledge rather than relying
+on invisible prompt drift.
+
+### Eligibility signals
+
+* operators want recurring workflow improvements to become durable harness guidance
+* repeated review findings, runtime signals, or post-merge lessons keep appearing
+* the workspace is willing to store normalized learning state under `.autoharness/`
+
+### Recommendation logic
+
+* **Conditionally recommended** for teams that want explicit learning loops inside the harness
+* **Available on request** for other workspaces that prefer to start with a lighter operating model
+
+### Overlay targets
+
+| Artifact | Change |
+|---|---|
+| `continuous-learning.instructions.md` | New instruction file installed with observation hygiene and promotion rules |
+| `AGENTS.md` / `copilot-instructions.md` | Add observation lifecycle and learned-artifact guidance |
+| `observe/SKILL.md` | New skill to capture recurring observations |
+| `learn/SKILL.md` | New skill to cluster observations into instincts |
+| `evolve/SKILL.md` | New skill to promote mature instincts into `learned-*` artifacts |
+
+### Behavior deltas
+
+* recurring workflow signals are captured as normalized observations
+* observations are clustered into evidence-backed instincts
+* only sufficiently corroborated instincts are promoted into explicit instructions or skills
+* environment-specific hook capture stays optional rather than becoming an environment lock-in
+
+### Verification checks
+
+* `continuous-learning.instructions.md` plus `observe`, `learn`, and `evolve` are installed
+* foundation docs reference the observation lifecycle consistently
+* promotion thresholds and learned-artifact pathways are explicit
+
+### Tuning drift rules
+
+* pack enabled but one or more lifecycle skills are missing - re-install them
+* pack disabled but learned-artifact promotion rules remain woven into the harness - offer cleanup
+* workspace wants explicit recurring-practice capture but the pack is absent - recommend enabling it
+
+## Conditional reviewer note
+
+The `agent-native-parity-reviewer` is intentionally **not** a capability pack. It
+is a conditional review persona that discovery recommends when the workspace
+exposes MCP-heavy or parity-sensitive agent-facing product surfaces. Treat it as
+review-layer adaptation, not as a separate primitive or overlay pack.
 
 ### Stable versus incubating guidance
 
