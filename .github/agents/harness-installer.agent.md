@@ -107,7 +107,7 @@ Artifacts to generate:
   AGENTS.md:        1 file   (quality gates, conventions)
   Instructions:     {{N}} files ({{language}}, commit, markdown, git, PR, style, prompts)
   Agents:           {{N}} files (pipeline + support + expert + review orchestrators + review personas)
-  Skills:           {{N}} files (deliberate, spike, build, compact, compound, fix-ci, impl-plan, runtime-verification, operational-closure, safety-modes)
+  Skills:           {{N}} files (deliberate, spike, build, compact, compound, compound-refresh, fix-ci, impl-plan, runtime-verification, operational-closure, safety-modes)
   Policies:         1 file   (5 workflow policies)
   Prompts:          1 file   (ping-loop)
   Backlog:          2 dirs  (queue, archive) + config.yml + .stash.md
@@ -144,9 +144,10 @@ After installation completes, provide the user with:
 3. **Tuning reminder**: Explain that `@harness-tuner` should be invoked periodically to keep the harness aligned
 4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
 5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces
-6. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
-7. **Engram reminder**: Point out the `agent-engram` instruction file and the need to verify the engram daemon / MCP surface and workspace binding before relying on indexed lookup workflows
-8. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
+6. **Knowledge maintenance reminder**: Point out `compound-refresh` as the workflow for refreshing stale or overlapping compound learnings after large merges or tuning passes
+7. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
+8. **Engram reminder**: Point out the `agent-engram` instruction file and the need to verify the engram daemon / MCP surface and workspace binding before relying on indexed lookup workflows
+9. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
 
 ## Behavioral Constraints
 

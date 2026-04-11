@@ -249,6 +249,10 @@ After the codebase evolves, invoke the tuner:
 @harness-tuner workspace=/path/to/my-project
 ```
 
+The tuner combines workspace rediscovery with manifest checksum scanning so it
+can distinguish missing or locally modified harness artifacts from ordinary
+profile drift.
+
 ## Design Principles
 
 1. **Global tool, local output.** autoharness is installed once globally and invoked against target workspaces. The target receives only generated harness artifacts — never autoharness engine files, templates, or schemas.
@@ -261,7 +265,7 @@ After the codebase evolves, invoke the tuner:
 
 5. **Primitives are universal; implementations are specific.** Every workspace needs state management, task decomposition, and workflow policies. The specific agents, review personas, and quality gates vary by technology and team conventions.
 
-6. **Tuning is continuous.** Harnesses degrade as codebases evolve. The tuner agent detects drift between the installed harness and the current workspace state, then proposes targeted updates.
+6. **Tuning is continuous.** Harnesses degrade as codebases evolve. The tuner agent detects drift between the installed harness and the current workspace state using both workspace rediscovery and manifest-tracked artifact checksums, then proposes targeted updates.
 
 7. **Composition over monolith.** Each primitive is independently installable. Teams can adopt the full framework or select specific primitives that address their needs.
 

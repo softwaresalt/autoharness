@@ -34,7 +34,7 @@ AI agents operate within finite context windows and finite recall. Long-running 
 
 ### The Solution
 
-Four interconnected mechanisms manage state, recall, and retrieval:
+Five interconnected mechanisms manage state, recall, and retrieval:
 
 1. **Session Continuity Protocols**: State persistence is inline in the stage and ship agents. Every checkpoint captures tasks completed, files modified, decisions made, failed approaches, and next steps.
 
@@ -44,12 +44,15 @@ Four interconnected mechanisms manage state, recall, and retrieval:
 
 4. **Compound Skill**: Captures hard-won solutions (build errors, debugging insights, configuration gotchas) in a searchable library with reusable tags, categories, and citations back to the originating task, plan, or PR.
 
+5. **Compound-Refresh Skill**: Reviews existing compound entries, consolidates overlap, updates drifted guidance, and marks uncertain learnings stale instead of letting the knowledge base quietly diverge from current code reality.
+
 ### Adaptation Points
 
 * Memory file paths adapt to the workspace's directory structure
 * Retrieval scope adapts to where durable learnings live (`docs/compound/`, `docs/decisions/`, or configured paths)
 * Compaction thresholds are configurable per workspace
 * Compound categories and ranking heuristics adapt to the workspace's technology domain
+* Knowledge-maintenance cadence adapts to repository change velocity and how quickly compound learnings become stale
 
 ## Primitive 2: Task Granularity and Horizon Scoping
 
@@ -211,6 +214,8 @@ Compound learnings capture post-mortem insights for future reference.
 
 4. **Entropy management and continuous cleanup**: Agents replicate patterns already present in the repository — including suboptimal ones. Over time, this leads to drift and architectural decay. Background cleanup agents run on a regular cadence to scan for deviations from established patterns, update quality grades, and open targeted refactoring PRs. This functions like garbage collection: technical debt is paid down continuously in small increments rather than compounding into painful bursts.
 
+5. **Deterministic drift scanning**: The tuner compares manifest checksums against installed harness artifacts, classifies missing or user-modified files, honors explicit ignore patterns, and feeds that evidence into maintenance recommendations instead of relying only on heuristic drift guesses.
+
 ### Adaptation Points
 
 * Review personas adapt to the workspace's technology (Rust safety → Python type safety, etc.)
@@ -218,6 +223,7 @@ Compound learnings capture post-mortem insights for future reference.
 * Severity definitions may need calibration for different codebases
 * Entropy management cadence depends on the workspace's change velocity and team size
 * Cleanup scope is technology-specific (pattern deduplication, naming alignment, dependency hygiene)
+* Drift-ignore rules may be needed for repositories that intentionally maintain local harness customizations
 
 ## Primitive 8: Workflow Policy
 
@@ -285,7 +291,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
 
    > **Note**: All `docs/` paths above reflect the default docs root (`docs/`). The root and all subdirectory names are configurable via `.autoharness/config.yaml` (`docs.root` and `docs.subdirectories`).
 
-   Work items live in the backlog because they're managed by the backlog tool. The *knowledge artifacts* they produce live in `docs/` as durable records. The compact-context skill consolidates verbose memory and plans into dense summaries, archiving originals to `docs/archive/`.
+   Work items live in the backlog because they're managed by the backlog tool. The *knowledge artifacts* they produce live in `docs/` as durable records. The compact-context skill consolidates verbose memory and plans into dense summaries, archiving originals to `docs/archive/`. The compound-refresh skill keeps the compound library aligned with current code and architecture reality by updating, consolidating, or marking stale learnings after change lands.
 
 4. **Knowledge graduation**: When backlog work completes, the ship agent evaluates during post-merge closure whether the work produced reference-worthy knowledge:
    * **Architectural decisions** from completed plans → `docs/design-docs/` as design records
@@ -319,9 +325,9 @@ Many harnesses stop too early. The code compiles, the tests pass, and a PR exist
 
 Operational closure turns “implementation complete” into “change safely closed over” through four mechanisms:
 
-1. **Runtime Verification Skill**: Validate the affected runtime surfaces using the right depth for the work. For a CLI tool this may be smoke commands; for an API this may be endpoint probes; for a web application this may include browser-backed validation.
+1. **Runtime Verification Skill**: Validate the affected runtime surfaces using the right depth for the work. This includes environment prechecks, route or scenario selection tied to the changed surface, and explicit human stop points when automation cannot complete the flow (for example OAuth, payments, email, or SMS).
 
-2. **Operational Closure Skill**: Produce structured closure artifacts covering release readiness, monitoring expectations, rollback triggers, ownership, validation windows, and follow-up actions.
+2. **Operational Closure Skill**: Produce structured closure artifacts covering release readiness, invariants, pre-deploy audits, post-deploy checks, monitoring expectations, rollback triggers and procedures, ownership, validation windows, and follow-up actions.
 
 3. **PR and CI Handoff Sections**: Pull request descriptions and CI remediation workflows carry explicit runtime verification and operational validation sections so the release context survives past implementation.
 

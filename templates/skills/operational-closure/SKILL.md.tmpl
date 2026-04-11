@@ -38,15 +38,22 @@ Collect:
 * Runtime verification results (if available)
 * Affected runtime surfaces
 * Deployment or release path, if applicable
+* Invariants that must remain true after release
+* Data, migration, or rollout-sensitive behavior that could require extra monitoring
 
 ### Step 2: Build the Closure Checklist
 
 The closure artifact MUST include:
 
+* **Invariants to preserve** — the behaviors or guarantees that cannot regress
+* **Pre-deploy audits** — migrations, flags, config, access, or rollout prerequisites that must be checked before release
+* **Deployment or rollout path** — merge-only, deploy, canary, phased rollout, maintenance window, or handoff path
+* **Post-deploy checks** — the first concrete observations or smoke checks to run after release
 * **Healthy signals** — what success should look like
 * **Failure signals** — what indicates rollback or intervention is needed
 * **Monitoring plan** — logs, dashboards, alerts, or smoke checks to watch
 * **Rollback trigger** — the condition that should halt or reverse the rollout
+* **Rollback procedure** — the actual rollback or mitigation action to take when the trigger fires
 * **Validation window** — how long the change should be watched
 * **Owner** — who is responsible for observing or acting
 
@@ -72,8 +79,9 @@ Operational closure is the compositional bridge from code production to safe abs
 
 ## Quality Criteria
 
-* Closure artifacts include concrete signals, not generic advice
-* Rollback triggers are explicit and actionable
+* Closure artifacts include concrete release and monitoring signals, not generic advice
+* Pre-deploy and post-deploy checks are explicit when the change has runtime or rollout risk
+* Rollback triggers and rollback procedures are explicit and actionable
 * Ownership and validation windows are recorded
 * Durable runtime learnings are fed back into the harness when appropriate
 

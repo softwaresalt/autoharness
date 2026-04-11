@@ -73,13 +73,32 @@ Classify each detected change by impact and urgency:
 | **Cosmetic** | Function unaffected | Minor version bumps, additional config files |
 | **Growth** | New capabilities to harness | New languages in project, new documentation patterns |
 
-#### Step 1.3: Scan Harness Artifact Health
+#### Step 1.3: Deterministic Artifact Drift Scan
+
+Use `.autoharness/harness-manifest.yaml` as the source of truth for installed
+generated artifacts:
+
+* re-hash every manifest-listed artifact that still exists
+* classify at least:
+  * `missing`
+  * `user-modified`
+  * `unchanged`
+* support ignore patterns from `.autoharness/drift-ignore`; classify matching
+  paths as `ignored` rather than surfacing them as drift
+* record per-artifact path, manifest checksum, current checksum, classification,
+  and reason
+
+Record the result under `drift_report.checksum_scan{}` so later proposals can
+distinguish broken installs from intentional local customization.
+
+#### Step 1.4: Scan Harness Artifact Health
 
 For each installed artifact, check:
 
 * **Instruction files**: Do `applyTo` glob patterns match files that still exist?
 * **Agent files**: Do referenced skills, tools, and file paths resolve?
 * **Skill files**: Do build/test/lint commands match current tooling?
+* **Compound library**: Are existing learnings stale, duplicated, contradicted by current code, or strong candidates for `compound-refresh`?
 * **Policies**: Do referenced agents and gate points still apply?
 * **Constitution**: Do technology-specific rules match the current stack?
 * **AGENTS.md**: Do quality gates and commands match current tooling?
@@ -89,9 +108,10 @@ For each installed artifact, check:
 * **Agent-engram weaving**: If engram markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference engram-first search, workspace binding, and freshness / fallback behavior?
 * **backlogit weaving**: If backlogit is the selected backlog tool, do instructions and backlog-aware agents consistently reference queue, query, dependency, memory, checkpoint, or traceability behaviors?
 
-Record: `health_report{}` with per-artifact status.
+Record: `health_report{}` with per-artifact status and any `compound-refresh`
+recommendations for stale institutional knowledge.
 
-#### Step 1.4: Backlog Tool Migration Detection
+#### Step 1.5: Backlog Tool Migration Detection
 
 Compare the currently registered backlog tool (from `.autoharness/backlog-registry.yaml`) against what workspace-discovery detected:
 
@@ -113,7 +133,7 @@ Compare the currently registered backlog tool (from `.autoharness/backlog-regist
 6. Map the directory structure if different (e.g., `.backlogit/` → `backlog/`)
 7. Do NOT migrate task data — that is the backlog tool's responsibility
 
-#### Step 1.5: Preset and Capability-Pack Drift
+#### Step 1.6: Preset and Capability-Pack Drift
 
 Compare the installed preset and capability packs in `.autoharness/harness-manifest.yaml` against the current workspace profile recommendations:
 
@@ -127,7 +147,7 @@ Compare the installed preset and capability packs in `.autoharness/harness-manif
 | backlogit detected as the active backlog tool but `backlogit` pack missing | Growth or Degrading | Propose enabling the pack and weaving backlogit-native workflows through the harness |
 | Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
 
-#### Step 1.6: Overlay-Coherence Drift
+#### Step 1.7: Overlay-Coherence Drift
 
 For every enabled capability pack, compare the manifest's declared overlay targets against the currently installed artifacts.
 
@@ -167,6 +187,10 @@ For each detected issue, generate a specific change proposal:
     + applyTo: '**/*.py'
 ```
 
+Checksum-based drift findings should cite whether the artifact is `missing`,
+`user-modified`, or `ignored` so the operator can tell whether the proposal is
+recovery, retuning, or intentional local divergence.
+
 #### Step 2.3: Detect New Primitive Opportunities
 
 Scan for workspace patterns that suggest missing harness capabilities:
@@ -195,6 +219,11 @@ Generate and display the tuning report:
 - Degrading changes: {{count}}
 - Growth opportunities: {{count}}
 - Cosmetic adjustments: {{count}}
+
+### Checksum Scan
+- Missing installed artifacts: {{count}}
+- User-modified artifacts: {{count}}
+- Ignored artifacts: {{count}}
 
 ### Proposed Changes (ordered by priority)
 
@@ -259,6 +288,7 @@ Run the same verification checks as the install-harness skill Phase 4:
 
 * All breaking drift is addressed (either fixed or explicitly acknowledged)
 * No harness artifact references non-existent files after tuning
+* Checksum scan classifies every manifest-tracked artifact or intentional ignore outcome
 * Backup copies exist for every modified artifact
 * The tuning report is comprehensive and actionable
 * The harness manifest reflects the post-tuning state

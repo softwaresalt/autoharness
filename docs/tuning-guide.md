@@ -35,6 +35,10 @@ The tuner is invoked from the global autoharness installation against a target w
 
 Capability packs are tuned using the same overlay contract used during installation: eligibility signals, target artifacts, behavior deltas, verification checks, and drift heuristics. See [Capability Packs](capability-packs.md).
 
+The tuner also uses `.autoharness/harness-manifest.yaml` as a checksum inventory
+of generated artifacts. When `.autoharness/drift-ignore` exists, matching paths
+are treated as intentional local divergence rather than unexpected drift.
+
 ### Interactive Tuning (Recommended)
 
 ```text
@@ -45,10 +49,11 @@ The tuner will:
 
 1. Re-run workspace discovery to produce a fresh profile
 2. Compare against the profile used during installation
-3. Categorize each difference by impact
-4. Scan all harness artifacts for health issues
-5. Present a prioritized list of proposed changes
-6. Apply changes you approve (with backups)
+3. Compare manifest checksums against installed artifacts and classify missing, user-modified, unchanged, or ignored paths
+4. Categorize each difference by impact
+5. Scan all harness artifacts for health issues
+6. Present a prioritized list of proposed changes
+7. Apply changes you approve (with backups)
 
 ### Scoped Tuning
 
@@ -110,6 +115,22 @@ Functional but may cause minor confusion. Version numbers updated, minor naming 
 
 **Action**: Fix in batch during maintenance windows.
 
+## Deterministic Artifact Drift Scanning
+
+During tuning, autoharness re-hashes every manifest-tracked artifact and
+classifies it before generating proposals.
+
+| Classification | Meaning |
+|---|---|
+| `missing` | The manifest expects the artifact, but the file is gone |
+| `user-modified` | The file exists, but its checksum no longer matches the installed manifest |
+| `unchanged` | The file still matches the installed manifest |
+| `ignored` | The file matches a pattern in `.autoharness/drift-ignore` and is treated as an intentional local customization |
+
+Use `.autoharness/drift-ignore` to suppress known local harness customizations
+that should not be treated as accidental drift. Ignored files should still be
+reviewed occasionally, but they should not drown out genuine breakage.
+
 ## Manual Tuning
 
 All harness artifacts are regular Markdown files. You can edit them directly:
@@ -131,3 +152,4 @@ After manual changes, run the tuner to verify consistency.
 3. **Keep backups** — the tuner creates them automatically in `.autoharness/backups/`
 4. **Test agents after tuning** — run a simple task through the pipeline to verify
 5. **Track tuning history** — the manifest records when and what was tuned
+6. **Use drift-ignore sparingly** — only for intentional local divergence, not as a way to hide real harness breakage

@@ -277,6 +277,7 @@ target-workspace/
       build-feature/SKILL.md
       compact-context/SKILL.md
       compound/SKILL.md
+      compound-refresh/SKILL.md
       fix-ci/SKILL.md
       harness-architect/SKILL.md
       harvest/SKILL.md
@@ -349,9 +350,10 @@ The installer runs automatic verification. You can also manually check:
 6. The ship agent handles harness generation, build, review, CI, and PR lifecycle
 7. If the feature or chore changes runtime behavior, ship runs `runtime-verification`
 8. Ship captures release readiness and follow-up monitoring with `operational-closure`
-9. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
-10. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
-11. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
+9. After merge, ship can invoke `compound-refresh` when shipped work supersedes, duplicates, or invalidates existing learnings in `docs/compound/`
+10. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
+11. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
+12. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
 
 ### Ongoing Maintenance
 
@@ -361,7 +363,10 @@ Run the tuner from the global autoharness installation against the target worksp
 @harness-tuner workspace=/path/to/target
 ```
 
-The tuner reads updated templates from the global installation and proposes changes to the target workspace's harness artifacts.
+The tuner reads updated templates from the global installation, re-runs
+workspace discovery, and compares manifest-tracked artifact checksums to the
+installed harness. Use `.autoharness/drift-ignore` for intentional local
+customizations you do not want surfaced as drift.
 
 Recommended tuning schedule:
 

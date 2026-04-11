@@ -284,8 +284,10 @@ When `existing_profile` is provided, compare the current scan against the previo
 * CI pipeline modified
 * New source directories created
 * Existing harness artifacts that reference stale paths, removed tools, or outdated conventions
+* Manifest-tracked harness artifacts that are missing or checksum-divergent, excluding any paths matched by `.autoharness/drift-ignore`
 
-Record: `drift_report{}` with categorized changes.
+Record: `drift_report{}` with categorized changes, optional checksum-scan
+results, and initial recommendations.
 
 ### Phase 4: Profile Assembly
 
@@ -385,6 +387,18 @@ backlog_tool:
   features: {}
 
 drift_report: null
+# Example in tuning mode:
+# drift_report:
+#   changes: []
+#   checksum_scan:
+#     manifest_present: true
+#     ignore_file: ".autoharness/drift-ignore"
+#     checked_artifacts: 12
+#     missing_count: 0
+#     user_modified_count: 1
+#     ignored_count: 0
+#     artifacts: []
+#   recommendations: []
 ```
 
 #### Step 4.2: Present for Review
@@ -406,3 +420,4 @@ The summary MUST include:
 * Language detection is verified against at least 2 signals (file extensions alone are insufficient)
 * Build and test commands are verified to exist in configuration files, not assumed
 * The profile is valid YAML and conforms to `schemas/workspace-profile.schema.json`
+* When tuning mode is active and a manifest exists, checksum-scan results are captured or explicitly omitted with a reason

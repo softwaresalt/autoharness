@@ -53,6 +53,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `research/learnings-researcher.agent.md` — Retrieves relevant prior solutions before planning and review
 * `compact-context/SKILL.md` — Mandatory workflow step: consolidates memory, plans, and closure artifacts in the docs root; archives verbose originals to docs/archive/
 * `compound/SKILL.md` — Captures institutional knowledge to `docs/compound/` (default; configurable)
+* `compound-refresh/SKILL.md` — Maintains existing compound entries so stale or overlapping learnings are refreshed instead of silently drifting
 
 **Design Rules**:
 
@@ -63,6 +64,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Session continuity protocols in stage and ship agents handle state persistence at Tier 1 (Fast/Cheap) — recommended model: GPT-5.4-mini or equivalent
 * Compaction triggers when file count exceeds threshold (default 40) or total size exceeds 500 KB
 * Compound entries use searchable frontmatter fields: `problem_type`, `category`, `root_cause`, `tags`
+* Knowledge maintenance is evidence-backed: when existing learnings drift, prefer update / consolidate / mark-stale workflows over cosmetic churn
 
 ## Primitive 2: Task Granularity and Horizon Scoping
 
@@ -173,6 +175,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `review/SKILL.md` — Multi-persona code review
 * `plan-review/SKILL.md` — Multi-persona plan review
 * `compound/SKILL.md` — Post-mortem knowledge capture
+* `compound-refresh/SKILL.md` — Knowledge-maintenance workflow for stale institutional learnings
 * Ship agent post-merge closure — Documentation gardening and entropy cleanup
 
 **Design Rules**:
@@ -182,6 +185,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Findings use a 4-level severity system (P0-P3) with action classes (safe_auto, gated_auto, manual, advisory)
 * Cross-model diversity is preferred (different models for different personas) but not blocking
 * Compound learnings capture hard-won solutions for future reference
+* Tune should perform deterministic checksum-based artifact scans so missing or user-modified harness files are treated as first-class maintenance signals
 * Entropy management: the ship agent's post-merge closure scans for pattern deviations, updates quality grades, and applies documentation fixes
 * Cleanup functions as garbage collection — paying down technical debt continuously in small increments
 
@@ -241,6 +245,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 **Design Rules**:
 
 * Green tests are necessary but not sufficient; runtime validation requirements must be explicit
+* Runtime verification records environment prechecks, affected-surface heuristics, and human verification stop points when automation cannot finish the flow
 * Closure artifacts record healthy signals, failure signals, validation windows, rollback triggers, and owner
 * Runtime findings feed back into compound learnings, documentation updates, and tuning proposals
 * Primitive 10 is the formal handoff from “implemented” to “safely absorbed by the running system”

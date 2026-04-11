@@ -335,7 +335,7 @@ Map primitives to template groups:
 
 | Primitive | Template Groups |
 |---|---|
-| 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound` |
+| 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
 | 4 - Orchestration | `agents/stage`, `agents/ship`, `skills/deliberate`, `skills/spike`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect` |
@@ -452,6 +452,7 @@ Generate skill files:
    * `spike/SKILL.md`
    * `compact-context/SKILL.md`
    * `compound/SKILL.md`
+   * `compound-refresh/SKILL.md` — Install when Primitive 1 is selected so the workspace can maintain stale or overlapping institutional learnings over time
    * `harness-architect/SKILL.md` — Install when Primitive 4 is selected. Adapts test patterns, failure markers, and file placement for `{{PRIMARY_LANGUAGE}}`
    * `harvest/SKILL.md` — Install when Primitive 4 is selected. Resolves backlog tool variables from the registry
    * `pr-lifecycle/SKILL.md` — Install when Primitive 4 is selected. Language-agnostic; uses `gh` CLI
@@ -554,7 +555,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 
 #### Step 3.3: Write Installation Manifest
 
-Create `.autoharness/harness-manifest.yaml` recording:
+Create `.autoharness/harness-manifest.yaml` recording install-time checksums that
+the tuner can later re-hash for deterministic drift detection:
 
 ```yaml
 schema_version: "1.0.0"

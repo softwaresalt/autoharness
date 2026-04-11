@@ -243,6 +243,50 @@
               }
             }
           }
+        },
+        "checksum_scan": {
+          "type": ["object", "null"],
+          "properties": {
+            "manifest_present": { "type": "boolean" },
+            "ignore_file": { "type": ["string", "null"] },
+            "checked_artifacts": { "type": "integer", "minimum": 0 },
+            "missing_count": { "type": "integer", "minimum": 0 },
+            "user_modified_count": { "type": "integer", "minimum": 0 },
+            "ignored_count": { "type": "integer", "minimum": 0 },
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "classification": {
+                    "type": "string",
+                    "enum": ["missing", "user-modified", "unchanged", "ignored"]
+                  },
+                  "manifest_checksum": { "type": ["string", "null"] },
+                  "current_checksum": { "type": ["string", "null"] },
+                  "reason": { "type": ["string", "null"] }
+                }
+              }
+            }
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "priority": {
+                "type": "string",
+                "enum": ["P0", "P1", "P2", "P3"]
+              },
+              "summary": { "type": "string" },
+              "related_artifacts": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
         }
       }
     }
