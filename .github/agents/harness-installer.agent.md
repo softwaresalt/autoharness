@@ -146,7 +146,7 @@ After installation completes, provide the user with:
 
 1. **Quick start**: How to invoke key agents (`@stage`, `@ship`, etc.)
 2. **First steps**: Recommend invoking `@stage` with a topic to test the pipeline
-3. **Tuning reminder**: Explain that `@harness-tuner` should be invoked periodically to keep the harness aligned
+3. **Tuning reminder**: Explain that the **Harness Tuner** agent (or `/tune-harness` slash command) should be invoked periodically to keep the harness aligned
 4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
 5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces
 6. **Knowledge maintenance reminder**: Point out `compound-refresh` as the workflow for refreshing stale or overlapping compound learnings after large merges or tuning passes

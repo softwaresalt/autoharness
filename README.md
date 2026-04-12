@@ -210,37 +210,36 @@ autoharness version   # prints the version
 
 autoharness works across any environment that supports agent and skill conventions.
 
-**VS Code with GitHub Copilot** — Add autoharness as a workspace folder alongside your target project (multi-root workspace), or register its skills globally:
-
-```jsonc
-// .vscode/settings.json (in your target workspace)
-{
-  "github.copilot.chat.agentWorkspaceFolders": ["~/.autoharness"]
-}
-```
-
-**GitHub Copilot CLI** — Invoke with the autoharness directory available:
+**VS Code with GitHub Copilot** — The harness installer writes the agent and prompt discovery settings to your **VS Code user settings** (e.g. `%APPDATA%\Code\User\settings.json` on Windows). These are user-scoped so the Harness Installer agent is available from every workspace. Run once after installing autoharness:
 
 ```bash
-ghcp agent @harness-installer workspace=/path/to/target
+autoharness setup-vscode
 ```
 
-**Claude Code** — Reference autoharness in your project config or invoke directly:
+This writes the three `chat.*` entries using the fully-resolved path from `autoharness home` — tilde (`~`) is never used in path keys. Reload the VS Code window and the **Harness Installer** agent will appear in the agents dropdown. Existing settings are preserved.
 
-```bash
-claude --agent ~/.autoharness/.github/agents/harness-installer.agent.md
+**GitHub Copilot CLI (VS Code background sessions)** — Open the Chat view, select **Copilot CLI** from the session-target dropdown. Optionally select **Harness Installer** from the agents dropdown (experimental), or type:
+
+```text
+/install-harness preset=standard
 ```
+
+VS Code installs and configures the CLI runtime automatically. Agent discovery uses the `chat.agentFilesLocations` / `chat.agentSkillsLocations` settings written by the installer.
+
+**Standalone Copilot CLI (`copilot.exe`)** — Run `autoharness setup-copilot-cli` once to copy agents and skills into `~/.copilot/agents/` and `~/.copilot/skills/`. Then `cd` to the target workspace, run the generated `start.ps1` (or `start.sh`) to set workspace-local state, and type `/install-harness` in the session.
+
+**Claude Code** — Run `autoharness setup-claude` once to copy agents into `~/.claude/agents/` and skills into `~/.claude/skills/`. Restart Claude Code after running. Re-run after upgrading autoharness.
+
+**Codex** — Run `autoharness setup-codex` once to copy skills into `~/.codex/skills/`. Codex uses a unified skills model — `install-harness` and `tune-harness` skills serve as the entry points. Re-run after upgrading autoharness.
 
 **Cursor** — Add autoharness as an agent source in Cursor settings.
 
-**Codex** — Reference the autoharness AGENTS.md or invoke with system context.
-
 ### 3. Install a harness into a target workspace
 
-From any registered environment:
+With the target workspace open, select **Harness Installer** from the agents dropdown in the Chat view, or type:
 
 ```text
-@harness-installer workspace=/path/to/my-project preset=standard
+/install-harness preset=standard
 ```
 
 The installer will:
@@ -254,16 +253,16 @@ The installer will:
 Optional examples:
 
 ```text
-@harness-installer workspace=/path/to/my-project preset=starter
-@harness-installer workspace=/path/to/my-project preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review
+/install-harness preset=starter
+/install-harness preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review
 ```
 
 ### 4. Tune an existing harness
 
-After the codebase evolves, invoke the tuner:
+After the codebase evolves, select **Harness Tuner** from the agents dropdown or type:
 
 ```text
-@harness-tuner workspace=/path/to/my-project
+/tune-harness
 ```
 
 The tuner combines workspace rediscovery with manifest checksum scanning so it

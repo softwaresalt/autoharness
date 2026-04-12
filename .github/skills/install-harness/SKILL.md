@@ -247,6 +247,14 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
 | `{{HARNESS_OVERRIDES_YAML}}` | `config.overrides` map | `{}` | Inline YAML map of explicit template variable overrides; `{}` when no overrides are set |
 
+**AI Tools Variables** (derived from `config.ai_tools` → schema defaults):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{COPILOT_EXE_PATH}}` | `config.ai_tools.copilot_cli.exe_path` | `copilot` | Launch command or full path for the Copilot CLI executable; resolved into `start.ps1` and `start.sh` |
+
+Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.exe_path` → (2) schema default `copilot` (expects it on PATH).
+
 **Capability-Pack Variables** (derived from `capability_packs` and integration signals in the profile):
 
 | Template Variable | Source | Example (enabled) | Example (disabled) |
@@ -700,6 +708,19 @@ Long-lived knowledge structure (full paths at workspace root):
 
 Reviews are appended to the plan they review (not separate files). The compact-context skill consolidates plan + appended reviews into a decided-plan.
 
+#### Step 2.9: Startup Scripts
+
+Generate workspace-root startup scripts from `{autoharness_home}/templates/scripts/`:
+
+1. **`start.ps1`** (from `start.ps1.tmpl`) — PowerShell startup script; sets `COPILOT_HOME` and other AI tool env vars to workspace-local directories, then launches the selected AI CLI tool.
+2. **`start.sh`** (from `start.sh.tmpl`) — Bash equivalent. Set execute permission after install: `chmod +x start.sh`.
+
+Both scripts redirect AI tool state to workspace-local hidden directories (`.copilot`, `.claude`, etc.) so that agent memories, checkpoints, and database files are git-visible and project-scoped rather than shared across all workspaces. Sections for GitHub Copilot CLI, Claude Code, and OpenAI Codex are included; only the relevant section is active — the others are commented out for reference.
+
+Resolve `{{COPILOT_EXE_PATH}}`:
+- From `config.ai_tools.copilot_cli.exe_path` if present in `.autoharness/config.yaml`
+- Otherwise default to `copilot` (expects the executable on PATH)
+
 ### Phase 3: Installation
 
 #### Step 3.1: Staging
@@ -721,6 +742,7 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Research Agents | `{workspace}/.github/agents/research/` |
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Scripts (when Primitive 5 or 6 selected) | `{workspace}/scripts/` — copy all `.ps1` and `.sh` files from `{autoharness_home}/templates/skills/{skill-name}/scripts/` for each skill that includes scripts (file-lock, skill-search) |
+| Startup scripts | `{workspace}/start.ps1`, `{workspace}/start.sh` — generated from `{autoharness_home}/templates/scripts/start.ps1.tmpl` and `start.sh.tmpl`; always installed at workspace root regardless of preset |
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
 | Backlog config + stash | `{workspace}/{{BACKLOG_DIRECTORY}}/` (queue/, archive/, config.yml, queue/.stash.md) |
@@ -739,6 +761,58 @@ workspace `.gitignore` contains entries for agent lock files:
    * `.*.lock`
    * `**/.*.lock`
 3. Record this action in the manifest so the tuner can detect if it was removed
+
+#### Step 3.2c: Write VS Code User Settings
+
+When `vscode.detected` is true in the workspace profile, automatically apply the
+autoharness agent discovery settings to the **VS Code user settings file** so
+GitHub Copilot in VS Code can locate the autoharness agents and prompts from any
+workspace without manual configuration.
+
+> **User settings, not workspace settings.** autoharness is a global tool. The
+> Harness Installer and Harness Tuner agents must be reachable from every
+> workspace, not just the one they are being installed into. Write to user
+> settings — never to the target workspace's `.vscode/settings.json`.
+
+> **Resolved paths only — no tilde.** `~` is not expanded in VS Code JSON
+> settings path keys on Windows. Always use the absolute path returned by
+> `autoharness home`.
+
+**Detect the user settings path from the platform:**
+
+| Platform | User settings path |
+|---|---|
+| Windows | `%APPDATA%\Code\User\settings.json` (resolve `%APPDATA%`) |
+| macOS | `$HOME/Library/Application Support/Code/User/settings.json` |
+| Linux | `$HOME/.config/Code/User/settings.json` |
+
+Platform is determined from the OS reported by the agent runtime. On Windows,
+resolve `%APPDATA%` to its actual value (e.g. `C:\Users\alice\AppData\Roaming`).
+Never use `~` in the resulting path string.
+
+1. **Resolve the autoharness home path** — run `autoharness home` or use the
+   already-resolved value from Step 1.0. This produces an absolute path with no
+   tilde (e.g. `C:\Users\alice\AppData\Roaming\uv\tools\autoharness\Lib\site-packages\autoharness\data`).
+2. **Detect the user settings path** from the platform as above
+3. **Read the user settings file** if it exists; parse as JSONC (preserving
+   existing content); if it does not exist, start with an empty object
+4. **Merge autoharness discovery entries** without removing existing keys:
+   * Add `"{autoharness_home}/.github/agents": true` under
+     `chat.agentFilesLocations` (create the key if absent; merge into it if
+     present, preserving any existing entries)
+   * Add `"{autoharness_home}/.github/skills": true` under
+     `chat.agentSkillsLocations` (same merge rule)
+   * Add `"{autoharness_home}/.github/prompts": true` under
+     `chat.promptFilesLocations` (same merge rule — makes `/install-harness`
+     and `/tune-harness` available as slash commands from any workspace)
+5. **Write the result back** to the user settings file as valid JSON (2-space
+   indentation; preserve all other existing keys verbatim)
+6. **Skip this step** silently if `vscode.has_agent_settings` is already true
+   (the entries are already correct — avoid duplicating or overwriting)
+7. **Record this action** in the manifest under a `vscode_settings` key so the
+   tuner can detect if the entries were removed from user settings
+
+When `vscode.detected` is false, skip this step entirely.
 
 #### Step 3.3: Write Installation Manifest
 
@@ -768,6 +842,15 @@ capability_pack_overlays:
   #   overlay_targets: ["foundation-docs", "instructions", "analysis-workflows"]
   #   verification_checks: ["agent-engram instruction installed", "engram-first search guidance woven"]
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+vscode_settings:
+  applied: true|false               # false when vscode.detected was false
+  user_settings_path: "{{VSCODE_USER_SETTINGS_PATH}}"   # resolved absolute path, no tilde
+  user_settings_path: "{{VSCODE_USER_SETTINGS_PATH}}"  # resolved absolute path, e.g. C:\Users\alice\AppData\Roaming\Code\User\settings.json
+  entries_added:
+    - "chat.agentFilesLocations[\"{{AUTOHARNESS_HOME}}/.github/agents\"]"
+    - "chat.agentSkillsLocations[\"{{AUTOHARNESS_HOME}}/.github/skills\"]"
+    - "chat.promptFilesLocations[\"{{AUTOHARNESS_HOME}}/.github/prompts\"]"
+  skipped_because: null             # "already_present" when has_agent_settings was true
 artifacts:
   - path: ".github/instructions/constitution.instructions.md"
     primitive: 5
