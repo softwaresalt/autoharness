@@ -42,8 +42,10 @@ are treated as intentional local divergence rather than unexpected drift.
 
 ### Interactive Tuning (Recommended)
 
+Open the target workspace in VS Code, then select **Harness Tuner** from the agents dropdown in the Chat view, or type:
+
 ```text
-@harness-tuner workspace=/path/to/target
+/tune-harness
 ```
 
 The tuner will:
@@ -58,14 +60,14 @@ The tuner will:
 
 ### Scoped Tuning
 
-Focus on specific areas:
+Focus on specific areas by describing the scope to the Harness Tuner agent, or pass a scope parameter:
 
 ```text
-@harness-tuner workspace=/path/to/target scope=instructions    # Only check instruction files
-@harness-tuner workspace=/path/to/target scope=agents          # Only check agent definitions
-@harness-tuner workspace=/path/to/target scope=skills          # Only check skill workflows
-@harness-tuner workspace=/path/to/target scope=policies        # Only check workflow policies
-@harness-tuner workspace=/path/to/target scope=constitution    # Only check constitutional docs
+/tune-harness scope=instructions    # Only check instruction files
+/tune-harness scope=agents          # Only check agent definitions
+/tune-harness scope=skills          # Only check skill workflows
+/tune-harness scope=policies        # Only check workflow policies
+/tune-harness scope=constitution    # Only check constitutional docs
 ```
 
 ## Drift Categories

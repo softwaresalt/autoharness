@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
+import platform
+import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -29,9 +34,13 @@ USAGE = """\
 autoharness — agent harness framework
 
 Usage:
-  autoharness home       Print the autoharness installation path
-  autoharness version    Print the installed version
-  autoharness help       Show this message
+  autoharness home              Print the autoharness installation path
+  autoharness version           Print the installed version
+  autoharness setup-vscode      Write agent discovery entries to VS Code user settings
+  autoharness setup-copilot-cli Copy agents and skills into the Copilot CLI global config dir
+  autoharness setup-claude      Copy agents and skills into the Claude Code global config dir
+  autoharness setup-codex       Copy skills into the Codex global config dir
+  autoharness help              Show this message
 
 Install:
   uv tool install autoharness
@@ -43,6 +52,238 @@ Update:
 The AI coding assistant is the runtime. This CLI exists only so agents
 can resolve the autoharness home path via `autoharness home`.
 """
+
+
+def _vscode_user_settings_path() -> Path | None:
+    """Return the platform-appropriate VS Code user settings path (no tilde)."""
+    system = platform.system()
+    if system == "Windows":
+        appdata = os.environ.get("APPDATA")
+        if not appdata:
+            return None
+        return Path(appdata) / "Code" / "User" / "settings.json"
+    elif system == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "Code" / "User" / "settings.json"
+    else:
+        xdg = os.environ.get("XDG_CONFIG_HOME")
+        base = Path(xdg) if xdg else Path.home() / ".config"
+        return base / "Code" / "User" / "settings.json"
+
+
+def _strip_jsonc(text: str) -> str:
+    """Strip // line comments and /* */ block comments from JSONC, and trailing commas."""
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    text = re.sub(r'(?<!https:)(?<!http:)//[^\n]*', '', text)
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
+    return text
+
+
+def _setup_vscode() -> None:
+    """Write autoharness agent discovery entries into VS Code user settings."""
+    home = _home()
+    settings_path = _vscode_user_settings_path()
+
+    if settings_path is None:
+        print("Error: could not determine VS Code user settings path for this OS.", file=sys.stderr)
+        sys.exit(1)
+
+    # Build path keys using fully-resolved absolute paths — no tilde, no variables.
+    # Forward slashes work on all platforms in VS Code JSON settings.
+    agents_path  = home / ".github" / "agents"
+    skills_path  = home / ".github" / "skills"
+    prompts_path = home / ".github" / "prompts"
+
+    entries = [
+        ("chat.agentFilesLocations",  str(agents_path)),
+        ("chat.agentSkillsLocations", str(skills_path)),
+        ("chat.promptFilesLocations", str(prompts_path)),
+    ]
+
+    # Read existing settings, tolerating JSONC comments.
+    if settings_path.exists():
+        raw = settings_path.read_text(encoding="utf-8")
+        try:
+            settings: dict = json.loads(raw)
+        except json.JSONDecodeError:
+            settings = json.loads(_strip_jsonc(raw))
+    else:
+        settings = {}
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+    added: list[str] = []
+    skipped: list[str] = []
+
+    for setting_key, entry_key in entries:
+        bucket: dict = settings.setdefault(setting_key, {})
+        if entry_key in bucket:
+            skipped.append(f"  {setting_key}  (already present)")
+        else:
+            bucket[entry_key] = True
+            added.append(f"  {setting_key}")
+
+    settings_path.write_text(
+        json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    print(f"VS Code user settings: {settings_path}")
+    if added:
+        print("Added:")
+        for line in added:
+            print(line)
+    if skipped:
+        print("Already present (skipped):")
+        for line in skipped:
+            print(line)
+    if not added:
+        print("No changes needed — all entries were already present.")
+    else:
+        print("\nReload your VS Code window (Ctrl+Shift+P → 'Reload Window') for the")
+        print("Harness Installer agent to appear in the agents dropdown.")
+
+
+def _copilot_cli_config_dir() -> Path:
+    """Return the Copilot CLI global config directory.
+
+    Mirrors the resolution order in copilot.exe:
+      1. COPILOT_HOME environment variable
+      2. ~/.copilot/ (default)
+    """
+    env = os.environ.get("COPILOT_HOME")
+    if env:
+        return Path(env)
+    return Path.home() / ".copilot"
+
+
+def _setup_copilot_cli() -> None:
+    """Copy autoharness agents and skills into the Copilot CLI global config dir.
+
+    Copilot CLI discovers agents from {config_dir}/agents/ and skills from
+    {config_dir}/skills/ at session start.  This command copies the autoharness
+    .github/agents/ and .github/skills/ trees into those directories so the
+    Harness Installer and Harness Tuner agents are available in every session.
+
+    Re-run this command after upgrading autoharness to pick up new agents or
+    updated skill files.
+    """
+    home = _home()
+    config_dir = _copilot_cli_config_dir()
+    src_agents = home / ".github" / "agents"
+    src_skills = home / ".github" / "skills"
+    dst_agents = config_dir / "agents"
+    dst_skills = config_dir / "skills"
+
+    print(f"Copilot CLI config dir: {config_dir}")
+    print()
+
+    a, u = _copy_tree(src_agents, dst_agents, "*.md")
+    _report_copy("Agents", a, u)
+
+    a, u = _copy_tree(src_skills, dst_skills, "SKILL.md")
+    _report_copy("Skills", a, u)
+
+    print("Done. Start a new Copilot CLI session to pick up the changes.")
+    print("Run this command again after upgrading autoharness.")
+
+
+def _copy_tree(src_dir: Path, dst_dir: Path, glob: str) -> tuple[list[str], list[str]]:
+    """Copy files matching glob from src_dir into dst_dir, preserving structure.
+
+    Returns (added, updated) lists of relative paths.
+    """
+    added: list[str] = []
+    updated: list[str] = []
+    for src_file in sorted(src_dir.rglob(glob)):
+        rel = src_file.relative_to(src_dir)
+        dst_file = dst_dir / rel
+        dst_file.parent.mkdir(parents=True, exist_ok=True)
+        existed = dst_file.exists()
+        shutil.copy2(src_file, dst_file)
+        (updated if existed else added).append(f"  {rel}")
+    return added, updated
+
+
+def _report_copy(label: str, added: list[str], updated: list[str]) -> None:
+    if added:
+        print(f"{label} added:")
+        print("\n".join(added))
+    if updated:
+        print(f"{label} updated:")
+        print("\n".join(updated))
+    if not added and not updated:
+        print(f"{label}: nothing to copy (source directory empty or missing)")
+    print()
+
+
+def _claude_config_dir() -> Path:
+    """Return the Claude Code global config directory.
+
+    Resolution order (mirrors Claude Code):
+      1. CLAUDE_CONFIG_DIR environment variable
+      2. ~/.claude/ (default)
+    """
+    env = os.environ.get("CLAUDE_CONFIG_DIR")
+    if env:
+        return Path(env)
+    return Path.home() / ".claude"
+
+
+def _setup_claude() -> None:
+    """Copy autoharness agents and skills into the Claude Code global config dir.
+
+    Claude Code discovers agents from {config_dir}/agents/ and skills from
+    {config_dir}/skills/ at session start.
+    """
+    home = _home()
+    config_dir = _claude_config_dir()
+    print(f"Claude Code config dir: {config_dir}")
+    print()
+
+    a, u = _copy_tree(home / ".github" / "agents", config_dir / "agents", "*.md")
+    _report_copy("Agents", a, u)
+
+    a, u = _copy_tree(home / ".github" / "skills", config_dir / "skills", "SKILL.md")
+    _report_copy("Skills", a, u)
+
+    print("Done. Restart Claude Code to pick up the changes.")
+    print("Run this command again after upgrading autoharness.")
+
+
+def _codex_config_dir() -> Path:
+    """Return the Codex global config directory.
+
+    Resolution order (mirrors Codex):
+      1. CODEX_HOME environment variable
+      2. ~/.codex/ (default)
+    """
+    env = os.environ.get("CODEX_HOME")
+    if env:
+        return Path(env)
+    return Path.home() / ".codex"
+
+
+def _setup_codex() -> None:
+    """Copy autoharness skills into the Codex global skills directory.
+
+    Codex discovers skills from {config_dir}/skills/<skill-name>/SKILL.md.
+    Codex does not have a separate agents directory — skills serve as the
+    agent entry points. The skill directory name becomes the skill name
+    (e.g. install-harness, tune-harness).
+
+    Note: Codex SKILL.md files use the same frontmatter format as autoharness.
+    If the frontmatter lacks a top-level 'name:' field, Codex infers the name
+    from the directory.
+    """
+    home = _home()
+    config_dir = _codex_config_dir()
+    print(f"Codex config dir: {config_dir}")
+    print()
+
+    a, u = _copy_tree(home / ".github" / "skills", config_dir / "skills", "SKILL.md")
+    _report_copy("Skills", a, u)
+
+    print("Done. Restart Codex to pick up the changes.")
+    print("Run this command again after upgrading autoharness.")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -58,6 +299,14 @@ def main(argv: list[str] | None = None) -> None:
         print(_home())
     elif command == "version":
         print(_version())
+    elif command == "setup-vscode":
+        _setup_vscode()
+    elif command == "setup-copilot-cli":
+        _setup_copilot_cli()
+    elif command == "setup-claude":
+        _setup_claude()
+    elif command == "setup-codex":
+        _setup_codex()
     else:
         print(f"Unknown command: {command}", file=sys.stderr)
         print(USAGE, file=sys.stderr)

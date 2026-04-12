@@ -310,6 +310,24 @@
         }
       }
     },
+    "vscode": {
+      "type": "object",
+      "description": "Detected VS Code workspace presence and user settings state",
+      "properties": {
+        "detected": {
+          "type": "boolean",
+          "description": "True when any VS Code signal (.vscode/, *.code-workspace, .vscode/settings.json) is found in the target workspace"
+        },
+        "user_settings_path": {
+          "type": ["string", "null"],
+          "description": "Resolved absolute path to the VS Code user settings file for the current OS (e.g. C:\\Users\\alice\\AppData\\Roaming\\Code\\User\\settings.json on Windows). Null when the OS is unrecognised. Never uses ~ shorthand."
+        },
+        "has_agent_settings": {
+          "type": "boolean",
+          "description": "True when the VS Code user settings file already contains chat.agentFilesLocations, chat.agentSkillsLocations, or chat.promptFilesLocations entries pointing to the resolved autoharness home path"
+        }
+      }
+    },
     "drift_report": {
       "type": ["object", "null"],
       "properties": {

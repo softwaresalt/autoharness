@@ -148,47 +148,134 @@ autoharness is environment-agnostic. Register it once in whichever environment(s
 
 ### VS Code with GitHub Copilot
 
-Add autoharness as a workspace folder in a multi-root workspace alongside your target project. The agents, skills, and prompts are automatically discovered from the `.github/` directory.
+The harness installer writes the agent and prompt discovery settings to your **VS Code user settings** (`%APPDATA%\Code\User\settings.json` on Windows; `~/Library/Application Support/Code/User/settings.json` on macOS; `~/.config/Code/User/settings.json` on Linux). These are user-scoped settings so the Harness Installer agent is available from every workspace, not just the one it was installed into.
 
-Alternatively, reference it in your VS Code settings:
+After the first-time setup described below, entries like these will be present in your user settings without any manual editing:
 
 ```jsonc
-// .vscode/settings.json (in your target workspace)
+// VS Code user settings — written automatically by autoharness install
+// The exact path is the output of: autoharness home
 {
-  "github.copilot.chat.agentWorkspaceFolders": ["~/.autoharness"]
+  "chat.agentFilesLocations":  { "C:\\Users\\you\\AppData\\Roaming\\uv\\tools\\autoharness\\Lib\\site-packages\\autoharness\\data\\.github\\agents":  true },
+  "chat.agentSkillsLocations": { "C:\\Users\\you\\AppData\\Roaming\\uv\\tools\\autoharness\\Lib\\site-packages\\autoharness\\data\\.github\\skills":  true },
+  "chat.promptFilesLocations": { "C:\\Users\\you\\AppData\\Roaming\\uv\\tools\\autoharness\\Lib\\site-packages\\autoharness\\data\\.github\\prompts": true }
 }
 ```
 
-### GitHub Copilot CLI
+The installer resolves the path by running `autoharness home` — tilde shorthand (`~`) is not expanded in VS Code JSON settings on Windows and is never used. Existing settings are preserved; only the autoharness-specific entries are added.
 
-Invoke with the workspace argument:
+Once those settings are in place, the **Harness Installer** agent appears in the **agents dropdown** at the top of the Chat view. Select it there before typing your prompt. The `/install-harness` slash command (from the autoharness prompt file) is also available in chat.
+
+> **First-time setup:** Run this command once after installing autoharness (cwd does not matter):
+> ```bash
+> autoharness setup-vscode
+> ```
+> This writes the three `chat.*` entries into your VS Code user settings using the fully-resolved path from `autoharness home`. Then reload the VS Code window (`Ctrl+Shift+P` → **Reload Window**) and the **Harness Installer** agent will appear in the agents dropdown.
+
+### GitHub Copilot CLI — VS Code background sessions
+
+VS Code integrates with the Copilot CLI as **background agent sessions** that run autonomously while you continue other work. VS Code installs and configures the Copilot CLI agent runtime automatically.
+
+For the **Harness Installer** and **Harness Tuner** agents to appear in Copilot CLI sessions, run this command once after installing autoharness:
 
 ```bash
-ghcp agent @harness-installer workspace=/path/to/target
+autoharness setup-copilot-cli
 ```
+
+This copies the agent `.md` files and skill `SKILL.md` files from the autoharness installation into your Copilot CLI global config directory (`~/.copilot/agents/` and `~/.copilot/skills/`). Re-run it after upgrading autoharness to pick up updated files.
+
+To run the harness installer as a background session:
+
+1. Open the Chat view (`Ctrl+Alt+I`)
+2. Select **Copilot CLI** from the **Session Target** dropdown (or run **Chat: New Copilot CLI** from the Command Palette)
+3. Optionally select **Harness Installer** from the **Agents** dropdown in the session (requires `github.copilot.chat.cli.customAgents.enabled` — experimental)
+4. Type your install request in the session:
+
+```text
+Install a standard harness into this workspace
+```
+
+### GitHub Copilot CLI — terminal
+
+VS Code registers a **GitHub Copilot CLI** terminal profile. To open a session:
+
+- Select the **+** dropdown in the Terminal panel and choose **GitHub Copilot CLI**, or
+- Run **Terminal: Create New Terminal (With Profile)** from the Command Palette and select **GitHub Copilot CLI**, or
+- Type `copilot` in any VS Code integrated terminal
+
+VS Code handles authentication automatically. Once the session is open, type `/install-harness` to run the install prompt, or describe the task naturally.
+
+For standalone Copilot CLI sessions outside VS Code, run `autoharness setup-copilot-cli` first so agents and skills are registered globally, then use the generated `start.ps1` (or `start.sh`) at the workspace root to set workspace-local state before launching.
+
+> **First install (before `start.ps1` exists):** The startup scripts are generated *by* the installer, so they do not exist yet. Use the VS Code terminal approach above — VS Code handles auth. The `start.ps1` / `start.sh` scripts are for subsequent sessions outside VS Code.
 
 ### Claude Code
 
-Reference the autoharness agent directly:
+Run once after installing autoharness:
 
 ```bash
-claude --agent ~/.autoharness/.github/agents/harness-installer.agent.md
+autoharness setup-claude
 ```
 
-### Cursor
-
-Add autoharness as an agent source in Cursor settings, pointing to `~/.autoharness/.github/agents/`.
+This copies agent `.md` files into `~/.claude/agents/` and skill `SKILL.md` files into `~/.claude/skills/`. Claude Code discovers agents and skills from those directories at startup. The `CLAUDE_CONFIG_DIR` environment variable overrides the default `~/.claude/` path. Restart Claude Code after running, and again after upgrading autoharness.
 
 ### Codex
 
-Reference the autoharness agents directory or pass the AGENTS.md as system context.
+Run once after installing autoharness:
+
+```bash
+autoharness setup-codex
+```
+
+This copies skill `SKILL.md` files into `~/.codex/skills/`. Codex uses a unified skills model — the `install-harness` and `tune-harness` skills serve as the agent entry points. The `CODEX_HOME` environment variable overrides the default `~/.codex/` path. Restart Codex after running, and again after upgrading autoharness.
+
+### Startup Scripts
+
+The harness installer generates `start.ps1` (PowerShell) and `start.sh` (bash) at your workspace root. These scripts set workspace-local directories for AI agent state before launching your AI CLI tool:
+
+```powershell
+# start.ps1 — generated by autoharness
+$env:COPILOT_HOME = ".\.copilot"   # workspace-local Copilot database and memories
+$env:GITHUB_TOKEN = (gh auth token)
+& "copilot"                        # or the full path configured in .autoharness/config.yaml
+```
+
+```bash
+# start.sh — generated by autoharness
+export COPILOT_HOME="./.copilot"
+export GITHUB_TOKEN="$(gh auth token)"
+"copilot"
+```
+
+By redirecting `COPILOT_HOME` (and optionally `ENGRAM_DATA_DIR` for agent-engram) to a workspace-local directory, the agent's memories, checkpoints, and database are stored inside the project and become visible to git. This keeps agent state isolated per project rather than shared across all workspaces.
+
+Sections for Claude Code and OpenAI Codex are included in each script as commented-out blocks; activate the one you need.
+
+To configure the Copilot CLI path (when it is not on PATH), set it in `.autoharness/config.yaml` before running install or tune:
+
+```yaml
+ai_tools:
+  copilot_cli:
+    exe_path: "C:\\Tools\\ghcpcli\\copilot.exe"   # Windows example
+    # exe_path: "/usr/local/bin/copilot"           # macOS/Linux example
+```
 
 ## Step 4: Install a Harness into a Target Workspace
 
+Open the Chat view in VS Code (`Ctrl+Alt+I`), select **Harness Installer** from the agents dropdown, then describe what you want. Alternatively, type `/install-harness` as a slash command to run the guided install prompt.
+
 ### Full Installation (Recommended)
 
+Select the **Harness Installer** agent from the agents dropdown, then ask:
+
 ```text
-@harness-installer workspace=/path/to/target preset=standard
+Install a standard harness into this workspace
+```
+
+or run the prompt directly:
+
+```text
+/install-harness preset=standard
 ```
 
 The installer will:
@@ -205,8 +292,8 @@ The installer will:
 Choose the installation shape before fine-tuning primitives manually:
 
 ```text
-@harness-installer workspace=/path/to/target preset=starter
-@harness-installer workspace=/path/to/target preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review
+/install-harness preset=starter
+/install-harness preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review
 ```
 
 | Preset | Installs | Best For |
@@ -267,7 +354,7 @@ user/agent parity review.
 Install only specific primitives:
 
 ```text
-@harness-installer workspace=/path/to/target primitives=1,4,5,8,10
+/install-harness primitives=1,4,5,8,10
 ```
 
 **Primitive numbers:**
@@ -288,7 +375,7 @@ Install only specific primitives:
 Generate artifacts to a staging directory without installing:
 
 ```text
-@harness-installer workspace=/path/to/target dry_run=true
+/install-harness dry_run=true
 ```
 
 ## What Gets Installed in the Target
@@ -431,11 +518,11 @@ The installer runs automatic verification. You can also manually check:
 
 ### First Use
 
-1. Invoke the stage agent: `@stage topic="my feature or chore idea"`
+1. Select the **Stage** agent from the agents dropdown and describe your feature or chore idea
 2. The stage agent determines whether this needs a decision (deliberate) or investigation (spike)
 3. Review the decision or findings artifact and promote to a plan or queue
 4. If promoted to plan, the stage agent decomposes it into tasks via the harvest skill
-5. Invoke the ship agent to implement the feature or chore
+5. Select the **Ship** agent from the agents dropdown to implement the feature or chore
 6. The ship agent handles harness generation, build, review, CI, and PR lifecycle
 7. If the feature or chore changes runtime behavior, ship runs `runtime-verification`
 8. Ship captures release readiness and follow-up monitoring with `operational-closure`
@@ -446,10 +533,10 @@ The installer runs automatic verification. You can also manually check:
 
 ### Ongoing Maintenance
 
-Run the tuner from the global autoharness installation against the target workspace:
+Run the tuner from the global autoharness installation against the target workspace. Select the **Harness Tuner** agent from the agents dropdown, or run the prompt:
 
 ```text
-@harness-tuner workspace=/path/to/target
+/tune-harness
 ```
 
 The tuner reads updated templates from the global installation, re-runs

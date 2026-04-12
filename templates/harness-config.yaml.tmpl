@@ -66,6 +66,14 @@ model_routing:
   tier2: {{MODEL_ROUTING_TIER2}}      # Standard: orchestration, code, review
   tier3: {{MODEL_ROUTING_TIER3}}      # Frontier: planning, architecture, analysis
 
+# AI CLI tool startup configuration
+# Resolves {{COPILOT_EXE_PATH}} in the generated start.ps1 and start.sh scripts.
+# Set exe_path to the full path if copilot is not on PATH.
+ai_tools:
+  copilot_cli:
+    exe_path: "{{COPILOT_EXE_PATH}}"  # Default: "copilot" (expects it on PATH)
+                                      # Example: "C:\\Tools\\ghcpcli\\copilot.exe"
+
 # Explicit template variable overrides applied during install/tune (use sparingly —
 # prefer fixing the workspace setup over overriding discovery results)
 overrides: {{HARNESS_OVERRIDES_YAML}}

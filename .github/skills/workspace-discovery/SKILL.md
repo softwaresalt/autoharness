@@ -307,6 +307,39 @@ backlog_tool:
 
 When a known tool is detected (backlogit or backlog-md), load the matching pre-built registry from `templates/backlog/registries/` for use during harness composition. When an unknown or manual backlog structure is detected, generate a minimal registry that the user can customize.
 
+#### Step 1.7: AI Coding Environment Detection
+
+Detect which AI coding environments are present in the workspace so the installer can apply environment-specific configuration automatically.
+
+**VS Code detection signals** (any one is sufficient):
+
+| Signal | Meaning |
+|--------|---------|
+| `.vscode/` directory exists | VS Code workspace likely in use |
+| `*.code-workspace` file at the workspace root | Explicit VS Code multi-root workspace |
+| `.vscode/settings.json` exists | VS Code settings already configured |
+| `.vscode/extensions.json` exists | VS Code extension recommendations present |
+
+When VS Code is detected:
+
+1. Determine the platform-appropriate **user settings path**:
+   - Windows: resolve `%APPDATA%` and append `\Code\User\settings.json`
+   - macOS: `$HOME/Library/Application Support/Code/User/settings.json`
+   - Linux: `$HOME/.config/Code/User/settings.json`
+2. Check whether that user settings file already contains `chat.agentFilesLocations`,
+   `chat.agentSkillsLocations`, or `chat.promptFilesLocations` entries pointing
+   to paths under the resolved `autoharness home`
+3. Record the resolved user settings path and findings for the installer
+
+Record: `vscode{}` with the following structure:
+
+```yaml
+vscode:
+  detected: true|false
+  user_settings_path: "C:\\Users\\alice\\AppData\\Roaming\\Code\\User\\settings.json"  # resolved absolute path; null if OS unrecognised
+  has_agent_settings: true|false   # true when autoharness agent entries already present in user settings
+```
+
 ### Phase 2: Convention Extraction
 
 #### Step 2.1: Code Style Discovery
@@ -493,6 +526,11 @@ backlog_tool:
   registry_path: null
   status_values: []
   features: {}
+
+vscode:
+  detected: false
+  settings_json_path: null
+  has_agent_settings: false
 
 drift_report: null
 # Example in tuning mode:
