@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "autoharness"
-version = "1.0.0"
+version = "1.1.0"
 description = "Globally-installed agent harness framework that generates AI coding assistant primitives into any target workspace"
 readme = "README.md"
 license = "MIT"
