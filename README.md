@@ -285,6 +285,22 @@ profile drift.
 
 7. **Composition over monolith.** Each primitive is independently installable. Teams can adopt the full framework or select specific primitives that address their needs.
 
+## Acknowledgements
+
+autoharness builds on empirical research, production harness work, and established
+software engineering practice:
+
+- **METR Time Horizons research** — empirical grounding for the 2-hour task-granularity rule (Primitive 2)
+- **OpenAI harness engineering** — validated the "map, not manual" principle behind the `AGENTS.md` design (Primitive 9)
+- **Anthropic Constitutional AI** — inspired the constitutional artifact pattern governing agent safety posture
+- **[atv-starterkit](https://github.com/microsoft/atv-starterkit)** — source of the continuous-learning loop, compound-refresh workflow, browser-verification recipes, and deployment-verification depth
+- **Compound Engineering / DeerFlow** — the compound knowledge-capture phase that traces through atv-starterkit into autoharness's learnings model
+- **[backlogit](https://github.com/softwaresalt/backlogit)** — co-evolved the two-agent stage/ship model, the durable-knowledge / active-work directory boundary, and the backlog tool registry abstraction
+- **Kent Beck, *Test-Driven Development: By Example*** — TDD gate policies P-002 and P-004
+- **Michael Nygard, *Release It!*** — the circuit breaker stop-condition protocol
+
+See [docs/credits.md](docs/credits.md) for the full breakdown, including which primitives and templates each source influenced.
+
 ## License
 
 MIT
