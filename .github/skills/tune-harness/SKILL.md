@@ -335,6 +335,22 @@ Run the same verification algorithm as the install-harness skill Phase 4:
 * **Step 4.3 (Overlay Coherence Sweep)** — verify each enabled pack's targets exist and reference the pack's behavior keywords
 * **Step 4.4 (Structural Validation)** — YAML frontmatter, code fence pairing, table column counts, file path resolution
 
+After deterministic checks pass, invoke the **verify-harness** skill for
+multi-model adversarial verification:
+
+* **Step 4.5 (Adversarial Verification)** — dispatch parallel reviewer
+  subagents using different models to audit template fidelity, overlay
+  coherence, and cross-reference integrity against the authoritative templates
+  and the workspace's current state. Findings are assembled into a
+  confidence-weighted consensus report. HIGH-confidence additive fixes are
+  applied automatically; remaining findings are presented alongside the tuning
+  report.
+
+Pass `scope: new-only` when the tuning session modified a small number of
+artifacts (fewer than 10 changed) so reviewers focus on the changed surface
+rather than re-auditing the entire harness. Use `scope: all` for broader tuning
+sessions or when overlay-coherence drift was detected.
+
 Report any failures alongside the tuning report so the operator can address
 both drift and verification issues in a single pass.
 

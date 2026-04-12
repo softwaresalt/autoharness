@@ -44,6 +44,16 @@ When selecting work or establishing execution order:
 3. Do not hide critical sequencing only in prose when the dependency graph can represent it.
 4. Re-check unfinished dependencies before claiming a task that appears ready.
 
+## Intercom Coherence Rule
+
+When the `backlogit` and `agent-intercom` capability packs are both enabled and
+an agent is presenting queue, stash, or triage choices remotely:
+
+1. Include item IDs, priority, kind or type, and a one-line summary in the
+   broadcast.
+2. Include the recommended ordering and the exact choice being requested.
+3. Prefer self-contained broadcasts over "see chat above" summaries.
+
 ## Continuity Protocol
 
 At meaningful boundaries such as task completion, review handoff, or session end:

@@ -29,7 +29,7 @@ Every capability pack definition must include:
 * **Recommendation logic** — how workspace discovery decides the pack should be proposed
 * **Overlay targets** — the exact artifacts or artifact classes affected by the pack
 * **Behavior deltas** — the workflow differences that appear when the pack is enabled
-* **Verification checks** — installation-time checks proving the overlay was applied consistently
+* **Verification checks** — installation-time checks proving the overlay was applied consistently, including adversarial multi-model verification that confirms template fidelity, overlay coherence, and cross-reference integrity
 * **Tuning drift checks** — how tuning detects that the overlay is stale, missing, or partially woven
 
 ### Example

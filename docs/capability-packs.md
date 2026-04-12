@@ -195,6 +195,7 @@ This pack does not replace general search guidance. It deepens it when a workspa
 * destructive approval routed through the intercom workflow
 * transmit / standby flows used for operator clarification and wait states
 * degraded-mode warning when intercom is unavailable
+* when `backlogit` is also enabled, staging-choice broadcasts become self-contained selection messages that include item ID, priority, kind, and one-line summary data for remote operator choice
 
 ### Verification checks
 

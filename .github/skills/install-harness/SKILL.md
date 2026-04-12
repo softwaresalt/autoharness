@@ -832,7 +832,34 @@ For each enabled capability pack:
 3. Verify all Markdown tables have consistent column counts per table
 4. Verify file paths in cross-references resolve to actual files
 
-#### Step 4.3: Report
+#### Step 4.5: Adversarial Verification
+
+Invoke the **verify-harness** skill to run multi-model adversarial review of the
+installed artifacts. This step is mandatory for `standard` and `full` presets and
+may be skipped for `starter` or when `--skip-adversarial` is explicitly passed.
+
+Pass:
+
+* `autoharness_home`: The resolved autoharness installation path
+* `workspace_path`: The target workspace path
+* `manifest_path`: `{workspace_path}/.autoharness/harness-manifest.yaml`
+* `auto_remediate`: true (apply HIGH-confidence fixes automatically)
+* `scope`: `all`
+
+The verify-harness skill dispatches three independent reviewer subagents — each
+using a different model — to audit template fidelity, overlay coherence, and
+cross-reference integrity. Findings are assembled into a confidence-weighted
+consensus report. HIGH-confidence additive or corrective fixes are applied
+automatically; destructive or ambiguous fixes are presented to the operator.
+
+If adversarial verification returns **FAIL** (unresolved HIGH-confidence
+CRITICAL/MAJOR findings), halt installation and present the findings. The
+operator must resolve them before the installation is considered complete.
+
+If adversarial verification returns **PASS WITH WARNINGS**, present the MEDIUM
+findings as advisory and continue.
+
+#### Step 4.6: Report
 
 Present an installation summary:
 

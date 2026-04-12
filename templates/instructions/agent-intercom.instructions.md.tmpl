@@ -41,6 +41,19 @@ Broadcast at meaningful transitions, not every trivial thought:
 
 For non-destructive file writes, prefer concise status messages such as `[FILE] created:` or `[FILE] modified:` with the affected path when the intercom workflow supports it.
 
+## Combined Rule for backlogit-enabled staging
+
+When the `agent-intercom` and `backlogit` capability packs are both enabled and
+an agent is presenting stash, queue, or backlog choices to the operator:
+
+1. Make the broadcast self-contained enough for remote selection.
+2. Include each candidate item's ID, priority, kind or type, and a one-line
+   summary.
+3. Include the recommended ordering or shortlist rationale and clearly state
+   that operator selection or confirmation is awaited.
+4. Do not assume the operator can see the full chat transcript to recover the
+   missing context.
+
 ## Approval Protocol
 
 For destructive actions:
