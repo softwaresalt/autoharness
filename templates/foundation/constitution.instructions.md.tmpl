@@ -217,8 +217,14 @@ effort and approaches 0% beyond 4 hours. All task decomposition enforces these r
 
 ### Stop Conditions and Circuit Breakers
 
+The full circuit breaker protocol — retry thresholds, escalation steps, stall
+detection, and error logging — is defined in `circuit-breaker.instructions.md`.
+All agents MUST follow that protocol. The summary table below is a quick
+reference; the instruction file is authoritative.
+
 | Counter                         | Limit | Action                                              |
 |---------------------------------|-------|-----------------------------------------------------|
+| Consecutive operation failures  | 3     | Stop, log to `autoharness-errors.log`, prompt user  |
 | Tasks attempted in session      | 20    | Halt, write memory checkpoint, exit                 |
 | Consecutive task failures       | 3     | Halt, escalate model tier or request operator help  |
 | Review-fix cycles per task      | 3     | Accept remaining as backlog items, commit, move on  |

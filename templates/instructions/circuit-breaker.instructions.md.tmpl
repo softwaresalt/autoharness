@@ -1,0 +1,97 @@
+---
+description: "Circuit breaker protocol — prevents agents from entering infinite retry loops on persistent failures"
+applyTo: '**'
+---
+
+# Circuit Breaker Instructions
+
+These rules prevent agents from spinning indefinitely when a task, command,
+or repair cycle repeatedly fails. Every agent in this workspace MUST observe
+these limits.
+
+## Universal Retry Threshold
+
+**MAXIMUM_RETRY_THRESHOLD = 3.**
+
+If any single operation (command execution, code fix attempt, file generation,
+tool invocation) fails **3 consecutive times** with substantially the same
+error, the agent MUST STOP executing that operation immediately.
+
+## Escalation Protocol
+
+Upon hitting the retry threshold:
+
+1. **Stop** — do not attempt the operation again.
+2. **Log** — record the failure chain in `autoharness-errors.log` at the
+   workspace root. Each entry MUST include:
+   * Timestamp (ISO 8601)
+   * Operation that failed
+   * Attempt count
+   * Error output or summary for each attempt
+   * Files involved
+   * Agent and skill context
+3. **Prompt** — surface the following message to the operator:
+   `Circuit breaker triggered after 3 consecutive failures. Please advise.`
+4. **Checkpoint** — write a memory checkpoint so session state is preserved
+   if the operator decides to restart or reassign.
+
+## Domain-Specific Limits
+
+These limits supplement the universal threshold. Whichever limit is reached
+first takes effect.
+
+| Counter                         | Limit | Action on breach                                    |
+|---------------------------------|-------|-----------------------------------------------------|
+| Build/test fix attempts per task| 5     | Mark task `{{STATUS_BLOCKED}}`, exit loop            |
+| Consecutive task failures       | 3     | Halt session, escalate model tier or request help    |
+| Review-fix cycles per task      | 3     | Accept remaining findings as backlog items, move on  |
+| Total fix-ci cycles per PR      | 5     | Halt, leave PR open for manual intervention          |
+| Tasks attempted in session      | 20    | Halt, write memory checkpoint, exit session          |
+
+## Stall Detection
+
+Commands that exceed their timeout are counted as failures:
+
+| Command type       | Timeout   |
+|--------------------|-----------|
+| Build/test         | 45 minutes|
+| Other commands     | 5 minutes |
+
+If a command exceeds its timeout, terminate the process and count it as
+one failed attempt toward the retry threshold.
+
+## Anti-Pattern Recognition
+
+Agents MUST NOT attempt to work around the circuit breaker by:
+
+* Restarting the same operation with trivial or cosmetic changes
+* Splitting the same failing operation into sub-operations that reproduce
+  the same error
+* Ignoring or suppressing error output to avoid incrementing the counter
+* Resetting attempt counters without operator approval
+
+## Log Format
+
+Each `autoharness-errors.log` entry follows this structure:
+
+```text
+---
+timestamp: {ISO 8601}
+agent: {agent name}
+skill: {skill name or "direct"}
+operation: {brief description}
+attempts: {count}
+errors:
+  - attempt: 1
+    error: |
+      {error output}
+  - attempt: 2
+    error: |
+      {error output}
+  - attempt: 3
+    error: |
+      {error output}
+files: [{list of files involved}]
+resolution: "Circuit breaker triggered. Awaiting operator guidance."
+---
+```

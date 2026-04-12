@@ -29,6 +29,30 @@ You are the central execution coordinator. You do not write code directly. You d
 
 This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions.
 
+## Concurrency Control
+
+Before modifying any source file, follow the concurrency protocol in
+`.github/instructions/concurrency.instructions.md`. Acquire a file lock via
+`scripts/acquire_lock.ps1 <filepath>` before editing and release it via
+`scripts/release_lock.ps1 <filepath>` after verification. Never skip locking
+when concurrent access is possible.
+
+## Dynamic Skill Discovery
+
+You have access to a registry of skills. Do not load all skill definitions
+into context at once. Instead:
+
+1. Use the **skill-search** skill (`scripts/search.ps1 <keyword>`) to find
+   the specific skill you need based on the current task requirements.
+2. Once found, read only that skill's `SKILL.md` into context for the
+   duration of the task.
+3. Let skill content leave the context window after the task completes.
+
+The core skills you invoke regularly (build-feature, harness-architect,
+review, fix-ci, pr-lifecycle, runtime-verification, operational-closure)
+are referenced by name above — load their `SKILL.md` on demand when you
+reach the step that needs them.
+
 ## Required Steps
 
 ### Step 1: Pre-Flight Checks

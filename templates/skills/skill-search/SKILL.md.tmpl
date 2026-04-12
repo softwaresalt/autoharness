@@ -1,0 +1,75 @@
+---
+description: "Dynamic skill discovery — search available skills by keyword instead of loading all skill definitions into the system prompt"
+---
+
+## Skill Search
+
+Search the installed skill registry by keyword and return a summarized list
+of matching skills. This prevents context window bloat by loading skill
+definitions on demand rather than dumping every skill into the system prompt.
+
+## When to Use
+
+Invoke this skill whenever you need to find a specific capability but do not
+already know which skill provides it. Use keyword-based search to narrow down
+the right skill, then load only that skill's `SKILL.md` for the duration of
+the task.
+
+**Do not load all skills at once.** Use this skill to discover what you need,
+then read the specific `SKILL.md` file into context.
+
+## Inputs
+
+* `keyword`: (Required) A search term or phrase describing the capability needed.
+  Examples: `"test"`, `"review"`, `"lock"`, `"build"`, `"plan"`, `"safety"`.
+
+## Output
+
+A summarized table of matching skills with:
+
+* Skill name (directory name)
+* One-line description (from YAML frontmatter `description` field)
+* File path for on-demand loading
+
+## Script
+
+### search.ps1
+
+Scans all `SKILL.md` files under `.github/skills/` and returns matches
+where the keyword appears in the skill name or its YAML frontmatter
+description.
+
+```text
+Usage: scripts/search.ps1 <keyword>
+```
+
+Output format:
+
+```text
+SKILL                        DESCRIPTION                                                          PATH
+-----                        -----------                                                          ----
+build-feature                Execute a harness loop — iteratively run tests...                    .github/skills/build-feature/SKILL.md
+harness-architect            Scaffolds compilable but failing test harnesses...                   .github/skills/harness-architect/SKILL.md
+```
+
+## Lazy Loading Protocol
+
+Once you identify the right skill via `search.ps1`:
+
+1. **Read** the specific `SKILL.md` file into context:
+   `Get-Content .github/skills/{skill-name}/SKILL.md`
+2. **Follow** the skill's instructions for the duration of the current task.
+3. **Do not retain** the skill content after the task completes — let it
+   leave the context window naturally.
+
+This keeps the active context focused on the current task rather than
+carrying every skill's instructions simultaneously.
+
+## Fallback
+
+If `search.ps1` returns no results:
+
+1. Try broader or alternative keywords.
+2. List all available skills: `Get-ChildItem .github/skills/ -Directory | Select-Object Name`
+3. If the capability truly does not exist, report it to the operator rather
+   than improvising.

@@ -432,8 +432,8 @@ Map primitives to template groups:
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
 | 4 - Orchestration | `agents/stage`, `agents/ship`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect` |
-| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, optional `instructions/strict-safety` |
-| 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions` |
+| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
+| 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions`, `skills/skill-search` |
 | 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
 | 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc` |
@@ -505,6 +505,8 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `git-merge.instructions.md` — Universal (install as-is)
    * `pull-request.instructions.md` — Universal (install as-is)
    * `prompt-builder.instructions.md` — Universal (install as-is)
+   * `circuit-breaker.instructions.md` — Anti-spinning protocol with retry thresholds, escalation, and error logging. Universal (install as-is). Referenced by the constitution's Stop Conditions section.
+   * `concurrency.instructions.md` — File operation locking protocol for multi-agent and human+agent concurrency control. Universal (install as-is). Requires the `file-lock` skill scripts to be installed alongside.
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
    * `ci-security.instructions.md` — CI/CD security and hygiene conventions. Adapt `{{CI_WORKFLOW_GLOB}}` to match the workspace CI platform (e.g., `**/.github/workflows/*.yml` for GitHub Actions). Install when the workspace uses a CI system detected during discovery.
    * `workflows.instructions.md` — CI/CD workflow structural conventions (job naming, artifacts, caching, matrix, reusable workflows). Install alongside `ci-security.instructions.md` when a CI system is detected.
@@ -608,6 +610,8 @@ Generate skill files:
    * `harvest/SKILL.md` — Install when Primitive 4 is selected. Resolves backlog tool variables from the registry
    * `pr-lifecycle/SKILL.md` — Install when Primitive 4 is selected. Language-agnostic; uses `gh` CLI
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
+    * `file-lock/SKILL.md` — Install when Primitive 5 is selected. Provides `scripts/acquire_lock.ps1` and `scripts/release_lock.ps1` for file-level concurrency control. Copy the PowerShell scripts from `{autoharness_home}/templates/skills/file-lock/scripts/` into `{workspace_path}/scripts/`.
+    * `skill-search/SKILL.md` — Install when Primitive 6 is selected. Provides `scripts/search.ps1` for dynamic on-demand skill discovery. Copy the PowerShell script from `{autoharness_home}/templates/skills/skill-search/scripts/` into `{workspace_path}/scripts/`.
     * `runtime-verification/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `operational-closure/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
