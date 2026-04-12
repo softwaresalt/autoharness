@@ -57,7 +57,7 @@ for DIR in "$SKILLS_ROOT"/*/; do
     NAME_LOWER="$(echo "$SKILL_NAME" | tr '[:upper:]' '[:lower:]')"
     DESC_LOWER="$(echo "$DESCRIPTION" | tr '[:upper:]' '[:lower:]')"
 
-    if echo "$NAME_LOWER" | grep -q "$KEYWORD_LOWER" || echo "$DESC_LOWER" | grep -q "$KEYWORD_LOWER"; then
+    if echo "$NAME_LOWER" | grep -qF "$KEYWORD_LOWER" || echo "$DESC_LOWER" | grep -qF "$KEYWORD_LOWER"; then
         # Truncate description if too long
         if [ ${#DESCRIPTION} -gt 65 ]; then
             DESCRIPTION="${DESCRIPTION:0:62}..."

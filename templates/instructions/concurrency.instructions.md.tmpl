@@ -67,8 +67,8 @@ release the lock:
 3. **Do not force-break locks.** If a lock exists, only the operator may
    decide to break it. Agents MUST NOT delete lock files they did not create.
 4. **Lock files are ephemeral.** They MUST NOT be committed to version
-   control. The workspace `.gitignore` should include `*.lock` entries for
-   agent lock files.
+   control. The workspace `.gitignore` should include `.*.lock` entries
+   (or `**/.*.lock` for an explicit recursive pattern) for agent lock files.
 
 ## Recovery
 

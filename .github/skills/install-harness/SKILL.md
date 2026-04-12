@@ -731,8 +731,13 @@ Write generated artifacts to the target workspace. Use the following directory m
 If the `file-lock` skill is being installed (Primitive 5 selected), ensure the
 workspace `.gitignore` contains entries for agent lock files:
 
-1. If `.gitignore` does not exist, create it with: `*.lock`
-2. If `.gitignore` exists but does not contain `*.lock`, append it
+1. If `.gitignore` does not exist, create it with:
+   * `.*.lock`
+   * `**/.*.lock`
+2. If `.gitignore` exists but does not contain these dotfile lock patterns,
+   append any missing entries:
+   * `.*.lock`
+   * `**/.*.lock`
 3. Record this action in the manifest so the tuner can detect if it was removed
 
 #### Step 3.3: Write Installation Manifest

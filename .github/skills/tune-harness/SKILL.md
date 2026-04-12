@@ -127,7 +127,7 @@ For each installed artifact, check:
   6. If `skill-search/SKILL.md` is installed but `search.ps1`/`search.sh` is missing, flag as P0 Breaking
 * **Circuit breaker and concurrency instructions**: If these instruction files are installed:
   1. Verify they are referenced from the constitution's Stop Conditions section
-  2. Verify the `.gitignore` contains `*.lock` when concurrency instructions are present
+  2. Verify the `.gitignore` contains an autoharness dot-lock ignore pattern (for example `.*.lock` or `**/.*.lock`) when concurrency instructions are present; do not require a broad `*.lock` pattern because that would ignore legitimate repository lockfiles such as `Cargo.lock` or `poetry.lock`
   3. Verify AGENTS.md contains the Foundational Protocols table referencing these instructions
 * **Deprecated agents**: If deprecated agent files are found in `.github/agents/` that match AGENTS.md's deprecation table, flag as P2 Degrading drift and propose removal with a note that the functionality has been absorbed into the active agent/skill set.
 

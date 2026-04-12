@@ -41,6 +41,7 @@ Acquire file locks ONLY when:
 * Multiple agents are active on the same branch
 * The operator has explicitly enabled concurrent-access mode
 * The workspace uses the `agent-intercom` pack with multi-agent sessions
+* A human operator is known to be editing concurrently
 
 In single-agent, single-branch workflows (the common case), branch-level
 isolation via Git provides sufficient concurrency safety. Do not acquire

@@ -82,7 +82,8 @@ Before changing anything:
    If lock acquisition fails on a boundary file:
    * Classify the edit as `ActionRisk: high` (lock contention on boundary file)
    * Add the lock conflict to the safety checklist
-   * Require operator approval to proceed or recommend expanding scope
+   * Do not modify the file; retry once after a brief wait
+   * If contention persists, prompt the operator to resolve or break the lock and coordinate file ownership before proceeding
 4. Refuse edits outside the boundary unless the operator expands scope
 5. Re-state the freeze boundary before each risky edit sequence
 6. Reject any `ProposedAction` whose targets fall outside the declared boundary

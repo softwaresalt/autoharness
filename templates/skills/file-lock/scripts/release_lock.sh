@@ -19,7 +19,7 @@ if [ ! -e "$FILEPATH" ]; then
 fi
 
 if [ -e "$FILEPATH" ]; then
-    RESOLVED_DIR="$(dirname "$(realpath "$FILEPATH")")"
+    RESOLVED_DIR="$(cd "$(dirname "$FILEPATH")" && pwd -P)"
 else
     RESOLVED_DIR="$(dirname "$FILEPATH")"
 fi

@@ -19,9 +19,8 @@ if [ ! -e "$FILEPATH" ]; then
     exit 1
 fi
 
-RESOLVED_PATH="$(realpath "$FILEPATH")"
-DIRECTORY="$(dirname "$RESOLVED_PATH")"
-FILENAME="$(basename "$RESOLVED_PATH")"
+DIRECTORY="$(cd "$(dirname "$FILEPATH")" && pwd -P)"
+FILENAME="$(basename "$FILEPATH")"
 LOCKFILE="${DIRECTORY}/.${FILENAME}.lock"
 
 if [ -e "$LOCKFILE" ]; then
