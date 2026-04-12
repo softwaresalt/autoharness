@@ -102,6 +102,11 @@
             "type": "string",
             "description": "Workspace-relative path to the installed artifact"
           },
+          "artifact_type": {
+            "type": "string",
+            "enum": ["foundation", "agent", "skill", "instruction", "policy", "prompt", "script", "config"],
+            "description": "Classification of the artifact for drift detection and recovery"
+          },
           "primitive": {
             "type": "integer",
             "minimum": 1,

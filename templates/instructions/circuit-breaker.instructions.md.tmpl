@@ -17,36 +17,63 @@ If any single operation (command execution, code fix attempt, file generation,
 tool invocation) fails **3 consecutive times** with substantially the same
 error, the agent MUST STOP executing that operation immediately.
 
+### Skill-Managed Loop Exception
+
+Skills that define their own loop limits (build-feature: 5, fix-ci: 5) take
+precedence over the universal threshold **within their loop scope**. The
+universal threshold applies to all operations outside skill-managed loops.
+
+When operating inside a skill-managed loop:
+
+* Follow the skill's documented attempt limit (e.g., 5 for build-feature).
+* If the **same error** recurs on attempts 3+ within the loop, the universal
+  circuit breaker applies: STOP and escalate. Different errors on each attempt
+  indicate genuine exploration and may continue to the skill's limit.
+* When the skill loop completes (success or breaker trip), the universal
+  threshold governs all subsequent operations.
+
 ## Escalation Protocol
 
-Upon hitting the retry threshold:
+Upon hitting the retry threshold (universal or skill-managed):
 
 1. **Stop** — do not attempt the operation again.
-2. **Log** — record the failure chain in `autoharness-errors.log` at the
-   workspace root. Each entry MUST include:
+2. **Log** — record the failure chain as a session memory checkpoint at
+   `{{DOCS_MEMORY}}/{YYYY-MM-DD}-circuit-break-{operation-slug}.md`.
+   Each entry MUST include:
    * Timestamp (ISO 8601)
    * Operation that failed
    * Attempt count
    * Error output or summary for each attempt
    * Files involved
    * Agent and skill context
+   * Whether this was a universal or skill-managed breaker trip
 3. **Prompt** — surface the following message to the operator:
-   `Circuit breaker triggered after 3 consecutive failures. Please advise.`
+   `Circuit breaker triggered after {N} consecutive failures. Details: {{DOCS_MEMORY}}/{filename}. Please advise.`
 4. **Checkpoint** — write a memory checkpoint so session state is preserved
    if the operator decides to restart or reassign.
 
 ## Domain-Specific Limits
 
-These limits supplement the universal threshold. Whichever limit is reached
-first takes effect.
+These limits supplement the universal threshold. The most specific applicable
+limit governs.
 
-| Counter                         | Limit | Action on breach                                    |
-|---------------------------------|-------|-----------------------------------------------------|
-| Build/test fix attempts per task| 5     | Mark task `{{STATUS_BLOCKED}}`, exit loop            |
-| Consecutive task failures       | 3     | Halt session, escalate model tier or request help    |
-| Review-fix cycles per task      | 3     | Accept remaining findings as backlog items, move on  |
-| Total fix-ci cycles per PR      | 5     | Halt, leave PR open for manual intervention          |
-| Tasks attempted in session      | 20    | Halt, write memory checkpoint, exit session          |
+| Counter                                     | Limit | Action on breach                                    |
+|---------------------------------------------|-------|-----------------------------------------------------|
+| Build/test fix attempts per task            | 5     | Mark task `{{STATUS_BLOCKED}}`, exit loop (skill-managed) |
+| Same-error recurrence within skill loop     | 3     | Universal breaker applies: stop, log, prompt        |
+| Consecutive same-check failures in fix-ci   | 3     | Halt fix-ci, report check stability issue           |
+| Total fix-ci cycles per PR                  | 5     | Halt, leave PR open for manual intervention (skill-managed) |
+| Consecutive task failures                   | 3     | Halt session, prompt operator for guidance           |
+| Review-fix cycles per task                  | 3     | Accept remaining findings as backlog items, move on  |
+| Tasks attempted in session                  | 20    | Halt, write memory checkpoint, exit session          |
+| Session stalls                              | 3     | Halt, write checkpoint, prompt operator              |
+
+### Review-Fix Cycle Definition
+
+A review-fix cycle is one complete iteration of: (1) invoke review skill →
+(2) parse findings → (3) apply fixes. Cycle counting starts at 0 (first review).
+After 3 fix cycles, accept remaining P2/P3 findings as new backlog items,
+commit the task, and move it to `{{STATUS_DONE}}`.
 
 ## Stall Detection
 
@@ -60,6 +87,24 @@ Commands that exceed their timeout are counted as failures:
 If a command exceeds its timeout, terminate the process and count it as
 one failed attempt toward the retry threshold.
 
+### Session Stall Counting
+
+A **session stall** occurs when the agent encounters a blocking condition that
+prevents forward progress. The session stall counter increments when:
+
+1. A command exceeds its timeout (build/test: 45 min, other: 5 min)
+2. A file lock acquisition blocks and the retry also fails (per concurrency protocol)
+3. A required tool or MCP surface becomes unavailable mid-session
+4. An agent-intercom heartbeat ping fails (when the pack is enabled)
+
+After 3 session stalls in a single session, the agent MUST halt execution,
+write a session checkpoint to `{{DOCS_MEMORY}}/`, and prompt the operator:
+
+`Session stall limit (3) reached. Environment may be unstable. Please investigate.`
+
+Each stall MUST be logged in the circuit breaker checkpoint with the stall type,
+timestamp, and the action that was blocked.
+
 ## Anti-Pattern Recognition
 
 Agents MUST NOT attempt to work around the circuit breaker by:
@@ -72,26 +117,32 @@ Agents MUST NOT attempt to work around the circuit breaker by:
 
 ## Log Format
 
-Each `autoharness-errors.log` entry follows this structure:
+Each circuit breaker checkpoint in `{{DOCS_MEMORY}}/` follows this structure:
 
-```text
+```markdown
 ---
+type: circuit-breaker
 timestamp: {ISO 8601}
 agent: {agent name}
 skill: {skill name or "direct"}
+breaker_type: {universal | skill-managed | session-stall}
 operation: {brief description}
 attempts: {count}
-errors:
-  - attempt: 1
-    error: |
-      {error output}
-  - attempt: 2
-    error: |
-      {error output}
-  - attempt: 3
-    error: |
-      {error output}
-files: [{list of files involved}]
-resolution: "Circuit breaker triggered. Awaiting operator guidance."
 ---
+
+## Failure Chain
+
+### Attempt 1
+{error output}
+
+### Attempt 2
+{error output}
+
+### Attempt 3
+{error output}
+
+## Context
+- Files involved: {list}
+- Resolution: Circuit breaker triggered. Awaiting operator guidance.
+- Suggested next steps: {if any}
 ```

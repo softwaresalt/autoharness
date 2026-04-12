@@ -58,6 +58,23 @@ When the `strict-safety` capability pack is installed, agents MUST also follow
 `ProposedAction`, `ActionRisk`, and `ActionResult` rather than leaving the
 approval path or rollback state implicit.
 
+---
+
+## Foundational Protocols
+
+All agents MUST follow these cross-cutting protocols in addition to the principles above:
+
+| Protocol | Location | Applies To |
+|---|---|---|
+| **Circuit Breaker** — Retry thresholds, stop conditions, stall detection, error logging | `.github/instructions/circuit-breaker.instructions.md` | All agents, all retry loops |
+| **Concurrency Control** — File locking when concurrent access is likely | `.github/instructions/concurrency.instructions.md` | Multi-agent or human+agent file edits |
+| **Skill Discovery** — Find available capabilities on demand by keyword | `scripts/search.ps1` / `scripts/search.sh` (when Primitive 6 installed) | Ad-hoc capability lookup |
+
+These protocols are separate from the constitution’s principles because they
+define operational mechanics rather than architectural constraints. The
+circuit breaker is authoritative for all retry-related behavior; the
+constitution’s Stop Conditions table is a quick-reference summary.
+
 ### Capability Overlay — agent-intercom
 
 When the `agent-intercom` capability pack is installed, agents MUST also follow
@@ -154,6 +171,28 @@ compliance-critical work:
 * assemble consensus-weighted findings: HIGH (all agree), MEDIUM (majority), LOW (single reviewer)
 * treat HIGH-confidence P0/P1 findings as gate-blocking just like standard review findings
 * feed remediation queue entries into backlog for structured follow-up
+
+### Capability Overlay Interaction Rules
+
+When multiple capability packs are enabled simultaneously, follow these
+precedence rules to resolve conflicts:
+
+| Combination | Resolution |
+|---|---|
+| agent-intercom + backlogit | Query backlogit first for task state; format the result using intercom broadcast rules for remote operator choice |
+| agent-engram + any other overlay | Engram is a discovery method; other overlays are independent. Use engram for search, other overlays for their domain |
+| strict-safety + any overlay | Classify risky actions via strict-safety first; then route approval through the appropriate overlay (intercom if available, else local) |
+| strict-safety + concurrency | Log lock conflicts as `ActionResult: blocked` when strict-safety is enabled |
+| backlogit + strict-safety | Persist strict-safety decisions via backlogit checkpoints when checkpoint operations are supported |
+| Multiple overlays unavailable | Fall back to core protocols (constitution + workflow-policies). Warn that overlay visibility is degraded |
+
+General rules:
+
+* Each overlay controls its own domain — do not attempt to merge protocols
+* When in doubt about precedence, choose the more conservative behavior
+* If an overlay's tool surface becomes unavailable mid-session, warn the
+  operator and continue with the core protocol only
+* Overlay interaction is additive: each adds behavior, none removes another
 
 ---
 

@@ -32,27 +32,48 @@ This agent works across any AI coding environment: VS Code with GitHub Copilot, 
 
 ## Concurrency Control
 
-Before modifying any source file, follow the concurrency protocol in
-`.github/instructions/concurrency.instructions.md`. Acquire a file lock via
-`scripts/acquire_lock.ps1 <filepath>` before editing and release it via
-`scripts/release_lock.ps1 <filepath>` after verification. Never skip locking
-when concurrent access is possible.
+When multiple agents are active on the same branch, or a human operator
+is editing files in the same workspace, follow the concurrency protocol
+in `.github/instructions/concurrency.instructions.md`.
 
-## Dynamic Skill Discovery
+Acquire file locks ONLY when:
 
-You have access to a registry of skills. Do not load all skill definitions
-into context at once. Instead:
+* Multiple agents are active on the same branch
+* The operator has explicitly enabled concurrent-access mode
+* The workspace uses the `agent-intercom` pack with multi-agent sessions
 
-1. Use the **skill-search** skill (`scripts/search.ps1 <keyword>`) to find
-   the specific skill you need based on the current task requirements.
-2. Once found, read only that skill's `SKILL.md` into context for the
-   duration of the task.
-3. Let skill content leave the context window after the task completes.
+In single-agent, single-branch workflows (the common case), branch-level
+isolation via Git provides sufficient concurrency safety. Do not acquire
+per-file locks unless one of the conditions above is met.
 
-The core skills you invoke regularly (deliberate, spike, impl-plan,
-plan-harden, plan-review, harvest) are referenced by name in the steps
-below — load their `SKILL.md` on demand when you reach the step that
-needs them.
+Lock commands (when needed):
+
+* PowerShell: `scripts/acquire_lock.ps1 <filepath>` / `scripts/release_lock.ps1 <filepath>`
+* Bash: `scripts/acquire_lock.sh <filepath>` / `scripts/release_lock.sh <filepath>`
+
+## Skill Loading Strategy
+
+### Named skills (load directly when reaching the step that needs them)
+
+These core skills are referenced by name in the steps below. When you
+reach a step that invokes one, read its `.github/skills/{name}/SKILL.md`
+directly into context. Do not search for them — you already know the name.
+
+* `deliberate`, `spike`, `impl-plan`, `plan-harden`, `plan-review`, `harvest`
+* `compound`, `compact-context`, `safety-modes`
+
+### Discovery skills (use skill-search when the capability is unknown)
+
+When you need a capability not listed above, use the skill-search tool to
+find it by keyword. This avoids loading all skill definitions up front.
+
+When Primitive 6 (Injection Points) is installed:
+
+* PowerShell: `scripts/search.ps1 <keyword>`
+* Bash: `scripts/search.sh <keyword>`
+
+If Primitive 6 is not installed, enumerate skills manually:
+`ls -d .github/skills/*/` or `Get-ChildItem .github/skills/ -Directory`
 
 ## Inputs
 

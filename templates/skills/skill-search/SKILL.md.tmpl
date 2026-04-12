@@ -33,14 +33,18 @@ A summarized table of matching skills with:
 
 ## Script
 
-### search.ps1
+Both PowerShell and Bash equivalents are provided for cross-platform
+compatibility. Use whichever matches the runtime environment.
+
+### search (.ps1 / .sh)
 
 Scans all `SKILL.md` files under `.github/skills/` and returns matches
 where the keyword appears in the skill name or its YAML frontmatter
 description.
 
 ```text
-Usage: scripts/search.ps1 <keyword>
+PowerShell: scripts/search.ps1 <keyword>
+Bash:       scripts/search.sh <keyword>
 ```
 
 Output format:
@@ -54,10 +58,11 @@ harness-architect            Scaffolds compilable but failing test harnesses... 
 
 ## Lazy Loading Protocol
 
-Once you identify the right skill via `search.ps1`:
+Once you identify the right skill via `search.ps1` / `search.sh`:
 
 1. **Read** the specific `SKILL.md` file into context:
-   `Get-Content .github/skills/{skill-name}/SKILL.md`
+   * PowerShell: `Get-Content .github/skills/{skill-name}/SKILL.md`
+   * Bash: `cat .github/skills/{skill-name}/SKILL.md`
 2. **Follow** the skill's instructions for the duration of the current task.
 3. **Do not retain** the skill content after the task completes — let it
    leave the context window naturally.
@@ -67,9 +72,29 @@ carrying every skill's instructions simultaneously.
 
 ## Fallback
 
-If `search.ps1` returns no results:
+If `search.ps1` / `search.sh` returns no results:
 
 1. Try broader or alternative keywords.
-2. List all available skills: `Get-ChildItem .github/skills/ -Directory | Select-Object Name`
+2. List all available skills:
+   * PowerShell: `Get-ChildItem .github/skills/ -Directory | Select-Object Name`
+   * Bash: `ls -d .github/skills/*/`
 3. If the capability truly does not exist, report it to the operator rather
    than improvising.
+
+## Installed Scripts Registry
+
+All scripts installed by autoharness live in `{workspace}/scripts/`. This
+table is the central reference for what exists and where it comes from.
+
+| Script | Source Skill | Platform | Purpose |
+|---|---|---|---|
+| `acquire_lock.ps1` | file-lock | PowerShell | Acquire advisory file lock |
+| `acquire_lock.sh` | file-lock | Bash | Acquire advisory file lock |
+| `release_lock.ps1` | file-lock | PowerShell | Release advisory file lock |
+| `release_lock.sh` | file-lock | Bash | Release advisory file lock |
+| `search.ps1` | skill-search | PowerShell | Search skills by keyword |
+| `search.sh` | skill-search | Bash | Search skills by keyword |
+
+Scripts are installed conditionally based on selected primitives (Primitive 5
+for file-lock, Primitive 6 for skill-search). Not all scripts may be present
+in every workspace.

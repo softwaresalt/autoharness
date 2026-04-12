@@ -610,8 +610,8 @@ Generate skill files:
    * `harvest/SKILL.md` — Install when Primitive 4 is selected. Resolves backlog tool variables from the registry
    * `pr-lifecycle/SKILL.md` — Install when Primitive 4 is selected. Language-agnostic; uses `gh` CLI
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
-    * `file-lock/SKILL.md` — Install when Primitive 5 is selected. Provides `scripts/acquire_lock.ps1` and `scripts/release_lock.ps1` for file-level concurrency control. Copy the PowerShell scripts from `{autoharness_home}/templates/skills/file-lock/scripts/` into `{workspace_path}/scripts/`.
-    * `skill-search/SKILL.md` — Install when Primitive 6 is selected. Provides `scripts/search.ps1` for dynamic on-demand skill discovery. Copy the PowerShell script from `{autoharness_home}/templates/skills/skill-search/scripts/` into `{workspace_path}/scripts/`.
+    * `file-lock/SKILL.md` — Install when Primitive 5 is selected. Provides `scripts/acquire_lock.ps1`, `scripts/acquire_lock.sh`, `scripts/release_lock.ps1`, and `scripts/release_lock.sh` for file-level concurrency control. Copy all scripts from `{autoharness_home}/templates/skills/file-lock/scripts/` into `{workspace_path}/scripts/`.
+    * `skill-search/SKILL.md` — Install when Primitive 6 is selected. Provides `scripts/search.ps1` and `scripts/search.sh` for dynamic on-demand skill discovery. Copy all scripts from `{autoharness_home}/templates/skills/skill-search/scripts/` into `{workspace_path}/scripts/`.
     * `runtime-verification/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `operational-closure/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
@@ -720,10 +720,20 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Review Personas | `{workspace}/.github/agents/review/` |
 | Research Agents | `{workspace}/.github/agents/research/` |
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
+| Scripts (when Primitive 5 or 6 selected) | `{workspace}/scripts/` — copy all `.ps1` and `.sh` files from `{autoharness_home}/templates/skills/{skill-name}/scripts/` for each skill that includes scripts (file-lock, skill-search) |
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
 | Backlog config + stash | `{workspace}/{{BACKLOG_DIRECTORY}}/` (queue/, archive/, config.yml, queue/.stash.md) |
 | Knowledge directories | `{workspace}/` ({{DOCS_COMPOUND}}/, {{DOCS_PLANS}}/, {{DOCS_DECISIONS}}/, {{DOCS_MEMORY}}/, {{DOCS_CLOSURE}}/) |
+
+#### Step 3.2b: Update .gitignore
+
+If the `file-lock` skill is being installed (Primitive 5 selected), ensure the
+workspace `.gitignore` contains entries for agent lock files:
+
+1. If `.gitignore` does not exist, create it with: `*.lock`
+2. If `.gitignore` exists but does not contain `*.lock`, append it
+3. Record this action in the manifest so the tuner can detect if it was removed
 
 #### Step 3.3: Write Installation Manifest
 

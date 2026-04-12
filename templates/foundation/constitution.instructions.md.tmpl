@@ -224,11 +224,14 @@ reference; the instruction file is authoritative.
 
 | Counter                         | Limit | Action                                              |
 |---------------------------------|-------|-----------------------------------------------------|
-| Consecutive operation failures  | 3     | Stop, log to `autoharness-errors.log`, prompt user  |
+| Consecutive operation failures  | 3     | Stop, log to `{{DOCS_MEMORY}}/`, prompt user        |
+| Skill-managed loop (build/fix-ci)| 5    | Skill limit governs inside loop scope               |
+| Same-error recurrence in loop   | 3     | Universal breaker overrides: stop, log, prompt      |
 | Tasks attempted in session      | 20    | Halt, write memory checkpoint, exit                 |
-| Consecutive task failures       | 3     | Halt, escalate model tier or request operator help  |
+| Consecutive task failures       | 3     | Halt, prompt operator for guidance                  |
 | Review-fix cycles per task      | 3     | Accept remaining as backlog items, commit, move on  |
 | Total fix-ci cycles             | 5     | Halt, leave PR open for manual intervention         |
+| Session stalls                  | 3     | Halt, write checkpoint, prompt operator             |
 
 ### Model Routing
 

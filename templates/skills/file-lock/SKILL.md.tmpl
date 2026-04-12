@@ -31,39 +31,44 @@ Agents MUST follow the concurrency protocol defined in
 
 ## Scripts
 
-### acquire_lock.ps1
+Both PowerShell and Bash equivalents are provided for cross-platform
+compatibility. Use whichever matches the runtime environment.
+
+### acquire_lock (.ps1 / .sh)
 
 Acquires a file lock by creating a `.{filename}.lock` file in the same
 directory as the target file. Fails if the lock already exists.
 
 ```text
-Usage: scripts/acquire_lock.ps1 <filepath>
+PowerShell: scripts/acquire_lock.ps1 <filepath>
+Bash:       scripts/acquire_lock.sh <filepath>
 ```
 
 The lock file contains:
 
-* Agent or process identifier (`$env:AGENT_NAME` or `"unknown"`)
+* Agent or process identifier (`$env:AGENT_NAME` / `$AGENT_NAME` or `"unknown"`)
 * Timestamp (ISO 8601)
 * PID of the calling process
 
-### release_lock.ps1
+### release_lock (.ps1 / .sh)
 
 Releases a file lock by deleting the `.{filename}.lock` file.
 
 ```text
-Usage: scripts/release_lock.ps1 <filepath>
+PowerShell: scripts/release_lock.ps1 <filepath>
+Bash:       scripts/release_lock.sh <filepath>
 ```
 
 ## Workflow
 
 ```text
 1. Agent identifies file to modify
-2. Agent runs: scripts/acquire_lock.ps1 <filepath>
+2. Agent runs: scripts/acquire_lock.{ps1|sh} <filepath>
    ├─ Exit 0 → lock acquired, proceed to edit
    └─ Exit 1 → lock held, wait or prompt operator
 3. Agent modifies the file
 4. Agent verifies the modification (compile, test, etc.)
-5. Agent runs: scripts/release_lock.ps1 <filepath>
+5. Agent runs: scripts/release_lock.{ps1|sh} <filepath>
 ```
 
 ## Lock Hygiene

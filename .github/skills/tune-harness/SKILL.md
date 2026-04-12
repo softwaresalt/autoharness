@@ -118,6 +118,17 @@ For each installed artifact, check:
 * **Strict-safety weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `strict-safety.instructions.md`, `safety-modes`, `plan-harden`, review, and closure workflows consistently reference `ProposedAction`, `ActionRisk`, `ActionResult`, and approval expectations?
 * **Release-observability weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `release-observability.instructions.md`, operational-closure, and runtime-verification consistently reference monitoring plans, observation windows, and rollback triggers?
 * **Agent-native parity reviewer**: If MCP or parity-sensitive agent tooling is now present, does the review layer install and route `agent-native-parity-reviewer.agent.md` where appropriate?
+* **Script artifacts**: For each manifest-recorded script artifact (acquire_lock.ps1/.sh, release_lock.ps1/.sh, search.ps1/.sh):
+  1. Verify the file exists at `{workspace_path}/scripts/{script_name}`
+  2. Compare checksum to manifest value
+  3. Classify as `missing`, `user-modified`, or `unchanged`
+  4. Flag missing scripts as P0 Breaking drift — agents referencing these scripts will fail at runtime
+  5. If `concurrency.instructions.md` is installed but lock scripts are missing, flag as P0 Breaking
+  6. If `skill-search/SKILL.md` is installed but `search.ps1`/`search.sh` is missing, flag as P0 Breaking
+* **Circuit breaker and concurrency instructions**: If these instruction files are installed:
+  1. Verify they are referenced from the constitution's Stop Conditions section
+  2. Verify the `.gitignore` contains `*.lock` when concurrency instructions are present
+  3. Verify AGENTS.md contains the Foundational Protocols table referencing these instructions
 * **Deprecated agents**: If deprecated agent files are found in `.github/agents/` that match AGENTS.md's deprecation table, flag as P2 Degrading drift and propose removal with a note that the functionality has been absorbed into the active agent/skill set.
 
 Record: `health_report{}` with per-artifact status and any `compound-refresh`
