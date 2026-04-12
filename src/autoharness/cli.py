@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import platform
-import re
 import shutil
 import sys
 from pathlib import Path
@@ -71,11 +70,115 @@ def _vscode_user_settings_path() -> Path | None:
 
 
 def _strip_jsonc(text: str) -> str:
-    """Strip // line comments and /* */ block comments from JSONC, and trailing commas."""
-    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
-    text = re.sub(r'(?<!https:)(?<!http:)//[^\n]*', '', text)
-    text = re.sub(r',(\s*[}\]])', r'\1', text)
-    return text
+    """Strip JSONC comments and trailing commas without touching quoted strings.
+
+    Uses a character-level state machine that tracks string boundaries so that
+    comment-like sequences inside string values are never removed.
+    """
+    # Phase 1: strip comments
+    result: list[str] = []
+    i = 0
+    in_string = False
+    escape = False
+    in_line_comment = False
+    in_block_comment = False
+
+    while i < len(text):
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < len(text) else ""
+
+        if in_line_comment:
+            if ch == "\n":
+                in_line_comment = False
+                result.append(ch)
+            i += 1
+            continue
+
+        if in_block_comment:
+            if ch == "*" and nxt == "/":
+                in_block_comment = False
+                i += 2
+            else:
+                i += 1
+            continue
+
+        if in_string:
+            result.append(ch)
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if ch == '"':
+            in_string = True
+            result.append(ch)
+            i += 1
+            continue
+
+        if ch == "/" and nxt == "/":
+            in_line_comment = True
+            i += 2
+            continue
+
+        if ch == "/" and nxt == "*":
+            in_block_comment = True
+            i += 2
+            continue
+
+        result.append(ch)
+        i += 1
+
+    if in_string:
+        raise ValueError("Invalid JSONC: unterminated string literal in VS Code settings.")
+    if in_block_comment:
+        raise ValueError("Invalid JSONC: unterminated block comment in VS Code settings.")
+
+    # Phase 2: strip trailing commas before } or ]
+    stripped = "".join(result)
+    cleaned: list[str] = []
+    in_string = False
+    escape = False
+    i = 0
+
+    while i < len(stripped):
+        ch = stripped[i]
+
+        if in_string:
+            cleaned.append(ch)
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if ch == '"':
+            in_string = True
+            cleaned.append(ch)
+            i += 1
+            continue
+
+        if ch == ",":
+            j = i + 1
+            while j < len(stripped) and stripped[j] in " \t\r\n":
+                j += 1
+            if j < len(stripped) and stripped[j] in "}]":
+                i += 1
+                continue
+
+        cleaned.append(ch)
+        i += 1
+
+    if in_string:
+        raise ValueError("Invalid JSONC: unterminated string literal in VS Code settings.")
+
+    return "".join(cleaned)
 
 
 def _setup_vscode() -> None:
@@ -88,15 +191,16 @@ def _setup_vscode() -> None:
         sys.exit(1)
 
     # Build path keys using fully-resolved absolute paths — no tilde, no variables.
-    # Forward slashes work on all platforms in VS Code JSON settings.
+    # Use POSIX (forward-slash) paths so the same key works on all platforms and
+    # avoids duplicate entries if the user already has forward-slash keys.
     agents_path  = home / ".github" / "agents"
     skills_path  = home / ".github" / "skills"
     prompts_path = home / ".github" / "prompts"
 
     entries = [
-        ("chat.agentFilesLocations",  str(agents_path)),
-        ("chat.agentSkillsLocations", str(skills_path)),
-        ("chat.promptFilesLocations", str(prompts_path)),
+        ("chat.agentFilesLocations",  agents_path.as_posix()),
+        ("chat.agentSkillsLocations", skills_path.as_posix()),
+        ("chat.promptFilesLocations", prompts_path.as_posix()),
     ]
 
     # Read existing settings, tolerating JSONC comments.
@@ -114,7 +218,18 @@ def _setup_vscode() -> None:
     skipped: list[str] = []
 
     for setting_key, entry_key in entries:
-        bucket: dict = settings.setdefault(setting_key, {})
+        existing = settings.get(setting_key)
+        if existing is None:
+            settings[setting_key] = {}
+        elif not isinstance(existing, dict):
+            print(
+                f"Error: '{setting_key}' in {settings_path} is not an object "
+                f"(found {type(existing).__name__}). "
+                f"Fix or remove that key manually, then re-run this command.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        bucket: dict = settings[setting_key]
         if entry_key in bucket:
             skipped.append(f"  {setting_key}  (already present)")
         else:

@@ -173,6 +173,22 @@
         }
       }
     },
+    "ai_tools": {
+      "type": "object",
+      "description": "AI CLI tool configuration used when generating workspace startup scripts (start.ps1 / start.sh).",
+      "properties": {
+        "copilot_cli": {
+          "type": "object",
+          "properties": {
+            "exe_path": {
+              "type": "string",
+              "default": "copilot",
+              "description": "Path to the Copilot CLI executable (no arguments). Defaults to 'copilot', which expects the binary on PATH. Use a full path when copilot is not on PATH, e.g. C:\\Tools\\ghcpcli\\copilot.exe"
+            }
+          }
+        }
+      }
+    },
     "primitives": {
       "type": "array",
       "description": "Specific primitive numbers to install (1-10). Overrides preset when specified.",
