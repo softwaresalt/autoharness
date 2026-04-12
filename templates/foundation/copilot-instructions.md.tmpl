@@ -71,6 +71,15 @@ tokens proportional to file size.
 * Content to capture: task IDs completed, files modified, decisions and rationale, failed approaches, open questions, and next steps.
 * File convention: `{{DOCS_MEMORY}}/{YYYY-MM-DD}/{descriptive-slug}-memory.md`
 * After writing memory, invoke the **compact-context** skill to consolidate stale checkpoints and finalize decided-plans. This is a mandatory workflow step, not advisory.
+* If context has grown from loading multiple skill definitions mid-session, consider invoking **compact-context** proactively before hitting hard thresholds.
+
+## Foundational Protocols
+
+| Protocol | Location | When |
+|---|---|---|
+| **Circuit Breaker** | `.github/instructions/circuit-breaker.instructions.md` | All retry loops and failure handling |
+| **Concurrency Control** | `.github/instructions/concurrency.instructions.md` | Multi-agent or human+agent concurrent edits |
+| **Skill Discovery** | `scripts/search.ps1` / `scripts/search.sh` | Finding capabilities by keyword (Primitive 6) |
 
 ## Optional Capability Packs
 

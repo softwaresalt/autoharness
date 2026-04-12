@@ -77,9 +77,16 @@ Before changing anything:
 
 1. Declare the allowed boundary (`scope`)
 2. List files and directories inside that boundary
-3. Refuse edits outside the boundary unless the operator expands scope
-4. Re-state the freeze boundary before each risky edit sequence
-5. Reject any `ProposedAction` whose targets fall outside the declared boundary
+3. **Verify lock availability**: For each file to be modified within the boundary,
+   check whether a lock conflict exists (per `concurrency.instructions.md`).
+   If lock acquisition fails on a boundary file:
+   * Classify the edit as `ActionRisk: high` (lock contention on boundary file)
+   * Add the lock conflict to the safety checklist
+   * Do not modify the file; retry once after a brief wait
+   * If contention persists, prompt the operator to resolve or break the lock and coordinate file ownership before proceeding
+4. Refuse edits outside the boundary unless the operator expands scope
+5. Re-state the freeze boundary before each risky edit sequence
+6. Reject any `ProposedAction` whose targets fall outside the declared boundary
 
 #### Mode: `investigate-first`
 
@@ -114,7 +121,7 @@ When risky actions are approved, attempted, or rejected, update their
 * `rolled-back` when the action had to be reversed or mitigated
 * `abandoned` when the action is intentionally dropped
 
-### Step 5: Enforcement Gate (strict-safety only)
+### Step 5: Enforcement Gate
 
 When the `strict-safety` capability pack is enabled, the safety checklist is a
 **decision gate**, not advisory:
@@ -127,8 +134,16 @@ When the `strict-safety` capability pack is enabled, the safety checklist is a
 * If a `destructive` action proceeds without `ActionResult: approved`, broadcast
   a P-005 violation telemetry event and halt.
 
-Without `strict-safety` enabled, the safety checklist remains advisory and the
-agent may proceed after documenting its risk assessment.
+When `strict-safety` is **not** enabled, Constitutional Principle VII
+(Destructive Command Approval — NON-NEGOTIABLE) still applies. Agents MUST NOT
+execute `ActionRisk: destructive` work without explicit operator approval, even
+when the safety checklist is advisory. To comply:
+
+* Classify destructive actions as `ActionRisk: destructive` in the checklist
+* Record them as `ActionResult: blocked` until operator approval is obtained
+* Prompt the operator via the configured interface (intercom if available, else
+  console): `Destructive action requires approval: {action_summary}. Approve? [yes/no]`
+* Only proceed if the operator responds with explicit approval
 
 ## Quality Criteria
 

@@ -3,6 +3,7 @@ name: Harness Tuner
 description: "Iteratively adapts an installed agent harness to match codebase evolution, detecting drift and proposing targeted updates"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo
+subagent_depth: 2
 ---
 
 # Harness Tuner
@@ -121,4 +122,5 @@ This agent operates at **Tier 2 (Standard)** — it performs structured analysis
 
 ## Subagent Depth
 
-Maximum 1 hop. This agent invokes skills (workspace-discovery, tune-harness) but those skills do not spawn further subagents.
+Maximum 2 hops. This agent invokes skills (workspace-discovery, tune-harness,
+verify-harness) and verify-harness dispatches reviewer subagents as leaf executors.

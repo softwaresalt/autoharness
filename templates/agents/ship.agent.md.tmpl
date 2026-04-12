@@ -29,6 +29,53 @@ You are the central execution coordinator. You do not write code directly. You d
 
 This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions.
 
+## Concurrency Control
+
+When multiple agents are active on the same branch, or a human operator
+is editing files in the same workspace, follow the concurrency protocol
+in `.github/instructions/concurrency.instructions.md`.
+
+Acquire file locks ONLY when:
+
+* Multiple agents are active on the same branch
+* The operator has explicitly enabled concurrent-access mode
+* The workspace uses the `agent-intercom` pack with multi-agent sessions
+* A human operator is known to be editing concurrently
+
+In single-agent, single-branch workflows (the common case), branch-level
+isolation via Git provides sufficient concurrency safety. Do not acquire
+per-file locks unless one of the conditions above is met.
+
+Lock commands (when needed):
+
+* PowerShell: `scripts/acquire_lock.ps1 <filepath>` / `scripts/release_lock.ps1 <filepath>`
+* Bash: `scripts/acquire_lock.sh <filepath>` / `scripts/release_lock.sh <filepath>`
+
+## Skill Loading Strategy
+
+### Named skills (load directly when reaching the step that needs them)
+
+These core skills are referenced by name in the steps below. When you
+reach a step that invokes one, read its `.github/skills/{name}/SKILL.md`
+directly into context. Do not search for them — you already know the name.
+
+* `harness-architect`, `build-feature`, `review`, `fix-ci`, `pr-lifecycle`
+* `runtime-verification`, `operational-closure`, `compound`, `compound-refresh`
+* `compact-context`, `safety-modes`
+
+### Discovery skills (use skill-search when the capability is unknown)
+
+When you need a capability not listed above, use the skill-search tool to
+find it by keyword. This avoids loading all skill definitions up front.
+
+When Primitive 6 (Injection Points) is installed:
+
+* PowerShell: `scripts/search.ps1 <keyword>`
+* Bash: `scripts/search.sh <keyword>`
+
+If Primitive 6 is not installed, enumerate skills manually:
+`ls -d .github/skills/*/` or `Get-ChildItem .github/skills/ -Directory`
+
 ## Required Steps
 
 ### Step 1: Pre-Flight Checks
@@ -154,10 +201,24 @@ After the user approves merge:
 | Counter                    | Limit | Action                                             |
 |----------------------------|-------|----------------------------------------------------|
 | Tasks attempted in session | 20    | Halt, write checkpoint, exit                       |
-| Consecutive task failures  | 3     | Escalate to Tier 3 model, then halt if still failing |
+| Consecutive task failures  | 3     | Halt, preserve session state, prompt operator for guidance |
 | Review-fix cycles per task | 3     | Accept remaining P2/P3 as backlog items, commit    |
 | Fix-CI cycles              | 5     | Halt, leave PR for manual intervention             |
-| Stalls in session          | 3     | Halt, write checkpoint, exit                       |
+| Session stalls             | 3     | Halt, write checkpoint, prompt operator            |
+
+### Escalation Protocol — Consecutive Task Failures
+
+Upon 3 consecutive task failures:
+
+1. Write a checkpoint to `{{DOCS_MEMORY}}/` capturing:
+   * Task IDs that failed
+   * Root causes for each failure
+   * Attempts made to resolve
+   * Current branch state
+2. Prompt the operator:
+   `3 consecutive task failures. Session state preserved at {{DOCS_MEMORY}}/. Please review failure patterns and advise.`
+3. Halt and await operator guidance. Do not attempt further tasks without
+   operator direction.
 
 ## Remote Operator Integration (agent-intercom)
 

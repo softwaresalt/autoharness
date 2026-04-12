@@ -17,7 +17,7 @@ This file defines the authoritative rules for working in the autoharness reposit
 
 4. **Discovery before generation.** Never generate harness artifacts without first running workspace discovery. The workspace profile drives all template composition.
 
-5. **Verify after installation.** Every installation must end with a verification pass that confirms no unresolved template variables remain and all cross-references resolve.
+5. **Verify after installation.** Every installation must end with a verification pass that confirms no unresolved template variables remain, all cross-references resolve, and multi-model adversarial review confirms template fidelity, overlay coherence, and cross-reference integrity.
 
 6. **Preserve existing work.** When installing into a workspace that already has harness artifacts, back up originals before overwriting. Offer merge install as an alternative.
 
@@ -53,3 +53,4 @@ This file defines the authoritative rules for working in the autoharness reposit
 | `workspace-discovery` | Scan target workspace and produce a profile |
 | `install-harness` | Compose and install harness from templates |
 | `tune-harness` | Detect drift and propose updates |
+| `verify-harness` | Multi-model adversarial verification of installed artifacts |

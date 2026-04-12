@@ -30,6 +30,52 @@ You do NOT write application code. Your job is orchestration, gating, and backlo
 
 This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions.
 
+## Concurrency Control
+
+When multiple agents are active on the same branch, or a human operator
+is editing files in the same workspace, follow the concurrency protocol
+in `.github/instructions/concurrency.instructions.md`.
+
+Acquire file locks ONLY when:
+
+* Multiple agents are active on the same branch
+* The operator has explicitly enabled concurrent-access mode
+* The workspace uses the `agent-intercom` pack with multi-agent sessions
+* A human operator is known to be editing concurrently
+
+In single-agent, single-branch workflows (the common case), branch-level
+isolation via Git provides sufficient concurrency safety. Do not acquire
+per-file locks unless one of the conditions above is met.
+
+Lock commands (when needed):
+
+* PowerShell: `scripts/acquire_lock.ps1 <filepath>` / `scripts/release_lock.ps1 <filepath>`
+* Bash: `scripts/acquire_lock.sh <filepath>` / `scripts/release_lock.sh <filepath>`
+
+## Skill Loading Strategy
+
+### Named skills (load directly when reaching the step that needs them)
+
+These core skills are referenced by name in the steps below. When you
+reach a step that invokes one, read its `.github/skills/{name}/SKILL.md`
+directly into context. Do not search for them — you already know the name.
+
+* `deliberate`, `spike`, `impl-plan`, `plan-harden`, `plan-review`, `harvest`
+* `compound`, `compact-context`, `safety-modes`
+
+### Discovery skills (use skill-search when the capability is unknown)
+
+When you need a capability not listed above, use the skill-search tool to
+find it by keyword. This avoids loading all skill definitions up front.
+
+When Primitive 6 (Injection Points) is installed:
+
+* PowerShell: `scripts/search.ps1 <keyword>`
+* Bash: `scripts/search.sh <keyword>`
+
+If Primitive 6 is not installed, enumerate skills manually:
+`ls -d .github/skills/*/` or `Get-ChildItem .github/skills/ -Directory`
+
 ## Inputs
 
 Stage may receive any of these starting points:
@@ -69,6 +115,7 @@ execution order implicit.
    * reject or archive as out of scope
 3. Prefer high-priority entries that unblock near-term delivery goals.
 4. Preserve traceability by carrying stash IDs into every downstream artifact.
+5. When the `agent-intercom` and `backlogit` capability packs are both installed, make any remote choice broadcast self-contained: include each candidate item's ID, priority, kind or type, a one-line summary, and the recommended ordering so the operator can choose from the intercom channel alone.
 
 ### Step 2: Route — Deliberation or Investigation
 
@@ -241,6 +288,8 @@ When the `agent-intercom` capability pack is installed:
 |---|---|---|---|
 | Session start | `broadcast` | `info` | `[STAGE] Starting stash-to-backlog workflow` |
 | Triage start | `broadcast` | `info` | `[STAGE] Reviewing stash entry: {stash_id}` |
+| Candidate set | `broadcast` | `info` | `[STAGE] Candidates: {item_ids_with_priority_kind_and_summary}` |
+| Selection request | `broadcast` | `info` | `[STAGE] Priority order: {ordered_list_with_rationale}. Awaiting operator selection.` |
 | Deliberation handoff | `broadcast` | `info` | `[STAGE] Routing to deliberate skill: {stash_id}` |
 | Spike handoff | `broadcast` | `info` | `[STAGE] Routing to spike skill: {stash_id}` |
 | Gate bypass blocked | `broadcast` | `warning` | `[STAGE] Gate bypass detected without force_harvest_no_gates override` |
@@ -251,6 +300,11 @@ When the `agent-intercom` capability pack is installed:
 | Harvest start | `broadcast` | `info` | `[STAGE] Invoking harvest skill: {plan_path}` |
 | Harvest complete | `broadcast` | `success` | `[STAGE] Backlog ready: {feature_count} features, {task_count} tasks, {subtask_count} subtasks` |
 | Session complete | `broadcast` | `success` | `[STAGE] Complete: stash triage finished` |
+
+When the `agent-intercom` and `backlogit` capability packs are both installed,
+the candidate-set and priority-order broadcasts are a hardening requirement, not
+optional narration. Include enough detail for a remote operator to choose the
+next item without reopening the chat transcript.
 
 ## Session Continuity (mandatory)
 

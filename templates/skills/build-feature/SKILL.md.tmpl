@@ -35,12 +35,22 @@ results, and refresh stale indexes before concluding the code graph is wrong.
 
 ### The Harness Loop (5-Attempt Circuit Breaker)
 
+**Before entering the loop**: Read coding standards once — constitution Principle I
+and `{{PRIMARY_LANGUAGE_LOWER}}.instructions.md`. These apply to all fix attempts.
+Do not re-read the full standards on every iteration; only do a targeted re-read
+if working on a file in an unfamiliar module or if the error pattern changes.
+
+This loop is a skill-managed exception to the universal 3-retry circuit breaker
+(per `circuit-breaker.instructions.md`). The 5-attempt limit governs within this
+loop scope. However, if the **same error** recurs on attempts 3+, the universal
+circuit breaker applies: stop and escalate.
+
 ```text
 Attempt 1..5:
   1. Run harness_cmd → capture stdout/stderr
   2. If all tests pass → SUCCESS → exit loop
   3. Parse failure output → identify failing tests and error messages
-  4. Re-read coding standards (constitution Principle I, {{PRIMARY_LANGUAGE_LOWER}}.instructions.md)
+  4. If error is substantially identical to previous attempt → check same-error recurrence limit
   5. Fix the code to address the specific failure
   6. Verify compilation: {{BUILD_CHECK_COMMAND}}
   7. If compilation fails → fix compilation errors first
@@ -122,8 +132,9 @@ If all quality gates pass:
 
 * No subagent spawning (leaf executor)
 * Never modify test files (tests are the specification)
-* Maximum 5 attempts before circuit breaker trips
-* Re-read coding standards before every fix attempt
+* Maximum 5 attempts before circuit breaker trips (skill-managed exception; see `circuit-breaker.instructions.md`)
+* Same-error recurrence at attempt 3+ triggers the universal circuit breaker
+* Read coding standards once at task start; targeted re-read for unfamiliar modules
 * One file change per tool call; broadcast after each write
 * When the `agent-intercom` capability pack is installed, use intercom broadcasts for attempt milestones and file-write visibility
 

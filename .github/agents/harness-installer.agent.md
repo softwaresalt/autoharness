@@ -3,6 +3,7 @@ name: Harness Installer
 description: "Discovers target workspace characteristics and composes a customized agent harness from universal primitive templates"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo
+subagent_depth: 2
 ---
 
 # Harness Installer

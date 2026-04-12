@@ -1,0 +1,79 @@
+---
+description: "Acquire and release file-level locks to prevent concurrent modifications during multi-agent or human+agent workflows"
+---
+
+## File Lock
+
+Manage per-file advisory locks so that multiple agents (or an agent and a
+human operator) do not clobber the same file during complex refactors or
+parallel work sessions.
+
+## When to Use
+
+Invoke before modifying any source file when concurrent access is possible.
+This includes multi-agent orchestration, long-running refactors, and any
+session where a human may be editing files in the same workspace.
+
+Agents MUST follow the concurrency protocol defined in
+`.github/instructions/concurrency.instructions.md`.
+
+## Inputs
+
+* `filepath`: (Required) Path to the target file, relative to the workspace root.
+* `action`: (Required) One of `acquire` or `release`.
+
+## Output
+
+* On `acquire` success: lock file created, exit code 0.
+* On `acquire` failure: lock already held by another process, exit code 1.
+* On `release` success: lock file removed, exit code 0.
+* On `release` failure: lock file not found (already released), exit code 0 with warning.
+
+## Scripts
+
+Both PowerShell and Bash equivalents are provided for cross-platform
+compatibility. Use whichever matches the runtime environment.
+
+### acquire_lock (.ps1 / .sh)
+
+Acquires a file lock by creating a `.{filename}.lock` file in the same
+directory as the target file. Fails if the lock already exists.
+
+```text
+PowerShell: scripts/acquire_lock.ps1 <filepath>
+Bash:       scripts/acquire_lock.sh <filepath>
+```
+
+The lock file contains:
+
+* Agent or process identifier (`$env:AGENT_NAME` / `$AGENT_NAME` or `"unknown"`)
+* Timestamp (ISO 8601)
+* PID of the calling process
+
+### release_lock (.ps1 / .sh)
+
+Releases a file lock by deleting the `.{filename}.lock` file.
+
+```text
+PowerShell: scripts/release_lock.ps1 <filepath>
+Bash:       scripts/release_lock.sh <filepath>
+```
+
+## Workflow
+
+```text
+1. Agent identifies file to modify
+2. Agent runs: scripts/acquire_lock.{ps1|sh} <filepath>
+   ├─ Exit 0 → lock acquired, proceed to edit
+   └─ Exit 1 → lock held, wait or prompt operator
+3. Agent modifies the file
+4. Agent verifies the modification (compile, test, etc.)
+5. Agent runs: scripts/release_lock.{ps1|sh} <filepath>
+```
+
+## Lock Hygiene
+
+* Locks are advisory, not enforced at the filesystem level.
+* Lock files MUST NOT be committed to version control.
+* Lock files older than 1 hour are likely stale — warn the operator.
+* Only the operator may force-break a lock they did not create.

@@ -101,8 +101,9 @@ All gates must pass before pushing.
 
 ## Circuit Breakers
 
-* Maximum `max_iterations` fix-push-poll cycles (default 5)
-* If 3 consecutive iterations fail on the same check, halt and report
+* Maximum `max_iterations` fix-push-poll cycles (default 5; skill-managed exception per `circuit-breaker.instructions.md`)
+* If 3 consecutive iterations fail on the **same check**, halt and report
+  (this pre-empts the 5-cycle limit to surface systematic check-specific problems early)
 * If the same check fails twice in a row without a clear diagnosis, invoke `safety-modes` in `investigate-first` mode before applying further fixes
 
 ## Behavioral Constraints
