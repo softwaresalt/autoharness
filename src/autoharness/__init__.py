@@ -1,3 +1,7 @@
 """autoharness — globally-installed agent harness framework."""
 
-__version__ = "1.0.0"
+try:
+    from importlib.metadata import version
+    __version__ = version("autoharness")
+except Exception:
+    __version__ = "1.1.0"  # fallback for editable / pre-install contexts
