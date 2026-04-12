@@ -139,6 +139,29 @@
           "profile_hash": { "type": "string" }
         }
       }
+    },
+    "vscode_settings": {
+      "type": "object",
+      "description": "Records the VS Code user-settings write performed during installation so the tuner can detect if entries were removed.",
+      "properties": {
+        "applied": {
+          "type": "boolean",
+          "description": "False when vscode.detected was false and the step was skipped"
+        },
+        "user_settings_path": {
+          "type": ["string", "null"],
+          "description": "Resolved absolute path to the VS Code user settings file written (no tilde). Null when applied is false."
+        },
+        "entries_added": {
+          "type": "array",
+          "description": "List of chat.* setting keys that were added",
+          "items": { "type": "string" }
+        },
+        "skipped_because": {
+          "type": ["string", "null"],
+          "description": "Reason entries were not added, e.g. 'already_present'. Null when entries were added."
+        }
+      }
     }
   }
 }

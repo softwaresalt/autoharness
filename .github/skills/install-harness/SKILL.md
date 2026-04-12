@@ -247,13 +247,14 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
 | `{{HARNESS_OVERRIDES_YAML}}` | `config.overrides` map | `{}` | Inline YAML map of explicit template variable overrides; `{}` when no overrides are set |
 
-**AI Tools Variables** (derived from `config.ai_tools` → schema defaults):
+**AI Tools Variables** (used only in startup script generation):
 
 | Template Variable | Source | Default | Description |
 |---|---|---|---|
-| `{{COPILOT_EXE_PATH}}` | `config.ai_tools.copilot_cli.exe_path` | `copilot` | Launch command or full path for the Copilot CLI executable; resolved into `start.ps1` and `start.sh` |
+| `{{COPILOT_EXE_PATH}}` | `config.ai_tools.copilot_cli.exe_path` | `copilot` | Path to the Copilot CLI executable only (no arguments); resolved into `start.ps1` and `start.sh` |
 
 Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.exe_path` → (2) schema default `copilot` (expects it on PATH).
+`exe_path` must be an executable path only. The generated scripts validate this at runtime.
 
 **Capability-Pack Variables** (derived from `capability_packs` and integration signals in the profile):
 
@@ -806,7 +807,8 @@ Never use `~` in the resulting path string.
      `chat.promptFilesLocations` (same merge rule — makes `/install-harness`
      and `/tune-harness` available as slash commands from any workspace)
 5. **Write the result back** to the user settings file as valid JSON (2-space
-   indentation; preserve all other existing keys verbatim)
+   indentation; existing keys and values are preserved, but JSONC comments and
+   non-standard formatting are not round-tripped)
 6. **Skip this step** silently if `vscode.has_agent_settings` is already true
    (the entries are already correct — avoid duplicating or overwriting)
 7. **Record this action** in the manifest under a `vscode_settings` key so the
@@ -844,8 +846,7 @@ capability_pack_overlays:
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 vscode_settings:
   applied: true|false               # false when vscode.detected was false
-  user_settings_path: "{{VSCODE_USER_SETTINGS_PATH}}"   # resolved absolute path, no tilde
-  user_settings_path: "{{VSCODE_USER_SETTINGS_PATH}}"  # resolved absolute path, e.g. C:\Users\alice\AppData\Roaming\Code\User\settings.json
+  user_settings_path: "C:\\Users\\alice\\AppData\\Roaming\\Code\\User\\settings.json"  # resolved absolute path, no tilde
   entries_added:
     - "chat.agentFilesLocations[\"{{AUTOHARNESS_HOME}}/.github/agents\"]"
     - "chat.agentSkillsLocations[\"{{AUTOHARNESS_HOME}}/.github/skills\"]"

@@ -529,7 +529,7 @@ backlog_tool:
 
 vscode:
   detected: false
-  settings_json_path: null
+  user_settings_path: null
   has_agent_settings: false
 
 drift_report: null
