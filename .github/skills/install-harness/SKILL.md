@@ -153,7 +153,7 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{SUFFIX_FEATURE}}` | `config.backlog.suffix_map.feature` | `F` |
 | `{{SUFFIX_CHORE}}` | `config.backlog.suffix_map.chore` | `C` |
 | `{{SUFFIX_TASK}}` | `config.backlog.suffix_map.task` | `T` |
-| `{{SUFFIX_SPIKE}}` | `config.backlog.suffix_map.spike` | `S` |
+| `{{SUFFIX_SPIKE}}` | `config.backlog.suffix_map.spike` | `SP` |
 | `{{SUFFIX_DELIBERATION}}` | `config.backlog.suffix_map.deliberation` | `D` |
 | `{{SUFFIX_BUG}}` | `config.backlog.suffix_map.bug` | `B` |
 | `{{SUFFIX_EPIC}}` | `config.backlog.suffix_map.epic` | `E` |

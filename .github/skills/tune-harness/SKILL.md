@@ -96,7 +96,7 @@ For `backlog.suffix_map`, the canonical entry set is defined by the schema:
 | `feature` | `F` | Feature work items |
 | `chore` | `C` | Maintenance/housekeeping work items |
 | `task` | `T` | Individual task units |
-| `spike` | `S` | Time-boxed investigation |
+| `spike` | `SP` | Time-boxed investigation |
 | `deliberation` | `D` | Structured decision capture |
 | `bug` | `B` | Defect tracking |
 | `epic` | `E` | Multi-feature grouping |

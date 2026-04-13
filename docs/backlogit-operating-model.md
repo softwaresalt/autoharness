@@ -131,18 +131,22 @@ Key implications:
 * `suffix_map` includes `shipment: "S"` because it uses the standard ID
   hierarchy and lives in the queue directory
 * Shipment references its wrapped work items via `custom_fields.items`
-* Shipment uses standard work-item statuses (queued, active, done, blocked)
-  plus `archived` when moved from `queue/` to `archive/`
+* Shipment uses the following lifecycle statuses: `queued` (created, waiting
+  to be claimed), `active` (claimed, work in progress), `shipped` (PR merged,
+  closure complete), `abandoned` (cancelled before shipping), and `archived`
+  (moved from `queue/` to `archive/` after shipping or abandonment)
 * Archived shipments gain `archived_from` (origin path) and may carry a
   `commit` field linking the shipment to its final merge commit
+* Note: the `done` status visible in some early shipment artifacts is
+  equivalent to `shipped` — backlogit normalizes both to the same terminal state
 * Ship agent creates and manages shipments; Stage agent does not
 * Unlike features, chores, and tasks, a shipment does not contain
   implementation detail — it is a release grouping artifact
 
 Stable MCP tools (7): `backlogit_create_shipment`, `backlogit_get_shipment`,
 `backlogit_list_shipments`, `backlogit_claim_shipment`,
-`backlogit_ship_shipment`, `backlogit_add_to_shipment`,
-`backlogit_return_blocked`.
+`backlogit_ship_shipment`, `backlogit_add_to_shipment` (MCP-only, no CLI
+subcommand), `backlogit_return_blocked`.
 
 Stable CLI subcommands (6): `backlogit shipment create`, `get`, `list`,
 `claim`, `ship`, `return-blocked`.
@@ -153,9 +157,8 @@ Error sentinels: `ErrShipmentNotFound`, `ErrShipmentConflict`,
 `ErrItemAlreadyAssigned`, `ErrCannotReturnItem`.
 
 The shipment surface is graduated and wired into the backlogit registry
-template. The remaining incubating items in the two-agent workflow (groomer/
-shipper agent choreography, stash JSONL, file naming conventions) are
-independent of the shipment contract.
+template. The remaining incubating items (stash JSONL, file naming
+conventions) are independent of the shipment contract.
 
 The remaining two-agent choreography is promising, but it is not yet ready to
 become template truth in `autoharness`.

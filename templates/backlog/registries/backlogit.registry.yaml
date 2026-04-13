@@ -188,7 +188,6 @@ operations:
 
   add_to_shipment:
     mcp_tool: "backlogit_add_to_shipment"
-    cli_command: "backlogit shipment add --shipment {{shipment_id}} --item {{item_id}}"
     params:
       shipment_id: "shipment_id"
       item_id: "item_id"

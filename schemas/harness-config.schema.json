@@ -62,7 +62,7 @@
             "feature": { "type": "string", "default": "F" },
             "chore": { "type": "string", "default": "C" },
             "task": { "type": "string", "default": "T" },
-            "spike": { "type": "string", "default": "S" },
+            "spike": { "type": "string", "default": "SP" },
             "deliberation": { "type": "string", "default": "D" },
             "bug": { "type": "string", "default": "B" },
             "epic": { "type": "string", "default": "E" },

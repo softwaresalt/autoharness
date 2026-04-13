@@ -103,7 +103,7 @@ backlog:
     feature: "F"
     chore: "C"
     task: "T"
-    spike: "S"
+    spike: "SP"
     deliberation: "D"
     bug: "B"
     epic: "E"
