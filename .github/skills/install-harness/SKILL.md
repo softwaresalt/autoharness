@@ -87,6 +87,8 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{SOURCE_DIR}}` | `structure.source_layout` | `src/` | `src/` | `src/` |
 | `{{CI_PLATFORM}}` | `ci.platform` | `GitHub Actions` | `GitHub Actions` | `GitHub Actions` |
 | `{{CI_WORKFLOW_GLOB}}` | Derived from `ci.platform` | `**/.github/workflows/*.yml` | `**/.github/workflows/*.yml` | `**/.github/workflows/*.yml` |
+| `{{REPO_OWNER}}` | Parsed from git remote URL (`owner/repo`) | `my-org` | `my-org` | `my-org` |
+| `{{REPO_NAME}}` | Parsed from git remote URL (`owner/repo`) | `my-service` | `my-app` | `my-api` |
 | `{{BUILD_TOOL}}` | `build.tool` | `cargo` | `npm` | `pip` |
 | `{{FORMATTER}}` | `format.tool` | `rustfmt` | `prettier` | `ruff` |
 | `{{LINTER}}` | `lint.tool` | `clippy` | `eslint` | `ruff` |
@@ -519,6 +521,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
    * `ci-security.instructions.md` — CI/CD security and hygiene conventions. Adapt `{{CI_WORKFLOW_GLOB}}` to match the workspace CI platform (e.g., `**/.github/workflows/*.yml` for GitHub Actions). Install when the workspace uses a CI system detected during discovery.
    * `workflows.instructions.md` — CI/CD workflow structural conventions (job naming, artifacts, caching, matrix, reusable workflows). Install alongside `ci-security.instructions.md` when a CI system is detected.
+   * `github-pr-automation.instructions.md` — GitHub-specific PR automation: Copilot Review polling, review comment lifecycle (categorize, fix, reply, resolve threads via GraphQL), and CI check monitoring with back-off polling. Install when the workspace is hosted on GitHub (git remote contains `github.com` or `{{CI_PLATFORM}}` is `GitHub Actions`). Resolves `{{REPO_OWNER}}` and `{{REPO_NAME}}` from the git remote URL.
    * `mcp-server.instructions.md` — MCP server development conventions. Install when workspace-discovery detects an MCP server project (MCP SDK in dependencies). Resolves `{{MCP_SDK}}`, `{{MCP_TRANSPORT}}`, `{{MCP_PROJECT_STRUCTURE}}`.
 
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
