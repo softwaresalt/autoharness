@@ -1,7 +1,7 @@
 ---
 name: harness-architect
 description: "Scaffolds compilable but failing test harnesses for feature and chore tasks"
-argument-hint: "feature={PREFIX_FEATURE}-001 tasks={PREFIX_FEATURE}-001.001-T,{PREFIX_FEATURE}-001.002-T"
+argument-hint: "feature=001-{SUFFIX_FEATURE} tasks=001.001-{SUFFIX_TASK},001.002-{SUFFIX_TASK}"
 input:
   properties:
     feature:
@@ -45,7 +45,7 @@ warn the operator that visibility is degraded and continue locally.
 
 ## Inputs
 
-* `${input:feature}`: (Required) Feature or chore ID such as `F-001`
+* `${input:feature}`: (Required) Feature or chore ID such as `001-F`
 * `${input:tasks}`: (Optional) Comma-separated task IDs to scaffold.
   When omitted, use all ready tasks under the feature.
 

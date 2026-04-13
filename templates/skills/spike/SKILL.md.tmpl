@@ -61,7 +61,7 @@ When the `backlogit` capability pack is installed and `promote_to` includes
 `queue` (or `ask` resolves to `queue`), the spike is also created as a backlog
 work item at conclusion with `artifact_type: spike`, `labels: ["spike"]`, and
 a status of `{{STATUS_DONE}}`. The work item filename follows the configured
-prefix convention: `{prefix}-{id}-{slug}.md`. If `promote_to` does not include
+suffix convention: `{id}-{suffix}-{slug}.md`. If `promote_to` does not include
 `queue`, no backlog work item is created regardless of the installed capability pack.
 
 ## Required Protocol

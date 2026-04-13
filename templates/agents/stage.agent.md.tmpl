@@ -62,6 +62,7 @@ directly into context. Do not search for them — you already know the name.
 
 * `deliberate`, `spike`, `impl-plan`, `plan-harden`, `plan-review`, `harvest`
 * `compound`, `compact-context`, `safety-modes`
+* `observe`, `learn`, `evolve` (when `continuous-learning` capability pack is installed)
 
 ### Discovery skills (use skill-search when the capability is unknown)
 
@@ -276,6 +277,11 @@ Present the decomposition summary:
 When the `agent-intercom` capability pack is installed, broadcast the gate outcome and summary
 milestones.
 
+When the `continuous-learning` capability pack is installed, invoke the **observe** skill for any
+recurring triage patterns, review findings, or planning decisions that appeared during this staging
+session — repeated scope issues, common decomposition mistakes, or stable conventions that kept
+helping. Skip if the session was routine.
+
 When the `backlogit` capability pack is installed, include whether dependency edges were recorded
 and whether the backlog already contained related queued or active work discovered through query /
 queue operations.
@@ -333,6 +339,7 @@ When the `backlogit` capability pack is installed and checkpoint operations are 
 1. Write a final memory file to `{{DOCS_MEMORY}}/` capturing: stash entries processed, deliberation or plan artifacts produced, backlog IDs created, and deferred entries with reasoning.
 2. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
 3. Capture compound learnings via the compound skill when hard-won solutions were discovered.
+4. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
 
 ### Context Overflow Protocol
 

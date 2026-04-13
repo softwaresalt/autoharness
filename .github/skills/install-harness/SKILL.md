@@ -52,14 +52,14 @@ All template reads in subsequent phases use `{autoharness_home}/templates/` as t
 Check for `.autoharness/config.yaml` in the target workspace. If present:
 
 1. Validate against `{autoharness_home}/schemas/harness-config.schema.json`
-2. Extract operator preferences for: preset, primary stack pack, stack packs, install layers, capability packs, backlog configuration (tool, directory, prefix map), docs directory structure, model routing, and template variable overrides
+2. Extract operator preferences for: preset, primary stack pack, stack packs, install layers, capability packs, backlog configuration (tool, directory, suffix map), docs directory structure, model routing, and template variable overrides
 3. Merge with the workspace profile — operator config values take precedence over auto-detected profile values
-4. Derive `{{PREFIX_*}}` template variables from `backlog.prefix_map` (falling back to backlogit project YAML when backlogit pack is active, then schema defaults)
+4. Derive `{{SUFFIX_*}}` template variables from `backlog.suffix_map` (falling back to backlogit project YAML when backlogit pack is active, then schema defaults)
 5. Derive `{{DOCS_ROOT}}` and `{{DOCS_*}}` template variables from `docs.root` and `docs.subdirectories` (falling back to schema defaults)
 6. Derive `{{PRIMARY_STACK_PACK}}`, `{{STACK_PACKS_YAML}}`, `{{INSTALL_LAYERS_YAML}}`, and `{{CAPABILITY_PACKS_YAML}}` from the merged composition state for config write-back
 7. If the config specifies `overrides`, apply those template variable values directly, overriding any profile-derived values
 
-If the file does not exist, proceed with profile-only installation using schema default values for all prefix and docs variables. After installation, the installer writes the resolved `.autoharness/config.yaml` recording the actual values used (see Step 3.4).
+If the file does not exist, proceed with profile-only installation using schema default values for all suffix and docs variables. After installation, the installer writes the resolved `.autoharness/config.yaml` recording the actual values used (see Step 3.4).
 
 #### Step 1.1: Load Profile
 
@@ -144,18 +144,18 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{BACKLOG_TOOLS}}` | Backlog MCP server name from registry | `backlog` | `backlog` |
 | `{{EXTENDED_OPERATIONS_TABLE}}` | Registry `advanced_operations` formatted as Markdown table | _(backlogit-specific ops table)_ | _(empty string if not supported)_ |
 
-**Prefix Variables** (derived from `config.backlog.prefix_map` → backlog tool auto-detection → schema defaults):
+**Suffix Variables** (derived from `config.backlog.suffix_map` → backlog tool auto-detection → schema defaults):
 
 | Template Variable | Source | Default |
 |---|---|---|
-| `{{PREFIX_FEATURE}}` | `config.backlog.prefix_map.feature` | `F` |
-| `{{PREFIX_CHORE}}` | `config.backlog.prefix_map.chore` | `C` |
-| `{{PREFIX_TASK}}` | `config.backlog.prefix_map.task` | `T` |
-| `{{PREFIX_SPIKE}}` | `config.backlog.prefix_map.spike` | `S` |
-| `{{PREFIX_DELIBERATION}}` | `config.backlog.prefix_map.deliberation` | `D` |
-| `{{PREFIX_BUG}}` | `config.backlog.prefix_map.bug` | `B` |
-| `{{PREFIX_EPIC}}` | `config.backlog.prefix_map.epic` | `E` |
-| `{{PREFIX_SUBTASK}}` | `config.backlog.prefix_map.subtask` | `ST` |
+| `{{SUFFIX_FEATURE}}` | `config.backlog.suffix_map.feature` | `F` |
+| `{{SUFFIX_CHORE}}` | `config.backlog.suffix_map.chore` | `C` |
+| `{{SUFFIX_TASK}}` | `config.backlog.suffix_map.task` | `T` |
+| `{{SUFFIX_SPIKE}}` | `config.backlog.suffix_map.spike` | `S` |
+| `{{SUFFIX_DELIBERATION}}` | `config.backlog.suffix_map.deliberation` | `D` |
+| `{{SUFFIX_BUG}}` | `config.backlog.suffix_map.bug` | `B` |
+| `{{SUFFIX_EPIC}}` | `config.backlog.suffix_map.epic` | `E` |
+| `{{SUFFIX_SUBTASK}}` | `config.backlog.suffix_map.subtask` | `ST` |
 
 Resolution order: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML metadata (when backlogit capability pack is active) → (3) schema defaults above.
 
@@ -295,10 +295,10 @@ Preset defaults:
 | Preset | Default Primitives | Default Capability Packs | Best For |
 |---|---|---|---|
 | `starter` | 1, 2, 4, 5, 6, 8, 9 | none | First-time adoption, smaller repos |
-| `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `strict-safety` when runtime risk is detected | Most repositories |
-| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | All recommended packs from the profile | Higher-operational-maturity teams |
+| `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review` | Most repositories |
+| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification` | Higher-operational-maturity teams |
 
-If `capability_packs` input is omitted, use the profile's `harness_recommendations.capability_packs` for `full`, or apply no optional packs for `starter`/`standard` unless a pack is strongly recommended by detected runtime surfaces.
+If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-intercom`, `agent-engram`, `backlogit`, and `browser-verification`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs.
 
 Additive stack packs are descriptive composition inputs rather than substitute
 architectures. They capture multiple concurrent workspace shapes such as
@@ -676,25 +676,25 @@ Initialize the backlog directory. Backlog tools are used **exclusively for workf
 Work items in `queue/` follow the naming convention:
 
 ```text
-{prefix}-{NNN}-{slug}.md               # Level 1 (features, chores, epics)
-{prefix}-{NNN}.{NNN}-{slug}.md         # Level 2 (tasks, sub-epics)
-{prefix}-{NNN}.{NNN}.{NNN}-{slug}.md   # Level 3 (subtasks)
+{NNN}-{suffix}-{slug}.md               # Level 1 (features, chores, epics)
+{NNN}.{NNN}-{suffix}-{slug}.md         # Level 2 (tasks, sub-epics)
+{NNN}.{NNN}.{NNN}-{suffix}-{slug}.md   # Level 3 (subtasks)
 ```
 
-The prefix map is configured in `config.yml` with concrete single or two-letter defaults:
+The suffix map is configured in `config.yml` with concrete single or two-letter defaults:
 
-| Type | Prefix | Example filename |
+| Type | Suffix | Example filename |
 |---|---|---|
-| Feature | `{{PREFIX_FEATURE}}` | `F-001-user-auth.md` |
-| Chore | `{{PREFIX_CHORE}}` | `C-002-python-312-migration.md` |
-| Task | `{{PREFIX_TASK}}` | `T-001.001-add-login-endpoint.md` |
-| Spike | `{{PREFIX_SPIKE}}` | `S-002-evaluate-caching.md` |
-| Deliberation | `{{PREFIX_DELIBERATION}}` | `D-003-api-strategy.md` |
-| Bug | `{{PREFIX_BUG}}` | `B-004-null-pointer-fix.md` |
-| Epic | `{{PREFIX_EPIC}}` | `E-005-auth-overhaul.md` |
-| Subtask | `{{PREFIX_SUBTASK}}` | `ST-001.001.001-write-unit-test.md` |
+| Feature | `{{SUFFIX_FEATURE}}` | `001-F-user-auth.md` |
+| Chore | `{{SUFFIX_CHORE}}` | `002-C-python-312-migration.md` |
+| Task | `{{SUFFIX_TASK}}` | `001.001-T-add-login-endpoint.md` |
+| Spike | `{{SUFFIX_SPIKE}}` | `002-S-evaluate-caching.md` |
+| Deliberation | `{{SUFFIX_DELIBERATION}}` | `003-D-api-strategy.md` |
+| Bug | `{{SUFFIX_BUG}}` | `004-B-null-pointer-fix.md` |
+| Epic | `{{SUFFIX_EPIC}}` | `005-E-auth-overhaul.md` |
+| Subtask | `{{SUFFIX_SUBTASK}}` | `001.001.001-ST-write-unit-test.md` |
 
-Prefix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, C, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
+Suffix values are resolved from: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML (when active) → (3) schema defaults (F, C, T, S, D, B, E, ST). The resolved values are written into both `config.yml` and `.autoharness/config.yaml` at installation time.
 
 Long-lived knowledge structure (full paths at workspace root):
 
@@ -874,7 +874,7 @@ Write (or update) `.autoharness/config.yaml` using the `harness-config.yaml.tmpl
 
 The installed config includes: `schema_version`, `preset`,
 `primary_stack_pack`, `stack_packs`, `install_layers`, `capability_packs`,
-`backlog` (tool, directory, prefix_map), `docs` (root, subdirectories),
+`backlog` (tool, directory, suffix_map), `docs` (root, subdirectories),
 `continuous_learning`, `model_routing`, and any `overrides` that were applied.
 
 ### Phase 4: Verification

@@ -55,9 +55,9 @@
           "description": "Root directory for the backlog (relative to workspace root). Defaults to the detected tool's directory or '.backlog'.",
           "examples": [".backlogit", ".backlog", "backlog"]
         },
-        "prefix_map": {
+        "suffix_map": {
           "type": "object",
-          "description": "Work item type prefixes. When using backlogit, these are read from backlogit's project config and merged here. Operator values override auto-detected values.",
+          "description": "Work item type suffixes. When using backlogit, these are read from backlogit's project config and merged here. Operator values override auto-detected values.",
           "properties": {
             "feature": { "type": "string", "default": "F" },
             "chore": { "type": "string", "default": "C" },
