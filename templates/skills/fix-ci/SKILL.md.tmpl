@@ -41,6 +41,10 @@ Determine the PR number from the current branch. If no PR exists, halt.
 
 Query CI pipeline status. Identify which checks are failing:
 
+For GitHub-hosted repositories, follow `github-pr-automation.instructions.md`
+Part 2 for CI check polling (§2.2), back-off cadence (§2.3), and failure
+detail extraction via check-run annotations (§2.5).
+
 **CI Pipeline Order** (fix in this order):
 
 1. Format check (`{{FORMAT_CHECK_COMMAND}}`)
@@ -50,6 +54,10 @@ Query CI pipeline status. Identify which checks are failing:
 ### Step 3: Check Review Comments
 
 Query for automated review comments (Copilot, bot reviewers). Categorize each:
+
+For GitHub-hosted repositories, follow `github-pr-automation.instructions.md`
+Part 1 (§1.3) for comment categorization and the complete Copilot Review
+comment lifecycle.
 
 * **Valid**: The comment identifies a real issue → apply fix
 * **Partial**: The comment is partially correct → apply relevant parts, reply with explanation
@@ -78,6 +86,13 @@ For each review comment:
 * Partial: Apply relevant parts, reply explaining what was not applied and why
 * Invalid: Reply with a clear rationale for declining
 
+For GitHub-hosted repositories, after addressing each comment:
+
+1. Reply to the review thread per `github-pr-automation.instructions.md`
+   §1.5 using the appropriate reply template (fixed / declined / partial).
+2. Resolve bot-authored threads via GraphQL per §1.6.
+3. Never resolve threads authored by human reviewers.
+
 ### Step 7: Local Quality Gate
 
 Run the full quality gate sequence:
@@ -95,7 +110,9 @@ All gates must pass before pushing.
 
 1. Commit fixes with a `fix:` conventional commit message
 2. Push to the branch
-3. Poll CI status until all checks pass or `max_iterations` is exhausted
+3. Poll CI status until all checks pass or `max_iterations` is exhausted.
+   For GitHub-hosted repositories, follow the polling cadence and timeout
+   protocol in `github-pr-automation.instructions.md` §2.3 and §2.7.
 4. When CI is green, invoke `runtime-verification` if runtime surfaces were affected or the PR explicitly requires runtime evidence
 5. Update or append the operational validation section in the PR description so the next handoff includes monitoring and rollback expectations
 
