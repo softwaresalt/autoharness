@@ -76,7 +76,7 @@ warn the operator that visibility is degraded and continue locally.
 When the repository is hosted on GitHub, request Copilot Review
 immediately after PR creation or after pushing new commits:
 
-1. Request review per `github-pr-automation.instructions.md` §1.1.
+1. Request review per `.github/instructions/github-pr-automation.instructions.md` §1.1.
 2. Poll for review completion using the back-off cadence in §1.2.
 3. Do not block on review — proceed to CI monitoring in parallel when
    possible, but complete the review poll before entering the fix cycle.
@@ -85,7 +85,7 @@ immediately after PR creation or after pushing new commits:
 
 1. Monitor PR review comments, especially automated review comments.
 2. For GitHub-hosted repositories, follow the complete Copilot Review
-   workflow in `github-pr-automation.instructions.md` Part 1:
+   workflow in `.github/instructions/github-pr-automation.instructions.md` Part 1:
    categorize comments (§1.3), apply fixes (§1.4), reply to threads
    (§1.5), and resolve bot-authored threads via GraphQL (§1.6).
 3. For non-GitHub repositories, apply bounded fixes directly when they
@@ -99,7 +99,7 @@ immediately after PR creation or after pushing new commits:
 1. If CI fails, invoke the `fix-ci` skill with the active PR or branch
    context.
 2. For GitHub-hosted repositories, ensure the fix-ci skill follows the
-   CI polling protocol in `github-pr-automation.instructions.md` Part 2
+   CI polling protocol in `.github/instructions/github-pr-automation.instructions.md` Part 2
    for status monitoring, failure extraction, and fix-push-poll loops.
 3. Let `fix-ci` own the remediation loop for failing checks and
    unresolved review comments.
@@ -109,7 +109,7 @@ immediately after PR creation or after pushing new commits:
 
 When fixes were pushed (from either review or CI remediation):
 
-1. Re-request Copilot Review per `github-pr-automation.instructions.md`
+1. Re-request Copilot Review per `.github/instructions/github-pr-automation.instructions.md`
    §1.7.
 2. Poll for the new review using the same back-off cadence.
 3. Resolve any remaining bot-authored threads per §1.6.

@@ -1,6 +1,6 @@
 ---
 description: "GitHub-specific PR automation: Copilot Review polling, comment resolution, and CI check monitoring"
-applyTo: '**/.github/**'
+applyTo: '**'
 ---
 
 # GitHub PR Automation Instructions
@@ -65,8 +65,9 @@ Inspect the returned reviews and review comments. Copilot review
 comments are identified by the author login `copilot-pull-request-reviewer[bot]`
 or similar bot author association.
 
-**Completion signal**: The review object has a `state` of `CHANGES_REQUESTED`
-or `APPROVED`, or review comments exist with a non-`PENDING` review state.
+**Completion signal**: Treat any Copilot-authored review with `state != PENDING`
+as complete, including `COMMENTED`, `CHANGES_REQUESTED`, and `APPROVED`.
+Review comments attached to a non-`PENDING` review also count as completion.
 
 **Timeout**: If no Copilot review appears after 15 minutes (5 poll
 attempts), proceed without it. Log a warning and note in the PR
@@ -339,12 +340,21 @@ failure extraction.
 
 ## Environment Detection
 
-These instructions apply when the workspace CI platform is GitHub
-Actions and the repository is hosted on GitHub. Agents detect this via:
+These instructions apply when the repository is hosted on GitHub.
+Agents detect this via:
 
-* Presence of `.github/workflows/` directory
 * Git remote URL containing `github.com`
-* `{{CI_PLATFORM}}` resolving to `GitHub Actions`
+* Presence of GitHub repository metadata or tooling under `.github/`
+
+For GitHub-hosted repositories:
+
+* Part 1 (PR review polling, Copilot Review handling, and comment
+  lifecycle management) applies whenever agents interact with pull
+  requests via GitHub MCP tools or the `gh` CLI.
+* Part 2 (CI polling and check monitoring) applies when the workspace
+  CI platform is GitHub Actions. Agents MAY detect that via:
+  * Presence of `.github/workflows/` directory
+  * `{{CI_PLATFORM}}` resolving to `GitHub Actions`
 
 When the repository is not on GitHub, these instructions do not apply.
 Fall back to the generic CI and PR protocols in `ci-security.instructions.md`
