@@ -50,9 +50,9 @@ Use this matrix together with:
 | Commit tracking | Compatible with validation | Use to associate commits with work items | Stable value when the workspace wants deeper traceability |
 | Metadata catalog and command map | Compatible now | Use for agent discovery and tool-surface introspection | Strong bridge between backlogit runtime and autoharness templates |
 | Current multi-agent backlogit workflow | Compatible now | Use as the reference operating model for deep backlogit guidance | Safe because it reflects today's working backlogit workflow |
-| Groomer and shipper agents | Incubating | Do not template yet | Await implementation and end-to-end validation in backlogit |
-| Shipment artifact type | Incubating | Do not assume in templates, registries, or instructions yet | Promote only after stable artifact contract exists |
-| Four-stage stash → backlog → shipment → shipped pipeline | Incubating | Mention only as future direction, not current install behavior | Depends on multiple unresolved workflow changes |
+| Stage and Ship two-agent workflow | Compatible now | Stage and Ship are autoharness-native agent templates (`stage.agent.md.tmpl`, `ship.agent.md.tmpl`) installed into target workspaces; backlogit is the first consumer | Not a backlogit graduation item — these originate from autoharness Primitive 4 (Orchestration) |
+| Shipment lifecycle envelope | Compatible now | Shipment type suffix (`S`), ID format, `custom_fields.items` grouping, 7 MCP tools, and 6 CLI subcommands are proven and production-quality; consume through the backlogit capability pack and registry | Stable artifact type, lifecycle states (queued → active → shipped/abandoned → archived), and full CRUD+lifecycle MCP/CLI surface |
+| Four-stage stash → backlog → shipment → shipped pipeline | Compatible now | Pipeline is implemented: Stage owns stash-to-backlog, Ship owns backlog-to-shipped, shipments are the lifecycle envelope | Stash storage shape (Markdown vs JSONL) is the remaining incubating question |
 | Stash JSONL source of truth | Incubating | Do not assume in autoharness discovery or instructions yet | Current stable stash guidance remains the active contract |
 | New internal file naming conventions tied to the two-agent workflow | Incubating | Do not hardcode in templates yet | Must survive backlogit implementation and migration decisions |
 

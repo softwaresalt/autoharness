@@ -152,6 +152,54 @@ operations:
       message: "message"
       author: "author"
 
+  create_shipment:
+    mcp_tool: "backlogit_create_shipment"
+    cli_command: "backlogit shipment create --title {{title}} --items {{items}}"
+    params:
+      title: "title"
+      items: "items"
+
+  get_shipment:
+    mcp_tool: "backlogit_get_shipment"
+    cli_command: "backlogit shipment get {{id}}"
+    params:
+      shipment_id: "id"
+
+  list_shipments:
+    mcp_tool: "backlogit_list_shipments"
+    cli_command: "backlogit shipment list"
+    params:
+      status: "status"
+
+  claim_shipment:
+    mcp_tool: "backlogit_claim_shipment"
+    cli_command: "backlogit shipment claim {{id}}"
+    params:
+      shipment_id: "id"
+
+  ship_shipment:
+    mcp_tool: "backlogit_ship_shipment"
+    cli_command: "backlogit shipment ship {{id}}"
+    params:
+      shipment_id: "id"
+      sha: "sha"
+      message: "message"
+      author: "author"
+
+  add_to_shipment:
+    mcp_tool: "backlogit_add_to_shipment"
+    params:
+      shipment_id: "shipment_id"
+      item_id: "item_id"
+
+  return_blocked:
+    mcp_tool: "backlogit_return_blocked"
+    cli_command: "backlogit shipment return-blocked --shipment {{shipment_id}} --item {{item_id}} --reason {{reason}}"
+    params:
+      shipment_id: "shipment_id"
+      item_id: "item_id"
+      reason: "reason"
+
 field_mapping:
   task_id: "id"
   title: "title"
@@ -184,3 +232,4 @@ features:
   sections: true
   templates: true
   commit_tracking: true
+  shipments: true
