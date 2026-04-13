@@ -295,10 +295,10 @@ Preset defaults:
 | Preset | Default Primitives | Default Capability Packs | Best For |
 |---|---|---|---|
 | `starter` | 1, 2, 4, 5, 6, 8, 9 | none | First-time adoption, smaller repos |
-| `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `strict-safety` when runtime risk is detected | Most repositories |
-| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | All recommended packs from the profile | Higher-operational-maturity teams |
+| `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review` | Most repositories |
+| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification` | Higher-operational-maturity teams |
 
-If `capability_packs` input is omitted, use the profile's `harness_recommendations.capability_packs` for `full`, or apply no optional packs for `starter`/`standard` unless a pack is strongly recommended by detected runtime surfaces.
+If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-intercom`, `agent-engram`, `backlogit`, and `browser-verification`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs.
 
 Additive stack packs are descriptive composition inputs rather than substitute
 architectures. They capture multiple concurrent workspace shapes such as

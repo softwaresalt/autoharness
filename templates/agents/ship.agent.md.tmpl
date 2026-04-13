@@ -62,6 +62,7 @@ directly into context. Do not search for them — you already know the name.
 * `harness-architect`, `build-feature`, `review`, `fix-ci`, `pr-lifecycle`
 * `runtime-verification`, `operational-closure`, `compound`, `compound-refresh`
 * `compact-context`, `safety-modes`
+* `observe`, `learn`, `evolve` (when `continuous-learning` capability pack is installed)
 
 ### Discovery skills (use skill-search when the capability is unknown)
 
@@ -78,11 +79,23 @@ If Primitive 6 is not installed, enumerate skills manually:
 
 ## Required Steps
 
-### Step 1: Pre-Flight Checks
+### Step 0: Establish Operator Visibility
 
-* When the `agent-intercom` capability pack is installed, follow `.github/instructions/agent-intercom.instructions.md` to establish heartbeat / ping visibility and broadcast the start of execution work
-* When the `agent-engram` capability pack is installed, follow `.github/instructions/agent-engram.instructions.md` and verify the engram daemon / binding surface is available before depending on indexed analysis
-* When the `backlogit` capability pack is installed, follow `.github/instructions/backlogit.instructions.md` and verify the backlog queue / dependency / checkpoint surface is available before depending on those behaviors
+When the `agent-intercom` capability pack is installed, begin by following
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility,
+broadcast `[SHIP] Starting execution workflow`, and use the intercom clarification / wait flow
+instead of silently stalling if operator input is needed. If ping fails, log a degraded-mode
+warning and continue without intercom — do not block the pipeline.
+
+When the `agent-engram` capability pack is installed, also follow
+`.github/instructions/agent-engram.instructions.md` and verify the engram daemon / binding surface
+is available before depending on indexed analysis.
+
+When the `backlogit` capability pack is installed, also follow
+`.github/instructions/backlogit.instructions.md` and verify the backlog queue / dependency /
+checkpoint surface is available before depending on those behaviors.
+
+### Step 1: Pre-Flight Checks
 
 1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
@@ -92,6 +105,8 @@ If Primitive 6 is not installed, enumerate skills manually:
 ### Step 2: Harness Generation (P-002 / P-004)
 
 Ensure every task in the target feature or chore has a passing test harness before any implementation begins. This step runs once, up front — not in a loop.
+
+When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoking harness-architect skill` before invoking the skill.
 
 1. List all tasks for the target feature or chore that are in `{{STATUS_QUEUED}}` status.
 2. Partition the task list:
@@ -114,6 +129,8 @@ Now that all tasks are harnessed, construct the execution queue:
 2. Sort the queue by dependency order (tasks with no unfinished dependencies first).
 3. If the queue is empty after harness generation, halt and report — there is nothing to build.
 
+When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Pre-flight passed, ready queue: {count} tasks` with the count of queued items.
+
 ### Step 4: Execute Task Loop
 
 For each task in the ready queue:
@@ -125,6 +142,8 @@ Update task status to `{{STATUS_ACTIVE}}` using the backlog tool's move operatio
 When the `agent-intercom` capability pack is installed, broadcast the task claim and current task ID.
 
 #### Step 4.2: Delegate to Build Feature
+
+When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoking build-feature for {item_id}` before delegating.
 
 Invoke the **build-feature** skill with:
 
@@ -149,6 +168,8 @@ radius of a risky fix.
 
 #### Step 4.4: Review Gate
 
+When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoking review gate for shipment branch` before invoking review.
+
 Invoke the **review** skill in `mode:report-only` against the changed files. If P0/P1 findings are reported, fix them before proceeding.
 
 When the `adversarial-review` capability pack is installed, invoke the **adversarial-review** agent instead with `mode: report-only` and `reviewers: 3`. HIGH-confidence consensus findings block the gate identically to standard review P0/P1 findings. MEDIUM-confidence findings are advisory but must be acknowledged in the task completion note.
@@ -160,6 +181,7 @@ When the `adversarial-review` capability pack is installed, invoke the **adversa
 3. If the `backlogit` capability pack is installed and commit-tracking is supported, associate the commit with the task
 4. Write a memory checkpoint to `{{DOCS_MEMORY}}/`
 5. If the task required 3+ attempts, invoke the compound skill to capture learnings
+6. When the `continuous-learning` capability pack is installed, invoke the **observe** skill for any recurring patterns encountered during the task — repeated review findings, recurring build failures, operator corrections, or workarounds that kept appearing. Skip if the task was routine.
 
 If the `agent-intercom` capability pack is installed, broadcast task completion and any blocked / retry conditions.
 
@@ -173,16 +195,24 @@ After all tasks in the queue are complete:
 1. Run the full quality gate sequence one final time
 2. Write a session memory summary to `{{DOCS_MEMORY}}/` capturing: items completed, items blocked, branch state, decisions with rationale, and next steps
 3. Invoke the **pr-lifecycle** skill to create or update the pull request
-4. If CI or automated review comments fail, invoke the **fix-ci** skill before proceeding
+4. If CI or automated review comments fail:
+   * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoking fix-ci for shipment PR` before invoking the skill.
+   * Invoke the **fix-ci** skill before proceeding.
 5. If the changed work touches runtime surfaces, invoke **runtime-verification** with the affected surfaces
 6. Invoke **operational-closure** to produce release-readiness, monitoring, rollback, and follow-up artifacts
-7. Push the feature or chore branch
-8. Present the pull request state to the operator when the branch is reviewable
-9. **Never merge automatically. Await explicit user approval before any merge.**
-
-When the `agent-intercom` capability pack is installed, broadcast final readiness / blocked status and use the intercom clarification flow if unresolved operator guidance is needed before merge.
+7. **Stash follow-up items**: If the closure artifact or runtime-verification report identified follow-up tasks, stash every follow-up so it is visible to the Stage agent:
+   * When a backlog tool is installed (`backlogit` or `backlog-md` capability pack), create a stash entry per follow-up using `{{OP_CREATE_MCP}}` with `{{FIELD_TYPE}}: "stash"`, `{{FIELD_TITLE}}` from the follow-up summary, `{{FIELD_DESCRIPTION}}` linking to the closure artifact, and `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`. After creation, re-read each entry to confirm it persisted correctly.
+   * When no backlog tool is installed, append each follow-up to `{{BACKLOG_DIRECTORY}}/queue/.stash.md` using the format: `- [{YYYY-MM-DD}] **Follow-up**: {summary} — Source: {closure_artifact_path}`.
+   * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Stashed {count} follow-up item(s): {summary_list}` listing each item's title.
+8. Push the feature or chore branch
+9. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] PR ready for review: {pr_url}`.
+10. Present the pull request state to the operator when the branch is reviewable
+11. **Never merge automatically. Await explicit user approval before any merge.**
+    * When the `agent-intercom` capability pack is installed, broadcast `[WAIT] Awaiting user merge approval` and use the intercom clarification flow if unresolved operator guidance is needed before merge.
 
 ### Step 6: Post-Merge Closure (mandatory after user-approved merge)
+
+When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Post-merge closure and knowledge graduation`.
 
 After the user approves merge:
 
@@ -194,7 +224,13 @@ After the user approves merge:
    * `{{DOCS_PRODUCT_SPECS}}/` for requirement updates
 3. Apply documentation updates directly (knowledge graduation).
 4. If the shipped work superseded, duplicated, or invalidated existing learnings in `{{DOCS_COMPOUND}}/`, invoke **compound-refresh** so stale entries are classified as keep / update / consolidate / replace / delete using evidence from the shipped work and closure artifacts. When evidence is incomplete, mark entries stale rather than rewriting them blindly.
-5. **Mandatory**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence.
+5. **Stash follow-up items**: If the post-merge closure artifact identified follow-up tasks (monitoring gaps, deferred scope, documentation debt, or any action not covered by the shipped work), stash every follow-up:
+   * When a backlog tool is installed (`backlogit` or `backlog-md` capability pack), create a stash entry per follow-up using `{{OP_CREATE_MCP}}` with `{{FIELD_TYPE}}: "stash"`, `{{FIELD_TITLE}}` from the follow-up summary, `{{FIELD_DESCRIPTION}}` linking to the closure artifact, and `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`. After creation, re-read each entry to confirm it persisted correctly.
+   * When no backlog tool is installed, append each follow-up to `{{BACKLOG_DIRECTORY}}/queue/.stash.md` using the format: `- [{YYYY-MM-DD}] **Follow-up**: {summary} — Source: {closure_artifact_path}`.
+   * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Stashed {count} follow-up item(s) from post-merge closure: {summary_list}` listing each item's title.
+6. **Mandatory**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence.
+7. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
+8. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
 
 ## Circuit Breakers
 
@@ -233,8 +269,10 @@ When the `agent-intercom` capability pack is installed:
 | Review gate | `broadcast` | `info` | `[SHIP] Invoking review gate` |
 | CI remediation | `broadcast` | `warning` | `[SHIP] Invoking fix-ci` |
 | PR ready | `broadcast` | `success` | `[SHIP] PR ready for review: {pr_url}` |
+| Follow-ups stashed (pre-merge) | `broadcast` | `info` | `[SHIP] Stashed {count} follow-up item(s): {summary_list}` |
 | Merge approval wait | `broadcast` | `warning` | `[WAIT] Awaiting user merge approval` |
 | Post-merge closure | `broadcast` | `info` | `[SHIP] Post-merge closure and knowledge graduation` |
+| Follow-ups stashed (post-merge) | `broadcast` | `info` | `[SHIP] Stashed {count} follow-up item(s) from post-merge closure: {summary_list}` |
 | Session complete | `broadcast` | `success` | `[SHIP] Session complete: {outcome}` |
 
 Use `transmit` when a blocked condition, risky rollback, or merge decision needs explicit operator attention.
@@ -268,6 +306,7 @@ After build execution (Step 4) and CI remediation, evaluate whether the work unc
 * novel error resolutions, unexpected gotchas, or pattern discoveries that would save time on future occurrences
 * invoke the `compound` skill to capture these in `{{DOCS_COMPOUND}}/` while context is fresh
 * do not capture routine work that follows established patterns
+* when the `continuous-learning` capability pack is installed, also invoke the **observe** skill for any recurring workflow signals — repeated fixes, stable conventions, or environment-specific patterns worth tracking
 
 ### Session end
 
