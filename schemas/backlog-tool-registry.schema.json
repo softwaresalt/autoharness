@@ -76,7 +76,14 @@
         "get_dependencies": { "$ref": "#/$defs/operation" },
         "track_commit": { "$ref": "#/$defs/operation" },
         "list_milestones": { "$ref": "#/$defs/operation" },
-        "add_milestone": { "$ref": "#/$defs/operation" }
+        "add_milestone": { "$ref": "#/$defs/operation" },
+        "create_shipment": { "$ref": "#/$defs/operation" },
+        "get_shipment": { "$ref": "#/$defs/operation" },
+        "list_shipments": { "$ref": "#/$defs/operation" },
+        "claim_shipment": { "$ref": "#/$defs/operation" },
+        "ship_shipment": { "$ref": "#/$defs/operation" },
+        "add_to_shipment": { "$ref": "#/$defs/operation" },
+        "return_blocked": { "$ref": "#/$defs/operation" }
       }
     },
     "field_mapping": {
@@ -121,7 +128,8 @@
         "queue": { "type": "boolean", "default": false },
         "sections": { "type": "boolean", "default": false },
         "templates": { "type": "boolean", "default": false },
-        "commit_tracking": { "type": "boolean", "default": false }
+        "commit_tracking": { "type": "boolean", "default": false },
+        "shipments": { "type": "boolean", "default": false }
       }
     }
   },

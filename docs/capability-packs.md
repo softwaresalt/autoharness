@@ -450,10 +450,16 @@ Stable backlogit contract that can be woven now:
 
 Incubating backlogit workflow that should remain in backlogit until proven:
 
-* `groomer` and `shipper` agent choreography
-* shipment artifacts and shipment-scoped branch assumptions
 * stash JSONL and related storage transitions
-* unfinalized file naming or lifecycle rules tied to the emerging two-agent model
+* unfinalized file naming or lifecycle rules tied to internal backlogit refactors
+
+Graduated backlogit workflow now safe to consume:
+
+* shipment lifecycle envelopes (suffix `S`, 7 MCP tools, 6 CLI subcommands, full CRUD+lifecycle surface)
+
+Note: Stage and Ship agents are autoharness-native templates (Primitive 4:
+Orchestration), not backlogit-originated workflow that needs graduation.
+Backlogit is the first consumer of these templates.
 
 Use [Backlogit Operating Model](backlogit-operating-model.md) for the current
 boundary, [Backlogit Compatibility Matrix](backlogit-compatibility-matrix.md)

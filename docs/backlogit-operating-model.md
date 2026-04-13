@@ -41,6 +41,7 @@ documented, and wired through the existing capability-pack overlay.
 | Comments and telemetry | Yes | traceability and operational notes |
 | Commit tracking | Yes | task-to-commit linkage |
 | Metadata catalog and command map | Yes | agent discovery and workflow introspection |
+| Shipment lifecycle envelopes | Yes | release grouping, claim/ship lifecycle, and commit traceability through 7 MCP tools and 6 CLI subcommands |
 | Current backlogit multi-agent workflow | Yes | reference operating model for deep backlogit guidance |
 
 These are the capabilities that the `backlogit` capability pack should continue
@@ -58,20 +59,110 @@ in the backlogit repository's session memory and related planning artifacts.
 
 That design currently includes:
 
-* a `groomer` agent for deliberate → plan → review → harvest flow
-* a `shipper` agent for harness → build → review → CI → PR lifecycle flow
+* a **Stage** agent for deliberate → plan → review → harvest flow
+* a **Ship** agent for harness → build → review → CI → PR lifecycle flow
 * a four-stage storage pipeline: stash → backlog → shipment → shipped
-* shipment artifacts that group one branch and one pull request
+* shipment envelopes that group one branch and one pull request around existing work items
 * possible stash migration from markdown to JSONL
 
-This direction is promising, but it is not yet ready to become template truth in
-`autoharness`.
+Stage and Ship are **autoharness-native agent templates** (`stage.agent.md.tmpl`
+and `ship.agent.md.tmpl`) that implement Primitive 4 (Orchestration). They are
+not backlogit-originated workflow surfaces that need to graduate into
+autoharness — the dependency runs the other direction. Backlogit is the first
+target workspace to consume these templates.
 
-Until backlogit proves that workflow in its own repository, `autoharness`
-should **not** hardcode:
+The earlier design notes used the names "groomer" and "shipper". The stable
+names are **Stage** and **Ship**.
 
-* `groomer` or `shipper` agent names
-* shipment artifact assumptions
+### Shipment design decision: lifecycle envelope
+
+Shipment is a **lifecycle envelope**, not implementable work. It groups one or
+more existing backlog work items together with a branch and pull request to
+track their journey from claimed to shipped. Despite being a lifecycle envelope
+conceptually, shipment is implemented as a first-class artifact type in
+backlogit's type system with its own suffix (`S`), ID format (`NNN-S`), and
+file in `.backlogit/queue/`.
+
+Concrete shape (from real backlogit shipments):
+
+Active shipment (in `queue/`):
+
+```yaml
+---
+artifact_type: shipment
+id: 014-S
+status: done
+title: Stash Lifecycle & Hygiene
+custom_fields:
+    items:
+        - 030-F
+        - 030.001-T
+        - 030.002-T
+created_at: 2026-04-12T19:14:53Z
+updated_at: 2026-04-12T19:52:22Z
+---
+```
+
+Archived shipment (moved to `archive/`):
+
+```yaml
+---
+artifact_type: shipment
+id: 013-S
+status: archived
+archived_from: .backlogit/queue/013-S.md
+commit: aeee58e
+title: Correctness & Safety Fixes
+custom_fields:
+    items:
+        - 029-F
+        - 029.001-T
+        - 029.002-T
+        - 029.003-T
+        - 029.004-T
+        - 029.005-T
+created_at: 2026-04-12T12:47:24Z
+updated_at: 2026-04-12T15:33:48Z
+---
+```
+
+Key implications:
+
+* `suffix_map` includes `shipment: "S"` because it uses the standard ID
+  hierarchy and lives in the queue directory
+* Shipment references its wrapped work items via `custom_fields.items`
+* Shipment uses standard work-item statuses (queued, active, done, blocked)
+  plus `archived` when moved from `queue/` to `archive/`
+* Archived shipments gain `archived_from` (origin path) and may carry a
+  `commit` field linking the shipment to its final merge commit
+* Ship agent creates and manages shipments; Stage agent does not
+* Unlike features, chores, and tasks, a shipment does not contain
+  implementation detail — it is a release grouping artifact
+
+Stable MCP tools (7): `backlogit_create_shipment`, `backlogit_get_shipment`,
+`backlogit_list_shipments`, `backlogit_claim_shipment`,
+`backlogit_ship_shipment`, `backlogit_add_to_shipment`,
+`backlogit_return_blocked`.
+
+Stable CLI subcommands (6): `backlogit shipment create`, `get`, `list`,
+`claim`, `ship`, `return-blocked`.
+
+Shipment lifecycle: `queued → active → shipped/abandoned → archived`.
+
+Error sentinels: `ErrShipmentNotFound`, `ErrShipmentConflict`,
+`ErrItemAlreadyAssigned`, `ErrCannotReturnItem`.
+
+The shipment surface is graduated and wired into the backlogit registry
+template. The remaining incubating items in the two-agent workflow (groomer/
+shipper agent choreography, stash JSONL, file naming conventions) are
+independent of the shipment contract.
+
+The remaining two-agent choreography is promising, but it is not yet ready to
+become template truth in `autoharness`.
+
+Until backlogit proves the remaining workflow in its own repository,
+`autoharness` should **not** hardcode:
+
 * stash JSONL assumptions
 * new file naming rules that are still part of backlogit's internal refactor
 * phase choreography that depends on unshipped backlogit behavior

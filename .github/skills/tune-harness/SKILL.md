@@ -56,6 +56,55 @@ Read `.autoharness/config.yaml` from the target workspace (if present). The oper
 
 If the config was modified since the last installation (compare against the manifest's recorded config hash), flag this as an intentional configuration change and prioritize it in the tuning report.
 
+#### Step 0b.1: Config Schema Validation
+
+Validate the loaded config against `{autoharness_home}/schemas/harness-config.schema.json`. For each discrepancy, classify as:
+
+| Discrepancy | Classification | Action |
+|---|---|---|
+| Unknown top-level key | Warning | Report in tuning output; may indicate a renamed key |
+| Unknown nested key that matches a renamed schema key | Migration | Generate a config-key migration proposal (P1 Degrading) |
+| Missing required key | Error | Halt tuning and report |
+| Value type mismatch | Warning | Report in tuning output |
+| Map object missing entries that have schema defaults | Backfill | Generate a config-backfill proposal (P1 Degrading) |
+
+**Config-key migration**: When a config key matches a known rename (e.g., `prefix_map` → `suffix_map`), generate a migration proposal that:
+
+1. Renames the key in `.autoharness/config.yaml` while preserving all child values
+2. Backs up the original config to `.autoharness/backups/{YYYY-MM-DD}/`
+3. Updates the manifest's config hash after migration
+4. Classifies as P1 Degrading because downstream template variable resolution may silently fall back to defaults when the old key name is present
+
+Known config-key renames:
+
+| Old Key Path | Current Key Path | Renamed In |
+|---|---|---|
+| `backlog.prefix_map` | `backlog.suffix_map` | v1.0.0 |
+
+**Config-entry backfill**: When a map object in the config (e.g., `backlog.suffix_map`, `docs.subdirectories`) is present but missing entries that the schema defines with defaults, generate a backfill proposal that:
+
+1. Adds the missing entries using the schema default values
+2. Preserves all existing operator-specified values unchanged
+3. Backs up the original config to `.autoharness/backups/{YYYY-MM-DD}/`
+4. Updates the manifest's config hash after backfill
+5. Classifies as P1 Degrading because templates referencing the missing entries (e.g., `{{SUFFIX_EPIC}}`, `{{SUFFIX_CHORE}}`) resolve to defaults during install but are invisible in the operator config, creating a silent divergence between what the config declares and what the harness uses
+
+For `backlog.suffix_map`, the canonical entry set is defined by the schema:
+
+| Entry | Default | Purpose |
+|---|---|---|
+| `feature` | `F` | Feature work items |
+| `chore` | `C` | Maintenance/housekeeping work items |
+| `task` | `T` | Individual task units |
+| `spike` | `S` | Time-boxed investigation |
+| `deliberation` | `D` | Structured decision capture |
+| `bug` | `B` | Defect tracking |
+| `epic` | `E` | Multi-feature grouping |
+| `subtask` | `ST` | Task subdivision |
+| `shipment` | `S` | Lifecycle envelope grouping work items for release |
+
+Any entry present in the schema but absent from the config is a backfill candidate. The backfill proposal must list each missing entry and its default value so the operator can accept or override.
+
 ### Phase 1: Drift Detection
 
 #### Step 1.1: Re-run Workspace Discovery
@@ -69,9 +118,11 @@ Classify each detected change by impact and urgency:
 | Drift Category | Impact | Examples |
 |---|---|---|
 | **Breaking** | Harness references are invalid | Removed build tool, renamed source directory, deleted CI pipeline |
-| **Degrading** | Harness works but is suboptimal | New framework added without instructions, new test patterns without review persona |
+| **Degrading** | Harness works but is suboptimal | New framework added without instructions, new test patterns without review persona, config key renamed but old key still present, suffix_map missing entries that schema defines |
 | **Cosmetic** | Function unaffected | Minor version bumps, additional config files |
 | **Growth** | New capabilities to harness | New languages in project, new documentation patterns |
+
+Include any config-key migration and config-entry backfill proposals from Step 0b.1 as **Degrading** drift entries. Config migrations and backfills are applied in Phase 4 alongside other accepted proposals.
 
 #### Step 1.3: Deterministic Artifact Drift Scan
 

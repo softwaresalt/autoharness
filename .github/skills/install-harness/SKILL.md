@@ -158,6 +158,7 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{SUFFIX_BUG}}` | `config.backlog.suffix_map.bug` | `B` |
 | `{{SUFFIX_EPIC}}` | `config.backlog.suffix_map.epic` | `E` |
 | `{{SUFFIX_SUBTASK}}` | `config.backlog.suffix_map.subtask` | `ST` |
+| `{{SUFFIX_SHIPMENT}}` | `config.backlog.suffix_map.shipment` | `S` |
 
 Resolution order: (1) operator `.autoharness/config.yaml` → (2) backlogit project YAML metadata (when backlogit capability pack is active) → (3) schema defaults above.
 

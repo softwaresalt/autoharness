@@ -7,17 +7,22 @@ keywords:
   - autoharness
   - backlogit
   - graduation
-  - groomer
-  - shipper
+  - stage
+  - ship
   - checklist
 ---
 
 ## Overview
 
-Use this checklist to decide when backlogit's emerging two-agent workflow is
-ready to graduate from backlogit-internal design and implementation into
-`autoharness` operating-model guidance, templates, discovery, verification, and
-tuning logic.
+Use this checklist to decide when backlogit-specific workflow surfaces are
+ready to graduate into `autoharness` operating-model guidance, templates,
+discovery, verification, and tuning logic.
+
+Note: Stage and Ship agents are autoharness-native templates (Primitive 4:
+Orchestration), not backlogit-originated surfaces. They do not need to
+graduate from backlogit. This checklist covers the backlogit-specific surfaces
+that those agents consume: shipment envelopes, stash storage, queue semantics,
+and MCP/CLI tool contracts.
 
 The default posture is conservative:
 
@@ -29,14 +34,14 @@ through the existing harness composition model.
 
 ## Graduation gate
 
-Do **not** promote the two-agent workflow into `autoharness` until every
-required item below is complete.
+Do **not** promote a backlogit-specific workflow surface into `autoharness`
+until every required item below is complete.
 
 ## 1. Runtime implementation
 
-- [ ] `groomer` and `shipper` exist as implemented backlogit workflow surfaces, not only design notes
-- [ ] the current replacement path for legacy multi-agent flow is clear
-- [ ] shipment artifacts, if still part of the design, are implemented as stable runtime concepts
+- [x] Stage and Ship agent templates are implemented in autoharness and installed into backlogit as the primary two-agent workflow (autoharness-native; not a graduation item)
+- [x] the current replacement path for legacy multi-agent flow is clear (legacy agents archived in backlogit AGENTS.md with superseded-by mapping)
+- [x] shipment envelopes are implemented as stable lifecycle artifacts with finalized frontmatter schema and lifecycle states (shipment is a lifecycle envelope implemented as a first-class artifact type with suffix `S`, wrapping work items via `custom_fields.items`; 7 MCP tools and 6 CLI subcommands are production-quality)
 - [ ] stash storage shape is finalized
 - [ ] queue and status semantics for the new workflow are finalized
 
@@ -44,8 +49,8 @@ required item below is complete.
 
 - [ ] any new MCP tools have stable names and documented parameters
 - [ ] any new CLI commands have stable names and documented behavior
-- [ ] any new artifact types have stable frontmatter and lifecycle semantics
-- [ ] any new status values are represented in the metadata catalog and are intended to be durable
+- [ ] any new artifact types have stable frontmatter and lifecycle semantics (shipment envelopes are graduated — see §1)
+- [ ] any new status values are represented in the metadata catalog and are intended to be durable (shipment uses standard statuses plus `archived`; shipment-specific lifecycle: queued → active → shipped/abandoned)
 - [ ] autoharness can describe the new behavior in registry, discovery, and overlay terms without depending on backlogit-internal implementation details
 
 ## 3. Validation inside backlogit
