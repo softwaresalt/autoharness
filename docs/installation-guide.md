@@ -99,7 +99,7 @@ capability_packs:
   - continuous-learning
 backlog:
   tool: backlogit
-  prefix_map:
+  suffix_map:
     feature: "F"
     chore: "C"
     task: "T"
@@ -134,7 +134,7 @@ The config file controls:
 | `install_layers` | `[foundation, instructions, workflow, review, runtime, backlog, knowledge]` | Explicit artifact-class composition derived from the chosen preset and overlays |
 | `capability_packs` | `[backlogit, agent-engram]` | Which packs to enable |
 | `backlog.tool` | `backlogit` | Override backlog tool auto-detection |
-| `backlog.prefix_map` | `{feature: "F", chore: "C", task: "T"}` | Work item type prefixes |
+| `backlog.suffix_map` | `{feature: "F", chore: "C", task: "T"}` | Work item type suffixes |
 | `docs.root` | `docs` | Where durable knowledge artifacts live |
 | `continuous_learning` | `{directory: ".autoharness/continuous-learning"}` | Repo-local observation and learned-artifact settings for the optional continuous-learning pack |
 | `model_routing` | `{tier1: "gpt-5.4-mini"}` | Model preferences per tier |
