@@ -96,8 +96,9 @@ Before creating anything, apply backlog shaping rules:
 referencing an existing feature. The root feature MUST be created before any
 tasks are created. If the harvest context does not include an existing parent
 feature for task-kind work items, create or identify one before proceeding.
-Omitting `{{FIELD_PARENT_ID}}` for task-kind artifacts will be rejected by the
-hierarchy enforcement layer.
+Omitting `{{FIELD_PARENT_ID}}` for task-kind artifacts violates the required
+parent-child hierarchy (P-003 decomposition integrity) and may be blocked by
+the configured backlog registry or policy gates.
 
 When the `backlogit` capability pack is installed and the registry advertises
 `features.shipments: true`, the parent feature MUST be added to the shipment

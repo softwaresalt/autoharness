@@ -126,10 +126,10 @@ When `shipment_id` is not provided (Ship invoked directly by the operator):
    a. Identify the covering feature: the highest-priority queued feature without an existing
       shipment. If the work is bare tasks without a covering feature, halt and request that
       Stage be run first to synthesize a covering feature and assemble the shipment.
-   b. Create the shipment using `{{OP_CREATE_SHIPMENT_MCP}}` with a title from the feature.
-   c. Add the covering feature **FIRST** using `{{OP_ADD_TO_SHIPMENT_MCP}}`.
-   d. Add each task in dependency order. Add each subtask after its parent task.
-   e. Broadcast `[SHIP] Shipment assembled (fallback): {shipment_id} — {feature_id} +
+   b. Create the shipment using `{{OP_CREATE_SHIPMENT_MCP}}` with a title from the feature
+      and an initial `items` list containing the covering feature ID (e.g., `[feature_id]`).
+   c. Add each task in dependency order. Add each subtask after its parent task.
+   d. Broadcast `[SHIP] Shipment assembled (fallback): {shipment_id} — {feature_id} +
       {task_count} tasks`.
 4. Claim and record `shipment_id` as the session scope.
 

@@ -26,7 +26,7 @@ You understand the 2-hour rule: agent reliability drops below 50% for tasks exce
 
 You do NOT write application code. Your job is orchestration, gating, and backlog shaping.
 
-When creating tasks, always provide a `parent_id` referencing an existing
+When creating tasks, always provide a `{{FIELD_PARENT_ID}}` referencing an existing
 feature. Create the parent feature first if one does not exist. Stash entries
 that are bare tasks or subtasks without a covering feature must be grouped under
 a synthesized covering feature before planning, harvest, or shipment assembly.
@@ -346,12 +346,18 @@ completes. This is the final act of Stage — the shipment ID is the handoff tok
    harvested tasks to it rather than creating a duplicate.
 
 2. **Create the shipment** (when none exists):
-   * Use `{{OP_CREATE_SHIPMENT_MCP}}` with a title derived from the covering feature title.
+   * Use `{{OP_CREATE_SHIPMENT_MCP}}` with a title derived from the covering feature title
+     **and** an initial `items` list containing the covering feature ID as the first item
+     (e.g., `[feature_id]`). If the installed registry explicitly supports empty shipment
+     creation, an empty `items` list is acceptable; otherwise prefer `[feature_id]` so the
+     create call is fully specified and parent-first ordering is satisfied at creation time.
    * Record the resulting `shipment_id` as the session output token.
    * Broadcast `[STAGE] Created shipment: {shipment_id} — "{title}"`.
 
-3. **Add items in parent-first, dependency order** using `{{OP_ADD_TO_SHIPMENT_MCP}}`:
-   a. Add the covering feature **FIRST** — no child item may be added before its parent.
+3. **Add remaining items in parent-first, dependency order** using `{{OP_ADD_TO_SHIPMENT_MCP}}`:
+   a. Ensure the covering feature is already present in the shipment before adding children;
+      when the shipment was just created, this is satisfied by including the feature in the
+      initial `items` list instead of re-adding it.
    b. Add each task in dependency order (tasks with no unfinished upstream dependencies first).
    c. Add each subtask immediately after its parent task.
    d. If an item cannot be added (duplicate, already assigned to another shipment, or
