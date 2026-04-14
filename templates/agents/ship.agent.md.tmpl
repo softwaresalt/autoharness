@@ -105,10 +105,10 @@ When the `backlogit` capability pack is installed and the registry advertises
 When `shipment_id` is provided as input (as produced by Stage), validate it before any
 build work begins:
 
-1. Load the shipment using `{{OP_GET_SHIPMENT_MCP}}`. Confirm it is `queued` or `active`.
+1. Load the shipment using `{{OP_GET_SHIPMENT_MCP}}`. Confirm it is in `{{STATUS_QUEUED}}` or `{{STATUS_ACTIVE}}` status.
 2. Confirm the shipment has explicit item membership (feature + tasks).
 3. Verify no item in the shipment is missing a covering feature parent.
-4. If the shipment is still `queued`, claim it using `{{OP_CLAIM_SHIPMENT_MCP}}` before
+4. If the shipment is still in `{{STATUS_QUEUED}}` status, claim it using `{{OP_CLAIM_SHIPMENT_MCP}}` before
    build work begins. Broadcast `[SHIP] Shipment claimed: {shipment_id}`.
 5. Record `shipment_id` as the session scope. All build execution and PR scope is bounded
    by this shipment.
@@ -117,9 +117,9 @@ build work begins:
 
 When `shipment_id` is not provided (Ship invoked directly by the operator):
 
-1. List existing `queued` shipments using `{{OP_LIST_SHIPMENTS_MCP}}` to check for one that
-   already covers the intended feature scope. If found, record its ID and proceed as primary
-   path.
+1. List existing shipments in `{{STATUS_QUEUED}}` status using `{{OP_LIST_SHIPMENTS_MCP}}` to
+   check for one that already covers the intended feature scope. If found, record its ID and
+   proceed as primary path.
 2. If no suitable shipment exists, request one from the operator or confirm that direct
    assembly is intended before continuing.
 3. If the operator confirms direct assembly, create the shipment:
@@ -135,6 +135,14 @@ When `shipment_id` is not provided (Ship invoked directly by the operator):
 
 When the `agent-intercom` capability pack is also installed, broadcast each sub-step with
 its outcome.
+
+### Validation Boundary
+
+Ship validates **execution-ready state**: backlog items exist, shipment is well-formed,
+items have covering features, and the workspace compiles. Ship does NOT re-triage,
+re-classify, or re-group stash entries — that is Stage's responsibility. If Ship detects
+structural issues that require re-grouping (e.g., missing covering feature, orphaned tasks),
+it halts and requests that Stage be run first.
 
 ### Step 1: Pre-Flight Checks
 
@@ -213,7 +221,7 @@ When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoki
 
 Invoke the **review** skill in `mode:report-only` against the changed files. If P0/P1 findings are reported, fix them before proceeding.
 
-When the `adversarial-review` capability pack is installed, invoke the **adversarial-review** agent instead with `mode: report-only` and `reviewers: 3`. HIGH-confidence consensus findings block the gate identically to standard review P0/P1 findings. MEDIUM-confidence findings are advisory but must be acknowledged in the task completion note.
+When the `adversarial-review` capability pack is installed, Ship invokes the **adversarial-review** agent in place of the standard review skill, with `mode: report-only` and `reviewers: 3`. HIGH-confidence consensus findings block the gate identically to standard review P0/P1 findings. MEDIUM-confidence findings are advisory but must be acknowledged in the task completion note.
 
 #### Step 4.5: Complete Task
 

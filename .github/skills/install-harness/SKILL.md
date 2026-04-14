@@ -132,6 +132,9 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_MOVE_CLI}}` | Registry `operations.move_task.cli_command` | `backlogit move {id} {status}` | `backlog task move {id}` |
 | `{{OP_SEARCH_CLI}}` | Registry `operations.search_tasks.cli_command` | `backlogit search {query}` | `backlog task search` |
 | `{{OP_COMPLETE_CLI}}` | Registry `operations.complete_task.cli_command` | `backlogit done {id}` | `backlog task complete {id}` |
+
+**Status Variables** (derived from `registry.status_values` — these map abstract status names to tool-specific strings):
+
 | `{{STATUS_QUEUED}}` | Registry `status_values.queued` | `queued` | `To Do` |
 | `{{STATUS_ACTIVE}}` | Registry `status_values.active` | `active` | `In Progress` |
 | `{{STATUS_DONE}}` | Registry `status_values.done` | `done` | `Done` |
@@ -146,13 +149,15 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{BACKLOG_TOOLS}}` | Backlog MCP server name from registry | `backlog` | `backlog` |
 | `{{EXTENDED_OPERATIONS_TABLE}}` | Registry `advanced_operations` formatted as Markdown table | _(backlogit-specific ops table)_ | _(empty string if not supported)_ |
 | `{{FEATURE_SHIPMENTS}}` | Registry `features.shipments` | `true` | `false` |
-| `{{OP_CREATE_SHIPMENT_MCP}}` | Registry `operations.create_shipment.mcp_tool` | `backlogit_create_shipment` | _(N/A)_ |
-| `{{OP_GET_SHIPMENT_MCP}}` | Registry `operations.get_shipment.mcp_tool` | `backlogit_get_shipment` | _(N/A)_ |
-| `{{OP_LIST_SHIPMENTS_MCP}}` | Registry `operations.list_shipments.mcp_tool` | `backlogit_list_shipments` | _(N/A)_ |
-| `{{OP_CLAIM_SHIPMENT_MCP}}` | Registry `operations.claim_shipment.mcp_tool` | `backlogit_claim_shipment` | _(N/A)_ |
-| `{{OP_SHIP_SHIPMENT_MCP}}` | Registry `operations.ship_shipment.mcp_tool` | `backlogit_ship_shipment` | _(N/A)_ |
-| `{{OP_ADD_TO_SHIPMENT_MCP}}` | Registry `operations.add_to_shipment.mcp_tool` | `backlogit_add_to_shipment` | _(N/A)_ |
-| `{{OP_RETURN_BLOCKED_MCP}}` | Registry `operations.return_blocked.mcp_tool` | `backlogit_return_blocked` | _(N/A)_ |
+| `{{OP_CREATE_SHIPMENT_MCP}}` | Registry `operations.create_shipment.mcp_tool` | `backlogit_create_shipment` | _(empty string)_ |
+| `{{OP_GET_SHIPMENT_MCP}}` | Registry `operations.get_shipment.mcp_tool` | `backlogit_get_shipment` | _(empty string)_ |
+| `{{OP_LIST_SHIPMENTS_MCP}}` | Registry `operations.list_shipments.mcp_tool` | `backlogit_list_shipments` | _(empty string)_ |
+| `{{OP_CLAIM_SHIPMENT_MCP}}` | Registry `operations.claim_shipment.mcp_tool` | `backlogit_claim_shipment` | _(empty string)_ |
+| `{{OP_SHIP_SHIPMENT_MCP}}` | Registry `operations.ship_shipment.mcp_tool` | `backlogit_ship_shipment` | _(empty string)_ |
+| `{{OP_ADD_TO_SHIPMENT_MCP}}` | Registry `operations.add_to_shipment.mcp_tool` | `backlogit_add_to_shipment` | _(empty string)_ |
+| `{{OP_RETURN_BLOCKED_MCP}}` | Registry `operations.return_blocked.mcp_tool` | `backlogit_return_blocked` | _(empty string)_ |
+
+When the selected registry sets `features.shipments: false`, all `{{OP_*_SHIPMENT_MCP}}` variables MUST resolve to the empty string — never to a literal placeholder like "N/A". Templates gate shipment blocks on `{{FEATURE_SHIPMENTS}}`, so empty-string resolution ensures those blocks are cleanly skipped.
 
 **Suffix Variables** (derived from `config.backlog.suffix_map` → backlog tool auto-detection → schema defaults):
 
@@ -880,8 +885,8 @@ variables_used:
 
 Write (or update) `.autoharness/config.yaml` using the `harness-config.yaml.tmpl` template with all resolved values. This records the actual configuration used during installation:
 
-* If an operator config existed, preserve all operator-provided values and fill in defaults for omitted fields
-* If no operator config existed, write a complete config with all schema defaults
+* If an operator config existed, preserve all operator-provided values and fill in defaults for omitted fields. When the installer discovers values that differ from the operator's explicit choices (e.g., new capability packs auto-detected), the operator's explicit values win — discovered values are recorded in a separate `_discovered` comment block for the tuner to surface later.
+* If no operator config existed, write a complete config with all schema defaults and discovered values
 * The resolved config serves as input for future `tune-harness` runs and enables the tuner to detect configuration drift
 
 The installed config includes: `schema_version`, `preset`,

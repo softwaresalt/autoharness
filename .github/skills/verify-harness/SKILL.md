@@ -11,7 +11,7 @@ confidence-weighted consensus report and auto-remediate confirmed defects.
 
 This skill is the final guardrail after deterministic verification (template
 variable sweep, cross-reference sweep, overlay coherence sweep, structural
-validation). Deterministic checks catch mechanical defects; adversarial
+validation — defined in install-harness Phase 4, Steps 4.1–4.4). Deterministic checks catch mechanical defects; adversarial
 verification catches semantic defects that mechanical checks miss: dropped
 template content, stale references to deprecated agents, incomplete overlay
 weaving, missing skills from discovery tables, and workspace-profile drift.

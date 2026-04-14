@@ -111,11 +111,21 @@ instead of silently stalling if operator input is needed.
 When the `agent-engram` capability pack is installed, also follow
 `.github/instructions/agent-engram.instructions.md`: prefer indexed search for related modules,
 symbols, and prior context before falling back to broader file scans while shaping the backlog.
+Agent-engram provides code-level context (symbols, modules, dependencies); use the skill-search
+tool separately when looking for harness skills by keyword — these are complementary, not competing.
 
 When the `backlogit` capability pack is installed, also follow
 `.github/instructions/backlogit.instructions.md`: use query-driven lookup when inspecting existing
 backlog state, and plan to record explicit dependency edges during decomposition rather than leaving
 execution order implicit.
+
+### Validation Boundary
+
+Stage validates **intake and planning state**: stash entries are classified, groups are
+coherent, deliberation decisions are captured, and plans are reviewed before harvest.
+Stage does NOT execute implementation, run builds, or create PRs — that is Ship's
+responsibility. Stage's output is a well-formed backlog with an optional shipment ready
+for Ship to claim.
 
 ### Step 1: Stash Triage and Entry Classification
 
@@ -186,6 +196,20 @@ contextually consistent batch of work that should ship together as one covering 
    implicit covering feature.
 
 **Skip this step entirely** for feature-shaped entries — they proceed directly to Step 2.
+
+### Step 1.8: Learnings Retrieval
+
+Before deliberation begins, invoke the **learnings-researcher** subagent to surface relevant
+prior solutions from the compound library (`{{DOCS_COMPOUND}}/`). Pass the proposed covering
+feature scope (for task-shaped groups) or the feature/epic/chore title (for feature-shaped
+entries) as the search query.
+
+If the researcher returns `confidence: high` or `confidence: medium` results, include the
+`relevant_solutions` summary in the deliberation context so the deliberate skill can
+reference prior art. If `confidence: low` or no results, proceed without prior learnings.
+
+This step operates at Tier 1 (Fast/Cheap) and does not block the pipeline if the compound
+library is empty or missing.
 
 ### Step 2: Deliberation
 
@@ -341,9 +365,9 @@ When the `backlogit` capability pack is installed and the registry advertises
 `features.shipments: true`, assemble the shipment artifact immediately after harvest
 completes. This is the final act of Stage — the shipment ID is the handoff token to Ship.
 
-1. **Check for an existing queued shipment** that already covers the harvested feature scope
-   using `{{OP_LIST_SHIPMENTS_MCP}}`. If one already exists for this feature, add the newly
-   harvested tasks to it rather than creating a duplicate.
+1. **Check for an existing shipment in `{{STATUS_QUEUED}}` status** that already covers the
+   harvested feature scope using `{{OP_LIST_SHIPMENTS_MCP}}`. If one already exists for this
+   feature, add the newly harvested tasks to it rather than creating a duplicate.
 
 2. **Create the shipment** (when none exists):
    * Use `{{OP_CREATE_SHIPMENT_MCP}}` with a title derived from the covering feature title
