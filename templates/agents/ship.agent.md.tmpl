@@ -95,6 +95,47 @@ When the `backlogit` capability pack is installed, also follow
 `.github/instructions/backlogit.instructions.md` and verify the backlog queue / dependency /
 checkpoint surface is available before depending on those behaviors.
 
+### Step 0.5: Shipment Intake (backlogit with shipments only)
+
+When the `backlogit` capability pack is installed and the registry advertises
+`features.shipments: true`:
+
+**Primary path — Stage-prepared shipment (preferred)**:
+
+When `shipment_id` is provided as input (as produced by Stage), validate it before any
+build work begins:
+
+1. Load the shipment using `{{OP_GET_SHIPMENT_MCP}}`. Confirm it is `queued` or `active`.
+2. Confirm the shipment has explicit item membership (feature + tasks).
+3. Verify no item in the shipment is missing a covering feature parent.
+4. If the shipment is still `queued`, claim it using `{{OP_CLAIM_SHIPMENT_MCP}}` before
+   build work begins. Broadcast `[SHIP] Shipment claimed: {shipment_id}`.
+5. Record `shipment_id` as the session scope. All build execution and PR scope is bounded
+   by this shipment.
+
+**Fallback path — direct invocation without a Stage-prepared shipment**:
+
+When `shipment_id` is not provided (Ship invoked directly by the operator):
+
+1. List existing `queued` shipments using `{{OP_LIST_SHIPMENTS_MCP}}` to check for one that
+   already covers the intended feature scope. If found, record its ID and proceed as primary
+   path.
+2. If no suitable shipment exists, request one from the operator or confirm that direct
+   assembly is intended before continuing.
+3. If the operator confirms direct assembly, create the shipment:
+   a. Identify the covering feature: the highest-priority queued feature without an existing
+      shipment. If the work is bare tasks without a covering feature, halt and request that
+      Stage be run first to synthesize a covering feature and assemble the shipment.
+   b. Create the shipment using `{{OP_CREATE_SHIPMENT_MCP}}` with a title from the feature.
+   c. Add the covering feature **FIRST** using `{{OP_ADD_TO_SHIPMENT_MCP}}`.
+   d. Add each task in dependency order. Add each subtask after its parent task.
+   e. Broadcast `[SHIP] Shipment assembled (fallback): {shipment_id} — {feature_id} +
+      {task_count} tasks`.
+4. Claim and record `shipment_id` as the session scope.
+
+When the `agent-intercom` capability pack is also installed, broadcast each sub-step with
+its outcome.
+
 ### Step 1: Pre-Flight Checks
 
 1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog

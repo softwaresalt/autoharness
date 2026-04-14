@@ -145,6 +145,14 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{FIELD_DESCRIPTION}}` | Registry `field_mapping.description` | `description` | `description` |
 | `{{BACKLOG_TOOLS}}` | Backlog MCP server name from registry | `backlog` | `backlog` |
 | `{{EXTENDED_OPERATIONS_TABLE}}` | Registry `advanced_operations` formatted as Markdown table | _(backlogit-specific ops table)_ | _(empty string if not supported)_ |
+| `{{FEATURE_SHIPMENTS}}` | Registry `features.shipments` | `true` | `false` |
+| `{{OP_CREATE_SHIPMENT_MCP}}` | Registry `operations.create_shipment.mcp_tool` | `backlogit_create_shipment` | _(N/A)_ |
+| `{{OP_GET_SHIPMENT_MCP}}` | Registry `operations.get_shipment.mcp_tool` | `backlogit_get_shipment` | _(N/A)_ |
+| `{{OP_LIST_SHIPMENTS_MCP}}` | Registry `operations.list_shipments.mcp_tool` | `backlogit_list_shipments` | _(N/A)_ |
+| `{{OP_CLAIM_SHIPMENT_MCP}}` | Registry `operations.claim_shipment.mcp_tool` | `backlogit_claim_shipment` | _(N/A)_ |
+| `{{OP_SHIP_SHIPMENT_MCP}}` | Registry `operations.ship_shipment.mcp_tool` | `backlogit_ship_shipment` | _(N/A)_ |
+| `{{OP_ADD_TO_SHIPMENT_MCP}}` | Registry `operations.add_to_shipment.mcp_tool` | `backlogit_add_to_shipment` | _(N/A)_ |
+| `{{OP_RETURN_BLOCKED_MCP}}` | Registry `operations.return_blocked.mcp_tool` | `backlogit_return_blocked` | _(N/A)_ |
 
 **Suffix Variables** (derived from `config.backlog.suffix_map` → backlog tool auto-detection → schema defaults):
 
