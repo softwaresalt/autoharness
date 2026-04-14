@@ -158,7 +158,8 @@
     },
     {
       "if": {
-        "properties": { "features": { "properties": { "shipments": { "const": true } }, "required": ["shipments"] } }
+        "required": ["features"],
+        "properties": { "features": { "required": ["shipments"], "properties": { "shipments": { "const": true } } } }
       },
       "then": {
         "properties": {

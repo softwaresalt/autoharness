@@ -157,7 +157,7 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_ADD_TO_SHIPMENT_MCP}}` | Registry `operations.add_to_shipment.mcp_tool` | `backlogit_add_to_shipment` | _(empty string)_ |
 | `{{OP_RETURN_BLOCKED_MCP}}` | Registry `operations.return_blocked.mcp_tool` | `backlogit_return_blocked` | _(empty string)_ |
 
-When the selected registry sets `features.shipments: false`, all `{{OP_*_SHIPMENT_MCP}}` variables MUST resolve to the empty string — never to a literal placeholder like "N/A". Templates gate shipment blocks on `{{FEATURE_SHIPMENTS}}`, so empty-string resolution ensures those blocks are cleanly skipped.
+When the selected registry sets `features.shipments: false`, all `{{OP_*_SHIPMENT_MCP}}` variables MUST resolve to the empty string — never to a literal placeholder like "N/A". Shipment behavior is gated by the installed backlog capability/registry configuration (`features.shipments`), and generated artifacts should treat empty shipment-operation variables as the signal to omit shipment-specific commands or guidance.
 
 **Suffix Variables** (derived from `config.backlog.suffix_map` → backlog tool auto-detection → schema defaults):
 
