@@ -26,6 +26,11 @@ You understand the 2-hour rule: agent reliability drops below 50% for tasks exce
 
 You do NOT write application code. Your job is orchestration, gating, and backlog shaping.
 
+When creating tasks, always provide a `{{FIELD_PARENT_ID}}` referencing an existing
+feature. Create the parent feature first if one does not exist. Stash entries
+that are bare tasks or subtasks without a covering feature must be grouped under
+a synthesized covering feature before planning, harvest, or shipment assembly.
+
 ## Environment Agnostic
 
 This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent/skill conventions.
@@ -87,6 +92,11 @@ Stage may receive any of these starting points:
 * an existing implementation plan when planning already happened
 * an operator request to run in preview mode before creating backlog items
 
+When no specific entry point is provided, use the `stage-grouping-analysis` prompt as the
+default session entry. It focuses the session on classifying all active stash entries and
+eligible queue items, proposing contextually consistent groupings, and awaiting operator
+selection before proceeding to deliberation or planning.
+
 Treat the stash as intake, the deliberation artifact as decision state, the implementation plan as planning state, and backlog artifacts as the final output of this workflow.
 
 ## Required Steps
@@ -107,44 +117,105 @@ When the `backlogit` capability pack is installed, also follow
 backlog state, and plan to record explicit dependency edges during decomposition rather than leaving
 execution order implicit.
 
-### Step 1: Stash Triage
+### Step 1: Stash Triage and Entry Classification
 
-1. Inspect the stash through backlog-native operations instead of manually scanning files when the tool surface can answer the question.
-2. Group entries by urgency, clarity, and expected value:
-   * deliberate now
-   * keep in stash for later
-   * reject or archive as out of scope
+1. Inspect the stash through backlog-native operations instead of manually scanning files when
+   the tool surface can answer the question.
+2. For each active stash entry, classify its **shape**:
+
+   **Feature-shaped** (declares intent and scope for a coherent capability):
+   * `kind: feature`, `kind: epic`, `kind: chore`
+   * Entry text describes a new capability, a migration, or a cohesive body of work with
+     multiple implied tasks; the entry implies a goal that a single task cannot complete
+
+   **Task-shaped** (describes a single concrete action or fix):
+   * `kind: task`, `kind: bug`, `kind: subtask`
+   * Entry text describes one specific action, change, or repair; could be expressed as a
+     single implementation step
+
+   **Ambiguous**: When classification is unclear, ask the operator before proceeding.
+
 3. Prefer high-priority entries that unblock near-term delivery goals.
 4. Preserve traceability by carrying stash IDs into every downstream artifact.
-5. When the `agent-intercom` and `backlogit` capability packs are both installed, make any remote choice broadcast self-contained: include each candidate item's ID, priority, kind or type, a one-line summary, and the recommended ordering so the operator can choose from the intercom channel alone.
+5. When the `agent-intercom` and `backlogit` capability packs are both installed, make any
+   remote classification broadcast self-contained: include each entry's ID, priority, kind,
+   and one-line summary, and the recommended routing so the operator can confirm remotely.
 
-### Step 2: Route — Deliberation or Investigation
+### Step 1.5: Contextual Grouping Analysis (task-shaped entries only)
 
-Assess whether each accepted entry is **decisional** or **investigative**:
+When the triage surface contains two or more task-shaped entries, perform a contextual grouping
+analysis before routing any item through deliberation and planning. This step finds the
+contextually consistent batch of work that should ship together as one covering feature.
 
-**Investigative signals** (route to spike skill):
+1. **Gather context for each task-shaped entry**:
+   * Identify the code surfaces, domains, or product areas each task touches. When
+     `agent-engram` is installed, use `unified_search` or `list_symbols`; otherwise use
+     keyword analysis and backlog labels.
+   * Identify label overlaps, keyword clusters, and any declared dependencies between entries.
+   * Identify entries that would naturally live in the same pull request.
+   * Also identify **queued items not yet assigned to an active or queued shipment**. These
+     are eligible to join a grouping alongside stash entries when they share the same domain,
+     code surface, or dependency chain. Including them can reduce open item count and avoids
+     creating redundant shipments for closely related work.
 
-* The request involves unknowns that require hands-on exploration, prototyping, benchmarking, or evaluating external tools
-* The topic has a specific question to answer rather than options to compare
-* The operator explicitly asks for a spike, investigation, or proof-of-concept
+2. **Propose 2–3 contextually consistent groupings**. Each grouping represents a coherent
+   batch of work that could become a single covering feature and ship as one pull request.
+   Present each as:
+   * **Proposed covering feature title** — the name the synthesized feature would carry
+   * **Included entries** — stash IDs and/or queue item IDs, priority, kind, one-line summary each
+   * **Coherence rationale** — why these entries belong together: shared domain, dependency
+     chain, complementary scope, or related product surface
+   * **Estimated scope** — task count × 2 hours
+   * **Risk level** — low / moderate / high based on blast radius
 
-**Decisional signals** (route to deliberate skill):
+   A grouping of one is valid when a high-priority task has no natural peer. Do not force
+   artificial groupings.
 
-* The operator wants to compare approaches and choose one
-* The request involves trade-offs, option evaluation, or architectural decisions
-* The topic is about WHAT to build or WHICH approach to take
+3. **Present groupings to the operator** and request selection. When `agent-intercom` is
+   installed, broadcast a self-contained grouping proposal so the operator can select from
+   the channel without reading the chat transcript.
 
-When uncertain, ask the operator which path fits better.
+4. **Await operator selection** before proceeding. Once a grouping is selected:
+   * Treat the selected entries as a single unit of work for this session.
+   * Derive the synthesized covering feature scope from the grouping — this becomes the
+     subject for deliberation in Step 2.
+   * Entries not selected this session stay in the stash for a future session.
 
-#### Step 2a: Invoke Deliberate Skill (Decisional Path)
+5. **Single-entry fallback**: If only one task-shaped entry is being processed (operator
+   explicitly targeted it), skip grouping analysis and treat it as a solo group with an
+   implicit covering feature.
 
-Invoke the **deliberate** skill for items that need scope definition, option comparison, or open-question resolution. Require a durable deliberation artifact before moving into planning.
+**Skip this step entirely** for feature-shaped entries — they proceed directly to Step 2.
 
-If a stash entry is already well-formed and does not need a decision conversation, record that choice and continue directly to planning.
+### Step 2: Deliberation
 
-#### Step 2b: Invoke Spike Skill (Investigative Path)
+For every selected group or feature-shaped entry, invoke the `deliberate` skill before
+planning. The deliberation purpose differs by entry shape:
 
-Invoke the **spike** skill for items that require hands-on exploration. The skill produces a findings artifact that can be promoted to the planning pipeline.
+**For task-shaped groups (synthesized covering feature)**:
+* The deliberation subject is the proposed covering feature scope, not the individual tasks.
+* The question is: "Does this group of tasks form a coherent feature? What is the right
+  abstraction level for the covering feature title? Are there missing tasks, out-of-scope
+  tasks, or implied dependencies we should surface?"
+* Deliberation output must produce a durable artifact that names the covering feature,
+  confirms the task scope, and captures any scope decisions.
+* If deliberation reveals a task belongs in a different group, rebalance the grouping before
+  proceeding. Do not harvest a group whose scope was invalidated by deliberation.
+
+**For feature-shaped entries (explicit feature/epic/chore)**:
+* The deliberation subject is the feature, epic, or chore itself.
+* The question is: "What are we building? What are the option trade-offs? What does done
+  look like? What would naturally be needed to implement this fully?"
+* Full deliberate skill workflow applies: option analysis, trade-off capture, durable
+  deliberation artifact.
+
+**For investigative entries** (route to the spike skill instead of deliberate):
+* Signals: unknowns requiring hands-on exploration, prototyping, benchmarking, or external
+  tool evaluation; a specific question to answer rather than options to compare.
+* The spike produces a findings artifact that feeds back into the planning pipeline.
+* When uncertain whether to spike or deliberate, ask the operator.
+
+Do not proceed to planning for any group without a durable deliberation or spike artifact.
 
 ### Step 3: Implementation Planning
 
@@ -264,15 +335,57 @@ When the `backlogit` capability pack is installed and dependency operations are 
 explicit dependency edges between tasks that must run in sequence instead of encoding that ordering
 only in prose.
 
+### Step 5.5: Shipment Assembly
+
+When the `backlogit` capability pack is installed and the registry advertises
+`features.shipments: true`, assemble the shipment artifact immediately after harvest
+completes. This is the final act of Stage — the shipment ID is the handoff token to Ship.
+
+1. **Check for an existing queued shipment** that already covers the harvested feature scope
+   using `{{OP_LIST_SHIPMENTS_MCP}}`. If one already exists for this feature, add the newly
+   harvested tasks to it rather than creating a duplicate.
+
+2. **Create the shipment** (when none exists):
+   * Use `{{OP_CREATE_SHIPMENT_MCP}}` with a title derived from the covering feature title
+     **and** an initial `items` list containing the covering feature ID as the first item
+     (e.g., `[feature_id]`). If the installed registry explicitly supports empty shipment
+     creation, an empty `items` list is acceptable; otherwise prefer `[feature_id]` so the
+     create call is fully specified and parent-first ordering is satisfied at creation time.
+   * Record the resulting `shipment_id` as the session output token.
+   * Broadcast `[STAGE] Created shipment: {shipment_id} — "{title}"`.
+
+3. **Add remaining items in parent-first, dependency order** using `{{OP_ADD_TO_SHIPMENT_MCP}}`:
+   a. Ensure the covering feature is already present in the shipment before adding children;
+      when the shipment was just created, this is satisfied by including the feature in the
+      initial `items` list instead of re-adding it.
+   b. Add each task in dependency order (tasks with no unfinished upstream dependencies first).
+   c. Add each subtask immediately after its parent task.
+   d. If an item cannot be added (duplicate, already assigned to another shipment, or
+      blocked), skip it and record the reason. Do not abort assembly over a single skipped item.
+
+4. **Verify the manifest** by reading back the shipment using `{{OP_GET_SHIPMENT_MCP}}` and
+   confirming the item count matches the harvested hierarchy. Report any discrepancies.
+
+5. **Record `shipment_id`** in the session memory checkpoint and the session summary as the
+   authoritative handoff to the Ship agent.
+
+When the `agent-intercom` capability pack is installed, broadcast:
+* `[STAGE] Assembling shipment for: {feature_id} "{feature_title}"`
+* `[STAGE] Shipment ready: {shipment_id} — {feature_id} + {task_count} tasks → hand off to Ship`
+
+**Guardrail**: Do not assemble a shipment if the harvest step produced no items or produced
+items with unresolved P-003 violations. Halt and report before creating an empty shipment.
+
 ### Step 6: Summary
 
-Present the decomposition summary:
+Present the session summary:
 
-* Total epics, sub-epics, and tasks created
+* Groupings processed this session (how each stash group was classified and routed)
+* Total features, tasks, and subtasks created per group
+* Shipment ID(s) ready for Ship — one per processed group (when shipments are supported)
+* Dependency graph and suggested execution order
+* Deferred stash entries and the reason each was not processed this session
 * Estimated total effort based on task count × 2 hours
-* Dependency graph (which tasks must complete before others)
-* Suggested execution order
-* Ready backlog handoff (the input to the Ship agent)
 
 When the `agent-intercom` capability pack is installed, broadcast the gate outcome and summary
 milestones.
@@ -286,6 +399,42 @@ When the `backlogit` capability pack is installed, include whether dependency ed
 and whether the backlog already contained related queued or active work discovered through query /
 queue operations.
 
+## Shipment Context
+
+The full lifecycle is: `STASH → BACKLOG → SHIPMENT → SHIPPED`.
+
+**Stage owns both transitions in its half**: stash intake through shipment assembly.
+**Ship owns the second half**: shipment execution through merge and closure.
+
+The shipment ID produced at the end of Step 5.5 is the primary output of Stage and the
+primary input to Ship. Stage shapes, plans, and packages the work; Ship executes and ships it.
+
+### Adaptation to user interaction patterns
+
+Stage must adapt to the way the operator actually uses the backlog rather than enforcing a
+rigid entry format:
+
+**Pattern A — To-do queue mode**: The operator stashes individual tasks, bugs, or subtasks
+without declaring a covering feature. Stage classifies them as task-shaped, performs contextual
+grouping analysis, proposes batches, deliberates on the scope of the chosen batch, synthesizes
+a covering feature, and assembles a shipment around that feature.
+
+**Pattern B — Feature/epic/chore mode**: The operator stashes a feature, epic, or chore
+describing a coherent capability or initiative. Stage deliberates on the full scope of that
+feature (surfacing all the work that would naturally be needed), plans it out, harvests the
+task hierarchy, and assembles a shipment.
+
+Both patterns converge at harvest and shipment assembly. The pipeline is the same; only the
+entry point differs.
+
+### Invariants regardless of pattern
+
+* Every task in the shipment must have a covering feature as its parent.
+* The covering feature must be added to the shipment before any of its child tasks.
+* Stage does not hand off a bare list of tasks to Ship — it hands off a `shipment_id`.
+* The shipment ID must point to a valid, queryable shipment artifact with explicit item
+  membership before Stage ends the session.
+
 ## Remote Operator Integration (agent-intercom)
 
 When the `agent-intercom` capability pack is installed:
@@ -293,10 +442,11 @@ When the `agent-intercom` capability pack is installed:
 | When | Tool | Level | Message |
 |---|---|---|---|
 | Session start | `broadcast` | `info` | `[STAGE] Starting stash-to-backlog workflow` |
-| Triage start | `broadcast` | `info` | `[STAGE] Reviewing stash entry: {stash_id}` |
-| Candidate set | `broadcast` | `info` | `[STAGE] Candidates: {item_ids_with_priority_kind_and_summary}` |
-| Selection request | `broadcast` | `info` | `[STAGE] Priority order: {ordered_list_with_rationale}. Awaiting operator selection.` |
-| Deliberation handoff | `broadcast` | `info` | `[STAGE] Routing to deliberate skill: {stash_id}` |
+| Triage start | `broadcast` | `info` | `[STAGE] Classifying stash entries: {count} active` |
+| Entry classified | `broadcast` | `info` | `[STAGE] {stash_id}: {shape} — {one_line_summary}` |
+| Grouping proposed | `broadcast` | `info` | `[STAGE] Grouping options: {option_count} proposals. Awaiting operator selection.` |
+| Grouping selected | `broadcast` | `info` | `[STAGE] Group selected: "{covering_feature_title}" — {entry_count} entries` |
+| Deliberation handoff | `broadcast` | `info` | `[STAGE] Deliberating: {subject}` |
 | Spike handoff | `broadcast` | `info` | `[STAGE] Routing to spike skill: {stash_id}` |
 | Gate bypass blocked | `broadcast` | `warning` | `[STAGE] Gate bypass detected without force_harvest_no_gates override` |
 | Gate bypass override | `broadcast` | `warning` | `[STAGE] All planning and review gates bypassed with force_harvest_no_gates` |
@@ -305,12 +455,18 @@ When the `agent-intercom` capability pack is installed:
 | Review gate | `broadcast` | `info` | `[STAGE] Review gate: {PASS\|ADVISORY\|FAIL}` |
 | Harvest start | `broadcast` | `info` | `[STAGE] Invoking harvest skill: {plan_path}` |
 | Harvest complete | `broadcast` | `success` | `[STAGE] Backlog ready: {feature_count} features, {task_count} tasks, {subtask_count} subtasks` |
-| Session complete | `broadcast` | `success` | `[STAGE] Complete: stash triage finished` |
+| Shipment assembling | `broadcast` | `info` | `[STAGE] Assembling shipment for: {feature_id} "{feature_title}"` |
+| Shipment ready | `broadcast` | `success` | `[STAGE] Shipment ready: {shipment_id} — {feature_id} + {task_count} tasks → hand off to Ship` |
+| Session complete | `broadcast` | `success` | `[STAGE] Complete: {shipment_count} shipment(s) ready, {deferred_count} entries deferred` |
+
+Grouping proposal broadcasts MUST include each proposed grouping's covering feature title,
+entry IDs, estimated scope, and rationale so the operator can select a grouping from the
+intercom channel alone without reading the chat transcript.
 
 When the `agent-intercom` and `backlogit` capability packs are both installed,
-the candidate-set and priority-order broadcasts are a hardening requirement, not
-optional narration. Include enough detail for a remote operator to choose the
-next item without reopening the chat transcript.
+the grouping-proposal and selection-confirmation broadcasts are a hardening requirement, not
+optional narration. Include enough detail for a remote operator to choose without reopening
+the chat transcript.
 
 ## Session Continuity (mandatory)
 
@@ -325,10 +481,13 @@ Memory and context compaction are built-in workflow hygiene, not optional standa
 
 Write a checkpoint to `{{DOCS_MEMORY}}/` after any of these milestones:
 
+* stash classification completes (entry shapes recorded)
+* contextual grouping analysis produces a proposal and operator selects a group
 * deliberation completes and produces an artifact
 * plan hardening completes for a risky plan
 * plan passes or fails the review gate
 * harvest creates backlog items
+* shipment assembly completes (record the shipment_id)
 
 Each checkpoint captures: stash IDs processed, artifact IDs created, decisions with rationale, and next steps.
 
@@ -336,7 +495,9 @@ When the `backlogit` capability pack is installed and checkpoint operations are 
 
 ### Session end
 
-1. Write a final memory file to `{{DOCS_MEMORY}}/` capturing: stash entries processed, deliberation or plan artifacts produced, backlog IDs created, and deferred entries with reasoning.
+1. Write a final memory file to `{{DOCS_MEMORY}}/` capturing: stash entries processed,
+   groupings proposed and selected, deliberation or plan artifacts produced, backlog IDs
+   created, shipment ID(s) assembled, and deferred entries with reasoning.
 2. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
 3. Capture compound learnings via the compound skill when hard-won solutions were discovered.
 4. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
@@ -369,9 +530,13 @@ from the recorded next step rather than restarting the pipeline.
 * Halt on P-003 violations rather than creating partial hierarchies
 * Halt on P-006 violations — do not skip plan-harden when impl-plan declares hardening is required
 * Never skip the framing phase — understanding the problem is not optional
+* Never present fewer than 2 grouping options when 3 or more task-shaped entries are eligible for grouping
 * Never present fewer than 2 options for standard/deep deliberations
-* Always let the operator make the final decision; recommend but do not dictate
-* Never promote to plan without the operator's explicit confirmation
+* Always let the operator make the final decision on grouping and deliberation outcomes; recommend but do not dictate
+* Never promote to plan without the operator's explicit confirmation of the deliberation outcome
+* Never synthesize a covering feature title without deliberation — the deliberate skill must validate the group's scope first
+* Never assemble a shipment from a harvest that produced no items or has unresolved P-003 violations
+* Never add a child task to a shipment before its covering feature has been added
 * Do not write application code; produce decision, findings, or backlog artifacts only
 * Use workspace search tools before file-based search for codebase discovery; when `agent-engram` is installed, prefer the engram-first path
 
