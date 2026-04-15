@@ -155,6 +155,19 @@
           "cli": { "required": ["binary"] }
         }
       }
+    },
+    {
+      "if": {
+        "required": ["features"],
+        "properties": { "features": { "required": ["shipments"], "properties": { "shipments": { "const": true } } } }
+      },
+      "then": {
+        "properties": {
+          "operations": {
+            "required": ["create_shipment", "get_shipment", "list_shipments", "claim_shipment", "ship_shipment", "add_to_shipment", "return_blocked"]
+          }
+        }
+      }
     }
   ],
   "$defs": {

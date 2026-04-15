@@ -75,11 +75,13 @@ Validate the loaded config against `{autoharness_home}/schemas/harness-config.sc
 3. Updates the manifest's config hash after migration
 4. Classifies as P1 Degrading because downstream template variable resolution may silently fall back to defaults when the old key name is present
 
-Known config-key renames:
+Known config-key renames (for workspaces upgrading from pre-v1.0.0 harnesses):
 
 | Old Key Path | Current Key Path | Renamed In |
 |---|---|---|
 | `backlog.prefix_map` | `backlog.suffix_map` | v1.0.0 |
+
+New installations since v1.0.0 use `suffix_map` from the start and will not trigger this migration.
 
 **Config-entry backfill**: When a map object in the config (e.g., `backlog.suffix_map`, `docs.subdirectories`) is present but missing entries that the schema defines with defaults, generate a backfill proposal that:
 

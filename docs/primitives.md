@@ -120,7 +120,7 @@ A pipeline of specialized agents, each with a narrow role and explicit handoff e
 
 1. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
 2. **Spike Skill**: Execute time-boxed investigations to answer technical questions, evaluate feasibility, and capture findings
-3. **Stage Agent**: Triage stash → deliberate/spike → plan → harden risky plans → review → harvest into backlog
+3. **Stage Agent**: Triage stash → classify entry shapes → group task-shaped entries under covering features → deliberate/spike → plan → harden risky plans → review → harvest into backlog → assemble shipment (when backlogit with shipments is active)
 4. **Plan-Harden Skill**: Deepen high-risk plans with concrete verification, rollback, and action-risk detail before plan review
 5. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
 6. **Ship Agent**: Claim tasks, delegate to build-feature skill, verify quality, manage review/CI/PR lifecycle, runtime verification, and operational closure

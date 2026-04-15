@@ -4,4 +4,4 @@ try:
     from importlib.metadata import version
     __version__ = version("autoharness")
 except Exception:
-    __version__ = "1.1.4"  # fallback for editable / pre-install contexts
+    __version__ = "1.1.5"  # fallback for editable / pre-install contexts

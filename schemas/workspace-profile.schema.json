@@ -307,6 +307,11 @@
         "features": {
           "type": "object",
           "additionalProperties": { "type": "boolean" }
+        },
+        "suffix_map": {
+          "type": ["object", "null"],
+          "description": "Work item type suffix mapping detected from backlog config (e.g., {feature: 'F', chore: 'C', task: 'T', shipment: 'S'})",
+          "additionalProperties": { "type": "string" }
         }
       }
     },

@@ -36,7 +36,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Field      | Value                                                        |
 |------------|--------------------------------------------------------------|
 | Policy ID  | P-002                                                        |
-| Applies To | `ship` (consumer), `harness-architect` (producer) |
+| Applies To | `ship` (consumer; harness-architect skill is the producer) |
 | Gate Point | Queue building (Step 2) and task claiming (Step 3)           |
 
 **Statement**: The ship agent may only claim and implement a task after the harness-architect has confirmed that the test harness compiles and all tests fail in the red phase.
@@ -78,7 +78,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Field      | Value                       |
 |------------|-----------------------------|
 | Policy ID  | P-004                       |
-| Applies To | `harness-architect`         |
+| Applies To | `ship` (via harness-architect skill)         |
 | Gate Point | Operator Approval Gate      |
 
 **Statement**: The harness-architect must confirm the red phase (all harness tests compile and fail with expected markers) before the `harness-ready` label is applied.

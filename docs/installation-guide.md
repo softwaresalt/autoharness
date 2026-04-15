@@ -143,6 +143,23 @@ The config file controls:
 
 The installer and tuner both read this file. When tuning, changes to `config.yaml` are treated as intentional configuration updates (not drift) and are prioritized in the tuning report.
 
+### Install Layers Explained
+
+Install layers are the artifact classes the installer composes into the target workspace. Each layer installs a specific category of harness artifacts:
+
+| Layer | Artifacts Installed | When Needed |
+|---|---|---|
+| `foundation` | `AGENTS.md`, `constitution.instructions.md`, `copilot-instructions.md` | Always (core identity) |
+| `instructions` | Technology-specific and cross-cutting instruction files (`*.instructions.md`) | Always |
+| `workflow` | Agent definitions (`stage.agent.md`, `ship.agent.md`), skill definitions, prompt files | Always |
+| `review` | Review and plan-review agents/skills, reviewer persona agents | Standard and above |
+| `runtime` | Runtime verification and operational closure skills | When runtime surfaces are detected |
+| `backlog` | Backlog tool config, stash template, registry wiring | When a backlog tool is detected or configured |
+| `knowledge` | Compound, compact-context, and deliberation skills; docs directory scaffolding | Standard and above |
+| `overlays` | Capability pack instruction and skill files (e.g., `agent-intercom`, `strict-safety`) | When capability packs are enabled |
+
+The `starter` preset installs `foundation` + `instructions` + `workflow`. The `standard` preset adds `review` + `backlog` + `knowledge`. The `full` preset adds `runtime` + `overlays`. You can override these defaults by listing explicit layers in your config file.
+
 ## Step 3: Register with Your AI Coding Environment
 
 autoharness is environment-agnostic. Register it once in whichever environment(s) you use.

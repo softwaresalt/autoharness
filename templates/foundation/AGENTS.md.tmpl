@@ -68,7 +68,7 @@ All agents MUST follow these cross-cutting protocols in addition to the principl
 |---|---|---|
 | **Circuit Breaker** — Retry thresholds, stop conditions, stall detection, error logging | `.github/instructions/circuit-breaker.instructions.md` | All agents, all retry loops |
 | **Concurrency Control** — File locking when concurrent access is likely | `.github/instructions/concurrency.instructions.md` | Multi-agent or human+agent file edits |
-| **Skill Discovery** — Find available capabilities on demand by keyword | `scripts/search.ps1` / `scripts/search.sh` (when Primitive 6 installed) | Ad-hoc capability lookup |
+| **Skill Discovery** — Find available capabilities on demand by keyword | Skill-search tool or manual `ls -d .github/skills/*/` (see agent Skill Loading Strategy sections) | Ad-hoc capability lookup |
 
 These protocols are separate from the constitution’s principles because they
 define operational mechanics rather than architectural constraints. The
@@ -334,8 +334,8 @@ The table below is maintained as agents are superseded:
 | `doc-ops` | `ship` post-merge closure protocol | Ship handles knowledge graduation and doc gardening after merge |
 | `memory` | Stage and Ship session continuity protocols | Session persistence is inline in both primary agents |
 | `pr-review` | `ship` + `pr-lifecycle` skill | Ship manages the full PR lifecycle including review delegation |
-| `review` (agent) | `review` skill | Converted from agent to skill; dispatches persona subagents |
-| `plan-review` (agent) | `plan-review` skill | Converted from agent to skill; dispatches persona subagents |
+| `review` (agent) | `review` skill | Converted from agent to skill; dispatches persona subagents from `.github/agents/review/` |
+| `plan-review` (agent) | `plan-review` skill | Converted from agent to skill; dispatches persona subagents from `.github/agents/review/` |
 | `harness-architect` (agent) | `harness-architect` skill | Converted from agent to skill; invoked by ship agent |
 
 ---
