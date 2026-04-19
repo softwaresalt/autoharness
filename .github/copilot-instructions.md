@@ -16,8 +16,8 @@ autoharness is environment-agnostic: it works with VS Code + GitHub Copilot, Git
 autoharness/                             # Global installation root
   .github/
     agents/                              # Agents that power autoharness itself
-      harness-installer.agent.md         # Workspace discovery + harness composition
-      harness-tuner.agent.md             # Iterative harness maintenance
+      auto-mergeinstall.agent.md         # Workspace discovery + harness composition
+      auto-tune.agent.md                 # Iterative harness maintenance
     skills/
       install-harness/SKILL.md           # Multi-phase installation workflow
       tune-harness/SKILL.md              # Maintenance and tuning workflow

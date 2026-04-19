@@ -10,7 +10,7 @@ autoharness operates as a globally-installed tool. Templates are read from the a
 
 ## When to Use
 
-Invoke this skill after workspace-discovery has produced a profile, or let the harness-installer agent invoke it automatically. The skill handles template selection, variable substitution, artifact generation, and installation verification.
+Invoke this skill after workspace-discovery has produced a profile, or let the auto-mergeinstall agent invoke it automatically. The skill handles template selection, variable substitution, artifact generation, and installation verification.
 
 ## Inputs
 
@@ -788,7 +788,7 @@ GitHub Copilot in VS Code can locate the autoharness agents and prompts from any
 workspace without manual configuration.
 
 > **User settings, not workspace settings.** autoharness is a global tool. The
-> Harness Installer and Harness Tuner agents must be reachable from every
+> Auto-MergeInstall and Auto-Tune agents must be reachable from every
 > workspace, not just the one they are being installed into. Write to user
 > settings — never to the target workspace's `.vscode/settings.json`.
 

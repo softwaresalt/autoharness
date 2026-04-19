@@ -1,6 +1,6 @@
 ---
 description: "Install a complete agent harness into a target workspace from the global autoharness installation"
-agent: Harness Installer
+agent: Auto-MergeInstall
 argument-hint: "workspace=<target-path> [preset=starter|standard|full] [primitives=1,2,3,4,5,6,7,8,9,10] [capability_packs=agent-intercom,agent-engram,backlogit,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review]"
 ---
 

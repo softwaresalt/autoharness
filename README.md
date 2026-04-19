@@ -131,7 +131,7 @@ A structured backlog tool is essential for effective agent harness operation. Ag
 1. **Detection**: The workspace-discovery skill scans for backlog tool markers (config files, directories, MCP registrations)
 2. **Registry**: A pre-built registry YAML maps abstract operations (create, list, update, move) to the tool's specific MCP tool names and CLI commands
 3. **Abstraction**: All agent templates reference abstract operations (`{{OP_CREATE_MCP}}`, `{{STATUS_QUEUED}}`), which are resolved to tool-specific values during installation
-4. **Migration**: The harness-tuner detects tool switches and generates migration proposals that update all harness references
+4. **Migration**: The Auto-Tune agent detects tool switches and generates migration proposals that update all harness references
 
 ### Manual Registration
 
@@ -146,8 +146,8 @@ autoharness/                             # Global installation (e.g. ~/.autoharn
   .github/
     copilot-instructions.md              # Dev guidelines for autoharness contributors
     agents/
-      harness-installer.agent.md         # Discovers workspace, composes and installs harness
-      harness-tuner.agent.md             # Iteratively adapts harness to codebase changes
+      auto-mergeinstall.agent.md         # Discovers workspace, composes and installs harness
+      auto-tune.agent.md                 # Iteratively adapts harness to codebase changes
     skills/
       install-harness/SKILL.md           # Multi-phase installation workflow
       tune-harness/SKILL.md              # Maintenance and tuning workflow
@@ -210,15 +210,15 @@ autoharness version   # prints the version
 
 autoharness works across any environment that supports agent and skill conventions.
 
-**VS Code with GitHub Copilot** — The harness installer writes the agent and prompt discovery settings to your **VS Code user settings** (e.g. `%APPDATA%\Code\User\settings.json` on Windows). These are user-scoped so the Harness Installer agent is available from every workspace. Run once after installing autoharness:
+**VS Code with GitHub Copilot** — The Auto-MergeInstall agent writes the agent and prompt discovery settings to your **VS Code user settings** (e.g. `%APPDATA%\Code\User\settings.json` on Windows). These are user-scoped so the Auto-MergeInstall agent is available from every workspace. Run once after installing autoharness:
 
 ```bash
 autoharness setup-vscode
 ```
 
-This writes the three `chat.*` entries using the fully-resolved path from `autoharness home` — tilde (`~`) is never used in path keys. Reload the VS Code window and the **Harness Installer** agent will appear in the agents dropdown. Existing settings are preserved.
+This writes the three `chat.*` entries using the fully-resolved path from `autoharness home` — tilde (`~`) is never used in path keys. Reload the VS Code window and the **Auto-MergeInstall** agent will appear in the agents dropdown.Existing settings are preserved.
 
-**GitHub Copilot CLI (VS Code background sessions)** — Open the Chat view, select **Copilot CLI** from the session-target dropdown. Optionally select **Harness Installer** from the agents dropdown (experimental), or type:
+**GitHub Copilot CLI (VS Code background sessions)** — Open the Chat view, select **Copilot CLI** from the session-target dropdown. Optionally select **Auto-MergeInstall** from the agents dropdown (experimental), or type:
 
 ```text
 /install-harness preset=standard
@@ -236,7 +236,7 @@ VS Code installs and configures the CLI runtime automatically. Agent discovery u
 
 ### 3. Install a harness into a target workspace
 
-With the target workspace open, select **Harness Installer** from the agents dropdown in the Chat view, or type:
+With the target workspace open, select **Auto-MergeInstall** from the agents dropdown in the Chat view, or type:
 
 ```text
 /install-harness preset=standard
@@ -259,7 +259,7 @@ Optional examples:
 
 ### 4. Tune an existing harness
 
-After the codebase evolves, select **Harness Tuner** from the agents dropdown or type:
+After the codebase evolves, select **Auto-Tune** from the agents dropdown or type:
 
 ```text
 /tune-harness

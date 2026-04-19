@@ -1,6 +1,6 @@
 ---
 description: "Tune an installed agent harness to match current workspace state from the global autoharness installation"
-agent: Harness Tuner
+agent: Auto-Tune
 argument-hint: "workspace=<target-path> [scope=all|instructions|agents|skills|policies|constitution]"
 ---
 

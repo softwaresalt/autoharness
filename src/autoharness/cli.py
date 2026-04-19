@@ -254,7 +254,7 @@ def _setup_vscode() -> None:
         print("No changes needed — all entries were already present.")
     else:
         print("\nReload your VS Code window (Ctrl+Shift+P → 'Reload Window') for the")
-        print("Harness Installer agent to appear in the agents dropdown.")
+        print("Auto-MergeInstall agent to appear in the agents dropdown.")
 
 
 def _copilot_cli_config_dir() -> Path:
@@ -276,7 +276,7 @@ def _setup_copilot_cli() -> None:
     Copilot CLI discovers agents from {config_dir}/agents/ and skills from
     {config_dir}/skills/ at session start.  This command copies the autoharness
     .github/agents/ and .github/skills/ trees into those directories so the
-    Harness Installer and Harness Tuner agents are available in every session.
+    Auto-MergeInstall and Auto-Tune agents are available in every session.
 
     Re-run this command after upgrading autoharness to pick up new agents or
     updated skill files.
