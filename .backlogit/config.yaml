@@ -1,0 +1,73 @@
+artifact_types:
+    bug:
+        prefix: B
+        suffix: -B
+        name_format: '{NNN}{suffix}'
+        allowed_children: []
+    deliberation:
+        prefix: DL
+        suffix: -DL
+        name_format: '{NNN}{suffix}'
+        allowed_children: []
+    feature:
+        prefix: F
+        suffix: -F
+        name_format: '{NNN}{suffix}'
+        allowed_children:
+            - task
+            - review
+    review:
+        prefix: R
+        suffix: -R
+        name_format: '{NNN}{suffix}'
+        file_name_format: '{id}-{title_slug}'
+        allowed_children: []
+    shipment:
+        prefix: S
+        suffix: -S
+        name_format: '{NNN}{suffix}'
+        allowed_children: []
+    subtask:
+        prefix: ST
+        suffix: -ST
+        name_format: '{NNN}{suffix}'
+        allowed_children: []
+    task:
+        prefix: T
+        suffix: -T
+        name_format: '{NNN}{suffix}'
+        allowed_children:
+            - subtask
+fields:
+    status:
+        type: enum
+        values:
+            - queued
+            - active
+            - blocked
+            - review
+            - done
+            - accepted
+            - rejected
+            - archived
+        default: queued
+        optional: false
+        external_map: {}
+bug_level: 3
+max_slug_length: 60
+queue_layout:
+    root_dir: queue
+    levels:
+        - level: 1
+          types:
+            - feature
+            - deliberation
+            - shipment
+        - level: 2
+          types:
+            - task
+            - review
+        - level: 3
+          types:
+            - subtask
+    name_format: '{NNN}'

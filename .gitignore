@@ -1,3 +1,5 @@
 *.prj
 *.pui
 *.code-workspace
+*.copilot
+.backlogit/*.db

@@ -1,0 +1,33 @@
+enabled: true
+event_thresholds:
+    blocked_stale_days: 7
+agent_subscriptions:
+    ship:
+        - post_merge_closure
+        - feature_review_ready
+    stage:
+        - feature_review_ready
+        - blocked_stale
+lifecycle:
+    validate_transition: true
+    emit_events: true
+    transitions:
+        active:
+            - done
+            - blocked
+            - review
+            - shipped
+            - abandoned
+        blocked:
+            - active
+        done:
+            - archived
+        queued:
+            - active
+            - blocked
+        review:
+            - done
+            - accepted
+            - rejected
+notifications:
+    rate_limit_per_second: 10

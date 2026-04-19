@@ -1,0 +1,17 @@
+directories:
+    - path: archive
+      condition:
+        status:
+            - done
+            - accepted
+            - rejected
+            - archived
+        type: []
+    - path: queue
+      condition:
+        status:
+            - queued
+            - active
+            - blocked
+            - review
+        type: []

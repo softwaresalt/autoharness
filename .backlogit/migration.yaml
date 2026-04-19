@@ -1,0 +1,31 @@
+document_classes:
+    - name: work_items
+      glob_patterns:
+        - tasks/*.md
+        - drafts/*.md
+        - completed/*.md
+        - archive/*.md
+      artifact_type: task
+      keywords:
+        - task
+        - acceptance criteria
+        - implementation plan
+    - name: milestones
+      glob_patterns:
+        - milestones/*.md
+      artifact_type: feature
+      keywords:
+        - plan
+        - milestone
+default_layout: structured
+source_paths:
+    - path: tasks/
+      class: work_items
+    - path: drafts/
+      class: work_items
+    - path: completed/
+      class: work_items
+    - path: archive/
+      class: work_items
+    - path: milestones/
+      class: milestones
