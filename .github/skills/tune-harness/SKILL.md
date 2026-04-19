@@ -253,6 +253,169 @@ Separately, treat conditional reviewer drift as real harness drift when the
 workspace now requires parity-sensitive review but the review layer still lacks
 `agent-native-parity-reviewer.agent.md` or the routing logic to invoke it.
 
+#### Step 1.8: Mine Learning Signals for Improvement Proposals
+
+After structural drift detection (Steps 1.1–1.7), analyze the accumulated
+learning data in the target workspace. This step consumes the **actual content**
+produced by compound, continuous-learning, and closure systems — not just their
+presence or weaving status. The output feeds directly into Phase 2 proposal
+generation as `learning_signals{}`.
+
+Each tuning cycle benefits from the data accumulated since the last run. Early
+runs may produce few learning-driven proposals; value compounds over the
+workspace lifecycle.
+
+##### Step 1.8.1: Compound Library Analysis
+
+Read all compound entries from `{workspace_path}/{DOCS_ROOT}/compound/` (as
+recorded in `.autoharness/config.yaml` or defaulting to `docs/compound/`).
+Parse YAML frontmatter from each entry.
+
+Analysis:
+
+* **Recurring root causes**: Group entries by `root_cause`. When the same root
+  cause appears in 3 or more entries, flag as a pattern that may warrant a
+  dedicated instruction file, reviewer persona, or architectural guard.
+* **Category concentration**: Group entries by `category`. A category with
+  disproportionate volume relative to others suggests a harness weakness in
+  that domain (e.g., many `build-errors` entries may indicate missing build
+  instructions or a stale build reviewer).
+* **Cross-cutting tags**: Identify `tags` values that span multiple categories.
+  Tags appearing across 3+ categories suggest a systemic concern that may
+  warrant a cross-cutting instruction file.
+* **Component hotspots**: Group entries by `component`. Components with 3+
+  entries are repeated trouble spots — check whether the harness has adequate
+  coverage for that component's technology and patterns.
+* **Severity trends**: Track the ratio of `critical`/`high` vs `medium`/`low`
+  entries. A rising proportion of high-severity entries since the last tuning
+  run signals degrading harness effectiveness.
+
+Record results as:
+
+```yaml
+learning_signals:
+  compound_patterns:
+    - pattern_type: "recurring_root_cause|category_concentration|cross_cutting_tags|component_hotspot|severity_trend"
+      key: "the root_cause, category, tag, or component value"
+      evidence_count: 5
+      evidence_refs: ["docs/compound/build-errors/stale-cache-2026-03-15.md", ...]
+      affected_artifacts: [".github/instructions/build.instructions.md"]
+      suggested_action: "Create dedicated instruction file for cache invalidation patterns"
+```
+
+Skip this sub-step if the compound library does not exist or contains fewer
+than 3 entries (insufficient data for pattern detection).
+
+##### Step 1.8.2: Observation and Instinct Analysis
+
+If the `continuous-learning` capability pack is enabled, read:
+
+* Observation files from `{workspace_path}/.autoharness/continuous-learning/observations/`
+* Instinct files from `{workspace_path}/.autoharness/continuous-learning/instincts/`
+* Learned-artifact metadata from `{workspace_path}/.autoharness/continuous-learning/learned/`
+
+Analysis:
+
+* **Promotion-ready instincts**: Identify instincts with corroborating
+  observation count ≥ the promotion threshold (from
+  `.autoharness/config.yaml` `continuous_learning.promotion_threshold`,
+  default 3) that have NOT yet been promoted to learned artifacts. These are
+  ripe for the `evolve` skill.
+* **Workflow-phase hotspots**: Group observations by `affected_workflow_phase`
+  (planning, build, review, verification, closure). Phases with
+  disproportionate observation volume suggest the harness is weakest in that
+  phase — the corresponding agent or skill may need strengthening.
+* **Stale instincts**: Instincts whose most recent corroborating observation
+  is older than 90 days with no promotion activity may be obsolete. Flag for
+  review rather than automatic removal.
+* **Promotion velocity**: Compare the rate of new observations vs promotions.
+  A growing backlog of unpromoted instincts suggests the evolve workflow is
+  not being invoked frequently enough — propose a tuning reminder.
+
+Record results as:
+
+```yaml
+learning_signals:
+  promotion_candidates:
+    - instinct_path: ".autoharness/continuous-learning/instincts/cache-invalidation.md"
+      observation_count: 5
+      threshold: 3
+      suggested_target: "instruction"  # or "skill"
+      suggested_action: "Invoke evolve skill to promote to learned-cache-invalidation.instructions.md"
+  observation_patterns:
+    - phase: "build"
+      observation_count: 12
+      proportion: 0.45  # 45% of all observations
+      suggested_action: "Strengthen build-feature skill or add build-specific instructions"
+```
+
+Skip this sub-step if the `continuous-learning` pack is not enabled or no
+observation files exist.
+
+##### Step 1.8.3: Closure Artifact Mining
+
+Read:
+
+* Tuning reports from `{workspace_path}/.autoharness/tuning-reports/`
+* Closure artifacts from `{workspace_path}/{DOCS_ROOT}/closure/` (if present)
+
+Analysis:
+
+* **Recurring tuning proposals**: Parse prior tuning reports and identify
+  proposals that appeared in 2 or more consecutive runs but were either
+  rejected or not fully resolved. Recurring drift in the same artifact or
+  category signals a systemic issue — the fix may need to be structural
+  (template update, new guard) rather than incremental (re-tune the same
+  artifact).
+* **Recurring closure findings**: Identify runtime verification issues or
+  rollback triggers that appear across multiple closure artifacts. Repeated
+  closure problems in the same domain suggest missing harness guidance
+  (e.g., repeated database migration rollbacks may warrant a migration
+  instructions file).
+* **Resolution effectiveness**: For proposals that were applied in prior
+  tuning runs, check whether the same drift category reappeared. If a
+  previously applied fix did not prevent recurrence, escalate the priority
+  of the new proposal and note the prior fix attempt.
+
+Record results as:
+
+```yaml
+learning_signals:
+  closure_patterns:
+    - pattern_type: "recurring_tuning_proposal|recurring_closure_finding|ineffective_prior_fix"
+      key: "description of the recurring pattern"
+      occurrences: 3
+      first_seen: "2026-01-15"
+      last_seen: "2026-04-01"
+      prior_fix_refs: ["TUNE-012 applied 2026-02-20"]
+      suggested_action: "Structural fix: add migration.instructions.md template"
+```
+
+Skip this sub-step if no tuning reports or closure artifacts exist.
+
+##### Step 1.8.4: Synthesize Learning-Driven Proposals
+
+Merge the results from Steps 1.8.1–1.8.3 into a unified `learning_signals{}`
+structure. Before generating proposals:
+
+* **Deduplicate against structural drift**: If Step 1.4 already flagged a
+  compound entry for refresh AND Step 1.8.1 identified a recurring pattern
+  in those same entries, merge into a single enriched proposal rather than
+  creating duplicates.
+* **Cross-reference patterns**: When a compound pattern (1.8.1) and an
+  observation hotspot (1.8.2) point at the same workflow phase or component,
+  strengthen the evidence by combining counts and citations.
+* **Priority assignment**: Default all learning-driven proposals to P2
+  (Growth). Escalate to P1 (Degrading) when:
+  * Evidence count ≥ 5 across any single pattern
+  * The pattern involves compound entries with `severity: critical` or `high`
+  * A prior tuning fix for the same pattern proved ineffective (Step 1.8.3)
+  * A promotion-ready instinct has been pending for 2+ tuning cycles
+
+Tag every learning-driven proposal with `source: learning-driven` so they
+are distinguishable from structural drift proposals in the tuning report and
+in future closure mining.
+
 ### Phase 2: Change Proposal Generation
 
 #### Step 2.1: Priority Ranking
@@ -264,6 +427,10 @@ Rank proposed changes by impact:
 3. **P2 — Growth**: Opportunities to extend the harness for new capabilities
 4. **P3 — Cosmetic**: Minor alignment improvements
 
+Learning-driven proposals (from Step 1.8) enter at P2 by default and are
+escalated to P1 per the rules in Step 1.8.4. Structural drift proposals and
+learning-driven proposals are ranked together in a single priority-ordered list.
+
 #### Step 2.2: Generate Change Proposals
 
 For each detected issue, generate a specific change proposal:
@@ -272,12 +439,14 @@ For each detected issue, generate a specific change proposal:
 - id: "TUNE-001"
   priority: "P0"
   category: "breaking"
+  source: "structural-drift"  # or "learning-driven"
   artifact: ".github/instructions/rust.instructions.md"
   issue: "References clippy lint 'clippy::unwrap_used' but project now uses Python"
   proposal: "Replace with python.instructions.md using ruff/mypy conventions"
   diff_preview: |
     - applyTo: '**/*.rs'
     + applyTo: '**/*.py'
+  evidence: {}  # optional: populated for learning-driven proposals
 ```
 
 Checksum-based drift findings should cite whether the artifact is `missing`,
@@ -287,6 +456,30 @@ recovery, retuning, or intentional local divergence.
 When discovery produced recommendation reasons, include the relevant preset,
 install-layer, or capability-pack rationale in the proposal body so operators can
 see the causal signals behind the retune.
+
+**Learning-driven proposals** (from `learning_signals{}` in Step 1.8) include
+additional evidence fields:
+
+```yaml
+- id: "TUNE-015"
+  priority: "P2"
+  category: "growth"
+  source: "learning-driven"
+  artifact: ".github/instructions/cache-invalidation.instructions.md"
+  issue: "Compound library contains 5 entries with root_cause 'stale-cache' across build-errors and runtime-errors categories"
+  proposal: "Create dedicated cache-invalidation.instructions.md covering invalidation patterns for the project's caching layers"
+  evidence:
+    pattern_type: "recurring_root_cause"
+    evidence_count: 5
+    evidence_refs:
+      - "docs/compound/build-errors/stale-cache-2026-03-15.md"
+      - "docs/compound/runtime-errors/redis-stale-2026-03-22.md"
+    prior_fix_refs: []
+```
+
+For promotion-ready instinct proposals, the proposal should recommend invoking
+the `evolve` skill with the specific instinct path and target type rather than
+directly generating the learned artifact during tuning.
 
 #### Step 2.3: Detect New Primitive Opportunities
 
@@ -333,6 +526,12 @@ Generate and display the tuning report:
 - Missing installed artifacts: {{count}}
 - User-modified artifacts: {{count}}
 - Ignored artifacts: {{count}}
+
+### Learning Signals
+- Compound patterns detected: {{count}}
+- Promotion-ready instincts: {{count}}
+- Recurring closure findings: {{count}}
+- Learning-driven proposals generated: {{count}}
 
 ### Proposed Changes (ordered by priority)
 
