@@ -10,7 +10,7 @@ autoharness operates as a globally-installed tool. Templates are read from the a
 
 ## When to Use
 
-Invoke this skill after workspace-discovery has produced a profile, or let the auto-mergeinstall agent invoke it automatically. The skill handles template selection, variable substitution, artifact generation, and installation verification.
+Invoke this skill after workspace-discovery has produced a profile, or let the Auto-MergeInstall agent invoke it automatically. The skill handles template selection, variable substitution, artifact generation, and installation verification.
 
 ## Inputs
 

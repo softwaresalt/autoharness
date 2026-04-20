@@ -11,7 +11,7 @@ autoharness is environment-agnostic. Register it once in whichever environment(s
 
 ## VS Code with GitHub Copilot
 
-The auto-mergeinstall agent writes the agent and prompt discovery settings to your **VS Code user settings** (`%APPDATA%\Code\User\settings.json` on Windows; `~/Library/Application Support/Code/User/settings.json` on macOS; `~/.config/Code/User/settings.json` on Linux). These are user-scoped settings so the Auto-MergeInstall agent is available from every workspace, not just the one it was installed into.
+The Auto-MergeInstall agent writes the agent and prompt discovery settings to your **VS Code user settings** (`%APPDATA%\Code\User\settings.json` on Windows; `~/Library/Application Support/Code/User/settings.json` on macOS; `~/.config/Code/User/settings.json` on Linux). These are user-scoped settings so the Auto-MergeInstall agent is available from every workspace, not just the one it was installed into.
 
 After the first-time setup described below, entries like these will be present in your user settings without any manual editing:
 
