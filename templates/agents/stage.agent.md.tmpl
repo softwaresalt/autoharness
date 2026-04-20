@@ -413,10 +413,9 @@ triaged, routed through deliberation/planning, and promoted to backlog items.
      the stash entry ID to move it from the stash to the archive. If the stash entry
      was stored as a JSONL record rather than a queue item, use `{{OP_UPDATE_MCP}}` to
      mark it as `{{STATUS_DONE}}` so backlogit's index reflects the consumed state.
-   * When `backlog-md` is the installed backlog tool: remove the consumed entry from
-     `{{BACKLOG_DIRECTORY}}/queue/.stash.md` and append it to
-     `{{BACKLOG_DIRECTORY}}/archive/.stash-archive.md` with a timestamp and the ID of
-     the backlog item it was promoted into.
+   * When `backlog-md` is the installed backlog tool: the consumed entries are already
+     represented as task files in `{{BACKLOG_DIRECTORY}}/queue/`. Move each completed
+     task file to `{{BACKLOG_DIRECTORY}}/archive/` to reflect its consumed state.
    * When no backlog tool is installed: strike through the entry in
      `{{BACKLOG_DIRECTORY}}/queue/.stash.md` with the promotion target ID.
 3. Do NOT archive stash entries that were deferred (not selected for this session) — they
@@ -424,7 +423,7 @@ triaged, routed through deliberation/planning, and promoted to backlog items.
 4. When the `agent-intercom` capability pack is installed, broadcast
    `[STAGE] Archived {count} consumed stash entries`.
 
-This step prevents stale stash accumulation across sessions. Each consumed entry carries
+This step prevents stale entry accumulation across sessions. Each consumed entry carries
 a forward reference to the backlog item it became, preserving traceability.
 
 ### Step 6: Summary
