@@ -190,6 +190,11 @@ When the `backlogit` capability pack is installed and the backlog tool supports
 * Labels include `deliberation-outcome`
 * Reference the artifact path in the description or a comment
 
+When `backlog-md` is the installed backlog tool, create a task file in
+`{{BACKLOG_DIRECTORY}}/queue/` with the deliberation topic as the title, a link
+to the decision artifact path in the description, `{{STATUS_QUEUED}}` status,
+and a `deliberation-outcome` label.
+
 When no backlog tool is available, append a structured entry to
 `{{BACKLOG_DIRECTORY}}/queue/.stash.md`:
 
