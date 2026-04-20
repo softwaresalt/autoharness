@@ -3,6 +3,8 @@ title: Capability Packs
 description: Formal overlay pattern for optional cross-cutting harness capabilities in autoharness
 ---
 
+> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
+
 ## Overview
 
 Capability packs are the formal mechanism `autoharness` uses for optional, cross-cutting behavior that deepens the installed harness without changing the underlying primitive model.

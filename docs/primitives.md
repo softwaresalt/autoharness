@@ -3,6 +3,8 @@ title: The 10 Irreducible Harness Primitives
 description: Deep documentation of each primitive, its purpose, implementation patterns, and how autoharness adapts it per workspace
 ---
 
+> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
+
 ## Overview
 
 Through empirical evaluation of production agent harnesses, we identified 10 irreducible primitives that every effective harness implements. These primitives are technology-agnostic: a Rust project, a TypeScript monorepo, and a Python ML pipeline all need the same structural elements, though the specific implementations differ.

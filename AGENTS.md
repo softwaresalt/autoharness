@@ -43,8 +43,8 @@ This file defines the authoritative rules for working in the autoharness reposit
 
 | Agent | Purpose |
 |---|---|
-| `harness-installer` | Discover workspace and install a customized harness |
-| `harness-tuner` | Detect drift and propose harness updates |
+| `auto-mergeinstall` | Discover workspace and install a customized harness |
+| `auto-tune` | Detect drift and propose harness updates |
 
 ## Available Skills
 

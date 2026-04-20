@@ -3,6 +3,8 @@ title: Tuning Guide
 description: How to iteratively maintain and adapt an installed agent harness as the codebase evolves
 ---
 
+> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
+
 ## Why Tune
 
 Agent harnesses degrade over time. Common causes:
@@ -42,7 +44,7 @@ are treated as intentional local divergence rather than unexpected drift.
 
 ### Interactive Tuning (Recommended)
 
-Open the target workspace in VS Code, then select **Harness Tuner** from the agents dropdown in the Chat view, or type:
+Open the target workspace in VS Code, then select **Auto-Tune** from the agents dropdown in the Chat view, or type:
 
 ```text
 /tune-harness
@@ -60,7 +62,7 @@ The tuner will:
 
 ### Scoped Tuning
 
-Focus on specific areas by describing the scope to the Harness Tuner agent, or pass a scope parameter:
+Focus on specific areas by describing the scope to the Auto-Tune agent, or pass a scope parameter:
 
 ```text
 /tune-harness scope=instructions    # Only check instruction files

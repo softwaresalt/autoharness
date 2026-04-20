@@ -12,6 +12,8 @@ keywords:
   - compatibility
 ---
 
+> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
+
 ## Overview
 
 `backlogit` is the flagship first-party backlog backend for `autoharness`, but
@@ -248,7 +250,7 @@ highest-leverage operational backend for teams that want the full stack.
 * [Capability Packs](capability-packs.md)
 * [Backlogit Compatibility Matrix](backlogit-compatibility-matrix.md)
 * [Backlogit Graduation Checklist](backlogit-graduation-checklist.md)
-* [Installation Guide](installation-guide.md)
+* [Getting Started](getting-started.md)
 * [The 10 Irreducible Harness Primitives](primitives.md)
 * [Tuning Guide](tuning-guide.md)
 

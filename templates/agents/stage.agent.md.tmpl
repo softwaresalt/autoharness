@@ -400,6 +400,29 @@ When the `agent-intercom` capability pack is installed, broadcast:
 **Guardrail**: Do not assemble a shipment if the harvest step produced no items or produced
 items with unresolved P-003 violations. Halt and report before creating an empty shipment.
 
+### Step 5.6: Archive Consumed Stash Entries
+
+After shipment assembly (or after harvest if shipments are not supported), archive
+every stash entry that was consumed during this session — i.e., entries that were
+triaged, routed through deliberation/planning, and promoted to backlog items.
+
+1. Collect the list of stash entry IDs that were consumed (tracked since Step 1 via
+   traceability).
+2. For each consumed stash entry:
+   * When `backlogit` is the installed backlog tool: invoke `{{OP_COMPLETE_MCP}}` with
+     the stash entry ID to move it from the stash to the archive.
+   * When `backlog-md` is the installed backlog tool: invoke `{{OP_COMPLETE_MCP}}` with
+     the consumed entry ID to complete and archive it.
+   * When no backlog tool is installed: strike through the entry in
+     `{{BACKLOG_DIRECTORY}}/queue/.stash.md` with the promotion target ID.
+3. Do NOT archive stash entries that were deferred (not selected for this session) — they
+   remain active for future triage.
+4. When the `agent-intercom` capability pack is installed, broadcast
+   `[STAGE] Archived {count} consumed stash entries`.
+
+This step prevents stale entry accumulation across sessions. Each consumed entry carries
+a forward reference to the backlog item it became, preserving traceability.
+
 ### Step 6: Summary
 
 Present the session summary:
@@ -481,6 +504,7 @@ When the `agent-intercom` capability pack is installed:
 | Harvest complete | `broadcast` | `success` | `[STAGE] Backlog ready: {feature_count} features, {task_count} tasks, {subtask_count} subtasks` |
 | Shipment assembling | `broadcast` | `info` | `[STAGE] Assembling shipment for: {feature_id} "{feature_title}"` |
 | Shipment ready | `broadcast` | `success` | `[STAGE] Shipment ready: {shipment_id} — {feature_id} + {task_count} tasks → hand off to Ship` |
+| Stash archived | `broadcast` | `info` | `[STAGE] Archived {count} consumed stash entries` |
 | Session complete | `broadcast` | `success` | `[STAGE] Complete: {shipment_count} shipment(s) ready, {deferred_count} entries deferred` |
 
 Grouping proposal broadcasts MUST include each proposed grouping's covering feature title,
@@ -512,6 +536,7 @@ Write a checkpoint to `{{DOCS_MEMORY}}/` after any of these milestones:
 * plan passes or fails the review gate
 * harvest creates backlog items
 * shipment assembly completes (record the shipment_id)
+* stash archival completes (record consumed entry IDs and promotion targets)
 
 Each checkpoint captures: stash IDs processed, artifact IDs created, decisions with rationale, and next steps.
 

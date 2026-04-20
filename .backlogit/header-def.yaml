@@ -1,0 +1,168 @@
+defaults:
+    id:
+        type: string
+        immutable: true
+    created_date:
+        type: datetime
+        immutable: true
+    updated_date:
+        type: datetime
+        immutable: true
+types:
+    bug:
+        prefix: B
+        suffix: -B
+        id_format: '{NNN}{suffix}'
+        fields:
+            severity:
+                type: enum
+                values:
+                    - low
+                    - medium
+                    - high
+                    - critical
+                default: medium
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - blocked
+                    - review
+                    - done
+                    - accepted
+                    - rejected
+                    - archived
+                default: queued
+    deliberation:
+        prefix: DL
+        suffix: -DL
+        id_format: '{NNN}{suffix}'
+        fields:
+            priority:
+                type: enum
+                values:
+                    - low
+                    - medium
+                    - high
+                    - critical
+                default: medium
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - blocked
+                    - review
+                    - done
+                    - accepted
+                    - rejected
+                    - archived
+                default: queued
+    feature:
+        prefix: F
+        suffix: -F
+        id_format: '{NNN}{suffix}'
+        fields:
+            harness_status:
+                type: enum
+                values:
+                    - pending
+                    - scaffolded
+                    - passing
+                    - failing
+                default: pending
+                optional: true
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - blocked
+                    - review
+                    - done
+                    - accepted
+                    - rejected
+                    - archived
+                default: queued
+    review:
+        prefix: R
+        suffix: -R
+        id_format: '{NNN}{suffix}'
+        fields:
+            source_branch:
+                type: string
+                optional: true
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - blocked
+                    - review
+                    - done
+                    - accepted
+                    - rejected
+                    - archived
+                default: queued
+    shipment:
+        prefix: S
+        suffix: -S
+        id_format: '{NNN}{suffix}'
+        fields:
+            branch:
+                type: string
+                optional: true
+            items:
+                type: list
+                optional: true
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - shipped
+                    - abandoned
+                default: queued
+    subtask:
+        prefix: ST
+        suffix: -ST
+        id_format: '{NNN}{suffix}'
+        fields:
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - blocked
+                    - review
+                    - done
+                    - accepted
+                    - rejected
+                    - archived
+                default: queued
+    task:
+        prefix: T
+        suffix: -T
+        id_format: '{NNN}{suffix}'
+        fields:
+            priority:
+                type: enum
+                values:
+                    - low
+                    - medium
+                    - high
+                    - critical
+                default: medium
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - blocked
+                    - review
+                    - done
+                    - accepted
+                    - rejected
+                    - archived
+                default: queued
