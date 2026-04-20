@@ -239,9 +239,10 @@ When the `backlogit` capability pack is installed and `create_task` is available
 
 When `backlog-md` is the installed backlog tool:
 
-* If promoting to queue, create a task file in `{{BACKLOG_DIRECTORY}}/queue/`
-  with the spike goal as the title, a link to the findings artifact in the
-  description, `{{STATUS_DONE}}` status, and a `spike` label.
+* If promoting to queue, create a spike item using `{{OP_CREATE_MCP}}` with
+  `{{FIELD_TITLE}}` from the goal question (shortened to 5-10 words),
+  `{{FIELD_DESCRIPTION}}` linking to the findings artifact path,
+  `{{FIELD_STATUS}}: "{{STATUS_DONE}}"`, and `{{FIELD_LABELS}}: ["spike"]`.
 
 When no backlog tool is available:
 

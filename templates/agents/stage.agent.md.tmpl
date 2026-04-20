@@ -410,12 +410,9 @@ triaged, routed through deliberation/planning, and promoted to backlog items.
    traceability).
 2. For each consumed stash entry:
    * When `backlogit` is the installed backlog tool: invoke `{{OP_COMPLETE_MCP}}` with
-     the stash entry ID to move it from the stash to the archive. If the stash entry
-     was stored as a JSONL record rather than a queue item, use `{{OP_UPDATE_MCP}}` to
-     mark it as `{{STATUS_DONE}}` so backlogit's index reflects the consumed state.
-   * When `backlog-md` is the installed backlog tool: the consumed entries are already
-     represented as task files in `{{BACKLOG_DIRECTORY}}/queue/`. Move each completed
-     task file to `{{BACKLOG_DIRECTORY}}/archive/` to reflect its consumed state.
+     the stash entry ID to move it from the stash to the archive.
+   * When `backlog-md` is the installed backlog tool: invoke `{{OP_COMPLETE_MCP}}` with
+     the consumed entry ID to complete and archive it.
    * When no backlog tool is installed: strike through the entry in
      `{{BACKLOG_DIRECTORY}}/queue/.stash.md` with the promotion target ID.
 3. Do NOT archive stash entries that were deferred (not selected for this session) — they

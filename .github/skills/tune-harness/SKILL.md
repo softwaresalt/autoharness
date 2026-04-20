@@ -267,9 +267,11 @@ workspace lifecycle.
 
 ##### Step 1.8.1: Compound Library Analysis
 
-Read all compound entries from `{workspace_path}/{DOCS_ROOT}/compound/` (as
-recorded in `.autoharness/config.yaml` or defaulting to `docs/compound/`).
-Parse YAML frontmatter from each entry.
+Read all compound entries from the resolved `{workspace_path}/{DOCS_COMPOUND}`
+path. Resolve `DOCS_COMPOUND` from `.autoharness/config.yaml` using the
+configured `docs.subdirectories` / `DOCS_COMPOUND_DIR` value, defaulting to
+`docs/compound/` only when no override is present. Parse YAML frontmatter from
+each entry.
 
 Analysis:
 
@@ -357,7 +359,7 @@ observation files exist.
 Read:
 
 * Tuning reports from `{workspace_path}/.autoharness/tuning-reports/`
-* Closure artifacts from `{workspace_path}/{DOCS_ROOT}/closure/` (if present)
+* Closure artifacts from `{workspace_path}/{DOCS_CLOSURE}/` (if present)
 
 Analysis:
 
