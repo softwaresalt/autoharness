@@ -3,6 +3,8 @@ title: Credits and Acknowledgements
 description: Sources of inspiration, research, methodologies, and tools that shaped autoharness
 ---
 
+> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
+
 # Credits and Acknowledgements
 
 autoharness draws on empirical research, production harness work, and established

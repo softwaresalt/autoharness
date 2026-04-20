@@ -1,7 +1,9 @@
 ---
-title: Installation Guide
-description: Step-by-step guide for setting up autoharness globally and installing a harness into a target workspace
+title: Getting Started
+description: Install autoharness globally, configure your workspace, install a harness, and verify the results
 ---
+
+> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
 
 ## Overview
 
@@ -160,125 +162,7 @@ Install layers are the artifact classes the installer composes into the target w
 
 The `starter` preset installs `foundation` + `instructions` + `workflow`. The `standard` preset adds `review` + `backlog` + `knowledge`. The `full` preset adds `runtime` + `overlays`. You can override these defaults by listing explicit layers in your config file.
 
-## Step 3: Register with Your AI Coding Environment
-
-autoharness is environment-agnostic. Register it once in whichever environment(s) you use.
-
-### VS Code with GitHub Copilot
-
-The auto-mergeinstall agent writes the agent and prompt discovery settings to your **VS Code user settings** (`%APPDATA%\Code\User\settings.json` on Windows; `~/Library/Application Support/Code/User/settings.json` on macOS; `~/.config/Code/User/settings.json` on Linux). These are user-scoped settings so the Auto-MergeInstall agent is available from every workspace, not just the one it was installed into.
-
-After the first-time setup described below, entries like these will be present in your user settings without any manual editing:
-
-```jsonc
-// VS Code user settings — written automatically by autoharness install
-// The exact path is the output of: autoharness home
-{
-  "chat.agentFilesLocations":  { "C:\\Users\\you\\AppData\\Roaming\\uv\\tools\\autoharness\\Lib\\site-packages\\autoharness\\data\\.github\\agents":  true },
-  "chat.agentSkillsLocations": { "C:\\Users\\you\\AppData\\Roaming\\uv\\tools\\autoharness\\Lib\\site-packages\\autoharness\\data\\.github\\skills":  true },
-  "chat.promptFilesLocations": { "C:\\Users\\you\\AppData\\Roaming\\uv\\tools\\autoharness\\Lib\\site-packages\\autoharness\\data\\.github\\prompts": true }
-}
-```
-
-The installer resolves the path by running `autoharness home` — tilde shorthand (`~`) is not expanded in VS Code JSON settings on Windows and is never used. Existing settings are preserved; only the autoharness-specific entries are added.
-
-Once those settings are in place, the **Auto-MergeInstall** agent appears in the **agents dropdown** at the top of the Chat view. Select it there before typing your prompt. The `/install-harness` slash command (from the autoharness prompt file) is also available in chat.
-
-> **First-time setup:** Run this command once after installing autoharness (cwd does not matter):
-> ```bash
-> autoharness setup-vscode
-> ```
-> This writes the three `chat.*` entries into your VS Code user settings using the fully-resolved path from `autoharness home`. Then reload the VS Code window (`Ctrl+Shift+P` → **Reload Window**) and the **Auto-MergeInstall** agent will appear in the agents dropdown.
-
-### GitHub Copilot CLI — VS Code background sessions
-
-VS Code integrates with the Copilot CLI as **background agent sessions** that run autonomously while you continue other work. VS Code installs and configures the Copilot CLI agent runtime automatically.
-
-For the **Auto-MergeInstall** and **Auto-Tune** agents to appear in Copilot CLI sessions, run this command once after installing autoharness:
-
-```bash
-autoharness setup-copilot-cli
-```
-
-This copies the agent `.md` files and skill `SKILL.md` files from the autoharness installation into your Copilot CLI global config directory (`~/.copilot/agents/` and `~/.copilot/skills/`). Re-run it after upgrading autoharness to pick up updated files.
-
-To run the Auto-MergeInstall agent as a background session:
-
-1. Open the Chat view (`Ctrl+Alt+I`)
-2. Select **Copilot CLI** from the **Session Target** dropdown (or run **Chat: New Copilot CLI** from the Command Palette)
-3. Optionally select **Auto-MergeInstall** from the **Agents** dropdown in the session (requires `github.copilot.chat.cli.customAgents.enabled` — experimental)
-4. Type your install request in the session:
-
-```text
-Install a standard harness into this workspace
-```
-
-### GitHub Copilot CLI — terminal
-
-VS Code registers a **GitHub Copilot CLI** terminal profile. To open a session:
-
-- Select the **+** dropdown in the Terminal panel and choose **GitHub Copilot CLI**, or
-- Run **Terminal: Create New Terminal (With Profile)** from the Command Palette and select **GitHub Copilot CLI**, or
-- Type `copilot` in any VS Code integrated terminal
-
-VS Code handles authentication automatically. Once the session is open, type `/install-harness` to run the install prompt, or describe the task naturally.
-
-For standalone Copilot CLI sessions outside VS Code, run `autoharness setup-copilot-cli` first so agents and skills are registered globally, then use the generated `start.ps1` (or `start.sh`) at the workspace root to set workspace-local state before launching.
-
-> **First install (before `start.ps1` exists):** The startup scripts are generated *by* the installer, so they do not exist yet. Use the VS Code terminal approach above — VS Code handles auth. The `start.ps1` / `start.sh` scripts are for subsequent sessions outside VS Code.
-
-### Claude Code
-
-Run once after installing autoharness:
-
-```bash
-autoharness setup-claude
-```
-
-This copies agent `.md` files into `~/.claude/agents/` and skill `SKILL.md` files into `~/.claude/skills/`. Claude Code discovers agents and skills from those directories at startup. The `CLAUDE_CONFIG_DIR` environment variable overrides the default `~/.claude/` path. Restart Claude Code after running, and again after upgrading autoharness.
-
-### Codex
-
-Run once after installing autoharness:
-
-```bash
-autoharness setup-codex
-```
-
-This copies skill `SKILL.md` files into `~/.codex/skills/`. Codex uses a unified skills model — the `install-harness` and `tune-harness` skills serve as the agent entry points. The `CODEX_HOME` environment variable overrides the default `~/.codex/` path. Restart Codex after running, and again after upgrading autoharness.
-
-### Startup Scripts
-
-The Auto-MergeInstall agent generates `start.ps1` (PowerShell) and `start.sh` (bash) at your workspace root. These scripts set workspace-local directories for AI agent state before launching your AI CLI tool:
-
-```powershell
-# start.ps1 — generated by autoharness
-$env:COPILOT_HOME = ".\.copilot"   # workspace-local Copilot database and memories
-$env:GITHUB_TOKEN = (gh auth token)
-& "copilot"                        # or the full path configured in .autoharness/config.yaml
-```
-
-```bash
-# start.sh — generated by autoharness
-export COPILOT_HOME="./.copilot"
-export GITHUB_TOKEN="$(gh auth token)"
-"copilot"
-```
-
-By redirecting `COPILOT_HOME` (and optionally `ENGRAM_DATA_DIR` for agent-engram) to a workspace-local directory, the agent's memories, checkpoints, and database are stored inside the project and become visible to git. This keeps agent state isolated per project rather than shared across all workspaces.
-
-Sections for Claude Code and OpenAI Codex are included in each script as commented-out blocks; activate the one you need.
-
-To configure the Copilot CLI path (when it is not on PATH), set it in `.autoharness/config.yaml` before running install or tune:
-
-```yaml
-ai_tools:
-  copilot_cli:
-    exe_path: "C:\\Tools\\ghcpcli\\copilot.exe"   # Windows example
-    # exe_path: "/usr/local/bin/copilot"           # macOS/Linux example
-```
-
-## Step 4: Install a Harness into a Target Workspace
+## Step 3: Install a Harness into a Target Workspace
 
 Open the Chat view in VS Code (`Ctrl+Alt+I`), select **Auto-MergeInstall** from the agents dropdown, then describe what you want. Alternatively, type `/install-harness` as a slash command to run the guided install prompt.
 
@@ -549,27 +433,7 @@ The installer runs automatic verification. You can also manually check:
 11. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
 12. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
 
-### Ongoing Maintenance
-
-Run the tuner from the global autoharness installation against the target workspace. Select the **Auto-Tune** agent from the agents dropdown, or run the prompt:
-
-```text
-/tune-harness
-```
-
-The tuner reads updated templates from the global installation, re-runs
-workspace discovery, and compares manifest-tracked artifact checksums to the
-installed harness. Use `.autoharness/drift-ignore` for intentional local
-customizations you do not want surfaced as drift.
-
-Recommended tuning schedule:
-
-* After every major release
-* After adding new languages or frameworks
-* After changing CI/CD pipelines
-* Monthly for actively developed projects
-
-## Updating autoharness Itself
+## Updating autoharness
 
 To get new templates, improved agents, and updated schemas:
 
@@ -582,3 +446,11 @@ cd ~/.autoharness && git pull
 ```
 
 Existing target workspace harnesses are not affected until you run the tuner against them. The tuner will detect template improvements and propose updates.
+
+## Next Steps
+
+- **[Environment Setup](environment-setup.md)** — Register autoharness with VS Code, Copilot CLI, Claude Code, Codex, or Cursor
+- **[Tuning Guide](tuning-guide.md)** — Maintain and adapt your harness as the codebase evolves
+- **[Primitives](primitives.md)** — Deep reference for the 10 irreducible harness primitives
+- **[Capability Packs](capability-packs.md)** — Overlay pattern and pack catalog
+- **[Backlog Integration](backlog-integration.md)** — Backlog tool setup and registry abstraction
