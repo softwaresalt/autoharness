@@ -268,6 +268,15 @@ After all tasks in the queue are complete:
 10. Present the pull request state to the operator when the branch is reviewable
 11. **Never merge automatically. Await explicit user approval before any merge.**
     * When the `agent-intercom` capability pack is installed, broadcast `[WAIT] Awaiting user merge approval` and use the intercom clarification flow if unresolved operator guidance is needed before merge.
+12. **Pre-merge strategy guardrail (P-009)**: Before executing any merge, verify the PR is
+    configured to use a merge commit strategy (not squash or rebase).
+    * On GitHub: confirm the active merge button is "Create a merge commit" — not
+      "Squash and merge" or "Rebase and merge".
+    * If squash or rebase merge is the only available option, halt immediately. Broadcast
+      a P-009 violation: "Squash/rebase merge detected — merge commit required (P-009)."
+      Instruct the operator to update repository settings (GitHub Settings → General →
+      Pull Requests → uncheck "Allow squash merging" and "Allow rebase merging") before
+      proceeding.
 
 ### Step 6: Post-Merge Closure (mandatory after user-approved merge)
 

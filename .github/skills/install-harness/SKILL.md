@@ -761,6 +761,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Scripts (when Primitive 5 or 6 selected) | `{workspace}/scripts/` — copy all `.ps1` and `.sh` files from `{autoharness_home}/templates/skills/{skill-name}/scripts/` for each skill that includes scripts (file-lock, skill-search) |
 | Startup scripts | `{workspace}/start.ps1`, `{workspace}/start.sh` — generated from `{autoharness_home}/templates/scripts/start.ps1.tmpl` and `start.sh.tmpl`; always installed at workspace root regardless of preset |
+| Markdownlint config (when `tools.markdownlint` detected or operator opt-in) | `{workspace}/.markdownlint.json` — resolved from `{autoharness_home}/templates/scripts/.markdownlint.json.tmpl` (no variables to resolve; copy as-is) |
+| Markdownlint pre-commit hooks (when markdownlint config installed) | `{workspace}/scripts/pre-commit-markdownlint.sh`, `{workspace}/scripts/pre-commit-markdownlint.ps1` — copied from `{autoharness_home}/templates/scripts/pre-commit-markdownlint.sh.tmpl` and `pre-commit-markdownlint.ps1.tmpl`; set execute permission on `.sh` after copy: `chmod +x scripts/pre-commit-markdownlint.sh` |
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
 | Backlog config + stash | `{workspace}/{{BACKLOG_DIRECTORY}}/` (queue/, archive/, config.yml, queue/.stash.md) |
@@ -951,6 +953,20 @@ For each enabled capability pack:
 2. Verify all Markdown code fences are properly closed (matching ` ``` ` pairs)
 3. Verify all Markdown tables have consistent column counts per table
 4. Verify file paths in cross-references resolve to actual files
+5. **Markdownlint config verification** (when markdownlint config was installed):
+   a. Confirm `.markdownlint.json` is present at workspace root
+   b. Confirm it contains `"MD001": true`, `"MD025": true`, `"MD041": true`
+   c. Confirm `scripts/pre-commit-markdownlint.sh` and `scripts/pre-commit-markdownlint.ps1`
+      are present in `{workspace}/scripts/`
+   d. Report FAIL for any missing artifact
+6. **Merge policy verification** (universal — applies to all installed harnesses):
+   a. Confirm `constitution.instructions.md` contains "Merge Commit History Preservation"
+      or equivalent principle text referencing P-009
+   b. Confirm `workflow-policies` contains "P-009" and "squash" keyword
+   c. Confirm `ship.agent.md` or the pr-lifecycle skill contains a pre-merge strategy
+      guardrail referencing P-009
+   d. Confirm `git-merge.instructions.md` contains a squash-merge prohibition section
+   e. Report FAIL for any missing artifact — absent merge policy is a P-009 violation risk
 
 #### Step 4.5: Adversarial Verification
 

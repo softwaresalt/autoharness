@@ -349,6 +349,10 @@ Detect existing code style enforcement:
 * Linter configurations (`.eslintrc`, `clippy.toml`, `.pylintrc`, `rustfmt.toml`, `.prettierrc`)
 * Editor configurations (`.editorconfig`, `.vscode/settings.json`)
 * Pre-commit hooks (`.husky/`, `.pre-commit-config.yaml`)
+* Markdown linting: detect `markdownlint-cli` via `which markdownlint` (bash) or
+  `Get-Command markdownlint` (PowerShell), and check for existing `.markdownlint.json` or
+  `.markdownlint.yaml` config files. Record `tools.markdownlint: true|false` and
+  `tools.markdownlint_config: {path}|null` in the workspace profile.
 
 Record: `code_style{}` with detected rules.
 
@@ -472,6 +476,10 @@ conventions:
   code_style: {}
   git: {}
   documentation: {}
+
+tools:
+  markdownlint: false        # true when markdownlint-cli is installed
+  markdownlint_config: null  # path to existing config file, or null
 
 harness_recommendations:
   preset: "{{RECOMMENDED_PRESET}}"

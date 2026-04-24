@@ -11,6 +11,7 @@
 ## Objective
 
 Introduce two new standards enforcement mechanisms into the autoharness template system:
+
 1. **Markdown heading hierarchy enforcement** via markdownlint-cli with pre-commit hooks
 2. **Git merge-commit-only policy** forbidding squash merge at multiple enforcement layers
 
@@ -22,9 +23,11 @@ Both follow the same enforcement pattern: workflow policy → constitution/found
 
 **Files**: `templates/scripts/.markdownlint.json.tmpl` (new)
 **Scope**: Generate a `.markdownlint.json` config enforcing:
+
 - MD001 (heading increment — no skipped levels)
 - MD025 (single H1 per file)
 - MD041 (first line in file should be a top-level heading)
+
 **Acceptance**: Template resolves to valid JSON with no `{{...}}` placeholders remaining.
 
 ### Task 1.2: Create pre-commit hook template for markdownlint
