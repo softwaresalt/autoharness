@@ -255,6 +255,47 @@ If the Local Quality Gate (Step 7) times out after the configured stall
 timeout, checkpoint the fix attempt and report to the operator rather than
 silently retrying.
 
+## Terminal Output Management
+
+CI reproduction commands can generate substantial output that consumes context
+window capacity. Apply these strategies when running commands in Step 4:
+
+**Truncation**: For commands that produce more than ~200 lines of output,
+capture the first 50 and last 50 lines. The first lines usually contain the
+test invocation and early setup errors; the last lines contain the final
+failure summary and exit code.
+
+```text
+<command> 2>&1 | Select-Object -First 50  # PowerShell (head)
+<command> 2>&1 | Select-Object -Last 50   # PowerShell (tail)
+```
+
+**Error-first extraction**: Extract only error and warning lines when the
+full output is too large:
+
+```text
+<command> 2>&1 | Select-String -Pattern "error|warning|FAIL|FAILED" -SimpleMatch
+```
+
+**Filter noise**: Strip lines matching common noise patterns before
+capturing output: download progress bars (`Downloading`, `%`, `kB/s`),
+package manager install logs, and tool version banners.
+
+**Token budget awareness**: A single CI run can easily produce 5,000–50,000
+tokens of raw output. Before capturing the full output of a command, assess
+whether a targeted extraction (error lines only, last N lines) is sufficient
+to diagnose the failure. Reserve full capture for cases where partial output
+is ambiguous.
+
+**Structured capture pattern**: When diagnosing a CI failure, prefer this
+order:
+1. Read the exit code first — if 0, the check passed and no further capture
+   is needed.
+2. If non-zero, extract the last 30 lines of output (contains failure summary).
+3. If the failure is still ambiguous, extract error/warning lines from the
+   full output.
+4. Only capture the full raw output as a last resort.
+
 ## Intercom Events
 
 When the `agent-intercom` capability pack is installed, broadcast the
