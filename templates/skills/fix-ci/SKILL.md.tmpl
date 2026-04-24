@@ -137,6 +137,31 @@ For GitHub-hosted repositories, after addressing each comment:
 2. Resolve bot-authored threads via GraphQL per §1.6.
 3. Never resolve threads authored by human reviewers.
 
+### Step 6.5: Reply Gate (NON-NEGOTIABLE)
+
+Before proceeding to the local quality gate, verify that every open review
+thread has received a reply. This gate applies to both Copilot threads and
+human threads.
+
+**This gate is NON-NEGOTIABLE. The skill MUST NOT proceed to Step 7 or
+push any commit if any thread remains unreplied.**
+
+1. Load the thread inventory built in Step 2.5.
+2. Extend it with any additional threads opened since Step 2.5 ran (re-query
+   if the PR received new review activity during the fix phase).
+3. For each thread:
+   * If `reply-required`: the skill must post a reply before this gate passes.
+     Apply the appropriate reply template from
+     `.github/instructions/github-pr-automation.instructions.md` §1.5
+     (fixed / declined / partial).
+   * If `reply-present`: no action required.
+4. After all replies are posted, re-query the thread list to confirm every
+   thread is in `reply-present` state.
+5. If any thread cannot be replied to (API error, permission denied), halt
+   and report to the operator rather than silently skipping the thread.
+6. Only when the full inventory shows `reply-present` for every thread does
+   this gate pass.
+
 ### Step 7: Local Quality Gate
 
 Run the full quality gate sequence:
