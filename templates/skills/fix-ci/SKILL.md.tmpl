@@ -175,6 +175,30 @@ Run the full quality gate sequence:
 
 All gates must pass before pushing.
 
+**Cascade restart on regression**: Maintain a gate-state vector tracking
+pass/fail for each gate position. Run gates in order. If a gate that
+previously passed now fails after a fix was applied for a later gate
+(regression), restart the entire gate sequence from the first failing gate
+rather than continuing forward. This prevents silently accumulating
+regressions across iterations.
+
+```text
+gate_state = [UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN]
+
+for each iteration:
+  for gate_index in 0..N:
+    run gate[gate_index]
+    if PASS:
+      gate_state[gate_index] = PASS
+    if FAIL:
+      gate_state[gate_index] = FAIL
+      apply fix for gate_index
+      restart loop from first FAIL in gate_state
+      break
+  if all gate_state == PASS:
+    proceed to Step 6.5
+```
+
 ### Step 8: Push and Poll
 
 1. Commit fixes with a `fix:` conventional commit message
