@@ -8,6 +8,10 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Run from repo root so repo-root-relative paths from git are valid
+$RepoRoot = & git rev-parse --show-toplevel
+Set-Location $RepoRoot
+
 # Collect staged .md files
 $StagedMd = git diff --cached --name-only --diff-filter=ACMR |
     Where-Object { $_ -match '\.md$' }

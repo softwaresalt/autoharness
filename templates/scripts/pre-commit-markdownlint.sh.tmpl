@@ -7,12 +7,18 @@
 #
 # Install: copy to .git/hooks/pre-commit (or register via .pre-commit-config.yaml)
 
-set -euo pipefail
+set -uo pipefail
 
-# Collect staged .md files
-STAGED_MD=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.md$' || true)
+# Run from repo root so repo-root-relative paths from git are valid
+cd "$(git rev-parse --show-toplevel)"
 
-if [ -z "$STAGED_MD" ]; then
+# Collect staged .md files using NUL delimiters (handles spaces in paths)
+STAGED_MD_FILES=()
+while IFS= read -r -d '' f; do
+  STAGED_MD_FILES+=("$f")
+done < <(git diff --cached --name-only -z --diff-filter=ACMR | grep -zE '\.md$' || true)
+
+if [ ${#STAGED_MD_FILES[@]} -eq 0 ]; then
   exit 0
 fi
 
@@ -24,13 +30,9 @@ if ! command -v markdownlint &>/dev/null; then
 fi
 
 echo "Running markdownlint on staged Markdown files..."
-# shellcheck disable=SC2086
-markdownlint $STAGED_MD
-EXIT_CODE=$?
-
-if [ $EXIT_CODE -ne 0 ]; then
+markdownlint "${STAGED_MD_FILES[@]}" || {
   echo "ERROR: markdownlint violations detected (P-008). Fix heading hierarchy issues before committing." >&2
   exit 1
-fi
+}
 
 exit 0

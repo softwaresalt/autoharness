@@ -333,6 +333,20 @@
         }
       }
     },
+    "tools": {
+      "type": "object",
+      "description": "Detected development tools beyond language toolchain and build system",
+      "properties": {
+        "markdownlint": {
+          "type": "boolean",
+          "description": "True when markdownlint-cli is installed and available on PATH"
+        },
+        "markdownlint_config": {
+          "type": ["string", "null"],
+          "description": "Path to existing markdownlint config file (.markdownlint.json, .markdownlint.yaml), or null if none found"
+        }
+      }
+    },
     "drift_report": {
       "type": ["object", "null"],
       "properties": {
