@@ -347,7 +347,7 @@
         },
         "local_agents_dir": {
           "type": ["string", "null"],
-          "description": "Override directory for local-only workflow agents (stage, ship) that must not leak into the distribution package. Default: .github/local-agents/. This directory must NOT appear in any wheel force-include mapping."
+          "description": "Override directory for local-only workflow agents (stage, ship) that must not leak into the distribution package. Default: .github/local-agents. This directory must NOT appear in any wheel force-include mapping."
         }
       },
       "additionalProperties": false

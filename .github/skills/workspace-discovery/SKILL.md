@@ -354,15 +354,19 @@ Detect existing code style enforcement:
   `.markdownlint.yaml` config files. Record `tools.markdownlint: true|false` and
   `tools.markdownlint_config: {path}|null` in the workspace profile.
 * Global distribution detection: check whether this workspace is a globally-distributed
-  tool that ships agent definitions in its package. Detection signals:
+  tool that ships agent definitions in its package. Normalize path keys when comparing
+  `force-include` entries (treat `.github/local-agents` and `.github/local-agents/` as
+  equivalent, or explicitly check both forms). Detection signals:
   1. `pyproject.toml` exists and its `[tool.hatch.build.targets.wheel.force-include]`
-     section maps `.github/agents` into the wheel (value contains `src/` or any package path)
-  2. `.github/local-agents/` directory exists
-  3. The force-include section does NOT map `.github/local-agents/`
+     section maps `.github/agents` into the wheel (after normalization, or by checking
+     both `.github/agents` and `.github/agents/`; value contains `src/` or any package path)
+  2. `.github/local-agents` directory exists
+  3. The force-include section does NOT map `.github/local-agents` after normalization
+     (does not contain either `.github/local-agents` or `.github/local-agents/`)
   When all three signals are present, record:
   `distribution.is_global_tool: true`
   `distribution.global_agents_dir: .github/agents`
-  `distribution.local_agents_dir: .github/local-agents/`
+  `distribution.local_agents_dir: .github/local-agents`
   Otherwise omit the `distribution` field from the profile.
 
 Record: `code_style{}` with detected rules.
