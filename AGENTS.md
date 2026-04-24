@@ -27,9 +27,10 @@ This file defines the authoritative rules for working in the autoharness reposit
 
 ```text
 # All template files must have valid YAML frontmatter
-# All Markdown must pass structural checks
+# All Markdown must pass markdownlint heading hierarchy rules (MD001, MD025, MD041) — P-008
 # No {{VARIABLE}} placeholders may remain in installed output
 # All cross-references between installed artifacts must resolve
+# All PR merges must use merge commits — squash and rebase are forbidden (P-009, Principle XI)
 ```
 
 ## Development Workflow
