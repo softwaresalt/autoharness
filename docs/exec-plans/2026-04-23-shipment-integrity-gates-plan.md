@@ -109,7 +109,7 @@ inherits them.
 items down):
 - Pre-archive reconciliation gate: invoke shipment-reconcile `mode: pre`,
   `expected_status: done`, acquires file-lock
-- Call `{{OP_SHIP_SHIPMENT_MPC}}` with merge commit SHA
+- Call `{{OP_SHIP_SHIPMENT_MCP}}` with merge commit SHA
 - P-007 archive integrity check: `git status`, `git restore` if needed
 - Post-archive reconciliation: invoke shipment-reconcile `mode: post`
 - Commit the backlogit state

@@ -13,8 +13,8 @@ the archive + restore steps complete.
 
 * **Ship Step 6** (mandatory): pre-mode immediately before `{{OP_SHIP_SHIPMENT_MCP}}`;
   post-mode immediately after the `git restore {{BACKLOG_DIRECTORY}}/archive/` step.
-* **Ship Step 0.5** (sanity check): pre-mode at intake with `expected_status: queued`
-  (or `active` if the shipment was already claimed in a prior session)
+* **Ship Step 0.5** (sanity check): pre-mode at intake with `expected_status: {{STATUS_QUEUED}}`
+  (or `{{STATUS_ACTIVE}}` if the shipment was already claimed in a prior session)
   to catch Stage-side over-inclusion before any build work begins.
 * **Ad-hoc audit**: any time an operator suspects manifest drift.
 
