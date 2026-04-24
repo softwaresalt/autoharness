@@ -333,6 +333,25 @@
         }
       }
     },
+    "distribution": {
+      "type": "object",
+      "description": "Signals indicating that this workspace is a globally-distributed tool that ships agent definitions in its package. When present, the installer routes workflow agents to a local-only directory to prevent distribution leakage.",
+      "properties": {
+        "is_global_tool": {
+          "type": "boolean",
+          "description": "True when the workspace is a globally-distributed tool that ships agents in its package (e.g. via pyproject.toml force-include mappings to a wheel). When true and the target workspace equals autoharness_home, the installer enters self-install mode."
+        },
+        "global_agents_dir": {
+          "type": ["string", "null"],
+          "description": "The directory where globally-distributed agents live and are included in the distribution package. Default: .github/agents. These agents are source-controlled and should never be overwritten by the workflow agent installer."
+        },
+        "local_agents_dir": {
+          "type": ["string", "null"],
+          "description": "Override directory for local-only workflow agents (stage, ship) that must not leak into the distribution package. Default: .github/local-agents. This directory must NOT appear in any wheel force-include mapping."
+        }
+      },
+      "additionalProperties": false
+    },
     "tools": {
       "type": "object",
       "description": "Detected development tools beyond language toolchain and build system",

@@ -46,11 +46,13 @@ Confirm that `templates/`, `schemas/`, and `docs/` exist at the resolved path.
 Determine which workspace to install the harness into:
 
 * If the user provided a `workspace` path argument, use it
-* In a multi-root editor workspace, ask the user which workspace root is the target (exclude the autoharness root itself)
+* In a multi-root editor workspace, ask the user which workspace root is the target
 * In a single-root workspace, use the workspace root
 * From a CLI environment, require the `workspace` argument
 
-The target workspace MUST be a different directory from the autoharness installation. Confirm the target path with the user before proceeding.
+The target workspace MUST be a different directory from the autoharness installation — **with one exception for self-install mode**, which is evaluated after workspace-discovery in Step 3a. If the resolved workspace path equals `autoharness_home`, do not halt immediately; note this to the user and continue to Step 3 so the workspace profile can be loaded and the self-install eligibility determined.
+
+Confirm the target path with the user before proceeding.
 
 ### Step 2: Check for Existing Harness
 
@@ -73,6 +75,12 @@ If an existing harness is found, present the findings and ask the user:
 
 If `.autoharness/harness-manifest.yaml` exists, suggest using the Auto-Tune agent instead for incremental updates.
 
+**Self-install mode exception**: when `distribution.is_global_tool` is true, apply modified backup behavior:
+
+* `.github/agents/` remains the source-controlled location for globally-distributed agent definitions in self-install mode. The workflow agent installer may continue to **use/read** that directory, but it must **not overwrite or modify** it, so it is **excluded from backup**.
+* `.github/skills/`, `.github/instructions/`, and `.github/policies/` follow the same rule: they may remain in use as source-controlled global artifacts in self-install mode, but they are outside the installer's write set, so they are **not backed up and not overwritten** by the workflow agent installer.
+* `.github/local-agents/` is different: it is a workflow-agent write target in self-install mode, so **do** back up its contents before overwriting workflow agents there.
+
 ### Step 3: Invoke Workspace Discovery
 
 Invoke the workspace-discovery skill to scan the target workspace and produce a workspace profile. Pass the target workspace path as input.
@@ -83,6 +91,25 @@ Review the profile output. If any critical fields are empty or ambiguous, ask th
 * Build command (if not discoverable from config files)
 * Test command (if not discoverable from config files)
 * CI platform (if no CI config files found)
+
+### Step 3a: Evaluate Self-Install Mode (if workspace_path equals autoharness_home)
+
+If the target workspace path equals `autoharness_home` (noted in Step 1), evaluate the now-loaded profile:
+
+* If `distribution.is_global_tool` is `true`, self-install mode is permitted. Before proceeding, display this confirmation to the operator:
+
+  ```text
+  Self-install mode: the target workspace is the autoharness installation itself.
+  Workflow agents (stage, ship) will be placed in .github/local-agents to avoid
+  leaking into the distribution package. Template agents and global skills will
+  continue to use .github/agents/ and .github/skills/ as normal.
+
+  Confirm? [y/N]
+  ```
+
+  Do not proceed until the operator confirms. If the operator declines, halt and let them select a different target.
+
+* If `distribution.is_global_tool` is absent or `false`, halt: "Target workspace is the autoharness installation itself and is not configured as a globally-distributed tool. Select a different target workspace."
 
 ### Step 4: Present the Harness Plan
 

@@ -1,0 +1,2 @@
+{"timestamp":"2026-04-24T14:39:11.2015103-07:00","actor":"backlogit","item_id":"004-S","event_type":"shipment_created","delta":{"items":["004-F","004.001-T","004.002-T","004.003-T","004.004-T","004.005-T"],"title":"Self-Install Support"}}
+{"timestamp":"2026-04-24T15:32:35.8758111-07:00","actor":"backlogit","item_id":"004-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
