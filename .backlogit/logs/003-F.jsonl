@@ -1,1 +1,4 @@
 {"timestamp":"2026-04-24T12:35:40.3827119-07:00","actor":"backlogit","item_id":"003-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-04-24T14:18:03.6263629-07:00","actor":"backlogit","item_id":"003-F","event_type":"status_changed","delta":{"from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-04-24T14:18:04.0812619-07:00","actor":"backlogit","item_id":"003-F","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"8996b46","message":"feat: fix-ci skill template v2 overhaul (003-F)"}}
+{"timestamp":"2026-04-24T14:18:06.2117243-07:00","actor":"backlogit","item_id":"003-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/003-F.md"}}
