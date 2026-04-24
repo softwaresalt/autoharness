@@ -178,6 +178,14 @@ For each installed artifact, check:
   4. Flag missing scripts as P0 Breaking drift — agents referencing these scripts will fail at runtime
   5. If `concurrency.instructions.md` is installed but lock scripts are missing, flag as P0 Breaking
   6. If `skill-search/SKILL.md` is installed but `search.ps1`/`search.sh` is missing, flag as P0 Breaking
+* **Markdownlint config drift** (when `.markdownlint.json` is manifest-tracked):
+  1. Verify `.markdownlint.json` exists at workspace root; flag as P1 Degrading if missing
+  2. Parse the config and verify `"MD001": true`, `"MD025": true`, `"MD041": true` are present;
+     flag as P1 Degrading if any rule is absent, set to `false`, or set to a weaker
+     configuration (e.g., `{"heading-increment": false}`)
+  3. Verify `scripts/pre-commit-markdownlint.sh` and `scripts/pre-commit-markdownlint.ps1`
+     exist; flag as P1 Degrading if either is missing
+  4. If all three checks pass, classify as `unchanged` or `user-modified` (checksum comparison)
 * **Circuit breaker and concurrency instructions**: If these instruction files are installed:
   1. Verify they are referenced from the constitution's Stop Conditions section
   2. Verify the `.gitignore` contains an autoharness dot-lock ignore pattern (for example `.*.lock` or `**/.*.lock`) when concurrency instructions are present; do not require a broad `*.lock` pattern because that would ignore legitimate repository lockfiles such as `Cargo.lock` or `poetry.lock`

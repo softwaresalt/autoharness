@@ -163,6 +163,21 @@ token consumed by bulk data is a token unavailable for reasoning and
 code generation. Data access architecture should serve token-efficient
 query results to agents.
 
+### XI. Merge Commit History Preservation (NON-NEGOTIABLE)
+
+All pull request merges MUST use merge commits. Squash merge and rebase
+merge are expressly forbidden. Repository settings MUST be configured to
+disable squash and rebase merge options (GitHub Settings → General →
+Pull Requests → uncheck "Allow squash merging" and "Allow rebase merging").
+The ship agent MUST verify the merge strategy before executing any merge
+and MUST halt with a P-009 violation if squash or rebase merge is detected.
+
+**Rationale**: Merge commits preserve the full development history,
+individual commit attribution, and bisect-friendly history. Squash merge
+destroys commit granularity and makes root-cause analysis of regressions
+significantly harder. Rebase merge rewrites history, breaking
+commit-traceability links and backlog commit associations.
+
 ## Technical Constraints
 
 | Concern         | Constraint                                                       |

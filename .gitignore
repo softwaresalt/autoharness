@@ -4,3 +4,5 @@
 *.copilot
 .backlogit/*.db
 .backlogit/hooks_queue.jsonl
+.backlogit/*.db-shm
+.backlogit/*.db-wal
