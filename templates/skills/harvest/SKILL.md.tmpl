@@ -140,6 +140,8 @@ If `${input:dry_run}` is `false`:
 
 * Do not modify the plan file.
 * Do not skip duplicate checks.
+* Do not create shipment artifacts from this skill. Shipment assembly
+  happens downstream in Stage (Step 5.5) or Ship (fallback path).
 * Keep descriptions self-contained enough for the next executor to act
   without reopening the plan for basic context.
 

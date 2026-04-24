@@ -1,0 +1,39 @@
+{
+  "servers": {
+    "backlogit": {
+      "type": "stdio",
+      "command": "backlogit",
+      "args": ["mcp"],
+      "env": {
+        "BACKLOGIT_WORKSPACE": "${workspaceFolder}"
+      }
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "microsoft-docs": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp"
+    },
+    "agent-intercom": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://127.0.0.1:3000/mcp?workspace_id=autoharness"]
+    },
+    "tavily": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.tavily.com/mcp/?tavilyApiKey=${env:TAVILY_API_KEY}"]
+    },
+    "github": {
+      "type": "stdio",
+      "command": "pwsh",
+      "args": [
+        "-Command",
+        "$env:GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token); npx -y @modelcontextprotocol/server-github"
+      ]
+    }
+  }
+}

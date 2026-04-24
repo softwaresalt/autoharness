@@ -31,6 +31,11 @@ packages = ["src/autoharness"]
 [tool.hatch.build.targets.wheel.force-include]
 "templates" = "src/autoharness/data/templates"
 "schemas" = "src/autoharness/data/schemas"
-".github" = "src/autoharness/data/.github"
+".github/agents" = "src/autoharness/data/.github/agents"
+".github/skills" = "src/autoharness/data/.github/skills"
+".github/instructions" = "src/autoharness/data/.github/instructions"
+".github/prompts" = "src/autoharness/data/.github/prompts"
+".github/copilot-instructions.md" = "src/autoharness/data/.github/copilot-instructions.md"
+".github/copilot-review-instructions.md" = "src/autoharness/data/.github/copilot-review-instructions.md"
 "docs" = "src/autoharness/data/docs"
 "AGENTS.md" = "src/autoharness/data/AGENTS.md"

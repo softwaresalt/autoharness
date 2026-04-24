@@ -3,3 +3,4 @@
 *.code-workspace
 *.copilot
 .backlogit/*.db
+.backlogit/hooks_queue.jsonl

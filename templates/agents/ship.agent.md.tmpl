@@ -112,6 +112,12 @@ build work begins:
    build work begins. Broadcast `[SHIP] Shipment claimed: {shipment_id}`.
 5. Record `shipment_id` as the session scope. All build execution and PR scope is bounded
    by this shipment.
+6. **Intake reconciliation check**: Invoke `shipment-reconcile` with `mode: pre` and
+   `expected_status: {{STATUS_QUEUED}}` (or `{{STATUS_ACTIVE}}` if already claimed).
+   This verifies every manifest item is present in `{{BACKLOG_DIRECTORY}}/queue/` with the
+   expected status, and scans for orphan items. A `RECONCILE_FAIL` here means Stage swept
+   non-harvest items into the manifest; reconcile before proceeding to Step 1. (Lock is not
+   held at intake — this is a lightweight early-warning check only.)
 
 **Fallback path — direct invocation without a Stage-prepared shipment**:
 
@@ -135,6 +141,9 @@ When `shipment_id` is not provided (Ship invoked directly by the operator):
 
 When the `agent-intercom` capability pack is also installed, broadcast each sub-step with
 its outcome.
+
+After claiming the shipment via either path, the intake reconciliation check from
+primary-path step 6 applies — run it if it was not already executed above.
 
 ### Validation Boundary
 
@@ -266,28 +275,51 @@ When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Post-m
 
 After the user approves merge:
 
-1. Invoke `operational-closure` in `mode=post-merge` to produce release-readiness, monitoring, and rollback artifacts in `{{DOCS_CLOSURE}}/`.
-2. Evaluate whether documentation or compound learnings need updates for the shipped scope:
+1. **Close the shipment** (when `{{FEATURE_SHIPMENTS}}` is true):
+   a. **Pre-archive reconciliation gate (mandatory)**: Invoke the `shipment-reconcile`
+      skill with `mode: pre`, `shipment_id`, and `expected_status: {{STATUS_DONE}}`.
+      This acquires the single-writer lock on `{{BACKLOG_DIRECTORY}}/queue/{shipment_id}.md`
+      (via the `file-lock` skill) and verifies that every manifest item is present in
+      queue with `status: {{STATUS_DONE}}`, and scans for orphan items.
+      * If the skill returns `RECONCILE_FAIL`: halt and surface the reconciliation report
+        to the operator. Do NOT proceed to step 1.b.
+      * If the skill returns `PROCEED`: continue. The lock remains held until post-mode
+        completes in step 1.d.
+   b. Call `{{OP_SHIP_SHIPMENT_MCP}}` with the merge commit SHA. This archives all queue
+      items (feature + tasks) to `{{BACKLOG_DIRECTORY}}/archive/`.
+   c. **Verify archive integrity (P-007)**: Run `git status -- "{{BACKLOG_DIRECTORY}}/archive/"`.
+      If any archive files appear as working-tree deletions, restore them immediately:
+      `git restore {{BACKLOG_DIRECTORY}}/archive/`. See P-007 in workflow-policies for the
+      full verification and violation protocol.
+   d. **Post-archive reconciliation**: Invoke `shipment-reconcile` with `mode: post` and
+      `merge_commit_sha`. If the skill returns `HALT — restore archives`, run
+      `git restore {{BACKLOG_DIRECTORY}}/archive/` before step 1.e.
+      The lock is released by the skill at the end of post-mode.
+   e. Commit the backlog state in two separate terminal commands:
+      `git add {{BACKLOG_DIRECTORY}}/`
+      `git commit -m "chore: archive {shipment_id} backlog artifacts"`
+2. Invoke `operational-closure` in `mode=post-merge` to produce release-readiness, monitoring, and rollback artifacts in `{{DOCS_CLOSURE}}/`.
+3. Evaluate whether documentation or compound learnings need updates for the shipped scope:
    * `{{DOCS_ROOT}}/ARCHITECTURE.md` for structural changes
    * `AGENTS.md` for agent or skill changes
    * `{{DOCS_DESIGN_DOCS}}/` for graduated design decisions
    * `{{DOCS_PRODUCT_SPECS}}/` for requirement updates
-3. Apply documentation updates directly (knowledge graduation).
-4. If the shipped work superseded, duplicated, or invalidated existing learnings in `{{DOCS_COMPOUND}}/`, invoke **compound-refresh** so stale entries are classified as keep / update / consolidate / replace / delete using evidence from the shipped work and closure artifacts. When evidence is incomplete, mark entries stale rather than rewriting them blindly.
-5. **Stash follow-up items**: If the post-merge closure artifact identified follow-up tasks (monitoring gaps, deferred scope, documentation debt, or any action not covered by the shipped work), stash every follow-up:
+4. Apply documentation updates directly (knowledge graduation).
+5. If the shipped work superseded, duplicated, or invalidated existing learnings in `{{DOCS_COMPOUND}}/`, invoke **compound-refresh** so stale entries are classified as keep / update / consolidate / replace / delete using evidence from the shipped work and closure artifacts. When evidence is incomplete, mark entries stale rather than rewriting them blindly.
+6. **Stash follow-up items**: If the post-merge closure artifact identified follow-up tasks (monitoring gaps, deferred scope, documentation debt, or any action not covered by the shipped work), stash every follow-up:
    * When `backlogit` is the installed backlog tool, create a stash entry per follow-up using `{{OP_CREATE_MCP}}` with `{{FIELD_TYPE}}: "stash"`, `{{FIELD_TITLE}}` from the follow-up summary, `{{FIELD_DESCRIPTION}}` linking to the closure artifact, and `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`. After creation, re-read each entry to confirm it persisted correctly.
    * When `backlog-md` is the installed backlog tool, create a follow-up item using `{{OP_CREATE_MCP}}` with `{{FIELD_TITLE}}` from the follow-up summary, `{{FIELD_DESCRIPTION}}` linking to the closure artifact, `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`, and `{{FIELD_LABELS}}: ["stash", "follow-up"]`.
    * When no backlog tool is installed, append each follow-up to `{{BACKLOG_DIRECTORY}}/queue/.stash.md` using the format: `- [{YYYY-MM-DD}] **Follow-up**: {summary} — Source: {closure_artifact_path}`.
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Stashed {count} follow-up item(s) from post-merge closure: {summary_list}` listing each item's title.
-6. **Archive stale deliberation and stash artifacts**: After the shipped work is merged, archive backlog artifacts that informed this work and are now complete:
+7. **Archive stale deliberation and stash artifacts**: After the shipped work is merged, archive backlog artifacts that informed this work and are now complete:
    * **Deliberation items**: Search the backlog for deliberation artifacts (type suffix `{{SUFFIX_DELIBERATION}}`) that were consumed during the Stage→Ship pipeline for this shipment. Use `{{OP_SEARCH_MCP}}` to find deliberation items linked to the shipped feature or chore, then invoke `{{OP_COMPLETE_MCP}}` for each to move them from queue to archive.
    * **Consumed follow-up tasks created by Ship**: If Step 5 of the pre-merge closure (or a prior Ship session) created follow-up tasks that were subsequently consumed by Stage and shipped in this cycle, verify they have been archived. If any remain in active state, complete them using `{{OP_COMPLETE_MCP}}`.
    * **Spike artifacts**: Search for spike items (type suffix `{{SUFFIX_SPIKE}}`) that were consumed during the deliberation or planning phase for this shipment. Archive them using the same mechanism as deliberation items.
    * Preserve the decision content: deliberation and spike knowledge artifacts in `{{DOCS_DECISIONS}}/` are **not** removed — only the backlog work-item wrappers in the queue are archived. The knowledge persists; the workflow item is retired.
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Archived {count} stale deliberation/stash/spike items from shipped work`.
-7. **Mandatory**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence.
-8. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
-9. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
+8. **Mandatory**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence.
+9. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
+10. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
 
 ## Circuit Breakers
 
