@@ -209,6 +209,27 @@ for each iteration:
 4. When CI is green, invoke `runtime-verification` if runtime surfaces were affected or the PR explicitly requires runtime evidence
 5. Update or append the operational validation section in the PR description so the next handoff includes monitoring and rollback expectations
 
+### Step 8.5: Defect Logging
+
+When the circuit breaker halts (either `max_iterations` exhausted or 3
+consecutive failures on the same check), create a backlog defect item for
+each CI check that remains unresolved:
+
+1. For each unresolved failing check, invoke the backlog tool create
+   operation with:
+   * `artifact_type`: `task`
+   * `title`: `"CI defect: {check_name} unresolved on {branch_name}"`
+   * `description`: Include — check name, final error output (truncated to
+     500 chars), iteration count attempted, fix strategies tried, and the
+     PR URL for traceability.
+   * `labels`: `["ci-defect", "follow-up"]`
+2. After each creation, re-read the created item to confirm it persisted.
+3. Append the defect item IDs to the halt report surfaced to the operator.
+
+When no backlog tool is installed, append each defect to
+`{{BACKLOG_DIRECTORY}}/queue/.stash.md` using the format:
+`- [{YYYY-MM-DD}] **CI defect**: {check_name} unresolved — PR: {pr_url}`.
+
 ## Circuit Breakers
 
 * Maximum `max_iterations` fix-push-poll cycles (default 5; skill-managed exception per `circuit-breaker.instructions.md`)
