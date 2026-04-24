@@ -1,2 +1,5 @@
 {"timestamp":"2026-04-24T14:39:11.2015103-07:00","actor":"backlogit","item_id":"004-S","event_type":"shipment_created","delta":{"items":["004-F","004.001-T","004.002-T","004.003-T","004.004-T","004.005-T"],"title":"Self-Install Support"}}
 {"timestamp":"2026-04-24T15:32:35.8758111-07:00","actor":"backlogit","item_id":"004-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-04-24T16:00:28.037957-07:00","actor":"backlogit","item_id":"004-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-04-24T16:00:28.1421998-07:00","actor":"backlogit","item_id":"004-S","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"3449378b05e2433cc224ccec676ce651284f84d0","message":"feat: Self-Install Support (v1.2.0) (#19)"}}
+{"timestamp":"2026-04-24T16:00:29.5646479-07:00","actor":"backlogit","item_id":"004-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/004-S.md"}}

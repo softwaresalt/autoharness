@@ -1,1 +1,3 @@
 {"timestamp":"2026-04-24T15:32:36.4018634-07:00","actor":"backlogit","item_id":"004.001-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-04-24T16:00:28.3861489-07:00","actor":"backlogit","item_id":"004.001-T","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"3449378b05e2433cc224ccec676ce651284f84d0","message":"feat: Self-Install Support (v1.2.0) (#19)"}}
+{"timestamp":"2026-04-24T16:00:28.9755154-07:00","actor":"backlogit","item_id":"004.001-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/004.001-T.md"}}
