@@ -255,6 +255,44 @@ If the Local Quality Gate (Step 7) times out after the configured stall
 timeout, checkpoint the fix attempt and report to the operator rather than
 silently retrying.
 
+## Common Fix Patterns
+
+Reference taxonomy of fixes organized by check type. Use these as first-line
+approaches before escalating to the operator.
+
+### Format
+
+| Pattern | When to apply | When to escalate |
+|---|---|---|
+| Run auto-fix command | Formatting diff exists and auto-fix is configured (`{{FORMAT_FIX_COMMAND}}`) | Auto-fix introduces semantic changes or breaks tests |
+| Align editor config | Consistent style violations across many files (trailing spaces, indentation) | Different files require different styles (legacy code) |
+| Add format ignore annotation | Generated or vendored file that should not be formatted | More than 10% of files need ignore annotations |
+
+### Lint
+
+| Pattern | When to apply | When to escalate |
+|---|---|---|
+| Fix the code | Lint rule identifies a real issue (unused import, undefined var) | Fix would require restructuring unrelated code |
+| Inline suppression | Known false positive with clear justification | More than 3 suppressions needed in a single PR |
+| Rule-specific config | Rule fires repeatedly and is not appropriate for this project | Disabling would hide real violations elsewhere |
+
+### Test
+
+| Pattern | When to apply | When to escalate |
+|---|---|---|
+| Fix assertion | Test expectation is wrong (output format changed, value updated) | Fixing assertion would mask a real regression |
+| Update fixture | Test fixture is stale (snapshot, golden file, recorded response) | Fixture update cannot be independently verified as correct |
+| Isolate flaky test | Test fails intermittently due to timing or ordering | Root cause is outside the PR scope |
+| Regenerate snapshot | Snapshot test fails due to intentional output change | Snapshot diff is larger than the PR change set |
+
+### Build
+
+| Pattern | When to apply | When to escalate |
+|---|---|---|
+| Resolve missing dependency | Import or package not installed; add to dependency manifest | Dependency is deprecated or has a known security vulnerability |
+| Pin version | Transitive dependency version conflict between packages | Pinning breaks another required package version |
+| Add missing module | Build references a module not yet created | Module requires its own feature branch |
+
 ## Terminal Output Management
 
 CI reproduction commands can generate substantial output that consumes context
