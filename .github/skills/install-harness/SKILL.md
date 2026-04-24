@@ -43,9 +43,13 @@ Verify the `autoharness_home` path contains the expected structure:
 
 If any are missing, halt and report the issue. The autoharness installation may be corrupt or incomplete.
 
-Verify that `workspace_path` is NOT inside `autoharness_home` and vice versa.
+Verify that `workspace_path` is NOT inside `autoharness_home` and vice versa. **Exception — self-install mode**: when `workspace_path` equals `autoharness_home` AND the workspace profile contains `distribution.is_global_tool: true`, proceed with self-install mode instead of halting. In self-install mode:
 
-All template reads in subsequent phases use `{autoharness_home}/templates/` as the base path. All artifact writes use `{workspace_path}` as the base path.
+1. **Agent routing**: Generate workflow agents (stage, ship) and write them to `distribution.local_agents_dir` (default `.github/local-agents/`) instead of `.github/agents/`. Template agents, global skills, instructions, policies, and prompts continue to use their standard locations under `.github/`.
+2. **Wheel isolation check**: Verify that `distribution.local_agents_dir` is NOT referenced in `pyproject.toml` `[tool.hatch.build.targets.wheel.force-include]` mappings. If it is, halt and report the violation — workflow agents must not leak into the distribution package.
+3. **Operator confirmation required**: Before proceeding, display: "Self-install mode: target is the autoharness installation itself. Workflow agents will be placed in `{distribution.local_agents_dir}` to avoid wheel leakage. Confirm?"
+
+All template reads in subsequent phases use `{autoharness_home}/templates/` as the base path. All artifact writes use `{workspace_path}` as the base path. In self-install mode, workflow agent writes use `{workspace_path}/{distribution.local_agents_dir}` instead of `{workspace_path}/.github/agents/`.
 
 #### Step 1.0b: Load Operator Configuration
 

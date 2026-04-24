@@ -353,6 +353,17 @@ Detect existing code style enforcement:
   `Get-Command markdownlint` (PowerShell), and check for existing `.markdownlint.json` or
   `.markdownlint.yaml` config files. Record `tools.markdownlint: true|false` and
   `tools.markdownlint_config: {path}|null` in the workspace profile.
+* Global distribution detection: check whether this workspace is a globally-distributed
+  tool that ships agent definitions in its package. Detection signals:
+  1. `pyproject.toml` exists and its `[tool.hatch.build.targets.wheel.force-include]`
+     section maps `.github/agents` into the wheel (value contains `src/` or any package path)
+  2. `.github/local-agents/` directory exists
+  3. The force-include section does NOT map `.github/local-agents/`
+  When all three signals are present, record:
+  `distribution.is_global_tool: true`
+  `distribution.global_agents_dir: .github/agents`
+  `distribution.local_agents_dir: .github/local-agents/`
+  Otherwise omit the `distribution` field from the profile.
 
 Record: `code_style{}` with detected rules.
 
@@ -476,6 +487,11 @@ conventions:
   code_style: {}
   git: {}
   documentation: {}
+
+distribution:               # omit this section when is_global_tool is false
+  is_global_tool: true      # true when workspace ships agents in its distribution package
+  global_agents_dir: .github/agents        # agents included in the package
+  local_agents_dir: .github/local-agents/  # workflow agents excluded from the package
 
 tools:
   markdownlint: false        # true when markdownlint-cli is installed
