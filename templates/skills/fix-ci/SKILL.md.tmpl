@@ -10,7 +10,7 @@ Detect CI failures and code review comments on the current branch's PR, reproduc
 
 * Git repository with a remote tracked branch and an open PR
 * Access to CI pipeline status via `gh` CLI or equivalent tool
-* Required commands available in PATH: `{{FORMAT_CHECK_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TEST_COMMAND}}`
+* Local tools required by this skill must be available in PATH, including the configured quality gates `{{QUALITY_GATE_1}}`–`{{QUALITY_GATE_4}}`; if formatting fixes are applied during remediation, `{{FORMAT_FIX_COMMAND}}` must also be available
 * Backlog tool configured when defect logging is enabled (circuit breaker halt path)
 
 ## Quick Start
@@ -77,19 +77,29 @@ Before processing generic review comments, identify Copilot-authored threads
 separately so they can be handled with the correct resolution lifecycle.
 
 1. Query all review threads on the PR using the GitHub API or `gh` CLI.
-2. For each thread, inspect the reviewer login. Threads authored by
-   `copilot-pull-request-reviewer` or any login matching `[bot]` suffix are
-   Copilot threads.
-3. Build two inventories:
-   * **Copilot threads**: threads where `reviewer.login` matches
-     `copilot-pull-request-reviewer` (the GitHub Copilot PR reviewer bot ID).
+2. For each thread, inspect the thread author login (the root comment author
+   login, not `reviewer.login`). Classify into one of three categories:
+   * **Copilot thread**: author login is `copilot-pull-request-reviewer[bot]`.
+     If your tool normalizes bot logins by stripping the trailing `[bot]`
+     suffix, treat a normalized login of `copilot-pull-request-reviewer` as
+     equivalent.
+   * **Other bot thread**: author login ends with `[bot]` but is not
+     `copilot-pull-request-reviewer[bot]` (e.g., Dependabot, CI bots).
+   * **Human thread**: all other open threads authored by human reviewers.
+3. Build three inventories:
+   * **Copilot threads**: only threads authored by
+     `copilot-pull-request-reviewer[bot]`.
+   * **Other bot threads**: open threads authored by non-Copilot bot accounts.
    * **Human threads**: all other open threads authored by human reviewers.
 4. For each Copilot thread, determine reply status:
    * If the thread has no reply from the PR author or an agent, flag it as
      **reply-required**.
    * If the thread already has a reply, mark it **reply-present**.
-5. Record the full thread inventory (ID, author, comment summary, reply status)
-   for use in Step 6 and the reply gate at Step 6.5.
+5. Record the full thread inventory (ID, author, category, comment summary,
+   reply status) for use in Step 6 and the reply gate at Step 6.5.
+6. Apply the Copilot-specific reply and resolution lifecycle only to the
+   **Copilot threads** inventory. Treat **other bot threads** separately based
+   on the bot's own workflow; do not assume they follow the Copilot lifecycle.
 
 For the complete Copilot review comment lifecycle (categorization, reply
 templates, resolution), follow
@@ -196,7 +206,7 @@ for each iteration:
       restart loop from first FAIL in gate_state
       break
   if all gate_state == PASS:
-    proceed to Step 6.5
+    proceed to Step 8
 ```
 
 ### Step 8: Push and Poll

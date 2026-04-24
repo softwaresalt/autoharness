@@ -76,15 +76,15 @@ tool's create operation. Include failure details, iteration history, and a link 
 **Depends on**: T1.
 **Acceptance**: Defect logging step present with backlog item creation.
 
-### T7: Add granular intercom event table (17 events)
+### T7: Add granular intercom event table
 
 **Files**: `templates/skills/fix-ci/SKILL.md.tmpl`
 **Scope**: Replace the generic intercom broadcast guidance with a detailed event table listing
-all 17 broadcast events across the fix-ci lifecycle (start, check-found, reproducing,
+all broadcast events across the fix-ci lifecycle (start, check-found, reproducing,
 fix-applied, gate-pass, gate-fail, push, poll-start, poll-pass, poll-fail, regression,
 cascade-restart, defect-logged, reply-sent, reply-gate-pass, halt, complete).
 **Depends on**: T1.
-**Acceptance**: Event table present with 17 named events and their trigger conditions.
+**Acceptance**: Event table present with named events and their trigger conditions.
 
 ### T8: Add terminal output management guidance
 
