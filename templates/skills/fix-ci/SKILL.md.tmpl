@@ -2,18 +2,36 @@
 description: "Detect CI pipeline failures and review comments, reproduce and fix locally, push and poll until clean"
 ---
 
-## Fix CI
+# Fix CI
 
 Detect CI failures and code review comments on the current branch's PR, reproduce and fix errors locally, address review comments, run all quality gates, then push and poll until the pipeline passes.
+
+## Prerequisites
+
+* Git repository with a remote tracked branch and an open PR
+* Access to CI pipeline status via `gh` CLI or equivalent tool
+* Required commands available in PATH: `{{FORMAT_CHECK_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TEST_COMMAND}}`
+* Backlog tool configured when defect logging is enabled (circuit breaker halt path)
+
+## Quick Start
+
+Typically invoked by the Ship agent. To invoke directly, ensure a PR exists for the current branch:
+
+```text
+# Verify PR exists
+gh pr view
+```
 
 ## When to Use
 
 Invoke when CI checks fail on a PR, or when automated review comments need to be addressed. Typically invoked by the ship agent after push.
 
-## Inputs
+## Parameters
 
-* `pr_number`: (Optional) PR number to check. Auto-detected from current branch if omitted.
-* `max_iterations`: (Optional, default 5) Maximum fix-push-poll cycles.
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `pr_number` | int | auto | PR number to check. Auto-detected from current branch if omitted. |
+| `max_iterations` | int | `5` | Maximum fix-push-poll cycles before circuit breaker halts. |
 
 ## Output
 
