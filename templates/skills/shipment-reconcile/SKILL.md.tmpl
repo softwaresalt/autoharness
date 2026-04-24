@@ -141,7 +141,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `mode: pre` runs before every `{{OP_SHIP_SHIPMENT_MCP}}` call in Ship Step 6
 * `mode: pre` with `expected_status: {{STATUS_QUEUED}}` (or `{{STATUS_ACTIVE}}` for already-claimed shipments) runs at Ship Step 0.5 intake
 * `mode: post` runs after every archive + restore sequence in Ship Step 6
-* All four item classifications are represented in the schema
+* All five item classifications are represented in the schema
 * Lock is acquired before pre-mode and released after post-mode (or on any halt)
 * Report-and-halt is the only mutation path; no auto-prune
 

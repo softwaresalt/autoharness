@@ -5,7 +5,7 @@
       "command": "backlogit",
       "args": ["mcp"],
       "env": {
-        "BACKLOGIT_WORKSPACE": "D:\\Source\\GitHub\\autoharness"
+        "BACKLOGIT_WORKSPACE": "${workspaceFolder}"
       }
     },
     "context7": {
@@ -25,7 +25,7 @@
     "tavily": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mcp.tavily.com/mcp/?tavilyApiKey=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"]
+      "args": ["-y", "mcp-remote", "https://mcp.tavily.com/mcp/?tavilyApiKey=${env:TAVILY_API_KEY}"]
     },
     "github": {
       "type": "stdio",

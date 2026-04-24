@@ -292,7 +292,9 @@ After the user approves merge:
       `merge_commit_sha`. If the skill returns `HALT — restore archives`, run
       `git restore {{BACKLOG_DIRECTORY}}/archive/` before step 1.e.
       The lock is released by the skill at the end of post-mode.
-   e. Commit the backlog state: `git add {{BACKLOG_DIRECTORY}}/ && git commit -m "chore: archive {shipment_id} backlog artifacts"`
+   e. Commit the backlog state in two separate terminal commands:
+      `git add {{BACKLOG_DIRECTORY}}/`
+      `git commit -m "chore: archive {shipment_id} backlog artifacts"`
 2. Invoke `operational-closure` in `mode=post-merge` to produce release-readiness, monitoring, and rollback artifacts in `{{DOCS_CLOSURE}}/`.
 3. Evaluate whether documentation or compound learnings need updates for the shipped scope:
    * `{{DOCS_ROOT}}/ARCHITECTURE.md` for structural changes

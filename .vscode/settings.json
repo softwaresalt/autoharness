@@ -14,7 +14,7 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "/^git (status|merge-base|add|commit|diff|log|fetch|pull|push|checkout|branch|llvm-cov|--version)(\\s[^;|&`]*)?(\\s*(>|>>|2>&1|\\|\\s*(Out-File|Set-Content|Out-String))\\s*[^;|&`]*)*$/": {
+        "/^git (status|merge-base|diff|log|--version)(\\s[^;|&`]*)?(\\s*(>|>>|2>&1|\\|\\s*(Out-File|Set-Content|Out-String))\\s*[^;|&`]*)*$/": {
             "approve": true,
             "matchCommandLine": true
         },
