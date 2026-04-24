@@ -255,6 +255,32 @@ If the Local Quality Gate (Step 7) times out after the configured stall
 timeout, checkpoint the fix attempt and report to the operator rather than
 silently retrying.
 
+## Intercom Events
+
+When the `agent-intercom` capability pack is installed, broadcast the
+following events at the specified trigger points:
+
+| Event | Trigger | Broadcast format |
+|---|---|---|
+| `start` | Skill invoked | `[FIX-CI] Starting: PR #{pr_number}` |
+| `check-found` | CI checks identified | `[FIX-CI] Checks failing: {check_names}` |
+| `copilot-detected` | Copilot threads found | `[FIX-CI] Copilot threads: {count} reply-required` |
+| `reproducing` | Beginning local reproduction | `[FIX-CI] Reproducing: {check_name}` |
+| `fix-applied` | Fix committed for a check | `[FIX-CI] Fix applied: {check_name} (attempt {n})` |
+| `gate-pass` | A quality gate passes | `[FIX-CI] Gate pass: {gate_name}` |
+| `gate-fail` | A quality gate fails | `[FIX-CI] Gate fail: {gate_name}` |
+| `regression` | An earlier gate regresses | `[FIX-CI] Regression: {gate_name} regressed after {later_gate_name} fix` |
+| `cascade-restart` | Gate loop restarted from first failure | `[FIX-CI] Cascade restart from: {gate_name}` |
+| `reply-sent` | Reply posted to a review thread | `[FIX-CI] Reply sent: thread {thread_id} ({disposition})` |
+| `reply-gate-pass` | Reply gate passed (all threads replied) | `[FIX-CI] Reply gate: PASS ({count} threads)` |
+| `push` | Fix commit pushed to branch | `[FIX-CI] Push: iteration {n}` |
+| `poll-start` | CI polling cycle begins | `[FIX-CI] Polling CI (interval: {poll_interval}s, max: {max_wait}s)` |
+| `poll-pass` | CI reaches green state | `[FIX-CI] CI green: all checks passed` |
+| `poll-fail` | CI check fails after push | `[FIX-CI] CI fail: {check_name} (iteration {n})` |
+| `defect-logged` | Defect item created on halt | `[FIX-CI] Defect logged: {item_id} for {check_name}` |
+| `halt` | Circuit breaker triggered | `[FIX-CI] Halt: {reason} after {n} iterations` |
+| `complete` | Skill exits successfully | `[FIX-CI] Complete: PR #{pr_number} CI green` |
+
 ## Model Routing
 
 This skill operates at **Tier 2 (Standard)** — CI failure diagnosis and fix application.
