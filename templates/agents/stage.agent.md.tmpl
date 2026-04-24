@@ -378,7 +378,14 @@ completes. This is the final act of Stage — the shipment ID is the handoff tok
    * Record the resulting `shipment_id` as the session output token.
    * Broadcast `[STAGE] Created shipment: {shipment_id} — "{title}"`.
 
-3. **Add remaining items in parent-first, dependency order** using `{{OP_ADD_TO_SHIPMENT_MCP}}`:
+3. **Scope guard (mandatory first step)**: Record the exact list of IDs returned by the
+   immediately preceding harvest invocation as `harvest_ids`. This is the canonical scope
+   for shipment assembly. `{{OP_ADD_TO_SHIPMENT_MCP}}` MUST ONLY be called for items that
+   appear in `harvest_ids`. Pre-existing queue items NOT emitted by this harvest MUST be
+   excluded, even if they appear un-assigned and ready. Never expand scope by searching the
+   queue for unassigned items — use only the ID list the harvest step returned.
+
+4. **Add remaining items in parent-first, dependency order** using `{{OP_ADD_TO_SHIPMENT_MCP}}`:
    a. Ensure the covering feature is already present in the shipment before adding children;
       when the shipment was just created, this is satisfied by including the feature in the
       initial `items` list instead of re-adding it.
@@ -387,10 +394,10 @@ completes. This is the final act of Stage — the shipment ID is the handoff tok
    d. If an item cannot be added (duplicate, already assigned to another shipment, or
       blocked), skip it and record the reason. Do not abort assembly over a single skipped item.
 
-4. **Verify the manifest** by reading back the shipment using `{{OP_GET_SHIPMENT_MCP}}` and
+5. **Verify the manifest** by reading back the shipment using `{{OP_GET_SHIPMENT_MCP}}` and
    confirming the item count matches the harvested hierarchy. Report any discrepancies.
 
-5. **Record `shipment_id`** in the session memory checkpoint and the session summary as the
+6. **Record `shipment_id`** in the session memory checkpoint and the session summary as the
    authoritative handoff to the Ship agent.
 
 When the `agent-intercom` capability pack is installed, broadcast:
