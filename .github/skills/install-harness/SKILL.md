@@ -110,6 +110,8 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{QUALITY_GATE_3}}` | `ci.quality_gates[2]` (command) | `cargo fmt --all -- --check` | `npm test` | `pytest` |
 | `{{QUALITY_GATE_4_NAME}}` | `ci.quality_gates[3]` (name, optional) | `test` | _(empty)_ | _(empty)_ |
 | `{{QUALITY_GATE_4}}` | `ci.quality_gates[3]` (command, optional) | `cargo test` | _(empty)_ | _(empty)_ |
+| `{{POLL_INTERVAL}}` | `ci.poll_interval` (seconds, optional) | `30` | `30` | `30` |
+| `{{MAX_WAIT}}` | `ci.max_wait` (seconds, optional) | `600` | `600` | `600` |
 
 **Backlog Tool Variables** (derived from `backlog_tool` profile section):
 
