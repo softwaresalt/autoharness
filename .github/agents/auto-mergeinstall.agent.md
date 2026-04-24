@@ -46,11 +46,24 @@ Confirm that `templates/`, `schemas/`, and `docs/` exist at the resolved path.
 Determine which workspace to install the harness into:
 
 * If the user provided a `workspace` path argument, use it
-* In a multi-root editor workspace, ask the user which workspace root is the target (exclude the autoharness root itself)
+* In a multi-root editor workspace, ask the user which workspace root is the target
 * In a single-root workspace, use the workspace root
 * From a CLI environment, require the `workspace` argument
 
-The target workspace MUST be a different directory from the autoharness installation. Confirm the target path with the user before proceeding.
+The target workspace MUST be a different directory from the autoharness installation — **with one exception**: if the resolved workspace path equals `autoharness_home` and the workspace profile (from Step 3) reports `distribution.is_global_tool: true`, self-install mode is permitted. Before proceeding in self-install mode, display this confirmation to the operator:
+
+```text
+Self-install mode: the target workspace is the autoharness installation itself.
+Workflow agents (stage, ship) will be placed in .github/local-agents/ to avoid
+leaking into the distribution package. Template agents and global skills will
+continue to use .github/agents/ and .github/skills/ as normal.
+
+Confirm? [y/N]
+```
+
+Do not proceed until the operator confirms. If the operator declines, halt and let them select a different target.
+
+Confirm the target path with the user before proceeding.
 
 ### Step 2: Check for Existing Harness
 
@@ -72,6 +85,12 @@ If an existing harness is found, present the findings and ask the user:
 * **Cancel**: Stop and let the user review first
 
 If `.autoharness/harness-manifest.yaml` exists, suggest using the Auto-Tune agent instead for incremental updates.
+
+**Self-install mode exception**: when `distribution.is_global_tool` is true, apply modified backup behavior:
+
+* Do **not** back up `.github/agents/` — these are source-controlled, globally-distributed agent definitions and must not be modified by the workflow agent installer
+* Do **not** back up `.github/skills/`, `.github/instructions/`, `.github/policies/` — same reason
+* **Do** back up `.github/local-agents/` contents before overwriting workflow agents there
 
 ### Step 3: Invoke Workspace Discovery
 
