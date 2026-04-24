@@ -2,7 +2,9 @@
 *.pui
 *.code-workspace
 *.copilot
+*.pyc
 .backlogit/*.db
 .backlogit/hooks_queue.jsonl
 .backlogit/*.db-shm
 .backlogit/*.db-wal
+src/autoharness/__pycache__/*.pyc
