@@ -32,6 +32,8 @@ Invoke when CI checks fail on a PR, or when automated review comments need to be
 |---|---|---|---|
 | `pr_number` | int | auto | PR number to check. Auto-detected from current branch if omitted. |
 | `max_iterations` | int | `5` | Maximum fix-push-poll cycles before circuit breaker halts. |
+| `poll_interval` | int | `{{POLL_INTERVAL}}` | Seconds between CI status polls during the push-and-poll step. |
+| `max_wait` | int | `{{MAX_WAIT}}` | Maximum total seconds to wait for CI to reach a terminal state. |
 
 ## Output
 
