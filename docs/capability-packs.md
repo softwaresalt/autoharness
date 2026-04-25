@@ -131,7 +131,7 @@ Partially woven overlays should be treated as a real harness-quality problem.
 |---|---|---|
 | `agent-intercom` | Remote operator visibility, approval routing, and standby handoffs | 4, 5, 6, 7, 10 |
 | `agent-engram` | Engram-first indexed search, code graph lookup, and workspace context retrieval | 1, 4, 6, 9 |
-| `backlogit` | backlogit-native query, queue, memory, checkpoints, comments, and traceability | 1, 2, 4, 7, 8, 9 |
+| `backlogit` | backlogit-native query, queue, dependencies, memory, checkpoints, traceability, and source-artifact lifecycle guidance | 1, 2, 4, 7, 8, 9 |
 | `browser-verification` | Browser-backed runtime confidence for web-facing work | 4, 7, 10 |
 | `continuous-learning` | Observation capture, instinct formation, and promotion into explicit learned artifacts | 1, 6, 7, 9, 10 |
 | `strict-safety` | Stronger default safety posture for risky work with explicit action classification | 5, 6, 8, 10 |
@@ -187,6 +187,7 @@ This pack does not replace general search guidance. It deepens it when a workspa
 * Foundation docs
 * `agent-intercom.instructions.md`
 * Pipeline agents
+* Review / verification / closure workflows
 * Long-running and gating skills
 * Heartbeat prompt
 
@@ -221,23 +222,30 @@ This is not a one-file add-on. It is a woven operational behavior layer.
 
 * Foundation docs
 * `backlogit.instructions.md`
+* `backlogit-sql-schema.instructions.md`
+* `backlogit-yaml-header-tooling.instructions.md`
 * Backlog integration instructions
 * Orchestration / planning agents
 * Memory-related agents and workflows
+* Ship / closure workflows that retire backlogit source artifacts
 
 ### Behavior deltas
 
 * prefer `backlogit_query_sql` for token-efficient backlog lookup
+* use the SQL schema reference to keep `backlogit_query_sql` calls read-only, targeted, and aligned with the cache model
 * prefer `backlogit_get_queue` and dependency operations for ready-work selection
 * mirror session state via backlogit memory and checkpoint tools
 * use backlogit comments and commit tracking for traceability
+* use the YAML/frontmatter tooling guide to distinguish MCP-covered field edits from direct Markdown edits that require an index refresh
+* when explicit `source_stash_id` / `source_deliberation_id` metadata is present, retire consumed source artifacts via backlogit-specific cleanup rather than heuristic stale-artifact sweeps
 * rehydrate the index when direct Markdown edits or stale query results require it
 
 ### Verification checks
 
 * backlogit registry exposes the advanced operations referenced by the pack
-* `backlogit.instructions.md` is installed
+* `backlogit.instructions.md`, `backlogit-sql-schema.instructions.md`, and `backlogit-yaml-header-tooling.instructions.md` are installed
 * affected agents mention queue / memory / traceability behaviors consistently
+* backlogit-specific ship / closure guidance references explicit source-artifact cleanup when the metadata contract is present
 
 This pack does not replace generic backlog integration. It deepens it when backlogit is the selected backlog tool.
 

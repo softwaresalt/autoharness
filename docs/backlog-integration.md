@@ -41,7 +41,15 @@ The registry file maps:
 
 ## Backlogit Capability Pack
 
-When the `backlogit` capability pack is enabled, autoharness layers backlogit-native guidance on top of the generic backlog abstraction. This includes SQL query access, prioritized queue retrieval, dependency traversal, agent memory, checkpoints, comments, and commit traceability.
+When the `backlogit` capability pack is enabled, autoharness layers backlogit-native guidance on top of the generic backlog abstraction. This includes SQL query access, prioritized queue retrieval, dependency traversal, agent memory, checkpoints, comments, commit traceability, YAML frontmatter/tooling coverage, and backlogit-specific source-artifact cleanup.
+
+The first-party backlogit instruction surface now includes:
+
+- `backlogit.instructions.md` for generic backlogit-native queue, dependency, memory, checkpoint, comment, and traceability guidance
+- `backlogit-sql-schema.instructions.md` for the read-only SQLite cache schema and example `SELECT` queries used with `backlogit_query_sql`
+- `backlogit-yaml-header-tooling.instructions.md` for frontmatter field coverage, supported MCP mutations, and direct-edit gaps such as `custom_fields` and post-create `references`
+
+When backlogit is the selected backlog tool, ship and closure workflows may also use stable `custom_fields` such as `source_stash_id` and `source_deliberation_id` to retire consumed source artifacts directly instead of relying on heuristic stale-artifact searches.
 
 See the following guides for the current first-party backlogit contract:
 

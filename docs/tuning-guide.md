@@ -42,6 +42,12 @@ The tuner also uses `.autoharness/harness-manifest.yaml` as a checksum inventory
 of generated artifacts. When `.autoharness/drift-ignore` exists, matching paths
 are treated as intentional local divergence rather than unexpected drift.
 
+In Git-backed workspaces, treat tuning output as feature-branch work. If you
+start tuning from the default branch, the intended outcome is reviewed local
+changes or a later feature-branch handoff, not a direct default-branch commit
+or push. `auto_apply` applies file edits only; it does not authorize a commit
+or push.
+
 ### Interactive Tuning (Recommended)
 
 Open the target workspace in VS Code, then select **Auto-Tune** from the agents dropdown in the Chat view, or type:
@@ -53,12 +59,13 @@ Open the target workspace in VS Code, then select **Auto-Tune** from the agents 
 The tuner will:
 
 1. Re-run workspace discovery to produce a fresh profile
-2. Compare against the profile used during installation
-3. Compare manifest checksums against installed artifacts and classify missing, user-modified, unchanged, or ignored paths
-4. Categorize each difference by impact
-5. Scan all harness artifacts for health issues
-6. Present a prioritized list of proposed changes
-7. Apply changes you approve (with backups)
+2. Run `autoharness verify-workspace --json` to collect deterministic contract, warning, and targeted-check results
+3. Compare against the profile used during installation
+4. Compare manifest checksums against installed artifacts and classify missing, user-modified, unchanged, or ignored paths
+5. Categorize each difference by impact
+6. Scan all harness artifacts for health issues
+7. Present a prioritized list of proposed changes
+8. Apply changes you approve (with backups)
 
 ### Scoped Tuning
 
@@ -148,6 +155,41 @@ Use `.autoharness/drift-ignore` to suppress known local harness customizations
 that should not be treated as accidental drift. Ignored files should still be
 reviewed occasionally, but they should not drown out genuine breakage.
 
+## Schema Contract Compatibility
+
+The installed `.autoharness/config.yaml`, `.autoharness/workspace-profile.yaml`,
+and `.autoharness/harness-manifest.yaml` files are versioned contracts, not
+just YAML blobs to parse once.
+
+Use deterministic verification as the system of record for contract state:
+
+```text
+autoharness verify-workspace --workspace {workspace_path} --autoharness-home {autoharness_home} --json
+```
+
+Review these fields from the JSON report before proposing tune changes:
+
+* `schema_contracts{}` — observed version, current version, and contract status
+* `migration_proposals[]` — upgrade, backfill, and normalization proposals
+* `warnings[]` — compatibility drift evidence, including grouped summaries when repeated findings collapse into fewer warning rows
+
+Current public contracts are `1.0.0`, but autoharness also recognizes `0.9.0`
+as a known legacy version for config, workspace profile, and harness manifest.
+Those workspaces should generate explicit upgrade proposals instead of being
+treated as unknown-contract failures.
+
+| Contract status | Meaning | Tuning action |
+|---|---|---|
+| `current` | Installed file matches the current contract | Normal drift detection only |
+| `known-legacy` | Installed file matches a recognized older contract such as `0.9.0` | Present an upgrade proposal with the observed and target versions |
+| `missing-version` | Installed file omits `schema_version` | Treat as degraded legacy state and propose backfill or regeneration |
+| `unknown-version` | Installed file claims an unrecognized contract | Stop auto-apply and require manual review |
+
+Repeated compatibility findings may appear in CLI and Markdown output as
+grouped warning summaries. When that happens, review both the grouped warning
+count and the underlying finding count so a high-volume compatibility problem is
+not mistaken for a single isolated warning.
+
 ## Manual Tuning
 
 All harness artifacts are regular Markdown files. You can edit them directly:
@@ -173,3 +215,4 @@ After manual changes, run the tuner to verify consistency.
 4. **Test agents after tuning** — run a simple task through the pipeline to verify
 5. **Track tuning history** — the manifest records when and what was tuned
 6. **Use drift-ignore sparingly** — only for intentional local divergence, not as a way to hide real harness breakage
+7. **Review tune output from a feature branch** — keep accepted changes on a feature branch or as local uncommitted work until they are ready for pull-request review

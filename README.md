@@ -69,7 +69,7 @@ Start light and grow. Presets control the installation shape; capability packs o
 |---|---|
 | **agent-intercom** | Operator visibility, heartbeat, approval routing |
 | **agent-engram** | Indexed search, code graph lookup, workspace binding |
-| **backlogit** | backlogit-native query, queue, memory, traceability |
+| **backlogit** | backlogit-native query, queue, dependencies, memory/checkpoints, and traceability |
 | **browser-verification** | Browser-aware runtime verification for web UIs |
 | **continuous-learning** | Observation capture, instinct formation, learned artifacts |
 | **strict-safety** | Explicit ProposedAction / ActionRisk / ActionResult tracking |
@@ -97,6 +97,11 @@ autoharness setup-codex         # Codex
 autoharness verify-workspace --workspace .
 ```
 
+If the target workspace is Git-backed, treat install and tune output as
+feature-branch work. autoharness may still generate local uncommitted changes
+while you are on the default branch, but the intended review path is feature
+branch plus pull request, not a direct commit or push to the default branch.
+
 See [Getting Started](docs/getting-started.md) for the full walkthrough, including workspace configuration, install layers, selective installation, and post-install verification.
 
 ## Documentation
@@ -107,7 +112,7 @@ See [Getting Started](docs/getting-started.md) for the full walkthrough, includi
 | [Environment Setup](docs/environment-setup.md) | Per-environment registration (VS Code, Copilot CLI, Claude Code, Codex, Cursor) |
 | [Primitives](docs/primitives.md) | Deep reference for the 10 irreducible harness primitives |
 | [Capability Packs](docs/capability-packs.md) | Overlay pattern, pack catalog, and composition rules |
-| [Tuning Guide](docs/tuning-guide.md) | Maintain and adapt your harness as the codebase evolves |
+| [Tuning Guide](docs/tuning-guide.md) | Maintain and adapt your harness as the codebase evolves, including checksum drift and schema-contract upgrades |
 | [Backlog Integration](docs/backlog-integration.md) | Backlog tool detection, registry abstraction, and manual registration |
 | [Credits](docs/credits.md) | Sources of inspiration, research, and tools that shaped autoharness |
 
