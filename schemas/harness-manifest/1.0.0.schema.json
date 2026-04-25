@@ -1,0 +1,167 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Harness Manifest",
+  "description": "Schema for tracking the installed state of a harness in a target workspace",
+  "type": "object",
+  "required": ["schema_version", "installed_at", "autoharness_version", "profile_hash", "primitives_installed", "artifacts"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "installed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tuned_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "autoharness_version": {
+      "type": "string"
+    },
+    "autoharness_home": {
+      "type": ["string", "null"],
+      "description": "Absolute path to the autoharness installation used for this install run. Enables the tuner to locate templates for drift detection."
+    },
+    "profile_hash": {
+      "type": "string",
+      "description": "SHA-256 of the workspace profile used during installation"
+    },
+    "config_hash": {
+      "type": ["string", "null"],
+      "description": "SHA-256 of .autoharness/config.yaml at installation time. Null if no config was present. Used by the tuner to detect intentional configuration changes."
+    },
+    "install_preset": {
+      "type": ["string", "null"],
+      "enum": ["starter", "standard", "full", null],
+      "description": "Preset used when the harness was installed"
+    },
+    "primary_stack_pack": {
+      "type": ["string", "null"],
+      "description": "Primary stack classification selected during composition"
+    },
+    "stack_packs": {
+      "type": "array",
+      "description": "Additive stack classifications active during installation",
+      "items": { "type": "string" }
+    },
+    "install_layers": {
+      "type": "array",
+      "description": "Explicit artifact-class layers composed during installation. The 'overlays' layer MUST be present when capability_packs is non-empty.",
+      "items": {
+        "type": "string",
+        "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+      }
+    },
+    "capability_packs": {
+      "type": "array",
+      "description": "Optional capability packs enabled during installation",
+      "items": {
+        "type": "string",
+        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+      }
+    },
+    "capability_pack_overlays": {
+      "type": "array",
+      "description": "Structured record of which artifact classes each enabled capability pack was woven into",
+      "items": {
+        "type": "object",
+        "required": ["pack", "overlay_targets", "verification_checks"],
+        "properties": {
+            "pack": {
+              "type": "string",
+              "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+            },
+          "overlay_targets": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "verification_checks": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "primitives_installed": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "primitive", "template", "checksum"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Workspace-relative path to the installed artifact"
+          },
+          "artifact_type": {
+            "type": "string",
+            "enum": ["foundation", "agent", "skill", "instruction", "policy", "prompt", "script", "config"],
+            "description": "Classification of the artifact for drift detection and recovery"
+          },
+          "primitive": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "description": "Which primitive this artifact implements"
+          },
+          "template": {
+            "type": "string",
+            "description": "Name of the template used to generate this artifact"
+          },
+          "checksum": {
+            "type": "string",
+            "description": "SHA-256 of the installed file content"
+          }
+        }
+      }
+    },
+    "variables_used": {
+      "type": "object",
+      "description": "Map of template variable names to resolved values",
+      "additionalProperties": { "type": "string" }
+    },
+    "tuning_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "format": "date-time" },
+          "proposals_applied": { "type": "integer" },
+          "profile_hash": { "type": "string" }
+        }
+      }
+    },
+    "vscode_settings": {
+      "type": "object",
+      "description": "Records the VS Code user-settings write performed during installation so the tuner can detect if entries were removed.",
+      "properties": {
+        "applied": {
+          "type": "boolean",
+          "description": "False when vscode.detected was false and the step was skipped"
+        },
+        "user_settings_path": {
+          "type": ["string", "null"],
+          "description": "Resolved absolute path to the VS Code user settings file written (no tilde). Null when applied is false."
+        },
+        "entries_added": {
+          "type": "array",
+          "description": "List of chat.* setting keys that were added",
+          "items": { "type": "string" }
+        },
+        "skipped_because": {
+          "type": ["string", "null"],
+          "description": "Reason entries were not added, e.g. 'already_present'. Null when entries were added."
+        }
+      }
+    }
+  }
+}

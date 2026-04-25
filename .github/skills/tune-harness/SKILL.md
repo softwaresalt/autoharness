@@ -83,6 +83,38 @@ Known config-key renames (for workspaces upgrading from pre-v1.0.0 harnesses):
 
 New installations since v1.0.0 use `suffix_map` from the start and will not trigger this migration.
 
+#### Step 0b.2: Schema-Contract Scan
+
+Treat every schema-bearing workspace artifact as a versioned contract, not just a file to parse once.
+
+Before categorizing drift, load the installed contract versions from:
+
+* `.autoharness/config.yaml` -> `schema_version`
+* `.autoharness/workspace-profile.yaml` -> `schema_version`
+* `.autoharness/harness-manifest.yaml` -> `schema_version`
+
+Compare those versions against autoharness's known contract set for each artifact type.
+
+Classify the result as:
+
+| Contract Status | Meaning | Tuning Action |
+|---|---|---|
+| `current` | Installed artifact matches the current contract version | Normal drift detection only |
+| `known-legacy` | Installed artifact matches an older but still recognized contract version | Generate an upgrade proposal tied to that contract delta |
+| `missing-version` | Artifact omits `schema_version` | Treat as degraded legacy state; propose backfill or regeneration |
+| `unknown-version` | Artifact claims a version autoharness does not recognize | Halt auto-apply and require operator review |
+
+The known contract set should include both the current version and any older schema versions or compatibility rules the tuner can still interpret safely. This contract catalog is part of autoharness's upgrade intelligence: it tells the tuner which migrations are mechanical, which are advisory, and which require human judgment.
+
+When a legacy contract is recognized, emit a migration proposal that names:
+
+1. the observed contract version
+2. the current contract version
+3. the concrete fields or enums that drifted
+4. the target regeneration or rewrite action needed to bring the artifact forward
+
+Do not silently collapse unknown contracts into generic schema failures. Unknown versions are implementation-change signals and must be surfaced explicitly.
+
 **Config-entry backfill**: When a map object in the config (e.g., `backlog.suffix_map`, `docs.subdirectories`) is present but missing entries that the schema defines with defaults, generate a backfill proposal that:
 
 1. Adds the missing entries using the schema default values
@@ -601,12 +633,14 @@ Update `.autoharness/harness-manifest.yaml`:
 
 ### Phase 5: Verification
 
-Run the same verification algorithm as the install-harness skill Phase 4:
+Run `autoharness verify-workspace --workspace {workspace_path}` first, then interpret the deterministic report using the same verification algorithm as install-harness Phase 4:
 
 * **Step 4.1 (Template Variable Sweep)** — scan for unresolved `{{...}}` outside code fences
 * **Step 4.2 (Cross-Reference Sweep)** — verify agent→skill, agent→tool, instruction→file, policy→agent, constitution→language, and layer→artifact consistency
 * **Step 4.3 (Overlay Coherence Sweep)** — verify each enabled pack's targets exist and reference the pack's behavior keywords
 * **Step 4.4 (Structural Validation)** — YAML frontmatter, code fence pairing, table column counts, file path resolution
+
+Treat any `strict_schema_blockers`, unresolved placeholders, or failing targeted checks from `verify-workspace` as deterministic verification failures that must be resolved before adversarial review.
 
 After deterministic checks pass, invoke the **verify-harness** skill for
 multi-model adversarial verification:

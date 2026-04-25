@@ -169,6 +169,12 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_SHIP_SHIPMENT_MCP}}` | Registry `operations.ship_shipment.mcp_tool` | `backlogit_ship_shipment` | _(empty string)_ |
 | `{{OP_ADD_TO_SHIPMENT_MCP}}` | Registry `operations.add_to_shipment.mcp_tool` | `backlogit_add_to_shipment` | _(empty string)_ |
 | `{{OP_RETURN_BLOCKED_MCP}}` | Registry `operations.return_blocked.mcp_tool` | `backlogit_return_blocked` | _(empty string)_ |
+| `{{OP_CREATE_CHECKPOINT_MCP}}` | Registry `operations.create_checkpoint.mcp_tool` | `backlogit_create_checkpoint` | _(empty string)_ |
+| `{{OP_LIST_CHECKPOINTS_MCP}}` | Registry `operations.list_checkpoints.mcp_tool` | `backlogit_list_checkpoints` | _(empty string)_ |
+| `{{OP_GET_CHECKPOINT_MCP}}` | Registry `operations.get_checkpoint.mcp_tool` | `backlogit_get_checkpoint` | _(empty string)_ |
+| `{{OP_RESOLVE_CHECKPOINT_MCP}}` | Registry `operations.resolve_checkpoint.mcp_tool` | `backlogit_resolve_checkpoint` | _(empty string)_ |
+| `{{OP_POLL_HOOK_EVENTS_MCP}}` | Registry `operations.poll_hook_events.mcp_tool` | `backlogit_poll_hook_events` | _(empty string)_ |
+| `{{OP_ACK_HOOK_EVENTS_MCP}}` | Registry `operations.ack_hook_events.mcp_tool` | `backlogit_ack_hook_events` | _(empty string)_ |
 
 When the selected registry sets `features.shipments: false`, all `{{OP_*_SHIPMENT_MCP}}` variables MUST resolve to the empty string — never to a literal placeholder like "N/A". Shipment behavior is gated by the installed backlog capability/registry configuration (`features.shipments`), and generated artifacts should treat empty shipment-operation variables as the signal to omit shipment-specific commands or guidance.
 
@@ -599,7 +605,7 @@ Generate agent definitions. Each agent template has technology-specific sections
 contains deprecated agent files listed in AGENTS.md's deprecation table (during
 merge install), flag them for removal.
 
-1. **Pipeline agents**: stage, ship, harness-architect
+1. **Pipeline agents**: stage, ship
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
     * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
@@ -756,7 +762,13 @@ Resolve `{{COPILOT_EXE_PATH}}`:
 
 #### Step 3.1: Staging
 
-If `dry_run` is true, write all artifacts to `.autoharness/staging/` and report what would be installed. Halt here.
+If `dry_run` is true, write all artifacts to `.autoharness/staging/`, then run deterministic compatibility verification with:
+
+```text
+autoharness verify-workspace --workspace {workspace_path}
+```
+
+The command writes JSON and Markdown reports into `.autoharness/staging/` describing schema blockers, unresolved placeholders, staged render output, and targeted overlay checks. Report those paths and halt here without mutating the installed harness.
 
 #### Step 3.2: Write Artifacts
 
@@ -910,6 +922,8 @@ The installed config includes: `schema_version`, `preset`,
 `continuous_learning`, `model_routing`, and any `overrides` that were applied.
 
 ### Phase 4: Verification
+
+Use `autoharness verify-workspace --workspace {workspace_path}` as the deterministic verification engine for this phase. The command stages renderable artifacts into `.autoharness/staging/` and produces JSON plus Markdown reports before adversarial review runs.
 
 #### Step 4.1: Template Variable Sweep
 

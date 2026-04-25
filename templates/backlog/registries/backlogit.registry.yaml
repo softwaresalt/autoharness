@@ -110,6 +110,39 @@ operations:
     params:
       state_dump: "state_dump"
 
+  list_checkpoints:
+    mcp_tool: "backlogit_list_checkpoints"
+    cli_command: "backlogit checkpoint list"
+    params:
+      consumer_id: "consumer_id"
+      status: "status"
+      shipment_id: "shipment_id"
+      feature_id: "feature_id"
+      max_age_hours: "max_age_hours"
+
+  get_checkpoint:
+    mcp_tool: "backlogit_get_checkpoint"
+    cli_command: "backlogit checkpoint get {{filename}}"
+    params:
+      filename: "filename"
+
+  resolve_checkpoint:
+    mcp_tool: "backlogit_resolve_checkpoint"
+    cli_command: "backlogit checkpoint resolve {{filename}}"
+    params:
+      filename: "filename"
+
+  poll_hook_events:
+    mcp_tool: "backlogit_poll_hook_events"
+    params:
+      consumer_id: "consumer_id"
+
+  ack_hook_events:
+    mcp_tool: "backlogit_ack_hook_events"
+    params:
+      consumer_id: "consumer_id"
+      seq: "seq"
+
   get_queue:
     mcp_tool: "backlogit_get_queue"
     cli_command: "backlogit queue view"

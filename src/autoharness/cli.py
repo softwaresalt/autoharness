@@ -9,6 +9,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from autoharness.verify_workspace import verify_workspace
+
 # The data directory is bundled inside the package at build time.
 # In a dev/editable install, fall back to the repo root.
 _PACKAGE_DIR = Path(__file__).resolve().parent
@@ -35,6 +37,7 @@ autoharness — agent harness framework
 Usage:
   autoharness home              Print the autoharness installation path
   autoharness version           Print the installed version
+    autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
   autoharness setup-copilot-cli Copy agents and skills into the Copilot CLI global config dir
   autoharness setup-claude      Copy agents and skills into the Claude Code global config dir
@@ -51,6 +54,90 @@ Update:
 The AI coding assistant is the runtime. This CLI exists only so agents
 can resolve the autoharness home path via `autoharness home`.
 """
+
+
+def _parse_verify_workspace_args(args: list[str]) -> tuple[Path, Path, Path | None, bool]:
+    """Parse arguments for the verify-workspace command."""
+    workspace_path: Path | None = None
+    autoharness_home: Path = _home()
+    staging_dir: Path | None = None
+    emit_json = False
+
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            workspace_path = Path(args[index])
+        elif arg == "--autoharness-home":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --autoharness-home")
+            autoharness_home = Path(args[index])
+        elif arg == "--staging-dir":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --staging-dir")
+            staging_dir = Path(args[index])
+        elif arg == "--json":
+            emit_json = True
+        else:
+            raise ValueError(f"Unknown verify-workspace argument: {arg}")
+        index += 1
+
+    if workspace_path is None:
+        raise ValueError("verify-workspace requires --workspace <path>")
+
+    return workspace_path, autoharness_home, staging_dir, emit_json
+
+
+def _report_has_failures(report: dict) -> bool:
+    """Return True when the verification report contains failing conditions."""
+    if report.get("strict_schema_blockers"):
+        return True
+    if report.get("blockers"):
+        return True
+    if report.get("unresolved"):
+        return True
+    targeted_checks = report.get("targeted_checks", {})
+    return any(not check.get("ok", False) for check in targeted_checks.values())
+
+
+def _verify_workspace_command(args: list[str]) -> None:
+    """Run deterministic workspace verification and emit a report."""
+    try:
+        workspace_path, autoharness_home, staging_dir, emit_json = _parse_verify_workspace_args(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    report = verify_workspace(
+        workspace_path=workspace_path,
+        autoharness_home=autoharness_home,
+        staging_dir=staging_dir,
+    )
+
+    if emit_json:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        print(f"Workspace: {report['workspace_path']}")
+        print(f"Staging dir: {report['staging_dir']}")
+        print(f"Markdown report: {report['report_paths']['markdown']}")
+        print(f"JSON report: {report['report_paths']['json']}")
+        print()
+        print(f"Strict schema blockers: {len(report['strict_schema_blockers'])}")
+        print(f"Blockers: {len(report['blockers'])}")
+        print(f"Warnings: {len(report['warnings'])}")
+        print(f"Migration proposals: {len(report['migration_proposals'])}")
+        print(f"Unresolved placeholders: {len(report['unresolved'])}")
+        print(f"Rendered artifacts: {len(report['rendered'])}")
+        print(f"Skipped artifacts: {len(report['skipped'])}")
+
+    if _report_has_failures(report):
+        sys.exit(1)
 
 
 def _vscode_user_settings_path() -> Path | None:
@@ -414,6 +501,8 @@ def main(argv: list[str] | None = None) -> None:
         print(_home())
     elif command == "version":
         print(_version())
+    elif command == "verify-workspace":
+        _verify_workspace_command(args[1:])
     elif command == "setup-vscode":
         _setup_vscode()
     elif command == "setup-copilot-cli":

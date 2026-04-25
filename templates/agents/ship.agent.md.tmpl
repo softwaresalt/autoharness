@@ -385,6 +385,45 @@ Memory, learnings capture, and documentation hygiene are built-in workflow steps
 
 1. Scan `{{DOCS_MEMORY}}/` for the most recent memory or checkpoint file relevant to the current feature or chore context.
 2. If a relevant memory file exists, restore context: completed items, branch context, PR status, and prior build decisions.
+3. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, run the recovery state machine below before shipment validation.
+
+### Session-start recovery protocol
+
+When checkpoint recovery operations are available through the installed backlog registry:
+
+**SESSION_START**
+1. Call `{{OP_LIST_CHECKPOINTS_MCP}}` with `consumer_id: "ship"`, `status: "active"`, and `max_age_hours: 168`.
+2. If no active checkpoints are returned, continue with a fresh start.
+3. If active checkpoints exist, present checkpoint summaries to the operator: phase, shipment or feature context, tasks completed, resume hint, and validation status.
+
+**RECOVERY_DECISION**
+1. Surface quarantined checkpoints (entries with validation errors) as warnings instead of silently skipping them.
+2. Ask whether to resume from a specific checkpoint or start fresh.
+3. If the operator chooses resume, load the selected checkpoint with `{{OP_GET_CHECKPOINT_MCP}}`.
+4. If the operator chooses fresh, resolve stale checkpoints with `{{OP_RESOLVE_CHECKPOINT_MCP}}` and continue to shipment validation.
+
+**RESUME_FROM_CHECKPOINT**
+1. If `{{OP_GET_CHECKPOINT_MCP}}` returns an error or invalid payload, warn and fall back to a fresh start.
+2. Restore the recorded phase, shipment or feature context, task IDs, branch state, and next-step intent from the selected checkpoint.
+3. Resolve all other still-active checkpoints from prior sessions with `{{OP_RESOLVE_CHECKPOINT_MCP}}`.
+4. Resume from the recorded phase instead of restarting execution from scratch.
+
+**FRESH_START**
+1. Resolve any active checkpoints left over from prior sessions with `{{OP_RESOLVE_CHECKPOINT_MCP}}`.
+2. Continue with normal shipment validation.
+
+### Hook event consumption
+
+When the `backlogit` capability pack is installed and the registry advertises hook polling operations, poll for unacknowledged signals before shipment validation using `{{OP_POLL_HOOK_EVENTS_MCP}}` with `consumer_id: "ship"`.
+
+Treat concrete `events` as higher-priority signals than the raw work queue. After processing them, acknowledge only the highest `seq` from the concrete `events` array with `{{OP_ACK_HOOK_EVENTS_MCP}}`. Never acknowledge `derived_signals`, and skip the ack call entirely when no concrete events are returned.
+
+Skip gracefully when the hook queue is empty or the underlying queue file does not yet exist. Never fail the session on a missing hook queue file.
+
+| Signal | Expected response |
+|---|---|
+| `post_merge_closure` | Trigger the post-merge closure protocol immediately for the referenced shipment. |
+| `feature_review_ready` | Note that the referenced feature has cleared review and is eligible for shipment pick-up in the next session. |
 
 ### Mid-session checkpoints
 
@@ -397,7 +436,7 @@ Write a checkpoint to `{{DOCS_MEMORY}}/` after any of these milestones:
 
 Each checkpoint captures: items completed, items blocked, branch state, decisions with rationale, errors encountered and how they were resolved, and next steps.
 
-When the `backlogit` capability pack is installed and checkpoint operations are supported, also persist a compact structured checkpoint through backlogit.
+When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. Include shipment or feature IDs, completed and blocked item IDs, branch state, next step, and a `resume_hint` specific enough for a later recovery decision.
 
 ### Learnings capture
 
@@ -411,8 +450,9 @@ After build execution (Step 4) and CI remediation, evaluate whether the work unc
 ### Session end
 
 1. Write a final memory file to `{{DOCS_MEMORY}}/` capturing: items completed, blocked conditions, branch state, PR status, and any pending merge approval.
-2. Capture compound learnings via the compound skill when hard-won solutions were discovered.
-3. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
+2. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, resolve any still-active checkpoints from the current session with `{{OP_RESOLVE_CHECKPOINT_MCP}}`. When merge approval or closure work must survive a context-window shutdown, leave at most one final best-effort checkpoint written via `{{OP_CREATE_CHECKPOINT_MCP}}` with a clear `resume_hint`.
+3. Capture compound learnings via the compound skill when hard-won solutions were discovered.
+4. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
 
 ### Context Overflow Protocol
 

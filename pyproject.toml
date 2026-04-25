@@ -9,6 +9,10 @@ description = "Globally-installed agent harness framework that generates AI codi
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
+dependencies = [
+    "jsonschema>=4.23.0",
+    "PyYAML>=6.0.2",
+]
 authors = [{ name = "softwaresalt" }]
 keywords = ["ai", "agent", "harness", "copilot", "coding-assistant"]
 classifiers = [

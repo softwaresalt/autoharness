@@ -92,6 +92,9 @@ autoharness setup-codex         # Codex
 
 # 3. Install a harness (from the target workspace)
 /install-harness preset=standard
+
+# 4. Run deterministic verification against an installed workspace
+autoharness verify-workspace --workspace .
 ```
 
 See [Getting Started](docs/getting-started.md) for the full walkthrough, including workspace configuration, install layers, selective installation, and post-install verification.

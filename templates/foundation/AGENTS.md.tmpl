@@ -106,6 +106,9 @@ When the `backlogit` capability pack is installed, agents MUST also follow
 `Capability Overlay` section in `.github/instructions/constitution.instructions.md`:
 
 * prefer registry-backed backlogit operations over ad hoc markdown scanning
+* refresh the live backlogit workflow surface with `backlogit_get_metadata_catalog` before creating items, harvesting work, or whenever config or templates may have changed
+* use `backlogit_export_command_map` when a cached command reference is needed in the workspace
+* use `backlogit_list_types`, `backlogit_list_templates`, and `backlogit_get_wit_metadata` for type-specific field, section, and hierarchy details before mutating artifacts
 * use queue-aware and dependency-aware operations when selecting or sequencing work
 * persist session continuity through backlogit memory / checkpoint operations
 * record meaningful comments and commit associations for traceability
