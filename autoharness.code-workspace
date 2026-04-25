@@ -7,10 +7,7 @@
 	"settings": {
 		"chat.tools.terminal.autoApprove": {
 			".github/skills/install-harness/SKILL.md": true,
-			"git add": true,
-			"git commit": true,
-			"git push": true,
-			"git checkout": true
+			"git add": true
 		},
 		"powershell.cwd": "autoharness"
 	}
