@@ -189,6 +189,12 @@ The installer will:
 5. **Install** the artifacts into the target workspace
 6. **Verify** the installation is coherent and all cross-references resolve
 
+If the target workspace is Git-backed, create or switch to a feature branch
+before installation when you intend to commit the generated output. If you stay
+on the default branch, installation may still proceed as local uncommitted
+changes for review, but the intended workflow is feature branch plus pull
+request rather than a direct default-branch commit or push.
+
 ### Preset-Based Installation
 
 Choose the installation shape before fine-tuning primitives manually:
@@ -229,7 +235,7 @@ Capability packs deepen the harness without redefining the primitive model:
 
 `agent-engram` is also an overlay rather than a single search toggle. When enabled, autoharness should keep the generic search guidance in place while additionally teaching the harness to use Engram's higher-leverage indexed capabilities such as unified search, code graph lookup, workspace memory queries, lifecycle checks, and index freshness workflows.
 
-`backlogit` is also an overlay rather than a simple tool toggle. When enabled, autoharness should keep the generic backlog abstraction in place while additionally teaching the harness to use backlogit's higher-leverage features such as SQL query access, prioritized queue retrieval, dependency traversal, agent memory, checkpoints, comments, and commit traceability.
+`backlogit` is also an overlay rather than a simple tool toggle. When enabled, autoharness should keep the generic backlog abstraction in place while additionally teaching the harness to use backlogit's higher-leverage features such as SQL query access, prioritized queue retrieval, dependency traversal, agent memory, checkpoints, comments, commit traceability, SQL schema reference, YAML frontmatter/tooling coverage, and backlogit-specific source-artifact cleanup.
 
 `browser-verification` is also an overlay rather than a one-off test note. When enabled, autoharness should teach the harness to verify server readiness, choose headed vs headless runs deliberately, select routes from changed surfaces, and record human checkpoints for external flows.
 
@@ -341,6 +347,8 @@ target-workspace/
       agent-intercom.instructions.md      # Optional: agent-intercom pack
       agent-engram.instructions.md        # Optional: agent-engram pack
       backlogit.instructions.md           # Optional: backlogit pack
+      backlogit-sql-schema.instructions.md # Optional: backlogit SQL/query pack surface
+      backlogit-yaml-header-tooling.instructions.md # Optional: backlogit frontmatter/tooling pack surface
       browser-verification.instructions.md # Optional: browser-verification pack
       continuous-learning.instructions.md # Optional: continuous-learning pack
       strict-safety.instructions.md       # Optional: strict-safety pack
@@ -416,7 +424,7 @@ The installer runs automatic verification. You can also manually check:
 6. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
 7. If `agent-intercom` is enabled, verify `.github/instructions/agent-intercom.instructions.md` exists and the installed agents/skills reference intercom heartbeat, broadcast, and approval usage where expected
 8. If `agent-engram` is enabled, verify `.github/instructions/agent-engram.instructions.md` exists and the installed agents/skills reference engram-first search, workspace binding, or indexed-fallback behaviors where expected
-9. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md` exists and the installed agents reference backlogit query / queue / memory / traceability behaviors where expected
+9. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md`, `.github/instructions/backlogit-sql-schema.instructions.md`, and `.github/instructions/backlogit-yaml-header-tooling.instructions.md` exist and the installed agents/skills reference backlogit query / queue / memory / traceability / source-artifact-cleanup behaviors where expected
 
 ### First Use
 
@@ -431,7 +439,7 @@ The installer runs automatic verification. You can also manually check:
 9. After merge, ship can invoke `compound-refresh` when shipped work supersedes, duplicates, or invalidates existing learnings in `docs/compound/`
 10. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
 11. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
-12. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, or checkpoint workflows
+12. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, checkpoint, YAML/frontmatter, or source-artifact-cleanup workflows
 
 ## Updating autoharness
 

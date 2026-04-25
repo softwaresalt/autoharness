@@ -54,6 +54,22 @@ The target workspace MUST be a different directory from the autoharness installa
 
 Confirm the target path with the user before proceeding.
 
+### Step 1a: Enforce Branch Safety for Install Output
+
+If the target workspace is a Git repository, inspect the current branch and the
+repository's default branch before generating follow-up guidance that includes
+committing or pushing changes.
+
+* Never commit or push autoharness install output directly to the default branch
+  (`main`, `master`, `trunk`, or the detected remote default branch).
+* If the current branch is the default branch, explicitly recommend creating or
+  switching to a feature branch first, for example
+  `chore/autoharness-install-<date>`.
+* Frame the intended workflow as: generate install output on a feature branch,
+  review the changes, and open a pull request.
+* If the operator declines to create or switch branches, installation may still
+  proceed as local uncommitted changes, but do NOT commit or push those changes.
+
 ### Step 2: Check for Existing Harness
 
 Scan the target workspace for existing harness artifacts:
@@ -173,24 +189,26 @@ After installation completes, provide the user with:
 
 1. **Quick start**: How to invoke key agents (`@stage`, `@ship`, etc.)
 2. **First steps**: Recommend invoking `@stage` with a topic to test the pipeline
-3. **Tuning reminder**: Explain that the **Auto-Tune** agent (or `/tune-harness` slash command) should be invoked periodically to keep the harness aligned
-4. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
-5. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces
-6. **Knowledge maintenance reminder**: Point out `compound-refresh` as the workflow for refreshing stale or overlapping compound learnings after large merges or tuning passes
-7. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
-8. **Engram reminder**: Point out the `agent-engram` instruction file and the need to verify the engram daemon / MCP surface and workspace binding before relying on indexed lookup workflows
-9. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
-10. **Browser-verification reminder**: Point out the `browser-verification` instruction file and the need to verify server readiness plus browser tooling before relying on browser-backed runtime confidence
-11. **Continuous-learning reminder**: Point out the `continuous-learning` instruction file plus the `observe`, `learn`, and `evolve` skills when the pack is enabled
-12. **Strict-safety reminder**: Point out the `strict-safety` instruction file plus the `plan-harden` and `safety-modes` workflows when the pack is enabled
-13. **Release-observability reminder**: Point out the `release-observability` instruction file and the monitoring plan, observation window, and rollback trigger expectations when the pack is enabled
-14. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
+3. **Git workflow reminder**: Recommend a feature branch for the install output and a pull request for review; never recommend committing or pushing the generated changes directly to the default branch
+4. **Tuning reminder**: Explain that the **Auto-Tune** agent (or `/tune-harness` slash command) should be invoked periodically to keep the harness aligned
+5. **Customization pointers**: Direct the user to modify any generated artifact — they are regular Markdown files
+6. **Closure reminder**: Point out `runtime-verification` and `operational-closure` when the workspace has runtime surfaces
+7. **Knowledge maintenance reminder**: Point out `compound-refresh` as the workflow for refreshing stale or overlapping compound learnings after large merges or tuning passes
+8. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
+9. **Engram reminder**: Point out the `agent-engram` instruction file and the need to verify the engram daemon / MCP surface and workspace binding before relying on indexed lookup workflows
+10. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
+11. **Browser-verification reminder**: Point out the `browser-verification` instruction file and the need to verify server readiness plus browser tooling before relying on browser-backed runtime confidence
+12. **Continuous-learning reminder**: Point out the `continuous-learning` instruction file plus the `observe`, `learn`, and `evolve` skills when the pack is enabled
+13. **Strict-safety reminder**: Point out the `strict-safety` instruction file plus the `plan-harden` and `safety-modes` workflows when the pack is enabled
+14. **Release-observability reminder**: Point out the `release-observability` instruction file and the monitoring plan, observation window, and rollback trigger expectations when the pack is enabled
+15. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
 
 ## Behavioral Constraints
 
 * Never install artifacts outside the target workspace directory tree
 * Always present the installation plan for user approval before writing files
 * Back up any existing files before overwriting
+* Never commit or push autoharness install output directly to the repository's default branch; prefer a feature branch and pull request
 * All generated artifacts must be valid Markdown with correct YAML frontmatter
 * Do not assume the workspace uses any specific tool or convention — discover it
 * When uncertain about a technology detection, ask the user rather than guessing

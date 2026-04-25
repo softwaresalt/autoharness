@@ -47,6 +47,23 @@ Verify that `workspace_path` is NOT inside `autoharness_home` and vice versa. If
 
 All template reads in subsequent phases use `{autoharness_home}/templates/` as the base path. All artifact writes use `{workspace_path}` as the base path.
 
+#### Step 1.0c: Enforce Branch Safety for Install Output
+
+If `workspace_path` is a Git repository, determine the current branch and the
+repository's default branch before producing any follow-up guidance that
+mentions committing or pushing the generated install output.
+
+* Never commit or push autoharness install output directly to the default
+   branch (`main`, `master`, `trunk`, or the detected remote default branch).
+* If the current branch is the default branch, explicitly recommend creating or
+   switching to a feature branch first, for example
+   `chore/autoharness-install-<date>`.
+* Treat the intended Git workflow as: generate install output on a feature
+   branch, review the diff, and open a pull request.
+* If the operator declines to create or switch branches, installation may still
+   proceed as local uncommitted changes, but do NOT commit or push those changes
+   from this workflow.
+
 #### Step 1.0b: Load Operator Configuration
 
 Check for `.autoharness/config.yaml` in the target workspace. If present:
@@ -169,6 +186,12 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_SHIP_SHIPMENT_MCP}}` | Registry `operations.ship_shipment.mcp_tool` | `backlogit_ship_shipment` | _(empty string)_ |
 | `{{OP_ADD_TO_SHIPMENT_MCP}}` | Registry `operations.add_to_shipment.mcp_tool` | `backlogit_add_to_shipment` | _(empty string)_ |
 | `{{OP_RETURN_BLOCKED_MCP}}` | Registry `operations.return_blocked.mcp_tool` | `backlogit_return_blocked` | _(empty string)_ |
+| `{{OP_CREATE_CHECKPOINT_MCP}}` | Registry `operations.create_checkpoint.mcp_tool` | `backlogit_create_checkpoint` | _(empty string)_ |
+| `{{OP_LIST_CHECKPOINTS_MCP}}` | Registry `operations.list_checkpoints.mcp_tool` | `backlogit_list_checkpoints` | _(empty string)_ |
+| `{{OP_GET_CHECKPOINT_MCP}}` | Registry `operations.get_checkpoint.mcp_tool` | `backlogit_get_checkpoint` | _(empty string)_ |
+| `{{OP_RESOLVE_CHECKPOINT_MCP}}` | Registry `operations.resolve_checkpoint.mcp_tool` | `backlogit_resolve_checkpoint` | _(empty string)_ |
+| `{{OP_POLL_HOOK_EVENTS_MCP}}` | Registry `operations.poll_hook_events.mcp_tool` | `backlogit_poll_hook_events` | _(empty string)_ |
+| `{{OP_ACK_HOOK_EVENTS_MCP}}` | Registry `operations.ack_hook_events.mcp_tool` | `backlogit_ack_hook_events` | _(empty string)_ |
 
 When the selected registry sets `features.shipments: false`, all `{{OP_*_SHIPMENT_MCP}}` variables MUST resolve to the empty string — never to a literal placeholder like "N/A". Shipment behavior is gated by the installed backlog capability/registry configuration (`features.shipments`), and generated artifacts should treat empty shipment-operation variables as the signal to omit shipment-specific commands or guidance.
 
@@ -372,9 +395,9 @@ Capability-pack overlays:
 
 | Capability Pack | Overlay Behavior |
 |---|---|
-| `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, long-running skills, and the ping-loop prompt |
+| `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, review / verification / closure workflows, long-running skills, and the ping-loop prompt |
 | `agent-engram` | Installs `agent-engram.instructions.md` and threads engram-first indexed search, workspace binding, freshness checks, and code-graph-driven analysis through foundation docs and analysis-heavy workflows |
-| `backlogit` | Installs `backlogit.instructions.md` and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace workflows through backlog-aware artifacts |
+| `backlogit` | Installs `backlogit.instructions.md`, `backlogit-sql-schema.instructions.md`, and `backlogit-yaml-header-tooling.instructions.md`, and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, commit-trace, and source-artifact-cleanup workflows through backlog-aware artifacts |
 | `browser-verification` | Installs `browser-verification.instructions.md` and threads server readiness, route selection, headed/headless choice, and human-checkpoint handling through runtime verification and closure workflows |
 | `continuous-learning` | Installs `continuous-learning.instructions.md` and `observe` / `learn` / `evolve` skills so recurring workflow practice can be captured, clustered, and promoted into explicit learned artifacts |
 | `strict-safety` | Installs `strict-safety.instructions.md` and threads explicit `ProposedAction` / `ActionRisk` / `ActionResult` guidance through risky planning, safety, review, and closure workflows |
@@ -421,6 +444,8 @@ Example overlay target map for `backlogit`:
 | Ready-work selection | ship agent and backlog-aware instructions |
 | Agent continuity | stage and ship session continuity, foundation docs |
 | Traceability | backlog-aware agents and instructions |
+| Schema and tooling reference | backlogit-specific instruction files plus backlog-aware workflows that inspect SQL, frontmatter, or `custom_fields` |
+| Source artifact cleanup | `ship.agent.md`, `operational-closure/SKILL.md`, and closure-facing traceability guidance |
 
 Example overlay target map for `agent-engram`:
 
@@ -555,7 +580,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
 
 4. **Capability-pack instructions**: When `agent-intercom` is enabled, install `agent-intercom.instructions.md` and use it as the authoritative reference for heartbeat, remote approval, operator steering, and standby workflows.
    When `agent-engram` is enabled, install `agent-engram.instructions.md` and use it as the authoritative reference for engram-first search, workspace binding, index freshness, and indexed-search fallback workflows.
-   When `backlogit` is enabled, install `backlogit.instructions.md` and use it as the authoritative reference for backlogit-native query, queue, dependency, memory, checkpoint, comment, and traceability workflows.
+   When `backlogit` is enabled, install `backlogit.instructions.md`, `backlogit-sql-schema.instructions.md`, and `backlogit-yaml-header-tooling.instructions.md` and use them as the authoritative references for backlogit-native query, queue, dependency, memory, checkpoint, comment, traceability, SQL lookup, YAML frontmatter coverage, and source-artifact-cleanup workflows.
    When `browser-verification` is enabled, install `browser-verification.instructions.md` and use it as the authoritative reference for browser-ready server checks, route selection, headed/headless choice, and human checkpoints.
    When `continuous-learning` is enabled, install `continuous-learning.instructions.md` and use it as the authoritative reference for observation capture, instinct formation, and learned-artifact promotion.
    When `strict-safety` is enabled, install `strict-safety.instructions.md` and use it as the authoritative reference for `ProposedAction`, `ActionRisk`, `ActionResult`, approval routing, and risky-work legibility.
@@ -599,7 +624,7 @@ Generate agent definitions. Each agent template has technology-specific sections
 contains deprecated agent files listed in AGENTS.md's deprecation table (during
 merge install), flag them for removal.
 
-1. **Pipeline agents**: stage, ship, harness-architect
+1. **Pipeline agents**: stage, ship
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
     * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
@@ -756,7 +781,13 @@ Resolve `{{COPILOT_EXE_PATH}}`:
 
 #### Step 3.1: Staging
 
-If `dry_run` is true, write all artifacts to `.autoharness/staging/` and report what would be installed. Halt here.
+If `dry_run` is true, write all artifacts to `.autoharness/staging/`, then run deterministic compatibility verification with:
+
+```text
+autoharness verify-workspace --workspace {workspace_path}
+```
+
+The command writes JSON and Markdown reports into `.autoharness/staging/` describing schema blockers, unresolved placeholders, staged render output, and targeted overlay checks. Report those paths and halt here without mutating the installed harness.
 
 #### Step 3.2: Write Artifacts
 
@@ -911,6 +942,8 @@ The installed config includes: `schema_version`, `preset`,
 
 ### Phase 4: Verification
 
+Use `autoharness verify-workspace --workspace {workspace_path}` as the deterministic verification engine for this phase. The command stages renderable artifacts into `.autoharness/staging/` and produces JSON plus Markdown reports before adversarial review runs.
+
 #### Step 4.1: Template Variable Sweep
 
 Scan every installed artifact for unresolved template variables:
@@ -1043,3 +1076,4 @@ Verification: {{PASS/FAIL with details}}
 * The installed harness passes structural validation
 * The installation manifest accurately records every artifact and variable
 * A second run with the same profile produces identical output (idempotent)
+* When the workspace is Git-backed, install output is left as feature-branch work or local uncommitted changes awaiting feature-branch handoff; direct default-branch commit/push is never recommended

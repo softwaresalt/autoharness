@@ -9,7 +9,8 @@ to audit installed harness artifacts against their authoritative templates, over
 coherence requirements, and cross-reference contracts. Assemble findings into a
 confidence-weighted consensus report and auto-remediate confirmed defects.
 
-This skill is the final guardrail after deterministic verification (template
+This skill is the final guardrail after deterministic verification via
+`autoharness verify-workspace --workspace {workspace_path}` (template
 variable sweep, cross-reference sweep, overlay coherence sweep, structural
 validation — defined in install-harness Phase 4, Steps 4.1–4.4). Deterministic checks catch mechanical defects; adversarial
 verification catches semantic defects that mechanical checks miss: dropped

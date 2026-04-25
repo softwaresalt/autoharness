@@ -38,12 +38,15 @@ documented, and wired through the existing capability-pack overlay.
 | MCP and CLI presence | Yes | discovery and registry resolution |
 | Query-driven lookup | Yes | token-efficient backlog state inspection |
 | Queue-aware work selection | Yes | ready-work and sequencing guidance |
+| SQL schema reference and read-only cache usage | Yes | targeted `SELECT` lookup guidance through `backlogit_query_sql` |
 | Dependency operations | Yes | explicit ordering and graph reasoning |
 | Memory and checkpoints | Yes | continuity at task and session boundaries |
 | Comments and telemetry | Yes | traceability and operational notes |
 | Commit tracking | Yes | task-to-commit linkage |
 | Metadata catalog and command map | Yes | agent discovery and workflow introspection |
+| YAML frontmatter and tooling coverage | Yes | deciding when MCP updates are sufficient and when direct Markdown edits plus index refresh are required |
 | Shipment lifecycle envelopes | Yes | release grouping, claim/ship lifecycle, and commit traceability through 7 MCP tools and 6 CLI subcommands |
+| Source artifact cleanup via `source_stash_id` / `source_deliberation_id` | Yes | backlogit-specific ship and closure guidance can retire consumed source artifacts without heuristic backlog sweeps |
 | Current backlogit multi-agent workflow | Yes | reference operating model for deep backlogit guidance |
 
 These are the capabilities that the `backlogit` capability pack should continue
@@ -209,7 +212,8 @@ Template authors should think in two layers:
 
 * **generic backlog layer**: create, list, get, move, complete, archive
 * **backlogit deep layer**: query, queue, dependencies, memory, checkpoints,
-  comments, commit traceability, metadata discovery
+  comments, commit traceability, metadata discovery, SQL schema reference,
+  YAML/frontmatter tooling coverage, source artifact cleanup
 
 The future two-agent workflow belongs to the deep layer only after it stops
 being experimental.

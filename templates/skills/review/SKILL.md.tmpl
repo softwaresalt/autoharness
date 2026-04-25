@@ -8,6 +8,28 @@ argument-hint: "[mode:autofix|mode:report-only] [branch name or file paths]"
 
 Reviews code changes using dynamically selected reviewer personas. Spawns persona subagents that return structured findings, then merges and deduplicates into a unified report.
 
+## Agent-Intercom Communication (NON-NEGOTIABLE)
+
+Call `ping` at session start. If agent-intercom is reachable, broadcast at every step. If unreachable, warn the user that operator visibility is degraded.
+
+When the `strict-safety` capability pack is installed, also follow
+`.github/instructions/strict-safety.instructions.md`: for high-risk diffs, call
+out the `ProposedAction`, `ActionRisk`, approval, and rollback gaps that should
+be visible before merge or deployment.
+
+| Event | Level | Message prefix |
+|---|---|---|
+| Review start | info | `[REVIEW] Starting {mode} review of {scope}` |
+| Diff analyzed | info | `[REVIEW] Analyzed diff: {file_count} files, {line_count} lines changed` |
+| Persona routing | info | `[REVIEW] Routing: {always_on_count} always-on + {conditional_count} conditional personas` |
+| Persona spawned | info | `[SPAWN] {persona_name} for code review` |
+| Persona returned | info | `[RETURN] {persona_name}: {finding_count} findings` |
+| Merge complete | info | `[REVIEW] Merged: {total} findings ({p0} P0, {p1} P1, {p2} P2, {p3} P3)` |
+| Autofix applied | info | `[REVIEW] Applied safe_auto fix: {finding_summary}` |
+| Review written | success | `[REVIEW] Review artifact: {file_path}` |
+| Waiting for input | warning | `[WAIT] Blocked on user decision` |
+| Review complete | success | `[REVIEW] Complete: {summary}` |
+
 ## Subagent Depth Constraint
 
 This skill spawns reviewer subagents. Those subagents are leaf executors and MUST NOT spawn their own subagents. Maximum depth: review skill → persona subagent (1 hop).
@@ -63,26 +85,6 @@ Routing rules:
 - Choose the more conservative route on disagreement between personas
 - Only `safe_auto` findings enter the autofix queue
 - `requires_verification: true` means a fix needs tests or re-review
-
-## Agent-Intercom Communication
-
-When the `agent-intercom` capability pack is installed, call `ping` at session start. If reachable, broadcast at every step. If unreachable, warn the operator that visibility is degraded.
-
-When the `strict-safety` capability pack is installed, also follow
-`.github/instructions/strict-safety.instructions.md`: for high-risk diffs, call
-out the `ProposedAction`, `ActionRisk`, approval, and rollback gaps that should
-be visible before merge or deployment.
-
-| Event | Level | Message prefix |
-|---|---|---|
-| Review start | info | `[REVIEW] Starting {mode} review of {scope}` |
-| Diff analyzed | info | `[REVIEW] Analyzed diff: {file_count} files, {line_count} lines changed` |
-| Persona routing | info | `[REVIEW] Routing: {always_on_count} always-on + {conditional_count} conditional personas` |
-| Persona spawned | info | `[SPAWN] {persona_name} for code review` |
-| Persona returned | info | `[RETURN] {persona_name}: {finding_count} findings` |
-| Merge complete | info | `[REVIEW] Merged: {total} findings ({p0} P0, {p1} P1, {p2} P2, {p3} P3)` |
-| Autofix applied | info | `[REVIEW] Applied safe_auto fix: {finding_summary}` |
-| Review complete | success | `[REVIEW] Complete: {summary}` |
 
 ## Reviewer Personas
 

@@ -21,6 +21,7 @@ advertises them:
 * **comments** — append operator- or agent-visible execution notes to a task
 * **commit tracking** — associate commits with task IDs for traceability
 * **sync / rehydrate** — refresh the query index after out-of-band edits
+* **hook event polling** — check priority signals at session start when the registry advertises hook operations
 
 Use the workspace's registered backlogit operation names or aliases. Do not invent a parallel task
 tracking system when backlogit is available.
@@ -43,6 +44,14 @@ When selecting work or establishing execution order:
 2. Use explicit dependency operations to encode task ordering that truly matters.
 3. Do not hide critical sequencing only in prose when the dependency graph can represent it.
 4. Re-check unfinished dependencies before claiming a task that appears ready.
+
+## Hook Signal Protocol
+
+When hook event polling operations are supported:
+
+1. Poll for unacknowledged hook events at session start before normal stash or shipment queue selection.
+2. Treat returned hook events as higher-priority signals than raw queue scans.
+3. Acknowledge only the highest processed concrete event sequence; never acknowledge derived signals.
 
 ## Intercom Coherence Rule
 

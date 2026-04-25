@@ -321,12 +321,11 @@ After the user approves merge:
    * When `backlog-md` is the installed backlog tool, create a follow-up item using `{{OP_CREATE_MCP}}` with `{{FIELD_TITLE}}` from the follow-up summary, `{{FIELD_DESCRIPTION}}` linking to the closure artifact, `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`, and `{{FIELD_LABELS}}: ["stash", "follow-up"]`.
    * When no backlog tool is installed, append each follow-up to `{{BACKLOG_DIRECTORY}}/queue/.stash.md` using the format: `- [{YYYY-MM-DD}] **Follow-up**: {summary} — Source: {closure_artifact_path}`.
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Stashed {count} follow-up item(s) from post-merge closure: {summary_list}` listing each item's title.
-7. **Archive stale deliberation and stash artifacts**: After the shipped work is merged, archive backlog artifacts that informed this work and are now complete:
-   * **Deliberation items**: Search the backlog for deliberation artifacts (type suffix `{{SUFFIX_DELIBERATION}}`) that were consumed during the Stage→Ship pipeline for this shipment. Use `{{OP_SEARCH_MCP}}` to find deliberation items linked to the shipped feature or chore, then invoke `{{OP_COMPLETE_MCP}}` for each to move them from queue to archive.
-   * **Consumed follow-up tasks created by Ship**: If Step 5 of the pre-merge closure (or a prior Ship session) created follow-up tasks that were subsequently consumed by Stage and shipped in this cycle, verify they have been archived. If any remain in active state, complete them using `{{OP_COMPLETE_MCP}}`.
-   * **Spike artifacts**: Search for spike items (type suffix `{{SUFFIX_SPIKE}}`) that were consumed during the deliberation or planning phase for this shipment. Archive them using the same mechanism as deliberation items.
-   * Preserve the decision content: deliberation and spike knowledge artifacts in `{{DOCS_DECISIONS}}/` are **not** removed — only the backlog work-item wrappers in the queue are archived. The knowledge persists; the workflow item is retired.
-   * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Archived {count} stale deliberation/stash/spike items from shipped work`.
+7. **Source artifact cleanup** (backlogit only): When the `backlogit` capability pack is installed, retire the source artifacts that directly fed the shipped scope instead of heuristically searching for "stale" backlog items.
+   * For each shipped top-level item in scope (feature or chore), read `custom_fields.source_stash_id`. If present, call `backlogit_stash_remove` with the stash ID only. If the stash entry is already removed, skip and log it.
+   * For each shipped top-level item in scope (feature or chore), read `custom_fields.source_deliberation_id`. If present, verify the deliberation artifact exists via `backlogit_get_item`. If it exists and is not already archived, call `backlogit_archive_item`. If it is already archived or not found, skip and log it.
+   * After processing the full shipped scope, record the archived and skipped source artifact IDs in the closure artifact's `Source artifact cleanup` section so the closure report remains the traceable system of record.
+   * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Source artifacts archived: {stash_count} stash, {delib_count} deliberations`.
 8. **Mandatory**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence.
 9. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
 10. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
@@ -372,7 +371,7 @@ When the `agent-intercom` capability pack is installed:
 | Merge approval wait | `broadcast` | `warning` | `[WAIT] Awaiting user merge approval` |
 | Post-merge closure | `broadcast` | `info` | `[SHIP] Post-merge closure and knowledge graduation` |
 | Follow-ups stashed (post-merge) | `broadcast` | `info` | `[SHIP] Stashed {count} follow-up item(s) from post-merge closure: {summary_list}` |
-| Stale artifacts archived | `broadcast` | `info` | `[SHIP] Archived {count} stale deliberation/stash/spike items from shipped work` |
+| Source artifacts archived | `broadcast` | `info` | `[SHIP] Source artifacts archived: {stash_count} stash, {delib_count} deliberations` |
 | Session complete | `broadcast` | `success` | `[SHIP] Session complete: {outcome}` |
 
 Use `transmit` when a blocked condition, risky rollback, or merge decision needs explicit operator attention.
@@ -385,6 +384,45 @@ Memory, learnings capture, and documentation hygiene are built-in workflow steps
 
 1. Scan `{{DOCS_MEMORY}}/` for the most recent memory or checkpoint file relevant to the current feature or chore context.
 2. If a relevant memory file exists, restore context: completed items, branch context, PR status, and prior build decisions.
+3. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, run the recovery state machine below before shipment validation.
+
+### Session-start recovery protocol
+
+When checkpoint recovery operations are available through the installed backlog registry:
+
+**SESSION_START**
+1. Call `{{OP_LIST_CHECKPOINTS_MCP}}` with `consumer_id: "ship"`, `status: "active"`, and `max_age_hours: 168`.
+2. If no active checkpoints are returned, continue with a fresh start.
+3. If active checkpoints exist, present checkpoint summaries to the operator: phase, shipment or feature context, tasks completed, resume hint, and validation status.
+
+**RECOVERY_DECISION**
+1. Surface quarantined checkpoints (entries with validation errors) as warnings instead of silently skipping them.
+2. Ask whether to resume from a specific checkpoint or start fresh.
+3. If the operator chooses resume, load the selected checkpoint with `{{OP_GET_CHECKPOINT_MCP}}`.
+4. If the operator chooses fresh, resolve stale checkpoints with `{{OP_RESOLVE_CHECKPOINT_MCP}}` and continue to shipment validation.
+
+**RESUME_FROM_CHECKPOINT**
+1. If `{{OP_GET_CHECKPOINT_MCP}}` returns an error or invalid payload, warn and fall back to a fresh start.
+2. Restore the recorded phase, shipment or feature context, task IDs, branch state, and next-step intent from the selected checkpoint.
+3. Resolve all other still-active checkpoints from prior sessions with `{{OP_RESOLVE_CHECKPOINT_MCP}}`.
+4. Resume from the recorded phase instead of restarting execution from scratch.
+
+**FRESH_START**
+1. Resolve any active checkpoints left over from prior sessions with `{{OP_RESOLVE_CHECKPOINT_MCP}}`.
+2. Continue with normal shipment validation.
+
+### Hook event consumption
+
+When the `backlogit` capability pack is installed and the registry advertises hook polling operations, poll for unacknowledged signals before shipment validation using `{{OP_POLL_HOOK_EVENTS_MCP}}` with `consumer_id: "ship"`.
+
+Treat concrete `events` as higher-priority signals than the raw work queue. After processing them, acknowledge only the highest `seq` from the concrete `events` array with `{{OP_ACK_HOOK_EVENTS_MCP}}`. Never acknowledge `derived_signals`, and skip the ack call entirely when no concrete events are returned.
+
+Skip gracefully when the hook queue is empty or the underlying queue file does not yet exist. Never fail the session on a missing hook queue file.
+
+| Signal | Expected response |
+|---|---|
+| `post_merge_closure` | Trigger the post-merge closure protocol immediately for the referenced shipment. |
+| `feature_review_ready` | Note that the referenced feature has cleared review and is eligible for shipment pick-up in the next session. |
 
 ### Mid-session checkpoints
 
@@ -397,7 +435,7 @@ Write a checkpoint to `{{DOCS_MEMORY}}/` after any of these milestones:
 
 Each checkpoint captures: items completed, items blocked, branch state, decisions with rationale, errors encountered and how they were resolved, and next steps.
 
-When the `backlogit` capability pack is installed and checkpoint operations are supported, also persist a compact structured checkpoint through backlogit.
+When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. Include shipment or feature IDs, completed and blocked item IDs, branch state, next step, and a `resume_hint` specific enough for a later recovery decision.
 
 ### Learnings capture
 
@@ -411,8 +449,9 @@ After build execution (Step 4) and CI remediation, evaluate whether the work unc
 ### Session end
 
 1. Write a final memory file to `{{DOCS_MEMORY}}/` capturing: items completed, blocked conditions, branch state, PR status, and any pending merge approval.
-2. Capture compound learnings via the compound skill when hard-won solutions were discovered.
-3. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
+2. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, resolve any still-active checkpoints from the current session with `{{OP_RESOLVE_CHECKPOINT_MCP}}`. When merge approval or closure work must survive a context-window shutdown, leave at most one final best-effort checkpoint written via `{{OP_CREATE_CHECKPOINT_MCP}}` with a clear `resume_hint`.
+3. Capture compound learnings via the compound skill when hard-won solutions were discovered.
+4. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
 
 ### Context Overflow Protocol
 

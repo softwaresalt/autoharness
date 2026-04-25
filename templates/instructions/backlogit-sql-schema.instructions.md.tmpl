@@ -1,0 +1,310 @@
+---
+description: "SQLite schema reference and example queries for agents using the backlogit MCP backlogit_query_sql tool"
+applyTo: '**'
+---
+
+# Backlogit SQL Schema Reference
+
+The SQLite index at `{{BACKLOG_DIRECTORY}}/backlogit.db` is an ephemeral, read-only query cache. The Markdown files under `{{BACKLOG_DIRECTORY}}/` are the source of truth. Use `backlogit_query_sql` to run `SELECT` statements against this cache. Rebuild the cache at any time with `backlogit_sync_index`.
+
+## Tables
+
+### `items`: Work artifacts
+
+The primary table for all backlogit artifacts (features, tasks, subtasks, deliberations, shipments).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | TEXT PK | Hierarchical ID: `001-F`, `001.001-T`, `001.001.001-ST` |
+| `title` | TEXT | Artifact title |
+| `status` | TEXT | `queued`, `active`, `done`, `blocked` |
+| `artifact_type` | TEXT | `feature`, `task`, `subtask`, `deliberation`, `shipment` |
+| `parent_id` | TEXT | ID of the parent artifact (`NULL` for level-1) |
+| `sprint` | TEXT | Sprint ID (optional) |
+| `priority` | TEXT | `low`, `medium`, `high`, `critical` |
+| `description` | TEXT | Artifact body text |
+| `custom_fields` | TEXT | JSON blob of extra fields (`source_stash_id`, `harness_status`, etc.) |
+| `created_at` | DATETIME | ISO-8601 creation timestamp |
+| `updated_at` | DATETIME | ISO-8601 last-update timestamp |
+| `assigned_to` | TEXT | Assignee identifier |
+| `owner` | TEXT | Owner identifier |
+| `labels` | TEXT | Comma-separated label string |
+| `dependencies` | TEXT | Denormalized comma-separated dependency IDs |
+| `references` | TEXT | Comma-separated reference paths |
+| `commit` | TEXT | Last associated commit SHA |
+| `level` | INTEGER | Hierarchy depth: `1`=feature, `2`=task, `3`=subtask |
+| `hierarchy_path` | TEXT | Path without type suffix: `001`, `001.001`, `001.001.001` |
+
+**FTS5 virtual table**: `items_fts` (columns: `id`, `title`, `description`, `labels`). Linked to `items` via `rowid`.
+
+### `item_deps`: Dependencies
+
+| Column | Type | Notes |
+|---|---|---|
+| `item_id` | TEXT | Source artifact ID |
+| `depends_on` | TEXT | Target artifact ID |
+| `dep_type` | TEXT | `blocks`, `relates_to`, `parent_of` |
+
+### `item_links`: Relationships
+
+Explicit typed links between artifacts.
+
+| Column | Type | Notes |
+|---|---|---|
+| `source_id` | TEXT | Source artifact ID |
+| `target_id` | TEXT | Target artifact ID |
+| `link_type` | TEXT | `related_to`, `duplicate_of`, `informs`, `supersedes`, `spike_ref` |
+| `created_at` | DATETIME | Link creation timestamp |
+
+### `stash_entries`: Stash items
+
+| Column | Type | Notes |
+|---|---|---|
+| `stash_id` | TEXT PK | Hex ID (e.g. `A1B2C3D4`) |
+| `priority` | TEXT | `low`, `medium`, `high`, `critical` |
+| `kind` | TEXT | `feature`, `task`, `bug`, `epic`, `unknown` |
+| `text` | TEXT | Stash entry text |
+| `deliberation_id` | TEXT | Linked deliberation artifact ID (optional) |
+| `state` | TEXT | `active`, `harvested`, `removed` |
+| `source_path` | TEXT | Relative path to the stash backing store (format may vary) |
+| `updated_at` | DATETIME | Last state update |
+
+### `stash_links`: Stash-to-artifact harvest links
+
+| Column | Type | Notes |
+|---|---|---|
+| `stash_id` | TEXT PK | Stash entry ID |
+| `item_id` | TEXT | Harvested artifact ID |
+| `linked_at` | DATETIME | Harvest timestamp |
+
+### `commit_links`: Commit traceability
+
+| Column | Type | Notes |
+|---|---|---|
+| `item_id` | TEXT | Artifact ID |
+| `commit_sha` | TEXT | Full commit SHA |
+| `message` | TEXT | Commit message |
+| `author` | TEXT | Commit author |
+
+### `item_logs`: Log registry
+
+| Column | Type | Notes |
+|---|---|---|
+| `item_id` | TEXT PK | Artifact ID |
+| `log_path` | TEXT | Relative path to the backing log file |
+| `updated_at` | DATETIME | Log file last-updated timestamp |
+
+### `item_log_entries`: Individual log events
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | INTEGER PK | Auto-increment row ID |
+| `item_id` | TEXT | Artifact ID |
+| `log_path` | TEXT | Relative log file path |
+| `timestamp` | DATETIME | Event timestamp |
+| `actor` | TEXT | Event actor (agent name or `backlogit`) |
+| `event_type` | TEXT | Event type string |
+| `content` | TEXT | Human-readable event text |
+| `delta_json` | TEXT | JSON payload for the event |
+
+**FTS5 virtual table**: `item_log_entries_fts` (columns: `item_id`, `actor`, `event_type`, `content`). Linked to `item_log_entries` via `rowid`.
+
+### `telemetry_sessions`: Agent telemetry sessions
+
+| Column | Type | Notes |
+|---|---|---|
+| `session_id` | TEXT PK | Unique session identifier |
+| (additional columns) | | See telemetry schema |
+
+### `telemetry_tool_usage`: Per-session tool call stats
+
+Tracks tool invocation counts and token usage per session.
+
+## Example Queries
+
+### List all active features
+
+```sql
+SELECT id, title, status, priority
+FROM items
+WHERE artifact_type = 'feature' AND status = 'active'
+ORDER BY priority DESC, created_at ASC
+```
+
+### List tasks under a specific feature
+
+```sql
+SELECT id, title, status, priority
+FROM items
+WHERE artifact_type = 'task' AND parent_id = '022-F'
+ORDER BY id ASC
+```
+
+### Get full work queue (queued + active) for agent pickup
+
+```sql
+SELECT id, title, artifact_type, status, priority, parent_id, level
+FROM items
+WHERE status IN ('queued', 'active')
+  AND artifact_type IN ('feature', 'task', 'subtask')
+ORDER BY level ASC, priority DESC, created_at ASC
+```
+
+### Find items without a parent (orphaned tasks, should be investigated)
+
+```sql
+SELECT id, title, artifact_type, status
+FROM items
+WHERE artifact_type IN ('task', 'subtask')
+  AND (parent_id IS NULL OR parent_id = '')
+ORDER BY artifact_type, id
+```
+
+### Check hierarchy integrity (tasks with wrong ID prefix)
+
+```sql
+SELECT i.id, i.parent_id, p.id AS expected_parent
+FROM items i
+JOIN items p ON i.parent_id = p.id
+WHERE i.artifact_type = 'task'
+  AND i.id NOT LIKE p.id || '.%'
+```
+
+### Count items by status
+
+```sql
+SELECT status, COUNT(*) AS count
+FROM items
+WHERE artifact_type IN ('feature', 'task', 'subtask')
+GROUP BY status
+ORDER BY status
+```
+
+### Find all items in a shipment
+
+```sql
+SELECT i.id, i.title, i.artifact_type, i.status
+FROM items s
+JOIN items i ON instr(',' || json_extract(s.custom_fields, '$.items') || ',',
+                      ',' || i.id || ',') > 0
+WHERE s.id = '005-S'
+ORDER BY i.level, i.id
+```
+
+### Get dependencies for an item
+
+```sql
+SELECT d.depends_on AS blocked_by, i.title, i.status
+FROM item_deps d
+JOIN items i ON d.depends_on = i.id
+WHERE d.item_id = '022.004-T'
+```
+
+### Find items that block a given item
+
+```sql
+SELECT d.item_id AS blocker, i.title, i.status
+FROM item_deps d
+JOIN items i ON d.item_id = i.id
+WHERE d.depends_on = '022.004-T'
+```
+
+### Look up stash entries awaiting harvest
+
+```sql
+SELECT stash_id, priority, kind, text, deliberation_id
+FROM stash_entries
+WHERE state = 'active'
+ORDER BY CASE priority
+  WHEN 'critical' THEN 1
+  WHEN 'high'     THEN 2
+  WHEN 'medium'   THEN 3
+  WHEN 'low'      THEN 4
+  ELSE 5
+END
+```
+
+### Get stash entries with their harvested artifact IDs
+
+```sql
+SELECT se.stash_id, se.kind, se.text, sl.item_id, i.title
+FROM stash_entries se
+JOIN stash_links sl ON se.stash_id = sl.stash_id
+JOIN items i ON sl.item_id = i.id
+ORDER BY sl.linked_at DESC
+```
+
+### Full-text search across items
+
+```sql
+SELECT i.id, i.title, i.artifact_type, i.status
+FROM items_fts f
+JOIN items i ON f.rowid = i.rowid
+WHERE items_fts MATCH 'stash'
+ORDER BY rank
+LIMIT 20
+```
+
+### Get recent log events for an item
+
+```sql
+SELECT timestamp, actor, event_type, content, delta_json
+FROM item_log_entries
+WHERE item_id = '022.004-T'
+ORDER BY timestamp DESC
+LIMIT 20
+```
+
+### Full-text search across log events
+
+```sql
+SELECT le.item_id, le.timestamp, le.event_type, le.content
+FROM item_log_entries_fts f
+JOIN item_log_entries le ON f.rowid = le.rowid
+WHERE item_log_entries_fts MATCH 'blocked reason'
+ORDER BY le.timestamp DESC
+LIMIT 10
+```
+
+### Find commits associated with an item
+
+```sql
+SELECT commit_sha, message, author
+FROM commit_links
+WHERE item_id = '022-F'
+ORDER BY rowid DESC
+```
+
+### List all shipments with item counts
+
+```sql
+SELECT s.id, s.title, s.status,
+       json_array_length(json_extract(s.custom_fields, '$.items')) AS item_count
+FROM items s
+WHERE s.artifact_type = 'shipment'
+ORDER BY s.created_at DESC
+```
+
+## Indexes
+
+For query planning awareness:
+
+| Index | Table | Columns |
+|---|---|---|
+| `idx_items_status` | `items` | `status` |
+| `idx_items_type` | `items` | `artifact_type` |
+| `idx_items_parent` | `items` | `parent_id` |
+| `idx_items_sprint` | `items` | `sprint` |
+| `idx_items_hierarchy` | `items` | `hierarchy_path` |
+| `idx_item_deps_item` | `item_deps` | `item_id` |
+| `idx_item_deps_dep` | `item_deps` | `depends_on` |
+| `idx_stash_entries_state` | `stash_entries` | `state` |
+| `idx_stash_links_item` | `stash_links` | `item_id` |
+| `idx_item_log_entries_item` | `item_log_entries` | `item_id` |
+| `idx_item_log_entries_timestamp` | `item_log_entries` | `timestamp` |
+
+## Gate rules
+
+`backlogit_query_sql` only accepts `SELECT` statements. `INSERT`, `UPDATE`, `DELETE`, `DROP`, `CREATE`, `ALTER`, and `ATTACH` are rejected. All results are capped at 500 rows. Use `LIMIT` to constrain large result sets.
+
+Generated by autoharness | Template: backlogit-sql-schema.instructions.md.tmpl

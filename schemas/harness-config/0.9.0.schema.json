@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Harness Configuration 0.9.0",
+  "description": "Legacy operator-authored configuration contract for autoharness v0.9.0 workspaces.",
+  "type": "object",
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.9.0",
+      "description": "Legacy schema version for autoharness v0.9.0"
+    },
+    "preset": {
+      "type": "string",
+      "enum": ["starter", "standard", "full"]
+    },
+    "primary_stack_pack": {
+      "type": ["string", "null"]
+    },
+    "stack_packs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "install_layers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+      }
+    },
+    "capability_packs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "agent-intercom",
+          "agent-engram",
+          "backlogit",
+          "browser-verification",
+          "continuous-learning",
+          "strict-safety",
+          "release-observability",
+          "adversarial-review",
+          "circuit-breaker",
+          "concurrency"
+        ]
+      }
+    },
+    "backlog": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "enum": ["backlogit", "backlog-md", "manual"]
+        },
+        "directory": {
+          "type": "string"
+        },
+        "prefix_map": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "suffix_map": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}

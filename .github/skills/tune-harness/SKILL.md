@@ -28,7 +28,7 @@ Invoke this skill periodically or when significant codebase changes occur:
 * `autoharness_home`: (Required) Absolute path to the autoharness installation (contains `templates/`, `schemas/`). Resolved by the invoking agent via: `AUTOHARNESS_HOME` env var → `autoharness home` CLI → agent directory traversal → `~/.autoharness/`.
 * `workspace_path`: (Required) Absolute path to the target workspace root.
 * `scope`: (Optional) Comma-separated list of tune targets: `instructions`, `agents`, `skills`, `policies`, `constitution`, `all`. Defaults to `all`.
-* `auto_apply`: (Optional, default false) When true, apply proposed changes without interactive review.
+* `auto_apply`: (Optional, default false) When true, apply proposed changes without interactive review. `auto_apply` only covers file updates; it does not authorize committing or pushing those changes, especially not to the repository's default branch.
 
 ## Output
 
@@ -46,6 +46,23 @@ Verify the `autoharness_home` path contains the expected structure:
 * `{autoharness_home}/schemas/` — JSON schemas for validation
 
 If any are missing, halt and report the issue. All template reads for regenerating artifacts use `{autoharness_home}/templates/` as the base path.
+
+### Phase 0c: Enforce Branch Safety for Tune Output
+
+If `workspace_path` is a Git repository, determine the current branch and the
+repository's default branch before producing any follow-up guidance that
+mentions committing or pushing tuned artifacts.
+
+* Never commit or push autoharness tune output directly to the default branch
+  (`main`, `master`, `trunk`, or the detected remote default branch).
+* If the current branch is the default branch, explicitly recommend creating or
+  switching to a feature branch first, for example
+  `chore/autoharness-tune-<date>`.
+* Treat the intended Git workflow as: apply accepted tune changes on a feature
+  branch, review the diff, and open a pull request.
+* If the operator declines to create or switch branches, tuning may still
+  proceed as local uncommitted changes, but do NOT commit or push those changes
+  from this workflow.
 
 ### Phase 0b: Load Operator Configuration
 
@@ -82,6 +99,54 @@ Known config-key renames (for workspaces upgrading from pre-v1.0.0 harnesses):
 | `backlog.prefix_map` | `backlog.suffix_map` | v1.0.0 |
 
 New installations since v1.0.0 use `suffix_map` from the start and will not trigger this migration.
+
+#### Step 0b.2: Schema-Contract Scan
+
+Treat every schema-bearing workspace artifact as a versioned contract, not just a file to parse once.
+
+Run deterministic verification before interpreting contract state:
+
+```text
+autoharness verify-workspace --workspace {workspace_path} --autoharness-home {autoharness_home} --json
+```
+
+Treat the verifier's JSON report as the authoritative structured input for this step. In particular, consume:
+
+* `schema_contracts{}` for observed version and contract status
+* `migration_proposals[]` for contract upgrade, backfill, and normalization work
+* `warnings[]` for compatibility drift evidence
+
+Do not re-derive contract status or contract migration proposals by manually re-parsing the same installed YAML once the verifier report is available. The tune flow may still inspect the raw files for operator review, but the verifier report is the system of record for contract-state classification.
+
+Before categorizing drift, read the installed contract versions from the verifier report or, if the verifier report is unavailable, load them directly from:
+
+* `.autoharness/config.yaml` -> `schema_version`
+* `.autoharness/workspace-profile.yaml` -> `schema_version`
+* `.autoharness/harness-manifest.yaml` -> `schema_version`
+
+Compare those versions against autoharness's known contract set for each artifact type.
+
+Classify the result as:
+
+| Contract Status | Meaning | Tuning Action |
+|---|---|---|
+| `current` | Installed artifact matches the current contract version | Normal drift detection only |
+| `known-legacy` | Installed artifact matches an older but still recognized contract version | Generate an upgrade proposal tied to that contract delta |
+| `missing-version` | Artifact omits `schema_version` | Treat as degraded legacy state; propose backfill or regeneration |
+| `unknown-version` | Artifact claims a version autoharness does not recognize | Halt auto-apply and require operator review |
+
+The known contract set should include both the current version and any older schema versions or compatibility rules the tuner can still interpret safely. For example, when autoharness ships explicit 0.9.0 schema assets alongside 1.0.0, a workspace that declares `schema_version: 0.9.0` should be treated as `known-legacy`, not `unknown-version`. This contract catalog is part of autoharness's upgrade intelligence: it tells the tuner which migrations are mechanical, which are advisory, and which require human judgment.
+
+When a legacy contract is recognized, emit a migration proposal that names:
+
+1. the observed contract version
+2. the current contract version
+3. the concrete fields or enums that drifted
+4. the target regeneration or rewrite action needed to bring the artifact forward
+
+Do not silently collapse unknown contracts into generic schema failures. Unknown versions are implementation-change signals and must be surfaced explicitly.
+
+When `verify-workspace` already emitted a matching entry in `migration_proposals[]`, promote that entry directly into the tuning proposal set instead of rewriting it from scratch. Preserve its `contract`, `from_version`, `to_version`, `status`, `severity`, `changed_fields`, `action`, and `evidence` fields so later tuning reports and closure mining can track contract migrations deterministically.
 
 **Config-entry backfill**: When a map object in the config (e.g., `backlog.suffix_map`, `docs.subdirectories`) is present but missing entries that the schema defines with defaults, generate a backfill proposal that:
 
@@ -463,6 +528,14 @@ Checksum-based drift findings should cite whether the artifact is `missing`,
 `user-modified`, or `ignored` so the operator can tell whether the proposal is
 recovery, retuning, or intentional local divergence.
 
+For deterministic schema-contract work, map `verify-workspace` migration proposals directly into tune proposals rather than re-deriving them:
+
+* `severity: degrading` -> P1 / `category: degrading`
+* `severity: manual-review` or `status: unknown-version` -> P0 review gate with explicit operator approval required before auto-apply
+* `status: known-legacy` -> preserve the observed `from_version` and target `to_version` in the proposal body
+
+Mark these proposals with `source: schema-contract` so they remain distinct from both structural drift and learning-driven proposals.
+
 When discovery produced recommendation reasons, include the relevant preset,
 install-layer, or capability-pack rationale in the proposal body so operators can
 see the causal signals behind the retune.
@@ -574,6 +647,10 @@ For each accepted proposal:
 2. Apply the change
 3. Update the harness manifest with the new artifact checksum
 
+`auto_apply` does not bypass the branch-safety policy above. In a Git-backed
+workspace, applied tune changes should remain on a feature branch or as local
+uncommitted changes until the operator reviews them and opens a pull request.
+
 #### Step 4.2: Generate New Artifacts
 
 If growth opportunities were accepted (new review personas, new instructions, new skills):
@@ -601,12 +678,16 @@ Update `.autoharness/harness-manifest.yaml`:
 
 ### Phase 5: Verification
 
-Run the same verification algorithm as the install-harness skill Phase 4:
+Run `autoharness verify-workspace --workspace {workspace_path}` first, then interpret the deterministic report using the same verification algorithm as install-harness Phase 4:
 
 * **Step 4.1 (Template Variable Sweep)** — scan for unresolved `{{...}}` outside code fences
 * **Step 4.2 (Cross-Reference Sweep)** — verify agent→skill, agent→tool, instruction→file, policy→agent, constitution→language, and layer→artifact consistency
 * **Step 4.3 (Overlay Coherence Sweep)** — verify each enabled pack's targets exist and reference the pack's behavior keywords
 * **Step 4.4 (Structural Validation)** — YAML frontmatter, code fence pairing, table column counts, file path resolution
+
+Treat any `strict_schema_blockers`, unresolved placeholders, or failing targeted checks from `verify-workspace` as deterministic verification failures that must be resolved before adversarial review.
+
+If the verification report still contains `migration_proposals[]` after applying accepted tune changes, treat them as unresolved deterministic drift. They may remain advisory when the operator intentionally deferred them, but they must be surfaced explicitly in the tuning report instead of disappearing into generic warnings.
 
 After deterministic checks pass, invoke the **verify-harness** skill for
 multi-model adversarial verification:
@@ -635,3 +716,4 @@ both drift and verification issues in a single pass.
 * Backup copies exist for every modified artifact
 * The tuning report is comprehensive and actionable
 * The harness manifest reflects the post-tuning state
+* When the workspace is Git-backed, tune output is left as feature-branch work or local uncommitted changes awaiting feature-branch handoff; direct default-branch commit/push is never recommended
