@@ -130,7 +130,12 @@ def _verify_workspace_command(args: list[str]) -> None:
         print()
         print(f"Strict schema blockers: {len(report['strict_schema_blockers'])}")
         print(f"Blockers: {len(report['blockers'])}")
-        print(f"Warnings: {len(report['warnings'])}")
+        warning_count = len(report["warnings"])
+        warning_instances = int(report.get("warning_instances", warning_count))
+        if warning_instances > warning_count:
+            print(f"Warnings: {warning_count} grouped summaries ({warning_instances} findings)")
+        else:
+            print(f"Warnings: {warning_count}")
         print(f"Migration proposals: {len(report['migration_proposals'])}")
         print(f"Unresolved placeholders: {len(report['unresolved'])}")
         print(f"Rendered artifacts: {len(report['rendered'])}")

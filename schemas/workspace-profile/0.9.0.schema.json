@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Workspace Profile 0.9.0",
+  "description": "Legacy workspace-profile contract for autoharness v0.9.0 discovery output.",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "workspace_path", "languages", "build", "test"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.9.0",
+      "description": "Legacy schema version for autoharness v0.9.0"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "workspace_path": {
+      "type": "string"
+    },
+    "languages": {
+      "type": "object",
+      "required": ["primary"],
+      "properties": {
+        "primary": { "type": "string" }
+      }
+    },
+    "build": {
+      "type": "object",
+      "required": ["tool", "command"],
+      "properties": {
+        "tool": { "type": "string" },
+        "command": { "type": "string" }
+      }
+    },
+    "test": {
+      "type": "object",
+      "required": ["runner", "command"],
+      "properties": {
+        "runner": { "type": "string" },
+        "command": { "type": "string" }
+      }
+    },
+    "harness_recommendations": {
+      "type": "object",
+      "properties": {
+        "capability_packs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "agent-intercom",
+              "agent-engram",
+              "backlogit",
+              "browser-verification",
+              "continuous-learning",
+              "strict-safety",
+              "release-observability",
+              "adversarial-review",
+              "circuit-breaker",
+              "concurrency"
+            ]
+          }
+        }
+      }
+    },
+    "drift_report": {
+      "type": ["object", "null"],
+      "properties": {
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["category"],
+            "properties": {
+              "category": {
+                "type": "string",
+                "enum": [
+                  "breaking",
+                  "degrading",
+                  "cosmetic",
+                  "growth",
+                  "interrupted_tuning",
+                  "deleted_artifact",
+                  "deprecated_agents_removed",
+                  "existing_modified",
+                  "gitignore_updated"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

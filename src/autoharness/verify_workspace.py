@@ -112,11 +112,40 @@ PACK_ASSERTIONS = {
             "must_contain": ["checkpoint", "queue", "traceability"],
         },
         {
+            "key": "backlogit_sql_schema_instruction",
+            "path": ".github/instructions/backlogit-sql-schema.instructions.md",
+            "must_contain": ["backlogit_query_sql", "stash_entries", "SELECT"],
+        },
+        {
+            "key": "backlogit_yaml_header_instruction",
+            "path": ".github/instructions/backlogit-yaml-header-tooling.instructions.md",
+            "must_contain": ["custom_fields", "references", "backlogit_update_item"],
+        },
+        {
             "key": "agents_metadata_catalog_guidance",
             "path": "AGENTS.md",
             "must_contain": [
                 "backlogit_get_metadata_catalog",
                 "backlogit_export_command_map",
+            ],
+        },
+        {
+            "key": "ship_source_artifact_cleanup",
+            "path": ".github/agents/ship.agent.md",
+            "must_contain": [
+                "source_stash_id",
+                "source_deliberation_id",
+                "backlogit_stash_remove",
+                "backlogit_archive_item",
+            ],
+        },
+        {
+            "key": "closure_source_artifact_cleanup",
+            "path": ".github/skills/operational-closure/SKILL.md",
+            "must_contain": [
+                "Source artifact cleanup",
+                "source_stash_id",
+                "source_deliberation_id",
             ],
         },
     ],
@@ -132,6 +161,21 @@ PACK_ASSERTIONS = {
             "key": "agent_intercom_instruction",
             "path": ".github/instructions/agent-intercom.instructions.md",
             "must_contain": ["broadcast", "approval", "standby"],
+        },
+        {
+            "key": "review_intercom_workflow",
+            "path": ".github/skills/review/SKILL.md",
+            "must_contain": [
+                "Agent-Intercom Communication (NON-NEGOTIABLE)",
+                "Review written",
+                "Waiting for input",
+            ],
+            "must_precede": [
+                [
+                    "## Agent-Intercom Communication (NON-NEGOTIABLE)",
+                    "## Subagent Depth Constraint",
+                ]
+            ],
         }
     ],
     "agent-engram": [
@@ -170,6 +214,46 @@ PACK_ASSERTIONS = {
         }
     ],
 }
+FOUNDATION_ASSERTIONS = [
+    {
+        "key": "copilot_durable_knowledge_layout",
+        "path": ".github/copilot-instructions.md",
+        "must_contain": [
+            "Reusable learnings and hard-won fixes",
+            "Session memory and checkpoints",
+            "Graduated architecture and design rationale",
+        ],
+    },
+    {
+        "key": "copilot_session_memory_guidance",
+        "path": ".github/copilot-instructions.md",
+        "must_contain": [
+            "## Session Memory Requirements",
+            "65%",
+            "phase or major task group",
+        ],
+    },
+    {
+        "key": "copilot_remote_operator_guidance",
+        "path": ".github/copilot-instructions.md",
+        "must_contain": [
+            "## Remote Operator Integration",
+            "### agent-intercom",
+            "### agent-engram",
+            "ping-loop.prompt.md",
+            "sync_workspace",
+        ],
+    },
+    {
+        "key": "copilot_backlog_workflow_expectations",
+        "path": ".github/copilot-instructions.md",
+        "must_contain": [
+            "queue-aware and dependency-aware operations",
+            "commit-tracking",
+            "parallel markdown trackers",
+        ],
+    },
+]
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -193,6 +277,71 @@ def _schema_errors(schema_path: Path, data: Any) -> list[str]:
         location = path if path else "<root>"
         errors.append(f"{location}: {error.message}")
     return errors
+
+
+def _warning_group_key(warning: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        warning.get("kind"),
+        warning.get("path"),
+        warning.get("contract"),
+        warning.get("current_version"),
+        warning.get("suggested_action"),
+    )
+
+
+def _summarize_warnings(warnings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[Any, ...], dict[str, Any]] = {}
+    order: list[tuple[Any, ...]] = []
+
+    for warning in warnings:
+        key = _warning_group_key(warning)
+        if key not in grouped:
+            grouped_warning = dict(warning)
+            grouped_warning["occurrence_count"] = 1
+            field = warning.get("field")
+            if field is not None:
+                grouped_warning["fields"] = [str(field)]
+            legacy_value = warning.get("legacy_value")
+            if legacy_value is not None:
+                grouped_warning["legacy_values"] = [str(legacy_value)]
+            grouped[key] = grouped_warning
+            order.append(key)
+            continue
+
+        grouped_warning = grouped[key]
+        grouped_warning["occurrence_count"] += 1
+
+        field = warning.get("field")
+        if field is not None:
+            field_text = str(field)
+            fields = grouped_warning.setdefault("fields", [])
+            if field_text not in fields:
+                fields.append(field_text)
+
+        legacy_value = warning.get("legacy_value")
+        if legacy_value is not None:
+            legacy_value_text = str(legacy_value)
+            legacy_values = grouped_warning.setdefault("legacy_values", [])
+            if legacy_value_text not in legacy_values:
+                legacy_values.append(legacy_value_text)
+
+    summarized: list[dict[str, Any]] = []
+    for key in order:
+        grouped_warning = grouped[key]
+        if grouped_warning["occurrence_count"] == 1:
+            grouped_warning.pop("occurrence_count", None)
+            grouped_warning.pop("fields", None)
+            grouped_warning.pop("legacy_values", None)
+        else:
+            grouped_warning.pop("field", None)
+            grouped_warning.pop("legacy_value", None)
+            contract_name = grouped_warning.get("contract") or grouped_warning.get("kind")
+            grouped_warning["message"] = (
+                f"Grouped compatibility drift for {contract_name} with repeated {grouped_warning['kind']} findings."
+            )
+        summarized.append(grouped_warning)
+
+    return summarized
 
 
 def _normalize_stage_path(staging_dir: Path, relative_path: str) -> Path:
@@ -502,7 +651,13 @@ def _derive_template_variables(
     return variables
 
 
-def _add_text_check(report: dict[str, Any], key: str, file_path: Path, must_contain: list[str]) -> None:
+def _add_text_check(
+    report: dict[str, Any],
+    key: str,
+    file_path: Path,
+    must_contain: list[str],
+    must_precede: list[tuple[str, str]] | None = None,
+) -> None:
     if not file_path.exists():
         report["targeted_checks"][key] = {
             "path": str(file_path),
@@ -513,10 +668,17 @@ def _add_text_check(report: dict[str, Any], key: str, file_path: Path, must_cont
 
     content = file_path.read_text(encoding="utf-8")
     missing = [needle for needle in must_contain if needle not in content]
+    order_violations = []
+    for first, second in must_precede or []:
+        first_index = content.find(first)
+        second_index = content.find(second)
+        if first_index == -1 or second_index == -1 or first_index >= second_index:
+            order_violations.append({"before": first, "after": second})
     report["targeted_checks"][key] = {
         "path": str(file_path),
-        "ok": not missing,
+        "ok": not missing and not order_violations,
         "missing": missing,
+        "order_violations": order_violations,
     }
 
 
@@ -547,7 +709,30 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
 
     lines.extend(["", "## Warnings", ""])
     if report["warnings"]:
+        if report.get("warning_instances", len(report["warnings"])) > len(report["warnings"]):
+            lines.append(
+                "grouped summaries: "
+                f"{len(report['warnings'])} (from {report['warning_instances']} findings)"
+            )
+            lines.append("")
         for warning in report["warnings"]:
+            occurrence_count = int(warning.get("occurrence_count", 1))
+            if occurrence_count > 1:
+                details = [f"{occurrence_count} findings"]
+                legacy_values = warning.get("legacy_values") or []
+                if legacy_values:
+                    details.append("values: " + ", ".join(str(value) for value in legacy_values))
+                fields = warning.get("fields") or []
+                if fields:
+                    details.append("fields: " + ", ".join(str(field) for field in fields))
+                lines.append(
+                    f"- {warning['kind']} @ {warning['path']}: {warning['message']} "
+                    f"({'; '.join(details)})"
+                )
+                if warning.get("suggested_action"):
+                    lines.append(f"  suggested_action: {warning['suggested_action']}")
+                continue
+
             lines.append(f"- {json.dumps(warning, ensure_ascii=False)}")
     else:
         lines.append("none")
@@ -616,6 +801,7 @@ def verify_workspace(
         "staging_dir": str(staging_root),
         "strict_schema_blockers": [],
         "warnings": [],
+        "warning_instances": 0,
         "blockers": [],
         "rendered": [],
         "skipped": [],
@@ -815,7 +1001,23 @@ def verify_workspace(
                 assertion["key"],
                 workspace_path / assertion["path"],
                 assertion["must_contain"],
+                [tuple(pair) for pair in assertion.get("must_precede") or []],
             )
+
+    for assertion in FOUNDATION_ASSERTIONS:
+        foundation_path = workspace_path / assertion["path"]
+        if not foundation_path.exists():
+            continue
+        _add_text_check(
+            report,
+            assertion["key"],
+            foundation_path,
+            assertion["must_contain"],
+            [tuple(pair) for pair in assertion.get("must_precede") or []],
+        )
+
+    report["warning_instances"] = len(report["warnings"])
+    report["warnings"] = _summarize_warnings(report["warnings"])
 
     json_path = staging_root / "verify-workspace-report.json"
     markdown_path = staging_root / "verify-workspace-report.md"

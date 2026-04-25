@@ -32,7 +32,7 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "schema_file": "harness-manifest.schema.json",
         "versioned_schema_dir": "harness-manifest",
         "current_version": "1.0.0",
-        "known_versions": ("1.0.0",),
+        "known_versions": ("0.9.0", "1.0.0"),
         "compatibility_model": "versioned-contract",
     },
     "config": {
@@ -40,7 +40,7 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "schema_file": "harness-config.schema.json",
         "versioned_schema_dir": "harness-config",
         "current_version": "1.0.0",
-        "known_versions": ("1.0.0",),
+        "known_versions": ("0.9.0", "1.0.0"),
         "compatibility_model": "versioned-contract",
     },
     "profile": {
@@ -48,13 +48,27 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "schema_file": "workspace-profile.schema.json",
         "versioned_schema_dir": "workspace-profile",
         "current_version": "1.0.0",
-        "known_versions": ("1.0.0",),
+        "known_versions": ("0.9.0", "1.0.0"),
         "compatibility_model": "versioned-contract",
     },
 }
 
 CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
     "manifest": [
+        {
+            "proposal_id": "upgrade-manifest-contract-0.9.0-to-1.0.0",
+            "status": "known-legacy",
+            "from_version": "0.9.0",
+            "to_version": "1.0.0",
+            "severity": "degrading",
+            "summary": "Upgrade the harness-manifest contract from 0.9.0 to 1.0.0.",
+            "changed_fields": [
+                "schema_version",
+                "capability_packs",
+                "capability_pack_overlays",
+            ],
+            "action": "Back up the installed manifest, normalize legacy capability-pack records and overlay metadata to the 1.0.0 contract, then rerun verify-workspace.",
+        },
         {
             "proposal_id": "backfill-manifest-schema-version",
             "status": "missing-version",
@@ -88,6 +102,21 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         },
     ],
     "config": [
+        {
+            "proposal_id": "upgrade-config-contract-0.9.0-to-1.0.0",
+            "status": "known-legacy",
+            "from_version": "0.9.0",
+            "to_version": "1.0.0",
+            "severity": "degrading",
+            "summary": "Upgrade the harness-config contract from 0.9.0 to 1.0.0.",
+            "changed_fields": [
+                "schema_version",
+                "backlog.prefix_map",
+                "backlog.suffix_map",
+                "capability_packs",
+            ],
+            "action": "Back up .autoharness/config.yaml, rename legacy config keys such as backlog.prefix_map, normalize any legacy capability-pack values, write schema_version: 1.0.0, and rerun verify-workspace.",
+        },
         {
             "proposal_id": "backfill-config-schema-version",
             "status": "missing-version",
@@ -131,6 +160,20 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         },
     ],
     "profile": [
+        {
+            "proposal_id": "upgrade-profile-contract-0.9.0-to-1.0.0",
+            "status": "known-legacy",
+            "from_version": "0.9.0",
+            "to_version": "1.0.0",
+            "severity": "degrading",
+            "summary": "Upgrade the workspace-profile contract from 0.9.0 to 1.0.0.",
+            "changed_fields": [
+                "schema_version",
+                "drift_report.changes[*].category",
+                "harness_recommendations.capability_packs",
+            ],
+            "action": "Back up .autoharness/workspace-profile.yaml, rewrite legacy drift categories and capability-pack recommendations to the 1.0.0 vocabulary, write schema_version: 1.0.0, and rerun verify-workspace.",
+        },
         {
             "proposal_id": "backfill-profile-schema-version",
             "status": "missing-version",

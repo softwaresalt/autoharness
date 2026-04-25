@@ -58,6 +58,22 @@ Determine which workspace to tune:
 * In a single-root workspace, use the workspace root
 * From a CLI environment, require the `workspace` argument
 
+### Step 1a: Enforce Branch Safety for Tune Output
+
+If the target workspace is a Git repository, inspect the current branch and the
+repository's default branch before generating follow-up guidance that includes
+committing or pushing tuned artifacts.
+
+* Never commit or push autoharness tune output directly to the default branch
+	(`main`, `master`, `trunk`, or the detected remote default branch).
+* If the current branch is the default branch, explicitly recommend creating or
+	switching to a feature branch first, for example
+	`chore/autoharness-tune-<date>`.
+* Frame the intended workflow as: apply the accepted tuning changes on a
+	feature branch, review the diff, and open a pull request.
+* If the operator declines to create or switch branches, tuning may still
+	proceed as local uncommitted changes, but do NOT commit or push those changes.
+
 ### Step 2: Verify Harness Installation
 
 Check for `.autoharness/harness-manifest.yaml` in the target workspace. If it does not exist:
@@ -88,6 +104,14 @@ Invoke the tune-harness skill with:
 * `scope`: User-specified scope or `all`
 * `auto_apply`: false (always interactive unless the user explicitly requests auto-apply)
 
+Before or as part of tune-harness invocation, run deterministic verification in JSON mode:
+
+```text
+autoharness verify-workspace --workspace {workspace_path} --autoharness-home {autoharness_home} --json
+```
+
+Treat the resulting `schema_contracts{}` and `migration_proposals[]` as structured input to the tuning session rather than a side report. The tune-harness skill should consume those fields directly when generating schema-contract upgrade proposals.
+
 The tune-harness skill performs structural drift detection (Steps 1.1–1.7) and
 then mines accumulated learning data (Step 1.8) from the compound library,
 continuous-learning observations/instincts, and closure artifacts to generate
@@ -103,9 +127,11 @@ After tuning completes, present:
 * Any partially woven capability packs or conditional reviewer drift that was detected
 * Any plan-hardening or strict-safety drift that was detected
 * Any stack-pack, install-layer, or preset-composition drift that was detected
+* Any schema-contract migration proposals that remain unresolved, including known-legacy upgrades and unknown-version manual-review gates
 * New capabilities that were added (growth opportunities)
 * **Learning-driven findings**: recurring compound patterns, promotion-ready instincts, workflow-phase hotspots, and recurring closure issues that informed proposals
 * Recommendations for manual review
+* Recommended feature-branch and pull-request path for reviewing the accepted tuning changes; never recommend committing or pushing them directly to the default branch
 
 When presenting learning-driven proposals, highlight the evidence trail so
 the operator can verify the pattern before accepting the proposed harness change.
@@ -122,6 +148,7 @@ Suggest the user create a reminder or recurring task:
 * Never overwrite artifacts without creating backups first
 * Always present change proposals for review in interactive mode
 * Prioritize breaking changes over cosmetic improvements
+* Never commit or push autoharness tune output directly to the repository's default branch; prefer a feature branch and pull request
 * Do not suggest changes that would break currently-working agent workflows
 * Do not treat files covered by `.autoharness/drift-ignore` as accidental drift without explicitly surfacing that ignore state
 * When in doubt about whether a change is beneficial, present it as a P2/P3 proposal rather than P0/P1
