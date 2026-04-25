@@ -66,7 +66,7 @@ Explicit typed links between artifacts.
 | `text` | TEXT | Stash entry text |
 | `deliberation_id` | TEXT | Linked deliberation artifact ID (optional) |
 | `state` | TEXT | `active`, `harvested`, `removed` |
-| `source_path` | TEXT | Relative JSONL path |
+| `source_path` | TEXT | Relative path to the stash backing store (format may vary) |
 | `updated_at` | DATETIME | Last state update |
 
 ### `stash_links`: Stash-to-artifact harvest links
@@ -86,12 +86,12 @@ Explicit typed links between artifacts.
 | `message` | TEXT | Commit message |
 | `author` | TEXT | Commit author |
 
-### `item_logs`: JSONL log registry
+### `item_logs`: Log registry
 
 | Column | Type | Notes |
 |---|---|---|
 | `item_id` | TEXT PK | Artifact ID |
-| `log_path` | TEXT | Relative path to the `.jsonl` log file |
+| `log_path` | TEXT | Relative path to the backing log file |
 | `updated_at` | DATETIME | Log file last-updated timestamp |
 
 ### `item_log_entries`: Individual log events
