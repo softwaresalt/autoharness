@@ -51,6 +51,7 @@ jobs:
         run: |
           # Extract the section for the current version from CHANGELOG.md
           version="${GITHUB_REF#refs/tags/v}"
+          notes_file="${RUNNER_TEMP}/release_notes.md"
           awk -v ver="$version" '
             BEGIN {
               ver_re = ver
@@ -62,12 +63,14 @@ jobs:
               next
             }
             found { print }
-          ' CHANGELOG.md > release_notes.md
+          ' CHANGELOG.md > "$notes_file"
 
-          if ! grep -q '[^[:space:]]' release_notes.md; then
+          if ! grep -q '[^[:space:]]' "$notes_file"; then
             echo "No changelog entry found for version ${version} in CHANGELOG.md" >&2
             exit 1
           fi
+
+          echo "notes_file=${notes_file}" >> "$GITHUB_OUTPUT"
 
       - name: Create or update GitHub Release
         env:
@@ -77,9 +80,9 @@ jobs:
             gh release upload "${{ steps.version.outputs.tag }}" dist/* --clobber
             gh release edit "${{ steps.version.outputs.tag }}" \
               --title "${{ steps.version.outputs.tag }}" \
-              --notes-file release_notes.md
+              --notes-file "${{ steps.changelog.outputs.notes_file }}"
           else
             gh release create "${{ steps.version.outputs.tag }}" dist/* \
               --title "${{ steps.version.outputs.tag }}" \
-              --notes-file release_notes.md
+              --notes-file "${{ steps.changelog.outputs.notes_file }}"
           fi
