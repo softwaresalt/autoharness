@@ -126,8 +126,9 @@ When `shipment_id` is not provided (Ship invoked directly by the operator):
 1. List existing shipments in `{{STATUS_QUEUED}}` status using `{{OP_LIST_SHIPMENTS_MCP}}` to
    check for one that already covers the intended feature scope. If found, record its ID and
    proceed as primary path.
-2. If no suitable shipment exists, request one from the operator or confirm that direct
-   assembly is intended before continuing.
+2. If no suitable shipment exists, **recommend running Stage first** to assemble a shipment
+   through the full triage → deliberate → plan → review → harvest → shipment pipeline. Only
+   proceed with direct assembly if the operator explicitly confirms they want to bypass Stage.
 3. If the operator confirms direct assembly, create the shipment:
    a. Identify the covering feature: the highest-priority queued feature without an existing
       shipment. If the work is bare tasks without a covering feature, halt and request that
@@ -266,7 +267,12 @@ After all tasks in the queue are complete:
 8. Push the feature or chore branch
 9. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] PR ready for review: {pr_url}`.
 10. Present the pull request state to the operator when the branch is reviewable
-11. **Never merge automatically. Await explicit user approval before any merge.**
+11. **Branch retention (NON-NEGOTIABLE)**: Remain on the feature or chore branch until the
+    PR is successfully merged. Do NOT checkout `{{DEFAULT_BRANCH}}` or any other branch
+    while awaiting merge approval, during CI remediation, or during review-fix cycles.
+    Switching away from the feature branch risks losing uncommitted work, creating merge
+    conflicts, and breaking the Ship pipeline's assumption of single-branch scope.
+12. **Never merge automatically. Await explicit user approval before any merge.**
     * When the `agent-intercom` capability pack is installed, broadcast `[WAIT] Awaiting user merge approval` and use the intercom clarification flow if unresolved operator guidance is needed before merge.
 12. **Pre-merge strategy guardrail (P-009)**: Before executing any merge, verify the PR is
     configured to use a merge commit strategy (not squash or rebase).
@@ -284,6 +290,33 @@ After all tasks in the queue are complete:
 When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Post-merge closure and knowledge graduation`.
 
 After the user approves merge:
+
+#### Step 6.0: Post-Merge Branch Protocol (NON-NEGOTIABLE)
+
+Post-merge closure produces commits (backlog archival, knowledge graduation, doc updates,
+compound refresh, compact-context). These commits MUST NOT land directly on `{{DEFAULT_BRANCH}}`.
+
+1. **Confirm the feature branch merge is complete**: Verify the merge commit exists on
+   `{{DEFAULT_BRANCH}}` (e.g., `git log {{DEFAULT_BRANCH}} --oneline -1` shows the merge).
+2. **Create a post-merge closure branch** from `{{DEFAULT_BRANCH}}`:
+   `git checkout {{DEFAULT_BRANCH}} && git pull && git checkout -b post-merge/{feature_slug}`
+   where `{feature_slug}` is derived from the feature ID and title (e.g., `post-merge/022-stash-filter`).
+3. **All subsequent Step 6 work happens on this branch.** Every commit in steps 6.1–6.10
+   targets `post-merge/{feature_slug}`, not `{{DEFAULT_BRANCH}}`.
+4. **After all closure work is committed**, push the branch and create a PR:
+   `git push -u origin post-merge/{feature_slug}`
+   Then invoke the **pr-lifecycle** skill for the closure PR. The closure PR title
+   should be: `chore: post-merge closure for {feature_id} — {feature_title}`.
+5. **Await operator approval** for the closure PR before merge, just like the feature PR.
+   Never merge closure work automatically.
+
+When the `agent-intercom` capability pack is installed, broadcast
+`[SHIP] Created post-merge closure branch: post-merge/{feature_slug}`.
+
+**Rationale**: Post-merge closure produces documentation updates, backlog archival, compound
+refreshes, and knowledge graduation. These changes deserve the same review cycle as feature
+work. Committing directly to `{{DEFAULT_BRANCH}}` bypasses code review and violates the
+branch-per-release-unit principle.
 
 1. **Close the shipment** (when `{{FEATURE_SHIPMENTS}}` is true):
    a. **Pre-archive reconciliation gate (mandatory)**: Invoke the `shipment-reconcile`
@@ -472,6 +505,17 @@ noticing degraded instruction adherence:
 On session start, check `{{DOCS_MEMORY}}/` for a checkpoint with status
 `context-overflow`. If found, restore context from that checkpoint and resume
 from the recorded next step rather than restarting the pipeline.
+
+## Branch Management Rules (NON-NEGOTIABLE)
+
+* **Stay on the feature branch** from Step 1 through Step 5 merge approval. Never checkout
+  `{{DEFAULT_BRANCH}}` or another branch while the feature PR is open.
+* **Create a `post-merge/{feature_slug}` branch** for all Step 6 closure work. Never commit
+  post-merge closure artifacts directly to `{{DEFAULT_BRANCH}}`.
+* **Every branch that produces commits gets a PR.** The feature branch gets the feature PR;
+  the post-merge closure branch gets the closure PR. Both require operator approval.
+* **Delete feature and closure branches** only after their respective PRs are merged and only
+  when branch cleanup is requested or configured as the default PR flow.
 
 ## Model Routing
 

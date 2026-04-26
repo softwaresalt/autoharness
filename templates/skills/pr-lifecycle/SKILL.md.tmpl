@@ -124,15 +124,23 @@ When fixes were pushed (from either review or CI remediation):
 3. **Never auto-merge** and never treat silence as approval.
 4. If the user does not approve merge, leave the PR open and report
    the ready state.
+5. **Branch retention (NON-NEGOTIABLE)**: Remain on the current feature
+   or chore branch while awaiting merge approval. Do NOT checkout
+   `{{DEFAULT_BRANCH}}` or any other branch. The calling agent (Ship)
+   depends on the branch context being preserved for post-merge work.
 
 ### Step 6: Post-merge cleanup
 
 After a user-approved merge:
 
 1. Report the merge result and resulting default-branch state.
-2. Delete the branch only when that cleanup is requested or already
-   part of the chosen PR flow.
-3. Summarize any follow-up items, release notes, or residual risks
+2. **Do NOT checkout `{{DEFAULT_BRANCH}}` and start working on it.**
+   Post-merge closure work belongs on a dedicated `post-merge/` branch
+   created by the Ship agent. This skill's responsibility ends at
+   reporting the merge result.
+3. Delete the feature branch only when that cleanup is requested or
+   already part of the chosen PR flow.
+4. Summarize any follow-up items, release notes, or residual risks
    that remain after merge.
 
 ## Completion Criteria

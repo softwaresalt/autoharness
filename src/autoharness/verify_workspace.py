@@ -253,6 +253,35 @@ FOUNDATION_ASSERTIONS = [
             "parallel markdown trackers",
         ],
     },
+    {
+        "key": "stage_shipment_determinism",
+        "path": ".github/agents/stage.agent.md",
+        "must_contain": [
+            "Step Sequence Contract (NON-NEGOTIABLE)",
+            "Shipment Assembly (NON-NEGOTIABLE when shipments are supported)",
+            "Pre-Summary Verification Gate (NON-NEGOTIABLE)",
+            "Never skip shipment assembly",
+        ],
+    },
+    {
+        "key": "ship_branch_management",
+        "path": ".github/agents/ship.agent.md",
+        "must_contain": [
+            "Branch retention (NON-NEGOTIABLE)",
+            "Post-Merge Branch Protocol (NON-NEGOTIABLE)",
+            "Branch Management Rules (NON-NEGOTIABLE)",
+            "post-merge/{feature_slug}",
+        ],
+    },
+    {
+        "key": "pr_lifecycle_branch_retention",
+        "path": ".github/skills/pr-lifecycle/SKILL.md",
+        "must_contain": [
+            "Branch retention (NON-NEGOTIABLE)",
+            "Do NOT checkout",
+            "post-merge/",
+        ],
+    },
 ]
 
 

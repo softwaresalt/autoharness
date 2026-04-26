@@ -296,7 +296,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 {
                     "schema_version": "1.0.0",
                     "installed_at": "2026-04-24T00:00:00Z",
-                    "autoharness_version": "1.3.0",
+                    "autoharness_version": "1.3.2",
                     "profile_hash": "abc",
                     "primitives_installed": [1],
                     "capability_packs": [],
@@ -398,7 +398,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 {
                     "schema_version": "1.0.0",
                     "installed_at": "2026-04-24T00:00:00Z",
-                    "autoharness_version": "1.3.0",
+                    "autoharness_version": "1.3.2",
                     "profile_hash": "abc",
                     "primitives_installed": [1],
                     "capability_packs": [],
@@ -512,7 +512,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 {
                     "schema_version": "1.0.0",
                     "installed_at": "2026-04-24T00:00:00Z",
-                    "autoharness_version": "1.3.0",
+                    "autoharness_version": "1.3.2",
                     "profile_hash": "abc",
                     "primitives_installed": [1],
                     "capability_packs": ["circuit-breaker", "concurrency"],
@@ -631,7 +631,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 {
                     "schema_version": "1.0.0",
                     "installed_at": "2026-04-25T00:00:00Z",
-                    "autoharness_version": "1.3.0",
+                    "autoharness_version": "1.3.2",
                     "profile_hash": "abc",
                     "primitives_installed": [4, 9, 10],
                     "capability_packs": ["backlogit"],
@@ -721,7 +721,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 {
                     "schema_version": "1.0.0",
                     "installed_at": "2026-04-25T00:00:00Z",
-                    "autoharness_version": "1.3.0",
+                    "autoharness_version": "1.3.2",
                     "profile_hash": "abc",
                     "primitives_installed": [4, 6, 7],
                     "capability_packs": ["agent-intercom"],
@@ -794,7 +794,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 {
                     "schema_version": "1.0.0",
                     "installed_at": "2026-04-25T00:00:00Z",
-                    "autoharness_version": "1.3.0",
+                    "autoharness_version": "1.3.2",
                     "profile_hash": "abc",
                     "primitives_installed": [1, 6, 9],
                     "capability_packs": [],
