@@ -30,10 +30,12 @@ The installer resolves the path by running `autoharness home` — tilde shorthan
 Once those settings are in place, the **Auto-MergeInstall** agent appears in the **agents dropdown** at the top of the Chat view. Select it there before typing your prompt. The `/install-harness` slash command (from the autoharness prompt file) is also available in chat.
 
 > **First-time setup:** Run this command once after installing autoharness (cwd does not matter):
+>
 > ```bash
 > autoharness setup-vscode
 > ```
-> This writes the three `chat.*` entries into your VS Code user settings using the fully-resolved path from `autoharness home`. Then reload the VS Code window (`Ctrl+Shift+P` → **Reload Window**) and the **Auto-MergeInstall** agent will appear in the agents dropdown.
+>
+> This writes the three `chat.*` entries into your VS Code user settings using the fully-resolved path from `autoharness home`. Then reload the VS Code window (`Ctrl+Shift+P` → **Reload Window**) and the **Auto-MergeInstall** agent will appear in the agents dropdown. Re-run `autoharness setup-vscode` only if the resolved `autoharness home` path changes after a reinstall or environment move.
 
 ## GitHub Copilot CLI — VS Code Background Sessions
 
@@ -45,7 +47,7 @@ For the **Auto-MergeInstall** and **Auto-Tune** agents to appear in Copilot CLI 
 autoharness setup-copilot-cli
 ```
 
-This copies the agent `.md` files and skill `SKILL.md` files from the autoharness installation into your Copilot CLI global config directory (`~/.copilot/agents/` and `~/.copilot/skills/`). Re-run it after upgrading autoharness to pick up updated files.
+This copies the agent `.md` files and skill `SKILL.md` files from the autoharness installation into your Copilot CLI global config directory (`~/.copilot/agents/` and `~/.copilot/skills/`). This is the standard registration path for external workspaces; autoharness does not install these global agents into the target workspace. Re-run it after upgrading autoharness to pick up updated files.
 
 To run the Auto-MergeInstall agent as a background session:
 
@@ -68,7 +70,7 @@ VS Code registers a **GitHub Copilot CLI** terminal profile. To open a session:
 
 VS Code handles authentication automatically. Once the session is open, type `/install-harness` to run the install prompt, or describe the task naturally.
 
-For standalone Copilot CLI sessions outside VS Code, run `autoharness setup-copilot-cli` first so agents and skills are registered globally, then use the generated `start.ps1` (or `start.sh`) at the workspace root to set workspace-local state before launching.
+For standalone Copilot CLI sessions outside VS Code, run `autoharness setup-copilot-cli` first so agents and skills are registered globally, then use the generated `start.ps1` (or `start.sh`) at the workspace root to set workspace-local state before launching. The startup scripts do not copy or refresh agent files.
 
 > **First install (before `start.ps1` exists):** The startup scripts are generated *by* the installer, so they do not exist yet. Use the VS Code terminal approach above — VS Code handles auth. The `start.ps1` / `start.sh` scripts are for subsequent sessions outside VS Code.
 
@@ -115,6 +117,8 @@ export GITHUB_TOKEN="$(gh auth token)"
 ```
 
 By redirecting `COPILOT_HOME` (and optionally `ENGRAM_DATA_DIR` for agent-engram) to a workspace-local directory, the agent's memories, checkpoints, and database are stored inside the project and become visible to git. This keeps agent state isolated per project rather than shared across all workspaces.
+
+The startup scripts are runtime launchers only. They do not install `Auto-MergeInstall` or `Auto-Tune` into the workspace. For Copilot CLI, refresh those global agent and skill files with `autoharness setup-copilot-cli` after each autoharness upgrade. For VS Code, the user-settings registration normally survives upgrades and only needs to be rerun if the resolved install path changes.
 
 Sections for Claude Code and OpenAI Codex are included in each script as commented-out blocks; activate the one you need.
 
