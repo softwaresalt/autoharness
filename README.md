@@ -84,7 +84,7 @@ See [Capability Packs](docs/capability-packs.md) for the full overlay contract a
 # 1. Install globally
 uv tool install git+https://github.com/softwaresalt/autoharness.git
 
-# 2. Register with your AI environment (run once)
+# 2. Register with your AI environment
 autoharness setup-vscode        # VS Code with GitHub Copilot
 autoharness setup-copilot-cli   # Copilot CLI
 autoharness setup-claude        # Claude Code
@@ -101,6 +101,8 @@ If the target workspace is Git-backed, treat install and tune output as
 feature-branch work. autoharness may still generate local uncommitted changes
 while you are on the default branch, but the intended review path is feature
 branch plus pull request, not a direct commit or push to the default branch.
+
+The `setup-copilot-cli`, `setup-claude`, and `setup-codex` commands copy agent or skill files into each tool's standard global config directory, so rerun them after upgrading autoharness to refresh those files. `setup-vscode` writes user-settings pointers to `autoharness home`; rerun it only if that resolved install path changes.
 
 See [Getting Started](docs/getting-started.md) for the full walkthrough, including workspace configuration, install layers, selective installation, and post-install verification.
 
