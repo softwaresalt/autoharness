@@ -99,6 +99,32 @@ selection before proceeding to deliberation or planning.
 
 Treat the stash as intake, the deliberation artifact as decision state, the implementation plan as planning state, and backlog artifacts as the final output of this workflow.
 
+## Step Sequence Contract (NON-NEGOTIABLE)
+
+Every Stage session MUST execute the following steps in order. Conditional
+steps are gated by capability checks, but when their condition is met they are
+**mandatory, not advisory**. The agent MUST maintain a running step-completion
+checklist (using the todo/task-tracking tool) and MUST NOT present the session
+summary (Step 6) until every applicable prior step is marked complete.
+
+```text
+[ ] Step 0   — Establish operator visibility
+[ ] Step 1   — Stash triage and entry classification
+[ ] Step 1.5 — Contextual grouping analysis (when ≥2 task-shaped entries)
+[ ] Step 1.8 — Learnings retrieval
+[ ] Step 2   — Deliberation
+[ ] Step 3   — Implementation planning (3.0 → 3.1 → 3.2 → 3.3)
+[ ] Step 4   — Plan review gating
+[ ] Step 5   — Harvest (5.0 → 5.1 → 5.2 → 5.3)
+[ ] Step 5.5 — Shipment assembly (MANDATORY when backlogit + shipments)
+[ ] Step 5.6 — Archive consumed stash entries
+[ ] Step 6   — Summary (BLOCKED until all above steps are complete)
+```
+
+Skipping a mandatory step or presenting the summary before all applicable steps
+are complete is a **P-005 policy violation**. When in doubt about whether a step
+applies, evaluate the condition and log the evaluation result — do not silently skip.
+
 ## Required Steps
 
 ### Step 0: Establish Operator Visibility
@@ -359,11 +385,17 @@ When the `backlogit` capability pack is installed and dependency operations are 
 explicit dependency edges between tasks that must run in sequence instead of encoding that ordering
 only in prose.
 
-### Step 5.5: Shipment Assembly
+**NEXT STEP**: After harvest completes, proceed IMMEDIATELY to Step 5.5
+(Shipment Assembly). Do NOT skip to the summary. The shipment is the
+primary output of Stage and the handoff token to Ship.
+
+### Step 5.5: Shipment Assembly (NON-NEGOTIABLE when shipments are supported)
 
 When the `backlogit` capability pack is installed and the registry advertises
-`features.shipments: true`, assemble the shipment artifact immediately after harvest
-completes. This is the final act of Stage — the shipment ID is the handoff token to Ship.
+`features.shipments: true`, this step is **MANDATORY — not optional**. Assemble
+the shipment artifact immediately after harvest completes. This is the final act
+of Stage — the shipment ID is the handoff token to Ship. Skipping this step and
+directing the operator to Ship without a shipment ID is a **P-005 policy violation**.
 
 1. **Check for an existing shipment in `{{STATUS_QUEUED}}` status** that already covers the
    harvested feature scope using `{{OP_LIST_SHIPMENTS_MCP}}`. If one already exists for this
@@ -431,6 +463,18 @@ This step prevents stale entry accumulation across sessions. Each consumed entry
 a forward reference to the backlog item it became, preserving traceability.
 
 ### Step 6: Summary
+
+#### Pre-Summary Verification Gate (NON-NEGOTIABLE)
+
+Before presenting any summary or handoff guidance, verify that all applicable
+prior steps completed. Check the step-completion checklist:
+
+1. If `backlogit` + `features.shipments: true` — confirm `shipment_id` was
+   created or updated in Step 5.5. If no `shipment_id` exists, **HALT** and
+   go back to Step 5.5. Do not present a summary that directs the operator
+   to Ship without a shipment ID.
+2. If stash entries were consumed — confirm Step 5.6 (archive) completed.
+3. If any step was skipped due to a conditional gate, log why it was skipped.
 
 Present the session summary:
 
@@ -633,6 +677,9 @@ from the recorded next step rather than restarting the pipeline.
 * Never synthesize a covering feature title without deliberation — the deliberate skill must validate the group's scope first
 * Never assemble a shipment from a harvest that produced no items or has unresolved P-003 violations
 * Never add a child task to a shipment before its covering feature has been added
+* Never skip shipment assembly (Step 5.5) when `backlogit` is installed and `features.shipments: true` — the shipment ID is the mandatory handoff token to Ship
+* Never direct the operator to Ship with a feature ID instead of a shipment ID — Ship expects `shipment_id`, not `feature_id`
+* Never present the session summary (Step 6) before all applicable prior steps are confirmed complete
 * Do not write application code; produce decision, findings, or backlog artifacts only
 * Use workspace search tools before file-based search for codebase discovery; when `agent-engram` is installed, prefer the engram-first path
 
