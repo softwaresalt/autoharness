@@ -3,6 +3,8 @@
 *.code-workspace
 *.copilot
 *.pyc
+.mcp.json
+.autoharness/staging/
 .backlogit/*.db
 .backlogit/hooks_queue.jsonl
 .backlogit/*.db-shm

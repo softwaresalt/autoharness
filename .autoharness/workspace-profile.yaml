@@ -34,12 +34,12 @@ test:
   directory: "tests"
 
 lint:
-  tool: null
-  command: null
+  tool: ""
+  command: ""
 
 format:
-  tool: null
-  command: null
+  tool: ""
+  command: ""
 
 ci:
   platform: "github-actions"
@@ -82,7 +82,7 @@ conventions:
 distribution:
   is_global_tool: true
   global_agents_dir: ".github/agents"
-  local_agents_dir: ".github/local-agents"
+  local_agents_dir: null
 
 tools:
   markdownlint: false
@@ -98,8 +98,15 @@ harness_recommendations:
     preset:
       - "autoharness is the harness framework itself — full preset ensures all primitives are exercised"
     capability_packs:
-      - "agent-intercom: MCP server configured in .vscode/mcp.json"
-      - "backlogit: MCP server configured and .backlogit/ directory present with full config"
+      - item: "agent-intercom"
+        because: "MCP server configured in .vscode/mcp.json"
+        signals:
+          - ".vscode/mcp.json"
+      - item: "backlogit"
+        because: "MCP server configured and .backlogit/ directory present with full config"
+        signals:
+          - ".vscode/mcp.json"
+          - ".backlogit/config.yaml"
     install_layers: []
 
 agent_intercom:
@@ -128,17 +135,39 @@ agent_native:
 existing_harness:
   has_harness: true
   artifacts:
-    - ".github/agents/auto-mergeinstall.agent.md"
-    - ".github/agents/auto-tune.agent.md"
-    - ".github/skills/install-harness/SKILL.md"
-    - ".github/skills/tune-harness/SKILL.md"
-    - ".github/skills/workspace-discovery/SKILL.md"
-    - ".github/skills/verify-harness/SKILL.md"
-    - ".github/instructions/harness-architecture.instructions.md"
-    - ".github/copilot-instructions.md"
-    - ".github/local-agents/stage.agent.md"
-    - ".github/local-agents/ship.agent.md"
-    - "AGENTS.md"
+    - path: ".github/agents/auto-mergeinstall.agent.md"
+      type: "agent"
+      description: "Global install orchestration agent"
+    - path: ".github/agents/auto-tune.agent.md"
+      type: "agent"
+      description: "Global tuning orchestration agent"
+    - path: ".github/agents/stage.agent.md"
+      type: "agent"
+      description: "Dogfood Stage workflow agent checked into the source tree"
+    - path: ".github/agents/ship.agent.md"
+      type: "agent"
+      description: "Dogfood Ship workflow agent checked into the source tree"
+    - path: ".github/skills/install-harness/SKILL.md"
+      type: "skill"
+      description: "Harness installation workflow skill"
+    - path: ".github/skills/tune-harness/SKILL.md"
+      type: "skill"
+      description: "Harness tuning workflow skill"
+    - path: ".github/skills/workspace-discovery/SKILL.md"
+      type: "skill"
+      description: "Workspace discovery workflow skill"
+    - path: ".github/skills/verify-harness/SKILL.md"
+      type: "skill"
+      description: "Harness verification workflow skill"
+    - path: ".github/instructions/harness-architecture.instructions.md"
+      type: "instruction"
+      description: "Repository architecture instruction"
+    - path: ".github/copilot-instructions.md"
+      type: "instruction"
+      description: "Repository-wide Copilot guidance"
+    - path: "AGENTS.md"
+      type: "foundation"
+      description: "Repository-wide agent operating guide"
 
 backlog_tool:
   detected: true
