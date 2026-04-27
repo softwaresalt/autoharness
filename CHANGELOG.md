@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.4 - 2026-04-27
+
+### Added
+
+- Added GitHub Copilot CLI plugin and self-hosted marketplace manifests under `.github/plugin/` so Copilot CLI users can install autoharness with `copilot plugin install softwaresalt/autoharness` or browse it through a registered marketplace.
+- Added deterministic regression coverage that keeps `pyproject.toml`, `src/autoharness/__init__.py`, `.github/plugin/plugin.json`, and `.github/plugin/marketplace.json` version fields in sync across release bumps.
+
+### Changed
+
+- Updated CLI help text to recommend the Copilot CLI plugin install path, deprecate `setup-copilot-cli`, and describe the CLI as both an agent path resolver and a user-facing setup and verification surface.
+- Corrected marketplace metadata versioning so the published marketplace manifest matches the `1.3.4` package/plugin release.
+
+### Documentation
+
+- Updated README and environment setup guidance to document the recommended Copilot CLI plugin install flow and the optional marketplace registration flow.
+
 ## 1.3.2 - 2026-04-26
 
 ### Changed
