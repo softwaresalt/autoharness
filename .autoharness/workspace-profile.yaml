@@ -1,0 +1,173 @@
+# .autoharness/workspace-profile.yaml
+schema_version: "1.0.0"
+generated_at: "2026-04-26T21:16:00-07:00"
+workspace_path: "D:\\Source\\GitHub\\autoharness"
+
+languages:
+  primary: "python"
+  secondary:
+    - "markdown"
+    - "yaml"
+    - "json"
+  file_counts:
+    py: 5
+    md: 80
+    yaml: 10
+    json: 21
+
+frameworks:
+  list: []
+  mcp_sdk: null
+  mcp_transport: null
+
+primary_stack_pack: "cli-tool"
+stack_packs:
+  - "cli-tool"
+
+build:
+  tool: "hatchling"
+  command: "pip install -e ."
+
+test:
+  runner: "pytest"
+  command: "pytest"
+  directory: "tests"
+
+lint:
+  tool: null
+  command: null
+
+format:
+  tool: null
+  command: null
+
+ci:
+  platform: "github-actions"
+  pipeline_steps:
+    - "checkout"
+    - "setup-python"
+    - "build"
+    - "release"
+  quality_gates: []
+
+structure:
+  source_layout: "src/autoharness"
+  test_layout: "tests"
+  doc_layout: "docs"
+
+runtime_surfaces:
+  web_ui: false
+  public_api: false
+  background_jobs: false
+  browser_tooling: []
+  deployment_manifests: []
+
+conventions:
+  code_style:
+    linter: null
+    formatter: null
+    editor_config: false
+    pre_commit: false
+  git:
+    branch_pattern: "chore/*"
+    commit_style: "conventional-ish"
+    pr_template: false
+    merge_strategy: "merge-commit"
+  documentation:
+    readme: true
+    changelog: false
+    api_docs: false
+    architecture_docs: true
+
+distribution:
+  is_global_tool: true
+  global_agents_dir: ".github/agents"
+  local_agents_dir: ".github/local-agents"
+
+tools:
+  markdownlint: false
+  markdownlint_config: null
+
+harness_recommendations:
+  preset: "full"
+  capability_packs:
+    - "agent-intercom"
+    - "backlogit"
+  install_layers: []
+  recommendation_reasons:
+    preset:
+      - "autoharness is the harness framework itself — full preset ensures all primitives are exercised"
+    capability_packs:
+      - "agent-intercom: MCP server configured in .vscode/mcp.json"
+      - "backlogit: MCP server configured and .backlogit/ directory present with full config"
+    install_layers: []
+
+agent_intercom:
+  detected: true
+  mcp_configured: true
+  config_paths:
+    - ".vscode/mcp.json"
+  instruction_markers: []
+  recommended: true
+
+agent_engram:
+  detected: false
+  mcp_configured: false
+  config_paths: []
+  instruction_markers: []
+  recommended: false
+
+agent_native:
+  detected: false
+  mcp_sdk_present: false
+  mcp_transport: null
+  agent_tooling_markers: []
+  user_agent_parity_required: false
+  recommended_reviewer: false
+
+existing_harness:
+  has_harness: true
+  artifacts:
+    - ".github/agents/auto-mergeinstall.agent.md"
+    - ".github/agents/auto-tune.agent.md"
+    - ".github/skills/install-harness/SKILL.md"
+    - ".github/skills/tune-harness/SKILL.md"
+    - ".github/skills/workspace-discovery/SKILL.md"
+    - ".github/skills/verify-harness/SKILL.md"
+    - ".github/instructions/harness-architecture.instructions.md"
+    - ".github/copilot-instructions.md"
+    - ".github/local-agents/stage.agent.md"
+    - ".github/local-agents/ship.agent.md"
+    - "AGENTS.md"
+
+backlog_tool:
+  detected: true
+  tool_name: "backlogit"
+  directory: ".backlogit"
+  tool_type: "mcp"
+  mcp_registered: true
+  cli_available: true
+  config_path: ".backlogit/config.yaml"
+  registry_path: null
+  status_values:
+    - "queued"
+    - "active"
+    - "blocked"
+    - "review"
+    - "done"
+    - "accepted"
+    - "rejected"
+    - "archived"
+  features:
+    sql_query: true
+    milestones: false
+    documents: false
+    telemetry: false
+    shipments: true
+
+vscode:
+  detected: true
+  user_settings_path: "C:\\Users\\derek.williams\\AppData\\Roaming\\Code\\User\\settings.json"
+  has_agent_settings: false
+
+drift_report: null

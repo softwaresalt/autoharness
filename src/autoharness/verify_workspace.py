@@ -282,6 +282,27 @@ FOUNDATION_ASSERTIONS = [
             "post-merge/",
         ],
     },
+    {
+        "key": "auto_tune_learning_loop_contract",
+        "path": ".github/agents/auto-tune.agent.md",
+        "must_contain": [
+            "Step 1.8",
+            "compound library",
+            "continuous-learning",
+            "closure artifacts",
+            "learning_signals",
+        ],
+    },
+    {
+        "key": "tune_harness_learning_loop_contract",
+        "path": ".github/skills/tune-harness/SKILL.md",
+        "must_contain": [
+            "#### Step 1.8: Mine Learning Signals for Improvement Proposals",
+            "produced by compound, continuous-learning, and closure systems",
+            "learning_signals{}",
+            "Learning-driven proposals",
+        ],
+    },
 ]
 
 
@@ -406,6 +427,198 @@ def _find_unresolved_placeholders(file_path: Path) -> list[dict[str, Any]]:
                 }
             )
     return unresolved
+
+
+def _extract_markdown_frontmatter(file_path: Path) -> dict[str, Any]:
+    lines = file_path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+
+    closing_index = None
+    for index, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            closing_index = index
+            break
+
+    if closing_index is None:
+        return {}
+
+    try:
+        data = yaml.safe_load("\n".join(lines[1:closing_index]))
+    except yaml.YAMLError:
+        return {}
+
+    return data if isinstance(data, dict) else {}
+
+
+def _normalize_text_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    if isinstance(value, list):
+        normalized = []
+        for item in value:
+            item_text = str(item).strip()
+            if item_text:
+                normalized.append(item_text)
+        return normalized
+    return []
+
+
+def _relative_workspace_path(workspace_path: Path, file_path: Path) -> str:
+    try:
+        return file_path.relative_to(workspace_path).as_posix()
+    except ValueError:
+        return file_path.as_posix()
+
+
+def _empty_learning_signals() -> dict[str, list[dict[str, Any]]]:
+    return {
+        "compound_patterns": [],
+        "promotion_candidates": [],
+        "observation_patterns": [],
+        "closure_patterns": [],
+    }
+
+
+def _mine_learning_signals(
+    workspace_path: Path,
+    variables: dict[str, str],
+) -> dict[str, list[dict[str, Any]]]:
+    learning_signals = _empty_learning_signals()
+    compound_dir = workspace_path / Path(str(variables.get("DOCS_COMPOUND") or "docs/compound"))
+    if not compound_dir.exists():
+        return learning_signals
+
+    compound_files = sorted(path for path in compound_dir.rglob("*.md") if path.is_file())
+    if len(compound_files) < 3:
+        return learning_signals
+
+    root_causes: dict[str, list[str]] = {}
+    categories: dict[str, list[str]] = {}
+    components: dict[str, list[str]] = {}
+    tag_refs: dict[str, list[str]] = {}
+    tag_categories: dict[str, set[str]] = {}
+    high_severity_refs: list[str] = []
+    parsed_entries = 0
+
+    for file_path in compound_files:
+        frontmatter = _extract_markdown_frontmatter(file_path)
+        if not frontmatter:
+            continue
+
+        parsed_entries += 1
+        relative_path = _relative_workspace_path(workspace_path, file_path)
+
+        root_cause = str(frontmatter.get("root_cause") or "").strip()
+        if root_cause:
+            root_causes.setdefault(root_cause, []).append(relative_path)
+
+        category = str(frontmatter.get("category") or "").strip()
+        if category:
+            categories.setdefault(category, []).append(relative_path)
+
+        component = str(frontmatter.get("component") or "").strip()
+        if component:
+            components.setdefault(component, []).append(relative_path)
+
+        for tag in _normalize_text_list(frontmatter.get("tags")):
+            tag_refs.setdefault(tag, []).append(relative_path)
+            if category:
+                tag_categories.setdefault(tag, set()).add(category)
+
+        severity = str(frontmatter.get("severity") or "").strip().lower()
+        if severity in {"critical", "high"}:
+            high_severity_refs.append(relative_path)
+
+    if parsed_entries < 3:
+        return learning_signals
+
+    affected_artifacts = [
+        ".github/agents/auto-tune.agent.md",
+        ".github/skills/tune-harness/SKILL.md",
+    ]
+
+    for root_cause, evidence_refs in sorted(root_causes.items()):
+        if len(evidence_refs) < 3:
+            continue
+        learning_signals["compound_patterns"].append(
+            {
+                "pattern_type": "recurring_root_cause",
+                "key": root_cause,
+                "evidence_count": len(evidence_refs),
+                "evidence_refs": evidence_refs,
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": (
+                    f"Generate a learning-driven tuning proposal for recurring root cause '{root_cause}'."
+                ),
+            }
+        )
+
+    for category, evidence_refs in sorted(categories.items()):
+        if len(evidence_refs) < 3 or (len(evidence_refs) / parsed_entries) < 0.5:
+            continue
+        learning_signals["compound_patterns"].append(
+            {
+                "pattern_type": "category_concentration",
+                "key": category,
+                "evidence_count": len(evidence_refs),
+                "evidence_refs": evidence_refs,
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": (
+                    f"Investigate whether category '{category}' needs stronger harness guidance or a dedicated reviewer surface."
+                ),
+            }
+        )
+
+    for component, evidence_refs in sorted(components.items()):
+        if len(evidence_refs) < 3:
+            continue
+        learning_signals["compound_patterns"].append(
+            {
+                "pattern_type": "component_hotspot",
+                "key": component,
+                "evidence_count": len(evidence_refs),
+                "evidence_refs": evidence_refs,
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": (
+                    f"Review harness coverage for hotspot component '{component}'."
+                ),
+            }
+        )
+
+    for tag, evidence_refs in sorted(tag_refs.items()):
+        categories_for_tag = tag_categories.get(tag, set())
+        if len(categories_for_tag) < 3:
+            continue
+        learning_signals["compound_patterns"].append(
+            {
+                "pattern_type": "cross_cutting_tags",
+                "key": tag,
+                "evidence_count": len(evidence_refs),
+                "evidence_refs": evidence_refs,
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": (
+                    f"Consider a cross-cutting instruction or review rule for tag '{tag}'."
+                ),
+            }
+        )
+
+    if len(high_severity_refs) >= 3 and (len(high_severity_refs) / parsed_entries) >= 0.5:
+        learning_signals["compound_patterns"].append(
+            {
+                "pattern_type": "severity_trend",
+                "key": "high_severity_pressure",
+                "evidence_count": len(high_severity_refs),
+                "evidence_refs": sorted(high_severity_refs),
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": "Escalate the next learning-driven tuning proposal for repeated high-severity compound entries.",
+            }
+        )
+
+    learning_signals["compound_patterns"].sort(
+        key=lambda item: (str(item.get("pattern_type") or ""), str(item.get("key") or ""))
+    )
+    return learning_signals
 
 
 def _resolve_source_template(
@@ -809,6 +1022,19 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
     else:
         lines.append("none")
 
+    lines.extend(["", "## Learning Signals", ""])
+    learning_signals = report.get("learning_signals") or {}
+    if any(learning_signals.get(key) for key in learning_signals):
+        for key in (
+            "compound_patterns",
+            "promotion_candidates",
+            "observation_patterns",
+            "closure_patterns",
+        ):
+            lines.append(f"- {key}: {len(learning_signals.get(key) or [])}")
+    else:
+        lines.append("none")
+
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -839,6 +1065,7 @@ def verify_workspace(
         "schema_contracts": {},
         "migration_proposals": [],
         "targeted_checks": {},
+        "learning_signals": _empty_learning_signals(),
         "report_paths": {},
     }
 
@@ -941,8 +1168,18 @@ def verify_workspace(
         )
 
     variables = _derive_template_variables(workspace_path, manifest, config, profile, registry)
+    report["learning_signals"] = _mine_learning_signals(workspace_path, variables)
 
     for artifact in manifest.get("artifacts") or []:
+        if not isinstance(artifact, dict):
+            report["warnings"].append(
+                {
+                    "kind": "malformed-artifact-entry",
+                    "path": str(artifact),
+                    "message": "Manifest artifact entry is not an object; expected {path, checksum, template, primitive}. Skipping.",
+                }
+            )
+            continue
         relative_path = str(artifact.get("path", ""))
         workspace_file = workspace_path / Path(relative_path)
         expected_checksum = str(artifact.get("checksum", ""))

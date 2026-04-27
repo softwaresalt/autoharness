@@ -8,3 +8,5 @@
 .backlogit/*.db-shm
 .backlogit/*.db-wal
 src/autoharness/__pycache__/*.pyc
+.*.lock
+**/.*.lock

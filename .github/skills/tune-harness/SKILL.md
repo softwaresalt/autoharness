@@ -114,9 +114,10 @@ Treat the verifier's JSON report as the authoritative structured input for this 
 
 * `schema_contracts{}` for observed version and contract status
 * `migration_proposals[]` for contract upgrade, backfill, and normalization work
+* `learning_signals{}` for recurring compound, continuous-learning, and closure patterns already mined from workspace evidence
 * `warnings[]` for compatibility drift evidence
 
-Do not re-derive contract status or contract migration proposals by manually re-parsing the same installed YAML once the verifier report is available. The tune flow may still inspect the raw files for operator review, but the verifier report is the system of record for contract-state classification.
+Do not re-derive contract status, contract migration proposals, or verifier-mined learning baselines by manually re-parsing the same installed YAML once the verifier report is available. The tune flow may still inspect the raw files for operator review, but the verifier report is the system of record for contract-state classification and any precomputed `learning_signals{}`.
 
 Before categorizing drift, read the installed contract versions from the verifier report or, if the verifier report is unavailable, load them directly from:
 
@@ -215,6 +216,7 @@ For each installed artifact, check:
 
 * **Instruction files**: Do `applyTo` glob patterns match files that still exist?
 * **Agent files**: Do referenced skills, tools, and file paths resolve?
+* **Workflow agent routing for global self-installs**: When `workspace-profile.distribution.is_global_tool` is true and `distribution.local_agents_dir` is set, treat that local-only directory as the authoritative path for workflow agents such as `stage.agent.md` and `ship.agent.md`. In this mode, drift checks should target `distribution.local_agents_dir` (for example `.github/local-agents/`) rather than `.github/agents/`, which remains the global distribution surface.
 * **Skill files**: Do build/test/lint commands match current tooling?
 * **Compound library**: Are existing learnings stale, duplicated, contradicted by current code, or strong candidates for `compound-refresh`?
 * **Policies**: Do referenced agents and gate points still apply?

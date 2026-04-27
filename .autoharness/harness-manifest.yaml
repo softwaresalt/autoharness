@@ -1,0 +1,180 @@
+schema_version: "1.0.0"
+installed_at: "2026-04-26T21:16:00-07:00"
+autoharness_version: "1.3.3"
+autoharness_home: "D:\\Source\\GitHub\\autoharness"
+profile_hash: null
+config_hash: null
+install_preset: "full"
+install_mode: "self-install"
+primary_stack_pack: "cli-tool"
+stack_packs:
+  - "cli-tool"
+install_layers:
+  - "foundation"
+  - "instructions"
+  - "workflow"
+  - "review"
+  - "runtime"
+  - "backlog"
+  - "knowledge"
+  - "overlays"
+capability_packs:
+  - "agent-intercom"
+  - "backlogit"
+capability_pack_overlays:
+  - pack: "agent-intercom"
+    overlay_targets:
+      - "foundation-docs"
+      - "instructions"
+      - "pipeline-agents"
+      - "long-running-skills"
+      - "ping-loop-prompt"
+    verification_checks:
+      - "agent-intercom MCP configured in .vscode/mcp.json"
+      - "ping-loop prompt references intercom heartbeat"
+  - pack: "backlogit"
+    overlay_targets:
+      - "foundation-docs"
+      - "instructions"
+      - "pipeline-agents"
+      - "backlog-aware-workflows"
+    verification_checks:
+      - "backlogit MCP configured in .vscode/mcp.json"
+      - "backlogit registry installed at .autoharness/backlog-registry.yaml"
+primitives_installed:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+distribution:
+  is_global_tool: true
+  global_agents_dir: ".github/agents"
+  local_agents_dir: ".github/local-agents"
+  self_install_note: "Workflow agents placed in .github/local-agents; global artifacts in .github/{agents,skills,instructions,prompts} are source-controlled and not modified by the installer"
+vscode_settings:
+  applied: true
+  user_settings_path: "C:\\Users\\derek.williams\\AppData\\Roaming\\Code\\User\\settings.json"
+  entries_added:
+    - "chat.agentFilesLocations[\"D:/Source/GitHub/autoharness/.github/agents\"]"
+    - "chat.agentSkillsLocations[\"D:/Source/GitHub/autoharness/.github/skills\"]"
+    - "chat.promptFilesLocations[\"D:/Source/GitHub/autoharness/.github/prompts\"]"
+  skipped_because: null
+artifacts:
+  - path: ".autoharness/workspace-profile.yaml"
+    primitive: 1
+    template: "workspace-discovery output"
+    checksum: null
+  - path: ".autoharness/config.yaml"
+    primitive: 1
+    template: "harness-config.yaml.tmpl"
+    checksum: null
+  - path: ".autoharness/backlog-registry.yaml"
+    primitive: 4
+    template: "backlog/registries/backlogit.registry.yaml"
+    checksum: null
+  - path: ".github/local-agents/stage.agent.md"
+    primitive: 4
+    template: "agents/stage.agent.md.tmpl"
+    checksum: null
+    note: "pre-existing, not modified in self-install"
+  - path: ".github/local-agents/ship.agent.md"
+    primitive: 4
+    template: "agents/ship.agent.md.tmpl"
+    checksum: null
+    note: "pre-existing, not modified in self-install"
+  - path: "start.sh"
+    primitive: 1
+    template: "scripts/start.sh.tmpl"
+    checksum: null
+  - path: "start.ps1"
+    primitive: 1
+    template: "scripts/start.ps1.tmpl"
+    checksum: null
+    note: "pre-existing, custom self-install version with agent injection"
+  - path: "AGENTS.md"
+    primitive: 9
+    template: "foundation/AGENTS.md.tmpl"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/copilot-instructions.md"
+    primitive: 6
+    template: "foundation/copilot-instructions.md.tmpl"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/instructions/harness-architecture.instructions.md"
+    primitive: 9
+    template: "instructions/harness-architecture.instructions.md"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/agents/auto-mergeinstall.agent.md"
+    primitive: 4
+    template: "global agent definition"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/agents/auto-tune.agent.md"
+    primitive: 4
+    template: "global agent definition"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/install-harness/SKILL.md"
+    primitive: 4
+    template: "global skill definition"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/tune-harness/SKILL.md"
+    primitive: 4
+    template: "global skill definition"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/workspace-discovery/SKILL.md"
+    primitive: 1
+    template: "global skill definition"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/verify-harness/SKILL.md"
+    primitive: 7
+    template: "global skill definition"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/prompts/install-harness.prompt.md"
+    primitive: 6
+    template: "prompts/install-harness.prompt.md"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/prompts/tune-harness.prompt.md"
+    primitive: 6
+    template: "prompts/tune-harness.prompt.md"
+    checksum: null
+    note: "pre-existing, source-controlled global artifact"
+variables_used:
+  PROJECT_NAME: "autoharness"
+  PRIMARY_LANGUAGE: "Python"
+  PRIMARY_LANGUAGE_LOWER: "python"
+  BUILD_COMMAND: "pip install -e ."
+  TEST_COMMAND: "pytest"
+  LINT_COMMAND: null
+  FORMAT_COMMAND: null
+  BUILD_CHECK_COMMAND: "python -m py_compile src/autoharness/cli.py"
+  TEST_DIR: "tests"
+  SOURCE_DIR: "src/autoharness"
+  CI_PLATFORM: "GitHub Actions"
+  REPO_OWNER: "softwaresalt"
+  REPO_NAME: "autoharness"
+  BACKLOG_TOOL_NAME: "backlogit"
+  BACKLOG_DIRECTORY: ".backlogit"
+  FEATURE_SHIPMENTS: "true"
+  COPILOT_EXE_PATH: "copilot"
+  DOCS_ROOT: "docs"
+  DOCS_COMPOUND: "docs/compound"
+  DOCS_PLANS: "docs/plans"
+  DOCS_DECISIONS: "docs/decisions"
+  DOCS_MEMORY: "docs/memory"
+  DOCS_CLOSURE: "docs/closure"
+  DOCS_DESIGN_DOCS: "docs/design-docs"
+  DOCS_PRODUCT_SPECS: "docs/product-specs"

@@ -1,0 +1,268 @@
+schema_version: "1.0.0"
+tool_name: "backlogit"
+tool_type: "both"
+directory: ".backlogit"
+
+mcp_server:
+  command: "backlogit mcp"
+  transport: "stdio"
+
+cli:
+  binary: "backlogit"
+
+operations:
+  create_task:
+    mcp_tool: "backlogit_create_item"
+    cli_command: "backlogit add --type {{artifact_type}} --title {{title}}"
+    params:
+      title: "title"
+      type: "artifact_type"
+      status: "status"
+      description: "description"
+      parent_id: "parent_id"
+      labels: "labels"
+      assignee: "assigned_to"
+
+  list_tasks:
+    mcp_tool: "backlogit_list_items"
+    cli_command: "backlogit list"
+    params:
+      type: "type"
+      status: "status"
+      assignee: "assigned_to"
+
+  get_task:
+    mcp_tool: "backlogit_get_item"
+    cli_command: "backlogit get {{id}}"
+    params:
+      task_id: "id"
+      section: "section"
+
+  update_task:
+    mcp_tool: "backlogit_update_item"
+    cli_command: "backlogit update {{id}}"
+    params:
+      task_id: "id"
+      title: "title"
+      status: "status"
+      description: "description"
+      labels: "labels"
+      assignee: "assigned_to"
+      priority: "priority"
+
+  move_task:
+    mcp_tool: "backlogit_move_item"
+    cli_command: "backlogit move {{id}} --status {{status}}"
+    params:
+      task_id: "id"
+      status: "status"
+
+  delete_task:
+    mcp_tool: "backlogit_delete_item"
+    cli_command: "backlogit delete {{id}} --force"
+    params:
+      task_id: "id"
+
+  search_tasks:
+    mcp_tool: "backlogit_search_items"
+    cli_command: "backlogit search {{query}}"
+    params:
+      query: "query"
+      limit: "limit"
+
+  complete_task:
+    mcp_tool: "backlogit_move_item"
+    cli_command: "backlogit move {{id}} --status done"
+    params:
+      task_id: "id"
+      status: "status"
+
+  query:
+    mcp_tool: "backlogit_query_sql"
+    cli_command: "backlogit query {{sql}}"
+    params:
+      sql: "sql"
+
+  sync_index:
+    mcp_tool: "backlogit_sync_index"
+    cli_command: "backlogit sync"
+
+  append_comment:
+    mcp_tool: "backlogit_append_comment"
+    params:
+      task_id: "item_id"
+      actor: "actor"
+      comment: "comment"
+
+  log_telemetry:
+    mcp_tool: "backlogit_log_telemetry"
+    params:
+      event_type: "event_type"
+
+  save_memory:
+    mcp_tool: "backlogit_save_memory"
+    params:
+      key: "key"
+      summary: "summary"
+
+  create_checkpoint:
+    mcp_tool: "backlogit_create_checkpoint"
+    params:
+      state_dump: "state_dump"
+
+  list_checkpoints:
+    mcp_tool: "backlogit_list_checkpoints"
+    cli_command: "backlogit checkpoint list"
+    params:
+      consumer_id: "consumer_id"
+      status: "status"
+      shipment_id: "shipment_id"
+      feature_id: "feature_id"
+      max_age_hours: "max_age_hours"
+
+  get_checkpoint:
+    mcp_tool: "backlogit_get_checkpoint"
+    cli_command: "backlogit checkpoint get {{filename}}"
+    params:
+      filename: "filename"
+
+  resolve_checkpoint:
+    mcp_tool: "backlogit_resolve_checkpoint"
+    cli_command: "backlogit checkpoint resolve {{filename}}"
+    params:
+      filename: "filename"
+
+  poll_hook_events:
+    mcp_tool: "backlogit_poll_hook_events"
+    params:
+      consumer_id: "consumer_id"
+
+  ack_hook_events:
+    mcp_tool: "backlogit_ack_hook_events"
+    params:
+      consumer_id: "consumer_id"
+      seq: "seq"
+
+  get_queue:
+    mcp_tool: "backlogit_get_queue"
+    cli_command: "backlogit queue view"
+    params:
+      type: "type"
+      status: "status"
+      assigned_to: "assigned_to"
+      limit: "limit"
+      offset: "offset"
+      group_by: "group_by"
+
+  add_dependency:
+    mcp_tool: "backlogit_add_dependency"
+    cli_command: "backlogit dep add {{task_id}} {{depends_on}} --type {{dep_type}}"
+    params:
+      task_id: "item_id"
+      depends_on: "depends_on"
+      dep_type: "dep_type"
+
+  remove_dependency:
+    mcp_tool: "backlogit_remove_dependency"
+    cli_command: "backlogit dep remove {{task_id}} {{depends_on}}"
+    params:
+      task_id: "item_id"
+      depends_on: "depends_on"
+
+  get_dependencies:
+    mcp_tool: "backlogit_get_dependencies"
+    cli_command: "backlogit dep list {{task_id}}"
+    params:
+      task_id: "id"
+      reverse: "reverse"
+
+  track_commit:
+    mcp_tool: "backlogit_track_commit"
+    cli_command: "backlogit update {{task_id}} --commit {{sha}}"
+    params:
+      task_id: "item_id"
+      sha: "sha"
+      message: "message"
+      author: "author"
+
+  create_shipment:
+    mcp_tool: "backlogit_create_shipment"
+    cli_command: "backlogit shipment create --title {{title}} --items {{items}}"
+    params:
+      title: "title"
+      items: "items"
+
+  get_shipment:
+    mcp_tool: "backlogit_get_shipment"
+    cli_command: "backlogit shipment get {{id}}"
+    params:
+      shipment_id: "id"
+
+  list_shipments:
+    mcp_tool: "backlogit_list_shipments"
+    cli_command: "backlogit shipment list"
+    params:
+      status: "status"
+
+  claim_shipment:
+    mcp_tool: "backlogit_claim_shipment"
+    cli_command: "backlogit shipment claim {{id}}"
+    params:
+      shipment_id: "id"
+
+  ship_shipment:
+    mcp_tool: "backlogit_ship_shipment"
+    cli_command: "backlogit shipment ship {{id}}"
+    params:
+      shipment_id: "id"
+      sha: "sha"
+      message: "message"
+      author: "author"
+
+  add_to_shipment:
+    mcp_tool: "backlogit_add_to_shipment"
+    params:
+      shipment_id: "shipment_id"
+      item_id: "item_id"
+
+  return_blocked:
+    mcp_tool: "backlogit_return_blocked"
+    cli_command: "backlogit shipment return-blocked --shipment {{shipment_id}} --item {{item_id}} --reason {{reason}}"
+    params:
+      shipment_id: "shipment_id"
+      item_id: "item_id"
+      reason: "reason"
+
+field_mapping:
+  task_id: "id"
+  title: "title"
+  status: "status"
+  description: "description"
+  parent_id: "parent_id"
+  labels: "labels"
+  assignee: "assigned_to"
+  priority: "priority"
+  artifact_type: "artifact_type"
+
+status_values:
+  queued: "queued"
+  active: "active"
+  done: "done"
+  blocked: "blocked"
+
+features:
+  sql_query: true
+  milestones: false
+  documents: false
+  telemetry: true
+  memory: true
+  checkpoints: true
+  comments: true
+  definition_of_done: false
+  workflow_guides: false
+  dependencies: true
+  queue: true
+  sections: true
+  templates: true
+  commit_tracking: true
+  shipments: true

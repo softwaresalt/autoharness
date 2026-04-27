@@ -110,7 +110,7 @@ Before or as part of tune-harness invocation, run deterministic verification in 
 autoharness verify-workspace --workspace {workspace_path} --autoharness-home {autoharness_home} --json
 ```
 
-Treat the resulting `schema_contracts{}` and `migration_proposals[]` as structured input to the tuning session rather than a side report. The tune-harness skill should consume those fields directly when generating schema-contract upgrade proposals.
+Treat the resulting `schema_contracts{}`, `migration_proposals[]`, and `learning_signals{}` as structured input to the tuning session rather than a side report. The tune-harness skill should consume those fields directly when generating schema-contract upgrade proposals and when reusing verifier-mined patterns from the compound library, continuous-learning observations/instincts, and closure artifacts.
 
 The tune-harness skill performs structural drift detection (Steps 1.1–1.7) and
 then mines accumulated learning data (Step 1.8) from the compound library,
