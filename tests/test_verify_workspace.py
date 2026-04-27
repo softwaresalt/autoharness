@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,7 +24,32 @@ def _write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
+def _extract_quoted_value(text: str, pattern: str) -> str:
+    match = re.search(pattern, text, re.MULTILINE)
+    if not match:
+        raise AssertionError(f"Unable to find pattern: {pattern}")
+    return match.group(1)
+
+
 class VerifyWorkspaceTests(unittest.TestCase):
+    def test_distribution_and_plugin_versions_stay_in_sync(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        pyproject_text = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+        init_text = (repo_root / "src" / "autoharness" / "__init__.py").read_text(encoding="utf-8")
+        plugin_manifest = json.loads((repo_root / ".github" / "plugin" / "plugin.json").read_text(encoding="utf-8"))
+        marketplace_manifest = json.loads(
+            (repo_root / ".github" / "plugin" / "marketplace.json").read_text(encoding="utf-8")
+        )
+
+        expected_version = _extract_quoted_value(pyproject_text, r'^version = "([^"]+)"$')
+        fallback_version = _extract_quoted_value(init_text, r'^    __version__ = "([^"]+)"')
+
+        self.assertEqual(fallback_version, expected_version)
+        self.assertEqual(plugin_manifest["version"], expected_version)
+        self.assertEqual(marketplace_manifest["metadata"]["version"], expected_version)
+        self.assertEqual(len(marketplace_manifest["plugins"]), 1)
+        self.assertEqual(marketplace_manifest["plugins"][0]["version"], expected_version)
+
     def test_branch_safety_guidance_is_woven_through_install_and_tune_workflows(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         expected_phrases_by_file = {

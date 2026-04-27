@@ -55,8 +55,9 @@ Update:
   copilot plugin update autoharness          # plugin
   uv tool upgrade autoharness                # Python CLI
 
-The AI coding assistant is the runtime. This CLI exists only so agents
-can resolve the autoharness home path via `autoharness home`.
+The AI coding assistant is the runtime. This CLI primarily helps agents
+resolve the autoharness home path via `autoharness home`, and also
+provides user-facing setup and verification commands.
 """
 
 

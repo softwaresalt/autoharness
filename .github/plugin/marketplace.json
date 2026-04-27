@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Agent harness framework — compose 10 irreducible AI coding assistant primitives into any workspace",
-    "version": "1.0.0"
+    "version": "1.3.4"
   },
   "plugins": [
     {
