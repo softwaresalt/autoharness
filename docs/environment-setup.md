@@ -42,7 +42,8 @@ Once those settings are in place, the **Auto-MergeInstall** agent appears in the
 The fastest way to get autoharness agents into Copilot CLI is the **plugin system**:
 
 ```bash
-copilot plugin install softwaresalt/autoharness
+copilot plugin marketplace add softwaresalt/autoharness
+copilot plugin install autoharness@autoharness
 ```
 
 This installs the Auto-MergeInstall and Auto-Tune agents plus all skills in a single command — no Python required. Updates are equally simple:
@@ -51,7 +52,7 @@ This installs the Auto-MergeInstall and Auto-Tune agents plus all skills in a si
 copilot plugin update autoharness
 ```
 
-The plugin is discovered from the `.github/plugin/plugin.json` manifest in the repository.
+The plugin is discovered from the repository-root `plugin.json` manifest.
 
 ## GitHub Copilot CLI — VS Code Background Sessions
 
@@ -63,7 +64,8 @@ For the **Auto-MergeInstall** and **Auto-Tune** agents to appear in Copilot CLI 
 autoharness setup-copilot-cli
 ```
 
-> **Deprecation notice:** `setup-copilot-cli` is superseded by `copilot plugin install softwaresalt/autoharness`. The plugin provides the same agents and skills with built-in versioning and no Python dependency. The CLI command will be removed in a future release.
+> **Deprecation notice:** `setup-copilot-cli` is superseded by registering the autoharness marketplace and installing `autoharness@autoharness`. The plugin provides the same agents and skills with built-in versioning and no Python dependency. The CLI command will be removed in a future release.
+> Direct `owner/repo` plugin installs currently work, but Copilot CLI warns that they are deprecated in favor of marketplace-based installs.
 
 This copies the agent `.md` files and skill `SKILL.md` files from the autoharness installation into your Copilot CLI global config directory (`~/.copilot/agents/` and `~/.copilot/skills/`). This is the standard registration path for external workspaces; autoharness does not install these global agents into the target workspace. Re-run it after upgrading autoharness to pick up updated files.
 

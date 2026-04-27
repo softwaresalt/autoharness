@@ -45,7 +45,8 @@ Usage:
   autoharness help              Show this message
 
 Install (Copilot CLI plugin — recommended, no Python needed):
-  copilot plugin install softwaresalt/autoharness
+    copilot plugin marketplace add softwaresalt/autoharness
+    copilot plugin install autoharness@autoharness
 
 Install (Python CLI — for setup-vscode and verify-workspace):
   uv tool install autoharness
@@ -378,10 +379,11 @@ def _setup_copilot_cli() -> None:
     Re-run this command after upgrading autoharness to pick up new agents or
     updated skill files.
 
-    DEPRECATED: Use `copilot plugin install softwaresalt/autoharness` instead.
+    DEPRECATED: Use the marketplace install flow instead.
     """
     print("NOTE: setup-copilot-cli is deprecated.")
-    print("      Prefer: copilot plugin install softwaresalt/autoharness")
+    print("      Prefer: copilot plugin marketplace add softwaresalt/autoharness")
+    print("              copilot plugin install autoharness@autoharness")
     print("      The plugin provides the same agents and skills with built-in")
     print("      versioning and no Python dependency.")
     print()

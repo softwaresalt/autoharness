@@ -82,7 +82,8 @@ See [Capability Packs](docs/capability-packs.md) for the full overlay contract a
 
 ```bash
 # Option A: Copilot CLI plugin (recommended — no Python needed)
-copilot plugin install softwaresalt/autoharness
+copilot plugin marketplace add softwaresalt/autoharness
+copilot plugin install autoharness@autoharness
 
 # Option B: Python CLI (for setup-vscode and verify-workspace)
 uv tool install git+https://github.com/softwaresalt/autoharness.git
@@ -104,7 +105,7 @@ feature-branch work. autoharness may still generate local uncommitted changes
 while you are on the default branch, but the intended review path is feature
 branch plus pull request, not a direct commit or push to the default branch.
 
-The plugin install path (`copilot plugin install`) gives Copilot CLI users built-in versioning and update management with no Python dependency. The Python CLI is still needed for `setup-vscode` (writing VS Code user settings), `verify-workspace` (CI-friendly JSON Schema validation), and registering with Claude Code or Codex.
+The marketplace-based plugin install path gives Copilot CLI users built-in versioning and update management with no Python dependency. The Python CLI is still needed for `setup-vscode` (writing VS Code user settings), `verify-workspace` (CI-friendly JSON Schema validation), and registering with Claude Code or Codex.
 
 The `setup-claude` and `setup-codex` commands copy agent or skill files into each tool's standard global config directory, so rerun them after upgrading autoharness to refresh those files. `setup-vscode` writes user-settings pointers to `autoharness home`; rerun it only if that resolved install path changes.
 
