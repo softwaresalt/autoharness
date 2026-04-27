@@ -291,7 +291,7 @@ FOUNDATION_ASSERTIONS = [
             "compound library",
             "continuous-learning",
             "closure artifacts",
-            "learning_signals",
+            "learning_signals{}",
         ],
     },
     {

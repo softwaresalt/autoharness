@@ -911,7 +911,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
             (workspace / ".github" / "agents" / "auto-tune.agent.md").write_text(
-                "Step 1.8\ncompound library\ncontinuous-learning\nclosure artifacts\nlearning_signals\n",
+                "Step 1.8\ncompound library\ncontinuous-learning\nclosure artifacts\nlearning_signals{}\n",
                 encoding="utf-8",
             )
             (workspace / ".github" / "skills" / "tune-harness" / "SKILL.md").write_text(
@@ -930,6 +930,80 @@ class VerifyWorkspaceTests(unittest.TestCase):
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["auto_tune_learning_loop_contract"]["ok"])
             self.assertTrue(targeted_checks["tune_harness_learning_loop_contract"]["ok"])
+
+    def test_verify_workspace_requires_structured_learning_signals_in_auto_tune_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "tune-harness").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1, 4],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "agents" / "auto-tune.agent.md").write_text(
+                "Step 1.8\ncompound library\ncontinuous-learning\nclosure artifacts\nlearning_signals\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "tune-harness" / "SKILL.md").write_text(
+                "#### Step 1.8: Mine Learning Signals for Improvement Proposals\n"
+                "produced by compound, continuous-learning, and closure systems\n"
+                "learning_signals{}\n"
+                "Learning-driven proposals\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            targeted_checks = report["targeted_checks"]
+            self.assertFalse(targeted_checks["auto_tune_learning_loop_contract"]["ok"])
+            self.assertIn(
+                "learning_signals{}",
+                " ".join(targeted_checks["auto_tune_learning_loop_contract"].get("missing") or []),
+            )
 
     def test_verify_workspace_reports_learning_signals_from_compound_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
