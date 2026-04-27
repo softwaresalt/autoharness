@@ -4,8 +4,8 @@
 
 ### Added
 
-- Added GitHub Copilot CLI plugin and self-hosted marketplace manifests under `.github/plugin/` so Copilot CLI users can install autoharness with `copilot plugin install softwaresalt/autoharness` or browse it through a registered marketplace.
-- Added deterministic regression coverage that keeps `pyproject.toml`, `src/autoharness/__init__.py`, `.github/plugin/plugin.json`, and `.github/plugin/marketplace.json` version fields in sync across release bumps.
+- Added GitHub Copilot CLI plugin and self-hosted marketplace manifests so Copilot CLI users can install autoharness through a registered marketplace and browse it from Copilot CLI.
+- Added deterministic regression coverage that keeps `pyproject.toml`, `src/autoharness/__init__.py`, `plugin.json`, and `.github/plugin/marketplace.json` version fields in sync across release bumps.
 
 ### Changed
 

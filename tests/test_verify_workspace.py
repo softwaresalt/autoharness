@@ -36,7 +36,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         pyproject_text = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
         init_text = (repo_root / "src" / "autoharness" / "__init__.py").read_text(encoding="utf-8")
-        plugin_manifest = json.loads((repo_root / ".github" / "plugin" / "plugin.json").read_text(encoding="utf-8"))
+        plugin_manifest = json.loads((repo_root / "plugin.json").read_text(encoding="utf-8"))
         marketplace_manifest = json.loads(
             (repo_root / ".github" / "plugin" / "marketplace.json").read_text(encoding="utf-8")
         )
