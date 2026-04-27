@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Agent CLI Startup Script — {{PROJECT_NAME}}
+# Agent CLI Startup Script — autoharness
 #
 # Sets workspace-local directories so that AI agent state (memories,
 # checkpoints, database) is scoped to this workspace and git-visible.
@@ -31,7 +31,7 @@ set -euo pipefail
 export COPILOT_HOME="${COPILOT_HOME:-./.copilot}"
 # export ENGRAM_DATA_DIR="./.engram"   # Uncomment when the agent-engram capability pack is active
 export GITHUB_TOKEN="$(gh auth token)"
-copilot_exe="${COPILOT_EXE_PATH:-${COPILOT_EXE:-{{COPILOT_EXE_PATH}}}}"
+copilot_exe="${COPILOT_EXE_PATH:-${COPILOT_EXE:-copilot}}"
 
 if command -v "$copilot_exe" >/dev/null 2>&1; then
 	copilot_exe="$(command -v "$copilot_exe")"

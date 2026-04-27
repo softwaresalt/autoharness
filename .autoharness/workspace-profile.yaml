@@ -1,0 +1,202 @@
+# .autoharness/workspace-profile.yaml
+schema_version: "1.0.0"
+generated_at: "2026-04-26T21:16:00-07:00"
+workspace_path: "."
+
+languages:
+  primary: "python"
+  secondary:
+    - "markdown"
+    - "yaml"
+    - "json"
+  file_counts:
+    py: 5
+    md: 80
+    yaml: 10
+    json: 21
+
+frameworks:
+  list: []
+  mcp_sdk: null
+  mcp_transport: null
+
+primary_stack_pack: "cli-tool"
+stack_packs:
+  - "cli-tool"
+
+build:
+  tool: "hatchling"
+  command: "pip install -e ."
+
+test:
+  runner: "pytest"
+  command: "pytest"
+  directory: "tests"
+
+lint:
+  tool: ""
+  command: ""
+
+format:
+  tool: ""
+  command: ""
+
+ci:
+  platform: "github-actions"
+  pipeline_steps:
+    - "checkout"
+    - "setup-python"
+    - "build"
+    - "release"
+  quality_gates: []
+
+structure:
+  source_layout: "src/autoharness"
+  test_layout: "tests"
+  doc_layout: "docs"
+
+runtime_surfaces:
+  web_ui: false
+  public_api: false
+  background_jobs: false
+  browser_tooling: []
+  deployment_manifests: []
+
+conventions:
+  code_style:
+    linter: null
+    formatter: null
+    editor_config: false
+    pre_commit: false
+  git:
+    branch_pattern: "chore/*"
+    commit_style: "conventional-ish"
+    pr_template: false
+    merge_strategy: "merge-commit"
+  documentation:
+    readme: true
+    changelog: false
+    api_docs: false
+    architecture_docs: true
+
+distribution:
+  is_global_tool: true
+  global_agents_dir: ".github/agents"
+  local_agents_dir: null
+
+tools:
+  markdownlint: false
+  markdownlint_config: null
+
+harness_recommendations:
+  preset: "full"
+  capability_packs:
+    - "agent-intercom"
+    - "backlogit"
+  install_layers: []
+  recommendation_reasons:
+    preset:
+      - "autoharness is the harness framework itself — full preset ensures all primitives are exercised"
+    capability_packs:
+      - item: "agent-intercom"
+        because: "MCP server configured in .vscode/mcp.json"
+        signals:
+          - ".vscode/mcp.json"
+      - item: "backlogit"
+        because: "MCP server configured and .backlogit/ directory present with full config"
+        signals:
+          - ".vscode/mcp.json"
+          - ".backlogit/config.yaml"
+    install_layers: []
+
+agent_intercom:
+  detected: true
+  mcp_configured: true
+  config_paths:
+    - ".vscode/mcp.json"
+  instruction_markers: []
+  recommended: true
+
+agent_engram:
+  detected: false
+  mcp_configured: false
+  config_paths: []
+  instruction_markers: []
+  recommended: false
+
+agent_native:
+  detected: false
+  mcp_sdk_present: false
+  mcp_transport: null
+  agent_tooling_markers: []
+  user_agent_parity_required: false
+  recommended_reviewer: false
+
+existing_harness:
+  has_harness: true
+  artifacts:
+    - path: ".github/agents/auto-mergeinstall.agent.md"
+      type: "agent"
+      description: "Global install orchestration agent"
+    - path: ".github/agents/auto-tune.agent.md"
+      type: "agent"
+      description: "Global tuning orchestration agent"
+    - path: ".github/agents/stage.agent.md"
+      type: "agent"
+      description: "Dogfood Stage workflow agent checked into the source tree"
+    - path: ".github/agents/ship.agent.md"
+      type: "agent"
+      description: "Dogfood Ship workflow agent checked into the source tree"
+    - path: ".github/skills/install-harness/SKILL.md"
+      type: "skill"
+      description: "Harness installation workflow skill"
+    - path: ".github/skills/tune-harness/SKILL.md"
+      type: "skill"
+      description: "Harness tuning workflow skill"
+    - path: ".github/skills/workspace-discovery/SKILL.md"
+      type: "skill"
+      description: "Workspace discovery workflow skill"
+    - path: ".github/skills/verify-harness/SKILL.md"
+      type: "skill"
+      description: "Harness verification workflow skill"
+    - path: ".github/instructions/harness-architecture.instructions.md"
+      type: "instruction"
+      description: "Repository architecture instruction"
+    - path: ".github/copilot-instructions.md"
+      type: "instruction"
+      description: "Repository-wide Copilot guidance"
+    - path: "AGENTS.md"
+      type: "foundation"
+      description: "Repository-wide agent operating guide"
+
+backlog_tool:
+  detected: true
+  tool_name: "backlogit"
+  directory: ".backlogit"
+  tool_type: "mcp"
+  mcp_registered: true
+  cli_available: true
+  config_path: ".backlogit/config.yaml"
+  registry_path: null
+  status_values:
+    - "queued"
+    - "active"
+    - "blocked"
+    - "review"
+    - "done"
+    - "accepted"
+    - "rejected"
+    - "archived"
+  features:
+    sql_query: true
+    milestones: false
+    documents: false
+    telemetry: false
+    shipments: true
+
+vscode:
+  detected: true
+  user_settings_path: null
+  has_agent_settings: false
+
+drift_report: null

@@ -1,0 +1,180 @@
+schema_version: "1.0.0"
+installed_at: "2026-04-26T21:16:00-07:00"
+autoharness_version: "1.3.3"
+autoharness_home: null
+profile_hash: "3f07c22ddc7d8e1af5329de6dedbfc5449579b92909e03db759424206e97a832"
+config_hash: "748a71b3d966bdfe31e24465c880924eba8163d4f47ef28f820c663eef785861"
+install_preset: "full"
+install_mode: "self-install"
+primary_stack_pack: "cli-tool"
+stack_packs:
+  - "cli-tool"
+install_layers:
+  - "foundation"
+  - "instructions"
+  - "workflow"
+  - "review"
+  - "runtime"
+  - "backlog"
+  - "knowledge"
+  - "overlays"
+capability_packs:
+  - "agent-intercom"
+  - "backlogit"
+capability_pack_overlays:
+  - pack: "agent-intercom"
+    overlay_targets:
+      - "foundation-docs"
+      - "instructions"
+      - "pipeline-agents"
+      - "long-running-skills"
+      - "ping-loop-prompt"
+    verification_checks:
+      - "agent-intercom MCP configured in .vscode/mcp.json"
+      - "ping-loop prompt references intercom heartbeat"
+  - pack: "backlogit"
+    overlay_targets:
+      - "foundation-docs"
+      - "instructions"
+      - "pipeline-agents"
+      - "backlog-aware-workflows"
+    verification_checks:
+      - "backlogit MCP configured in .vscode/mcp.json"
+      - "backlogit registry installed at .autoharness/backlog-registry.yaml"
+primitives_installed:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+distribution:
+  is_global_tool: true
+  global_agents_dir: ".github/agents"
+  local_agents_dir: null
+  self_install_note: "This dogfood self-install tracks workflow agents directly in .github/agents alongside the packaged global artifacts."
+vscode_settings:
+  applied: true
+  user_settings_path: null
+  entries_added:
+    - "chat.agentFilesLocations[\".github/agents\"]"
+    - "chat.agentSkillsLocations[\".github/skills\"]"
+    - "chat.promptFilesLocations[\".github/prompts\"]"
+  skipped_because: null
+artifacts:
+  - path: ".autoharness/workspace-profile.yaml"
+    primitive: 1
+    template: "workspace-discovery output"
+    checksum: "3f07c22ddc7d8e1af5329de6dedbfc5449579b92909e03db759424206e97a832"
+  - path: ".autoharness/config.yaml"
+    primitive: 1
+    template: "harness-config.yaml.tmpl"
+    checksum: "748a71b3d966bdfe31e24465c880924eba8163d4f47ef28f820c663eef785861"
+  - path: ".autoharness/backlog-registry.yaml"
+    primitive: 4
+    template: "backlog/registries/backlogit.registry.yaml"
+    checksum: "3b1b8ec93af99d865b6ab2d19661546393233c815a82c4c932370c619d9fa7e8"
+  - path: ".github/agents/stage.agent.md"
+    primitive: 4
+    template: "global agent definition"
+    checksum: "c2b804c7b2c473303dd68f3afaaa810b151845bb72288546c758abc568d11acd"
+    note: "source-controlled dogfood workflow agent"
+  - path: ".github/agents/ship.agent.md"
+    primitive: 4
+    template: "global agent definition"
+    checksum: "719460ddb0880904e4ddd38b29f421c53b29d977c9ba5b818e2a3716adeef854"
+    note: "source-controlled dogfood workflow agent"
+  - path: "start.sh"
+    primitive: 1
+    template: "scripts/start.sh.tmpl"
+    checksum: "29e59e518ce54716144d09a69e5294b168969cfdf3c7c50aaab47e3cd1793eb8"
+  - path: "start.ps1"
+    primitive: 1
+    template: "scripts/start.ps1.tmpl"
+    checksum: "440714633f06217ff17bbe7ce099dcb7ef905f6b786dc0ea372f3224aafc14cc"
+    note: "pre-existing, custom self-install version with agent injection"
+  - path: "AGENTS.md"
+    primitive: 9
+    template: "foundation/AGENTS.md.tmpl"
+    checksum: "496fe59c2831281fb8d5df2b389e6fd4b9e1b9b969568e620ce23eb9aa342a31"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/copilot-instructions.md"
+    primitive: 6
+    template: "foundation/copilot-instructions.md.tmpl"
+    checksum: "e7fa96a4b00c5b835c8172027da50a42be5e2a32af021a3d061808f733d20d31"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/instructions/harness-architecture.instructions.md"
+    primitive: 9
+    template: "global instruction definition"
+    checksum: "45f5a2351a7e694ade6339809bbe0de61a2b228e4baeb36920513b714d3a400b"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/agents/auto-mergeinstall.agent.md"
+    primitive: 4
+    template: "global agent definition"
+    checksum: "72f4b8845c5e119609bea42850dff8ce265fd607a85c1489eb1c0d0ec7608e8c"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/agents/auto-tune.agent.md"
+    primitive: 4
+    template: "global agent definition"
+    checksum: "fa6e15fceae1833915e313c0146d4056e9f433954fb98cdf445d53b49b679035"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/install-harness/SKILL.md"
+    primitive: 4
+    template: "global skill definition"
+    checksum: "9e577d46ad34846d2d1bb585bd2576d65bbd4a3d3809b2d749d1f9e834f09479"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/tune-harness/SKILL.md"
+    primitive: 4
+    template: "global skill definition"
+    checksum: "bfbb9e0a8a4bb5badecdca665a9672d6a85f9c665c7bb096402edf4af7da3f4d"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/workspace-discovery/SKILL.md"
+    primitive: 1
+    template: "global skill definition"
+    checksum: "16079be3deb31f4a2f630bbea3526c109ebe55fb5bd96a8c0e25f9f728868f85"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/verify-harness/SKILL.md"
+    primitive: 7
+    template: "global skill definition"
+    checksum: "5342de6fac7248cd2f00c9479f69de52f44e9fe581568963a3eb9f203b2e08f6"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/prompts/install-harness.prompt.md"
+    primitive: 6
+    template: "global prompt definition"
+    checksum: "09988e6c3e5121334371af4d86b284cbd4f369eb1e28a284df4c80c35421d06a"
+    note: "pre-existing, source-controlled global artifact"
+  - path: ".github/prompts/tune-harness.prompt.md"
+    primitive: 6
+    template: "global prompt definition"
+    checksum: "bf8f75345c0da4c1f86ca76eabd7048ed9431aa9d2878a39e7991cb1ddd9b3a1"
+    note: "pre-existing, source-controlled global artifact"
+variables_used:
+  PROJECT_NAME: "autoharness"
+  PRIMARY_LANGUAGE: "Python"
+  PRIMARY_LANGUAGE_LOWER: "python"
+  BUILD_COMMAND: "pip install -e ."
+  TEST_COMMAND: "pytest"
+  LINT_COMMAND: ""
+  FORMAT_COMMAND: ""
+  BUILD_CHECK_COMMAND: "python -m py_compile src/autoharness/cli.py"
+  TEST_DIR: "tests"
+  SOURCE_DIR: "src/autoharness"
+  CI_PLATFORM: "GitHub Actions"
+  REPO_OWNER: "softwaresalt"
+  REPO_NAME: "autoharness"
+  BACKLOG_TOOL_NAME: "backlogit"
+  BACKLOG_DIRECTORY: ".backlogit"
+  FEATURE_SHIPMENTS: "true"
+  COPILOT_EXE_PATH: "copilot"
+  DOCS_ROOT: "docs"
+  DOCS_COMPOUND: "docs/compound"
+  DOCS_PLANS: "docs/plans"
+  DOCS_DECISIONS: "docs/decisions"
+  DOCS_MEMORY: "docs/memory"
+  DOCS_CLOSURE: "docs/closure"
+  DOCS_DESIGN_DOCS: "docs/design-docs"
+  DOCS_PRODUCT_SPECS: "docs/product-specs"

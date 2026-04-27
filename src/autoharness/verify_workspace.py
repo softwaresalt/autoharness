@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -282,6 +283,27 @@ FOUNDATION_ASSERTIONS = [
             "post-merge/",
         ],
     },
+    {
+        "key": "auto_tune_learning_loop_contract",
+        "path": ".github/agents/auto-tune.agent.md",
+        "must_contain": [
+            "Step 1.8",
+            "compound library",
+            "continuous-learning",
+            "closure artifacts",
+            "learning_signals{}",
+        ],
+    },
+    {
+        "key": "tune_harness_learning_loop_contract",
+        "path": ".github/skills/tune-harness/SKILL.md",
+        "must_contain": [
+            "#### Step 1.8: Mine Learning Signals for Improvement Proposals",
+            "produced by compound, continuous-learning, and closure systems",
+            "learning_signals{}",
+            "Learning-driven proposals",
+        ],
+    },
 ]
 
 
@@ -406,6 +428,494 @@ def _find_unresolved_placeholders(file_path: Path) -> list[dict[str, Any]]:
                 }
             )
     return unresolved
+
+
+def _extract_markdown_frontmatter(file_path: Path) -> dict[str, Any]:
+    lines = file_path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+
+    closing_index = None
+    for index, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            closing_index = index
+            break
+
+    if closing_index is None:
+        return {}
+
+    try:
+        data = yaml.safe_load("\n".join(lines[1:closing_index]))
+    except yaml.YAMLError:
+        return {}
+
+    return data if isinstance(data, dict) else {}
+
+
+def _normalize_text_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    if isinstance(value, list):
+        normalized = []
+        for item in value:
+            item_text = str(item).strip()
+            if item_text:
+                normalized.append(item_text)
+        return normalized
+    return []
+
+
+def _relative_workspace_path(workspace_path: Path, file_path: Path) -> str:
+    try:
+        return file_path.relative_to(workspace_path).as_posix()
+    except ValueError:
+        return file_path.as_posix()
+
+
+def _empty_learning_signals() -> dict[str, list[dict[str, Any]]]:
+    return {
+        "compound_patterns": [],
+        "promotion_candidates": [],
+        "observation_patterns": [],
+        "closure_patterns": [],
+    }
+
+
+def _iter_signal_files(directory: Path) -> list[Path]:
+    if not directory.exists():
+        return []
+
+    return sorted(
+        path
+        for path in directory.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".json", ".md", ".yaml", ".yml"}
+    )
+
+
+def _load_structured_signal_file(file_path: Path) -> dict[str, Any]:
+    try:
+        if file_path.suffix.lower() == ".json":
+            data = json.loads(file_path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        if file_path.suffix.lower() in {".yaml", ".yml"}:
+            data = yaml.safe_load(file_path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        if file_path.suffix.lower() == ".md":
+            return _extract_markdown_frontmatter(file_path)
+    except (json.JSONDecodeError, OSError, yaml.YAMLError):
+        return {}
+
+    return {}
+
+
+def _coerce_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, list):
+        return len(value)
+    if isinstance(value, str):
+        normalized = value.strip()
+        if normalized.isdigit():
+            return int(normalized)
+    return None
+
+
+def _normalize_signal_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())
+
+
+def _extract_signal_timestamp(file_path: Path, metadata: dict[str, Any]) -> str:
+    for key in (
+        "recorded_at",
+        "generated_at",
+        "tuned_at",
+        "created_at",
+        "timestamp",
+        "date",
+        "first_seen",
+        "last_seen",
+    ):
+        value = _normalize_signal_text(metadata.get(key))
+        if value:
+            return value
+
+    try:
+        return datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc).strftime("%Y-%m-%d")
+    except OSError:
+        return ""
+
+
+def _timestamp_bounds(values: list[str]) -> tuple[str, str]:
+    normalized = sorted(value for value in values if value)
+    if not normalized:
+        return "", ""
+    return normalized[0], normalized[-1]
+
+
+def _mine_compound_patterns(
+    workspace_path: Path,
+    compound_dir: Path,
+    affected_artifacts: list[str],
+) -> list[dict[str, Any]]:
+    compound_patterns: list[dict[str, Any]] = []
+    compound_files = _iter_signal_files(compound_dir)
+    if len(compound_files) < 3:
+        return compound_patterns
+
+    root_causes: dict[str, list[str]] = {}
+    categories: dict[str, list[str]] = {}
+    components: dict[str, list[str]] = {}
+    tag_refs: dict[str, list[str]] = {}
+    tag_categories: dict[str, set[str]] = {}
+    high_severity_refs: list[str] = []
+    parsed_entries = 0
+
+    for file_path in compound_files:
+        frontmatter = _extract_markdown_frontmatter(file_path)
+        if not frontmatter:
+            continue
+
+        parsed_entries += 1
+        relative_path = _relative_workspace_path(workspace_path, file_path)
+
+        root_cause = _normalize_signal_text(frontmatter.get("root_cause"))
+        if root_cause:
+            root_causes.setdefault(root_cause, []).append(relative_path)
+
+        category = _normalize_signal_text(frontmatter.get("category"))
+        if category:
+            categories.setdefault(category, []).append(relative_path)
+
+        component = _normalize_signal_text(frontmatter.get("component"))
+        if component:
+            components.setdefault(component, []).append(relative_path)
+
+        for tag in _normalize_text_list(frontmatter.get("tags")):
+            tag_refs.setdefault(tag, []).append(relative_path)
+            if category:
+                tag_categories.setdefault(tag, set()).add(category)
+
+        severity = _normalize_signal_text(frontmatter.get("severity")).lower()
+        if severity in {"critical", "high"}:
+            high_severity_refs.append(relative_path)
+
+    if parsed_entries < 3:
+        return compound_patterns
+
+    for root_cause, evidence_refs in sorted(root_causes.items()):
+        if len(evidence_refs) < 3:
+            continue
+        compound_patterns.append(
+            {
+                "pattern_type": "recurring_root_cause",
+                "key": root_cause,
+                "evidence_count": len(evidence_refs),
+                "evidence_refs": evidence_refs,
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": (
+                    f"Generate a learning-driven tuning proposal for recurring root cause '{root_cause}'."
+                ),
+            }
+        )
+
+    for category, evidence_refs in sorted(categories.items()):
+        if len(evidence_refs) < 3 or (len(evidence_refs) / parsed_entries) < 0.5:
+            continue
+        compound_patterns.append(
+            {
+                "pattern_type": "category_concentration",
+                "key": category,
+                "evidence_count": len(evidence_refs),
+                "evidence_refs": evidence_refs,
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": (
+                    f"Investigate whether category '{category}' needs stronger harness guidance or a dedicated reviewer surface."
+                ),
+            }
+        )
+
+    for component, evidence_refs in sorted(components.items()):
+        if len(evidence_refs) < 3:
+            continue
+        compound_patterns.append(
+            {
+                "pattern_type": "component_hotspot",
+                "key": component,
+                "evidence_count": len(evidence_refs),
+                "evidence_refs": evidence_refs,
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": (
+                    f"Review harness coverage for hotspot component '{component}'."
+                ),
+            }
+        )
+
+    for tag, evidence_refs in sorted(tag_refs.items()):
+        categories_for_tag = tag_categories.get(tag, set())
+        if len(categories_for_tag) < 3:
+            continue
+        compound_patterns.append(
+            {
+                "pattern_type": "cross_cutting_tags",
+                "key": tag,
+                "evidence_count": len(evidence_refs),
+                "evidence_refs": evidence_refs,
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": (
+                    f"Consider a cross-cutting instruction or review rule for tag '{tag}'."
+                ),
+            }
+        )
+
+    if len(high_severity_refs) >= 3 and (len(high_severity_refs) / parsed_entries) >= 0.5:
+        compound_patterns.append(
+            {
+                "pattern_type": "severity_trend",
+                "key": "high_severity_pressure",
+                "evidence_count": len(high_severity_refs),
+                "evidence_refs": sorted(high_severity_refs),
+                "affected_artifacts": affected_artifacts,
+                "suggested_action": "Escalate the next learning-driven tuning proposal for repeated high-severity compound entries.",
+            }
+        )
+
+    compound_patterns.sort(
+        key=lambda item: (str(item.get("pattern_type") or ""), str(item.get("key") or ""))
+    )
+    return compound_patterns
+
+
+def _mine_continuous_learning_patterns(
+    workspace_path: Path,
+    continuous_learning_dir: Path,
+    promotion_threshold: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    observation_dir = continuous_learning_dir / "observations"
+    instinct_dir = continuous_learning_dir / "instincts"
+    learned_dir = continuous_learning_dir / "learned"
+
+    observation_files = _iter_signal_files(observation_dir)
+    phase_counter: Counter[str] = Counter()
+    total_observations = 0
+    for file_path in observation_files:
+        metadata = _load_structured_signal_file(file_path)
+        phase = _normalize_signal_text(
+            metadata.get("affected_workflow_phase") or metadata.get("workflow_phase")
+        ).lower()
+        if not phase:
+            continue
+        phase_counter[phase] += 1
+        total_observations += 1
+
+    observation_patterns = [
+        {
+            "phase": phase,
+            "observation_count": count,
+            "proportion": round(count / total_observations, 2) if total_observations else 0.0,
+            "suggested_action": (
+                f"Strengthen the {phase} workflow guidance because it accounts for {count} corroborating observations."
+            ),
+        }
+        for phase, count in sorted(phase_counter.items())
+    ]
+
+    promoted_instinct_paths: set[str] = set()
+    promoted_instinct_names: set[str] = set()
+    for file_path in _iter_signal_files(learned_dir):
+        metadata = _load_structured_signal_file(file_path)
+        source_instinct = _normalize_signal_text(
+            metadata.get("instinct_path")
+            or metadata.get("source_instinct")
+            or metadata.get("source_instinct_path")
+        )
+        if source_instinct:
+            normalized_path = Path(source_instinct).as_posix()
+            promoted_instinct_paths.add(normalized_path)
+            promoted_instinct_names.add(Path(normalized_path).stem)
+
+    promotion_candidates: list[dict[str, Any]] = []
+    for file_path in _iter_signal_files(instinct_dir):
+        metadata = _load_structured_signal_file(file_path)
+        instinct_path = _relative_workspace_path(workspace_path, file_path)
+        observation_count = _coerce_int(
+            metadata.get("observation_count")
+            or metadata.get("corroborating_observation_count")
+            or metadata.get("corroborating_observations")
+            or metadata.get("observation_refs")
+        )
+        if observation_count is None or observation_count < promotion_threshold:
+            continue
+        if instinct_path in promoted_instinct_paths or file_path.stem in promoted_instinct_names:
+            continue
+
+        suggested_target = _normalize_signal_text(
+            metadata.get("suggested_target") or metadata.get("promotion_target") or "instruction"
+        ) or "instruction"
+        learned_suffix = ".instructions.md" if suggested_target == "instruction" else ".md"
+        promotion_candidates.append(
+            {
+                "instinct_path": instinct_path,
+                "observation_count": observation_count,
+                "threshold": promotion_threshold,
+                "suggested_target": suggested_target,
+                "suggested_action": (
+                    f"Invoke evolve skill to promote to learned-{file_path.stem}{learned_suffix}"
+                ),
+            }
+        )
+
+    promotion_candidates.sort(key=lambda item: str(item.get("instinct_path") or ""))
+    return promotion_candidates, observation_patterns
+
+
+def _mine_closure_patterns(
+    workspace_path: Path,
+    tuning_reports_dir: Path,
+    closure_dir: Path,
+) -> list[dict[str, Any]]:
+    proposal_occurrences: dict[str, list[dict[str, str]]] = {}
+    closure_occurrences: dict[str, list[dict[str, str]]] = {}
+
+    for file_path in _iter_signal_files(tuning_reports_dir):
+        metadata = _load_structured_signal_file(file_path)
+        timestamp = _extract_signal_timestamp(file_path, metadata)
+        proposals = metadata.get("proposals") or metadata.get("learning_driven_proposals") or []
+        if not isinstance(proposals, list):
+            continue
+        for proposal in proposals:
+            if isinstance(proposal, dict):
+                key = _normalize_signal_text(
+                    proposal.get("key")
+                    or proposal.get("summary")
+                    or proposal.get("artifact")
+                    or proposal.get("title")
+                )
+                status = _normalize_signal_text(proposal.get("status") or proposal.get("resolution")).lower()
+                prior_fix_ref = _normalize_signal_text(
+                    proposal.get("prior_fix_ref") or proposal.get("applied_ref")
+                )
+            else:
+                key = _normalize_signal_text(proposal)
+                status = ""
+                prior_fix_ref = ""
+
+            if not key or status in {"resolved", "complete", "completed"}:
+                continue
+            proposal_occurrences.setdefault(key, []).append(
+                {
+                    "timestamp": timestamp,
+                    "ref": _relative_workspace_path(workspace_path, file_path),
+                    "prior_fix_ref": prior_fix_ref,
+                }
+            )
+
+    for file_path in _iter_signal_files(closure_dir):
+        metadata = _load_structured_signal_file(file_path)
+        timestamp = _extract_signal_timestamp(file_path, metadata)
+        findings = metadata.get("closure_findings") or metadata.get("findings") or metadata.get("runtime_findings") or []
+        if not isinstance(findings, list):
+            continue
+        for finding in findings:
+            if isinstance(finding, dict):
+                key = _normalize_signal_text(
+                    finding.get("key")
+                    or finding.get("summary")
+                    or finding.get("finding")
+                    or finding.get("issue")
+                    or finding.get("rollback_trigger")
+                )
+            else:
+                key = _normalize_signal_text(finding)
+            if not key:
+                continue
+            closure_occurrences.setdefault(key, []).append(
+                {
+                    "timestamp": timestamp,
+                    "ref": _relative_workspace_path(workspace_path, file_path),
+                }
+            )
+
+    closure_patterns: list[dict[str, Any]] = []
+    for key, occurrences in sorted(proposal_occurrences.items()):
+        if len(occurrences) < 2:
+            continue
+        first_seen, last_seen = _timestamp_bounds([item["timestamp"] for item in occurrences])
+        prior_fix_refs = sorted({item["prior_fix_ref"] for item in occurrences if item["prior_fix_ref"]})
+        closure_patterns.append(
+            {
+                "pattern_type": "recurring_tuning_proposal",
+                "key": key,
+                "occurrences": len(occurrences),
+                "first_seen": first_seen,
+                "last_seen": last_seen,
+                "prior_fix_refs": prior_fix_refs,
+                "suggested_action": f"Escalate recurring tuning proposal '{key}' to a structural harness fix.",
+            }
+        )
+
+    for key, occurrences in sorted(closure_occurrences.items()):
+        if len(occurrences) < 2:
+            continue
+        first_seen, last_seen = _timestamp_bounds([item["timestamp"] for item in occurrences])
+        closure_patterns.append(
+            {
+                "pattern_type": "recurring_closure_finding",
+                "key": key,
+                "occurrences": len(occurrences),
+                "first_seen": first_seen,
+                "last_seen": last_seen,
+                "prior_fix_refs": [],
+                "suggested_action": f"Add or strengthen harness guidance for recurring closure finding '{key}'.",
+            }
+        )
+
+    closure_patterns.sort(
+        key=lambda item: (str(item.get("pattern_type") or ""), str(item.get("key") or ""))
+    )
+    return closure_patterns
+
+
+def _mine_learning_signals(
+    workspace_path: Path,
+    variables: dict[str, str],
+    config: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    learning_signals = _empty_learning_signals()
+    compound_dir = workspace_path / Path(str(variables.get("DOCS_COMPOUND") or "docs/compound"))
+    affected_artifacts = [
+        ".github/agents/auto-tune.agent.md",
+        ".github/skills/tune-harness/SKILL.md",
+    ]
+
+    learning_signals["compound_patterns"] = _mine_compound_patterns(
+        workspace_path,
+        compound_dir,
+        affected_artifacts,
+    )
+
+    continuous_learning_dir = workspace_path / Path(str(variables.get("CONTINUOUS_LEARNING_DIR") or ".autoharness/continuous-learning"))
+    promotion_threshold = _coerce_int(
+        (config.get("continuous_learning") or {}).get("promotion_threshold")
+    ) or 3
+    promotion_candidates, observation_patterns = _mine_continuous_learning_patterns(
+        workspace_path,
+        continuous_learning_dir,
+        promotion_threshold,
+    )
+    learning_signals["promotion_candidates"] = promotion_candidates
+    learning_signals["observation_patterns"] = observation_patterns
+
+    learning_signals["closure_patterns"] = _mine_closure_patterns(
+        workspace_path,
+        workspace_path / ".autoharness" / "tuning-reports",
+        workspace_path / Path(str(variables.get("DOCS_CLOSURE") or "docs/closure")),
+    )
+
+    return learning_signals
 
 
 def _resolve_source_template(
@@ -809,6 +1319,19 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
     else:
         lines.append("none")
 
+    lines.extend(["", "## Learning Signals", ""])
+    learning_signals = report.get("learning_signals") or {}
+    if any(learning_signals.get(key) for key in learning_signals):
+        for key in (
+            "compound_patterns",
+            "promotion_candidates",
+            "observation_patterns",
+            "closure_patterns",
+        ):
+            lines.append(f"- {key}: {len(learning_signals.get(key) or [])}")
+    else:
+        lines.append("none")
+
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -839,6 +1362,7 @@ def verify_workspace(
         "schema_contracts": {},
         "migration_proposals": [],
         "targeted_checks": {},
+        "learning_signals": _empty_learning_signals(),
         "report_paths": {},
     }
 
@@ -941,15 +1465,29 @@ def verify_workspace(
         )
 
     variables = _derive_template_variables(workspace_path, manifest, config, profile, registry)
+    report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
 
     for artifact in manifest.get("artifacts") or []:
+        if not isinstance(artifact, dict):
+            report["warnings"].append(
+                {
+                    "kind": "malformed-artifact-entry",
+                    "path": str(artifact),
+                    "message": "Manifest artifact entry is not an object; expected {path, checksum, template, primitive}. Skipping.",
+                }
+            )
+            continue
         relative_path = str(artifact.get("path", ""))
         workspace_file = workspace_path / Path(relative_path)
-        expected_checksum = str(artifact.get("checksum", ""))
+        raw_expected_checksum = artifact.get("checksum")
+        expected_checksum = _normalize_signal_text(raw_expected_checksum)
         if not workspace_file.exists():
-            report["checksum_scan"].append(
-                {"path": relative_path, "status": "missing", "expected": expected_checksum}
-            )
+            checksum_entry = {"path": relative_path, "status": "missing"}
+            if expected_checksum:
+                checksum_entry["expected"] = expected_checksum
+            else:
+                checksum_entry["reason"] = "manifest checksum missing"
+            report["checksum_scan"].append(checksum_entry)
             report["warnings"].append(
                 {
                     "kind": "missing-installed-artifact",
@@ -959,15 +1497,32 @@ def verify_workspace(
             )
         else:
             actual_checksum = _sha256_bytes(workspace_file.read_bytes())
-            status = "unchanged" if actual_checksum == expected_checksum else "user-modified"
-            report["checksum_scan"].append(
-                {
-                    "path": relative_path,
-                    "status": status,
-                    "expected": expected_checksum,
-                    "actual": actual_checksum,
-                }
-            )
+            if expected_checksum:
+                status = "unchanged" if actual_checksum == expected_checksum else "user-modified"
+                report["checksum_scan"].append(
+                    {
+                        "path": relative_path,
+                        "status": status,
+                        "expected": expected_checksum,
+                        "actual": actual_checksum,
+                    }
+                )
+            else:
+                report["checksum_scan"].append(
+                    {
+                        "path": relative_path,
+                        "status": "checksum-untracked",
+                        "actual": actual_checksum,
+                        "reason": "manifest checksum missing",
+                    }
+                )
+                report["warnings"].append(
+                    {
+                        "kind": "manifest-checksum-missing",
+                        "path": relative_path,
+                        "message": "Manifest-listed artifact has no checksum; drift scan skipped checksum comparison for this path.",
+                    }
+                )
 
         source_path, mode = _resolve_source_template(autoharness_home, workspace_path, artifact)
         if source_path is None or mode is None:

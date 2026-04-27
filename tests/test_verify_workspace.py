@@ -60,6 +60,29 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
+    def test_auto_tune_learning_loop_guidance_is_woven_through_agent_and_skill(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
+            repo_root / ".github" / "agents" / "auto-tune.agent.md": [
+                "learning_signals{}",
+                "compound library",
+                "continuous-learning observations/instincts",
+                "closure artifacts",
+            ],
+            repo_root / ".github" / "skills" / "tune-harness" / "SKILL.md": [
+                "learning_signals{}",
+                "distribution.local_agents_dir",
+                ".github/local-agents/",
+                "produced by compound, continuous-learning, and closure systems",
+            ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
+
     def test_unresolved_placeholders_ignore_code_fences(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_file = Path(temp_dir) / "sample.md"
@@ -834,6 +857,570 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["copilot_session_memory_guidance"]["ok"])
             self.assertTrue(targeted_checks["copilot_remote_operator_guidance"]["ok"])
             self.assertTrue(targeted_checks["copilot_backlog_workflow_expectations"]["ok"])
+
+    def test_verify_workspace_checks_auto_tune_learning_loop_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "tune-harness").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1, 4],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "agents" / "auto-tune.agent.md").write_text(
+                "Step 1.8\ncompound library\ncontinuous-learning\nclosure artifacts\nlearning_signals{}\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "tune-harness" / "SKILL.md").write_text(
+                "#### Step 1.8: Mine Learning Signals for Improvement Proposals\n"
+                "produced by compound, continuous-learning, and closure systems\n"
+                "learning_signals{}\n"
+                "Learning-driven proposals\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["auto_tune_learning_loop_contract"]["ok"])
+            self.assertTrue(targeted_checks["tune_harness_learning_loop_contract"]["ok"])
+
+    def test_verify_workspace_requires_structured_learning_signals_in_auto_tune_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "tune-harness").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1, 4],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "agents" / "auto-tune.agent.md").write_text(
+                "Step 1.8\ncompound library\ncontinuous-learning\nclosure artifacts\nlearning_signals\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "tune-harness" / "SKILL.md").write_text(
+                "#### Step 1.8: Mine Learning Signals for Improvement Proposals\n"
+                "produced by compound, continuous-learning, and closure systems\n"
+                "learning_signals{}\n"
+                "Learning-driven proposals\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            targeted_checks = report["targeted_checks"]
+            self.assertFalse(targeted_checks["auto_tune_learning_loop_contract"]["ok"])
+            self.assertIn(
+                "learning_signals{}",
+                " ".join(targeted_checks["auto_tune_learning_loop_contract"].get("missing") or []),
+            )
+
+    def test_verify_workspace_reports_learning_signals_from_compound_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / "docs" / "compound").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            compound_entry = (
+                "---\n"
+                "root_cause: stale-cache\n"
+                "category: build-errors\n"
+                "component: auto-tune\n"
+                "severity: high\n"
+                "tags:\n"
+                "  - cache\n"
+                "  - tuning\n"
+                "---\n"
+                "Recurring stale-cache issue.\n"
+            )
+            for index in range(1, 4):
+                (workspace / "docs" / "compound" / f"stale-cache-{index}.md").write_text(
+                    compound_entry,
+                    encoding="utf-8",
+                )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            compound_patterns = report["learning_signals"]["compound_patterns"]
+            recurring_root_cause = next(
+                pattern for pattern in compound_patterns if pattern["pattern_type"] == "recurring_root_cause"
+            )
+            self.assertEqual(recurring_root_cause["key"], "stale-cache")
+            self.assertEqual(recurring_root_cause["evidence_count"], 3)
+            self.assertEqual(
+                recurring_root_cause["evidence_refs"],
+                [
+                    "docs/compound/stale-cache-1.md",
+                    "docs/compound/stale-cache-2.md",
+                    "docs/compound/stale-cache-3.md",
+                ],
+            )
+
+    def test_verify_workspace_reports_learning_signals_from_continuous_learning_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness" / "continuous-learning" / "observations").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness" / "continuous-learning" / "instincts").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1],
+                    "capability_packs": ["continuous-learning"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(
+                workspace / ".autoharness" / "config.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "continuous_learning": {
+                        "directory": ".autoharness/continuous-learning",
+                        "promotion_threshold": 3,
+                    },
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            for index in range(1, 3):
+                _write_yaml(
+                    workspace / ".autoharness" / "continuous-learning" / "observations" / f"build-{index}.yaml",
+                    {
+                        "affected_workflow_phase": "build",
+                    },
+                )
+
+            (workspace / ".autoharness" / "continuous-learning" / "instincts" / "cache-invalidation.md").write_text(
+                "---\n"
+                "observation_count: 4\n"
+                "suggested_target: instruction\n"
+                "---\n"
+                "Promote this instinct.\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            promotion_candidates = report["learning_signals"]["promotion_candidates"]
+            self.assertEqual(len(promotion_candidates), 1)
+            self.assertEqual(
+                promotion_candidates[0]["instinct_path"],
+                ".autoharness/continuous-learning/instincts/cache-invalidation.md",
+            )
+            self.assertEqual(promotion_candidates[0]["observation_count"], 4)
+
+            observation_patterns = report["learning_signals"]["observation_patterns"]
+            self.assertEqual(len(observation_patterns), 1)
+            self.assertEqual(observation_patterns[0]["phase"], "build")
+            self.assertEqual(observation_patterns[0]["observation_count"], 2)
+
+    def test_verify_workspace_reports_promotion_candidates_without_observations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness" / "continuous-learning" / "instincts").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1],
+                    "capability_packs": ["continuous-learning"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(
+                workspace / ".autoharness" / "config.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "continuous_learning": {
+                        "directory": ".autoharness/continuous-learning",
+                        "promotion_threshold": 3,
+                    },
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".autoharness" / "continuous-learning" / "instincts" / "cache-invalidation.md").write_text(
+                "---\n"
+                "observation_count: 4\n"
+                "suggested_target: instruction\n"
+                "---\n"
+                "Promote this instinct.\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            promotion_candidates = report["learning_signals"]["promotion_candidates"]
+            self.assertEqual(len(promotion_candidates), 1)
+            self.assertEqual(
+                promotion_candidates[0]["instinct_path"],
+                ".autoharness/continuous-learning/instincts/cache-invalidation.md",
+            )
+            self.assertEqual(promotion_candidates[0]["observation_count"], 4)
+            self.assertEqual(report["learning_signals"]["observation_patterns"], [])
+
+    def test_verify_workspace_reports_learning_signals_from_closure_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / "docs" / "closure").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [10],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            closure_entry = (
+                "---\n"
+                "generated_at: 2026-04-0{index}T00:00:00Z\n"
+                "closure_findings:\n"
+                "  - database-migration-rollback\n"
+                "---\n"
+                "Recurring rollback trigger.\n"
+            )
+            for index in range(1, 3):
+                (workspace / "docs" / "closure" / f"closure-{index}.md").write_text(
+                    closure_entry.format(index=index),
+                    encoding="utf-8",
+                )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            closure_patterns = report["learning_signals"]["closure_patterns"]
+            self.assertEqual(len(closure_patterns), 1)
+            self.assertEqual(closure_patterns[0]["pattern_type"], "recurring_closure_finding")
+            self.assertEqual(closure_patterns[0]["key"], "database-migration-rollback")
+            self.assertEqual(closure_patterns[0]["occurrences"], 2)
+
+    def test_verify_workspace_skips_checksum_comparison_when_manifest_checksum_is_blank(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            (workspace / "AGENTS.md").write_text("tracked file\n", encoding="utf-8")
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [9],
+                    "capability_packs": [],
+                    "artifacts": [
+                        {
+                            "path": "AGENTS.md",
+                            "primitive": 9,
+                            "template": "workspace merge install",
+                            "checksum": "",
+                        }
+                    ],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            checksum_entry = report["checksum_scan"][0]
+            self.assertEqual(checksum_entry["path"], "AGENTS.md")
+            self.assertEqual(checksum_entry["status"], "checksum-untracked")
+            self.assertEqual(checksum_entry["reason"], "manifest checksum missing")
+            self.assertIn(
+                {
+                    "kind": "manifest-checksum-missing",
+                    "path": "AGENTS.md",
+                    "message": "Manifest-listed artifact has no checksum; drift scan skipped checksum comparison for this path.",
+                },
+                report["warnings"],
+            )
 
 
 if __name__ == "__main__":
