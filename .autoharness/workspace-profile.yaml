@@ -1,7 +1,7 @@
 # .autoharness/workspace-profile.yaml
 schema_version: "1.0.0"
 generated_at: "2026-04-26T21:16:00-07:00"
-workspace_path: "D:\\Source\\GitHub\\autoharness"
+workspace_path: "."
 
 languages:
   primary: "python"
@@ -196,7 +196,7 @@ backlog_tool:
 
 vscode:
   detected: true
-  user_settings_path: "C:\\Users\\derek.williams\\AppData\\Roaming\\Code\\User\\settings.json"
+  user_settings_path: null
   has_agent_settings: false
 
 drift_report: null

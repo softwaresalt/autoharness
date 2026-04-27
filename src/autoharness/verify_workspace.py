@@ -699,9 +699,6 @@ def _mine_continuous_learning_patterns(
     learned_dir = continuous_learning_dir / "learned"
 
     observation_files = _iter_signal_files(observation_dir)
-    if not observation_files:
-        return [], []
-
     phase_counter: Counter[str] = Counter()
     total_observations = 0
     for file_path in observation_files:

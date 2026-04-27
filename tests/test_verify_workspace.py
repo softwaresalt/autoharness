@@ -1115,6 +1115,88 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertEqual(observation_patterns[0]["phase"], "build")
             self.assertEqual(observation_patterns[0]["observation_count"], 2)
 
+    def test_verify_workspace_reports_promotion_candidates_without_observations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness" / "continuous-learning" / "instincts").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-26T00:00:00Z",
+                    "autoharness_version": "1.3.3",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1],
+                    "capability_packs": ["continuous-learning"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(
+                workspace / ".autoharness" / "config.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "continuous_learning": {
+                        "directory": ".autoharness/continuous-learning",
+                        "promotion_threshold": 3,
+                    },
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".autoharness" / "continuous-learning" / "instincts" / "cache-invalidation.md").write_text(
+                "---\n"
+                "observation_count: 4\n"
+                "suggested_target: instruction\n"
+                "---\n"
+                "Promote this instinct.\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            promotion_candidates = report["learning_signals"]["promotion_candidates"]
+            self.assertEqual(len(promotion_candidates), 1)
+            self.assertEqual(
+                promotion_candidates[0]["instinct_path"],
+                ".autoharness/continuous-learning/instincts/cache-invalidation.md",
+            )
+            self.assertEqual(promotion_candidates[0]["observation_count"], 4)
+            self.assertEqual(report["learning_signals"]["observation_patterns"], [])
+
     def test_verify_workspace_reports_learning_signals_from_closure_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
