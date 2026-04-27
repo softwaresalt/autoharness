@@ -37,22 +37,27 @@ autoharness — agent harness framework
 Usage:
   autoharness home              Print the autoharness installation path
   autoharness version           Print the installed version
-    autoharness verify-workspace  Deterministically verify an installed workspace harness
+  autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
-  autoharness setup-copilot-cli Copy agents and skills into the Copilot CLI global config dir
+  autoharness setup-copilot-cli Copy agents/skills into Copilot CLI (deprecated — use plugin)
   autoharness setup-claude      Copy agents and skills into the Claude Code global config dir
   autoharness setup-codex       Copy skills into the Codex global config dir
   autoharness help              Show this message
 
-Install:
+Install (Copilot CLI plugin — recommended, no Python needed):
+  copilot plugin install softwaresalt/autoharness
+
+Install (Python CLI — for setup-vscode and verify-workspace):
   uv tool install autoharness
   uv tool install git+https://github.com/softwaresalt/autoharness.git
 
 Update:
-  uv tool upgrade autoharness
+  copilot plugin update autoharness          # plugin
+  uv tool upgrade autoharness                # Python CLI
 
-The AI coding assistant is the runtime. This CLI exists only so agents
-can resolve the autoharness home path via `autoharness home`.
+The AI coding assistant is the runtime. This CLI primarily helps agents
+resolve the autoharness home path via `autoharness home`, and also
+provides user-facing setup and verification commands.
 """
 
 
@@ -372,7 +377,15 @@ def _setup_copilot_cli() -> None:
 
     Re-run this command after upgrading autoharness to pick up new agents or
     updated skill files.
+
+    DEPRECATED: Use `copilot plugin install softwaresalt/autoharness` instead.
     """
+    print("NOTE: setup-copilot-cli is deprecated.")
+    print("      Prefer: copilot plugin install softwaresalt/autoharness")
+    print("      The plugin provides the same agents and skills with built-in")
+    print("      versioning and no Python dependency.")
+    print()
+
     home = _home()
     config_dir = _copilot_cli_config_dir()
     src_agents = home / ".github" / "agents"
@@ -391,6 +404,7 @@ def _setup_copilot_cli() -> None:
 
     print("Done. Start a new Copilot CLI session to pick up the changes.")
     print("Run this command again after upgrading autoharness.")
+
 
 
 def _copy_tree(src_dir: Path, dst_dir: Path, glob: str) -> tuple[list[str], list[str]]:

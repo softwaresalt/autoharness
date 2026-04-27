@@ -37,15 +37,33 @@ Once those settings are in place, the **Auto-MergeInstall** agent appears in the
 >
 > This writes the three `chat.*` entries into your VS Code user settings using the fully-resolved path from `autoharness home`. Then reload the VS Code window (`Ctrl+Shift+P` → **Reload Window**) and the **Auto-MergeInstall** agent will appear in the agents dropdown. Re-run `autoharness setup-vscode` only if the resolved `autoharness home` path changes after a reinstall or environment move.
 
+## GitHub Copilot CLI — Plugin Install (Recommended)
+
+The fastest way to get autoharness agents into Copilot CLI is the **plugin system**:
+
+```bash
+copilot plugin install softwaresalt/autoharness
+```
+
+This installs the Auto-MergeInstall and Auto-Tune agents plus all skills in a single command — no Python required. Updates are equally simple:
+
+```bash
+copilot plugin update autoharness
+```
+
+The plugin is discovered from the `.github/plugin/plugin.json` manifest in the repository.
+
 ## GitHub Copilot CLI — VS Code Background Sessions
 
 VS Code integrates with the Copilot CLI as **background agent sessions** that run autonomously while you continue other work. VS Code installs and configures the Copilot CLI agent runtime automatically.
 
-For the **Auto-MergeInstall** and **Auto-Tune** agents to appear in Copilot CLI sessions, run this command once after installing autoharness:
+For the **Auto-MergeInstall** and **Auto-Tune** agents to appear in Copilot CLI sessions, install the plugin (see above) or run this legacy command once after installing the Python package:
 
 ```bash
 autoharness setup-copilot-cli
 ```
+
+> **Deprecation notice:** `setup-copilot-cli` is superseded by `copilot plugin install softwaresalt/autoharness`. The plugin provides the same agents and skills with built-in versioning and no Python dependency. The CLI command will be removed in a future release.
 
 This copies the agent `.md` files and skill `SKILL.md` files from the autoharness installation into your Copilot CLI global config directory (`~/.copilot/agents/` and `~/.copilot/skills/`). This is the standard registration path for external workspaces; autoharness does not install these global agents into the target workspace. Re-run it after upgrading autoharness to pick up updated files.
 
