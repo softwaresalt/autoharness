@@ -81,19 +81,21 @@ See [Capability Packs](docs/capability-packs.md) for the full overlay contract a
 ## Quick Start
 
 ```bash
-# 1. Install globally
-uv tool install git+https://github.com/softwaresalt/autoharness.git
+# Option A: Copilot CLI plugin (recommended — no Python needed)
+copilot plugin install softwaresalt/autoharness
 
-# 2. Register with your AI environment
+# Option B: Python CLI (for setup-vscode and verify-workspace)
+uv tool install git+https://github.com/softwaresalt/autoharness.git
 autoharness setup-vscode        # VS Code with GitHub Copilot
-autoharness setup-copilot-cli   # Copilot CLI
+
+# Register with other AI environments (requires Python CLI)
 autoharness setup-claude        # Claude Code
 autoharness setup-codex         # Codex
 
-# 3. Install a harness (from the target workspace)
+# Install a harness (from the target workspace)
 /install-harness preset=standard
 
-# 4. Run deterministic verification against an installed workspace
+# Run deterministic verification against an installed workspace
 autoharness verify-workspace --workspace .
 ```
 
@@ -102,7 +104,9 @@ feature-branch work. autoharness may still generate local uncommitted changes
 while you are on the default branch, but the intended review path is feature
 branch plus pull request, not a direct commit or push to the default branch.
 
-The `setup-copilot-cli`, `setup-claude`, and `setup-codex` commands copy agent or skill files into each tool's standard global config directory, so rerun them after upgrading autoharness to refresh those files. `setup-vscode` writes user-settings pointers to `autoharness home`; rerun it only if that resolved install path changes.
+The plugin install path (`copilot plugin install`) gives Copilot CLI users built-in versioning and update management with no Python dependency. The Python CLI is still needed for `setup-vscode` (writing VS Code user settings), `verify-workspace` (CI-friendly JSON Schema validation), and registering with Claude Code or Codex.
+
+The `setup-claude` and `setup-codex` commands copy agent or skill files into each tool's standard global config directory, so rerun them after upgrading autoharness to refresh those files. `setup-vscode` writes user-settings pointers to `autoharness home`; rerun it only if that resolved install path changes.
 
 See [Getting Started](docs/getting-started.md) for the full walkthrough, including workspace configuration, install layers, selective installation, and post-install verification.
 

@@ -1,0 +1,19 @@
+{
+  "name": "autoharness",
+  "owner": {
+    "name": "softwaresalt",
+    "email": "softwaresalt@users.noreply.github.com"
+  },
+  "metadata": {
+    "description": "Agent harness framework — compose 10 irreducible AI coding assistant primitives into any workspace",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "autoharness",
+      "description": "Discover workspace characteristics and install a customized agent harness from universal primitive templates. Includes Auto-MergeInstall, Auto-Tune, and workspace-discovery, install-harness, tune-harness, and verify-harness skills.",
+      "version": "1.3.4",
+      "source": "."
+    }
+  ]
+}
