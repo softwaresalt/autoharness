@@ -1,1 +1,2 @@
 {"timestamp":"2026-04-26T21:51:18.3650354-07:00","actor":"backlogit","item_id":"005.003-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-04-26T22:14:11.0802526-07:00","actor":"backlogit","item_id":"005.003-T","event_type":"commit_tracked","delta":{"author":"williamsderek","commit_sha":"7e6c61344df283d72f8c655b160f2494d8192b9a","message":"feat: Enhance autoharness with new Ship and Stage agents, improving backlog management and execution pipelines"}}
