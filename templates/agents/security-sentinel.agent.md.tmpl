@@ -137,7 +137,8 @@ If `{{DOCS_SECURITY}}/` does not exist, create it before writing.
 ## Behavioral Constraints
 
 * No subagent spawning (leaf executor)
-* Read and search only — do not modify source files (report-only mode)
+* Do not modify source files or config files — read and search only for analysis
+* May create/write the audit report under `{{DOCS_SECURITY}}/` — this is the only permitted write operation
 * Report only findings with a concrete location in the codebase
 * Do not report theoretical vulnerabilities without evidence from the current codebase
 * OWASP and auth findings are report-only — auto-fix is never applied to source code

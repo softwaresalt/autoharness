@@ -1464,12 +1464,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
         review_skill = repo_root / "templates" / "skills" / "review" / "SKILL.md.tmpl"
         review_content = review_skill.read_text(encoding="utf-8")
         self.assertIn("Security Reviewer", review_content)
-        self.assertIn("security-reviewer", review_content)
+        self.assertIn("security-reviewer.agent.md", review_content)
 
         plan_review_skill = repo_root / "templates" / "skills" / "plan-review" / "SKILL.md.tmpl"
         plan_review_content = plan_review_skill.read_text(encoding="utf-8")
         self.assertIn("Security Lens Reviewer", plan_review_content)
-        self.assertIn("security-lens-reviewer", plan_review_content)
+        self.assertIn("security-lens-reviewer.agent.md", plan_review_content)
 
     def test_verify_workspace_checks_security_persona_routing_in_installed_skills(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1526,13 +1526,13 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (workspace / ".github" / "skills" / "review" / "SKILL.md").write_text(
                 "## Conditional Personas\n"
                 "| **Security Reviewer** | auth middleware, endpoints | Different |\n"
-                "security-reviewer\n",
+                "security-reviewer.agent.md\n",
                 encoding="utf-8",
             )
             (workspace / ".github" / "skills" / "plan-review" / "SKILL.md").write_text(
                 "## Cross-Model Personas\n"
                 "| **Security Lens Reviewer** | auth, API surfaces | Different |\n"
-                "security-lens-reviewer\n",
+                "security-lens-reviewer.agent.md\n",
                 encoding="utf-8",
             )
 

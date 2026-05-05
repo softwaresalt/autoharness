@@ -699,7 +699,7 @@ Generate skill files:
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
     * `file-lock/SKILL.md` — Install when Primitive 5 is selected. Provides `scripts/acquire_lock.ps1`, `scripts/acquire_lock.sh`, `scripts/release_lock.ps1`, and `scripts/release_lock.sh` for file-level concurrency control. Copy all scripts from `{autoharness_home}/templates/skills/file-lock/scripts/` into `{workspace_path}/scripts/`.
     * `skill-search/SKILL.md` — Install when Primitive 6 is selected. Provides `scripts/search.ps1` and `scripts/search.sh` for dynamic on-demand skill discovery. Copy all scripts from `{autoharness_home}/templates/skills/skill-search/scripts/` into `{workspace_path}/scripts/`.
-    * `security-audit/SKILL.md` — Install when Primitive 5 or Primitive 7 is selected. Resolves security surface variables: `{{AGENTIC_CONFIG_GLOB}}`, `{{SOURCE_GLOB}}`, `{{DOCS_SECURITY}}`, `{{SECURITY_CONFIG_RULES}}`, `{{SECURITY_OWASP_PATTERNS}}`.
+    * `security-audit/SKILL.md` — Install when Primitive 5 or Primitive 7 is selected. Resolves security surface variables: `{{AGENTIC_CONFIG_GLOB}}`, `{{SOURCE_GLOB}}`, `{{PRIMARY_LANGUAGE}}`, `{{DOCS_SECURITY}}`, `{{SECURITY_CONFIG_RULES}}`, `{{SECURITY_OWASP_PATTERNS}}`.
     * `runtime-verification/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `operational-closure/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled

@@ -309,7 +309,7 @@ FOUNDATION_ASSERTIONS = [
         "path": ".github/skills/review/SKILL.md",
         "must_contain": [
             "Security Reviewer",
-            "security-reviewer",
+            "security-reviewer.agent.md",
         ],
     },
     {
@@ -317,7 +317,7 @@ FOUNDATION_ASSERTIONS = [
         "path": ".github/skills/plan-review/SKILL.md",
         "must_contain": [
             "Security Lens Reviewer",
-            "security-lens-reviewer",
+            "security-lens-reviewer.agent.md",
         ],
     },
 ]

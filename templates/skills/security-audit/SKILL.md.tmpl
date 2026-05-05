@@ -20,10 +20,10 @@ Invoke security-audit [mode:report|mode:fix] [scope:full|scope:config|scope:owas
 **mode:fix** — Apply config-tier fixes only (Tier 1 deterministic fixes). Never auto-fix OWASP or STRIDE findings.
 
 **scope:full** — Run all phases (default)
-**scope:config** — Run only Phase 2 and Phase 3 (config audit only)
-**scope:owasp** — Run only Phase 4 (OWASP source scan)
-**scope:stride** — Run only Phase 5 (STRIDE threat model)
-**scope:\<path\>** — Run full audit limited to the specified path
+**scope:config** — Run Phase 1 (discovery) and Phases 2–3 (config audit only)
+**scope:owasp** — Run Phase 1 (discovery) and Phase 4 (OWASP source scan)
+**scope:stride** — Run Phase 1 (discovery) and Phase 5 (STRIDE threat model)
+**scope:\<path\>** — Run full audit (all phases) scoped to the specified path; config phases apply only if the path intersects config surfaces
 
 ## Subagent Depth Constraint
 
@@ -44,7 +44,11 @@ This is a leaf executor. No subagent spawning. Maximum depth: 0.
 
 ### Phase 1: Discovery
 
-**Skip condition**: Skip if `scope:owasp`, `scope:stride`, or `scope:<path>` is specified without config signals.
+**Skip condition**: Always runs. For focused scopes, discovery narrows to the relevant surfaces:
+- `scope:config` — enumerate only agentic config surfaces
+- `scope:owasp` or `scope:stride` — enumerate only application source entry points
+- `scope:<path>` — enumerate only files under the specified path
+- `scope:full` — enumerate all surfaces
 
 1. Enumerate agentic config surfaces matching `{{AGENTIC_CONFIG_GLOB}}`
 2. Enumerate application source files matching `{{SOURCE_GLOB}}`
@@ -103,7 +107,7 @@ Scan source files matching `{{SOURCE_GLOB}}` (or the specified path) using `{{SE
 
 ### Phase 5: STRIDE Threat Model
 
-**Skip condition**: Skip unless `scope:full` or `scope:stride`.
+**Skip condition**: Skip unless `scope:full`, `scope:stride`, or `scope:<path>`.
 
 Apply a lightweight STRIDE analysis to the system's trust model:
 
@@ -116,7 +120,7 @@ Apply a lightweight STRIDE analysis to the system's trust model:
 | **Denial of Service** | Can resource exhaustion or crash loops be triggered from external inputs? |
 | **Elevation of Privilege** | Can an actor gain higher privileges than intended? |
 
-For each STRIDE category, identify the highest-risk finding from the workspace scan. Report STRIDE findings as advisory — they describe design-level risks, not specific exploitable code patterns.
+For each STRIDE category, identify the highest-risk finding from the workspace scan. Report STRIDE findings as advisory — they describe design-level risks, not specific exploitable code patterns. STRIDE findings do not require an exact `file:line` location; provide an "evidence anchor" (the specific system component, data flow, or design decision that introduces the risk) instead.
 
 ### Phase 6: Score and Grade
 
@@ -177,7 +181,7 @@ Report the saved path on completion.
 
 * Every phase that is in scope must run before the report is considered complete
 * Skipped phases must be noted in the executive summary with the skip reason
-* All findings include a specific file:line location (no category-level assertions without evidence)
+* All findings include a specific file:line location, except STRIDE findings which require an evidence anchor (component, data flow, or design decision) instead of an exact line number
 * The report is persisted to `{{DOCS_SECURITY}}/` before the audit is marked complete
 
 ## Model Routing
