@@ -1,0 +1,187 @@
+---
+name: security-audit
+description: "Multi-phase security audit skill. Scans agentic config surfaces and application source for OWASP Top 10 vulnerabilities, STRIDE threats, and config hygiene issues. Produces a scored, graded report persisted to the docs/security directory."
+argument-hint: "[mode:report|mode:fix] [scope:full|scope:config|scope:owasp|scope:stride|scope:<path>]"
+---
+
+# Security Audit
+
+Performs a comprehensive security audit of the workspace across agentic configuration surfaces and application source code. Produces a scored, graded security report.
+
+## Invocation
+
+```
+Invoke security-audit [mode:report|mode:fix] [scope:full|scope:config|scope:owasp|scope:stride|scope:<path>]
+```
+
+**Defaults**: `mode:report`, `scope:full`
+
+**mode:report** — Analyze and report findings. Never modify files.
+**mode:fix** — Apply config-tier fixes only (Tier 1 deterministic fixes). Never auto-fix OWASP or STRIDE findings.
+
+**scope:full** — Run all phases (default)
+**scope:config** — Run only Phase 2 and Phase 3 (config audit only)
+**scope:owasp** — Run only Phase 4 (OWASP source scan)
+**scope:stride** — Run only Phase 5 (STRIDE threat model)
+**scope:\<path\>** — Run full audit limited to the specified path
+
+## Subagent Depth Constraint
+
+This is a leaf executor. No subagent spawning. Maximum depth: 0.
+
+## Variables
+
+| Variable | Purpose |
+|---|---|
+| `{{AGENTIC_CONFIG_GLOB}}` | Glob patterns for agentic config files (e.g., `.github/**`, `.vscode/**`) |
+| `{{SOURCE_GLOB}}` | Application source file patterns (e.g., `src/**/*.{{FILE_EXT}}`) |
+| `{{PRIMARY_LANGUAGE}}` | Primary language for pattern selection |
+| `{{DOCS_SECURITY}}` | Output directory for persisted reports (default: `docs/security`) |
+| `{{SECURITY_CONFIG_RULES}}` | Per-environment config rule table |
+| `{{SECURITY_OWASP_PATTERNS}}` | Language-specific OWASP detection patterns |
+
+## Workflow
+
+### Phase 1: Discovery
+
+**Skip condition**: Skip if `scope:owasp`, `scope:stride`, or `scope:<path>` is specified without config signals.
+
+1. Enumerate agentic config surfaces matching `{{AGENTIC_CONFIG_GLOB}}`
+2. Enumerate application source files matching `{{SOURCE_GLOB}}`
+3. Identify the primary language (`{{PRIMARY_LANGUAGE}}`) and select corresponding OWASP patterns
+4. Record the audit scope, file counts, and entry points found
+
+### Phase 2: Config Tier 1 — Deterministic Config Scan
+
+**Skip condition**: Skip unless `scope:full` or `scope:config`.
+
+Apply deterministic regex checks to config surfaces found in Phase 1. Findings in this tier are eligible for `mode:fix` auto-remediation.
+
+Rules from `{{SECURITY_CONFIG_RULES}}`:
+
+* Hardcoded credential patterns (passwords, tokens, keys) in config files
+* Overly permissive tool allow-lists (e.g., `always: true` on destructive terminal commands)
+* Missing input validation rules in agent instruction files
+* Exposed secrets in environment variable defaults
+* Missing branch protection or CI security gate references
+
+For each match: record file, line number, matched pattern, severity, and fix action.
+
+### Phase 3: Config Tier 2 — LLM-Assessed Config Rules
+
+**Skip condition**: Skip unless `scope:full` or `scope:config`.
+
+Evaluate config files that require semantic interpretation rather than regex matching:
+
+* Agent instruction files that grant broad tool permissions without scope constraints
+* CI workflows that allow arbitrary code execution from pull requests
+* Dependency configuration files with unpinned versions in security-sensitive packages
+* Agentic tool configurations that bypass the workspace's own safety policies
+
+Apply judgment: record findings with reasoning, not just pattern matches. These findings are advisory in `mode:fix` — they require human review before action.
+
+### Phase 4: OWASP Top 10 Source Scan
+
+**Skip condition**: Skip unless `scope:full`, `scope:owasp`, or `scope:<path>`.
+
+Scan source files matching `{{SOURCE_GLOB}}` (or the specified path) using `{{SECURITY_OWASP_PATTERNS}}`:
+
+| Category | What to look for |
+|---|---|
+| A01: Broken Access Control | Authorization checks missing at data-object layer, not just route layer |
+| A02: Cryptographic Failures | Sensitive data stored or transmitted without encryption; weak hash algorithms |
+| A03: Injection | String-built queries, unparameterized SQL, unescaped template values, shell command construction from inputs |
+| A04: Insecure Design | Missing rate limiting on auth endpoints, missing CSRF protection on state-changing routes |
+| A05: Security Misconfiguration | Default credentials, debug endpoints, verbose error responses in production paths |
+| A06: Vulnerable Components | Package manifests with known-vulnerable pinned versions (if detectable without network) |
+| A07: Auth Failures | Session token generation entropy, missing invalidation on logout, fixation vulnerabilities |
+| A08: Software Integrity | Dynamic import of unvalidated paths, deserialization of untrusted data |
+| A09: Logging Failures | Sensitive values (passwords, tokens, PII) interpolated into log statements |
+| A10: SSRF | URL parameters passed to HTTP clients without allowlist validation |
+
+**OWASP findings are report-only.** Do not auto-fix source code even in `mode:fix`.
+
+### Phase 5: STRIDE Threat Model
+
+**Skip condition**: Skip unless `scope:full` or `scope:stride`.
+
+Apply a lightweight STRIDE analysis to the system's trust model:
+
+| Threat | Question |
+|---|---|
+| **Spoofing** | Can an attacker impersonate a user, service, or agent? |
+| **Tampering** | Can inputs or stored data be modified without detection? |
+| **Repudiation** | Can actors deny their actions? Is sufficient audit logging present? |
+| **Information Disclosure** | Can sensitive data be accessed by unauthorized parties? |
+| **Denial of Service** | Can resource exhaustion or crash loops be triggered from external inputs? |
+| **Elevation of Privilege** | Can an actor gain higher privileges than intended? |
+
+For each STRIDE category, identify the highest-risk finding from the workspace scan. Report STRIDE findings as advisory — they describe design-level risks, not specific exploitable code patterns.
+
+### Phase 6: Score and Grade
+
+Compute the security score using this deduction model applied to a 100-point baseline:
+
+| Severity | Deduction |
+|---|---|
+| Critical (P0) | -15 per finding |
+| High (P1) | -10 per finding |
+| Medium (P2) | -5 per finding |
+| Low (P3) | -2 per finding |
+
+**N/A semantics**: If a category does not apply to the workspace (e.g., no web routes → A10 SSRF is N/A), exclude it from scoring rather than scoring it as 0 findings.
+
+Final grade:
+
+| Score | Grade |
+|---|---|
+| 90–100 | A — Low risk |
+| 75–89 | B — Moderate risk, remediation advised |
+| 60–74 | C — Elevated risk, remediation required before release |
+| < 60 | F — High risk, block release until critical/high findings resolved |
+
+### Phase 7: Output
+
+Produce a structured report with:
+
+1. **Executive Summary** — score, grade, finding counts by severity, top 3 risks, audit scope and date
+2. **Config Audit Results** (Phases 2–3) — findings grouped by rule category
+3. **OWASP Scan Results** (Phase 4) — findings grouped by A01–A10 category
+4. **STRIDE Analysis** (Phase 5) — one entry per STRIDE category with the highest-risk finding and its rationale
+5. **Remediation Priority List** — ordered action list: P0 → P1 → P2 → P3, each with location, description, and remediation steps
+6. **Applied Fixes** (mode:fix only) — list of Tier 1 config fixes applied with before/after diff
+
+### Phase 8: Persist
+
+Save the report to `{{DOCS_SECURITY}}/YYYY-MM-DD-security-audit.md` where `YYYY-MM-DD` is today's date.
+
+If `{{DOCS_SECURITY}}/` does not exist, create it before writing.
+
+Report the saved path on completion.
+
+## Mode Rules
+
+**mode:report** (default):
+* Read and search only
+* Never modify source or config files
+* Report all findings with location and remediation guidance
+
+**mode:fix**:
+* Apply only Phase 2 (Tier 1 deterministic) config fixes
+* Config fixes must be file edits with clear before/after rationale
+* Never modify application source code
+* Never apply Phase 3, 4, or 5 findings as auto-fixes
+* After applying fixes, re-run Phase 2 to confirm the fix resolved the finding
+
+## Quality Criteria
+
+* Every phase that is in scope must run before the report is considered complete
+* Skipped phases must be noted in the executive summary with the skip reason
+* All findings include a specific file:line location (no category-level assertions without evidence)
+* The report is persisted to `{{DOCS_SECURITY}}/` before the audit is marked complete
+
+## Model Routing
+
+This skill operates at **Tier 2 (Standard)** for config audit phases and **Tier 3 (Frontier)** for OWASP and STRIDE analysis phases. If only a single model is available, use it for all phases.
+
+Generated by autoharness | Template: security-audit/SKILL.md.tmpl

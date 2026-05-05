@@ -1448,6 +1448,99 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 report["warnings"],
             )
 
+    def test_security_surface_templates_exist_and_routing_is_wired(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
 
-if __name__ == "__main__":
-    unittest.main()
+        expected_templates = [
+            repo_root / "templates" / "agents" / "review" / "security-reviewer.agent.md.tmpl",
+            repo_root / "templates" / "agents" / "review" / "security-lens-reviewer.agent.md.tmpl",
+            repo_root / "templates" / "agents" / "security-sentinel.agent.md.tmpl",
+            repo_root / "templates" / "skills" / "security-audit" / "SKILL.md.tmpl",
+        ]
+        for template_path in expected_templates:
+            with self.subTest(template=str(template_path.relative_to(repo_root))):
+                self.assertTrue(template_path.exists(), f"Missing template: {template_path}")
+
+        review_skill = repo_root / "templates" / "skills" / "review" / "SKILL.md.tmpl"
+        review_content = review_skill.read_text(encoding="utf-8")
+        self.assertIn("Security Reviewer", review_content)
+        self.assertIn("security-reviewer", review_content)
+
+        plan_review_skill = repo_root / "templates" / "skills" / "plan-review" / "SKILL.md.tmpl"
+        plan_review_content = plan_review_skill.read_text(encoding="utf-8")
+        self.assertIn("Security Lens Reviewer", plan_review_content)
+        self.assertIn("security-lens-reviewer", plan_review_content)
+
+    def test_verify_workspace_checks_security_persona_routing_in_installed_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "review").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "plan-review").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-05T00:00:00Z",
+                    "autoharness_version": "1.4.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [5, 7],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "skills" / "review" / "SKILL.md").write_text(
+                "## Conditional Personas\n"
+                "| **Security Reviewer** | auth middleware, endpoints | Different |\n"
+                "security-reviewer\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "plan-review" / "SKILL.md").write_text(
+                "## Cross-Model Personas\n"
+                "| **Security Lens Reviewer** | auth, API surfaces | Different |\n"
+                "security-lens-reviewer\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["security_review_persona_routing"]["ok"])
+            self.assertTrue(targeted_checks["security_plan_review_persona_routing"]["ok"])

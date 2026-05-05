@@ -71,6 +71,7 @@ models when available to force genuine diversity of critique.
 |---|---|---|
 | **Architecture Strategist** | Cohesion, coupling, module boundaries, dependency chains. | Different from caller |
 | **Agent-Native Parity Reviewer** | Plans that expose MCP tools, agent-facing actions, or user/agent parity-sensitive workflows. | Different from caller |
+| **Security Lens Reviewer** (`security-lens-reviewer.agent.md`) | Plans that touch auth/authz systems, API surfaces, sensitive data stores, external integrations, or secrets management. | Different from caller |
 
 If cross-model invocation is not available, run all personas with the caller's model. Multi-model is preferred but not blocking.
 
@@ -93,6 +94,11 @@ conditions are met. Each receives:
 - The origin requirements doc (if any)
 - The project's coding standards and conventions (reference `.github/instructions/constitution.instructions.md`)
 - Instructions to return structured findings
+
+Trigger conditions for cross-model personas:
+* **Architecture Strategist**: always triggered
+* **Agent-Native Parity Reviewer**: triggered when the plan exposes MCP tools, agent-facing actions, or user/agent parity-sensitive workflows
+* **Security Lens Reviewer**: triggered when the plan touches authentication or authorization systems, API surfaces, sensitive data stores, external integrations crossing trust boundaries, or secrets and credentials management
 
 Broadcast each spawn.
 

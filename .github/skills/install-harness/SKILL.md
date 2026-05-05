@@ -274,6 +274,25 @@ Resolution order: (1) operator `.autoharness/config.yaml` → (2) schema default
 | `{{FILE_EXT}}` | Derived from `languages.primary` | File extension (e.g., `rs`, `ts`, `py`, `go`) |
 | `{{UNIMPLEMENTED_MARKER}}` | Derived from `languages.primary` | Language-specific stub marker (e.g., `unimplemented!()`, `throw new Error("Not implemented")`, `raise NotImplementedError`) |
 
+**Security Surface Variables** (synthesized from workspace profile; used by security-audit skill, security-reviewer, security-lens-reviewer, and security-sentinel templates):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{AGENTIC_CONFIG_GLOB}}` | `agentic.config_paths` from workspace profile | `.github/**,.vscode/**` | Glob patterns for agentic config files scanned during security-audit Phase 2/3 |
+| `{{SOURCE_GLOB}}` | `source.include_patterns` from workspace profile | `src/**` | Application source file glob for security-audit OWASP scan |
+| `{{DOCS_SECURITY}}` | `config.docs.root` + `security` subdirectory | `docs/security` | Output directory for persisted security audit reports |
+| `{{SECURITY_CONFIG_RULES}}` | Synthesized from detected agentic environment (Copilot CLI, VS Code, Claude Code, etc.) | See note | Per-environment config rule table for Tier 1 deterministic checks in security-audit Phase 2 |
+| `{{SECURITY_OWASP_PATTERNS}}` | Synthesized from `languages.primary` | See note | Language-specific OWASP detection pattern set for security-audit Phase 4 |
+| `{{SECURITY_SCAN_PATTERNS}}` | Synthesized from detected technology stack | See note | Full-stack security scan patterns used by security-sentinel for injection, auth, and exposure analysis |
+| `{{SECURITY_REVIEW_PATTERNS}}` | Synthesized from `languages.primary` | See note | Language-specific file path and content signals that trigger the security-reviewer conditional persona |
+
+Resolution notes for security surface variables:
+
+* `{{SECURITY_CONFIG_RULES}}`: Derive from detected agentic environment. For GitHub Copilot CLI: check `.github/` for overly permissive allow-lists and missing input validation in instruction files. For VS Code: check `.vscode/settings.json` for terminal auto-approve patterns. Include rules common to all environments: hardcoded credentials, unpinned secrets, debug endpoints.
+* `{{SECURITY_OWASP_PATTERNS}}`: Select from language knowledge. Python: SQLAlchemy raw queries, `eval()`, `pickle.loads()`, `subprocess.run(shell=True)`, f-string SQL. Go: `fmt.Sprintf` in SQL, `exec.Command` with user input. Rust: `unsafe` blocks, unchecked deserialization. TypeScript: `eval()`, `innerHTML`, unparameterized queries, `child_process.exec`. Adapt to the detected primary language.
+* `{{SECURITY_SCAN_PATTERNS}}`: Combine language-specific OWASP patterns with framework-specific signals (e.g., Express middleware order, Django CSRF, FastAPI auth dependencies). Include auth middleware names, ORM patterns, and framework route decorators for the detected stack.
+* `{{SECURITY_REVIEW_PATTERNS}}`: Bullet list of file path globs and content keywords that trigger security review. Example for Python: `auth*.py`, `permission*.py`, `middleware*.py`, `views.py`, `api.py`, pattern keywords `login`, `token`, `password`, `permission`, `role`, `secret`, `key`, `credential`. Adapt to detected stack.
+
 **Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
 
 | Template Variable | Source | Default | Description |
@@ -648,11 +667,15 @@ merge install), flag them for removal.
     * `technology-reviewer.agent.md` → `{language}-reviewer.agent.md` — Fully technology-specific
     * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
     * `agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
+    * `security-reviewer.agent.md` — Include when the `review` layer is active; universal security code review persona
+    * `security-lens-reviewer.agent.md` — Include when the `review` layer is active; plan-level security review persona
     * `learnings-researcher.agent.md` — Universal
 
 5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. Install when the `review` layer is active. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed
    * Install as skills (not agents)
+
+6. **Security agent**: `security-sentinel.agent.md` — User-invocable security audit agent. Install when Primitive 5 or Primitive 7 is selected.
 
 #### Step 2.5: Skill Layer
 
@@ -676,6 +699,7 @@ Generate skill files:
    * `safety-modes/SKILL.md` — Install when Primitive 5 is selected
     * `file-lock/SKILL.md` — Install when Primitive 5 is selected. Provides `scripts/acquire_lock.ps1`, `scripts/acquire_lock.sh`, `scripts/release_lock.ps1`, and `scripts/release_lock.sh` for file-level concurrency control. Copy all scripts from `{autoharness_home}/templates/skills/file-lock/scripts/` into `{workspace_path}/scripts/`.
     * `skill-search/SKILL.md` — Install when Primitive 6 is selected. Provides `scripts/search.ps1` and `scripts/search.sh` for dynamic on-demand skill discovery. Copy all scripts from `{autoharness_home}/templates/skills/skill-search/scripts/` into `{workspace_path}/scripts/`.
+    * `security-audit/SKILL.md` — Install when Primitive 5 or Primitive 7 is selected. Resolves security surface variables: `{{AGENTIC_CONFIG_GLOB}}`, `{{SOURCE_GLOB}}`, `{{DOCS_SECURITY}}`, `{{SECURITY_CONFIG_RULES}}`, `{{SECURITY_OWASP_PATTERNS}}`.
     * `runtime-verification/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `operational-closure/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
