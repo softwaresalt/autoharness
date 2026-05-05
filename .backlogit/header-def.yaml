@@ -59,6 +59,56 @@ types:
                     - rejected
                     - archived
                 default: queued
+    spike:
+        prefix: SP
+        suffix: -SP
+        id_format: '{NNN}{suffix}'
+        fields:
+            priority:
+                type: enum
+                values:
+                    - low
+                    - medium
+                    - high
+                    - critical
+                default: medium
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - blocked
+                    - review
+                    - done
+                    - accepted
+                    - rejected
+                    - archived
+                default: queued
+    chore:
+        prefix: C
+        suffix: -C
+        id_format: '{NNN}{suffix}'
+        fields:
+            priority:
+                type: enum
+                values:
+                    - low
+                    - medium
+                    - high
+                    - critical
+                default: medium
+            status:
+                type: enum
+                values:
+                    - queued
+                    - active
+                    - blocked
+                    - review
+                    - done
+                    - accepted
+                    - rejected
+                    - archived
+                default: queued
     feature:
         prefix: F
         suffix: -F

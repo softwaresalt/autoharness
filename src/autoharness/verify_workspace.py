@@ -304,6 +304,22 @@ FOUNDATION_ASSERTIONS = [
             "Learning-driven proposals",
         ],
     },
+    {
+        "key": "security_review_persona_routing",
+        "path": ".github/skills/review/SKILL.md",
+        "must_contain": [
+            "Security Reviewer",
+            "security-reviewer.agent.md",
+        ],
+    },
+    {
+        "key": "security_plan_review_persona_routing",
+        "path": ".github/skills/plan-review/SKILL.md",
+        "must_contain": [
+            "Security Lens Reviewer",
+            "security-lens-reviewer.agent.md",
+        ],
+    },
 ]
 
 

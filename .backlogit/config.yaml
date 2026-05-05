@@ -9,6 +9,18 @@ artifact_types:
         suffix: -DL
         name_format: '{NNN}{suffix}'
         allowed_children: []
+    spike:
+        prefix: SP
+        suffix: -SP
+        name_format: '{NNN}{suffix}'
+        allowed_children: []
+    chore:
+        prefix: C
+        suffix: -C
+        name_format: '{NNN}{suffix}'
+        allowed_children:
+            - task
+            - review
     feature:
         prefix: F
         suffix: -F
