@@ -146,7 +146,7 @@ Design requirements:
 - Config rules use `{{AGENTIC_CONFIG_GLOB}}` for config file patterns
 - Source patterns use `{{SOURCE_GLOB}}` and `{{PRIMARY_LANGUAGE}}`
 - Scoring uses the same deduction model (critical: -15, high: -10, medium: -5, low: -2)
-- Report persists to `{{DOCS_SECURITY}}/YYYY-MM-DD-security-report.md`
+- Report persists to `{{DOCS_SECURITY}}/YYYY-MM-DD-HH-MM-security-audit.md` (time component prevents same-day clobbering)
 - Mode: `report` (default) or `fix` (opt-in, config findings only)
 - Scope: `full` | `config` | `owasp` | `stride` | `<path>`
 - No auto-fix of application source code (OWASP/STRIDE findings are report-only)

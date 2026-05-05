@@ -157,7 +157,7 @@ Produce a structured report with:
 
 ### Phase 8: Persist
 
-Save the report to `{{DOCS_SECURITY}}/YYYY-MM-DD-security-audit.md` where `YYYY-MM-DD` is today's date.
+Save the report to `{{DOCS_SECURITY}}/YYYY-MM-DD-HH-MM-security-audit.md` where `YYYY-MM-DD` is today's date and `HH-MM` is the current time (24-hour). The time component prevents clobbering earlier runs on the same day when the skill is invoked multiple times (different scopes or modes).
 
 If `{{DOCS_SECURITY}}/` does not exist, create it before writing.
 

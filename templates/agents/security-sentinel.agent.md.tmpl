@@ -2,7 +2,7 @@
 name: Security Sentinel
 description: "User-invocable security audit agent. Performs comprehensive pre-deployment security audits with structured findings, risk matrix, and remediation roadmap."
 maturity: stable
-tools: read, search, terminal
+tools: read, search, terminal, edit
 model_routing: "Tier 3 (Frontier)"
 subagent_depth: 0
 ---
@@ -130,7 +130,7 @@ Format findings as a structured list:
 
 ### Phase 8: Persist
 
-Save the audit report to `{{DOCS_SECURITY}}/YYYY-MM-DD-security-audit.md` where `YYYY-MM-DD` is today's date.
+Save the audit report to `{{DOCS_SECURITY}}/YYYY-MM-DD-HH-MM-security-sentinel.md` where `YYYY-MM-DD` is today's date and `HH-MM` is the current time (24-hour). The time component prevents clobbering earlier runs on the same day.
 
 If `{{DOCS_SECURITY}}/` does not exist, create it before writing.
 
