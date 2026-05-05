@@ -57,7 +57,7 @@ This is a leaf executor. No subagent spawning. Maximum depth: 0.
 
 ### Phase 2: Config Tier 1 — Deterministic Config Scan
 
-**Skip condition**: Skip unless `scope:full` or `scope:config`.
+**Skip condition**: Skip unless `scope:full`, `scope:config`, or `scope:<path>` where the scoped path intersects config surfaces.
 
 Apply deterministic regex checks to config surfaces found in Phase 1. Findings in this tier are eligible for `mode:fix` auto-remediation.
 
@@ -73,7 +73,7 @@ For each match: record file, line number, matched pattern, severity, and fix act
 
 ### Phase 3: Config Tier 2 — LLM-Assessed Config Rules
 
-**Skip condition**: Skip unless `scope:full` or `scope:config`.
+**Skip condition**: Skip unless `scope:full`, `scope:config`, or `scope:<path>` where the scoped path intersects config surfaces.
 
 Evaluate config files that require semantic interpretation rather than regex matching:
 
