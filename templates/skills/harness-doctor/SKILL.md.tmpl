@@ -1,0 +1,233 @@
+---
+name: harness-doctor
+description: "On-demand harness health diagnostic. Checks manifest presence, version drift, file integrity, cross-reference validity, MCP tool availability, and template variable residue. Produces a per-category graded health report."
+argument-hint: "[mode:report|mode:fix]"
+---
+
+# Harness Doctor
+
+Diagnose the health of an installed autoharness harness. Produces a graded per-category health report covering manifest integrity, version drift, file completeness, cross-reference validity, MCP tool availability, and template variable residue.
+
+## When to Use
+
+Invoke when:
+
+* Something in the harness appears broken or out of sync
+* Preparing to run tune-harness and you want a baseline health snapshot first
+* After a manual edit to harness artifacts to confirm consistency
+* At the start of an agent session when MCP tool availability is uncertain (pre-flight mode)
+
+## Invocation
+
+```
+Invoke harness-doctor [mode:report|mode:fix]
+```
+
+**Default**: `mode:report`
+
+**mode:report** — Diagnose and report only. Never modify files.
+**mode:fix** — Apply deterministic low-risk repairs (Phase 7 describes eligible repairs). Never modify application or template source.
+
+## Subagent Depth Constraint
+
+This is a leaf executor. No subagent spawning. Maximum depth: 0.
+
+## Variables
+
+| Variable | Purpose |
+|---|---|
+| `{{HARNESS_MANIFEST_PATH}}` | Path to the installed harness manifest (default: `.autoharness/harness-manifest.yaml`) |
+| `{{AUTOHARNESS_VERSION}}` | Expected autoharness version string from `autoharness_home` metadata |
+
+## Workflow
+
+### Phase 1: Install Scope Detection
+
+Determine what is installed before running any checks.
+
+1. Check for the harness manifest at `{{HARNESS_MANIFEST_PATH}}`.
+   * If absent: record **MISSING MANIFEST** — set scope-detection grade to F and skip Phases 2 and 3. Phases 4–6 proceed using directory heuristics.
+2. If the manifest is present, load it and extract:
+   * `schema_version`
+   * `autoharness_version` (the version that performed the install)
+   * `installed_at` timestamp
+   * `artifacts` — the array of installed artifact objects; each has a `path` (workspace-relative), `checksum`, `primitive`, `template`, and optional `artifact_type`
+3. Enumerate artifact directories on disk: `.github/agents`, `.github/skills`, `.github/instructions`, `.github/prompts`, `.github/policies`.
+4. Derive the expected directory set from `artifacts[*].path` (extract the top-level `.github/<dir>` prefix from each path). Flag any derived directories absent from disk.
+
+**Phase 1 health signal**:
+* All declared artifact dirs present → **PASS**
+* One or more missing → **WARN** (directories listed in findings)
+* Manifest absent → **FAIL**
+
+---
+
+### Phase 2: Version Check
+
+**Skip condition**: Skip if Phase 1 found no manifest.
+
+Compare the installed version with the current `autoharness_home` version.
+
+1. Read `autoharness_version` from the manifest.
+2. Compare against `{{AUTOHARNESS_VERSION}}` (the version of the autoharness installation that would perform upgrades).
+3. Classify the drift:
+
+| Condition | Signal |
+|---|---|
+| Versions match | PASS |
+| Patch-level difference | WARN — minor drift, tune-harness recommended |
+| Minor-version difference | WARN — drift, tune-harness required |
+| Major-version difference | FAIL — breaking drift, reinstall recommended |
+| Manifest version field absent | WARN — legacy install, version unknown |
+
+**Phase 2 health signal**: Highest severity condition found above.
+
+---
+
+### Phase 3: File Integrity
+
+**Skip condition**: Skip if Phase 1 found no manifest.
+
+Verify that each artifact listed in the manifest's `artifacts` array still exists on disk.
+
+1. For each entry in `artifacts`:
+   * Resolve `entry.path` as a workspace-relative path.
+   * Check existence on disk.
+2. Compute a presence rate: `(found / total) * 100`.
+
+| Presence Rate | Signal |
+|---|---|
+| 100% | PASS |
+| 90–99% | WARN — some artifacts missing |
+| 75–89% | FAIL — significant artifact loss |
+| < 75% | FAIL — critical artifact loss, reinstall recommended |
+
+**Phase 3 health signal**: Signal from the table above.
+
+---
+
+### Phase 4: Cross-Reference Validation
+
+Verify that internal cross-references within harness artifacts resolve correctly.
+
+1. Scan all Markdown files under `.github/agents/`, `.github/skills/`, and `.github/instructions/`.
+2. For each file, extract:
+   * Markdown links with relative paths (e.g., `[text](../instructions/foo.md)`)
+   * Explicit skill invocation references (e.g., `Invoke skill-name`)
+   * Agent references (e.g., `spawns sub-agent: foo.agent.md`)
+3. For each relative path reference, resolve it relative to the directory of the file that contains the link (not relative to the workspace root), then normalize the result to a workspace-absolute path for existence checking. Flag any normalized path that does not exist on disk.
+4. For skill invocations: check that a corresponding skill directory exists under `.github/skills/`.
+5. For agent references: check that the corresponding `.agent.md` file exists under `.github/agents/`.
+
+**Phase 4 health signal**:
+* Zero broken references → **PASS**
+* 1–3 broken references → **WARN**
+* 4+ broken references → **FAIL**
+
+---
+
+### Phase 5: MCP Prerequisite Check
+
+Verify that the MCP tools the harness declares as required are currently available.
+
+This phase doubles as a pre-flight gate. Running harness-doctor at session start is a reliable way to confirm tool availability before agents attempt to use them.
+
+1. Read the list of required MCP tool names from the installed harness. Sources (in order):
+   * `.github/instructions/` files that list tool names in their frontmatter or body
+   * `AGENTS.md` if it enumerates required tools
+   * Known harness defaults: `backlogit` (when backlogit capability pack is installed)
+2. For each declared tool name, attempt a lightweight connectivity check:
+   * Invoke a read-only operation (e.g., list or status) using the tool.
+   * Record: tool name, reachable (yes/no), response latency (if measurable).
+3. Classify availability:
+
+| Condition | Signal |
+|---|---|
+| All declared tools reachable | PASS |
+| 1 tool unreachable | WARN — degraded capability, list affected workflows |
+| 2+ tools unreachable | FAIL — agents will fall back to grep/file operations; operator action needed |
+| No tools declared (no capability packs requiring MCP) | PASS (N/A) |
+
+4. For each unreachable tool, list the harness skills and agents that depend on it, so the operator knows which workflows are degraded.
+
+**Phase 5 health signal**: Signal from the table above.
+
+---
+
+### Phase 6: Template Variable Residue
+
+Detect unresolved double-brace placeholders (the pattern `\{\{NAME\}\}`) in installed harness artifacts. Their presence indicates an incomplete or failed installation.
+
+1. Scan all files under `.github/` for patterns matching `\{\{[A-Z_]+\}\}`.
+2. Exclude known legitimate uses:
+   * Files that are themselves templates (`.tmpl` extension) — skip entirely.
+   * Variables inside fenced code blocks that serve as documentation examples only (heuristic: block is illustrative if the surrounding context is a "Variable" table or "Example" section).
+3. For each match outside the exclusions: record file, line number, variable name.
+
+**Phase 6 health signal**:
+* Zero residue matches → **PASS**
+* 1–5 residue matches → **WARN** — partial installation
+* 6+ residue matches → **FAIL** — incomplete installation, re-run install-harness
+
+---
+
+### Phase 7: Graded Report
+
+Compute a per-category health grade and produce the consolidated report.
+
+#### Grade Computation
+
+Each phase produces one of: PASS, WARN, FAIL, SKIP, or N/A.
+
+| Phase Signal | Grade |
+|---|---|
+| PASS | A |
+| WARN | B |
+| FAIL | F |
+| SKIP (due to upstream failure) | — (noted as dependent on upstream phase) |
+| N/A | — (not applicable to this workspace) |
+
+Overall harness health grade = lowest individual phase grade (F overrides B overrides A).
+
+#### Report Structure
+
+Produce the health report with these sections:
+
+1. **Summary** — Overall grade, phase-by-phase grade table, diagnosis date and time, manifest path, installed version, current version.
+2. **Phase Results** — One subsection per phase (1–6): signal, findings list (if any), and recommended action.
+3. **Findings List** — All WARN and FAIL findings consolidated, ordered by severity (FAIL first), each with: phase, location (file:line if applicable), description, and recommended fix.
+4. **Repair Actions** (mode:fix only) — List of repairs applied with before/after description.
+5. **Pre-Flight Summary** — Boolean checklist for quick session readiness confirmation:
+   * `[ ] Manifest present`
+   * `[ ] Version current`
+   * `[ ] Artifacts complete`
+   * `[ ] Cross-references valid`
+   * `[ ] MCP tools reachable`
+   * `[ ] No variable residue`
+
+#### mode:fix Eligible Repairs
+
+In `mode:fix`, apply only these deterministic, low-risk repairs:
+
+* **Phase 1**: Create missing artifact directories derived from `artifacts[*].path` if the parent path exists (empty directory creation only — never generate content).
+* **Phase 6**: Quarantine clearly orphaned `.tmpl` extension files accidentally copied to `.github/` by moving them to `.autoharness/quarantine/` (never delete). Record the source path, destination path, and reason. Prompt the operator to review quarantined files before permanent removal.
+
+All other findings are report-only. Source files, agent definitions, and skill content are never auto-modified by harness-doctor.
+
+After applying repairs, re-run the affected phase to confirm the finding is resolved and update the phase grade accordingly.
+
+---
+
+## Quality Criteria
+
+* All six phases must run (or be explicitly skipped with documented reason) before the report is complete.
+* Every finding includes a specific location (file path and line number where applicable).
+* The Pre-Flight Summary section is always present and reflects the final phase states.
+* In `mode:fix`, the repair list is populated even when no repairs were applied (record "No eligible repairs found").
+* The overall grade must be derivable from the phase grades — no subjective inflation.
+
+## Model Routing
+
+This skill operates at **Tier 1 (Fast/Cheap)**. All checks are deterministic pattern-matching and file system inspection. No complex reasoning is required.
+
+Generated by autoharness | Template: harness-doctor/SKILL.md.tmpl
