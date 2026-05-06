@@ -1,0 +1,2 @@
+{"timestamp":"2026-05-06T12:48:44.2480226-07:00","actor":"backlogit","item_id":"008.002-T","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"87ad630386909e9130fdca493b6250cf39b4f100","message":"feat(008-S): harness-doctor health-check skill (#34)"}}
+{"timestamp":"2026-05-06T12:48:44.5920429-07:00","actor":"backlogit","item_id":"008.002-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/008.002-T.md"}}
