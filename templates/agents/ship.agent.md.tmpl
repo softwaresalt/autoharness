@@ -129,7 +129,7 @@ build work begins:
     - Check current branch:
       `git branch --show-current`
     - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `BRANCH_OK: {branch_name}` and proceed to step 4.
-    - If on `{{DEFAULT_BRANCH}}` or any other non-shipment branch:
+    - If on `{{DEFAULT_BRANCH}}` (the default branch):
       a. Verify the worktree is clean:
          `git status --short`
          If any output appears, halt. Do not create a branch from a dirty worktree.

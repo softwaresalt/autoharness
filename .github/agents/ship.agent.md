@@ -98,15 +98,15 @@ Before any pipeline work begins, verify tool availability and declare degraded m
 
 ### Step 0.5: Work Intake
 
-1. Identify the shipment or feature to work on.
-   * If a shipment exists, claim it via `backlogit_claim_shipment`.
+1. Identify the shipment or feature to work on (read-only — do not claim yet).
+   * If a shipment exists, record its ID for use in step 4.
    * Otherwise, select queued tasks from the backlog.
 2. Verify all tasks have clear scope and acceptance criteria.
 3. **Branch Creation Gate (P-011, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active:
    - Check current branch:
      `git branch --show-current`
    - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `BRANCH_OK: {branch_name}` and proceed.
-   - If on `main` or any other non-shipment branch:
+   - If on `main` (the default branch):
      a. Verify the worktree is clean:
         `git status --short`
         If any output appears, halt. Do not create a branch from a dirty worktree.
@@ -117,8 +117,9 @@ Before any pipeline work begins, verify tool availability and declare degraded m
      d. Create the shipment branch:
         `git checkout -b feat/{feature-slug}` (features) or `git checkout -b chore/{chore-slug}` (chores)
      e. Log `BRANCH_CREATED: {branch_name}`.
-   - If on an unrelated non-default branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
+   - If on any other non-shipment branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
    - Note: all git commands above are run as separate sequential steps, not chained.
+4. Claim the shipment via `backlogit_claim_shipment` (first mutation, only after branch gate passes).
 
 ### Step 1: Pre-Flight Checks
 

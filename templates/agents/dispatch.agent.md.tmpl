@@ -74,7 +74,8 @@ Gather the full current backlog state:
    - If found: record as `queued_shipments`.
 
 3. Check stash for pending entries (entries not yet promoted to backlog):
-   Read stash via the configured backlog tool or `.autoharness/stash.jsonl`.
+   Read stash via the configured backlog tool (MCP or CLI) as declared in the backlog registry.
+   If no backlog tool is registered, skip the stash check and proceed in manual/file-backed mode.
    - Record count and brief summary of pending entries.
 
 4. Check for active Stage work (any shipment in `{{STATUS_QUEUED}}` with no tasks yet, indicating Stage may still be in-flight):
