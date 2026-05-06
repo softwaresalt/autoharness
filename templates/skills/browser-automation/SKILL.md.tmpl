@@ -1,0 +1,146 @@
+---
+name: browser-automation
+description: "Browser automation skill. Drives {{BROWSER_CLI}} through structured navigate→snapshot→interact→re-snapshot flows with authentication support, form automation, visual verification, and explicit human checkpoints for external flows."
+argument-hint: "[url:<url>] [auth:none|state|login|token] [mode:verify|interact|form]"
+---
+
+# Browser Automation
+
+Automates browser workflows using `{{BROWSER_CLI}}` with concrete navigate→snapshot→interact→re-snapshot recipes, robust authentication handling, and explicit human verification checkpoints for flows that cannot be fully automated.
+
+## Invocation
+
+```
+Invoke browser-automation [url:<url>] [auth:state|login|token] [mode:verify|interact|form]
+```
+
+**Defaults**: `mode:verify`, `auth:none`
+
+**mode:verify** — Navigate to a URL and snapshot the final state for visual confirmation. Read-only.
+**mode:interact** — Perform an interaction sequence (click, type, navigate) and capture state changes.
+**mode:form** — Fill and submit a form. Captures pre-submit and post-submit snapshots.
+
+## Subagent Depth Constraint
+
+This is a leaf executor. No subagent spawning. Maximum depth: 0.
+
+## Variables
+
+| Variable | Purpose |
+|---|---|
+| `{{BROWSER_CLI}}` | Browser CLI tool to invoke (default: `agent-browser`) |
+| `{{BROWSER_HEADLESS_FLAG}}` | Headless flag passed to the browser CLI (default: `--headless`) |
+| `{{DOCS_CLOSURE}}` | Directory for closure artifacts; output records are written under `{{DOCS_CLOSURE}}/browser-automation/` |
+
+## Workflow
+
+### Phase 1: Environment Check
+
+**Skip condition**: Never skip.
+
+1. Verify `{{BROWSER_CLI}}` is available on PATH. If not found, halt with instructions to install the configured browser CLI.
+2. Confirm the target URL (or local server address) is reachable. If not reachable, record the failure and halt — do not attempt a blind automation run.
+3. Record the browser CLI version and headless mode for the verification log.
+
+### Phase 2: Authentication Setup
+
+**Skip condition**: Skip when `auth:none` (default) and no session state file is present.
+
+Select the authentication strategy based on the `auth` argument:
+
+**auth:state** (session import):
+1. Locate the session state file (typically `.auth/state.json` or a workspace-configured path).
+2. Pass the state file to `{{BROWSER_CLI}}` using its session-import flag.
+3. After launch, snapshot the authenticated landing page to confirm the session is valid.
+4. If the snapshot shows a login page instead of the authenticated state, fall through to `auth:login`.
+
+**auth:login** (explicit credential login):
+1. Navigate to the login URL.
+2. Locate the username and password fields using stable selectors (ID, name, or aria-label — not positional).
+3. Fill credentials from environment variables (`BROWSER_USERNAME`, `BROWSER_PASSWORD`). Never hardcode credentials.
+4. Submit the form and wait for the post-login redirect to settle.
+5. Snapshot the authenticated state. If login fails (login page still visible, error message present), halt and report the failure with the snapshot as evidence.
+
+**auth:token** (header/cookie injection):
+1. Configure `{{BROWSER_CLI}}` to inject the authorization token as a request header or cookie (from env var `BROWSER_AUTH_TOKEN`).
+2. Navigate to a protected URL and confirm the authenticated response with a snapshot.
+
+**Human checkpoint — OAuth / SSO / payment flows**:
+If the login flow involves an OAuth provider, SSO redirect, or payment processor:
+- Halt automation at the redirect.
+- Present the current URL and a snapshot to the operator.
+- Wait for the operator to complete the external flow and confirm.
+- Resume automation from the post-auth landing page.
+
+### Phase 3: Navigate and Snapshot
+
+**Skip condition**: Never skip.
+
+1. Navigate to the target URL using `{{BROWSER_CLI}} {{BROWSER_HEADLESS_FLAG}}`.
+2. Wait for the page to reach a stable state: no pending network requests, no layout shifts. Use a fixed wait only as a last resort.
+3. Take a snapshot (screenshot + DOM accessibility tree when supported by the CLI).
+4. Record the URL, page title, HTTP status (if available), and snapshot path.
+5. Identify interactive elements relevant to the current mode (buttons, links, form fields).
+
+### Phase 4: Interact
+
+**Skip condition**: Skip when `mode:verify` (snapshot only).
+
+Execute the interaction sequence:
+
+**mode:interact** (general interaction):
+1. For each step in the sequence: identify the target element by stable selector, perform the action (click, hover, keyboard input), wait for the resulting state change to settle.
+2. Take a snapshot after each step that changes visible state.
+3. Record the element selector, action taken, and resulting URL or DOM change.
+
+**mode:form** (form automation):
+1. Enumerate all input fields in the form using the accessibility tree or DOM query.
+2. Fill each field: text inputs from the provided data map, selects by value, checkboxes by boolean state.
+3. Before submission: take a pre-submit snapshot showing all filled values.
+4. Submit the form (click the submit button or trigger form submission via keyboard).
+5. Wait for the post-submit state to settle (redirect, confirmation message, or validation error).
+6. Take a post-submit snapshot.
+7. Record the success or failure indicator, the final URL, and any visible confirmation or error text.
+
+**Human checkpoint — external redirects during interaction**:
+If any step redirects to an external domain (payment gateway, identity provider, external OAuth):
+- Halt the interaction.
+- Capture the current state (URL + snapshot).
+- Present the checkpoint to the operator with clear instructions.
+- Resume only after explicit operator confirmation.
+
+### Phase 5: Session Management
+
+**Skip condition**: Skip when no session export is required.
+
+1. If session state should be preserved for subsequent runs, export the current browser session to the state file path used in Phase 2.
+2. Record the export path and timestamp.
+3. Do not commit session state files to source control. Confirm `.gitignore` covers the state file path.
+
+### Phase 6: Visual Verification
+
+**Skip condition**: Skip when `mode:interact` without an explicit visual target.
+
+Compare the final snapshot against a reference image or a set of expected DOM assertions:
+
+* If a reference image exists: diff pixel regions of interest. Report the diff percentage. Flag regions that differ beyond a configurable threshold.
+* If DOM assertions are provided: verify that expected elements are present (by selector or text content), that absent elements are gone, and that visible text matches expectations.
+* Record: pass / partial-pass (within threshold) / fail, with snapshot paths as evidence.
+
+### Phase 7: Output
+
+Produce a verification record with:
+
+1. **Summary** — URL, mode, auth strategy, final verdict (pass / partial-pass / fail / blocked-at-checkpoint)
+2. **Phase log** — each phase that ran, skip reasons for those skipped
+3. **Snapshots** — paths to all captured screenshots with captions
+4. **Human checkpoints** — each checkpoint encountered, operator action recorded, outcome
+5. **Failures** — each failure with the selector or element, action attempted, error received, and snapshot at time of failure
+
+Do not persist snapshots to source control. Write them to `{{DOCS_CLOSURE}}/browser-automation/` or a workspace-configured temp directory.
+
+## Model Routing
+
+This skill operates at **Tier 2 (Standard)**. Use Tier 3 only for complex multi-step flows requiring judgment about element identification or failure diagnosis.
+
+Generated by autoharness | Template: browser-automation/SKILL.md.tmpl

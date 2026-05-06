@@ -320,6 +320,23 @@ FOUNDATION_ASSERTIONS = [
             "security-lens-reviewer.agent.md",
         ],
     },
+    {
+        "key": "install_harness_browser_skill_manifest",
+        "path": ".github/skills/install-harness/SKILL.md",
+        "must_contain": [
+            "browser-automation/SKILL.md",
+            "iterative-experiment/SKILL.md",
+        ],
+    },
+    {
+        "key": "install_harness_browser_verification_overlay",
+        "path": ".github/skills/install-harness/SKILL.md",
+        "must_contain": [
+            "Automation skill",
+            "browser-automation/SKILL.md",
+            "explicit overlay target",
+        ],
+    },
 ]
 
 
@@ -1184,6 +1201,20 @@ def _derive_template_variables(
         else:
             variables.setdefault(variable_name, "")
     variables.setdefault("EXTENDED_OPERATIONS_TABLE", _build_extended_operations_table(registry))
+
+    browser_config = config.get("browser") or {}
+    variables.setdefault("BROWSER_CLI", str(browser_config.get("cli") or "agent-browser"))
+    variables.setdefault("BROWSER_HEADLESS_FLAG", str(browser_config.get("headless_flag") or "--headless"))
+
+    experiments_config = config.get("experiments") or {}
+    variables.setdefault(
+        "EXPERIMENT_BRANCH_PREFIX",
+        str(experiments_config.get("branch_prefix") or "experiment/"),
+    )
+    variables.setdefault(
+        "EXPERIMENT_RESULTS_DIR",
+        str(experiments_config.get("results_dir") or "docs/experiments"),
+    )
 
     status_values = registry.get("status_values") or {}
     for variable_name, aliases in STATUS_VARIABLES.items():
