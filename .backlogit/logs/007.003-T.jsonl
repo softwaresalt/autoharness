@@ -1,1 +1,2 @@
 {"timestamp":"2026-05-05T18:27:45.5721428-07:00","actor":"backlogit","item_id":"007.003-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-05-05T21:46:11.386344-07:00","actor":"backlogit","item_id":"007.003-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/007.003-T.md"}}
