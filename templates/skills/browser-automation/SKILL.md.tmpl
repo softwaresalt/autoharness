@@ -1,7 +1,7 @@
 ---
 name: browser-automation
 description: "Browser automation skill. Drives {{BROWSER_CLI}} through structured navigate→snapshot→interact→re-snapshot flows with authentication support, form automation, visual verification, and explicit human checkpoints for external flows."
-argument-hint: "[url:<url>] [auth:none|state|login|token] [mode:verify|interact|form]"
+argument-hint: "[url:<url>] [auth:none|state|login|token] [mode:verify|interact|form] [steps:<description>] [fields:<k=v,...>]"
 ---
 
 # Browser Automation
@@ -17,8 +17,8 @@ Invoke browser-automation [url:<url>] [auth:state|login|token] [mode:verify|inte
 **Defaults**: `mode:verify`, `auth:none`
 
 **mode:verify** — Navigate to a URL and snapshot the final state for visual confirmation. Read-only.
-**mode:interact** — Perform an interaction sequence (click, type, navigate) and capture state changes.
-**mode:form** — Fill and submit a form. Captures pre-submit and post-submit snapshots.
+**mode:interact** — Perform an interaction sequence. Describe the steps in `steps:` (e.g., `steps:"click #submit, wait for .success"`). Without `steps:`, the agent infers interactions from the page context.
+**mode:form** — Fill and submit a form. Provide field values in `fields:` (e.g., `fields:"username=alice,email=alice@example.com"`). Without `fields:`, the agent fills fields from context or asks once before proceeding.
 
 ## Subagent Depth Constraint
 
@@ -44,7 +44,7 @@ This is a leaf executor. No subagent spawning. Maximum depth: 0.
 
 ### Phase 2: Authentication Setup
 
-**Skip condition**: Skip when `auth:none` (default) and no session state file is present.
+**Skip condition**: Skip unconditionally when `auth:none`. The presence of a cached state file does not override an explicit `auth:none`.
 
 Select the authentication strategy based on the `auth` argument:
 

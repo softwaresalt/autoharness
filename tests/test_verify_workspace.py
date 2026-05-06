@@ -1559,8 +1559,14 @@ class VerifyWorkspaceTests(unittest.TestCase):
         install_harness_skill = repo_root / ".github" / "skills" / "install-harness" / "SKILL.md"
         install_harness_content = install_harness_skill.read_text(encoding="utf-8")
 
-        self.assertIn("browser-automation/SKILL.md", install_harness_content)
-        self.assertIn("iterative-experiment/SKILL.md", install_harness_content)
+        self.assertIn(
+            "browser-automation/SKILL.md` — Install when `browser-verification` is enabled",
+            install_harness_content,
+        )
+        self.assertIn(
+            "iterative-experiment/SKILL.md` — Install when the `workflow` layer is active",
+            install_harness_content,
+        )
 
         browser_verification_table_idx = install_harness_content.find(
             "overlay target map for `browser-verification`"
@@ -1572,7 +1578,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
         )
         overlay_section = install_harness_content[browser_verification_table_idx:]
         self.assertIn(
-            "browser-automation/SKILL.md",
+            "| Automation skill | `browser-automation/SKILL.md` — treated as an explicit overlay target",
             overlay_section,
             "browser-automation/SKILL.md not listed in browser-verification overlay table",
         )
@@ -1632,12 +1638,11 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
             (workspace / ".github" / "skills" / "install-harness" / "SKILL.md").write_text(
                 "## Skill Installation Manifest\n"
-                "browser-automation/SKILL.md — Install when browser-verification is enabled.\n"
-                "iterative-experiment/SKILL.md — Install when the workflow layer is active.\n"
+                "browser-automation/SKILL.md` — Install when `browser-verification` is enabled. Resolves browser variables.\n"
+                "iterative-experiment/SKILL.md` — Install when the `workflow` layer is active. Resolves experiment variables.\n"
                 "## Overlay\n"
                 "overlay target map for `browser-verification`\n"
-                "| Automation skill | browser-automation/SKILL.md — treated as an explicit overlay target, not an optional add-on |\n"
-                "browser-verification\n",
+                "| Automation skill | `browser-automation/SKILL.md` — treated as an explicit overlay target, not an optional add-on |\n",
                 encoding="utf-8",
             )
             (workspace / ".github" / "skills" / "review" / "SKILL.md").write_text(
