@@ -320,6 +320,21 @@ FOUNDATION_ASSERTIONS = [
             "security-lens-reviewer.agent.md",
         ],
     },
+    {
+        "key": "install_harness_browser_skill_manifest",
+        "path": ".github/skills/install-harness/SKILL.md",
+        "must_contain": [
+            "browser-automation/SKILL.md` — Install when `browser-verification` is enabled",
+            "iterative-experiment/SKILL.md` — Install when the `workflow` layer is active",
+        ],
+    },
+    {
+        "key": "install_harness_browser_verification_overlay",
+        "path": ".github/skills/install-harness/SKILL.md",
+        "must_contain": [
+            "| Automation skill | `browser-automation/SKILL.md` — treated as an explicit overlay target",
+        ],
+    },
 ]
 
 
@@ -1184,6 +1199,30 @@ def _derive_template_variables(
         else:
             variables.setdefault(variable_name, "")
     variables.setdefault("EXTENDED_OPERATIONS_TABLE", _build_extended_operations_table(registry))
+
+    browser_config = config.get("browser") or {}
+    runtime_surfaces = profile.get("runtime_surfaces") or {}
+    browser_tooling = [str(t) for t in (runtime_surfaces.get("browser_tooling") or [])]
+    browser_cli_candidates = ["playwright", "puppeteer", "agent-browser"]
+    detected_browser_cli = next(
+        (t for t in browser_cli_candidates if any(t in tool for tool in browser_tooling)),
+        "agent-browser",
+    )
+    browser_cli = str(browser_config.get("cli") or detected_browser_cli)
+    variables.setdefault("BROWSER_CLI", browser_cli)
+    variables.setdefault("BROWSER_HEADLESS_FLAG", str(browser_config.get("headless_flag") or "--headless"))
+
+    experiments_config = config.get("experiments") or {}
+    raw_branch_prefix = str(experiments_config.get("branch_prefix") or "experiment/")
+    if not raw_branch_prefix.endswith("/"):
+        raw_branch_prefix = raw_branch_prefix + "/"
+    variables.setdefault("EXPERIMENT_BRANCH_PREFIX", raw_branch_prefix)
+
+    raw_results_dir = str(experiments_config.get("results_dir") or "docs/experiments")
+    _results_path = Path(raw_results_dir)
+    if _results_path.is_absolute() or ".." in _results_path.parts:
+        raw_results_dir = "docs/experiments"
+    variables.setdefault("EXPERIMENT_RESULTS_DIR", raw_results_dir)
 
     status_values = registry.get("status_values") or {}
     for variable_name, aliases in STATUS_VARIABLES.items():

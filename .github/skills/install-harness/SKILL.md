@@ -293,6 +293,22 @@ Resolution notes for security surface variables:
 * `{{SECURITY_SCAN_PATTERNS}}`: Combine language-specific OWASP patterns with framework-specific signals (e.g., Express middleware order, Django CSRF, FastAPI auth dependencies). Include auth middleware names, ORM patterns, and framework route decorators for the detected stack.
 * `{{SECURITY_REVIEW_PATTERNS}}`: Bullet list of file path globs and content keywords that trigger security review. Example for Python: `auth*.py`, `permission*.py`, `middleware*.py`, `views.py`, `api.py`, pattern keywords `login`, `token`, `password`, `permission`, `role`, `secret`, `key`, `credential`. Adapt to detected stack.
 
+**Browser & Experiment Variables** (used by browser-automation and iterative-experiment skill templates):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{BROWSER_CLI}}` | `config.browser.cli` or tool detection | `agent-browser` | Browser CLI tool invoked by the browser-automation skill |
+| `{{BROWSER_HEADLESS_FLAG}}` | `config.browser.headless_flag` | `--headless` | Headless flag passed to `{{BROWSER_CLI}}` during automation runs |
+| `{{EXPERIMENT_BRANCH_PREFIX}}` | `config.experiments.branch_prefix` | `experiment/` | Git branch prefix used by the iterative-experiment skill for experiment branches |
+| `{{EXPERIMENT_RESULTS_DIR}}` | `config.experiments.results_dir` | `docs/experiments` | Directory for persisted iterative-experiment TSV logs; configurable, not a hardcoded path |
+
+Resolution notes for browser and experiment variables:
+
+* `{{BROWSER_CLI}}`: Override via `config.browser.cli` if set; otherwise detect from `runtime_surfaces.browser_tooling` in the workspace profile (e.g., Playwright, Puppeteer, agent-browser); falls back to the schema default `agent-browser`.
+* `{{BROWSER_HEADLESS_FLAG}}`: Defaults to `--headless`, which is correct for `agent-browser` and most browser CLIs. CLIs with non-standard headless conventions (e.g., Playwright, which is headless by default and uses `--headed` to run with a visible browser) must set `config.browser.headless_flag` explicitly.
+* `{{EXPERIMENT_BRANCH_PREFIX}}`: Must end with `/`. Validate at resolution time and append `/` if missing.
+* `{{EXPERIMENT_RESULTS_DIR}}`: Must be a relative path within the workspace. Validate at resolution time.
+
 **Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
 
 | Template Variable | Source | Default | Description |
@@ -316,6 +332,10 @@ Resolution notes for security surface variables:
 | `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1` | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks |
 | `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2` | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review |
 | `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
+| `{{BROWSER_CLI}}` | `config.browser.cli` | `agent-browser` | Written back into `config.browser.cli` in the resolved harness-config.yaml |
+| `{{BROWSER_HEADLESS_FLAG}}` | `config.browser.headless_flag` | `--headless` | Written back into `config.browser.headless_flag` |
+| `{{EXPERIMENT_BRANCH_PREFIX}}` | `config.experiments.branch_prefix` | `experiment/` | Written back into `config.experiments.branch_prefix` (normalized to end with `/`) |
+| `{{EXPERIMENT_RESULTS_DIR}}` | `config.experiments.results_dir` | `docs/experiments` | Written back into `config.experiments.results_dir` (must be a relative workspace path) |
 | `{{HARNESS_OVERRIDES_YAML}}` | `config.overrides` map | `{}` | Inline YAML map of explicit template variable overrides; `{}` when no overrides are set |
 
 **AI Tools Variables** (used only in startup script generation):
@@ -479,6 +499,7 @@ Example overlay target map for `browser-verification`:
 | Overlay Element | Required Targets |
 |---|---|
 | Browser workflow rules | foundation docs, `browser-verification.instructions.md` |
+| Automation skill | `browser-automation/SKILL.md` — treated as an explicit overlay target, not an optional add-on |
 | Verification discipline | `runtime-verification/SKILL.md`, closure-facing skills |
 | Human checkpoints | runtime verification and closure artifacts that mention external flows |
 
@@ -703,14 +724,14 @@ Generate skill files:
     * `runtime-verification/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `operational-closure/SKILL.md` — Install when the `runtime` layer is active (normally because Primitive 10 is selected)
     * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
+    * `browser-automation/SKILL.md` — Install when `browser-verification` is enabled. Resolves browser variables: `{{BROWSER_CLI}}`, `{{BROWSER_HEADLESS_FLAG}}`. This is an explicit browser-verification overlay target, not an optional add-on.
+    * `iterative-experiment/SKILL.md` — Install when the `workflow` layer is active. Resolves experiment variables: `{{EXPERIMENT_BRANCH_PREFIX}}`, `{{EXPERIMENT_RESULTS_DIR}}`.
 
 When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
 
 When `agent-engram` is enabled, weave indexed-search guidance into research, planning, build, and repair skills rather than treating it as a generic footnote.
 
-When `browser-verification` is enabled, weave browser-specific guidance into
-runtime verification and operational closure rather than leaving browser work as
-an implicit manual step.
+When `browser-verification` is enabled, install `browser-automation/SKILL.md` as an explicit overlay target and weave browser-specific guidance into runtime verification and operational closure rather than leaving browser work as an implicit manual step.
 
 When `continuous-learning` is enabled, install and reference the observation
 lifecycle skills rather than relying on invisible prompt behavior.

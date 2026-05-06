@@ -1544,3 +1544,125 @@ class VerifyWorkspaceTests(unittest.TestCase):
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["security_review_persona_routing"]["ok"])
             self.assertTrue(targeted_checks["security_plan_review_persona_routing"]["ok"])
+
+    def test_browser_experiment_skill_templates_exist_and_install_harness_is_wired(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        expected_templates = [
+            repo_root / "templates" / "skills" / "browser-automation" / "SKILL.md.tmpl",
+            repo_root / "templates" / "skills" / "iterative-experiment" / "SKILL.md.tmpl",
+        ]
+        for template_path in expected_templates:
+            with self.subTest(template=str(template_path.relative_to(repo_root))):
+                self.assertTrue(template_path.exists(), f"Missing template: {template_path}")
+
+        install_harness_skill = repo_root / ".github" / "skills" / "install-harness" / "SKILL.md"
+        install_harness_content = install_harness_skill.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "browser-automation/SKILL.md` — Install when `browser-verification` is enabled",
+            install_harness_content,
+        )
+        self.assertIn(
+            "iterative-experiment/SKILL.md` — Install when the `workflow` layer is active",
+            install_harness_content,
+        )
+
+        browser_verification_table_idx = install_harness_content.find(
+            "overlay target map for `browser-verification`"
+        )
+        self.assertGreater(
+            browser_verification_table_idx,
+            -1,
+            "browser-verification overlay target table not found in install-harness SKILL.md",
+        )
+        overlay_section = install_harness_content[browser_verification_table_idx:]
+        self.assertIn(
+            "| Automation skill | `browser-automation/SKILL.md` — treated as an explicit overlay target",
+            overlay_section,
+            "browser-automation/SKILL.md not listed in browser-verification overlay table",
+        )
+
+    def test_verify_workspace_checks_browser_experiment_install_harness_wiring(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "install-harness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "review").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "plan-review").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-05T00:00:00Z",
+                    "autoharness_version": "1.4.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [4, 5],
+                    "capability_packs": ["browser-verification"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "skills" / "install-harness" / "SKILL.md").write_text(
+                "## Skill Installation Manifest\n"
+                "browser-automation/SKILL.md` — Install when `browser-verification` is enabled. Resolves browser variables.\n"
+                "iterative-experiment/SKILL.md` — Install when the `workflow` layer is active. Resolves experiment variables.\n"
+                "## Overlay\n"
+                "overlay target map for `browser-verification`\n"
+                "| Automation skill | `browser-automation/SKILL.md` — treated as an explicit overlay target, not an optional add-on |\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "review" / "SKILL.md").write_text(
+                "## Conditional Personas\n"
+                "| **Security Reviewer** | auth middleware |\n"
+                "security-reviewer.agent.md\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "plan-review" / "SKILL.md").write_text(
+                "## Cross-Model Personas\n"
+                "| **Security Lens Reviewer** | auth, API surfaces |\n"
+                "security-lens-reviewer.agent.md\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["install_harness_browser_skill_manifest"]["ok"])
+            self.assertTrue(targeted_checks["install_harness_browser_verification_overlay"]["ok"])

@@ -75,6 +75,16 @@ ai_tools:
     exe_path: "{{COPILOT_EXE_PATH}}"  # Default: "copilot" (expects it on PATH)
                                       # Example: "C:\\Tools\\ghcpcli\\copilot.exe"
 
+# Optional browser-automation capability configuration (used when browser-verification is enabled)
+browser:
+  cli: "{{BROWSER_CLI}}"                    # Default: "agent-browser"
+  headless_flag: "{{BROWSER_HEADLESS_FLAG}}" # Default: "--headless"
+
+# Optional iterative-experiment skill configuration
+experiments:
+  branch_prefix: "{{EXPERIMENT_BRANCH_PREFIX}}"  # Default: "experiment/"
+  results_dir: "{{EXPERIMENT_RESULTS_DIR}}"       # Default: "docs/experiments"
+
 # Explicit template variable overrides applied during install/tune (use sparingly —
 # prefer fixing the workspace setup over overriding discovery results)
 overrides: {{HARNESS_OVERRIDES_YAML}}

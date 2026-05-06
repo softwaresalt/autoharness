@@ -1,0 +1,136 @@
+---
+name: iterative-experiment
+description: "Autonomous iterative experimentation loop. Defines a measurable goal, establishes a baseline, then iterates modify→commit→measure→keep/revert until the goal is met or the budget is exhausted. Persists a TSV experiment log under the configured results directory."
+argument-hint: "[goal:<description>] [budget:<n>] [scope:<path>]"
+---
+
+# Iterative Experiment
+
+Runs an autonomous optimization loop against a measurable goal. Defines the target metric, establishes a baseline, then executes bounded modify→commit→measure→keep/revert iterations. Persists a TSV log of every iteration under `{{EXPERIMENT_RESULTS_DIR}}` using collision-resistant filenames.
+
+## Invocation
+
+```
+Invoke iterative-experiment goal:<description> [budget:<n>] [scope:<path>]
+```
+
+**Defaults**: `budget:10`, `scope:.` (workspace root)
+
+**goal** — Required. A plain-language description of the optimization target (e.g., "reduce median test run time below 30 seconds").
+**budget** — Maximum number of experiment iterations before the loop halts and summarizes results.
+**scope** — Directory or file glob constraining which files may be modified. The experiment never touches files outside this scope.
+
+Once the loop starts (Phase 3), it runs autonomously until the goal is met, the budget is exhausted, or the loop encounters a hard failure. No per-iteration human confirmation is required.
+
+## Subagent Depth Constraint
+
+This is a leaf executor. No subagent spawning. Maximum depth: 0.
+
+## Variables
+
+| Variable | Purpose |
+|---|---|
+| `{{EXPERIMENT_BRANCH_PREFIX}}` | Git branch prefix for experiment branches (default: `experiment/`) |
+| `{{EXPERIMENT_RESULTS_DIR}}` | Directory for persisted experiment logs (default: `docs/experiments`). Configurable; not a hardcoded path. |
+
+## Workflow
+
+### Phase 1: Setup
+
+**Skip condition**: Never skip.
+
+1. Parse the `goal` argument and extract:
+   - **Target metric**: a command that produces a single numeric value (e.g., a benchmark runner, a test timing command, a line count, a bundle size query). If the operator did not supply the metric command, ask once before proceeding.
+   - **Direction**: whether lower or higher is better.
+   - **Goal threshold**: the numeric value that constitutes success, or `none` ("best achievable within budget") if no threshold is given. When threshold is `none`, the loop always runs until budget exhaustion — there is no early exit.
+2. Resolve `scope` to an explicit file list or glob pattern. Confirm no locked or out-of-scope files are included.
+3. Record: goal statement, metric command, direction, threshold, scope, budget.
+4. Ensure the workspace is on a clean git state. If there are uncommitted changes, halt and ask the operator to commit or stash them before starting.
+5. Create the experiment branch: `git checkout -b {{EXPERIMENT_BRANCH_PREFIX}}{slug}-{timestamp}` where `{slug}` is a short kebab-case summary of the goal and `{timestamp}` is `YYYYMMDD-HHMMSS`.
+
+### Phase 2: Baseline
+
+**Skip condition**: Never skip.
+
+1. On the new experiment branch, run the metric command without making any changes. This establishes the baseline measurement.
+2. Run the metric command 3 times and record each result. Use the median as the baseline value. Record min and max for variance context.
+3. If the metric command fails, halt and report: the experiment cannot proceed without a working baseline.
+4. If the baseline already meets the goal threshold, report success immediately and skip the loop.
+5. Record the baseline in the experiment log (see Output format).
+
+### Phase 3: Experiment Loop
+
+**Skip condition**: Skip if the baseline already met the goal (Phase 2 early success).
+
+For each iteration `i` from 1 to `budget`:
+
+1. **Generate a hypothesis**: identify a specific change within `scope` that is likely to move the metric in the desired direction. Record the hypothesis (one sentence).
+2. **Apply the change**: modify the target file(s). Keep changes minimal and scoped — one hypothesis per iteration. Never modify files outside `scope`.
+3. **Commit the change**: stage only the modified in-scope files with `git add <changed files>`, then commit with `git commit -m "experiment({i}): {hypothesis_summary}"`. These are separate steps — do not chain them.
+4. **Measure**: run the metric command. Record the result.
+5. **Evaluate**:
+   - If the result moves in the desired direction relative to the previous best: keep the commit. Update the running best.
+   - If the result does not improve: revert the commit (`git revert HEAD --no-edit`) and record the revert.
+6. **Append to log**: write the iteration row to the TSV experiment log (see Output format) before evaluating the goal check. The log file lives in `{{EXPERIMENT_RESULTS_DIR}}` which is gitignored for ephemeral experiments; untracked files do not dirty the working tree, so writing the log does not violate the Git clean invariant. If the operator has opted into committed reproducibility mode (see Output Format), the log must be committed in a separate step after each iteration and before the next change is applied.
+7. **Check goal**: if a numeric goal threshold was specified and the result meets it, exit the loop early with success.
+8. **Budget check**: if `i == budget`, exit the loop with "budget exhausted" status.
+
+**Loop invariants** (enforced every iteration):
+- Only files within `scope` are modified.
+- Every change is committed before measuring.
+- Every failed change is reverted before the next iteration begins.
+- The experiment log is updated before moving to the next iteration.
+
+### Phase 4: Summary
+
+**Skip condition**: Never skip.
+
+1. Collect the final experiment state: best result, baseline, improvement delta and percentage, number of iterations run, goal met (yes/no), and the commit hash of the best result.
+2. If the goal was met: the experiment branch is already at the winning commit because losing iterations were reverted in Phase 3. Confirm the current HEAD is the best commit (they should match). If a regression occurred in the final iteration and was reverted, use `git reset --hard <best-commit-hash>` to restore the branch tip to the best state — this keeps the branch attached, not detached. Report success with the commit hash.
+3. If the goal was not met: report the best result achieved, the remaining gap, and a set of promising next hypotheses based on what moved the metric most.
+4. Write the summary section to the experiment log file.
+5. Report the experiment branch name and the path to the persisted log.
+
+## Output Format
+
+The experiment log is a TSV file named `{slug}-{timestamp}.tsv` persisted to `{{EXPERIMENT_RESULTS_DIR}}/`. The `{timestamp}` suffix (`YYYYMMDD-HHMMSS`) makes filenames collision-resistant when the same goal is run multiple times.
+
+If `{{EXPERIMENT_RESULTS_DIR}}/` does not exist, create it before writing.
+
+**TSV columns**:
+
+```
+iteration	hypothesis	metric_value	delta_from_baseline	delta_from_prev	kept	commit_hash	notes
+```
+
+**Baseline row**: `iteration = 0`, `hypothesis = "baseline"`, `kept = true`, `delta_* = 0`.
+
+A plain-text summary section is appended after the TSV rows:
+
+```
+---
+Goal: <goal statement>
+Threshold: <value or "best achievable">
+Direction: <lower|higher>
+Baseline: <value>
+Best result: <value> at iteration <n> (commit <hash>)
+Goal met: <yes|no>
+Iterations run: <n> / <budget>
+---
+```
+
+Do not commit the experiment log to source control unless explicitly requested. The `{{EXPERIMENT_RESULTS_DIR}}` path should be covered by `.gitignore` for ephemeral experiments, or committed for reproducibility — the operator decides.
+
+## Safety Rules
+
+* **Scope isolation**: the experiment loop may only modify files within `scope`. Any attempt to touch a file outside scope is a hard stop.
+* **No destructive operations**: the loop may not delete files, drop database tables, or make irreversible infrastructure changes.
+* **Revert on failure**: if a metric measurement fails (command error, crash), revert the current commit before the next iteration.
+* **Branch containment**: all experiment work stays on the `{{EXPERIMENT_BRANCH_PREFIX}}` branch. The base branch is never modified.
+* **Git clean invariant**: at the start of every iteration, the working tree must be clean before applying the next change. If the working tree is dirty after a measurement, halt the loop.
+
+## Model Routing
+
+This skill operates at **Tier 2 (Standard)** for baseline measurement and loop bookkeeping. Use **Tier 3 (Frontier)** for hypothesis generation when the metric plateau is reached and the agent needs broader reasoning about what to try next.
+
+Generated by autoharness | Template: iterative-experiment/SKILL.md.tmpl
