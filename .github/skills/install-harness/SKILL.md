@@ -304,8 +304,8 @@ Resolution notes for security surface variables:
 
 Resolution notes for browser and experiment variables:
 
-* `{{BROWSER_CLI}}`: Detect from workspace profile tool inventory first (e.g., Playwright CLI, Puppeteer CLI, agent-browser). Fall back to the `config.browser.cli` override, then the schema default `agent-browser`.
-* `{{BROWSER_HEADLESS_FLAG}}`: Use the CLI-specific headless flag. For agent-browser: `--headless`. For Playwright: `--headed` is the non-headless form (invert). For most CLIs `--headless` is correct. Override via `config.browser.headless_flag`.
+* `{{BROWSER_CLI}}`: Override via `config.browser.cli` if set; otherwise detect from `runtime_surfaces.browser_tooling` in the workspace profile (e.g., Playwright, Puppeteer, agent-browser); falls back to the schema default `agent-browser`.
+* `{{BROWSER_HEADLESS_FLAG}}`: Defaults to `--headless`, which is correct for `agent-browser` and most browser CLIs. CLIs with non-standard headless conventions (e.g., Playwright, which is headless by default and uses `--headed` to run with a visible browser) must set `config.browser.headless_flag` explicitly.
 * `{{EXPERIMENT_BRANCH_PREFIX}}`: Must end with `/`. Validate at resolution time and append `/` if missing.
 * `{{EXPERIMENT_RESULTS_DIR}}`: Must be a relative path within the workspace. Validate at resolution time.
 

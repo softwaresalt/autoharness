@@ -1201,10 +1201,11 @@ def _derive_template_variables(
     variables.setdefault("EXTENDED_OPERATIONS_TABLE", _build_extended_operations_table(registry))
 
     browser_config = config.get("browser") or {}
-    tools_in_profile = [str(t) for t in (profile.get("tools") or [])]
+    runtime_surfaces = profile.get("runtime_surfaces") or {}
+    browser_tooling = [str(t) for t in (runtime_surfaces.get("browser_tooling") or [])]
     browser_cli_candidates = ["playwright", "puppeteer", "agent-browser"]
     detected_browser_cli = next(
-        (t for t in browser_cli_candidates if any(t in tool for tool in tools_in_profile)),
+        (t for t in browser_cli_candidates if any(t in tool for tool in browser_tooling)),
         "agent-browser",
     )
     browser_cli = str(browser_config.get("cli") or detected_browser_cli)
@@ -1219,7 +1220,7 @@ def _derive_template_variables(
 
     raw_results_dir = str(experiments_config.get("results_dir") or "docs/experiments")
     _results_path = Path(raw_results_dir)
-    if _results_path.is_absolute() or raw_results_dir.startswith(".."):
+    if _results_path.is_absolute() or ".." in _results_path.parts:
         raw_results_dir = "docs/experiments"
     variables.setdefault("EXPERIMENT_RESULTS_DIR", raw_results_dir)
 
