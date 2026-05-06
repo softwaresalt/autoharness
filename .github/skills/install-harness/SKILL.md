@@ -738,7 +738,9 @@ Generate skill files:
     * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
     * `browser-automation/SKILL.md` — Install when `browser-verification` is enabled. Resolves browser variables: `{{BROWSER_CLI}}`, `{{BROWSER_HEADLESS_FLAG}}`. This is an explicit browser-verification overlay target, not an optional add-on.
     * `iterative-experiment/SKILL.md` — Install when the `workflow` layer is active. Resolves experiment variables: `{{EXPERIMENT_BRANCH_PREFIX}}`, `{{EXPERIMENT_RESULTS_DIR}}`.
-    * `harness-doctor/SKILL.md` — Install universally (all presets). Resolves health-check variables: `{{HARNESS_MANIFEST_PATH}}`, `{{AUTOHARNESS_VERSION}}`.
+
+3. **Always-installed skills** (install with every preset, regardless of primitive or layer selection):
+    * `harness-doctor/SKILL.md` — Universal health diagnostic; install with every preset. Resolves health-check variables: `{{HARNESS_MANIFEST_PATH}}`, `{{AUTOHARNESS_VERSION}}`.
 
 When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
 

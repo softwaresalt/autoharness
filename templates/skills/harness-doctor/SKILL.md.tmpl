@@ -51,9 +51,9 @@ Determine what is installed before running any checks.
    * `schema_version`
    * `autoharness_version` (the version that performed the install)
    * `installed_at` timestamp
-   * `entries_added` — the list of artifact directories/paths installed
+   * `artifacts` — the array of installed artifact objects; each has a `path` (workspace-relative), `checksum`, `primitive`, `template`, and optional `artifact_type`
 3. Enumerate artifact directories on disk: `.github/agents`, `.github/skills`, `.github/instructions`, `.github/prompts`, `.github/policies`.
-4. Record detected vs expected artifact directories. Flag any declared in `entries_added` that are absent from disk.
+4. Derive the expected directory set from `artifacts[*].path` (extract the top-level `.github/<dir>` prefix from each path). Flag any derived directories absent from disk.
 
 **Phase 1 health signal**:
 * All declared artifact dirs present → **PASS**
@@ -88,11 +88,11 @@ Compare the installed version with the current `autoharness_home` version.
 
 **Skip condition**: Skip if Phase 1 found no manifest.
 
-Verify that each artifact listed in the manifest's `entries_added` still exists on disk.
+Verify that each artifact listed in the manifest's `artifacts` array still exists on disk.
 
-1. For each path in `entries_added` (directories and files):
+1. For each entry in `artifacts`:
+   * Resolve `entry.path` as a workspace-relative path.
    * Check existence on disk.
-   * If the path is a directory, verify it is non-empty (at least one file present).
 2. Compute a presence rate: `(found / total) * 100`.
 
 | Presence Rate | Signal |
@@ -115,7 +115,7 @@ Verify that internal cross-references within harness artifacts resolve correctly
    * Markdown links with relative paths (e.g., `[text](../instructions/foo.md)`)
    * Explicit skill invocation references (e.g., `Invoke skill-name`)
    * Agent references (e.g., `spawns sub-agent: foo.agent.md`)
-3. Resolve each relative path reference against the workspace root. Flag any that do not exist.
+3. For each relative path reference, resolve it relative to the directory of the file that contains the link (not relative to the workspace root), then normalize the result to a workspace-absolute path for existence checking. Flag any normalized path that does not exist on disk.
 4. For skill invocations: check that a corresponding skill directory exists under `.github/skills/`.
 5. For agent references: check that the corresponding `.agent.md` file exists under `.github/agents/`.
 
@@ -209,8 +209,8 @@ Produce the health report with these sections:
 
 In `mode:fix`, apply only these deterministic, low-risk repairs:
 
-* **Phase 1**: Create missing artifact directories declared in `entries_added` if the parent path exists (empty directory creation only — never generate content).
-* **Phase 6**: Remove clearly orphaned `.tmpl` extension files accidentally copied to `.github/` (a file under `.github/` that ends in `.tmpl` was never intended to be installed; remove it and record the action).
+* **Phase 1**: Create missing artifact directories derived from `artifacts[*].path` if the parent path exists (empty directory creation only — never generate content).
+* **Phase 6**: Quarantine clearly orphaned `.tmpl` extension files accidentally copied to `.github/` by moving them to `.autoharness/quarantine/` (never delete). Record the source path, destination path, and reason. Prompt the operator to review quarantined files before permanent removal.
 
 All other findings are report-only. Source files, agent definitions, and skill content are never auto-modified by harness-doctor.
 
