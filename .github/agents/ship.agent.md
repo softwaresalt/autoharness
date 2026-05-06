@@ -81,14 +81,44 @@ tracking MUST use backlogit MCP tools or CLI.
 
 ## Execution Pipeline
 
+### Step 0.0: Tool Availability Gate (P-012)
+
+Before any pipeline work begins, verify tool availability and declare degraded mode if tools are unavailable.
+
+1. Check for the backlog registry at `.autoharness/backlog-registry.yaml`.
+   - If present: load it and identify MCP tools required for this session (shipment, task state, commit tracking).
+   - If absent: proceed in manual/file-backed mode.
+2. For each required MCP tool, probe with a read-only lightweight operation:
+   - On success: log `TOOL_OK: {tool_name}`.
+   - On failure: check whether the registry declares a CLI fallback in the `cli_command` field.
+     - If CLI fallback exists: log `TOOL_DEGRADED: {tool_name} — CLI fallback: {cli_command}` and record it.
+     - If no fallback: halt with `TOOL_UNAVAILABLE: {tool_name} — required for this session.`
+3. Do NOT silently fall back to ad hoc filesystem `grep`/`cat` operations when a configured tool is unavailable (P-012 violation).
+4. Log overall status: `ALL_TOOLS_OK`, `DEGRADED_MODE: {tool_list}`, or `TOOL_UNAVAILABLE`.
+
 ### Step 0.5: Work Intake
 
 1. Identify the shipment or feature to work on.
    * If a shipment exists, claim it via `backlogit_claim_shipment`.
    * Otherwise, select queued tasks from the backlog.
 2. Verify all tasks have clear scope and acceptance criteria.
-3. Create a working branch: `git checkout -b feat/{feature-slug}` or
-   `git checkout -b chore/{chore-slug}`.
+3. **Branch Creation Gate (P-011, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active:
+   - Check current branch:
+     `git branch --show-current`
+   - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `BRANCH_OK: {branch_name}` and proceed.
+   - If on `main` or any other non-shipment branch:
+     a. Verify the worktree is clean:
+        `git status --short`
+        If any output appears, halt. Do not create a branch from a dirty worktree.
+     b. Switch to the default branch:
+        `git checkout main`
+     c. Pull latest:
+        `git pull`
+     d. Create the shipment branch:
+        `git checkout -b feat/{feature-slug}` (features) or `git checkout -b chore/{chore-slug}` (chores)
+     e. Log `BRANCH_CREATED: {branch_name}`.
+   - If on an unrelated non-default branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
+   - Note: all git commands above are run as separate sequential steps, not chained.
 
 ### Step 1: Pre-Flight Checks
 
