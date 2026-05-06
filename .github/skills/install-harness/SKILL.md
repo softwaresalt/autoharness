@@ -309,6 +309,18 @@ Resolution notes for browser and experiment variables:
 * `{{EXPERIMENT_BRANCH_PREFIX}}`: Must end with `/`. Validate at resolution time and append `/` if missing.
 * `{{EXPERIMENT_RESULTS_DIR}}`: Must be a relative path within the workspace. Validate at resolution time.
 
+**Health-Check Variables** (used by the harness-doctor skill template):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{HARNESS_MANIFEST_PATH}}` | `config.harness.manifest_path` or schema default | `.autoharness/harness-manifest.yaml` | Path to the installed harness manifest; used by harness-doctor to locate the manifest for integrity and version checks |
+| `{{AUTOHARNESS_VERSION}}` | `autoharness_home` metadata (`version` field in `autoharness_home/pyproject.toml` or equivalent) | _(resolved at install time)_ | Expected autoharness version string; harness-doctor compares this against the manifest's `autoharness_version` field to detect version drift |
+
+Resolution notes for health-check variables:
+
+* `{{HARNESS_MANIFEST_PATH}}`: Defaults to `.autoharness/harness-manifest.yaml` relative to the workspace root. Override via `config.harness.manifest_path` in the workspace config. Must be a relative path.
+* `{{AUTOHARNESS_VERSION}}`: Read from the autoharness installation at install time (e.g., `autoharness_home/src/autoharness/__init__.py` `__version__` attribute, or equivalent metadata file). Baked into the template at installation so the installed harness-doctor knows what version it was installed from.
+
 **Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
 
 | Template Variable | Source | Default | Description |
@@ -531,11 +543,11 @@ Map primitives to template groups:
 
 | Primitive | Template Groups |
 |---|---|
-| 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh` |
+| 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh`, `skills/harness-doctor` (install health baseline and pre-flight context) |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
 | 4 - Orchestration | `agents/stage`, `agents/ship`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true) |
-| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
+| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight and tool availability gate), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions`, `skills/skill-search` |
 | 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
@@ -726,6 +738,7 @@ Generate skill files:
     * `observe/SKILL.md`, `learn/SKILL.md`, `evolve/SKILL.md` — Install when `continuous-learning` is enabled
     * `browser-automation/SKILL.md` — Install when `browser-verification` is enabled. Resolves browser variables: `{{BROWSER_CLI}}`, `{{BROWSER_HEADLESS_FLAG}}`. This is an explicit browser-verification overlay target, not an optional add-on.
     * `iterative-experiment/SKILL.md` — Install when the `workflow` layer is active. Resolves experiment variables: `{{EXPERIMENT_BRANCH_PREFIX}}`, `{{EXPERIMENT_RESULTS_DIR}}`.
+    * `harness-doctor/SKILL.md` — Install universally (all presets). Resolves health-check variables: `{{HARNESS_MANIFEST_PATH}}`, `{{AUTOHARNESS_VERSION}}`.
 
 When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
 

@@ -1,1 +1,4 @@
 {"timestamp":"2026-05-05T10:42:38.6672265-07:00","actor":"backlogit","item_id":"006-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-05-06T12:06:50.756685-07:00","actor":"backlogit","item_id":"006-F","event_type":"status_changed","delta":{"from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-05-06T12:06:58.6261282-07:00","actor":"backlogit","item_id":"006-F","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"7d0074cca735167309f6704fa0b20fdd06be6693","message":"feat(security): add security harness surface templates and verification (#30)"}}
+{"timestamp":"2026-05-06T12:07:40.5563625-07:00","actor":"backlogit","item_id":"006-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/006-F.md"}}
