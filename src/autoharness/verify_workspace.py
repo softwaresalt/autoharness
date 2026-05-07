@@ -265,6 +265,26 @@ FOUNDATION_ASSERTIONS = [
         ],
     },
     {
+        "key": "stage_role_boundary",
+        "path": ".github/agents/stage.agent.md",
+        "must_contain": [
+            "Role Boundary (NON-NEGOTIABLE)",
+            "P-010",
+            "Forbidden",
+        ],
+    },
+    {
+        "key": "stage_tool_availability_gate",
+        "path": ".github/agents/stage.agent.md",
+        "must_contain": [
+            "Tool Availability Gate",
+            "TOOL_OK",
+            "TOOL_DEGRADED",
+            "TOOL_UNAVAILABLE",
+            "P-012",
+        ],
+    },
+    {
         "key": "ship_branch_management",
         "path": ".github/agents/ship.agent.md",
         "must_contain": [
@@ -272,6 +292,28 @@ FOUNDATION_ASSERTIONS = [
             "Post-Merge Branch Protocol (NON-NEGOTIABLE)",
             "Branch Management Rules (NON-NEGOTIABLE)",
             "post-merge/{feature_slug}",
+        ],
+    },
+    {
+        "key": "ship_branch_creation_gate",
+        "path": ".github/agents/ship.agent.md",
+        "must_contain": [
+            "Branch Creation Gate (P-011, NON-NEGOTIABLE)",
+            "git branch --show-current",
+            "BRANCH_OK",
+            "BRANCH_CREATED",
+            "BRANCH_MISMATCH",
+        ],
+    },
+    {
+        "key": "ship_tool_availability_gate",
+        "path": ".github/agents/ship.agent.md",
+        "must_contain": [
+            "Tool Availability Gate",
+            "TOOL_OK",
+            "TOOL_DEGRADED",
+            "TOOL_UNAVAILABLE",
+            "P-012",
         ],
     },
     {

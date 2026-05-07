@@ -1666,3 +1666,95 @@ class VerifyWorkspaceTests(unittest.TestCase):
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["install_harness_browser_skill_manifest"]["ok"])
             self.assertTrue(targeted_checks["install_harness_browser_verification_overlay"]["ok"])
+
+    def test_verify_workspace_checks_agent_session_discipline(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-06T00:00:00Z",
+                    "autoharness_version": "1.5.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [4, 5],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "agents" / "stage.agent.md").write_text(
+                "## Role Boundary (NON-NEGOTIABLE)\n"
+                "P-010\n"
+                "Forbidden\n"
+                "## Step 0.0: Tool Availability Gate (P-012)\n"
+                "TOOL_OK\n"
+                "TOOL_DEGRADED\n"
+                "TOOL_UNAVAILABLE\n"
+                "P-012\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+                "Branch Creation Gate (P-011, NON-NEGOTIABLE)\n"
+                "git branch --show-current\n"
+                "BRANCH_OK\n"
+                "BRANCH_CREATED\n"
+                "BRANCH_MISMATCH\n"
+                "Branch retention (NON-NEGOTIABLE)\n"
+                "Post-Merge Branch Protocol (NON-NEGOTIABLE)\n"
+                "Branch Management Rules (NON-NEGOTIABLE)\n"
+                "post-merge/{feature_slug}\n"
+                "source_stash_id\nsource_deliberation_id\nbacklogit_stash_remove\nbacklogit_archive_item\n"
+                "## Step 0.0: Tool Availability Gate (P-012)\n"
+                "TOOL_OK\n"
+                "TOOL_DEGRADED\n"
+                "TOOL_UNAVAILABLE\n"
+                "P-012\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["stage_role_boundary"]["ok"])
+            self.assertTrue(targeted_checks["stage_tool_availability_gate"]["ok"])
+            self.assertTrue(targeted_checks["ship_branch_creation_gate"]["ok"])
+            self.assertTrue(targeted_checks["ship_tool_availability_gate"]["ok"])

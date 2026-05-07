@@ -79,6 +79,23 @@ If Primitive 6 is not installed, enumerate skills manually:
 
 ## Required Steps
 
+### Step 0.0: Tool Availability Gate (P-012)
+
+Before any pipeline work begins, verify tool availability and declare degraded mode if tools are unavailable.
+
+1. Check for the backlog registry at `.autoharness/backlog-registry.yaml`.
+   - If present: load it and identify MCP tools required for this session (shipment operations, task state, commit tracking).
+   - If absent: proceed in manual/file-backed mode — this is the intentional operating mode, not a degradation.
+2. For each required MCP tool, probe with a read-only lightweight operation:
+   - On success: log `TOOL_OK: {tool_name}`.
+   - On failure: check whether the registry declares a CLI fallback in the `cli_command` field.
+     - If CLI fallback exists: log `TOOL_DEGRADED: {tool_name} — CLI fallback: {cli_command}` and record the fallback commands for use in subsequent steps.
+     - If no fallback: halt with `TOOL_UNAVAILABLE: {tool_name} — required for this session. Fix the tool or run in manual mode.`
+3. Do NOT silently fall back to ad hoc filesystem `grep`/`cat` operations when a configured backlog tool is unavailable. That hides configuration problems and produces incorrect results (P-012 violation).
+4. Log overall status: `ALL_TOOLS_OK`, `DEGRADED_MODE: {tool_list}`, or `TOOL_UNAVAILABLE`.
+
+When `harness-doctor` is installed and tool availability is in doubt, invoke it with `mode: check` targeting Phase 5 (MCP prerequisite check) for a deeper diagnostic. Skip if quick probes succeed.
+
 ### Step 0: Establish Operator Visibility
 
 When the `agent-intercom` capability pack is installed, begin by following
@@ -108,6 +125,24 @@ build work begins:
 1. Load the shipment using `{{OP_GET_SHIPMENT_MCP}}`. Confirm it is in `{{STATUS_QUEUED}}` or `{{STATUS_ACTIVE}}` status.
 2. Confirm the shipment has explicit item membership (feature + tasks).
 3. Verify no item in the shipment is missing a covering feature parent.
+3a. **Branch Creation Gate (P-011, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active:
+    - Check current branch:
+      `git branch --show-current`
+    - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `BRANCH_OK: {branch_name}` and proceed to step 4.
+    - If on `{{DEFAULT_BRANCH}}` (the default branch):
+      a. Verify the worktree is clean:
+         `git status --short`
+         If any output appears, halt. Do not create a branch from a dirty worktree.
+      b. Switch to the default branch:
+         `git checkout {{DEFAULT_BRANCH}}`
+      c. Pull latest:
+         `git pull`
+      d. Create the shipment branch (use `feat/` for features, `chore/` for chores):
+         `git checkout -b feat/{feature-slug}`
+         where `{feature-slug}` is derived from the shipment title: lowercase, spaces replaced with hyphens.
+      e. Log `BRANCH_CREATED: {branch_name}`.
+    - If on an unrelated non-default branch: halt with `BRANCH_MISMATCH: currently on {branch_name} — does not match shipment scope. Checkout the correct branch or create one manually.`
+    - Note: All four git commands above are run as separate sequential steps, not chained.
 4. If the shipment is still in `{{STATUS_QUEUED}}` status, claim it using `{{OP_CLAIM_SHIPMENT_MCP}}` before
    build work begins. Broadcast `[SHIP] Shipment claimed: {shipment_id}`.
 5. Record `shipment_id` as the session scope. All build execution and PR scope is bounded

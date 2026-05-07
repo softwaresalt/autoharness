@@ -206,6 +206,86 @@ P-005 violation event.
 
 ---
 
+## P-010: Agent Role Boundary
+
+| Field      | Value                                    |
+|------------|------------------------------------------|
+| Policy ID  | P-010                                    |
+| Applies To | `stage`, `dispatch`                      |
+| Gate Point | Session start, any step that would violate Stage scope |
+
+**Statement**: The Stage agent is a planning and decomposition agent. It must not act outside its stash-to-shipment scope. The Dispatch agent must not perform Stage or Ship work directly — it routes to them as subagents.
+
+**Stage MUST NOT**:
+- Create or checkout implementation feature or chore branches for code execution
+- Write, modify, or delete application source code, test files, or configuration files
+- Run build systems, test suites, or linters
+- Create, push, or merge pull requests
+- Claim or close shipments on behalf of Ship
+
+**Stage MAY** (within its legitimate scope):
+- Create, update, or archive backlog items, stash entries, shipment manifests, deliberation artifacts, and planning artifacts
+- Commit backlog and planning artifacts (on the default branch or a dedicated chore/admin branch)
+- Read source code files to understand context for planning
+- Invoke deliberation, spike, impl-plan, plan-harden, plan-review, harvest, and compound skills
+
+**Violation Action**: Record a P-010 violation (via P-005 telemetry) and halt. Do not proceed past the boundary even if the operator requests implementation work — redirect to Ship instead.
+
+---
+
+## P-011: Branch-Before-Mutation
+
+| Field      | Value                                    |
+|------------|------------------------------------------|
+| Policy ID  | P-011                                    |
+| Applies To | `ship`                                   |
+| Gate Point | Ship Step 0.5, before any workspace or backlog mutation |
+
+**Statement**: The Ship agent must verify that a feature or chore branch is active before performing any workspace mutation (code changes, file writes, backlog claim). The default branch must never be the active branch when Ship performs implementation work.
+
+**Precondition**: A branch named `feat/{slug}` or `chore/{slug}` is checked out and the worktree is clean before the first mutation.
+
+**Required sequence** (when not already on the correct branch):
+1. `git status --short` — verify the worktree is clean
+2. `git checkout {{DEFAULT_BRANCH}}`
+3. `git pull`
+4. `git checkout -b feat/{feature-slug}` or `git checkout -b chore/{chore-slug}`
+
+**Edge cases**:
+- If already on the correct shipment branch: proceed without creating a new branch
+- If on a wrong non-default branch: halt and require operator instruction
+- If worktree is dirty before branch creation: halt and do not create branch
+
+**Violation Action**: Record a P-011 violation (via P-005 telemetry) and halt. Do not proceed with any workspace mutations until a feature branch is active.
+
+---
+
+## P-012: Tool Availability and Declared Degradation
+
+| Field      | Value                                    |
+|------------|------------------------------------------|
+| Policy ID  | P-012                                    |
+| Applies To | All agents and skills                    |
+| Gate Point | Session start (Step 0.0) before any pipeline work |
+
+**Statement**: Agents must probe configured tools before relying on them and must explicitly declare degraded mode when a configured tool is unavailable. Silent fallback to ad hoc filesystem operations (grep, cat, find) when a configured tool is expected is a policy violation.
+
+**Required actions at session start**:
+1. Check for `.autoharness/backlog-registry.yaml`. If present, identify required operations.
+2. Probe each required tool with a read-only lightweight operation.
+3. On failure: check for a registry-declared CLI fallback (`cli_command` field).
+   - If CLI fallback exists: log `TOOL_DEGRADED: {tool_name} — using CLI fallback` and proceed.
+   - If no fallback: halt with `TOOL_UNAVAILABLE: {tool_name}`.
+4. On success: log `TOOL_OK: {tool_name}`.
+
+**Forbidden**: Silently bypassing a configured tool with ad hoc `grep`, `cat`, or directory scans when the backlog tool is registered but unavailable. This masks configuration problems and produces incorrect results.
+
+**Exception**: When no backlog tool is registered (no `.autoharness/backlog-registry.yaml` or empty registry), file-backed manual mode is the intentional operating mode, not a degradation.
+
+**Violation Action**: Log `POLICY_VIOLATION: P-012 — silent fallback detected` (via P-005 telemetry), surface the degradation explicitly, and re-evaluate whether the session can continue safely.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -215,3 +295,6 @@ P-005 violation event.
 | 1.2.0   | {{DATE}}     | Added P-007      | Backlogit archive integrity after shipment |
 | 1.3.0   | {{DATE}}     | Added P-008      | Markdown conformance enforcement |
 | 1.4.0   | {{DATE}}     | Added P-009      | Merge-commit-only policy |
+| 1.5.0   | {{DATE}}     | Added P-010      | Agent role boundary (Stage/Dispatch) |
+| 1.6.0   | {{DATE}}     | Added P-011      | Branch-before-mutation (Ship) |
+| 1.7.0   | {{DATE}}     | Added P-012      | Tool availability and declared degradation |
