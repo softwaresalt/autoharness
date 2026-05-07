@@ -1,1 +1,4 @@
 {"timestamp":"2026-05-06T12:51:59.8859835-07:00","actor":"backlogit","item_id":"009-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-05-06T18:07:31.2341679-07:00","actor":"backlogit","item_id":"009-F","event_type":"status_changed","delta":{"from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-05-06T18:07:31.8090744-07:00","actor":"backlogit","item_id":"009-F","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"ee3828a","message":"feat(009-S): agent session discipline and workflow boundaries"}}
+{"timestamp":"2026-05-06T18:07:33.115225-07:00","actor":"backlogit","item_id":"009-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/009-F.md"}}
