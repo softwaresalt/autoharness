@@ -57,6 +57,7 @@ OPERATION_VARIABLES = {
     "move_task": "OP_MOVE_MCP",
     "search_tasks": "OP_SEARCH_MCP",
     "complete_task": "OP_COMPLETE_MCP",
+    "sync_index": "OP_SYNC_INDEX_MCP",
     "create_shipment": "OP_CREATE_SHIPMENT_MCP",
     "get_shipment": "OP_GET_SHIPMENT_MCP",
     "list_shipments": "OP_LIST_SHIPMENTS_MCP",
@@ -79,6 +80,7 @@ CLI_OPERATION_VARIABLES = {
     "move_task": "OP_MOVE_CLI",
     "search_tasks": "OP_SEARCH_CLI",
     "complete_task": "OP_COMPLETE_CLI",
+    "sync_index": "OP_SYNC_INDEX_CLI",
 }
 STATUS_VARIABLES = {
     "STATUS_QUEUED": ("queued", "todo"),
@@ -147,6 +149,23 @@ PACK_ASSERTIONS = {
                 "Source artifact cleanup",
                 "source_stash_id",
                 "source_deliberation_id",
+            ],
+        },
+        {
+            "key": "stage_index_sync_gate",
+            "path": ".github/agents/stage.agent.md",
+            "must_contain": [
+                "Index Sync",
+                "backlogit_sync_index",
+                "INDEX_SYNC_OK",
+            ],
+        },
+        {
+            "key": "ship_index_sync_gate",
+            "path": ".github/agents/ship.agent.md",
+            "must_contain": [
+                "backlogit_sync_index",
+                "CLOSURE_INDEX_SYNC_OK",
             ],
         },
     ],
@@ -314,6 +333,16 @@ FOUNDATION_ASSERTIONS = [
             "TOOL_DEGRADED",
             "TOOL_UNAVAILABLE",
             "P-012",
+        ],
+    },
+    {
+        "key": "ship_merge_confirmation_gate",
+        "path": ".github/agents/ship.agent.md",
+        "must_contain": [
+            "Merge Confirmation Gate",
+            "MERGE_CONFIRMED",
+            "MERGE_NOT_CONFIRMED",
+            "merge-base --is-ancestor",
         ],
     },
     {

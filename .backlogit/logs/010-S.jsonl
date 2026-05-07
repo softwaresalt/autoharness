@@ -1,1 +1,2 @@
 {"timestamp":"2026-05-06T11:34:36.7561316-07:00","actor":"backlogit","item_id":"010-S","event_type":"shipment_created","delta":{"items":["010-F","010.001-T","010.002-T","010.003-T"],"title":"Session Lifecycle Gates and Backlogit Sync"}}
+{"timestamp":"2026-05-06T18:26:37.4348736-07:00","actor":"backlogit","item_id":"010-S","event_type":"shipment_status_changed","delta":{"status":"active"}}

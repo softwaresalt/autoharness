@@ -180,6 +180,8 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{EXTENDED_OPERATIONS_TABLE}}` | Registry `advanced_operations` formatted as Markdown table | _(backlogit-specific ops table)_ | _(empty string if not supported)_ |
 | `{{FEATURE_SHIPMENTS}}` | Registry `features.shipments` | `true` | `false` |
 | `{{OP_CREATE_SHIPMENT_MCP}}` | Registry `operations.create_shipment.mcp_tool` | `backlogit_create_shipment` | _(empty string)_ |
+| `{{OP_SYNC_INDEX_MCP}}` | Registry `operations.sync_index.mcp_tool` | `backlogit_sync_index` | _(empty string)_ |
+| `{{OP_SYNC_INDEX_CLI}}` | Registry `operations.sync_index.cli_command` | `backlogit sync` | _(empty string)_ |
 | `{{OP_GET_SHIPMENT_MCP}}` | Registry `operations.get_shipment.mcp_tool` | `backlogit_get_shipment` | _(empty string)_ |
 | `{{OP_LIST_SHIPMENTS_MCP}}` | Registry `operations.list_shipments.mcp_tool` | `backlogit_list_shipments` | _(empty string)_ |
 | `{{OP_CLAIM_SHIPMENT_MCP}}` | Registry `operations.claim_shipment.mcp_tool` | `backlogit_claim_shipment` | _(empty string)_ |

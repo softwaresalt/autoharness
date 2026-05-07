@@ -1758,3 +1758,82 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["stage_tool_availability_gate"]["ok"])
             self.assertTrue(targeted_checks["ship_branch_creation_gate"]["ok"])
             self.assertTrue(targeted_checks["ship_tool_availability_gate"]["ok"])
+
+    def test_verify_workspace_checks_session_lifecycle_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-06T00:00:00Z",
+                    "autoharness_version": "1.5.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [4, 5],
+                    "capability_packs": ["backlogit"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "agents" / "stage.agent.md").write_text(
+                "## Index Sync\n"
+                "backlogit_sync_index\n"
+                "INDEX_SYNC_OK\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+                "backlogit_sync_index\n"
+                "INDEX_SYNC_OK\n"
+                "CLOSURE_INDEX_SYNC_OK\n"
+                "#### Merge Confirmation Gate (NON-NEGOTIABLE)\n"
+                "MERGE_CONFIRMED\n"
+                "MERGE_NOT_CONFIRMED\n"
+                "merge-base --is-ancestor\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["stage_index_sync_gate"]["ok"])
+            self.assertTrue(targeted_checks["ship_index_sync_gate"]["ok"])
+            self.assertTrue(targeted_checks["ship_merge_confirmation_gate"]["ok"])
+
