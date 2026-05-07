@@ -1,0 +1,50 @@
+---
+policy_id: "{{POLICY_ID}}"
+policy_type: "workspace-specific"
+status: "proposed"
+proposed_at: "{{PROPOSED_AT}}"
+evidence_count: {{EVIDENCE_COUNT}}
+evidence_refs: []
+---
+
+# {{POLICY_TITLE}}
+
+## Status: Proposed
+
+This policy was auto-proposed by `auto-tune` based on recurring patterns in the compound
+learning library. Review and decide: accept (copy to `.github/policies/` or append to
+`workflow-policies.md`) or reject (delete this file with a note in the tuning report).
+
+## Policy Definition
+
+| Field | Value |
+|---|---|
+| **APPLIES_TO** | {{APPLIES_TO}} |
+| **GATE_POINT** | {{GATE_POINT}} |
+| **PRECONDITION** | {{PRECONDITION}} |
+| **POSTCONDITION** | {{POSTCONDITION}} |
+| **VIOLATION_ACTION** | {{VIOLATION_ACTION}} |
+
+## Rationale
+
+{{POLICY_RATIONALE}}
+
+## Evidence
+
+Derived from {{EVIDENCE_COUNT}} compound learnings sharing the pattern `{{PATTERN_KEY}}`.
+
+Evidence references:
+
+{{EVIDENCE_REFS}}
+
+## Acceptance Path
+
+To accept this policy:
+
+1. Review the evidence references and validate the pattern is real and recurring.
+2. Copy this file to `.github/policies/` or append a new entry to `workflow-policies.md`.
+3. Update any agents or skills that should enforce this policy gate.
+4. Run `autoharness verify-workspace` to confirm no dangling cross-references remain.
+5. Record acceptance in the tuning report.
+
+To reject: delete this file and note the rejection in the tuning report with a reason.

@@ -130,6 +130,7 @@ After tuning completes, present:
 * Any schema-contract migration proposals that remain unresolved, including known-legacy upgrades and unknown-version manual-review gates
 * New capabilities that were added (growth opportunities)
 * **Learning-driven findings**: recurring compound patterns, promotion-ready instincts, workflow-phase hotspots, and recurring closure issues that informed proposals
+* **Dynamic policy proposals**: any policy-gap candidates derived from compound patterns, with proposal files written to `.autoharness/policy-proposals/` for operator review
 * Recommendations for manual review
 * Recommended feature-branch and pull-request path for reviewing the accepted tuning changes; never recommend committing or pushing them directly to the default branch
 
