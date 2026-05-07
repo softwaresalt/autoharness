@@ -98,8 +98,7 @@ Before any pipeline work begins, verify tool availability and declare degraded m
 
 ### Step 0.1: Backlog Index Sync
 
-Before any shipment reads, task lookups, or queue operations, call `backlogit_sync_index`
-to ensure the index reflects the current state of the workspace.
+After tool availability probing (Step 0.0), and before any subsequent semantic shipment reads, task lookups, or queue operations, call `backlogit_sync_index` to ensure the index reflects the current state of the workspace. Step 0.0 MCP probes are lightweight availability checks, not semantic reads; the index sync runs immediately after those probes complete.
 
 - On success: log `INDEX_SYNC_OK`.
 - On failure: run `backlogit sync` (CLI fallback).
