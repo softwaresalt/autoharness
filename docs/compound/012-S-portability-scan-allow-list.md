@@ -36,11 +36,11 @@ where `entry.rule == finding.rule`. Only add the finding if no allow-list entry 
 
 ```python
 PORTABILITY_ALLOW_LIST = [
-    ("hardcoded_ah_home", "*.github/agents/auto-mergeinstall.agent.md"),
-    ("hardcoded_ah_home", "*.github/agents/auto-tune.agent.md"),
-    ("hardcoded_ah_home", "*.github/skills/install-harness/SKILL.md"),
-    ("hardcoded_ah_home", "*.github/skills/tune-harness/SKILL.md"),
-    ("local_agents_dir",  "*.github/agents/auto-mergeinstall.agent.md"),
+    ("hardcoded_ah_home", ".github/agents/auto-mergeinstall.agent.md"),
+    ("hardcoded_ah_home", ".github/agents/auto-tune.agent.md"),
+    ("hardcoded_ah_home", ".github/skills/install-harness/SKILL.md"),
+    ("hardcoded_ah_home", ".github/skills/tune-harness/SKILL.md"),
+    ("local_agents_dir",  ".github/agents/auto-mergeinstall.agent.md"),
     # ... additional entries as needed
 ]
 ```
@@ -51,8 +51,8 @@ PORTABILITY_ALLOW_LIST = [
    same file to be allowed for one rule but flagged for another.
 
 2. **Dogfood baseline test**: `test_dogfood_baseline_has_no_portability_findings` runs the
-   scan against the actual `D:\Source\GitHub\autoharness\.github\` directory to confirm the
-   allow-list is complete. This test must stay green.
+   scan against the repository's `.github/` directory (resolved relative to the repo root) to
+   confirm the allow-list is complete. This test must stay green.
 
 3. **Allow-list grows with engine files**: When new engine files are added that legitimately
    reference installation paths, add corresponding allow-list entries AND the dogfood test

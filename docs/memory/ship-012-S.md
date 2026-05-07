@@ -37,7 +37,7 @@ Shipped two capabilities:
 ## Files Changed
 
 | File | Change |
-|---|---|
+| --- | --- |
 | `src/autoharness/verify_workspace.py` | Portability scan + 2 foundation assertions |
 | `tests/test_verify_workspace.py` | 12 new PortabilityTests (31→43 total) |
 | `.github/skills/tune-harness/SKILL.md` | Steps 1.8.5 + 2.4 |
