@@ -26,7 +26,7 @@ Session lifecycle gates and backlogit sync for Stage and Ship agent templates.
 - Step 0.1 wording: "after tool probes, before semantic reads" — not "before any reads"
   (MCP probes in Step 0.0 are themselves reads; Copilot review caught this)
 - Closure sync failure broadcast gated behind agent-intercom pack
-- `merge-base --is-ancestor` used for merge confirmation (not `git log --oneline -1`)
+- `git merge-base --is-ancestor` used for merge confirmation (not `git log --oneline -1`)
 - 010.001-T and 010.002-T collapsed into one Ship Step 6 step (avoid duplicate adjacent sync calls)
 
 ## Files changed
