@@ -16,7 +16,7 @@ from autoharness.schema_contracts import (
     resolve_contract_schema_path,
     summarize_schema_contract,
 )
-from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, verify_workspace
+from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _run_portability_scan, verify_workspace
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -1836,4 +1836,145 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["stage_index_sync_gate"]["ok"])
             self.assertTrue(targeted_checks["ship_index_sync_gate"]["ok"])
             self.assertTrue(targeted_checks["ship_merge_confirmation_gate"]["ok"])
+
+
+class PortabilityTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.ws = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _mk(self, rel: str, content: str) -> Path:
+        p = self.ws / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        return p
+
+    def test_clean_artifact_produces_no_findings(self) -> None:
+        self._mk(".github/agents/stage.agent.md", "# Stage\n\nNo hardcoded paths here.\n")
+        findings = _run_portability_scan(self.ws)
+        self.assertEqual(findings, [])
+
+    def test_hardcoded_user_home_path_detected(self) -> None:
+        self._mk(".github/agents/ship.agent.md", "# Ship\n\nRun: cp ~/.ssh/id_rsa .\n")
+        findings = _run_portability_scan(self.ws)
+        self.assertTrue(any(f["rule"] == "hardcoded_user_home" for f in findings))
+        self.assertEqual(findings[0]["severity"], "P1")
+        self.assertIn("path", findings[0])
+        self.assertIn("line", findings[0])
+        self.assertIn("match", findings[0])
+
+    def test_local_agents_dir_detected(self) -> None:
+        self._mk(".github/skills/custom/SKILL.md", "# Skill\n\nCopy files to .github/local-agents.\n")
+        findings = _run_portability_scan(self.ws)
+        self.assertTrue(any(f["rule"] == "local_agents_dir" for f in findings))
+
+    def test_mcp_plugin_tool_name_detected(self) -> None:
+        self._mk(".github/agents/stage.agent.md", "# Stage\n\nCall mcp__plugin_backlogit__create_task here.\n")
+        findings = _run_portability_scan(self.ws)
+        self.assertTrue(any(f["rule"] == "mcp_plugin_tool_name" for f in findings))
+
+    def test_hardcoded_ah_home_detected(self) -> None:
+        self._mk(".github/agents/stage.agent.md", "# Stage\n\nPath: ~/.autoharness/templates\n")
+        findings = _run_portability_scan(self.ws)
+        self.assertTrue(any(f["rule"] == "hardcoded_ah_home" for f in findings))
+
+    def test_allow_listed_auto_tune_is_exempt(self) -> None:
+        self._mk(
+            ".github/agents/auto-tune.agent.md",
+            "# Auto-Tune\n\nDefault: ~/.autoharness/\nSee also: ~/.config\n",
+        )
+        findings = _run_portability_scan(self.ws)
+        self.assertFalse(any(f["path"].endswith("auto-tune.agent.md") for f in findings))
+
+    def test_allow_listed_install_harness_is_exempt(self) -> None:
+        self._mk(
+            ".github/skills/install-harness/SKILL.md",
+            "# Install\n\nPath: ~/.autoharness/\nCopy to .github/local-agents.\n",
+        )
+        findings = _run_portability_scan(self.ws)
+        self.assertFalse(any("install-harness" in f["path"] for f in findings))
+
+    def test_instructions_dir_is_scanned(self) -> None:
+        self._mk(".github/instructions/custom.instructions.md", "# Custom\n\nPath: C:\\Users\\alice\\config\n")
+        findings = _run_portability_scan(self.ws)
+        self.assertTrue(any(f["rule"] == "hardcoded_user_home" for f in findings))
+
+    def test_policies_dir_is_scanned(self) -> None:
+        self._mk(".github/policies/custom.md", "# Policy\n\nRun from ~/.autoharness/scripts.\n")
+        findings = _run_portability_scan(self.ws)
+        self.assertTrue(any(f["rule"] == "hardcoded_ah_home" for f in findings))
+
+    def test_one_finding_per_rule_per_file(self) -> None:
+        """Each rule produces at most one finding per file even if the pattern matches multiple lines."""
+        self._mk(
+            ".github/agents/ship.agent.md",
+            "# Ship\n\nPath: ~/.ssh/key\nAlso: ~/.config/foo\n",
+        )
+        findings = _run_portability_scan(self.ws)
+        home_findings = [f for f in findings if f["rule"] == "hardcoded_user_home"]
+        self.assertEqual(len(home_findings), 1)
+
+    def test_portability_findings_appear_in_report_warnings(self) -> None:
+        """Portability P1 findings are surfaced as warnings in the full verify_workspace report."""
+        autoharness_home = self.ws / "ah-home"
+        workspace = self.ws / "workspace"
+        (autoharness_home / "schemas").mkdir(parents=True)
+        (workspace / ".autoharness").mkdir(parents=True)
+        (workspace / ".github" / "agents").mkdir(parents=True)
+
+        strict_schema: dict = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "required": ["schema_version"],
+            "properties": {"schema_version": {"type": "string", "const": "1.0.0"}},
+        }
+        for schema_name in (
+            "harness-manifest.schema.json",
+            "harness-config.schema.json",
+            "workspace-profile.schema.json",
+        ):
+            (autoharness_home / "schemas" / schema_name).write_text(
+                json.dumps(strict_schema), encoding="utf-8"
+            )
+        for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+            (autoharness_home / "schemas" / schema_dir).mkdir(parents=True)
+            (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                json.dumps(strict_schema), encoding="utf-8"
+            )
+
+        _write_yaml(
+            workspace / ".autoharness" / "harness-manifest.yaml",
+            {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-05-07T00:00:00Z",
+                "autoharness_version": "1.0.0",
+                "profile_hash": "abc",
+                "artifacts": [],
+            },
+        )
+        _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+        _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+        (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+            "# Ship\n\nRun: cp ~/.ssh/id_rsa .\n", encoding="utf-8"
+        )
+
+        report = verify_workspace(workspace, autoharness_home)
+
+        self.assertTrue(len(report["portability_findings"]) > 0)
+        warning_kinds = [w.get("kind") for w in report["warnings"]]
+        self.assertIn("portability-finding", warning_kinds)
+
+    def test_dogfood_baseline_has_no_portability_findings(self) -> None:
+        """The autoharness dogfood workspace produces no portability findings after allow-list is applied."""
+        repo_root = Path(__file__).resolve().parents[1]
+        findings = _run_portability_scan(repo_root)
+        self.assertEqual(
+            findings,
+            [],
+            msg=f"Unexpected portability findings in dogfood: {findings}",
+        )
 

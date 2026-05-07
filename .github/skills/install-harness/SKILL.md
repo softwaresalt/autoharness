@@ -1004,7 +1004,7 @@ The installed config includes: `schema_version`, `preset`,
 
 ### Phase 4: Verification
 
-Use `autoharness verify-workspace --workspace {workspace_path}` as the deterministic verification engine for this phase. The command stages renderable artifacts into `.autoharness/staging/` and produces JSON plus Markdown reports before adversarial review runs.
+Use `autoharness verify-workspace --workspace {workspace_path}` as the deterministic verification engine for this phase. The command stages renderable artifacts into `.autoharness/staging/`, runs a portability scan to flag hardcoded environment-specific paths in installed artifacts (surfaced as P1 warnings), and produces JSON plus Markdown reports before adversarial review runs.
 
 #### Step 4.1: Template Variable Sweep
 

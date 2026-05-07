@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
 import re
@@ -406,6 +407,83 @@ FOUNDATION_ASSERTIONS = [
             "| Automation skill | `browser-automation/SKILL.md` — treated as an explicit overlay target",
         ],
     },
+    {
+        "key": "tune_harness_dynamic_policy_generation",
+        "path": ".github/skills/tune-harness/SKILL.md",
+        "must_contain": [
+            "policy-gap candidates",
+            ".autoharness/policy-proposals/",
+            "3 or more",
+            "APPLIES_TO",
+            "GATE_POINT",
+            "PRECONDITION",
+            "POSTCONDITION",
+            "VIOLATION_ACTION",
+        ],
+    },
+    {
+        "key": "auto_tune_dynamic_policy_phase",
+        "path": ".github/agents/auto-tune.agent.md",
+        "must_contain": [
+            "policy-gap",
+            "policy-proposals",
+        ],
+    },
+]
+
+
+PORTABILITY_RULES = [
+    {
+        "rule": "hardcoded_user_home",
+        "pattern": r"~/\.[a-zA-Z]|%USERPROFILE%|%APPDATA%|C:\\Users\\",
+        "severity": "P1",
+        "message": "Hardcoded home or user-profile path detected; use an env var or runtime path resolution instead",
+    },
+    {
+        "rule": "local_agents_dir",
+        "pattern": r"\.github/local-agents",
+        "severity": "P1",
+        "message": ".github/local-agents is injected at runtime by start scripts, not a stable harness artifact location",
+    },
+    {
+        "rule": "mcp_plugin_tool_name",
+        "pattern": r"mcp__plugin_[a-zA-Z0-9_\-]+__[a-zA-Z0-9_\-]+",
+        "severity": "P1",
+        "message": "MCP plugin tool name is environment-specific; use {{OP_*}} template variables so tool names resolve at install time",
+    },
+    {
+        "rule": "hardcoded_ah_home",
+        "pattern": r"~/\.autoharness|~\\\.autoharness",
+        "severity": "P1",
+        "message": "Hardcoded autoharness home path detected; use AUTOHARNESS_HOME env var or runtime resolution",
+    },
+]
+
+# Allow-list: (rule, workspace-relative file glob) pairs matched via fnmatch.
+# A finding is suppressed when both the rule name and the file path match.
+# Entries document known explanatory references in autoharness engine artifacts.
+PORTABILITY_ALLOW_LIST: list[tuple[str, str]] = [
+    # auto-mergeinstall: explains path-resolution, local-agents setup, and default install path as instructional text
+    ("hardcoded_user_home", ".github/agents/auto-mergeinstall.agent.md"),
+    ("local_agents_dir", ".github/agents/auto-mergeinstall.agent.md"),
+    ("hardcoded_ah_home", ".github/agents/auto-mergeinstall.agent.md"),
+    # auto-tune: explains autoharness_home resolution including the default ~/.autoharness path
+    ("hardcoded_user_home", ".github/agents/auto-tune.agent.md"),
+    ("hardcoded_ah_home", ".github/agents/auto-tune.agent.md"),
+    # install-harness: documents path resolution, setup commands, and local-agents injection
+    ("hardcoded_user_home", ".github/skills/install-harness/SKILL.md"),
+    ("local_agents_dir", ".github/skills/install-harness/SKILL.md"),
+    ("hardcoded_ah_home", ".github/skills/install-harness/SKILL.md"),
+    # tune-harness: documents autoharness_home resolution and local-agents context
+    ("hardcoded_user_home", ".github/skills/tune-harness/SKILL.md"),
+    ("local_agents_dir", ".github/skills/tune-harness/SKILL.md"),
+    ("hardcoded_ah_home", ".github/skills/tune-harness/SKILL.md"),
+    # workspace-discovery: documents platform-specific path detection (e.g., %APPDATA% on Windows)
+    ("hardcoded_user_home", ".github/skills/workspace-discovery/SKILL.md"),
+    ("local_agents_dir", ".github/skills/workspace-discovery/SKILL.md"),
+    # copilot-instructions.md: describes ~/.autoharness as the default global install path
+    ("hardcoded_user_home", ".github/copilot-instructions.md"),
+    ("hardcoded_ah_home", ".github/copilot-instructions.md"),
 ]
 
 
@@ -439,6 +517,7 @@ def _warning_group_key(warning: dict[str, Any]) -> tuple[Any, ...]:
         warning.get("contract"),
         warning.get("current_version"),
         warning.get("suggested_action"),
+        warning.get("rule"),
     )
 
 
@@ -1347,6 +1426,64 @@ def _add_text_check(
     }
 
 
+def _run_portability_scan(workspace_path: Path) -> list[dict[str, Any]]:
+    """Scan harness artifact directories for non-portable environment-specific paths."""
+    scan_dirs = [
+        ".github/agents",
+        ".github/skills",
+        ".github/instructions",
+        ".github/prompts",
+        ".github/policies",
+    ]
+    scan_files = [
+        ".github/copilot-instructions.md",
+    ]
+    compiled = [
+        (r["rule"], re.compile(r["pattern"]), r["severity"], r["message"])
+        for r in PORTABILITY_RULES
+    ]
+    allow_globs: dict[str, list[str]] = {}
+    for rule_name, glob_pattern in PORTABILITY_ALLOW_LIST:
+        allow_globs.setdefault(rule_name, []).append(glob_pattern)
+
+    findings: list[dict[str, Any]] = []
+    candidate_files: list[Path] = []
+    for scan_dir in scan_dirs:
+        base = workspace_path / scan_dir
+        if base.exists():
+            candidate_files.extend(sorted(base.rglob("*.md")))
+    for rel_file in scan_files:
+        p = workspace_path / rel_file
+        if p.exists():
+            candidate_files.append(p)
+
+    for file_path in candidate_files:
+        relative = _relative_workspace_path(workspace_path, file_path)
+        try:
+            lines = file_path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for rule_name, compiled_re, severity, message in compiled:
+            if any(
+                fnmatch.fnmatch(relative, g)
+                for g in allow_globs.get(rule_name, [])
+            ):
+                continue
+            for line_no, line in enumerate(lines, start=1):
+                match = compiled_re.search(line)
+                if match:
+                    findings.append({
+                        "rule": rule_name,
+                        "severity": severity,
+                        "path": relative,
+                        "line": line_no,
+                        "match": match.group(0),
+                        "message": message,
+                    })
+                    break
+    return findings
+
+
 def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
     lines = [
         "# verify-workspace report",
@@ -1458,6 +1595,18 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
     else:
         lines.append("none")
 
+    lines.extend(["", "## Portability Findings", ""])
+    portability_findings = report.get("portability_findings") or []
+    if portability_findings:
+        for finding in portability_findings:
+            lines.append(
+                f"- [{finding['severity']}] {finding['rule']} @ "
+                f"{finding['path']}:{finding['line']}: {finding['message']} "
+                f"(match: `{finding['match']}`)"
+            )
+    else:
+        lines.append("none")
+
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -1489,6 +1638,7 @@ def verify_workspace(
         "migration_proposals": [],
         "targeted_checks": {},
         "learning_signals": _empty_learning_signals(),
+        "portability_findings": [],
         "report_paths": {},
     }
 
@@ -1725,6 +1875,17 @@ def verify_workspace(
             assertion["must_contain"],
             [tuple(pair) for pair in assertion.get("must_precede") or []],
         )
+
+    portability_findings = _run_portability_scan(workspace_path)
+    report["portability_findings"] = portability_findings
+    for finding in portability_findings:
+        report["warnings"].append({
+            "kind": "portability-finding",
+            "path": finding["path"],
+            "message": finding["message"],
+            "rule": finding["rule"],
+            "severity": finding["severity"],
+        })
 
     report["warning_instances"] = len(report["warnings"])
     report["warnings"] = _summarize_warnings(report["warnings"])

@@ -493,6 +493,41 @@ Tag every learning-driven proposal with `source: learning-driven` so they
 are distinguishable from structural drift proposals in the tuning report and
 in future closure mining.
 
+##### Step 1.8.5: Policy-Gap Detection
+
+Review the compound patterns collected in Step 1.8.1 for recurring issues that
+suggest a missing or underdeveloped workspace-specific workflow policy. A
+policy-gap candidate arises when the data signals a systemic behavioral gap
+that a policy rule would address more reliably than an instruction file alone.
+
+Detect policy-gap candidates when:
+
+* 3 or more compound entries share the same `problem_type`, `root_cause`, or
+  `category` — and no existing policy in `.github/policies/workflow-policies.md`
+  addresses that pattern
+* A compound entry's `tags` appear in 3 or more distinct entries AND none of the
+  workspace's installed policies reference those tags
+* A recurring closure finding (from Step 1.8.3) maps to a workflow phase that has
+  no gate condition in the current policy registry
+
+For each candidate, record:
+
+```yaml
+learning_signals:
+  policy_gap_candidates:
+    - pattern_type: "recurring_problem_type|recurring_root_cause|missing_gate"
+      key: "the problem_type, root_cause, or workflow phase"
+      evidence_count: 4
+      evidence_refs:
+        - "docs/compound/build-errors/2026-03-15.md"
+        - "docs/compound/runtime-errors/2026-04-01.md"
+      suggested_policy_id: "P-DYN-001"
+      suggested_summary: "Require post-deploy smoke test before marking a feature shipped"
+```
+
+Skip this sub-step if `learning_signals.compound_patterns` is empty or fewer than
+3 compound entries were found in Step 1.8.1.
+
 ### Phase 2: Change Proposal Generation
 
 #### Step 2.1: Priority Ranking
@@ -584,6 +619,56 @@ Scan for workspace patterns that suggest missing harness capabilities:
 * Repeated recurring-practice evidence without the continuous-learning overlay
 * High-risk runtime or migration work without strict-safety or plan-hardening guidance
 
+#### Step 2.4: Dynamic Policy Proposal Generation
+
+For each policy-gap candidate in `learning_signals.policy_gap_candidates` (from
+Step 1.8.5), generate a draft workspace-specific policy proposal and write it to
+`.autoharness/policy-proposals/{suggested_policy_id}.md`. Use the
+`policy-proposal.md.tmpl` template from
+`{autoharness_home}/templates/policies/` as the structural basis.
+
+Policy proposals are **operator-review artifacts**, not auto-installed policies.
+No change to `.github/policies/workflow-policies.md` occurs at this step.
+
+Each proposal must include all five policy fields:
+
+| Field | Description |
+|---|---|
+| `APPLIES_TO` | Which agents, skills, or workflow phases this policy governs |
+| `GATE_POINT` | Where in the pipeline the gate fires (e.g., before PR push, after review) |
+| `PRECONDITION` | What must be true before this gate passes |
+| `POSTCONDITION` | What the gate guarantees is true after passing |
+| `VIOLATION_ACTION` | What the agent should do when the gate condition is not met |
+
+After writing proposals, add a proposal entry to the tuning report under the
+P2 (Growth) bucket:
+
+```yaml
+- id: "TUNE-{n}"
+  priority: "P2"
+  category: "growth"
+  source: "learning-driven"
+  artifact: ".autoharness/policy-proposals/P-DYN-001.md"
+  issue: "Compound library contains 4 entries with problem_type 'missing-smoke-test'"
+  proposal: "New workspace-specific policy proposal written to .autoharness/policy-proposals/"
+  evidence:
+    pattern_type: "recurring_problem_type"
+    evidence_count: 4
+    evidence_refs:
+      - "docs/compound/build-errors/2026-03-15.md"
+```
+
+**Acceptance path**: When the operator accepts a dynamic policy proposal during
+Step 3.2 review:
+
+1. Copy the proposal to `.github/policies/{suggested_policy_id}.md` or append it as a new
+   section in `.github/policies/workflow-policies.md`
+2. Update any agents or skills that should enforce this policy gate
+3. Run `autoharness verify-workspace` to confirm no dangling cross-references
+4. Record the accepted policy in the tuning report as `status: accepted`
+
+Skip this step if `learning_signals.policy_gap_candidates` is empty.
+
 ### Phase 3: Proposal Review
 
 #### Step 3.1: Present Tuning Report
@@ -616,6 +701,7 @@ Generate and display the tuning report:
 - Compound patterns detected: {{count}}
 - Promotion-ready instincts: {{count}}
 - Recurring closure findings: {{count}}
+- Policy-gap candidates detected: {{count}}
 - Learning-driven proposals generated: {{count}}
 
 ### Proposed Changes (ordered by priority)
