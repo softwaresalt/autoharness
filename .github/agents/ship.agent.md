@@ -96,6 +96,16 @@ Before any pipeline work begins, verify tool availability and declare degraded m
 3. Do NOT silently fall back to ad hoc filesystem `grep`/`cat` operations when a configured tool is unavailable (P-012 violation).
 4. Log overall status: `ALL_TOOLS_OK`, `DEGRADED_MODE: {tool_list}`, or `TOOL_UNAVAILABLE`.
 
+### Step 0.1: Backlog Index Sync
+
+Before any shipment reads, task lookups, or queue operations, call `backlogit_sync_index`
+to ensure the index reflects the current state of the workspace.
+
+- On success: log `INDEX_SYNC_OK`.
+- On failure: run `backlogit sync` (CLI fallback).
+  - If the CLI succeeds: log `INDEX_SYNC_OK (CLI fallback)`.
+  - If both fail: log `INDEX_SYNC_WARN — proceeding with potentially stale index` and continue.
+
 ### Step 0.5: Work Intake
 
 1. Identify the shipment or feature to work on (read-only — do not claim yet).
@@ -155,10 +165,26 @@ For each task in the shipment/feature:
 
 After user-approved merge:
 
+#### Merge Confirmation Gate (NON-NEGOTIABLE)
+
+Before any post-merge closure work begins, confirm the PR has actually merged:
+
+1. Retrieve PR state: `gh pr view {pr_number} --json state,mergedAt,mergeCommit`
+   - If `state` is `MERGED`: log `MERGE_CONFIRMED: PR #{pr_number} merged at {mergedAt}, SHA: {mergeCommit.oid}`. Record the merge SHA.
+   - If not `MERGED`: halt with `MERGE_NOT_CONFIRMED: PR #{pr_number} is {state}. Do not begin closure.`
+2. Confirm merge SHA is in default branch history (separate sequential steps):
+   `git fetch origin main`
+   `git merge-base --is-ancestor {merge_sha} origin/main`
+   - Exit code 0: confirmed. Proceed.
+   - Non-zero: halt with `MERGE_NOT_CONFIRMED: SHA not yet in origin/main history.`
+3. Proceed only after both checks pass.
+
 1. Close the shipment via `backlogit_ship_shipment` if applicable.
 2. Write compound learnings for hard-won solutions.
 3. Update documentation if templates changed significantly.
 4. Write session memory to `docs/memory/`.
+5. **Closure index resync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback) after
+   all archival and mutations are complete. Log `CLOSURE_INDEX_SYNC_OK` on success.
 
 ## Stop Conditions
 

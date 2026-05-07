@@ -96,6 +96,19 @@ Before any pipeline work begins, verify tool availability and declare degraded m
 
 When `harness-doctor` is installed and tool availability is in doubt, invoke it with `mode: check` targeting Phase 5 (MCP prerequisite check) for a deeper diagnostic. Skip if quick probes succeed.
 
+### Step 0.1: Backlog Index Sync (backlogit only)
+
+When the `backlogit` capability pack is installed:
+
+Before any shipment reads, task lookups, or queue operations, call `{{OP_SYNC_INDEX_MCP}}` to ensure the index reflects the current state of the workspace.
+
+- On success: log `INDEX_SYNC_OK`.
+- On failure: run the CLI fallback (`{{OP_SYNC_INDEX_CLI}}`).
+  - If the CLI succeeds: log `INDEX_SYNC_OK (CLI fallback)`.
+  - If both fail: log `INDEX_SYNC_WARN — proceeding with potentially stale index` and continue. Index staleness is a degraded operating state but not a hard blocker for Ship.
+
+Skip this step if the `backlogit` capability pack is not installed.
+
 ### Step 0: Establish Operator Visibility
 
 When the `agent-intercom` capability pack is installed, begin by following
@@ -326,15 +339,35 @@ When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Post-m
 
 After the user approves merge:
 
+#### Merge Confirmation Gate (NON-NEGOTIABLE)
+
+Do not begin any post-merge closure work until the PR merge is confirmed. Even when the operator says "merge approved," the agent MUST independently verify before proceeding.
+
+1. Retrieve the PR state using the best available source:
+   - Prefer the GitHub MCP tool if available.
+   - Otherwise: `gh pr view {pr_number} --json state,mergedAt,mergeCommit`
+   - If `state` is `MERGED`: log `MERGE_CONFIRMED: PR #{pr_number} merged at {mergedAt}, SHA: {mergeCommit.oid}`. Record the merge SHA.
+   - If `state` is not `MERGED`: halt with `MERGE_NOT_CONFIRMED: PR #{pr_number} is currently {state} — post-merge closure requires a confirmed merge. Do not begin closure.`
+   When the `agent-intercom` capability pack is installed, broadcast the outcome: `[SHIP] Merge confirmed: PR #{pr_number} SHA: {merge_sha}` on success, or transmit `[WAIT] Merge not confirmed for PR #{pr_number}: {state}` on halt.
+2. Confirm the merge SHA is present in the default branch history (separate sequential steps — do not chain):
+   `git fetch origin {{DEFAULT_BRANCH}}`
+   `git merge-base --is-ancestor {merge_sha} origin/{{DEFAULT_BRANCH}}`
+   - Exit code 0: merge commit confirmed in `origin/{{DEFAULT_BRANCH}}` history. Proceed.
+   - Non-zero: halt with `MERGE_NOT_CONFIRMED: merge SHA {merge_sha} is not yet in origin/{{DEFAULT_BRANCH}} history. Wait for the push to propagate.`
+3. Proceed to Step 6.0 only after both checks pass.
+
 #### Step 6.0: Post-Merge Branch Protocol (NON-NEGOTIABLE)
 
 Post-merge closure produces commits (backlog archival, knowledge graduation, doc updates,
 compound refresh, compact-context). These commits MUST NOT land directly on `{{DEFAULT_BRANCH}}`.
 
-1. **Confirm the feature branch merge is complete**: Verify the merge commit exists on
-   `{{DEFAULT_BRANCH}}` (e.g., `git log {{DEFAULT_BRANCH}} --oneline -1` shows the merge).
-2. **Create a post-merge closure branch** from `{{DEFAULT_BRANCH}}`:
-   `git checkout {{DEFAULT_BRANCH}} && git pull && git checkout -b post-merge/{feature_slug}`
+1. **Confirm the feature branch merge is complete**: The Merge Confirmation Gate (NON-NEGOTIABLE)
+   above Step 6.0 has already verified `MERGE_CONFIRMED` using `merge-base --is-ancestor`.
+   Step 6.0 proceeds only after that gate passes — no additional merge verification needed here.
+2. **Create a post-merge closure branch** from `{{DEFAULT_BRANCH}}` (run as separate sequential steps):
+   `git checkout {{DEFAULT_BRANCH}}`
+   `git pull`
+   `git checkout -b post-merge/{feature_slug}`
    where `{feature_slug}` is derived from the feature ID and title (e.g., `post-merge/022-stash-filter`).
 3. **All subsequent Step 6 work happens on this branch.** Every commit in steps 6.1–6.10
    targets `post-merge/{feature_slug}`, not `{{DEFAULT_BRANCH}}`.
@@ -395,8 +428,11 @@ branch-per-release-unit principle.
    * After processing the full shipped scope, record the archived and skipped source artifact IDs in the closure artifact's `Source artifact cleanup` section so the closure report remains the traceable system of record.
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Source artifacts archived: {stash_count} stash, {delib_count} deliberations`.
 8. **Mandatory**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence.
-9. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
-10. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
+9. **Backlog index resync** (backlogit only): After all archival, source-artifact mutations, and knowledge graduation are complete, call `{{OP_SYNC_INDEX_MCP}}` (or CLI fallback `{{OP_SYNC_INDEX_CLI}}`) to rebuild the backlogit index so it reflects all closure mutations.
+   - On success: log `CLOSURE_INDEX_SYNC_OK`. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Backlog index resynced after closure`.
+   - On failure: broadcast `[WARN] Closure index sync failed — backlogit index may not reflect archived items. Run \`{{OP_SYNC_INDEX_CLI}}\` manually.` Proceed — this is a degraded completion, not a halt.
+10. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
+11. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
 
 ## Circuit Breakers
 
@@ -437,9 +473,12 @@ When the `agent-intercom` capability pack is installed:
 | PR ready | `broadcast` | `success` | `[SHIP] PR ready for review: {pr_url}` |
 | Follow-ups stashed (pre-merge) | `broadcast` | `info` | `[SHIP] Stashed {count} follow-up item(s): {summary_list}` |
 | Merge approval wait | `broadcast` | `warning` | `[WAIT] Awaiting user merge approval` |
+| Merge confirmed | `broadcast` | `info` | `[SHIP] Merge confirmed: PR #{pr_number} SHA: {merge_sha}` |
+| Merge not confirmed | `transmit` | `warning` | `[WAIT] Merge not confirmed for PR #{pr_number}: {state}` |
 | Post-merge closure | `broadcast` | `info` | `[SHIP] Post-merge closure and knowledge graduation` |
 | Follow-ups stashed (post-merge) | `broadcast` | `info` | `[SHIP] Stashed {count} follow-up item(s) from post-merge closure: {summary_list}` |
 | Source artifacts archived | `broadcast` | `info` | `[SHIP] Source artifacts archived: {stash_count} stash, {delib_count} deliberations` |
+| Closure index synced | `broadcast` | `info` | `[SHIP] Backlog index resynced after closure` |
 | Session complete | `broadcast` | `success` | `[SHIP] Session complete: {outcome}` |
 
 Use `transmit` when a blocked condition, risky rollback, or merge decision needs explicit operator attention.

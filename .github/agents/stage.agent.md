@@ -99,6 +99,16 @@ Before any pipeline work begins, verify tool availability and declare degraded m
 3. Do NOT silently fall back to ad hoc filesystem `grep`/`cat` operations when a configured tool is unavailable (P-012 violation).
 4. Log overall status: `ALL_TOOLS_OK`, `DEGRADED_MODE: {tool_list}`, or `TOOL_UNAVAILABLE`.
 
+### Step 0.1: Backlog Index Sync
+
+Before any backlog item reads, stash queries, or shipment lookups, call `backlogit_sync_index`
+to ensure the index reflects the current state of the workspace.
+
+- On success: log `INDEX_SYNC_OK`.
+- On failure: run `backlogit sync` (CLI fallback).
+  - If the CLI succeeds: log `INDEX_SYNC_OK (CLI fallback)`.
+  - If both fail: log `INDEX_SYNC_WARN — proceeding with potentially stale index` and continue.
+
 ### Step 0: Session Start
 
 1. Read `.github/copilot-instructions.md` and `AGENTS.md` for workspace context.
@@ -152,6 +162,10 @@ Before ending a session:
 1. Write session memory to `docs/memory/` — include task IDs completed, decisions,
    and next steps.
 2. Update backlogit task state via MCP tools.
+3. **End-of-session index sync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback)
+   as the final action before presenting the session summary. This ensures all session
+   mutations — new backlog items, archived stash entries, assembled shipments — are
+   reflected in the index. Log `INDEX_SYNC_OK` on success, `INDEX_SYNC_WARN` on failure.
 
 ## Stop Conditions
 
