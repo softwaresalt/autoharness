@@ -661,7 +661,7 @@ P2 (Growth) bucket:
 **Acceptance path**: When the operator accepts a dynamic policy proposal during
 Step 3.2 review:
 
-1. Copy the proposal to `.github/policies/{policy_id}.md` or append it as a new
+1. Copy the proposal to `.github/policies/{suggested_policy_id}.md` or append it as a new
    section in `.github/policies/workflow-policies.md`
 2. Update any agents or skills that should enforce this policy gate
 3. Run `autoharness verify-workspace` to confirm no dangling cross-references

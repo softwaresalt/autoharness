@@ -4,7 +4,6 @@ policy_type: "workspace-specific"
 status: "proposed"
 proposed_at: "{{PROPOSED_AT}}"
 evidence_count: {{EVIDENCE_COUNT}}
-evidence_refs: []
 ---
 
 # {{POLICY_TITLE}}
@@ -42,7 +41,7 @@ Evidence references:
 To accept this policy:
 
 1. Review the evidence references and validate the pattern is real and recurring.
-2. Copy this file to `.github/policies/` or append a new entry to `workflow-policies.md`.
+2. Copy this file to `.github/policies/` or append a new entry to `.github/policies/workflow-policies.md`.
 3. Update any agents or skills that should enforce this policy gate.
 4. Run `autoharness verify-workspace` to confirm no dangling cross-references remain.
 5. Record acceptance in the tuning report.

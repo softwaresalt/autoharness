@@ -481,6 +481,9 @@ PORTABILITY_ALLOW_LIST: list[tuple[str, str]] = [
     # workspace-discovery: documents platform-specific path detection (e.g., %APPDATA% on Windows)
     ("hardcoded_user_home", ".github/skills/workspace-discovery/SKILL.md"),
     ("local_agents_dir", ".github/skills/workspace-discovery/SKILL.md"),
+    # copilot-instructions.md: describes ~/.autoharness as the default global install path
+    ("hardcoded_user_home", ".github/copilot-instructions.md"),
+    ("hardcoded_ah_home", ".github/copilot-instructions.md"),
 ]
 
 
@@ -514,6 +517,7 @@ def _warning_group_key(warning: dict[str, Any]) -> tuple[Any, ...]:
         warning.get("contract"),
         warning.get("current_version"),
         warning.get("suggested_action"),
+        warning.get("rule"),
     )
 
 
@@ -1431,6 +1435,9 @@ def _run_portability_scan(workspace_path: Path) -> list[dict[str, Any]]:
         ".github/prompts",
         ".github/policies",
     ]
+    scan_files = [
+        ".github/copilot-instructions.md",
+    ]
     compiled = [
         (r["rule"], re.compile(r["pattern"]), r["severity"], r["message"])
         for r in PORTABILITY_RULES
@@ -1440,34 +1447,40 @@ def _run_portability_scan(workspace_path: Path) -> list[dict[str, Any]]:
         allow_globs.setdefault(rule_name, []).append(glob_pattern)
 
     findings: list[dict[str, Any]] = []
+    candidate_files: list[Path] = []
     for scan_dir in scan_dirs:
         base = workspace_path / scan_dir
-        if not base.exists():
+        if base.exists():
+            candidate_files.extend(sorted(base.rglob("*.md")))
+    for rel_file in scan_files:
+        p = workspace_path / rel_file
+        if p.exists():
+            candidate_files.append(p)
+
+    for file_path in candidate_files:
+        relative = _relative_workspace_path(workspace_path, file_path)
+        try:
+            lines = file_path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
             continue
-        for file_path in sorted(base.rglob("*.md")):
-            relative = _relative_workspace_path(workspace_path, file_path)
-            try:
-                lines = file_path.read_text(encoding="utf-8").splitlines()
-            except OSError:
+        for rule_name, compiled_re, severity, message in compiled:
+            if any(
+                fnmatch.fnmatch(relative, g)
+                for g in allow_globs.get(rule_name, [])
+            ):
                 continue
-            for rule_name, compiled_re, severity, message in compiled:
-                if any(
-                    fnmatch.fnmatch(relative, g)
-                    for g in allow_globs.get(rule_name, [])
-                ):
-                    continue
-                for line_no, line in enumerate(lines, start=1):
-                    match = compiled_re.search(line)
-                    if match:
-                        findings.append({
-                            "rule": rule_name,
-                            "severity": severity,
-                            "path": relative,
-                            "line": line_no,
-                            "match": match.group(0),
-                            "message": message,
-                        })
-                        break
+            for line_no, line in enumerate(lines, start=1):
+                match = compiled_re.search(line)
+                if match:
+                    findings.append({
+                        "rule": rule_name,
+                        "severity": severity,
+                        "path": relative,
+                        "line": line_no,
+                        "match": match.group(0),
+                        "message": message,
+                    })
+                    break
     return findings
 
 
