@@ -343,9 +343,9 @@ Resolution notes for health-check variables:
 | `{{CONTINUOUS_LEARNING_CAPTURE_HOOKS}}` | `config.continuous_learning.capture_hooks` | `false` | Whether environment-specific hook capture is enabled |
 | `{{CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER}}` | `config.continuous_learning.environment_adapter` | `none` | Optional hook-capture adapter name |
 | `{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}` | `config.continuous_learning.promotion_threshold` | `3` | Minimum corroborating observations before promotion to a learned artifact |
-| `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1.model` | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks |
-| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2.model` | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review |
-| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3.model` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
+| `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1.model` (object form) or `config.model_routing.tier1` (legacy string) | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks. When `tier1` is a plain string, that string is used as the model value and all other tier sub-fields default to empty. |
+| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2.model` (object form) or `config.model_routing.tier2` (legacy string) | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review. Same string-fallback rule as TIER1. |
+| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3.model` (object form) or `config.model_routing.tier3` (legacy string) | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis. Same string-fallback rule as TIER1. |
 | `{{TIER_1_REASONING_EFFORT}}` | `config.model_routing.tier1.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 1 agents; leave empty to use model default |
 | `{{TIER_1_PROVIDER}}` | `config.model_routing.tier1.model_provider` | _(empty)_ | Model provider for Tier 1 agents (e.g., `openai`, `anthropic`) |
 | `{{TIER_1_FAMILY}}` | `config.model_routing.tier1.model_family` | `gpt-5.4-mini` | Model family shorthand resolved into Tier 1 agent frontmatter |

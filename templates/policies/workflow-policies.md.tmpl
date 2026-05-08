@@ -290,10 +290,11 @@ P-005 violation event.
 
 **Purpose**: Enforce consistent model tier usage across the harness — agents must operate at their declared tier, subagents must not exceed the invoking agent's `max_subagent_tier`, and escalation to higher tiers follows a defined circuit before halting.
 
-| Policy ID  | P-013                                    |
+| Field      | Value                                    |
 |------------|------------------------------------------|
-| Applies to | All agents in the harness                |
-| Gate point | Before every subagent invocation; before escalation requests |
+| Policy ID  | P-013                                    |
+| Applies To | All agents in the harness                |
+| Gate Point | Before every subagent invocation; before escalation requests |
 | Owner      | Orchestrator                             |
 
 ### P-013.1 — Declared Tier Compliance

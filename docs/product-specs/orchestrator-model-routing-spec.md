@@ -55,7 +55,7 @@ P-013.3: Strict YAML Frontmatter Schema
 
 The autoharness template frontmatter schema must be updated to enforce integer-based capability declarations instead of unstructured strings, while allowing advanced routing configurations to be injected via workspace configuration.
 
-Every agent and skill template MUST declare:
+Every agent template MUST declare (skill templates are not required to carry tier fields — skills are leaf executors invoked by agents, not independently routed):
 
 ## Replaces unstructured 'model_routing'
 
@@ -90,9 +90,9 @@ Update Manifest: Modify install-harness/SKILL.md (Step 2.4 and Primitive 4 mappi
 
 Phase 2: Schema & Frontmatter Enforcement
 
-Modify App Schemas: Update schemas/harness-manifest.schema.json to require model_tier (integer 1-3) and max_subagent_tier (integer 1-3). Make reasoning_effort, model_provider, and model_family optional string fields. Deprecate model_routing.
+Modify Config Schemas: Update schemas/harness-config.schema.json to support a new model_routing block where users define their preferred mappings (e.g., defining TIER_2_REASONING_EFFORT: "high"). Each tier accepts either a legacy plain string (backward compat) or an object with `model` (required) plus optional `reasoning_effort`, `model_provider`, `model_family`. ✅ Implemented.
 
-Modify Config Schemas: Update schemas/harness-config.schema.json to support a new model_routing block where users define their preferred mappings (e.g., defining TIER_2_REASONING_EFFORT: "high"). Each tier accepts either a legacy plain string (backward compat) or an object with `model` (required) plus optional `reasoning_effort`, `model_provider`, `model_family`.
+**Note on harness-manifest.schema.json**: The original spec proposed updating the manifest schema to require `model_tier`/`max_subagent_tier`. This was intentionally not done — the harness manifest is a deployment record (which primitives/artifacts were installed) and is not the appropriate place to validate agent frontmatter content. Agent tier field enforcement is handled at harness-verification time by `_add_frontmatter_tier_check()` in `verify_workspace.py`, which parses installed agent files directly. A future refinement could add a manifest-level signal if tier metadata is worth tracking at the artifact registry level.
 
 Update Agent Templates:
 
