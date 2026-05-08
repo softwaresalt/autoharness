@@ -88,6 +88,11 @@ artifacts:
     template: "global agent definition"
     checksum: "9aa4b47a872931760d585e8825620f0dc0d09b1766280e2275cc11c0b0e1b664"
     note: "source-controlled dogfood workflow agent"
+  - path: ".github/agents/orchestrator.agent.md"
+    primitive: 4
+    template: "agents/orchestrator.agent.md.tmpl"
+    checksum: "e4d2826f1ba619650572534aaf677efb9b334f395921123ba023d00ca6d10eb6"
+    note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1
     template: "scripts/start.sh.tmpl"
