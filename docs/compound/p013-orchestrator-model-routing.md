@@ -7,7 +7,8 @@ tags: [orchestrator, model-tier, frontmatter, schema, verify-workspace, p013]
 shipment: 013-S
 pr: 46
 merge_commit: e76b874d01bf4235522743a017ccd40db858d930
-merged_at: 2026-05-08T13:07:22Z
+merged_at: "2026-05-08T13:07:22Z"
+date: "2026-05-08"
 ---
 
 ## Problem
