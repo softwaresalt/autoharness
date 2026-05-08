@@ -211,10 +211,10 @@ P-005 violation event.
 | Field      | Value                                    |
 |------------|------------------------------------------|
 | Policy ID  | P-010                                    |
-| Applies To | `stage`, `dispatch`                      |
+| Applies To | `stage`, `orchestrator`                  |
 | Gate Point | Session start, any step that would violate Stage scope |
 
-**Statement**: The Stage agent is a planning and decomposition agent. It must not act outside its stash-to-shipment scope. The Dispatch agent must not perform Stage or Ship work directly — it routes to them as subagents.
+**Statement**: The Stage agent is a planning and decomposition agent. It must not act outside its stash-to-shipment scope. The Orchestrator agent must not perform Stage or Ship work directly — it routes to them as subagents.
 
 **Stage MUST NOT**:
 - Create or checkout implementation feature or chore branches for code execution
@@ -295,6 +295,6 @@ P-005 violation event.
 | 1.2.0   | {{DATE}}     | Added P-007      | Backlogit archive integrity after shipment |
 | 1.3.0   | {{DATE}}     | Added P-008      | Markdown conformance enforcement |
 | 1.4.0   | {{DATE}}     | Added P-009      | Merge-commit-only policy |
-| 1.5.0   | {{DATE}}     | Added P-010      | Agent role boundary (Stage/Dispatch) |
+| 1.5.0   | {{DATE}}     | Added P-010      | Agent role boundary (Stage/Orchestrator) |
 | 1.6.0   | {{DATE}}     | Added P-011      | Branch-before-mutation (Ship) |
 | 1.7.0   | {{DATE}}     | Added P-012      | Tool availability and declared degradation |
