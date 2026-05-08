@@ -343,9 +343,18 @@ Resolution notes for health-check variables:
 | `{{CONTINUOUS_LEARNING_CAPTURE_HOOKS}}` | `config.continuous_learning.capture_hooks` | `false` | Whether environment-specific hook capture is enabled |
 | `{{CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER}}` | `config.continuous_learning.environment_adapter` | `none` | Optional hook-capture adapter name |
 | `{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}` | `config.continuous_learning.promotion_threshold` | `3` | Minimum corroborating observations before promotion to a learned artifact |
-| `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1` | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks |
-| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2` | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review |
-| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
+| `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1.model` | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks |
+| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2.model` | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review |
+| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3.model` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
+| `{{TIER_1_REASONING_EFFORT}}` | `config.model_routing.tier1.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 1 agents; leave empty to use model default |
+| `{{TIER_1_PROVIDER}}` | `config.model_routing.tier1.model_provider` | _(empty)_ | Model provider for Tier 1 agents (e.g., `openai`, `anthropic`) |
+| `{{TIER_1_FAMILY}}` | `config.model_routing.tier1.model_family` | `gpt-5.4-mini` | Model family shorthand resolved into Tier 1 agent frontmatter |
+| `{{TIER_2_REASONING_EFFORT}}` | `config.model_routing.tier2.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 2 agents; leave empty to use model default |
+| `{{TIER_2_PROVIDER}}` | `config.model_routing.tier2.model_provider` | _(empty)_ | Model provider for Tier 2 agents (e.g., `openai`, `anthropic`) |
+| `{{TIER_2_FAMILY}}` | `config.model_routing.tier2.model_family` | `claude-sonnet-4.6` | Model family shorthand resolved into Tier 2 agent frontmatter |
+| `{{TIER_3_REASONING_EFFORT}}` | `config.model_routing.tier3.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 3 agents; leave empty to use model default |
+| `{{TIER_3_PROVIDER}}` | `config.model_routing.tier3.model_provider` | _(empty)_ | Model provider for Tier 3 agents (e.g., `openai`, `anthropic`) |
+| `{{TIER_3_FAMILY}}` | `config.model_routing.tier3.model_family` | `claude-opus-4.6` | Model family shorthand resolved into Tier 3 agent frontmatter |
 | `{{BROWSER_CLI}}` | `config.browser.cli` | `agent-browser` | Written back into `config.browser.cli` in the resolved harness-config.yaml |
 | `{{BROWSER_HEADLESS_FLAG}}` | `config.browser.headless_flag` | `--headless` | Written back into `config.browser.headless_flag` |
 | `{{EXPERIMENT_BRANCH_PREFIX}}` | `config.experiments.branch_prefix` | `experiment/` | Written back into `config.experiments.branch_prefix` (normalized to end with `/`) |
