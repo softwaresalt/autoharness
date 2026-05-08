@@ -3,7 +3,12 @@ name: Adversarial Review
 description: "Multi-model parallel review using independent reviewer agents with different models, assembled into a consensus report with confidence-weighted findings and remediation queue"
 maturity: stable
 tools: read, agent, search, edit
-model_routing: "Tier 3 (Frontier)"
+model_routing: "Tier 3 (Frontier)"  # DEPRECATED — use model_tier
+model_tier: 3
+max_subagent_tier: 1
+reasoning_effort: "{{TIER_3_REASONING_EFFORT}}"
+model_provider: "{{TIER_3_PROVIDER}}"
+model_family: "{{TIER_3_FAMILY}}"
 subagent_depth: 2
 ---
 
