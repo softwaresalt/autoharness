@@ -286,6 +286,42 @@ P-005 violation event.
 
 ---
 
+## P-013: Agent Tier Hierarchy and Escalation
+
+**Purpose**: Enforce consistent model tier usage across the harness — agents must operate at their declared tier, subagents must not exceed the invoking agent's `max_subagent_tier`, and escalation to higher tiers follows a defined circuit before halting.
+
+| Policy ID  | P-013                                    |
+|------------|------------------------------------------|
+| Applies to | All agents in the harness                |
+| Gate point | Before every subagent invocation; before escalation requests |
+| Owner      | Orchestrator                             |
+
+### P-013.1 — Declared Tier Compliance
+
+Every agent must operate at the tier declared in its frontmatter `model_tier` field. An agent must not request a lower-capability model than its declared tier to reduce cost, nor a higher-capability model than its declared tier without following the escalation path in P-013.3.
+
+### P-013.2 — Subagent Tier Ceiling
+
+An agent must not invoke a subagent at a tier higher than its own `max_subagent_tier`. When an agent's `max_subagent_tier` is 1, it may only spawn Tier 1 subagents regardless of the complexity of the delegated work. If the work requires a higher tier, escalate the parent agent instead.
+
+### P-013.3 — Escalation Path Before Halt
+
+When a Tier 1 or Tier 2 agent fails the same unit of work 3 consecutive times, the agent must escalate to the next tier before halting:
+
+1. **Tier 1 → Tier 2 escalation**: Re-attempt with a Tier 2 model.
+2. **Tier 2 → Tier 3 escalation**: Re-attempt with a Tier 3 model (requires operator confirmation if `strict_safety` is enabled).
+3. **Tier 3 → Halt**: Record a P-013 violation (P-005 telemetry) and surface the failure to the operator with full context.
+
+Skipping escalation steps and halting prematurely is a P-013 violation.
+
+### P-013.4 — Tier Annotation in Agent Definitions
+
+Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare `model_tier` and `max_subagent_tier` as integer frontmatter fields. Agents that use only the opaque `model_routing` string and omit the structured fields are non-conformant and must be updated before the next harness verification pass.
+
+**Violation Action**: Record a P-013 violation (via P-005 telemetry) with the specific sub-policy identifier (P-013.1–P-013.4), halt the violating invocation, and surface the violation to the operator.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -298,3 +334,4 @@ P-005 violation event.
 | 1.5.0   | {{DATE}}     | Added P-010      | Agent role boundary (Stage/Orchestrator) |
 | 1.6.0   | {{DATE}}     | Added P-011      | Branch-before-mutation (Ship) |
 | 1.7.0   | {{DATE}}     | Added P-012      | Tool availability and declared degradation |
+| 1.8.0   | {{DATE}}     | Added P-013      | Agent tier hierarchy and escalation |
