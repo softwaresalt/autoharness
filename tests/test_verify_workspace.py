@@ -1930,6 +1930,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
+            # Valid frontmatter: both fields present as integers in range 1-3
             (workspace / ".github" / "agents" / "orchestrator.agent.md").write_text(
                 "---\n"
                 "name: Orchestrator\n"
@@ -1945,7 +1946,86 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertEqual(report["strict_schema_blockers"], [])
             self.assertEqual(report["blockers"], [])
             targeted_checks = report["targeted_checks"]
-            self.assertTrue(targeted_checks["orchestrator_tier_fields"]["ok"])
+            check = targeted_checks["orchestrator_tier_fields"]
+            self.assertTrue(check["ok"])
+            self.assertEqual(check.get("errors", []), [])
+
+    def test_verify_workspace_rejects_non_integer_tier_fields_in_orchestrator(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-07T00:00:00Z",
+                    "autoharness_version": "1.5.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [3, 4],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            # Invalid: model_tier is a string, max_subagent_tier is out of range
+            (workspace / ".github" / "agents" / "orchestrator.agent.md").write_text(
+                "---\n"
+                "name: Orchestrator\n"
+                'model_tier: "Tier 2 (Standard)"\n'
+                "max_subagent_tier: 5\n"
+                "---\n\n"
+                "# Orchestrator\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            check = targeted_checks["orchestrator_tier_fields"]
+            self.assertFalse(check["ok"])
+            errors = check.get("errors", [])
+            self.assertTrue(
+                any("model_tier" in e and "integer" in e for e in errors),
+                f"Expected model_tier type error, got: {errors}",
+            )
+            self.assertTrue(
+                any("max_subagent_tier" in e and "range" in e for e in errors),
+                f"Expected max_subagent_tier range error, got: {errors}",
+            )
 
     def test_verify_workspace_checks_p013_policy_in_workflow_policies(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

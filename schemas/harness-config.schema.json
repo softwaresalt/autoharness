@@ -158,82 +158,115 @@
       "description": "Model preferences for each routing tier. Agent definitions use tier labels; this maps tiers to specific model identifiers and per-tier configuration.",
       "properties": {
         "tier1": {
-          "type": "object",
-          "description": "Fast/cheap tier for low-complexity tasks (memory, docs, prompt editing).",
-          "properties": {
-            "model": {
+          "description": "Fast/cheap tier for low-complexity tasks (memory, docs, prompt editing). Accepts a plain model-identifier string (legacy) or an object with 'model' plus optional routing metadata.",
+          "oneOf": [
+            {
               "type": "string",
-              "description": "Model identifier for Tier 1. E.g., 'gpt-5.4-mini', 'claude-haiku-4.5'",
+              "description": "Legacy: plain model identifier string. E.g., 'gpt-5.4-mini'",
               "examples": ["gpt-5.4-mini", "claude-haiku-4.5"]
             },
-            "reasoning_effort": {
-              "type": "string",
-              "description": "Reasoning effort setting for Tier 1 agents (e.g., 'low', 'medium', 'high'). Leave empty to use the model default.",
-              "examples": ["low", "medium"]
-            },
-            "model_provider": {
-              "type": "string",
-              "description": "Model provider for Tier 1 agents (e.g., 'openai', 'anthropic'). Used when environment supports multi-provider routing.",
-              "examples": ["openai", "anthropic"]
-            },
-            "model_family": {
-              "type": "string",
-              "description": "Model family shorthand for Tier 1 (e.g., 'gpt-5.4-mini', 'haiku'). Resolved into agent frontmatter at install time.",
-              "examples": ["gpt-5.4-mini", "claude-haiku-4.5"]
+            {
+              "type": "object",
+              "required": ["model"],
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "description": "Model identifier for Tier 1. E.g., 'gpt-5.4-mini', 'claude-haiku-4.5'",
+                  "examples": ["gpt-5.4-mini", "claude-haiku-4.5"]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort setting for Tier 1 agents (e.g., 'low', 'medium', 'high'). Leave empty to use the model default.",
+                  "examples": ["low", "medium"]
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Tier 1 agents (e.g., 'openai', 'anthropic'). Used when environment supports multi-provider routing.",
+                  "examples": ["openai", "anthropic"]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family shorthand for Tier 1 (e.g., 'gpt-5.4-mini', 'haiku'). Resolved into agent frontmatter at install time.",
+                  "examples": ["gpt-5.4-mini", "claude-haiku-4.5"]
+                }
+              }
             }
-          }
+          ]
         },
         "tier2": {
-          "type": "object",
-          "description": "Standard tier for routine tasks (orchestration, code writing, review).",
-          "properties": {
-            "model": {
+          "description": "Standard tier for routine tasks (orchestration, code writing, review). Accepts a plain model-identifier string (legacy) or an object with 'model' plus optional routing metadata.",
+          "oneOf": [
+            {
               "type": "string",
-              "description": "Model identifier for Tier 2. E.g., 'claude-sonnet-4', 'gpt-5.2'",
+              "description": "Legacy: plain model identifier string. E.g., 'claude-sonnet-4'",
               "examples": ["claude-sonnet-4", "gpt-5.2"]
             },
-            "reasoning_effort": {
-              "type": "string",
-              "description": "Reasoning effort setting for Tier 2 agents (e.g., 'medium', 'high'). Leave empty to use the model default.",
-              "examples": ["medium", "high"]
-            },
-            "model_provider": {
-              "type": "string",
-              "description": "Model provider for Tier 2 agents (e.g., 'openai', 'anthropic').",
-              "examples": ["openai", "anthropic"]
-            },
-            "model_family": {
-              "type": "string",
-              "description": "Model family shorthand for Tier 2 (e.g., 'gpt-5.2', 'claude-sonnet-4').",
-              "examples": ["gpt-5.2", "claude-sonnet-4"]
+            {
+              "type": "object",
+              "required": ["model"],
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "description": "Model identifier for Tier 2. E.g., 'claude-sonnet-4', 'gpt-5.2'",
+                  "examples": ["claude-sonnet-4", "gpt-5.2"]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort setting for Tier 2 agents (e.g., 'medium', 'high'). Leave empty to use the model default.",
+                  "examples": ["medium", "high"]
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Tier 2 agents (e.g., 'openai', 'anthropic').",
+                  "examples": ["openai", "anthropic"]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family shorthand for Tier 2 (e.g., 'gpt-5.2', 'claude-sonnet-4').",
+                  "examples": ["gpt-5.2", "claude-sonnet-4"]
+                }
+              }
             }
-          }
+          ]
         },
         "tier3": {
-          "type": "object",
-          "description": "Frontier tier for complex tasks (planning, architecture, analysis).",
-          "properties": {
-            "model": {
+          "description": "Frontier tier for complex tasks (planning, architecture, analysis). Accepts a plain model-identifier string (legacy) or an object with 'model' plus optional routing metadata.",
+          "oneOf": [
+            {
               "type": "string",
-              "description": "Model identifier for Tier 3. E.g., 'claude-opus-4.6', 'gpt-5.4'",
+              "description": "Legacy: plain model identifier string. E.g., 'claude-opus-4.6'",
               "examples": ["claude-opus-4.6", "gpt-5.4"]
             },
-            "reasoning_effort": {
-              "type": "string",
-              "description": "Reasoning effort setting for Tier 3 agents (e.g., 'high', 'max'). Leave empty to use the model default.",
-              "examples": ["high", "max"]
-            },
-            "model_provider": {
-              "type": "string",
-              "description": "Model provider for Tier 3 agents (e.g., 'openai', 'anthropic').",
-              "examples": ["openai", "anthropic"]
-            },
-            "model_family": {
-              "type": "string",
-              "description": "Model family shorthand for Tier 3 (e.g., 'gpt-5.4', 'claude-opus-4.6').",
-              "examples": ["gpt-5.4", "claude-opus-4.6"]
+            {
+              "type": "object",
+              "required": ["model"],
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "description": "Model identifier for Tier 3. E.g., 'claude-opus-4.6', 'gpt-5.4'",
+                  "examples": ["claude-opus-4.6", "gpt-5.4"]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort setting for Tier 3 agents (e.g., 'high', 'max'). Leave empty to use the model default.",
+                  "examples": ["high", "max"]
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Tier 3 agents (e.g., 'openai', 'anthropic').",
+                  "examples": ["openai", "anthropic"]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family shorthand for Tier 3 (e.g., 'gpt-5.4', 'claude-opus-4.6').",
+                  "examples": ["gpt-5.4", "claude-opus-4.6"]
+                }
+              }
             }
-          }
+          ]
         }
       }
     },
