@@ -343,9 +343,18 @@ Resolution notes for health-check variables:
 | `{{CONTINUOUS_LEARNING_CAPTURE_HOOKS}}` | `config.continuous_learning.capture_hooks` | `false` | Whether environment-specific hook capture is enabled |
 | `{{CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER}}` | `config.continuous_learning.environment_adapter` | `none` | Optional hook-capture adapter name |
 | `{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}` | `config.continuous_learning.promotion_threshold` | `3` | Minimum corroborating observations before promotion to a learned artifact |
-| `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1` | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks |
-| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2` | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review |
-| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3` | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis |
+| `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1.model` (object form) or `config.model_routing.tier1` (legacy string) | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks. When `tier1` is a plain string, that string is used as the model value and all other tier sub-fields default to empty. |
+| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2.model` (object form) or `config.model_routing.tier2` (legacy string) | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review. Same string-fallback rule as TIER1. |
+| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3.model` (object form) or `config.model_routing.tier3` (legacy string) | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis. Same string-fallback rule as TIER1. |
+| `{{TIER_1_REASONING_EFFORT}}` | `config.model_routing.tier1.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 1 agents; leave empty to use model default |
+| `{{TIER_1_PROVIDER}}` | `config.model_routing.tier1.model_provider` | _(empty)_ | Model provider for Tier 1 agents (e.g., `openai`, `anthropic`) |
+| `{{TIER_1_FAMILY}}` | `config.model_routing.tier1.model_family` | `gpt-5.4-mini` | Model family shorthand resolved into Tier 1 agent frontmatter |
+| `{{TIER_2_REASONING_EFFORT}}` | `config.model_routing.tier2.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 2 agents; leave empty to use model default |
+| `{{TIER_2_PROVIDER}}` | `config.model_routing.tier2.model_provider` | _(empty)_ | Model provider for Tier 2 agents (e.g., `openai`, `anthropic`) |
+| `{{TIER_2_FAMILY}}` | `config.model_routing.tier2.model_family` | `claude-sonnet-4.6` | Model family shorthand resolved into Tier 2 agent frontmatter |
+| `{{TIER_3_REASONING_EFFORT}}` | `config.model_routing.tier3.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 3 agents; leave empty to use model default |
+| `{{TIER_3_PROVIDER}}` | `config.model_routing.tier3.model_provider` | _(empty)_ | Model provider for Tier 3 agents (e.g., `openai`, `anthropic`) |
+| `{{TIER_3_FAMILY}}` | `config.model_routing.tier3.model_family` | `claude-opus-4.6` | Model family shorthand resolved into Tier 3 agent frontmatter |
 | `{{BROWSER_CLI}}` | `config.browser.cli` | `agent-browser` | Written back into `config.browser.cli` in the resolved harness-config.yaml |
 | `{{BROWSER_HEADLESS_FLAG}}` | `config.browser.headless_flag` | `--headless` | Written back into `config.browser.headless_flag` |
 | `{{EXPERIMENT_BRANCH_PREFIX}}` | `config.experiments.branch_prefix` | `experiment/` | Written back into `config.experiments.branch_prefix` (normalized to end with `/`) |
@@ -548,7 +557,7 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh`, `skills/harness-doctor` (install health baseline and pre-flight context) |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/dispatch`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true) |
+| 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true) |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight and tool availability gate), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions`, `skills/skill-search` |
 | 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
@@ -678,7 +687,7 @@ Generate agent definitions. Each agent template has technology-specific sections
 contains deprecated agent files listed in AGENTS.md's deprecation table (during
 merge install), flag them for removal.
 
-1. **Pipeline agents**: stage, ship, dispatch
+1. **Pipeline agents**: stage, ship, orchestrator
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
     * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)

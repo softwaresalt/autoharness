@@ -61,11 +61,23 @@ strict_safety:
   require_approval_for:
     - destructive
 
-# Model routing preferences (map tiers to model identifiers)
+# Model routing preferences (map tiers to model identifiers and per-tier config)
 model_routing:
-  tier1: {{MODEL_ROUTING_TIER1}}      # Fast/cheap: memory, docs, compaction
-  tier2: {{MODEL_ROUTING_TIER2}}      # Standard: orchestration, code, review
-  tier3: {{MODEL_ROUTING_TIER3}}      # Frontier: planning, architecture, analysis
+  tier1:
+    model: {{MODEL_ROUTING_TIER1}}              # Fast/cheap: memory, docs, compaction (e.g., gpt-5.4-mini)
+    reasoning_effort: "{{TIER_1_REASONING_EFFORT}}"  # Leave empty to use model default
+    model_provider: "{{TIER_1_PROVIDER}}"       # e.g., openai, anthropic — leave empty for default
+    model_family: "{{TIER_1_FAMILY}}"           # Resolved into Tier 1 agent frontmatter
+  tier2:
+    model: {{MODEL_ROUTING_TIER2}}              # Standard: orchestration, code, review (e.g., claude-sonnet-4.6)
+    reasoning_effort: "{{TIER_2_REASONING_EFFORT}}"
+    model_provider: "{{TIER_2_PROVIDER}}"
+    model_family: "{{TIER_2_FAMILY}}"
+  tier3:
+    model: {{MODEL_ROUTING_TIER3}}              # Frontier: planning, architecture, analysis (e.g., claude-opus-4.6)
+    reasoning_effort: "{{TIER_3_REASONING_EFFORT}}"
+    model_provider: "{{TIER_3_PROVIDER}}"
+    model_family: "{{TIER_3_FAMILY}}"
 
 # AI CLI tool startup configuration
 # Resolves {{COPILOT_EXE_PATH}} in the generated start.ps1 and start.sh scripts.

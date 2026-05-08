@@ -3,7 +3,12 @@ name: Concurrency Reviewer
 description: "Reviews code changes involving concurrent or parallel execution patterns for safety and correctness"
 maturity: stable
 tools: read, search
-model_routing: "Tier 1 (Fast/Cheap)"
+model_routing: "Tier 1 (Fast/Cheap)"  # DEPRECATED — use model_tier
+model_tier: 1
+max_subagent_tier: 1
+reasoning_effort: "{{TIER_1_REASONING_EFFORT}}"
+model_provider: "{{TIER_1_PROVIDER}}"
+model_family: "{{TIER_1_FAMILY}}"
 subagent_depth: 0
 ---
 

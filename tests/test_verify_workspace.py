@@ -1837,6 +1837,288 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["ship_index_sync_gate"]["ok"])
             self.assertTrue(targeted_checks["ship_merge_confirmation_gate"]["ok"])
 
+    def test_orchestrator_template_exists_and_dispatch_template_removed(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        orchestrator_tmpl = repo_root / "templates" / "agents" / "orchestrator.agent.md.tmpl"
+        dispatch_tmpl = repo_root / "templates" / "agents" / "dispatch.agent.md.tmpl"
+
+        self.assertTrue(orchestrator_tmpl.exists(), "orchestrator.agent.md.tmpl must exist")
+        self.assertFalse(dispatch_tmpl.exists(), "dispatch.agent.md.tmpl must not exist after P-013 rename")
+
+    def test_no_operator_ai_persona_in_agent_templates(self) -> None:
+        """P-013.1: 'Operator' is reserved for the human user; no agent template may
+        claim this name or declare itself as the Operator AI persona."""
+        repo_root = Path(__file__).resolve().parents[1]
+        agents_dir = repo_root / "templates" / "agents"
+
+        violations = []
+        prohibited_patterns = [
+            'name: Operator',
+            'name: "Operator"',
+            "name: 'Operator'",
+            "You are the Operator",
+        ]
+        for tmpl in agents_dir.rglob("*.agent.md.tmpl"):
+            content = tmpl.read_text(encoding="utf-8")
+            rel = str(tmpl.relative_to(repo_root))
+            for pattern in prohibited_patterns:
+                if pattern in content:
+                    violations.append(f"{rel}: found prohibited pattern {pattern!r}")
+
+        self.assertEqual(
+            violations,
+            [],
+            "Agent templates must not use 'Operator' as an AI persona name "
+            f"(P-013.1 persona isolation):\n" + "\n".join(violations),
+        )
+
+    def test_orchestrator_template_has_tier_fields(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        orchestrator_tmpl = repo_root / "templates" / "agents" / "orchestrator.agent.md.tmpl"
+
+        content = orchestrator_tmpl.read_text(encoding="utf-8")
+        self.assertIn("model_tier:", content, "orchestrator template must declare model_tier")
+        self.assertIn("max_subagent_tier:", content, "orchestrator template must declare max_subagent_tier")
+
+    def test_all_agent_templates_have_tier_fields(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        agents_dir = repo_root / "templates" / "agents"
+
+        missing_tier = []
+        missing_max = []
+        for tmpl in agents_dir.rglob("*.agent.md.tmpl"):
+            content = tmpl.read_text(encoding="utf-8")
+            rel = str(tmpl.relative_to(repo_root))
+            if "model_tier:" not in content:
+                missing_tier.append(rel)
+            if "max_subagent_tier:" not in content:
+                missing_max.append(rel)
+
+        self.assertEqual(
+            missing_tier,
+            [],
+            f"Agent templates missing model_tier frontmatter field: {missing_tier}",
+        )
+        self.assertEqual(
+            missing_max,
+            [],
+            f"Agent templates missing max_subagent_tier frontmatter field: {missing_max}",
+        )
+
+    def test_verify_workspace_checks_orchestrator_tier_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-07T00:00:00Z",
+                    "autoharness_version": "1.5.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [3, 4],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            # Valid frontmatter: both fields present as integers in range 1-3
+            (workspace / ".github" / "agents" / "orchestrator.agent.md").write_text(
+                "---\n"
+                "name: Orchestrator\n"
+                "model_tier: 2\n"
+                "max_subagent_tier: 3\n"
+                "---\n\n"
+                "# Orchestrator\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+            targeted_checks = report["targeted_checks"]
+            check = targeted_checks["orchestrator_tier_fields"]
+            self.assertTrue(check["ok"])
+            self.assertEqual(check.get("errors", []), [])
+
+    def test_verify_workspace_rejects_non_integer_tier_fields_in_orchestrator(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-07T00:00:00Z",
+                    "autoharness_version": "1.5.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [3, 4],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            # Invalid: model_tier is a string, max_subagent_tier is out of range
+            (workspace / ".github" / "agents" / "orchestrator.agent.md").write_text(
+                "---\n"
+                "name: Orchestrator\n"
+                'model_tier: "Tier 2 (Standard)"\n'
+                "max_subagent_tier: 5\n"
+                "---\n\n"
+                "# Orchestrator\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            check = targeted_checks["orchestrator_tier_fields"]
+            self.assertFalse(check["ok"])
+            errors = check.get("errors", [])
+            self.assertTrue(
+                any("model_tier" in e and "integer" in e for e in errors),
+                f"Expected model_tier type error, got: {errors}",
+            )
+            self.assertTrue(
+                any("max_subagent_tier" in e and "range" in e for e in errors),
+                f"Expected max_subagent_tier range error, got: {errors}",
+            )
+
+    def test_verify_workspace_checks_p013_policy_in_workflow_policies(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "policies").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-07T00:00:00Z",
+                    "autoharness_version": "1.5.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [3, 8],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "policies" / "workflow-policies.md").write_text(
+                "## P-013: Agent Tier Hierarchy and Escalation\n\n"
+                "Every agent must operate at the tier declared in its frontmatter model_tier field.\n"
+                "An agent must not invoke a subagent at a tier higher than its max_subagent_tier.\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["p013_policy_in_workflow_policies"]["ok"])
+
 
 class PortabilityTests(unittest.TestCase):
     def setUp(self) -> None:

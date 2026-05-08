@@ -3,7 +3,12 @@ name: Prompt Builder
 description: "Phase-based prompt engineering assistant for creating and validating prompt, agent, instruction, and skill files"
 maturity: stable
 tools: vscode, execute, read, edit, search
-model_routing: "Tier 1 (Fast/Cheap)"
+model_routing: "Tier 1 (Fast/Cheap)"  # DEPRECATED — use model_tier
+model_tier: 1
+max_subagent_tier: 1
+reasoning_effort: "{{TIER_1_REASONING_EFFORT}}"
+model_provider: "{{TIER_1_PROVIDER}}"
+model_family: "{{TIER_1_FAMILY}}"
 subagent_depth: 0
 ---
 

@@ -429,6 +429,15 @@ FOUNDATION_ASSERTIONS = [
             "policy-proposals",
         ],
     },
+    {
+        "key": "p013_policy_in_workflow_policies",
+        "path": ".github/policies/workflow-policies.md",
+        "must_contain": [
+            "P-013",
+            "model_tier",
+            "max_subagent_tier",
+        ],
+    },
 ]
 
 
@@ -1395,6 +1404,69 @@ def _derive_template_variables(
     return variables
 
 
+def _add_frontmatter_tier_check(
+    report: dict[str, Any],
+    key: str,
+    file_path: Path,
+) -> None:
+    """Validate that an agent file declares model_tier and max_subagent_tier
+    as integers (in range 1–3) within its YAML frontmatter block."""
+    if not file_path.exists():
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "reason": "missing file",
+        }
+        return
+
+    content = file_path.read_text(encoding="utf-8")
+    if not content.startswith("---"):
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "reason": "no YAML frontmatter (file does not begin with ---)",
+        }
+        return
+
+    end_marker = content.find("\n---", 3)
+    if end_marker == -1:
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "reason": "unclosed YAML frontmatter (no closing ---)",
+        }
+        return
+
+    frontmatter_text = content[3:end_marker].strip()
+    try:
+        frontmatter = yaml.safe_load(frontmatter_text) or {}
+    except yaml.YAMLError as exc:
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "reason": f"invalid YAML frontmatter: {exc}",
+        }
+        return
+
+    errors = []
+    for field in ("model_tier", "max_subagent_tier"):
+        value = frontmatter.get(field)
+        if value is None:
+            errors.append(f"missing field: {field}")
+        elif not isinstance(value, int):
+            errors.append(
+                f"{field} must be an integer, got {type(value).__name__}: {value!r}"
+            )
+        elif value < 1 or value > 3:
+            errors.append(f"{field} out of range 1–3: {value}")
+
+    report["targeted_checks"][key] = {
+        "path": str(file_path),
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
 def _add_text_check(
     report: dict[str, Any],
     key: str,
@@ -1875,6 +1947,12 @@ def verify_workspace(
             assertion["must_contain"],
             [tuple(pair) for pair in assertion.get("must_precede") or []],
         )
+
+    _add_frontmatter_tier_check(
+        report,
+        "orchestrator_tier_fields",
+        workspace_path / ".github/agents/orchestrator.agent.md",
+    )
 
     portability_findings = _run_portability_scan(workspace_path)
     report["portability_findings"] = portability_findings
