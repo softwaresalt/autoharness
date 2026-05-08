@@ -1846,6 +1846,33 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertTrue(orchestrator_tmpl.exists(), "orchestrator.agent.md.tmpl must exist")
         self.assertFalse(dispatch_tmpl.exists(), "dispatch.agent.md.tmpl must not exist after P-013 rename")
 
+    def test_no_operator_ai_persona_in_agent_templates(self) -> None:
+        """P-013.1: 'Operator' is reserved for the human user; no agent template may
+        claim this name or declare itself as the Operator AI persona."""
+        repo_root = Path(__file__).resolve().parents[1]
+        agents_dir = repo_root / "templates" / "agents"
+
+        violations = []
+        prohibited_patterns = [
+            'name: Operator',
+            'name: "Operator"',
+            "name: 'Operator'",
+            "You are the Operator",
+        ]
+        for tmpl in agents_dir.rglob("*.agent.md.tmpl"):
+            content = tmpl.read_text(encoding="utf-8")
+            rel = str(tmpl.relative_to(repo_root))
+            for pattern in prohibited_patterns:
+                if pattern in content:
+                    violations.append(f"{rel}: found prohibited pattern {pattern!r}")
+
+        self.assertEqual(
+            violations,
+            [],
+            "Agent templates must not use 'Operator' as an AI persona name "
+            f"(P-013.1 persona isolation):\n" + "\n".join(violations),
+        )
+
     def test_orchestrator_template_has_tier_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         orchestrator_tmpl = repo_root / "templates" / "agents" / "orchestrator.agent.md.tmpl"

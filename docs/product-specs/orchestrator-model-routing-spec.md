@@ -4,7 +4,7 @@ date: 2026-05-07
 problem_type: architectural-spec
 category: harness-design
 tags: [p-013, model-routing, persona-isolation, orchestrator]
-status: pending
+status: implemented
 ---
 
 ## Execution Plan: P-013 Orchestrator Persona and Model Tier Routing
@@ -74,9 +74,9 @@ P-013.4: Upward/Downward Invocation Protocol
 
 Sub-agent invocations must explicitly declare the required tier. Orchestrator (Tier 2) must explicitly request a Tier 3 invocation when calling Stage.
 
-Agent prompt instructions must reflect this syntax. For example, Orchestrator's prompt must contain:
+**Implementation note**: The `--tier 3` CLI syntax described below is the aspirational interface. Per Core Rule 3 (Environment Agnosticism), this syntax is NOT implemented as a literal CLI flag — the environment may not support it. Instead, tier routing is expressed as **intent annotations in agent prose** (e.g., "Request Tier 3 reasoning capacity when invoking the Stage agent for backlog synthesis"). This achieves the same routing intent without binding the harness to a specific CLI contract.
 
-"To invoke the Stage agent, you must execute the subagent tool with --tier 3 to allocate sufficient reasoning capacity for backlog synthesis."
+Agent prompt instructions must reflect this intent. For example, Orchestrator's model routing section must document that Stage requires Tier 3 reasoning capacity for backlog synthesis work.
 
 3. Required Artifact Modifications
 
@@ -92,7 +92,7 @@ Phase 2: Schema & Frontmatter Enforcement
 
 Modify App Schemas: Update schemas/harness-manifest.schema.json to require model_tier (integer 1-3) and max_subagent_tier (integer 1-3). Make reasoning_effort, model_provider, and model_family optional string fields. Deprecate model_routing.
 
-Modify Config Schemas: Update schemas/harness-config.schema.json to support a new model_routing block where users define their preferred mappings (e.g., defining TIER_2_REASONING_EFFORT: "high").
+Modify Config Schemas: Update schemas/harness-config.schema.json to support a new model_routing block where users define their preferred mappings (e.g., defining TIER_2_REASONING_EFFORT: "high"). Each tier accepts either a legacy plain string (backward compat) or an object with `model` (required) plus optional `reasoning_effort`, `model_provider`, `model_family`.
 
 Update Agent Templates:
 
@@ -106,15 +106,19 @@ adversarial-review.agent.md.tmpl: model_tier: 3, max_subagent_tier: 1 (plus para
 
 Update Policy Docs: Append P-013 to templates/policies/workflow-policies.md.tmpl.
 
-Phase 3: Assertion Coverage (verify_workspace.py)
+Phase 3: Assertion Coverage (verify_workspace.py and tests)
 
-Add the following assertions to src/autoharness/verify_workspace.py:
+The following assertions and tests were added:
 
-assert_no_operator_persona: Scans all templates/agents/*.md.tmpl to ensure name: Operator or You are the Operator does not exist.
+**`test_no_operator_ai_persona_in_agent_templates`** (test_verify_workspace.py): Scans all `templates/agents/*.agent.md.tmpl` to ensure `name: Operator` or `You are the Operator` does not appear (P-013.1 persona isolation). This is a template-level scan, not a workspace targeted check.
 
-assert_tier_schema_validity: Verifies all frontmatter YAML contains integer bounds for model_tier and max_subagent_tier.
+**`orchestrator_tier_fields`** (FOUNDATION_ASSERTIONS via `_add_frontmatter_tier_check()`): Validates that the installed `orchestrator.agent.md` declares `model_tier` and `max_subagent_tier` as integers in range 1–3 within its YAML frontmatter block. Rejects string-valued fields and out-of-range values.
 
-assert_tier_hierarchy: Validates that no agent's model_tier exceeds its caller's max_subagent_tier within known dependency graphs (e.g., if Orchestrator has max_subagent_tier: 2, it would flag a failure when trying to map Stage which requires model_tier: 3).
+**`p013_policy_in_workflow_policies`** (FOUNDATION_ASSERTIONS): Verifies the installed `workflow-policies.md` contains P-013, `model_tier`, and `max_subagent_tier` text (confirming the policy was installed).
+
+**`test_all_agent_templates_have_tier_fields`** (test_verify_workspace.py): Confirms all agent template files declare both `model_tier:` and `max_subagent_tier:` in their frontmatter.
+
+**Implementation note on `assert_tier_hierarchy`**: The strict caller/callee tier dependency graph check (e.g., flagging Orchestrator if `max_subagent_tier < Stage's model_tier`) was reviewed during deliberation and deferred. A static dependency graph cannot be reliably inferred from agent templates alone without a formal invocation registry. The `orchestrator_tier_fields` frontmatter check and the P-013 policy prose enforce the intent; a future `assert_tier_hierarchy` can be added when the dependency graph is formalized.
 
 4. Rollout Strategy
 
