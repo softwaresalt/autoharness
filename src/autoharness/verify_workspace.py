@@ -429,6 +429,23 @@ FOUNDATION_ASSERTIONS = [
             "policy-proposals",
         ],
     },
+    {
+        "key": "orchestrator_tier_fields",
+        "path": ".github/agents/orchestrator.agent.md",
+        "must_contain": [
+            "model_tier:",
+            "max_subagent_tier:",
+        ],
+    },
+    {
+        "key": "p013_policy_in_workflow_policies",
+        "path": ".github/policies/workflow-policies.md",
+        "must_contain": [
+            "P-013",
+            "model_tier",
+            "max_subagent_tier",
+        ],
+    },
 ]
 
 
