@@ -34,6 +34,7 @@ SUPPORTED_CAPABILITY_PACKS = {
     "strict-safety",
     "release-observability",
     "adversarial-review",
+    "graphtor-docs",
 }
 WORKSPACE_SOURCE_TEMPLATES = {
     "workspace merge install",
@@ -233,6 +234,32 @@ PACK_ASSERTIONS = {
             "path": ".github/instructions/continuous-learning.instructions.md",
             "must_contain": ["observe", "learn", "evolve"],
         }
+    ],
+    "graphtor-docs": [
+        {
+            "key": "graphtor_docs_instruction",
+            "path": ".github/instructions/graphtor-docs.instructions.md",
+            "must_contain": [
+                "search_local_docs",
+                "search_semantic",
+                "research_topic",
+                "traverse_doc_links",
+                "list_sources",
+                "get_chunk_by_id",
+                "get_document",
+                "get_status",
+            ],
+        },
+        {
+            "key": "graphtor_docs_stage_weaving",
+            "path": ".github/agents/stage.agent.md",
+            "must_contain": ["graphtor-docs", "graphtor-docs.instructions.md"],
+        },
+        {
+            "key": "graphtor_docs_ship_weaving",
+            "path": ".github/agents/ship.agent.md",
+            "must_contain": ["graphtor-docs", "graphtor-docs.instructions.md"],
+        },
     ],
 }
 FOUNDATION_ASSERTIONS = [

@@ -2119,6 +2119,148 @@ class VerifyWorkspaceTests(unittest.TestCase):
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["p013_policy_in_workflow_policies"]["ok"])
 
+    def test_verify_workspace_checks_graphtor_docs_pack_assertions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "instructions").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema), encoding="utf-8"
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema), encoding="utf-8"
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-09T00:00:00Z",
+                    "autoharness_version": "1.0.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1, 4],
+                    "capability_packs": ["graphtor-docs"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            # Write a graphtor-docs instruction file with all 8 required tool names
+            (workspace / ".github" / "instructions" / "graphtor-docs.instructions.md").write_text(
+                "search_local_docs\nsearch_semantic\nresearch_topic\ntraverse_doc_links\n"
+                "list_sources\nget_chunk_by_id\nget_document\nget_status\n",
+                encoding="utf-8",
+            )
+            # Write stage and ship agents with graphtor-docs weaving
+            (workspace / ".github" / "agents" / "stage.agent.md").write_text(
+                "graphtor-docs\ngraphtor-docs.instructions.md\n", encoding="utf-8"
+            )
+            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+                "graphtor-docs\ngraphtor-docs.instructions.md\n", encoding="utf-8"
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["graphtor_docs_instruction"]["ok"])
+            self.assertTrue(targeted_checks["graphtor_docs_stage_weaving"]["ok"])
+            self.assertTrue(targeted_checks["graphtor_docs_ship_weaving"]["ok"])
+
+    def test_verify_workspace_graphtor_docs_pack_assertions_fail_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "instructions").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema), encoding="utf-8"
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema), encoding="utf-8"
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-09T00:00:00Z",
+                    "autoharness_version": "1.0.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1, 4],
+                    "capability_packs": ["graphtor-docs"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            # Instruction file exists but is missing tool names and agent weaving is absent
+            (workspace / ".github" / "instructions" / "graphtor-docs.instructions.md").write_text(
+                "This is a stub instruction file with no tool names.\n", encoding="utf-8"
+            )
+            (workspace / ".github" / "agents" / "stage.agent.md").write_text(
+                "# Stage\n\nNo graphtor mention here.\n", encoding="utf-8"
+            )
+            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+                "# Ship\n\nNo graphtor mention here.\n", encoding="utf-8"
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertFalse(targeted_checks["graphtor_docs_instruction"]["ok"])
+            self.assertFalse(targeted_checks["graphtor_docs_stage_weaving"]["ok"])
+            self.assertFalse(targeted_checks["graphtor_docs_ship_weaving"]["ok"])
+
 
 class PortabilityTests(unittest.TestCase):
     def setUp(self) -> None:

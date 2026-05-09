@@ -163,7 +163,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+            "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review", "graphtor-docs"]
           }
         },
         "install_layers": {
@@ -190,7 +190,7 @@
                 "properties": {
                   "item": {
                     "type": "string",
-                    "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+                    "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review", "graphtor-docs"]
                   },
                   "because": { "type": "string" },
                   "signals": {
@@ -249,6 +249,29 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "instruction_markers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "recommended": { "type": "boolean" }
+      }
+    },
+    "graphtor_docs": {
+      "type": "object",
+      "description": "Detected graphtor-docs integration markers and recommendation state",
+      "properties": {
+        "detected": { "type": "boolean" },
+        "mcp_configured": { "type": "boolean" },
+        "config_paths": {
+          "type": "array",
+          "description": "Paths to MCP and other non-sources config files found (e.g. .mcp.json, .vscode/mcp.json)",
+          "items": { "type": "string" }
+        },
+        "sources_path": {
+          "type": "string",
+          "description": "Path to the graphtor-docs sources configuration file (sources.yaml) that declares which paths, repos, and URLs to index"
+        },
+        "binary_on_path": { "type": "boolean" },
         "instruction_markers": {
           "type": "array",
           "items": { "type": "string" }

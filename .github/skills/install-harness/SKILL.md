@@ -384,6 +384,10 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 | `{{CONTINUOUS_LEARNING_ENABLED}}` | `capability_packs` contains `continuous-learning` | `true` | `false` |
 | `{{AGENT_NATIVE_REVIEWER_RECOMMENDED}}` | `agent_native.recommended_reviewer` | `true` | `false` |
 | `{{AGENT_ADVERSARIAL_REVIEW_ENABLED}}` | `capability_packs` contains `adversarial-review` | `true` | `false` |
+| `{{GRAPHTOR_DOCS_ENABLED}}` | `capability_packs` contains `graphtor-docs` | `true` | `false` |
+| `{{GRAPHTOR_DOCS_DETECTED}}` | `graphtor_docs.detected` | `true` | `false` |
+| `{{GRAPHTOR_SOURCES_PATH}}` | `graphtor_docs.sources_path` or operator `graphtor_docs.sources_path` | `.graphtor/config/sources.yaml` | `.graphtor/config/sources.yaml` |
+| `{{GRAPHTOR_BINARY_PATH}}` | binary path from `graphtor_docs` detection or operator `graphtor_docs.binary_path` | `.graphtor/bin/graphtor-docs` | `.graphtor/bin/graphtor-docs` |
 
 Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
@@ -464,8 +468,8 @@ Capability-pack overlays:
 | `continuous-learning` | Installs `continuous-learning.instructions.md` and `observe` / `learn` / `evolve` skills so recurring workflow practice can be captured, clustered, and promoted into explicit learned artifacts |
 | `strict-safety` | Installs `strict-safety.instructions.md` and threads explicit `ProposedAction` / `ActionRisk` / `ActionResult` guidance through risky planning, safety, review, and closure workflows |
 | `release-observability` | Installs `release-observability.instructions.md` and threads monitoring plan, pre-deploy audit, observation window, and rollback trigger expectations through operational closure and runtime verification workflows |
-| `release-observability` | Deepens operational closure and post-release monitoring guidance |
 | `adversarial-review` | Enables the standalone multi-model adversarial-review agent and review escalation path for higher-confidence consensus findings |
+| `graphtor-docs` | Installs `graphtor-docs.instructions.md` and threads indexed local documentation retrieval — keyword search, semantic search, topic research, doc-graph traversal — through research, planning, and knowledge-retrieval workflows so agents resolve domain concepts and APIs from indexed sources before falling back to broad web or filesystem search |
 
 #### Step 1.3b: Apply the Formal Overlay Contract
 
@@ -649,6 +653,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    When `strict-safety` is enabled, install `strict-safety.instructions.md` and use it as the authoritative reference for `ProposedAction`, `ActionRisk`, `ActionResult`, approval routing, and risky-work legibility.
    When `release-observability` is enabled, install `release-observability.instructions.md` and use it as the authoritative reference for monitoring plans, pre-deploy audits, observation windows, and rollback trigger discipline.
    When `adversarial-review` is enabled, install `adversarial-review.instructions.md` and use it as the authoritative reference for multi-model dispatch, consensus assembly, confidence tiers, and remediation queue structure.
+   When `graphtor-docs` is enabled, install `graphtor-docs.instructions.md` and use it as the authoritative reference for indexed local documentation search, semantic retrieval, doc-graph traversal, and server lifecycle workflows. Resolve `{{GRAPHTOR_SOURCES_PATH}}` from the workspace profile's `graphtor_docs.config_paths` (defaulting to `.graphtor/config/sources.yaml`) and `{{GRAPHTOR_BINARY_PATH}}` from the detected binary path (defaulting to `.graphtor/bin/graphtor-docs`).
 
 #### Step 2.3: Backlog Tool Registration
 
@@ -696,6 +701,7 @@ merge install), flag them for removal.
     * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
     * When `strict-safety` is enabled, keep risky planning and approval vocabulary visible through stage, review, verification, and closure handoffs
     * When `release-observability` is enabled, ensure operational-closure and runtime-verification carry monitoring plan, observation window, and rollback trigger expectations
+    * When `graphtor-docs` is enabled, add explicit workflow guidance for indexed local documentation search using graphtor-docs MCP tools (`search_local_docs`, `search_semantic`, `research_topic`) before falling back to broad filesystem or web search
 
 2. **Support agents**: prompt-builder
    * Minimal technology adaptation needed
@@ -769,6 +775,11 @@ single isolated instruction file.
 When `release-observability` is enabled, weave monitoring plan and rollback trigger
 expectations through `runtime-verification` and `operational-closure` rather than
 treating the pack as a standalone instruction file.
+
+When `graphtor-docs` is enabled, weave indexed documentation retrieval guidance into
+research, planning, and knowledge-retrieval workflows. Agents should resolve domain
+concepts, API references, and architectural context from graphtor-docs indexed sources
+before falling back to broad web search or raw filesystem scan.
 
 #### Step 2.6: Policy Layer
 

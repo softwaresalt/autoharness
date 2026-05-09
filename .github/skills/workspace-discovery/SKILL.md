@@ -180,6 +180,35 @@ agent_engram:
   recommended: true|false
 ```
 
+#### Step 1.5d2: Graphtor-Docs Detection
+
+Detect whether the workspace is configured for graphtor-docs or a closely related indexed local documentation workflow:
+
+| Signal | Meaning |
+|--------|---------|
+| `.graphtor/` directory exists at the workspace root | Workspace has a graphtor-docs installation or persistent index state |
+| `.graphtor/config/sources.yaml` or `.graphtor/config/` directory exists | graphtor-docs source index is configured |
+| `.mcp.json`, `.vscode/mcp.json`, or `.vscode/settings.json` references `graphtor-docs`, `graphtor`, or known graphtor tool names (`search_local_docs`, `search_semantic`, `research_topic`, `traverse_doc_links`, `list_sources`, `get_chunk_by_id`, `get_document`, `get_status`) | MCP server likely configured for the workspace |
+| `graphtor-docs` binary is present on PATH or at `.graphtor/bin/` | Binary installation confirmed |
+| Existing `AGENTS.md` / `.github/copilot-instructions.md` references graphtor-docs, indexed local docs, or graphtor MCP tool names | Harness may already be partially woven for graphtor-docs |
+
+Record: `graphtor_docs{}` with the following structure:
+
+```yaml
+graphtor_docs:
+  detected: true|false
+  mcp_configured: true|false
+  config_paths: []          # paths to MCP and other non-sources config files found (e.g. .mcp.json, .vscode/mcp.json)
+  sources_path: ""          # path to sources.yaml (the graphtor-docs source-index config); empty string if not found
+  binary_on_path: true|false
+  instruction_markers: []   # matched phrases from AGENTS.md / copilot-instructions.md
+  recommended: true|false
+```
+
+Recommend `graphtor-docs` when:
+* `.graphtor/` is present AND either `mcp_configured` or `binary_on_path` is `true`, OR
+* Any graphtor MCP tool name is referenced in MCP config files.
+
 #### Step 1.5e: Agent-Native Surface Detection
 
 Detect whether the workspace exposes agent-facing product surfaces that justify a
