@@ -2311,7 +2311,69 @@ class VerifyWorkspaceTests(unittest.TestCase):
             report = verify_workspace(ws, autoharness_home)
             self.assertEqual(len(report["community_templates"]), 1)
             self.assertTrue(report["community_templates"][0]["ok"])
+            self.assertTrue(report["community_templates"][0]["manifest_checksum_ok"])
+            self.assertFalse(report["community_templates"][0]["upstream_updated"])
             self.assertEqual(report["community_templates"][0]["template_id"], "test-instruction")
+
+    def test_verify_workspace_community_template_upstream_updated(self) -> None:
+        """Community template source .tmpl has been updated in autoharness_home."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            ws = root / "workspace"
+
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True)
+            (ws / ".autoharness").mkdir(parents=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {"schema_version": {"type": "string", "const": "1.0.0"}},
+            }
+            for sname in ("harness-manifest.schema.json", "harness-config.schema.json", "workspace-profile.schema.json"):
+                (autoharness_home / "schemas" / sname).write_text(json.dumps(strict_schema), encoding="utf-8")
+            for sdir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / sdir / "1.0.0.schema.json").write_text(json.dumps(strict_schema), encoding="utf-8")
+
+            # Original content at install time
+            original_content = b"# Original template content"
+            original_checksum = hashlib.sha256(original_content).hexdigest()
+            # Updated source template in autoharness_home
+            updated_content = b"# Updated template content with new guidance"
+            tmpl_dir = autoharness_home / "templates" / "community" / "instructions"
+            tmpl_dir.mkdir(parents=True)
+            (tmpl_dir / "test.instructions.md.tmpl").write_bytes(updated_content)
+
+            _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-01-01T00:00:00Z",
+                "autoharness_version": "0.1.0",
+                "profile_hash": "abc123",
+                "primitives_installed": [1, 2],
+                "artifacts": [],
+                "community_templates": [{
+                    "template_id": "test-instruction",
+                    "template_path": "templates/community/instructions/test.instructions.md.tmpl",
+                    "installed_path": ".github/instructions/test.instructions.md",
+                    "installed_at": "2026-01-01T00:00:00Z",
+                    "checksum": original_checksum,
+                }],
+            })
+            _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+
+            ct_dir = ws / ".github" / "instructions"
+            ct_dir.mkdir(parents=True)
+            (ct_dir / "test.instructions.md").write_bytes(original_content)
+
+            report = verify_workspace(ws, autoharness_home)
+            self.assertEqual(len(report["community_templates"]), 1)
+            self.assertFalse(report["community_templates"][0]["ok"])
+            self.assertTrue(report["community_templates"][0]["manifest_checksum_ok"])
+            self.assertTrue(report["community_templates"][0]["upstream_updated"])
+            self.assertEqual(report["community_templates"][0]["reason"], "upstream template updated")
 
     def test_verify_workspace_community_template_fail_missing(self) -> None:
         """Community template declared in manifest but file is missing."""

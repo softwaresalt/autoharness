@@ -1969,20 +1969,37 @@ def verify_workspace(
         tid = ct.get("template_id", "unknown")
         installed = ct.get("installed_path", "")
         expected_checksum = ct.get("checksum", "")
+        template_path_rel = ct.get("template_path", "")
         ct_path = workspace_path / installed if installed else None
         if ct_path and ct_path.exists():
             actual_checksum = hashlib.sha256(
                 ct_path.read_bytes()
             ).hexdigest()
-            ok = actual_checksum == expected_checksum
-            community_results.append({
+            manifest_ok = actual_checksum == expected_checksum
+            # Check for upstream template updates in autoharness_home
+            upstream_updated = False
+            if template_path_rel:
+                source_tmpl = autoharness_home / template_path_rel
+                if source_tmpl.exists():
+                    source_checksum = hashlib.sha256(
+                        source_tmpl.read_bytes()
+                    ).hexdigest()
+                    if source_checksum != expected_checksum:
+                        upstream_updated = True
+            entry: dict[str, Any] = {
                 "template_id": tid,
                 "installed_path": installed,
-                "ok": ok,
-                "reason": None if ok else "checksum mismatch",
-                "expected_checksum": expected_checksum,
-                "actual_checksum": actual_checksum,
-            })
+                "ok": manifest_ok and not upstream_updated,
+                "manifest_checksum_ok": manifest_ok,
+                "upstream_updated": upstream_updated,
+            }
+            if not manifest_ok:
+                entry["reason"] = "checksum mismatch"
+                entry["expected_checksum"] = expected_checksum
+                entry["actual_checksum"] = actual_checksum
+            elif upstream_updated:
+                entry["reason"] = "upstream template updated"
+            community_results.append(entry)
         else:
             community_results.append({
                 "template_id": tid,
