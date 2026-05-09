@@ -2287,6 +2287,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
             ct_content = b"# Community template content\nSome useful instruction."
             ct_checksum = hashlib.sha256(ct_content).hexdigest()
+            # Also create source .tmpl to satisfy upstream check
+            tmpl_content = b"# Community template content\nSome useful instruction with {{VARIABLE}}."
+            tmpl_checksum = hashlib.sha256(tmpl_content).hexdigest()
+            tmpl_dir = autoharness_home / "templates" / "community" / "instructions"
+            tmpl_dir.mkdir(parents=True)
+            (tmpl_dir / "test.instructions.md.tmpl").write_bytes(tmpl_content)
             _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
                 "schema_version": "1.0.0",
                 "installed_at": "2026-01-01T00:00:00Z",
@@ -2299,7 +2305,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     "template_path": "templates/community/instructions/test.instructions.md.tmpl",
                     "installed_path": ".github/instructions/test.instructions.md",
                     "installed_at": "2026-01-01T00:00:00Z",
-                    "checksum": ct_checksum,
+                    "installed_checksum": ct_checksum,
+                    "source_checksum": tmpl_checksum,
                 }],
             })
             _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
@@ -2311,7 +2318,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             report = verify_workspace(ws, autoharness_home)
             self.assertEqual(len(report["community_templates"]), 1)
             self.assertTrue(report["community_templates"][0]["ok"])
-            self.assertTrue(report["community_templates"][0]["manifest_checksum_ok"])
+            self.assertTrue(report["community_templates"][0]["installed_checksum_ok"])
             self.assertFalse(report["community_templates"][0]["upstream_updated"])
             self.assertEqual(report["community_templates"][0]["template_id"], "test-instruction")
 
@@ -2338,14 +2345,16 @@ class VerifyWorkspaceTests(unittest.TestCase):
             for sdir in ("harness-manifest", "harness-config", "workspace-profile"):
                 (autoharness_home / "schemas" / sdir / "1.0.0.schema.json").write_text(json.dumps(strict_schema), encoding="utf-8")
 
-            # Original content at install time
-            original_content = b"# Original template content"
-            original_checksum = hashlib.sha256(original_content).hexdigest()
-            # Updated source template in autoharness_home
-            updated_content = b"# Updated template content with new guidance"
+            # Original .tmpl content and installed content at install time
+            original_tmpl = b"# Original template with {{VARIABLE}}"
+            original_tmpl_checksum = hashlib.sha256(original_tmpl).hexdigest()
+            installed_content = b"# Original template with resolved_value"
+            installed_checksum = hashlib.sha256(installed_content).hexdigest()
+            # Updated source template in autoharness_home (upstream changed)
+            updated_tmpl = b"# Updated template with {{VARIABLE}} and new guidance"
             tmpl_dir = autoharness_home / "templates" / "community" / "instructions"
             tmpl_dir.mkdir(parents=True)
-            (tmpl_dir / "test.instructions.md.tmpl").write_bytes(updated_content)
+            (tmpl_dir / "test.instructions.md.tmpl").write_bytes(updated_tmpl)
 
             _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
                 "schema_version": "1.0.0",
@@ -2359,19 +2368,20 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     "template_path": "templates/community/instructions/test.instructions.md.tmpl",
                     "installed_path": ".github/instructions/test.instructions.md",
                     "installed_at": "2026-01-01T00:00:00Z",
-                    "checksum": original_checksum,
+                    "installed_checksum": installed_checksum,
+                    "source_checksum": original_tmpl_checksum,
                 }],
             })
             _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
 
             ct_dir = ws / ".github" / "instructions"
             ct_dir.mkdir(parents=True)
-            (ct_dir / "test.instructions.md").write_bytes(original_content)
+            (ct_dir / "test.instructions.md").write_bytes(installed_content)
 
             report = verify_workspace(ws, autoharness_home)
             self.assertEqual(len(report["community_templates"]), 1)
             self.assertFalse(report["community_templates"][0]["ok"])
-            self.assertTrue(report["community_templates"][0]["manifest_checksum_ok"])
+            self.assertTrue(report["community_templates"][0]["installed_checksum_ok"])
             self.assertTrue(report["community_templates"][0]["upstream_updated"])
             self.assertEqual(report["community_templates"][0]["reason"], "upstream template updated")
 
@@ -2410,7 +2420,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     "template_path": "templates/community/instructions/missing.instructions.md.tmpl",
                     "installed_path": ".github/instructions/missing.instructions.md",
                     "installed_at": "2026-01-01T00:00:00Z",
-                    "checksum": "abc123",
+                    "installed_checksum": "abc123",
+                    "source_checksum": "def456",
                 }],
             })
             _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
@@ -2455,7 +2466,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     "template_path": "templates/community/instructions/test.instructions.md.tmpl",
                     "installed_path": ".github/instructions/test.instructions.md",
                     "installed_at": "2026-01-01T00:00:00Z",
-                    "checksum": "original_checksum_that_wont_match",
+                    "installed_checksum": "original_checksum_that_wont_match",
+                    "source_checksum": "source_checksum_value",
                 }],
             })
             _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})

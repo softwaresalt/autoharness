@@ -505,8 +505,11 @@ overlays, evaluate community templates from the autoharness registry:
      `.github/agents/`, instructions → `.github/instructions/`, skills →
      `.github/skills/`, prompts → `.github/prompts/`).
 7. Record selected community templates in the harness manifest under
-   `community_templates[]` (see schema at
-   `schemas/harness-manifest.schema.json`).
+   `community_templates[]` with both `installed_checksum` (SHA-256 of the
+   resolved installed artifact) and `source_checksum` (SHA-256 of the source
+   `.tmpl` file at install time). This dual-checksum design enables the tuner
+   to distinguish local modifications from upstream template updates. See
+   schema at `schemas/harness-manifest.schema.json`.
 
 Community templates are part of the `overlays` install layer. If any
 community templates are selected and `install_layers` does not already

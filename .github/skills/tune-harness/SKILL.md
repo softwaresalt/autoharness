@@ -310,7 +310,7 @@ current workspace profile recommendations:
 | Installed community template no longer in registry (removed or deprecated) | Degrading | Propose removing the installed artifact and its manifest entry |
 | Registry has new entries matching the workspace profile but not installed | Growth | Propose the new community templates to the operator for opt-in selection |
 | Installed community template's `prerequisite_packs` are no longer satisfied | Degrading | Propose removing the template or enabling the missing prerequisite pack |
-| Installed community template checksum differs from source `.tmpl` checksum (updated upstream) | Growth | Propose reinstalling the template from the updated source |
+| Installed community template checksum differs from source `.tmpl` checksum recorded at install time (upstream update) | Growth | Propose reinstalling the template from the updated source |
 
 Use the profile's structured recommendation reasons when available so proposals
 can explain **why** the preset, layers, or packs changed rather than only

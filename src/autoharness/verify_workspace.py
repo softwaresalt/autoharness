@@ -1966,37 +1966,64 @@ def verify_workspace(
     community_templates = manifest.get("community_templates") or []
     community_results: list[dict[str, Any]] = []
     for ct in community_templates:
+        if not isinstance(ct, dict):
+            community_results.append({
+                "template_id": "unknown",
+                "installed_path": "",
+                "ok": False,
+                "reason": "malformed entry (not a dict)",
+            })
+            continue
         tid = ct.get("template_id", "unknown")
-        installed = ct.get("installed_path", "")
-        expected_checksum = ct.get("checksum", "")
-        template_path_rel = ct.get("template_path", "")
-        ct_path = workspace_path / installed if installed else None
-        if ct_path and ct_path.exists():
-            actual_checksum = hashlib.sha256(
+        installed = str(ct.get("installed_path", ""))
+        expected_installed_checksum = ct.get("installed_checksum", "")
+        expected_source_checksum = ct.get("source_checksum", "")
+        template_path_rel = str(ct.get("template_path", ""))
+        # Validate paths are relative and don't escape roots
+        if (
+            not installed
+            or not template_path_rel
+            or installed.startswith(("/", "\\"))
+            or template_path_rel.startswith(("/", "\\"))
+            or ".." in installed.split("/")
+            or ".." in installed.split("\\")
+            or ".." in template_path_rel.split("/")
+            or ".." in template_path_rel.split("\\")
+        ):
+            community_results.append({
+                "template_id": tid,
+                "installed_path": installed,
+                "ok": False,
+                "reason": "invalid path (must be relative, no parent traversal)",
+            })
+            continue
+        ct_path = workspace_path / installed
+        if ct_path.exists():
+            actual_installed_checksum = hashlib.sha256(
                 ct_path.read_bytes()
             ).hexdigest()
-            manifest_ok = actual_checksum == expected_checksum
-            # Check for upstream template updates in autoharness_home
+            installed_ok = actual_installed_checksum == expected_installed_checksum
+            # Check for upstream template updates via source_checksum
             upstream_updated = False
-            if template_path_rel:
+            if expected_source_checksum and template_path_rel:
                 source_tmpl = autoharness_home / template_path_rel
                 if source_tmpl.exists():
-                    source_checksum = hashlib.sha256(
+                    actual_source_checksum = hashlib.sha256(
                         source_tmpl.read_bytes()
                     ).hexdigest()
-                    if source_checksum != expected_checksum:
+                    if actual_source_checksum != expected_source_checksum:
                         upstream_updated = True
             entry: dict[str, Any] = {
                 "template_id": tid,
                 "installed_path": installed,
-                "ok": manifest_ok and not upstream_updated,
-                "manifest_checksum_ok": manifest_ok,
+                "ok": installed_ok and not upstream_updated,
+                "installed_checksum_ok": installed_ok,
                 "upstream_updated": upstream_updated,
             }
-            if not manifest_ok:
+            if not installed_ok:
                 entry["reason"] = "checksum mismatch"
-                entry["expected_checksum"] = expected_checksum
-                entry["actual_checksum"] = actual_checksum
+                entry["expected_checksum"] = expected_installed_checksum
+                entry["actual_checksum"] = actual_installed_checksum
             elif upstream_updated:
                 entry["reason"] = "upstream template updated"
             community_results.append(entry)

@@ -67,7 +67,7 @@
       "description": "Community templates selected and installed from the community template registry",
       "items": {
         "type": "object",
-        "required": ["template_id", "template_path", "installed_path", "installed_at", "checksum"],
+        "required": ["template_id", "template_path", "installed_path", "installed_at", "installed_checksum", "source_checksum"],
         "properties": {
           "template_id": {
             "type": "string",
@@ -86,9 +86,13 @@
             "format": "date-time",
             "description": "When this community template was installed"
           },
-          "checksum": {
+          "installed_checksum": {
             "type": "string",
-            "description": "SHA-256 of the installed file content for drift detection"
+            "description": "SHA-256 of the installed resolved artifact content for local modification detection"
+          },
+          "source_checksum": {
+            "type": "string",
+            "description": "SHA-256 of the source .tmpl file at install time for upstream drift detection"
           }
         }
       },
