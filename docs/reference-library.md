@@ -92,8 +92,12 @@ Composable agent skill implementations organized under a `skills/` directory.
 
 ## Keeping references current
 
-Submodules are pinned to a specific commit at clone time. To update all
-submodules to the latest remote HEAD:
+Submodules are pinned to a specific commit at clone time. Each submodule has
+an explicit `branch` entry in `.gitmodules` (matching its repository's default
+branch: `main` or `master` as appropriate). `git submodule update --remote`
+follows this `branch` setting to advance the pinned commit.
+
+To update all submodules to their latest tracked branch HEAD:
 
 ```sh
 git submodule update --remote
@@ -123,8 +127,10 @@ git submodule status
 2. **Read the source file** to understand the pattern's assumptions, inputs,
    and outputs.
 
-3. **Check the license** — all 6 reference repos use permissive licenses
-   (MIT or similar). Attribute the source in the template's YAML frontmatter.
+3. **Check the license** — verify the license of the specific reference repo
+   and pinned commit you are drawing from. Licenses can vary and change over
+   time. Record the license in the curated template's YAML frontmatter
+   alongside the source attribution.
 
 4. **Adapt** — replace hard-coded values with `{{VARIABLE}}` placeholders.
    Technology-specific content must be extracted into variables or removed.

@@ -1,18 +1,24 @@
 [submodule "references/awesome-copilot"]
 	path = references/awesome-copilot
 	url = https://github.com/github/awesome-copilot
+	branch = main
 [submodule "references/awesome-agent-skills"]
 	path = references/awesome-agent-skills
 	url = https://github.com/VoltAgent/awesome-agent-skills
+	branch = main
 [submodule "references/awesome-claude-skills"]
 	path = references/awesome-claude-skills
 	url = https://github.com/ComposioHQ/awesome-claude-skills
+	branch = master
 [submodule "references/ai-skills"]
 	path = references/ai-skills
 	url = https://github.com/iliaal/ai-skills
+	branch = master
 [submodule "references/awesome-agents"]
 	path = references/awesome-agents
 	url = https://github.com/kyrolabs/awesome-agents
+	branch = main
 [submodule "references/agent-skills"]
 	path = references/agent-skills
 	url = https://github.com/CommandCodeAI/agent-skills
+	branch = main

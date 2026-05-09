@@ -41,13 +41,13 @@ Community templates use the same conventions as first-party templates:
 2. **Evaluate** — assess against the curation criteria above; consult the
    source repo's README and license
 3. **Adapt** — replace hard-coded values with `{{VARIABLE}}` placeholders;
-   document new variables in `install-harness/SKILL.md`
+   document new variables in `.github/skills/install-harness/SKILL.md`
 4. **Test** — resolve variables manually against a Rust profile, a Go
    profile, and a Python or TypeScript profile; confirm valid Markdown output
 5. **Place** — add the `.tmpl` file here under the appropriate subdirectory
 6. **Register** — if the template introduces new capability pack behavior,
-   update the schemas and `install-harness/SKILL.md` per the pack integration
-   pattern in `docs/harness-architecture.instructions.md`
+   update the schemas and `.github/skills/install-harness/SKILL.md` per the pack integration
+   pattern in `.github/instructions/harness-architecture.instructions.md`
 
 ## Source attribution
 
