@@ -395,14 +395,14 @@ Note: These capability-pack and reviewer-selection variables are used internally
 
 | Variable | Resolved From | Example (Rust) | Example (Go) | Example (Python) |
 |---|---|---|---|---|
-| `{{ADR_DIRECTORY}}` | `docs.adr_directory` or operator override | `docs/adrs` | `docs/adrs` | `docs/adrs` |
-| `{{REVIEW_LANGUAGE}}` | `conventions.documentation_language` or operator override | `English` | `English` | `English` |
-| `{{CODEBASE_DOCS_DIRECTORY}}` | `docs.codebase_directory` or default `docs/codebase` | `docs/codebase` | `docs/codebase` | `docs/codebase` |
-| `{{PLANS_DIRECTORY}}` | `docs.plans_directory` or default `docs/plans` | `docs/plans` | `docs/plans` | `docs/plans` |
-| `{{TEST_COMMAND}}` | `testing.command` from workspace profile | `cargo test` | `go test ./...` | `pytest` |
-| `{{COMMIT_PREFIX}}` | `conventions.commit_prefix` or default `feat` | `feat` | `feat` | `feat` |
-| `{{CHANGELOG_STYLE_FILE}}` | `docs.changelog_style` or default (empty if none exists) | `CHANGELOG_STYLE.md` | `CHANGELOG_STYLE.md` | `CHANGELOG_STYLE.md` |
-| `{{CHANGELOG_FILE}}` | `docs.changelog_file` or default `CHANGELOG.md` | `CHANGELOG.md` | `CHANGELOG.md` | `CHANGELOG.md` |
+| `{{ADR_DIRECTORY}}` | operator `community.adr_directory` or default | `docs/adrs` | `docs/adrs` | `docs/adrs` |
+| `{{REVIEW_LANGUAGE}}` | operator `community.review_language` or default `English` | `English` | `English` | `English` |
+| `{{CODEBASE_DOCS_DIRECTORY}}` | operator `community.codebase_docs_directory` or default `docs/codebase` | `docs/codebase` | `docs/codebase` | `docs/codebase` |
+| `{{PLANS_DIRECTORY}}` | operator `community.plans_directory` or default `docs/plans` | `docs/plans` | `docs/plans` | `docs/plans` |
+| `{{TEST_COMMAND}}` | `test.command` from workspace profile or operator override | `cargo test` | `go test ./...` | `pytest` |
+| `{{COMMIT_PREFIX}}` | operator `community.commit_prefix` or default `feat` | `feat` | `feat` | `feat` |
+| `{{CHANGELOG_STYLE_FILE}}` | operator `community.changelog_style_file` or default `CHANGELOG_STYLE.md` | `CHANGELOG_STYLE.md` | `CHANGELOG_STYLE.md` | `CHANGELOG_STYLE.md` |
+| `{{CHANGELOG_FILE}}` | operator `community.changelog_file` or default `CHANGELOG.md` | `CHANGELOG.md` | `CHANGELOG.md` | `CHANGELOG.md` |
 
 Note: Community template variables are resolved only when the operator selects the corresponding community template during Step 1.3a. They are not resolved for templates that are not selected.
 

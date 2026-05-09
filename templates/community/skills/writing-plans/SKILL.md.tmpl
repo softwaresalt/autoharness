@@ -43,39 +43,39 @@ Assume they are a skilled developer, but know almost nothing about the toolset o
 
 ## Task Structure
 
-```markdown
-### Task N: [Component Name]
+Each task should follow this pattern:
 
-**Files:**
-- Create: `exact/path/to/file`
-- Modify: `exact/path/to/existing:123-145`
-- Test: `tests/exact/path/to/test`
+    ### Task N: [Component Name]
 
-**Step 1: Write the failing test**
+    **Files:**
+    - Create: `exact/path/to/file`
+    - Modify: `exact/path/to/existing:123-145`
+    - Test: `tests/exact/path/to/test`
 
-[Complete test code]
+    **Step 1: Write the failing test**
 
-**Step 2: Run test to verify it fails**
+    [Complete test code]
 
-Run: `{{TEST_COMMAND}} tests/path/test::test_name`
-Expected: FAIL with "[expected error message]"
+    **Step 2: Run test to verify it fails**
 
-**Step 3: Write minimal implementation**
+    Run: `{{TEST_COMMAND}} <test-selector>`
+    Expected: FAIL with "[expected error message]"
 
-[Complete implementation code]
+    (Adapt `<test-selector>` to the workspace test runner syntax.)
 
-**Step 4: Run test to verify it passes**
+    **Step 3: Write minimal implementation**
 
-Run: `{{TEST_COMMAND}} tests/path/test::test_name`
-Expected: PASS
+    [Complete implementation code]
 
-**Step 5: Commit**
+    **Step 4: Run test to verify it passes**
 
-```
-git add [files]
-git commit -m "{{COMMIT_PREFIX}}: add specific feature"
-```
-```
+    Run: `{{TEST_COMMAND}} <test-selector>`
+    Expected: PASS
+
+    **Step 5: Commit**
+
+    git add [files]
+    git commit -m "{{COMMIT_PREFIX}}: add specific feature"
 
 ## Remember
 
