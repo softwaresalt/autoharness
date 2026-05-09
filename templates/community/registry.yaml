@@ -19,4 +19,115 @@
 # selection. Community templates are never auto-installed.
 
 schema_version: "1.0.0"
-templates: []
+templates:
+  - template_id: adr-generator
+    artifact_type: agent
+    title: "ADR Generator"
+    description: "Expert agent for creating comprehensive Architectural Decision Records (ADRs) with structured formatting, coded consequence tracking, alternative analysis, and quality validation. Produces well-structured ADRs with front matter, status tracking, and implementation notes."
+    source_repo: awesome-copilot
+    source_path: agents/adr-generator.agent.md
+    license: MIT
+    template_path: templates/community/agents/adr-generator.agent.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [documentation, architecture, adr, decision-records]
+    variables_introduced: [ADR_DIRECTORY]
+    primitives_deepened: [9]
+
+  - template_id: code-review-generic
+    artifact_type: instruction
+    title: "Generic Code Review Guidelines"
+    description: "Comprehensive code review instructions with priority-based issue classification (critical/important/suggestion), structured comment format templates, and checklists covering code quality, security, testing, performance, architecture, and documentation. Technology-agnostic with customization points."
+    source_repo: awesome-copilot
+    source_path: instructions/code-review-generic.instructions.md
+    license: MIT
+    template_path: templates/community/instructions/code-review-generic.instructions.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [code-review, quality, security, testing]
+    variables_introduced: [REVIEW_LANGUAGE]
+    primitives_deepened: [7]
+
+  - template_id: agent-safety
+    artifact_type: instruction
+    title: "Agent Safety & Governance"
+    description: "Guidelines for building safe, governed AI agent systems. Covers tool access controls (allowlists, blocklists, rate limits), content safety scanning, multi-agent trust scoring, audit logging, and common governance mistakes. Applicable when writing code that uses agent frameworks, tool-calling LLMs, or multi-agent orchestration."
+    source_repo: awesome-copilot
+    source_path: instructions/agent-safety.instructions.md
+    license: MIT
+    template_path: templates/community/instructions/agent-safety.instructions.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [safety, governance, guardrails, agent-framework, audit]
+    variables_introduced: []
+    primitives_deepened: [5]
+
+  - template_id: acquire-codebase-knowledge
+    artifact_type: skill
+    title: "Acquire Codebase Knowledge"
+    description: "Produces seven structured documentation files (STACK, STRUCTURE, ARCHITECTURE, CONVENTIONS, INTEGRATIONS, TESTING, CONCERNS) by scanning the project and verifying every claim against source files. Supports focus-area mode and includes validation loops with evidence requirements."
+    source_repo: awesome-copilot
+    source_path: skills/acquire-codebase-knowledge/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/acquire-codebase-knowledge/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [onboarding, documentation, codebase-discovery, architecture]
+    variables_introduced: [CODEBASE_DOCS_DIRECTORY]
+    primitives_deepened: [1, 9]
+
+  - template_id: writing-plans
+    artifact_type: skill
+    title: "Writing Implementation Plans"
+    description: "Creates comprehensive implementation plans with bite-sized tasks (2-5 minutes each), exact file paths, complete code snippets, and a test-first workflow. Plans assume the implementer has zero codebase context and enforce DRY, YAGNI, TDD, and frequent commits."
+    source_repo: agent-skills
+    source_path: skills/writing-plans/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/writing-plans/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [planning, decomposition, tdd, implementation]
+    variables_introduced: [PLANS_DIRECTORY, TEST_COMMAND, COMMIT_PREFIX]
+    primitives_deepened: [2, 4]
+
+  - template_id: brainstorming
+    artifact_type: skill
+    title: "Brainstorming Ideas Into Designs"
+    description: "Collaborative ideation skill that turns ideas into fully formed designs through one-question-at-a-time dialogue, multiple-choice preference, 2-3 approach exploration, and incremental design validation in 200-300 word sections. Produces design documents ready for implementation planning."
+    source_repo: agent-skills
+    source_path: skills/brainstorming/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/brainstorming/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [ideation, design, requirements, collaboration]
+    variables_introduced: [PLANS_DIRECTORY]
+    primitives_deepened: [2]
+
+  - template_id: changelog-generator
+    artifact_type: skill
+    title: "Changelog Generator"
+    description: "Transforms technical git commits into polished, user-friendly changelogs. Scans git history, categorizes changes (features, improvements, fixes, breaking, security), translates developer language to customer language, filters internal noise, and formats professionally."
+    source_repo: agent-skills
+    source_path: skills/changelog-generator/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/changelog-generator/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [changelog, release, documentation, git]
+    variables_introduced: [CHANGELOG_STYLE_FILE, CHANGELOG_FILE]
+    primitives_deepened: [9, 10]
+
+  - template_id: receiving-code-review
+    artifact_type: skill
+    title: "Code Review Reception"
+    description: "Discipline for receiving code review feedback with technical rigor rather than performative agreement. Defines a 6-step response pattern (read, understand, verify, evaluate, respond, implement), source-specific handling, YAGNI checks for suggested features, ordered implementation, and clear pushback guidelines."
+    source_repo: agent-skills
+    source_path: skills/receiving-code-review/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/receiving-code-review/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [code-review, feedback, quality, technical-rigor]
+    variables_introduced: []
+    primitives_deepened: [7]
