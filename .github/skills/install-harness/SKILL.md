@@ -391,6 +391,21 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 
 Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
+**Community template variables** — used by templates in `templates/community/` when selected during Step 1.3a:
+
+| Variable | Resolved From | Example (Rust) | Example (Go) | Example (Python) |
+|---|---|---|---|---|
+| `{{ADR_DIRECTORY}}` | `docs.adr_directory` or operator override | `docs/adrs` | `docs/adrs` | `docs/adrs` |
+| `{{REVIEW_LANGUAGE}}` | `conventions.documentation_language` or operator override | `English` | `English` | `English` |
+| `{{CODEBASE_DOCS_DIRECTORY}}` | `docs.codebase_directory` or default `docs/codebase` | `docs/codebase` | `docs/codebase` | `docs/codebase` |
+| `{{PLANS_DIRECTORY}}` | `docs.plans_directory` or default `docs/plans` | `docs/plans` | `docs/plans` | `docs/plans` |
+| `{{TEST_COMMAND}}` | `testing.command` from workspace profile | `cargo test` | `go test ./...` | `pytest` |
+| `{{COMMIT_PREFIX}}` | `conventions.commit_prefix` or default `feat` | `feat` | `feat` | `feat` |
+| `{{CHANGELOG_STYLE_FILE}}` | `docs.changelog_style` or default (empty if none exists) | `CHANGELOG_STYLE.md` | `CHANGELOG_STYLE.md` | `CHANGELOG_STYLE.md` |
+| `{{CHANGELOG_FILE}}` | `docs.changelog_file` or default `CHANGELOG.md` | `CHANGELOG.md` | `CHANGELOG.md` | `CHANGELOG.md` |
+
+Note: Community template variables are resolved only when the operator selects the corresponding community template during Step 1.3a. They are not resolved for templates that are not selected.
+
 #### Step 1.3: Select Preset, Primitive Set, and Capability Packs
 
 Resolve the installation shape in this order:
