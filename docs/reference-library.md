@@ -145,6 +145,58 @@ git submodule status
    technology profiles (Rust, Go, Python/TypeScript) and confirming the
    output is valid Markdown with no unresolved `{{...}}`.
 
+8. **Register in the community template registry** — add an entry to
+   `templates/community/registry.yaml` with the template's metadata so
+   install and tune workflows can discover it. See the
+   [Community Template Registry](#community-template-registry) section below.
+
+## Community Template Registry
+
+The registry at `templates/community/registry.yaml` catalogs every curated
+community template with structured metadata. It enables the installer and
+tuner to select relevant templates by matching entries against the workspace
+profile — without scanning raw template file content.
+
+**Schema**: `schemas/community-template-registry.schema.json`
+
+### What the registry provides
+
+Each entry contains:
+
+| Field | Purpose |
+|---|---|
+| `template_id` | Unique kebab-case slug (e.g., `code-review-checklist`) |
+| `artifact_type` | `agent`, `skill`, `instruction`, or `prompt` |
+| `title` / `description` | Human-readable summary detailed enough for the installer to assess relevance |
+| `source_repo` / `source_path` | Attribution to the `references/` submodule and original file |
+| `license` | License of the source repository |
+| `template_path` | Path to the `.tmpl` file relative to `autoharness_home` |
+| `applicable_profiles` | Technology profile tags this template applies to (e.g., `any`, `python`, `web-app`) |
+| `prerequisite_packs` | Capability packs required for the template to be useful |
+| `tags` | Freeform tags for categorization and search |
+| `variables_introduced` | New `{{VARIABLE}}` names beyond the standard set |
+| `primitives_deepened` | Which of the 10 primitives this template relates to |
+
+### How the installer uses it
+
+During Step 1.3a of the install-harness skill, the installer:
+
+1. Reads the registry from `autoharness_home`
+2. Filters entries by `applicable_profiles` and `prerequisite_packs`
+3. Ranks matches by profile overlap and primitive relevance
+4. Presents the ranked list to the operator for opt-in selection
+5. Records installed community templates in the harness manifest
+
+Community templates are **never auto-installed** — the operator always
+chooses which to include.
+
+### How the tuner uses it
+
+During Step 1.6 of the tune-harness skill, the tuner checks for community
+template drift: templates removed from the registry, new matches for the
+workspace profile, prerequisite packs no longer satisfied, and checksum
+changes from upstream updates.
+
 ## What NOT to do
 
 * Do not copy files from `references/` directly into `templates/` without

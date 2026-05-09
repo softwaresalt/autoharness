@@ -307,6 +307,10 @@ current workspace profile recommendations:
 | Risky-plan hardening guidance missing or stale | Degrading | Propose retuning stage, plan-harden, and plan-review together so risky plans are hardened before harvest |
 | Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
 | `.graphtor/` directory or graphtor MCP tools detected but `graphtor-docs` pack missing | Growth | Propose enabling the pack and weaving indexed local documentation retrieval guidance through research and knowledge-retrieval workflows |
+| Installed community template no longer in registry (removed or deprecated) | Degrading | Propose removing the installed artifact and its manifest entry |
+| Registry has new entries matching the workspace profile but not installed | Growth | Propose the new community templates to the operator for opt-in selection |
+| Installed community template's `prerequisite_packs` are no longer satisfied | Degrading | Propose removing the template or enabling the missing prerequisite pack |
+| Installed community template checksum differs from source `.tmpl` checksum (updated upstream) | Growth | Propose reinstalling the template from the updated source |
 
 Use the profile's structured recommendation reasons when available so proposals
 can explain **why** the preset, layers, or packs changed rather than only
