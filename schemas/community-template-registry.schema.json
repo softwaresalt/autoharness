@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Community Template Registry",
+  "description": "Schema for the community template registry that catalogs curated templates distilled from reference libraries. The registry enables install and tune workflows to select relevant community templates by matching entries against workspace profiles.",
+  "type": "object",
+  "required": ["schema_version", "templates"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "templates": {
+      "type": "array",
+      "description": "Curated community template entries",
+      "items": {
+        "$ref": "#/$defs/template_entry"
+      }
+    }
+  },
+  "$defs": {
+    "template_entry": {
+      "type": "object",
+      "required": ["template_id", "artifact_type", "title", "description", "source_repo", "source_path", "license", "template_path", "applicable_profiles"],
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "description": "Unique slug identifier for this template (e.g. 'code-review-checklist', 'testing-strategy')",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "artifact_type": {
+          "type": "string",
+          "enum": ["agent", "skill", "instruction", "prompt"],
+          "description": "Type of harness artifact this template produces"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable title of the template"
+        },
+        "description": {
+          "type": "string",
+          "description": "What this template does and when it should be used. Must be detailed enough for the installer to decide relevance without reading the template file."
+        },
+        "source_repo": {
+          "type": "string",
+          "description": "Which references/ submodule this template was distilled from",
+          "examples": ["awesome-copilot", "awesome-claude-skills", "agent-skills"]
+        },
+        "source_path": {
+          "type": "string",
+          "description": "Original file path within the source repository",
+          "examples": ["agents/code-review.agent.md", "skills/testing/SKILL.md"]
+        },
+        "license": {
+          "type": "string",
+          "description": "License of the source repository",
+          "examples": ["MIT", "Apache-2.0", "CC-BY-4.0"]
+        },
+        "template_path": {
+          "type": "string",
+          "description": "Path to the .tmpl file relative to autoharness_home",
+          "examples": ["templates/community/agents/code-review.agent.md.tmpl"]
+        },
+        "applicable_profiles": {
+          "type": "array",
+          "description": "Technology profile tags this template applies to. Use 'any' for technology-agnostic templates.",
+          "items": {
+            "type": "string",
+            "examples": ["any", "rust", "go", "python", "typescript", "javascript", "java", "csharp", "web-app", "api-service", "cli-tool", "library", "mcp-server"]
+          },
+          "minItems": 1
+        },
+        "prerequisite_packs": {
+          "type": "array",
+          "description": "Capability packs that must be enabled for this template to be useful. Empty array means no pack prerequisites.",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "tags": {
+          "type": "array",
+          "description": "Freeform tags for categorization and search",
+          "items": { "type": "string" },
+          "default": [],
+          "examples": [["code-review", "testing", "documentation", "security", "ci-cd", "deployment"]]
+        },
+        "variables_introduced": {
+          "type": "array",
+          "description": "New {{VARIABLE}} names this template introduces beyond the standard set. Empty if the template only uses standard variables.",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "primitives_deepened": {
+          "type": "array",
+          "description": "Which of the 10 primitives this template deepens or supports",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "default": []
+        }
+      }
+    }
+  }
+}
