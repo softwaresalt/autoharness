@@ -137,6 +137,7 @@ Partially woven overlays should be treated as a real harness-quality problem.
 | `strict-safety` | Stronger default safety posture for risky work with explicit action classification | 5, 6, 8, 10 |
 | `release-observability` | Richer monitoring and closure expectations | 7, 10 |
 | `adversarial-review` | Multi-model parallel review with consensus-weighted findings and remediation queue | 7, 10 |
+| `graphtor-docs` | Indexed local documentation search and semantic retrieval via graphtor-docs MCP server | 1, 6, 9 |
 
 ## Example: agent-engram as a formal overlay
 
@@ -436,6 +437,59 @@ alerting, and rollback discipline beyond what operational-closure provides by de
 * pack enabled but closure artifacts omit monitoring plans or rollback triggers - re-weave the overlay
 * pack disabled but monitoring-specific overlay language remains in the harness - offer cleanup
 * workspace gained deployable-service or runtime surfaces since install - recommend enabling the pack
+
+## Example: graphtor-docs as a formal overlay
+
+`graphtor-docs` is a pack for workspaces that use the graphtor-docs MCP server to
+maintain an indexed local documentation library — covering local file trees, Git
+repository content, and external URLs — and serve it through a structured semantic
+search interface.
+
+### Eligibility signals
+
+* `.graphtor/` directory exists at the workspace root (indicates an active graphtor-docs installation or persisted index state)
+* `.graphtor/config/sources.yaml` declares which documentation sources to index
+* `.mcp.json`, `.vscode/mcp.json`, or `.vscode/settings.json` references `graphtor-docs`, `graphtor`, or any of the 8 graphtor-docs MCP tool names
+* `graphtor-docs` binary is on PATH or at `.graphtor/bin/`
+
+### Recommendation logic
+
+* **Automatically recommended** when `.graphtor/` is present AND either `mcp_configured` or `binary_on_path` is true
+* **Automatically recommended** when any graphtor MCP tool name is referenced in MCP configuration files
+* **Not recommended by default** for workspaces without a graphtor-docs installation
+
+### Overlay targets
+
+| Artifact | Change |
+|---|---|
+| `graphtor-docs.instructions.md` | New instruction file with lifecycle protocol, 8-tool search protocol, fallback rules, and data ownership contract |
+| `stage.agent.md` | Add graphtor-docs pack guidance block alongside agent-engram guidance |
+| `ship.agent.md` | Add graphtor-docs pack guidance block alongside agent-engram guidance |
+| Research / planning workflows | Weave indexed documentation retrieval before web search or filesystem scan |
+
+### Behavior deltas
+
+* agents call `get_status` once per major workflow phase to confirm server reachability and index freshness
+* `search_local_docs` is the first-choice tool for keyword-oriented documentation lookup
+* `search_semantic` is used for conceptual or natural-language queries
+* `research_topic` is used for multi-angle topic research
+* `traverse_doc_links` follows hyperlinks within indexed documents to trace related content
+* `list_sources`, `get_chunk_by_id`, and `get_document` are used for direct source navigation
+* agents fall back to grep / glob / file reading only when the server is unavailable (`GRAPHTOR_UNAVAILABLE`) or no indexed sources cover the query
+* `.graphtor/` artifacts are treated as tool-managed state and are not hand-edited
+
+### Verification checks
+
+* `graphtor-docs.instructions.md` is installed and references all 8 tool names
+* stage and ship agents reference the graphtor-docs pack and instruction file
+* manifest records the overlay target set
+
+### Tuning drift rules
+
+* `.graphtor/` or graphtor MCP tools detected but the pack is missing — recommend enabling it
+* pack enabled but `graphtor-docs.instructions.md` is missing — re-install it
+* pack enabled but stage or ship agents lack graphtor-docs weaving — re-weave the overlay
+* pack disabled but graphtor-docs overlay language remains in the harness — offer cleanup
 
 ## Conditional reviewer note
 
