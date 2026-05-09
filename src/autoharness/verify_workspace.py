@@ -1963,6 +1963,35 @@ def verify_workspace(
                 [tuple(pair) for pair in assertion.get("must_precede") or []],
             )
 
+    community_templates = manifest.get("community_templates") or []
+    community_results: list[dict[str, Any]] = []
+    for ct in community_templates:
+        tid = ct.get("template_id", "unknown")
+        installed = ct.get("installed_path", "")
+        expected_checksum = ct.get("checksum", "")
+        ct_path = workspace_path / installed if installed else None
+        if ct_path and ct_path.exists():
+            actual_checksum = hashlib.sha256(
+                ct_path.read_bytes()
+            ).hexdigest()
+            ok = actual_checksum == expected_checksum
+            community_results.append({
+                "template_id": tid,
+                "installed_path": installed,
+                "ok": ok,
+                "reason": None if ok else "checksum mismatch",
+                "expected_checksum": expected_checksum,
+                "actual_checksum": actual_checksum,
+            })
+        else:
+            community_results.append({
+                "template_id": tid,
+                "installed_path": installed,
+                "ok": False,
+                "reason": "missing file",
+            })
+    report["community_templates"] = community_results
+
     for assertion in FOUNDATION_ASSERTIONS:
         foundation_path = workspace_path / assertion["path"]
         if not foundation_path.exists():
