@@ -185,7 +185,7 @@ templates:
     applicable_profiles: [any]
     prerequisite_packs: []
     tags: [documentation, review, quality]
-    variables_introduced: []
+    variables_introduced: [PLANS_DIRECTORY]
     primitives_deepened: [7, 9]
 
   - template_id: meta-prompting

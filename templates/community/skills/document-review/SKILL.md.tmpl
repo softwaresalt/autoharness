@@ -83,7 +83,7 @@ Simplification is purposeful removal of unnecessary complexity, not shortening f
 
 ## Step 7: Reader Test (Optional)
 
-For standalone documents that must be self-contained (onboarding guides, ADRs, external-facing docs), dispatch a zero-context sub-agent to simulate a first-time reader. The sub-agent has no conversation history — it sees only what a future reader would see.
+For standalone documents that must be self-contained (onboarding guides, ADRs, external-facing docs), perform a zero-context reread to simulate a first-time reader. Set aside all conversation history and prior context — evaluate the document as if reading it for the first time.
 
 **How to run the test:**
 
@@ -91,15 +91,15 @@ For standalone documents that must be self-contained (onboarding guides, ADRs, e
    - Concrete retrieval: "What command sets up the dev environment?"
    - Decision rationale: "Why did we pick X over Y?"
    - Ambiguity probe: "Could a reader interpret <specific phrase> in more than one way?"
-2. **Dispatch a fresh sub-agent** with the document attached and the questions. No prior context, no session history.
-3. **Compare the sub-agent's answers** against author intent. Also ask the sub-agent directly: "What feels ambiguous? What prior knowledge does this assume? Are there internal contradictions?"
+2. **Answer each question using only the document text.** Do not draw on conversation history, prior context, or knowledge gained during the review. If the document does not contain enough information to answer, mark it as a gap.
+3. **Check for ambiguity and assumptions**: "What feels ambiguous? What prior knowledge does this assume? Are there internal contradictions?"
 
 **Interpret results:**
 
-- Correct, confident answers → document is self-contained for that question.
-- Wrong answer with high confidence → document actively misleads. Highest-priority fix.
-- Hedged or "insufficient information" → the document has a gap the author didn't notice. Fill it.
-- Sub-agent flags ambiguity the author didn't intend → reword for precision.
+- Answerable from the document alone → document is self-contained for that question.
+- Answer requires outside knowledge → the document has a gap. Fill it.
+- Multiple valid interpretations exist → reword for precision.
+- Answer contradicts another section → document actively misleads. Highest-priority fix.
 
 Skip for context-dependent docs (brainstorm notes, plan files, internal working docs) where the reader will always have prior context.
 
