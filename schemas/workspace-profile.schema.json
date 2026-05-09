@@ -264,7 +264,12 @@
         "mcp_configured": { "type": "boolean" },
         "config_paths": {
           "type": "array",
+          "description": "Paths to MCP and other non-sources config files found (e.g. .mcp.json, .vscode/mcp.json)",
           "items": { "type": "string" }
+        },
+        "sources_path": {
+          "type": "string",
+          "description": "Path to the graphtor-docs sources configuration file (sources.yaml) that declares which paths, repos, and URLs to index"
         },
         "binary_on_path": { "type": "boolean" },
         "instruction_markers": {

@@ -386,7 +386,7 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 | `{{AGENT_ADVERSARIAL_REVIEW_ENABLED}}` | `capability_packs` contains `adversarial-review` | `true` | `false` |
 | `{{GRAPHTOR_DOCS_ENABLED}}` | `capability_packs` contains `graphtor-docs` | `true` | `false` |
 | `{{GRAPHTOR_DOCS_DETECTED}}` | `graphtor_docs.detected` | `true` | `false` |
-| `{{GRAPHTOR_SOURCES_PATH}}` | `graphtor_docs.config_paths[0]` or operator `graphtor_docs.sources_path` | `.graphtor/config/sources.yaml` | `.graphtor/config/sources.yaml` |
+| `{{GRAPHTOR_SOURCES_PATH}}` | `graphtor_docs.sources_path` or operator `graphtor_docs.sources_path` | `.graphtor/config/sources.yaml` | `.graphtor/config/sources.yaml` |
 | `{{GRAPHTOR_BINARY_PATH}}` | binary path from `graphtor_docs` detection or operator `graphtor_docs.binary_path` | `.graphtor/bin/graphtor-docs` | `.graphtor/bin/graphtor-docs` |
 
 Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.

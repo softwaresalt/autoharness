@@ -12,8 +12,9 @@ resorting to broad web search or raw filesystem scan.
 
 ## Required Tool Surface
 
-The workspace exposes an MCP tool surface from the graphtor-docs server. Use the registered tool
-names from `.mcp.json` or `{{GRAPHTOR_SOURCES_PATH}}`. The canonical tool surface includes:
+The workspace exposes an MCP tool surface from the graphtor-docs server. Tool names are registered
+through MCP configuration (`.mcp.json`, `.vscode/mcp.json`, or editor settings) — not through the
+source-index configuration. The canonical tool surface includes:
 
 | Tool | Purpose |
 |---|---|

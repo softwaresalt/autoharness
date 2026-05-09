@@ -198,7 +198,8 @@ Record: `graphtor_docs{}` with the following structure:
 graphtor_docs:
   detected: true|false
   mcp_configured: true|false
-  config_paths: []          # paths to sources.yaml or other config files found
+  config_paths: []          # paths to MCP and other non-sources config files found (e.g. .mcp.json, .vscode/mcp.json)
+  sources_path: ""          # path to sources.yaml (the graphtor-docs source-index config); empty string if not found
   binary_on_path: true|false
   instruction_markers: []   # matched phrases from AGENTS.md / copilot-instructions.md
   recommended: true|false
