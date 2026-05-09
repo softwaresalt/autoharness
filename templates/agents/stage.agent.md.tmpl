@@ -192,6 +192,11 @@ symbols, and prior context before falling back to broader file scans while shapi
 Agent-engram provides code-level context (symbols, modules, dependencies); use the skill-search
 tool separately when looking for harness skills by keyword — these are complementary, not competing.
 
+When the `graphtor-docs` capability pack is installed, also follow
+`.github/instructions/graphtor-docs.instructions.md`: resolve domain concepts, API references,
+and architectural context from indexed local documentation using `search_local_docs`,
+`search_semantic`, or `research_topic` before falling back to web search or raw filesystem scan.
+
 When the `backlogit` capability pack is installed, also follow
 `.github/instructions/backlogit.instructions.md`: use query-driven lookup when inspecting existing
 backlog state, and plan to record explicit dependency edges during decomposition rather than leaving

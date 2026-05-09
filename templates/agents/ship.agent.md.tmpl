@@ -126,6 +126,12 @@ When the `agent-engram` capability pack is installed, also follow
 `.github/instructions/agent-engram.instructions.md` and verify the engram daemon / binding surface
 is available before depending on indexed analysis.
 
+When the `graphtor-docs` capability pack is installed, also follow
+`.github/instructions/graphtor-docs.instructions.md` and verify the graphtor-docs server is
+reachable before depending on indexed documentation retrieval. Use `search_local_docs`,
+`search_semantic`, or `research_topic` to resolve domain concepts and API references from indexed
+sources before falling back to web search or raw filesystem scan.
+
 When the `backlogit` capability pack is installed, also follow
 `.github/instructions/backlogit.instructions.md` and verify the backlog queue / dependency /
 checkpoint surface is available before depending on those behaviors.

@@ -306,6 +306,7 @@ current workspace profile recommendations:
 | Elevated runtime, migration, or security risk detected but `strict-safety` pack missing | Growth or Degrading | Propose enabling the pack and weaving explicit action classification through risky workflows |
 | Risky-plan hardening guidance missing or stale | Degrading | Propose retuning stage, plan-harden, and plan-review together so risky plans are hardened before harvest |
 | Starter preset on a repo that now has complex runtime surfaces | Growth | Propose moving to `standard` or `full` |
+| `.graphtor/` directory or graphtor MCP tools detected but `graphtor-docs` pack missing | Growth | Propose enabling the pack and weaving indexed local documentation retrieval guidance through research and knowledge-retrieval workflows |
 
 Use the profile's structured recommendation reasons when available so proposals
 can explain **why** the preset, layers, or packs changed rather than only
@@ -327,6 +328,15 @@ Treat partially woven overlays as a first-class drift category rather than a cos
 Separately, treat conditional reviewer drift as real harness drift when the
 workspace now requires parity-sensitive review but the review layer still lacks
 `agent-native-parity-reviewer.agent.md` or the routing logic to invoke it.
+
+**graphtor-docs overlay coherence checks**: When `graphtor-docs` is in the enabled pack list, verify:
+
+1. `graphtor-docs.instructions.md` is present in the workspace's instructions directory
+2. The instruction file references at least these 8 tool names: `search_local_docs`, `search_semantic`, `research_topic`, `traverse_doc_links`, `list_sources`, `get_chunk_by_id`, `get_document`, `get_status`
+3. The stage agent references the `graphtor-docs` pack and the `graphtor-docs.instructions.md` file
+4. The ship agent references the `graphtor-docs` pack and the `graphtor-docs.instructions.md` file
+
+Flag any missing items as `graphtor_docs_overlay_incomplete` drift.
 
 #### Step 1.8: Mine Learning Signals for Improvement Proposals
 
