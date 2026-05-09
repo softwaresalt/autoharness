@@ -1,8 +1,9 @@
 schema_version: "1.0.0"
 installed_at: "2026-04-26T21:16:00-07:00"
-autoharness_version: "1.3.3"
+tuned_at: "2026-05-08T09:42:00-07:00"
+autoharness_version: "1.3.4"
 autoharness_home: null
-profile_hash: "3f07c22ddc7d8e1af5329de6dedbfc5449579b92909e03db759424206e97a832"
+profile_hash: "661bca7c2d5078614f1048b3fa46c4e77b6e774d980faa33938c93d04291dd3f"
 config_hash: "748a71b3d966bdfe31e24465c880924eba8163d4f47ef28f820c663eef785861"
 install_preset: "full"
 install_mode: "self-install"
@@ -69,7 +70,7 @@ artifacts:
   - path: ".autoharness/workspace-profile.yaml"
     primitive: 1
     template: "workspace-discovery output"
-    checksum: "3f07c22ddc7d8e1af5329de6dedbfc5449579b92909e03db759424206e97a832"
+    checksum: "661bca7c2d5078614f1048b3fa46c4e77b6e774d980faa33938c93d04291dd3f"
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
@@ -81,17 +82,22 @@ artifacts:
   - path: ".github/agents/stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "c2b804c7b2c473303dd68f3afaaa810b151845bb72288546c758abc568d11acd"
+    checksum: "f52ae5d3da0b50cdde7126ebdc97c22cc8ed6f1450b1de1597391c1608135274"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "719460ddb0880904e4ddd38b29f421c53b29d977c9ba5b818e2a3716adeef854"
+    checksum: "9aa4b47a872931760d585e8825620f0dc0d09b1766280e2275cc11c0b0e1b664"
     note: "source-controlled dogfood workflow agent"
+  - path: ".github/agents/orchestrator.agent.md"
+    primitive: 4
+    template: "agents/orchestrator.agent.md.tmpl"
+    checksum: "e4d2826f1ba619650572534aaf677efb9b334f395921123ba023d00ca6d10eb6"
+    note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1
     template: "scripts/start.sh.tmpl"
-    checksum: "29e59e518ce54716144d09a69e5294b168969cfdf3c7c50aaab47e3cd1793eb8"
+    checksum: "b52b1de887161b432973486b157219d372ab1cfae90d26e274f1a05b77ebda75"
   - path: "start.ps1"
     primitive: 1
     template: "scripts/start.ps1.tmpl"
@@ -120,17 +126,17 @@ artifacts:
   - path: ".github/agents/auto-tune.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "fa6e15fceae1833915e313c0146d4056e9f433954fb98cdf445d53b49b679035"
+    checksum: "cccbe60b39559e7dadebb6b7a40696579640df471d543c3fc3ad7bb55b53ee97"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "9e577d46ad34846d2d1bb585bd2576d65bbd4a3d3809b2d749d1f9e834f09479"
+    checksum: "a6f456f37d1debb5e704b4f9921389f8e6f6d5f20038b14cebd3005a97ed1338"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "bfbb9e0a8a4bb5badecdca665a9672d6a85f9c665c7bb096402edf4af7da3f4d"
+    checksum: "e1661d5fc1f36eb3df5e4f5f38c3ea0c6f1047f3ceb39a33f955720d4cbb5799"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
