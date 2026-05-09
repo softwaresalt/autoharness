@@ -38,7 +38,7 @@
       "description": "Capability packs to enable. Overrides preset defaults when specified.",
       "items": {
         "type": "string",
-        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review", "graphtor-docs"]
       }
     },
     "backlog": {
@@ -150,6 +150,22 @@
           "items": { "type": "string", "enum": ["destructive", "high"] },
           "default": ["destructive"],
           "description": "ActionRisk levels that require explicit operator approval before execution"
+        }
+      }
+    },
+    "graphtor_docs": {
+      "type": "object",
+      "description": "Configuration for the optional graphtor-docs capability pack. Enables indexed local documentation search via the graphtor-docs MCP server.",
+      "properties": {
+        "sources_path": {
+          "type": "string",
+          "default": ".graphtor/config/sources.yaml",
+          "description": "Path (relative to workspace root) to the graphtor-docs source index configuration file"
+        },
+        "binary_path": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Explicit path to the graphtor-docs binary. When null, the binary is resolved from PATH or the default '.graphtor/bin/' location."
         }
       }
     },
