@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import tempfile
 import unittest
@@ -2260,6 +2261,225 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertFalse(targeted_checks["graphtor_docs_instruction"]["ok"])
             self.assertFalse(targeted_checks["graphtor_docs_stage_weaving"]["ok"])
             self.assertFalse(targeted_checks["graphtor_docs_ship_weaving"]["ok"])
+
+    def test_verify_workspace_community_template_pass(self) -> None:
+        """Community template installed correctly with matching checksum."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            ws = root / "workspace"
+
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True)
+            (ws / ".autoharness").mkdir(parents=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {"schema_version": {"type": "string", "const": "1.0.0"}},
+            }
+            for sname in ("harness-manifest.schema.json", "harness-config.schema.json", "workspace-profile.schema.json"):
+                (autoharness_home / "schemas" / sname).write_text(json.dumps(strict_schema), encoding="utf-8")
+            for sdir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / sdir / "1.0.0.schema.json").write_text(json.dumps(strict_schema), encoding="utf-8")
+
+            ct_content = b"# Community template content\nSome useful instruction."
+            ct_checksum = hashlib.sha256(ct_content).hexdigest()
+            # Also create source .tmpl to satisfy upstream check
+            tmpl_content = b"# Community template content\nSome useful instruction with {{VARIABLE}}."
+            tmpl_checksum = hashlib.sha256(tmpl_content).hexdigest()
+            tmpl_dir = autoharness_home / "templates" / "community" / "instructions"
+            tmpl_dir.mkdir(parents=True)
+            (tmpl_dir / "test.instructions.md.tmpl").write_bytes(tmpl_content)
+            _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-01-01T00:00:00Z",
+                "autoharness_version": "0.1.0",
+                "profile_hash": "abc123",
+                "primitives_installed": [1, 2],
+                "artifacts": [],
+                "community_templates": [{
+                    "template_id": "test-instruction",
+                    "template_path": "templates/community/instructions/test.instructions.md.tmpl",
+                    "installed_path": ".github/instructions/test.instructions.md",
+                    "installed_at": "2026-01-01T00:00:00Z",
+                    "installed_checksum": ct_checksum,
+                    "source_checksum": tmpl_checksum,
+                }],
+            })
+            _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+
+            ct_dir = ws / ".github" / "instructions"
+            ct_dir.mkdir(parents=True)
+            (ct_dir / "test.instructions.md").write_bytes(ct_content)
+
+            report = verify_workspace(ws, autoharness_home)
+            self.assertEqual(len(report["community_templates"]), 1)
+            self.assertTrue(report["community_templates"][0]["ok"])
+            self.assertTrue(report["community_templates"][0]["installed_checksum_ok"])
+            self.assertFalse(report["community_templates"][0]["upstream_updated"])
+            self.assertEqual(report["community_templates"][0]["template_id"], "test-instruction")
+
+    def test_verify_workspace_community_template_upstream_updated(self) -> None:
+        """Community template source .tmpl has been updated in autoharness_home."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            ws = root / "workspace"
+
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True)
+            (ws / ".autoharness").mkdir(parents=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {"schema_version": {"type": "string", "const": "1.0.0"}},
+            }
+            for sname in ("harness-manifest.schema.json", "harness-config.schema.json", "workspace-profile.schema.json"):
+                (autoharness_home / "schemas" / sname).write_text(json.dumps(strict_schema), encoding="utf-8")
+            for sdir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / sdir / "1.0.0.schema.json").write_text(json.dumps(strict_schema), encoding="utf-8")
+
+            # Original .tmpl content and installed content at install time
+            original_tmpl = b"# Original template with {{VARIABLE}}"
+            original_tmpl_checksum = hashlib.sha256(original_tmpl).hexdigest()
+            installed_content = b"# Original template with resolved_value"
+            installed_checksum = hashlib.sha256(installed_content).hexdigest()
+            # Updated source template in autoharness_home (upstream changed)
+            updated_tmpl = b"# Updated template with {{VARIABLE}} and new guidance"
+            tmpl_dir = autoharness_home / "templates" / "community" / "instructions"
+            tmpl_dir.mkdir(parents=True)
+            (tmpl_dir / "test.instructions.md.tmpl").write_bytes(updated_tmpl)
+
+            _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-01-01T00:00:00Z",
+                "autoharness_version": "0.1.0",
+                "profile_hash": "abc123",
+                "primitives_installed": [1, 2],
+                "artifacts": [],
+                "community_templates": [{
+                    "template_id": "test-instruction",
+                    "template_path": "templates/community/instructions/test.instructions.md.tmpl",
+                    "installed_path": ".github/instructions/test.instructions.md",
+                    "installed_at": "2026-01-01T00:00:00Z",
+                    "installed_checksum": installed_checksum,
+                    "source_checksum": original_tmpl_checksum,
+                }],
+            })
+            _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+
+            ct_dir = ws / ".github" / "instructions"
+            ct_dir.mkdir(parents=True)
+            (ct_dir / "test.instructions.md").write_bytes(installed_content)
+
+            report = verify_workspace(ws, autoharness_home)
+            self.assertEqual(len(report["community_templates"]), 1)
+            self.assertFalse(report["community_templates"][0]["ok"])
+            self.assertTrue(report["community_templates"][0]["installed_checksum_ok"])
+            self.assertTrue(report["community_templates"][0]["upstream_updated"])
+            self.assertEqual(report["community_templates"][0]["reason"], "upstream template updated")
+
+    def test_verify_workspace_community_template_fail_missing(self) -> None:
+        """Community template declared in manifest but file is missing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            ws = root / "workspace"
+
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True)
+            (ws / ".autoharness").mkdir(parents=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {"schema_version": {"type": "string", "const": "1.0.0"}},
+            }
+            for sname in ("harness-manifest.schema.json", "harness-config.schema.json", "workspace-profile.schema.json"):
+                (autoharness_home / "schemas" / sname).write_text(json.dumps(strict_schema), encoding="utf-8")
+            for sdir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / sdir / "1.0.0.schema.json").write_text(json.dumps(strict_schema), encoding="utf-8")
+
+            _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-01-01T00:00:00Z",
+                "autoharness_version": "0.1.0",
+                "profile_hash": "abc123",
+                "primitives_installed": [1, 2],
+                "artifacts": [],
+                "community_templates": [{
+                    "template_id": "missing-template",
+                    "template_path": "templates/community/instructions/missing.instructions.md.tmpl",
+                    "installed_path": ".github/instructions/missing.instructions.md",
+                    "installed_at": "2026-01-01T00:00:00Z",
+                    "installed_checksum": "abc123",
+                    "source_checksum": "def456",
+                }],
+            })
+            _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+
+            report = verify_workspace(ws, autoharness_home)
+            self.assertEqual(len(report["community_templates"]), 1)
+            self.assertFalse(report["community_templates"][0]["ok"])
+            self.assertEqual(report["community_templates"][0]["reason"], "missing file")
+
+    def test_verify_workspace_community_template_fail_checksum(self) -> None:
+        """Community template exists but content has been modified (checksum mismatch)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            ws = root / "workspace"
+
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True)
+            (ws / ".autoharness").mkdir(parents=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {"schema_version": {"type": "string", "const": "1.0.0"}},
+            }
+            for sname in ("harness-manifest.schema.json", "harness-config.schema.json", "workspace-profile.schema.json"):
+                (autoharness_home / "schemas" / sname).write_text(json.dumps(strict_schema), encoding="utf-8")
+            for sdir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / sdir / "1.0.0.schema.json").write_text(json.dumps(strict_schema), encoding="utf-8")
+
+            _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-01-01T00:00:00Z",
+                "autoharness_version": "0.1.0",
+                "profile_hash": "abc123",
+                "primitives_installed": [1, 2],
+                "artifacts": [],
+                "community_templates": [{
+                    "template_id": "modified-template",
+                    "template_path": "templates/community/instructions/test.instructions.md.tmpl",
+                    "installed_path": ".github/instructions/test.instructions.md",
+                    "installed_at": "2026-01-01T00:00:00Z",
+                    "installed_checksum": "original_checksum_that_wont_match",
+                    "source_checksum": "source_checksum_value",
+                }],
+            })
+            _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+
+            ct_dir = ws / ".github" / "instructions"
+            ct_dir.mkdir(parents=True)
+            (ct_dir / "test.instructions.md").write_text("Modified content", encoding="utf-8")
+
+            report = verify_workspace(ws, autoharness_home)
+            self.assertEqual(len(report["community_templates"]), 1)
+            self.assertFalse(report["community_templates"][0]["ok"])
+            self.assertEqual(report["community_templates"][0]["reason"], "checksum mismatch")
 
 
 class PortabilityTests(unittest.TestCase):

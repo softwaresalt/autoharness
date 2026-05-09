@@ -1,1 +1,2 @@
 {"timestamp":"2026-05-06T11:34:52.4739695-07:00","actor":"backlogit","item_id":"011-S","event_type":"shipment_created","delta":{"items":["011-F","011.001-T","011.002-T","011.003-T","011.004-T","011.005-T"],"title":"External Pattern Evaluation Spikes"}}
+{"timestamp":"2026-05-09T00:58:55.9912588-07:00","actor":"backlogit","item_id":"011-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/011-S.md"}}

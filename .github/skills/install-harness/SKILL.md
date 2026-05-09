@@ -471,6 +471,50 @@ Capability-pack overlays:
 | `adversarial-review` | Enables the standalone multi-model adversarial-review agent and review escalation path for higher-confidence consensus findings |
 | `graphtor-docs` | Installs `graphtor-docs.instructions.md` and threads indexed local documentation retrieval — keyword search, semantic search, topic research, doc-graph traversal — through research, planning, and knowledge-retrieval workflows so agents resolve domain concepts and APIs from indexed sources before falling back to broad web or filesystem search |
 
+#### Step 1.3a: Community Template Selection
+
+After resolving the installation shape and before applying capability-pack
+overlays, evaluate community templates from the autoharness registry:
+
+1. Read `templates/community/registry.yaml` from `autoharness_home`.
+   If the file does not exist or `templates` is empty, skip this step.
+2. For each registry entry, evaluate `applicable_profiles` against the
+   workspace profile's detected languages, frameworks, and stack packs:
+   * An entry with `"any"` in `applicable_profiles` matches all workspaces.
+   * An entry listing specific profiles (e.g., `"python"`, `"web-app"`)
+     matches when the workspace profile's languages, frameworks, or stack
+     packs include at least one of those values.
+3. Check `prerequisite_packs` — only propose entries whose prerequisites
+   are a subset of the selected `capability_packs`. If `prerequisite_packs`
+   is empty, the entry has no pack prerequisites.
+4. Produce a ranked list of applicable community templates. Rank by:
+   * Number of matching profile tags (more matches = higher rank)
+   * Number of `primitives_deepened` that overlap with `primitives_installed`
+5. Present the ranked list to the operator for **opt-in selection**.
+   Community templates are **never auto-installed**. The operator may
+   select all, some, or none.
+6. For each selected template:
+   * Read the `.tmpl` file from `autoharness_home` at the entry's
+     `template_path`.
+   * Resolve `{{VARIABLE}}` placeholders using the same variable resolution
+     table as first-party templates. If the template introduces new
+     variables (listed in `variables_introduced`), prompt the operator for
+     values or use defaults from the workspace profile.
+   * Place the resolved artifact in the target workspace following the same
+     artifact-class placement rules as first-party templates (agents →
+     `.github/agents/`, instructions → `.github/instructions/`, skills →
+     `.github/skills/`, prompts → `.github/prompts/`).
+7. Record selected community templates in the harness manifest under
+   `community_templates[]` with both `installed_checksum` (SHA-256 of the
+   resolved installed artifact) and `source_checksum` (SHA-256 of the source
+   `.tmpl` file at install time). This dual-checksum design enables the tuner
+   to distinguish local modifications from upstream template updates. See
+   schema at `schemas/harness-manifest.schema.json`.
+
+Community templates are part of the `overlays` install layer. If any
+community templates are selected and `install_layers` does not already
+include `overlays`, add it automatically.
+
 #### Step 1.3b: Apply the Formal Overlay Contract
 
 Treat every selected capability pack as a cross-cutting overlay rather than a single-file option.

@@ -62,6 +62,42 @@
         "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
       }
     },
+    "community_templates": {
+      "type": "array",
+      "description": "Community templates selected and installed from the community template registry",
+      "items": {
+        "type": "object",
+        "required": ["template_id", "template_path", "installed_path", "installed_at", "installed_checksum", "source_checksum"],
+        "properties": {
+          "template_id": {
+            "type": "string",
+            "description": "Unique slug matching the registry entry"
+          },
+          "template_path": {
+            "type": "string",
+            "description": "Path to the .tmpl source file in autoharness_home"
+          },
+          "installed_path": {
+            "type": "string",
+            "description": "Workspace-relative path where the resolved artifact was installed"
+          },
+          "installed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this community template was installed"
+          },
+          "installed_checksum": {
+            "type": "string",
+            "description": "SHA-256 of the installed resolved artifact content for local modification detection"
+          },
+          "source_checksum": {
+            "type": "string",
+            "description": "SHA-256 of the source .tmpl file at install time for upstream drift detection"
+          }
+        }
+      },
+      "default": []
+    },
     "capability_pack_overlays": {
       "type": "array",
       "description": "Structured record of which artifact classes each enabled capability pack was woven into",

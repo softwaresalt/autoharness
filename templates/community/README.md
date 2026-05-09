@@ -45,9 +45,16 @@ Community templates use the same conventions as first-party templates:
 4. **Test** — resolve variables manually against a Rust profile, a Go
    profile, and a Python or TypeScript profile; confirm valid Markdown output
 5. **Place** — add the `.tmpl` file here under the appropriate subdirectory
-6. **Register** — if the template introduces new capability pack behavior,
-   update the schemas and `.github/skills/install-harness/SKILL.md` per the pack integration
-   pattern in `.github/instructions/harness-architecture.instructions.md`
+6. **Register** — add an entry to `templates/community/registry.yaml` with
+   all required fields (`template_id`, `artifact_type`, `title`,
+   `description`, `source_repo`, `source_path`, `license`, `template_path`,
+   `applicable_profiles`). Also add optional fields as appropriate:
+   `prerequisite_packs`, `tags`, `variables_introduced`,
+   `primitives_deepened`. See `schemas/community-template-registry.schema.json`
+   for the full field specification. If the template introduces new capability
+   pack behavior, also update the schemas and
+   `.github/skills/install-harness/SKILL.md` per the pack integration pattern
+   in `.github/instructions/harness-architecture.instructions.md`.
 
 ## Source attribution
 

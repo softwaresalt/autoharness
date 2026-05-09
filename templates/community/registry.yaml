@@ -1,0 +1,22 @@
+# Community Template Registry
+#
+# This file catalogs curated community templates distilled from the reference
+# libraries in references/. Each entry describes a template well enough for
+# the install-harness and tune-harness workflows to match it against a
+# workspace profile without scanning raw template content.
+#
+# Schema: schemas/community-template-registry.schema.json
+#
+# How to add an entry:
+#   1. Curate a template following templates/community/README.md conventions
+#   2. Place the .tmpl file in templates/community/{artifact_type}/
+#   3. Add an entry below with all required fields
+#   4. Validate: the template_id must be unique, applicable_profiles must have
+#      at least one value, and template_path must point to an existing file
+#
+# The installer reads this registry during Step 1.3a (Community Template
+# Selection) and presents matching templates to the operator for opt-in
+# selection. Community templates are never auto-installed.
+
+schema_version: "1.0.0"
+templates: []
