@@ -131,3 +131,115 @@ templates:
     tags: [code-review, feedback, quality, technical-rigor]
     variables_introduced: []
     primitives_deepened: [7]
+
+  - template_id: debugging
+    artifact_type: skill
+    title: "Systematic Debugging"
+    description: "Systematic root-cause debugging discipline enforcing the Iron Law: never fix without identifying the root cause first. Includes a 7-step process (read error, reproduce, hypothesize, reduce, investigate, hypothesize+test, fix+verify), three-fix threshold escalation, structured debug report format (SYMPTOM/ROOT CAUSE/FIX/EVIDENCE/REGRESSION/RELATED/STATUS), competing hypotheses methodology, and anti-patterns table. Technology-agnostic."
+    source_repo: ai-skills
+    source_path: skills/debugging/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/debugging/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [debugging, troubleshooting, root-cause]
+    variables_introduced: []
+    primitives_deepened: [4, 7]
+
+  - template_id: verification-before-completion
+    artifact_type: skill
+    title: "Verification Before Completion"
+    description: "Verification gate enforcing fresh evidence before any completion claim. Defines a 5-step gate function (identify, run, read, verify, claim), verification strategies by change type table, adversarial probes section, common claims and proof table, structured completion report format (DONE/DONE_WITH_CONCERNS/BLOCKED/NEEDS_CONTEXT), rationalization prevention, and agent delegation verification rules."
+    source_repo: ai-skills
+    source_path: skills/verification-before-completion/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/verification-before-completion/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [verification, quality-gate, completion]
+    variables_introduced: []
+    primitives_deepened: [7, 10]
+
+  - template_id: simplifying-code
+    artifact_type: skill
+    title: "Code Simplification"
+    description: "Code simplification discipline with 5 core principles (preserve behavior, explicit over clever, simplicity over cleanliness, surgical changes, surface assumptions), a 6-step process, smell-to-fix table (deep nesting, long functions, too many params, duplication, magic values, complex conditionals, dead code), AI slop removal checklist, stop conditions, and scope audit constraints."
+    source_repo: ai-skills
+    source_path: skills/simplifying-code/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/simplifying-code/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [refactoring, cleanup, readability]
+    variables_introduced: []
+    primitives_deepened: [7]
+
+  - template_id: document-review
+    artifact_type: skill
+    title: "Document Structural Review"
+    description: "Document structural review skill with an 8-step process (get doc, assess, activate lenses, evaluate, identify critical improvement, make changes, reader test, offer next action). Includes 5 review lenses (product, design, security, scope guardian, adversarial), 4 quality criteria (clarity, completeness, specificity, YAGNI), simplification guidance, and iteration limits (2-4 passes)."
+    source_repo: ai-skills
+    source_path: skills/document-review/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/document-review/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [documentation, review, quality]
+    variables_introduced: [PLANS_DIRECTORY]
+    primitives_deepened: [7, 9]
+
+  - template_id: meta-prompting
+    artifact_type: skill
+    title: "Meta-Prompting Patterns"
+    description: "Structured reasoning modifiers for stress-testing decisions and surfacing assumptions. Defines all pattern commands (/think, /adversarial, /constrain, /json, /budget, /compare, /confidence, /edge, /verify-think, /flip, /assumptions, /premortem, /tensions), combo patterns (/analyze, /trade), conventions, and auto-trigger signals for architecture reviews and security contexts."
+    source_repo: ai-skills
+    source_path: skills/meta-prompting/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/meta-prompting/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [reasoning, decision-making, validation]
+    variables_introduced: []
+    primitives_deepened: [2, 3]
+
+  - template_id: writing-tests
+    artifact_type: skill
+    title: "Test Writing Discipline"
+    description: "Generic test writing discipline covering core principles (a test that can't fail is worthless), writing good tests (one behavior per test, 3 sources for test cases, DAMP over DRY, test pyramid, naming by behavior, real objects over mocks), red-green-refactor, anti-patterns (mock behavior, test-only methods, snapshot-only, testing framework, incomplete mocks, AI-generated smells), when stuck table, and verification checklist."
+    source_repo: ai-skills
+    source_path: skills/writing-tests/SKILL.md
+    license: MIT
+    template_path: templates/community/skills/writing-tests/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [testing, tdd, quality]
+    variables_introduced: [TEST_FRAMEWORK]
+    primitives_deepened: [7]
+
+  - template_id: skill-creator
+    artifact_type: skill
+    title: "Skill Creator"
+    description: "Meta-skill for creating new skills that extend agent capabilities. Covers what skills provide (workflows, tools, domain expertise, bundled resources), anatomy of a skill (SKILL.md + scripts/references/assets), progressive disclosure principle, and a 6-step creation process (understand, plan, initialize, edit, validate, iterate)."
+    source_repo: awesome-claude-skills
+    source_path: skill-creator/SKILL.md
+    license: "see LICENSE.txt in source repo"
+    template_path: templates/community/skills/skill-creator/SKILL.md.tmpl
+    applicable_profiles: [any]
+    prerequisite_packs: []
+    tags: [meta, skill-authoring, agent-development]
+    variables_introduced: []
+    primitives_deepened: [4, 9]
+
+  - template_id: mcp-builder
+    artifact_type: skill
+    title: "MCP Server Builder"
+    description: "MCP server development guide with a 4-phase workflow (research+plan, implement, review+refine, evaluate). Covers agent-centric design principles (build for workflows, optimize for limited context, actionable errors, natural task subdivisions, eval-driven development), implementation steps (project structure, core infrastructure, systematic tool implementation, tool annotations), quality review checklist, and evaluation creation."
+    source_repo: awesome-claude-skills
+    source_path: mcp-builder/SKILL.md
+    license: "see LICENSE.txt in source repo"
+    template_path: templates/community/skills/mcp-builder/SKILL.md.tmpl
+    applicable_profiles: [mcp-server]
+    prerequisite_packs: []
+    tags: [mcp, server-development, tool-building]
+    variables_introduced: []
+    primitives_deepened: [5, 9]
