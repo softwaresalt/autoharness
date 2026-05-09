@@ -185,7 +185,7 @@ templates:
     applicable_profiles: [any]
     prerequisite_packs: []
     tags: [documentation, review, quality]
-    variables_introduced: [PLANS_DIRECTORY]
+    variables_introduced: []
     primitives_deepened: [7, 9]
 
   - template_id: meta-prompting
@@ -213,7 +213,7 @@ templates:
     applicable_profiles: [any]
     prerequisite_packs: []
     tags: [testing, tdd, quality]
-    variables_introduced: [TEST_FRAMEWORK]
+    variables_introduced: []
     primitives_deepened: [7]
 
   - template_id: skill-creator
