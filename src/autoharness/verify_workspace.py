@@ -2055,6 +2055,9 @@ def verify_workspace(
     )
 
     project_name = workspace_path.name
+    project_name_pattern = re.compile(
+        r"for the \*\*" + re.escape(project_name) + r"\*\* repository"
+    )
     for agent_file, check_key in [
         (".github/agents/orchestrator.agent.md", "orchestrator_workspace_identity"),
         (".github/agents/stage.agent.md", "stage_workspace_identity"),
@@ -2063,7 +2066,7 @@ def verify_workspace(
         agent_path = workspace_path / agent_file
         if agent_path.exists():
             content = agent_path.read_text(encoding="utf-8")
-            has_project_name = project_name in content
+            has_project_name = bool(project_name_pattern.search(content))
             has_unresolved = "{{PROJECT_NAME}}" in content
             report["targeted_checks"][check_key] = {
                 "path": agent_file,

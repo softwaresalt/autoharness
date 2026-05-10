@@ -142,20 +142,28 @@ When the `agent-intercom` capability pack is installed, broadcast `[ORCHESTRATOR
 
 ### Step 1.5: Staging Artifact Merge Gate (NON-NEGOTIABLE)
 
-After Stage completes and before routing to Ship, verify that all staging artifacts (backlog items, shipment manifests) are committed to the default branch. Ship's Branch Creation Gate (P-011) requires a clean `{{DEFAULT_BRANCH}}`, but it does not verify that the shipment manifest being claimed actually exists on `{{DEFAULT_BRANCH}}`.
+After Stage completes and before routing to Ship, verify that all staging artifacts (backlog items, shipment manifests) are committed to the default branch **and present on the remote**. Ship's Branch Creation Gate (P-011) requires a clean `{{DEFAULT_BRANCH}}`, but it does not verify that the shipment manifest being claimed actually exists on `{{DEFAULT_BRANCH}}`.
 
 1. Check `git status --short` for uncommitted files in `{{BACKLOG_DIRECTORY}}/`:
-   - If clean: proceed to Step 2.
-   - If dirty: staging artifacts need to be committed first.
-2. When uncommitted staging artifacts exist:
-   a. Commit them to a staging branch: `chore/stage-{shipment_id}`
+   - If dirty: staging artifacts need to be committed first (proceed to step 3).
+   - If clean: proceed to step 2.
+2. Check for unpushed local commits:
+   `git fetch origin {{DEFAULT_BRANCH}}`
+   `git log origin/{{DEFAULT_BRANCH}}..{{DEFAULT_BRANCH}} --oneline`
+   - If output is empty: local and remote are in sync. Proceed to step 4.
+   - If output is non-empty: local commits exist that are not on the remote. Proceed to step 3.
+3. When staging artifacts are uncommitted or unpushed:
+   a. Commit any uncommitted backlog files to a staging branch: `chore/stage-{shipment_id}`
    b. Push the staging branch and create a PR to `{{DEFAULT_BRANCH}}`
    c. Wait for the staging PR to merge (operator approval required)
-   d. After merge, pull `{{DEFAULT_BRANCH}}` and confirm the shipment manifest is present
-3. **Exception**: If the workspace does not enforce branch protection (no PR required for `{{DEFAULT_BRANCH}}`), Stage may commit directly to `{{DEFAULT_BRANCH}}` and skip the PR. Detect this by checking whether prior direct commits to `{{DEFAULT_BRANCH}}` succeeded.
-4. Only after staging artifacts are confirmed on `{{DEFAULT_BRANCH}}`, proceed to Step 2 (Route to Ship).
+   d. After merge, pull `{{DEFAULT_BRANCH}}` and proceed to step 4
+   e. **Exception**: If the workspace does not enforce branch protection (no PR required for `{{DEFAULT_BRANCH}}`), Stage may commit and push directly to `{{DEFAULT_BRANCH}}` and skip the PR. Detect this by checking whether prior direct pushes to `{{DEFAULT_BRANCH}}` succeeded.
+4. Verify the shipment manifest exists on the remote default branch:
+   `git show origin/{{DEFAULT_BRANCH}}:{{BACKLOG_DIRECTORY}}/queue/{shipment_id}.md`
+   - If the file exists: staging artifacts are confirmed on the remote. Proceed to Step 2.
+   - If the file does not exist: halt with `STAGING_GATE_FAIL: shipment manifest {shipment_id} not found on origin/{{DEFAULT_BRANCH}}`.
 
-When the `agent-intercom` capability pack is installed, broadcast `[ORCHESTRATOR] Staging artifacts merged to {{DEFAULT_BRANCH}} — Ship may proceed`.
+When the `agent-intercom` capability pack is installed, broadcast `[ORCHESTRATOR] Staging artifacts verified on origin/{{DEFAULT_BRANCH}} — Ship may proceed`.
 
 ### Step 2: Route to Ship (when a queued shipment is ready)
 
