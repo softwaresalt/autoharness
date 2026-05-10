@@ -1,0 +1,1 @@
+{"timestamp":"2026-05-10T12:30:10.07972-07:00","actor":"backlogit","item_id":"025.002-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
