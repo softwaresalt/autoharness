@@ -15,7 +15,7 @@ these disciplines.
 When a tool response exceeds approximately **2,000 tokens** (roughly 80+ lines
 of output), offload it to disk and keep only a reference in working context:
 
-1. Write the full output to `{{DOCS_ROOT}}/scratch/{YYYY-MM-DD}-{summary-slug}.md`
+1. Write the full output to `{{DOCS_ROOT}}/scratch/{YYYY-MM-DD}-{tool}-{summary-slug}.md`
    with a brief metadata header (timestamp, command or tool that produced it,
    and the task context).
 2. Retain in your working context **only**:
@@ -86,7 +86,7 @@ Invoke `compact-context` when **any** of the following are true:
 
 The `{{DOCS_ROOT}}/scratch/` directory is ephemeral working space:
 
-* Files older than 7 days may be cleaned up during compaction cycles.
+* Files older than 7 days may be archived to `{{DOCS_ROOT}}/archive/scratch/` during compaction cycles (scratch cleanup never deletes files — consistent with compact-context's archive-only constraint).
 * Do not store durable knowledge in scratch — graduate important findings to
   `{{DOCS_MEMORY}}/` or `{{DOCS_COMPOUND}}/` as appropriate.
 * Name files descriptively: `{YYYY-MM-DD}-{tool}-{summary-slug}.md` so they
