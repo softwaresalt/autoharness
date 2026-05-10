@@ -321,40 +321,58 @@ After all tasks in the queue are complete:
    ```
    review_fix_cycle = 0
    WHILE review_fix_cycle < 3:
-     1. Fetch unresolved review threads via GraphQL:
+     1. Fetch unresolved review threads via GraphQL (paginate if needed):
         gh api graphql -f query='{
           repository(owner:"{owner}", name:"{repo}") {
             pullRequest(number:{pr_number}) {
               reviewThreads(first:50) {
                 nodes {
                   id, isResolved,
-                  comments(first:5) {
+                  comments(first:1) {
                     nodes { id, body, path, line, author { login } }
                   }
                 }
+                pageInfo { hasNextPage endCursor }
               }
             }
           }
         }'
+        If pageInfo.hasNextPage is true, re-query with after:{endCursor}
+        and merge results. Repeat until all threads are fetched.
      2. Filter to unresolved threads only (isResolved: false)
-     3. Classify by author:
+     3. Classify each thread by the FIRST comment's author (thread initiator):
         - Copilot threads: author.login matches "copilot-pull-request-reviewer"
           (with or without [bot] suffix)
         - Human threads: all other non-bot authors
         - Other bot threads: author.login ends with [bot] but is not Copilot
      4. IF zero unresolved Copilot threads: BREAK (loop complete)
-     5. FOR EACH unresolved Copilot thread:
+     5. Re-run fix-ci Step 6.5 reply gate: if any threads (Copilot, human,
+        or bot) arrived since the last fix-ci run and lack replies, reply
+        to them before proceeding with fixes.
+     6. FOR EACH unresolved Copilot thread:
         a. Read the comment body to understand the issue
         b. Apply the fix to the affected file(s)
         c. Commit the fix
-     6. Push all fixes in a single push
-     7. FOR EACH fixed Copilot thread:
-        a. Reply via GraphQL: addPullRequestReviewComment mutation
-           (body: description of fix, inReplyTo: original comment ID)
-        b. Resolve via GraphQL: resolveReviewThread mutation
-           (threadId: thread ID)
-     8. Wait 30 seconds for Copilot to re-review the new commit
-     9. review_fix_cycle += 1
+     7. Push all fixes in a single push
+     8. FOR EACH fixed Copilot thread:
+        a. Reply to the thread using the GitHub REST API:
+           gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies
+           -f body="Fixed in {commit_sha}. {brief description of fix}"
+           (Use the numeric comment ID from the thread's first comment,
+           not the GraphQL node ID.)
+        b. Resolve the thread via GraphQL:
+           gh api graphql -f query='mutation {
+             resolveReviewThread(input: { threadId: "{thread_id}" }) {
+               thread { id isResolved }
+             }
+           }'
+           Confirm isResolved: true in the response.
+     9. Poll for Copilot re-review completion (max wait: {{CI_MAX_WAIT}}s):
+        Query the PR's latest review status. If the Copilot review has not
+        yet posted new comments after the push, wait {{CI_POLL_INTERVAL}}s
+        and re-check. Exit the wait when either new comments appear or
+        the max wait is reached.
+     10. review_fix_cycle += 1
    END WHILE
    ```
 
