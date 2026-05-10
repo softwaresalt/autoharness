@@ -2054,6 +2054,27 @@ def verify_workspace(
         workspace_path / ".github/agents/orchestrator.agent.md",
     )
 
+    project_name = variables.get("PROJECT_NAME", workspace_path.name)
+    project_name_pattern = re.compile(
+        r"for the \*\*" + re.escape(project_name) + r"\*\* repository"
+    )
+    for agent_file, check_key in [
+        (".github/agents/orchestrator.agent.md", "orchestrator_workspace_identity"),
+        (".github/agents/stage.agent.md", "stage_workspace_identity"),
+        (".github/agents/ship.agent.md", "ship_workspace_identity"),
+    ]:
+        agent_path = workspace_path / agent_file
+        if agent_path.exists():
+            content = agent_path.read_text(encoding="utf-8")
+            has_project_name = bool(project_name_pattern.search(content))
+            has_unresolved = "{{PROJECT_NAME}}" in content
+            report["targeted_checks"][check_key] = {
+                "path": agent_file,
+                "ok": has_project_name and not has_unresolved,
+                "has_project_name": has_project_name,
+                "has_unresolved_variable": has_unresolved,
+            }
+
     portability_findings = _run_portability_scan(workspace_path)
     report["portability_findings"] = portability_findings
     for finding in portability_findings:

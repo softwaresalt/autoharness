@@ -2481,6 +2481,104 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertFalse(report["community_templates"][0]["ok"])
             self.assertEqual(report["community_templates"][0]["reason"], "checksum mismatch")
 
+    def test_verify_workspace_agent_workspace_identity_pass(self) -> None:
+        """Pipeline agents reference the resolved project name."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            ws = root / "my-project"
+            ws.mkdir()
+
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True)
+            (ws / ".autoharness").mkdir(parents=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {"schema_version": {"type": "string", "const": "1.0.0"}},
+            }
+            for sname in ("harness-manifest.schema.json", "harness-config.schema.json", "workspace-profile.schema.json"):
+                (autoharness_home / "schemas" / sname).write_text(json.dumps(strict_schema), encoding="utf-8")
+            for sdir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / sdir / "1.0.0.schema.json").write_text(json.dumps(strict_schema), encoding="utf-8")
+
+            _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-01-01T00:00:00Z",
+                "autoharness_version": "0.1.0",
+                "profile_hash": "abc",
+                "primitives_installed": [1, 4],
+                "artifacts": [],
+            })
+            _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+
+            agents_dir = ws / ".github" / "agents"
+            agents_dir.mkdir(parents=True)
+            (agents_dir / "orchestrator.agent.md").write_text(
+                "You are the Orchestrator agent for the **my-project** repository.", encoding="utf-8"
+            )
+            (agents_dir / "stage.agent.md").write_text(
+                "You are the Stage agent for the **my-project** repository.", encoding="utf-8"
+            )
+            (agents_dir / "ship.agent.md").write_text(
+                "You are the Ship agent for the **my-project** repository.", encoding="utf-8"
+            )
+
+            report = verify_workspace(ws, autoharness_home)
+            for key in ("orchestrator_workspace_identity", "stage_workspace_identity", "ship_workspace_identity"):
+                self.assertIn(key, report["targeted_checks"])
+                self.assertTrue(report["targeted_checks"][key]["ok"], f"{key} should pass")
+                self.assertTrue(report["targeted_checks"][key]["has_project_name"])
+                self.assertFalse(report["targeted_checks"][key]["has_unresolved_variable"])
+
+    def test_verify_workspace_agent_workspace_identity_fail_unresolved(self) -> None:
+        """Pipeline agent with unresolved {{PROJECT_NAME}} fails identity check."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            ws = root / "my-project"
+            ws.mkdir()
+
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True)
+            (ws / ".autoharness").mkdir(parents=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {"schema_version": {"type": "string", "const": "1.0.0"}},
+            }
+            for sname in ("harness-manifest.schema.json", "harness-config.schema.json", "workspace-profile.schema.json"):
+                (autoharness_home / "schemas" / sname).write_text(json.dumps(strict_schema), encoding="utf-8")
+            for sdir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / sdir / "1.0.0.schema.json").write_text(json.dumps(strict_schema), encoding="utf-8")
+
+            _write_yaml(ws / ".autoharness" / "harness-manifest.yaml", {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-01-01T00:00:00Z",
+                "autoharness_version": "0.1.0",
+                "profile_hash": "abc",
+                "primitives_installed": [1, 4],
+                "artifacts": [],
+            })
+            _write_yaml(ws / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+
+            agents_dir = ws / ".github" / "agents"
+            agents_dir.mkdir(parents=True)
+            (agents_dir / "orchestrator.agent.md").write_text(
+                "You are the Orchestrator agent for the **{{PROJECT_NAME}}** repository.", encoding="utf-8"
+            )
+
+            report = verify_workspace(ws, autoharness_home)
+            check = report["targeted_checks"]["orchestrator_workspace_identity"]
+            self.assertFalse(check["ok"])
+            self.assertTrue(check["has_unresolved_variable"])
+
 
 class PortabilityTests(unittest.TestCase):
     def setUp(self) -> None:
