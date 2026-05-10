@@ -63,8 +63,12 @@ must be standardized for automated validation.
 ### Option C: Separate instruction template
 
 ```markdown
-# role-enforcement.instructions.md
+---
+description: 'Enforces agent role boundaries before tool mutations. Applies when the workspace uses the two-agent Stage/Ship workflow model.'
 applyTo: '**'
+---
+
+# Role Enforcement
 
 Before any mutation, check the agent's declared role boundary table...
 ```
@@ -171,9 +175,11 @@ installed artifacts. If both exist, weave role enforcement. Simple, automatic,
 and correct for the common case.
 
 Edge case: if someone installs both agents but doesn't want role enforcement,
-they can add `role_enforcement: false` to config.yaml as an explicit opt-out.
+a future `role_enforcement: false` field could be added to `.autoharness/config.yaml`
+as an explicit opt-out. This would require adding the field to
+`schemas/harness-config.schema.json` as part of the 024-S implementation.
 This is the exception, not the rule — don't add config complexity for it unless
-needed.
+a real use case emerges.
 
 ## Decision 4: Verification Contract
 
