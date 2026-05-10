@@ -78,6 +78,10 @@ model_routing:
     reasoning_effort: "{{TIER_3_REASONING_EFFORT}}"
     model_provider: "{{TIER_3_PROVIDER}}"
     model_family: "{{TIER_3_FAMILY}}"
+  orchestrator:
+    model_family: "{{ORCHESTRATOR_FAMILY}}"     # Orchestrator model override (default: gpt-5.4)
+    reasoning_effort: "{{ORCHESTRATOR_REASONING_EFFORT}}"
+    model_provider: "{{ORCHESTRATOR_PROVIDER}}"
 
 # AI CLI tool startup configuration
 # Resolves {{COPILOT_EXE_PATH}} in the generated start.ps1 and start.sh scripts.
