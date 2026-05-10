@@ -144,8 +144,17 @@ For GitHub-hosted repositories, after addressing each comment:
 
 1. Reply to the review thread per `.github/instructions/github-pr-automation.instructions.md`
    §1.5 using the appropriate reply template (fixed / declined / partial).
-2. Resolve bot-authored threads via GraphQL per §1.6.
-3. Never resolve threads authored by human reviewers.
+2. Resolve Copilot-authored threads programmatically via GraphQL:
+   ```
+   gh api graphql -f query='mutation {
+     resolveReviewThread(input: { threadId: "{thread_id}" }) {
+       thread { id isResolved }
+     }
+   }'
+   ```
+   Confirm `isResolved: true` in the response before marking the thread as resolved.
+3. Never resolve threads authored by human reviewers — only reply to them.
+4. For other bot threads, resolve only if the fix fully addresses the comment.
 
 ### Step 6.5: Reply Gate (NON-NEGOTIABLE)
 
