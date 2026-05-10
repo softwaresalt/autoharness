@@ -324,6 +324,77 @@ operations:
       id: "id"
       link_type: "link_type"
 
+  # --- Lifecycle ---
+
+  archive_item:
+    mcp_tool: "backlogit_archive_item"
+    cli_command: "backlogit archive {{id}}"
+    params:
+      id: "id"
+      commit_sha: "commit_sha"
+
+  adopt_item:
+    mcp_tool: "backlogit_adopt_item"
+    cli_command: "backlogit adopt {{item_id}} --parent {{new_parent_id}}"
+    params:
+      item_id: "item_id"
+      new_parent_id: "new_parent_id"
+
+  # --- Discovery & metadata ---
+
+  get_metadata_catalog:
+    mcp_tool: "backlogit_get_metadata_catalog"
+
+  get_wit_metadata:
+    mcp_tool: "backlogit_get_wit_metadata"
+    params:
+      type: "type"
+
+  list_types:
+    mcp_tool: "backlogit_list_types"
+
+  list_templates:
+    mcp_tool: "backlogit_list_templates"
+
+  get_version:
+    mcp_tool: "backlogit_get_version"
+
+  export_command_map:
+    mcp_tool: "backlogit_export_command_map"
+    params:
+      path: "path"
+      format: "format"
+
+  merge_sync:
+    mcp_tool: "backlogit_merge_sync"
+    params:
+      dry_run: "dry_run"
+
+  # --- Telemetry ---
+
+  telemetry_harvest:
+    mcp_tool: "backlogit_telemetry_harvest"
+    params:
+      copilot_path: "copilot_path"
+      force: "force"
+      since: "since"
+
+  # --- Maintenance ---
+
+  doctor:
+    mcp_tool: "backlogit_doctor"
+    cli_command: "backlogit doctor"
+    params:
+      check_orphans: "check_orphans"
+      check_duplicates: "check_duplicates"
+      fix_orphans: "fix_orphans"
+
+  cleanup_checkpoints:
+    mcp_tool: "backlogit_cleanup_checkpoints"
+    cli_command: "backlogit checkpoint cleanup"
+    params:
+      retention_days: "retention_days"
+
 field_mapping:
   task_id: "id"
   title: "title"
@@ -346,6 +417,7 @@ features:
   milestones: false
   documents: false
   telemetry: true
+  telemetry_harvest: true
   memory: true
   checkpoints: true
   comments: true
@@ -357,3 +429,8 @@ features:
   templates: true
   commit_tracking: true
   shipments: true
+  stash: true
+  semantic_links: true
+  deliberation: true
+  discovery: true
+  lifecycle_hygiene: true
