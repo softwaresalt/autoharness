@@ -6,9 +6,9 @@ tools: vscode, execute, read, agent, edit, search, todo, memory, {{BACKLOG_TOOLS
 model_routing: "Tier 2 (Standard)"  # DEPRECATED — use model_tier
 model_tier: 2
 max_subagent_tier: 3
-reasoning_effort: "{{TIER_2_REASONING_EFFORT}}"
-model_provider: "{{TIER_2_PROVIDER}}"
-model_family: "{{TIER_2_FAMILY}}"
+reasoning_effort: "{{ORCHESTRATOR_REASONING_EFFORT}}"
+model_provider: "{{ORCHESTRATOR_PROVIDER}}"
+model_family: "{{ORCHESTRATOR_FAMILY}}"
 subagent_depth: 3
 ---
 
@@ -237,7 +237,36 @@ Use `transmit` when a Stage or Ship failure requires operator intervention befor
 
 ## Model Routing
 
-This agent operates at **Tier 2 (Standard)** — orchestration and coordination.
+This agent operates at **Tier 2 (Standard)** by default, but supports an independent model override via `config.model_routing.orchestrator`. When the override is set, the orchestrator runs on the specified model regardless of the tier2 default.
+
+**Default routing** (when no orchestrator override is configured):
+
+| Agent | Tier | Default Model Family |
+|---|---|---|
+| Orchestrator | 2 (overridable) | `gpt-5.4` |
+| Stage | 3 (Frontier) | `claude-opus-4.6` |
+| Ship | 2 (Standard) | `claude-sonnet-4.6` |
+
+**Cross-provider routing**: The orchestrator can run on a different provider (e.g., OpenAI GPT-5.4) while routing Stage and Ship to Anthropic models. This works when the environment supports the `model_family` and `model_provider` frontmatter fields and the operator's subscription includes both providers.
+
+**Configuration example** (in `.autoharness/config.yaml`):
+
+```yaml
+model_routing:
+  orchestrator:
+    model: gpt-5.4
+    model_family: gpt-5.4
+    model_provider: openai
+    reasoning_effort: high
+  tier2:
+    model: claude-sonnet-4.6
+    model_family: claude-sonnet-4.6
+  tier3:
+    model: claude-opus-4.6
+    model_family: claude-opus-4.6
+```
+
+**Environment support**: The `model_family` and `model_provider` frontmatter fields are supported by VS Code with GitHub Copilot (reads agent definition YAML metadata) and Copilot CLI. Other environments (Cursor, Claude Code) may ignore frontmatter model declarations and use their own model selection. In those environments, the operator may need to manually select the model when switching between orchestrator and subagent sessions.
 
 Tier 2 agents handle strict rule adherence, tool calling, and workflow coordination. When invoking Stage, this agent must request Tier 3 reasoning capacity — Stage performs high-ambiguity planning and backlog synthesis that requires frontier model depth.
 

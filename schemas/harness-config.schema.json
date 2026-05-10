@@ -283,6 +283,43 @@
               }
             }
           ]
+        },
+        "orchestrator": {
+          "description": "Per-agent model override for the Orchestrator. When set, the orchestrator uses this model instead of inheriting from tier2. Accepts a plain model-identifier string or an object with routing metadata.",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Plain model identifier string. E.g., 'gpt-5.4'",
+              "examples": ["gpt-5.4", "claude-sonnet-4.6"]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "description": "Model identifier for the Orchestrator. Optional — not consumed by agent frontmatter directly but recorded for documentation and tooling.",
+                  "examples": ["gpt-5.4", "claude-sonnet-4.6"]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort setting for the Orchestrator (e.g., 'high'). Leave empty to use the model default.",
+                  "examples": ["medium", "high"]
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for the Orchestrator (e.g., 'openai', 'anthropic').",
+                  "examples": ["openai", "anthropic"]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family shorthand for the Orchestrator (e.g., 'gpt-5.4', 'claude-sonnet-4.6'). Default: gpt-5.4.",
+                  "default": "gpt-5.4",
+                  "examples": ["gpt-5.4", "claude-sonnet-4.6"]
+                }
+              }
+            }
+          ]
         }
       }
     },

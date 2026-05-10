@@ -171,6 +171,12 @@
           "type": "string",
           "description": "Frontier model for complex tasks (planning, architecture, analysis). E.g., 'claude-opus-4.6', 'gpt-5.4'",
           "examples": ["claude-opus-4.6", "gpt-5.4"]
+        },
+        "orchestrator": {
+          "type": "string",
+          "description": "Per-agent model override for the Orchestrator. When set, the orchestrator uses this model instead of inheriting from tier2. Default: gpt-5.4.",
+          "default": "gpt-5.4",
+          "examples": ["gpt-5.4", "claude-sonnet-4.6"]
         }
       }
     },
