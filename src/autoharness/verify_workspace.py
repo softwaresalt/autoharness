@@ -2054,7 +2054,7 @@ def verify_workspace(
         workspace_path / ".github/agents/orchestrator.agent.md",
     )
 
-    project_name = workspace_path.name
+    project_name = variables.get("PROJECT_NAME", workspace_path.name)
     project_name_pattern = re.compile(
         r"for the \*\*" + re.escape(project_name) + r"\*\* repository"
     )

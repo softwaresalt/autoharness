@@ -144,7 +144,7 @@ When the `agent-intercom` capability pack is installed, broadcast `[ORCHESTRATOR
 
 After Stage completes and before routing to Ship, verify that all staging artifacts (backlog items, shipment manifests) are committed to the default branch **and present on the remote**. Ship's Branch Creation Gate (P-011) requires a clean `{{DEFAULT_BRANCH}}`, but it does not verify that the shipment manifest being claimed actually exists on `{{DEFAULT_BRANCH}}`.
 
-1. Check `git status --short` for uncommitted files in `{{BACKLOG_DIRECTORY}}/`:
+1. Check `git status --short -- {{BACKLOG_DIRECTORY}}/` for uncommitted files in the backlog directory:
    - If dirty: staging artifacts need to be committed first (proceed to step 3).
    - If clean: proceed to step 2.
 2. Check for unpushed local commits:
@@ -157,7 +157,11 @@ After Stage completes and before routing to Ship, verify that all staging artifa
    b. Push the staging branch and create a PR to `{{DEFAULT_BRANCH}}`
    c. Wait for the staging PR to merge (operator approval required)
    d. After merge, pull `{{DEFAULT_BRANCH}}` and proceed to step 4
-   e. **Exception**: If the workspace does not enforce branch protection (no PR required for `{{DEFAULT_BRANCH}}`), Stage may commit and push directly to `{{DEFAULT_BRANCH}}` and skip the PR. Detect this by checking whether prior direct pushes to `{{DEFAULT_BRANCH}}` succeeded.
+   e. **Branch protection handling**: Attempt a direct push to `{{DEFAULT_BRANCH}}` first. If the push is rejected (exit code non-zero, typically due to branch protection rules), fall back to creating a staging PR:
+      - Create branch `chore/stage-{shipment_id}` from the current commit
+      - Push the branch and create a PR to `{{DEFAULT_BRANCH}}`
+      - Wait for the staging PR to merge (operator approval required)
+      This attempt-and-handle-failure approach is deterministic regardless of when branch protection was enabled or changed.
 4. Verify the shipment manifest exists on the remote default branch:
    `git show origin/{{DEFAULT_BRANCH}}:{{BACKLOG_DIRECTORY}}/queue/{shipment_id}.md`
    - If the file exists: staging artifacts are confirmed on the remote. Proceed to Step 2.
