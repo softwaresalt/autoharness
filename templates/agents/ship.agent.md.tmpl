@@ -316,6 +316,51 @@ After all tasks in the queue are complete:
 4. If CI or automated review comments fail:
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoking fix-ci for shipment PR` before invoking the skill.
    * Invoke the **fix-ci** skill before proceeding.
+4a. **Automated Review Comment Resolution Loop**: After CI passes (or after fix-ci completes), poll for unresolved Copilot review comments and resolve them iteratively:
+
+   ```
+   review_fix_cycle = 0
+   WHILE review_fix_cycle < 3:
+     1. Fetch unresolved review threads via GraphQL:
+        gh api graphql -f query='{
+          repository(owner:"{owner}", name:"{repo}") {
+            pullRequest(number:{pr_number}) {
+              reviewThreads(first:50) {
+                nodes {
+                  id, isResolved,
+                  comments(first:5) {
+                    nodes { id, body, path, line, author { login } }
+                  }
+                }
+              }
+            }
+          }
+        }'
+     2. Filter to unresolved threads only (isResolved: false)
+     3. Classify by author:
+        - Copilot threads: author.login matches "copilot-pull-request-reviewer"
+          (with or without [bot] suffix)
+        - Human threads: all other non-bot authors
+        - Other bot threads: author.login ends with [bot] but is not Copilot
+     4. IF zero unresolved Copilot threads: BREAK (loop complete)
+     5. FOR EACH unresolved Copilot thread:
+        a. Read the comment body to understand the issue
+        b. Apply the fix to the affected file(s)
+        c. Commit the fix
+     6. Push all fixes in a single push
+     7. FOR EACH fixed Copilot thread:
+        a. Reply via GraphQL: addPullRequestReviewComment mutation
+           (body: description of fix, inReplyTo: original comment ID)
+        b. Resolve via GraphQL: resolveReviewThread mutation
+           (threadId: thread ID)
+     8. Wait 30 seconds for Copilot to re-review the new commit
+     9. review_fix_cycle += 1
+   END WHILE
+   ```
+
+   * If the loop exits at the cycle limit (3) with unresolved threads remaining, list the unresolved comments in the PR-ready summary for operator attention.
+   * Human review threads are never auto-resolved — surface them to the operator.
+   * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Review comment fix cycle {n}: {resolved_count} resolved, {remaining_count} remaining` after each cycle.
 5. If the changed work touches runtime surfaces, invoke **runtime-verification** with the affected surfaces
 6. Invoke **operational-closure** to produce release-readiness, monitoring, rollback, and follow-up artifacts
 7. **Stash follow-up items**: If the closure artifact or runtime-verification report identified follow-up tasks, stash every follow-up so it is visible to the Stage agent:
@@ -453,6 +498,7 @@ branch-per-release-unit principle.
 | Consecutive task failures  | 3     | Halt, preserve session state, prompt operator for guidance |
 | Review-fix cycles per task | 3     | Accept remaining P2/P3 as backlog items, commit    |
 | Fix-CI cycles              | 5     | Halt, leave PR for manual intervention             |
+| Review comment fix cycles  | 3     | Present PR with remaining unresolved comments listed for operator |
 | Session stalls             | 3     | Halt, write checkpoint, prompt operator            |
 
 ### Escalation Protocol — Consecutive Task Failures
