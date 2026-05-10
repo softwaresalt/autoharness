@@ -1,11 +1,10 @@
----
-title: "Spike: Context Window Compaction Strategy — Implementation Plan"
-date: 2026-05-09
-shipment: 022-S
-status: complete
----
-
 # Context Window Compaction Strategy — Spike Findings
+
+**Date**: 2026-05-09
+**Shipment**: 022-S
+**Status**: complete
+
+---
 
 ## Source
 
