@@ -337,9 +337,11 @@ After all tasks in the queue are complete:
                 }
               }
             }
-          }' -f cursor=""
-        If pageInfo.hasNextPage is true, re-query with -f cursor="{endCursor}"
-        and merge results. Repeat until hasNextPage is false.
+          }' -F cursor=null
+        On the first request, pass null for the cursor (omits the after
+        argument). If pageInfo.hasNextPage is true, re-query with
+        -f cursor="{endCursor}" and merge results. Repeat until
+        hasNextPage is false.
      2. Filter to unresolved threads only (isResolved: false)
      3. Classify each thread by the FIRST comment's author (thread initiator):
         - Copilot threads: author.login matches "copilot-pull-request-reviewer"
