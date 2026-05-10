@@ -56,6 +56,7 @@ model_routing:
   tier1: "gpt-5.4-mini"
   tier2: "claude-sonnet-4.6"
   tier3: "claude-opus-4.6"
+  orchestrator: "gpt-5.4"
 
 ai_tools:
   copilot_cli:
