@@ -64,6 +64,8 @@ Mark artifacts as compaction candidates if:
 * **Plans**: Feature or chore is complete AND plan has appended review content ready for consolidation
 * **Closure records**: Feature or chore is complete AND more than `threshold_days` old
 
+> **Intercom**: When the `agent-intercom` capability pack is installed, broadcast `[COMPACT] Candidates identified: {count} files` after candidate identification is complete.
+
 ### Phase 3: Compact
 
 **Memory compaction** (per-release-unit or per-date group):
@@ -97,7 +99,7 @@ Summarize:
 * Plans consolidated into decided-plans: {{count}}
 * Closure records compacted: {{count}}
 
-> **Intercom**: When the `agent-intercom` capability pack is installed, broadcast `[COMPACT] Compacted {count} files, recovered {size}` after the summary is produced.
+> **Intercom**: When the `agent-intercom` capability pack is installed, broadcast `[COMPACT] Compacted {count} files, recovered {size_reduction}` after the summary is produced.
 
 ## Behavioral Constraints
 
@@ -116,7 +118,7 @@ following events at the specified trigger points:
 |---|---|---|
 | `start` | Skill invoked (Phase 1 begin) | `[COMPACT] Starting compaction: target={target}` |
 | `candidates` | Phase 2 complete | `[COMPACT] Candidates identified: {count} files` |
-| `complete` | Phase 4 report produced | `[COMPACT] Compacted {count} files, recovered {size}` |
+| `complete` | Phase 4 report produced | `[COMPACT] Compacted {count} files, recovered {size_reduction}` |
 
 ## Model Routing
 
