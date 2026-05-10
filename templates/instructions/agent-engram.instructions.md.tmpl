@@ -34,6 +34,8 @@ Before relying on engram results:
 
 Do not spam lifecycle calls on every trivial step. Check once per major workflow phase or when results appear wrong.
 
+The daemon now handles OOM conditions and startup failures gracefully (034-S). Do not assume daemon failure from a single timeout — retry once before falling back to file-based tools.
+
 ## Search Protocol
 
 Use the most specific engram tool first:
@@ -50,6 +52,8 @@ Use the most specific engram tool first:
 
 Prefer these before file-based fallback whenever the question is structural or conceptual.
 
+Use `query_graph` for ad-hoc Cypher-style read-only queries across the full graph. Use `query_graph_neighborhood` for structured node-centric traversal when exploring typed edges from a known node (033-S). Prefer the neighborhood API when you have a specific starting node.
+
 ## Fallback Protocol
 
 Fall back to grep, glob, or direct file reading only when:
@@ -64,6 +68,9 @@ If semantic search is unavailable, degraded, or returns a database / embedding f
 retrying the same broad search. Fall back to `list_symbols` + `map_code` + `impact_analysis` for
 the same discovery problem before broad raw-file scanning.
 
+Engram now internally retries on SQLITE_BUSY (032-S). If you see a transient database error, retry
+the operation once before falling back to grep — the internal retry may resolve the contention.
+
 ## Freshness Protocol
 
 If code changed outside the expected indexing flow, or the daemon reports stale state:
@@ -71,6 +78,7 @@ If code changed outside the expected indexing flow, or the daemon reports stale 
 1. Run `sync_workspace` for incremental refresh.
 2. Use `index_workspace` only when a full rebuild is actually needed.
 3. Treat stale results as suspect until freshness is restored.
+4. If `sync_workspace` returns an error, check `get_health_report` before assuming the workspace is corrupted (032-S). Sync errors may indicate transient conditions rather than data loss.
 
 ## Data Ownership Rule
 
