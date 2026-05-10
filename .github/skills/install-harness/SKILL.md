@@ -355,6 +355,9 @@ Resolution notes for health-check variables:
 | `{{TIER_3_REASONING_EFFORT}}` | `config.model_routing.tier3.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 3 agents; leave empty to use model default |
 | `{{TIER_3_PROVIDER}}` | `config.model_routing.tier3.model_provider` | _(empty)_ | Model provider for Tier 3 agents (e.g., `openai`, `anthropic`) |
 | `{{TIER_3_FAMILY}}` | `config.model_routing.tier3.model_family` | `claude-opus-4.6` | Model family shorthand resolved into Tier 3 agent frontmatter |
+| `{{ORCHESTRATOR_REASONING_EFFORT}}` | `config.model_routing.orchestrator.reasoning_effort`, fallback `{{TIER_2_REASONING_EFFORT}}` | _(empty)_ | Reasoning effort for the Orchestrator; falls back to Tier 2 default |
+| `{{ORCHESTRATOR_PROVIDER}}` | `config.model_routing.orchestrator.model_provider`, fallback `{{TIER_2_PROVIDER}}` | _(empty)_ | Model provider for the Orchestrator; falls back to Tier 2 default |
+| `{{ORCHESTRATOR_FAMILY}}` | `config.model_routing.orchestrator.model_family`, fallback `gpt-5.4` | `gpt-5.4` | Model family for the Orchestrator; defaults to `gpt-5.4` when no override or tier2 fallback is set |
 | `{{BROWSER_CLI}}` | `config.browser.cli` | `agent-browser` | Written back into `config.browser.cli` in the resolved harness-config.yaml |
 | `{{BROWSER_HEADLESS_FLAG}}` | `config.browser.headless_flag` | `--headless` | Written back into `config.browser.headless_flag` |
 | `{{EXPERIMENT_BRANCH_PREFIX}}` | `config.experiments.branch_prefix` | `experiment/` | Written back into `config.experiments.branch_prefix` (normalized to end with `/`) |
