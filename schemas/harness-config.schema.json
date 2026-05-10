@@ -294,12 +294,11 @@
             },
             {
               "type": "object",
-              "required": ["model"],
               "additionalProperties": false,
               "properties": {
                 "model": {
                   "type": "string",
-                  "description": "Model identifier for the Orchestrator. E.g., 'gpt-5.4'",
+                  "description": "Model identifier for the Orchestrator. Optional — not consumed by agent frontmatter directly but recorded for documentation and tooling.",
                   "examples": ["gpt-5.4", "claude-sonnet-4.6"]
                 },
                 "reasoning_effort": {

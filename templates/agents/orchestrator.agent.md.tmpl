@@ -247,7 +247,7 @@ This agent operates at **Tier 2 (Standard)** by default, but supports an indepen
 | Stage | 3 (Frontier) | `claude-opus-4.6` |
 | Ship | 2 (Standard) | `claude-sonnet-4.6` |
 
-**Cross-provider routing**: The orchestrator can run on a different provider (e.g., OpenAI GPT-5.4) while routing Stage and Ship to Anthropic models. This works when the environment supports the `model` frontmatter field and the operator's subscription includes both providers.
+**Cross-provider routing**: The orchestrator can run on a different provider (e.g., OpenAI GPT-5.4) while routing Stage and Ship to Anthropic models. This works when the environment supports the `model_family` and `model_provider` frontmatter fields and the operator's subscription includes both providers.
 
 **Configuration example** (in `.autoharness/config.yaml`):
 
@@ -266,7 +266,7 @@ model_routing:
     model_family: claude-opus-4.6
 ```
 
-**Environment support**: The `model` frontmatter field is supported by VS Code with GitHub Copilot (reads `model` from agent definition YAML) and Copilot CLI. Other environments (Cursor, Claude Code) may ignore frontmatter model declarations and use their own model selection. In those environments, the operator may need to manually select the model when switching between orchestrator and subagent sessions.
+**Environment support**: The `model_family` and `model_provider` frontmatter fields are supported by VS Code with GitHub Copilot (reads agent definition YAML metadata) and Copilot CLI. Other environments (Cursor, Claude Code) may ignore frontmatter model declarations and use their own model selection. In those environments, the operator may need to manually select the model when switching between orchestrator and subagent sessions.
 
 Tier 2 agents handle strict rule adherence, tool calling, and workflow coordination. When invoking Stage, this agent must request Tier 3 reasoning capacity — Stage performs high-ambiguity planning and backlog synthesis that requires frontier model depth.
 
