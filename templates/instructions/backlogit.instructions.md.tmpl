@@ -112,7 +112,7 @@ When link operations are supported:
 3. Do not duplicate a dependency as a link or vice versa. Each relationship type has one home.
 4. Note the naming similarity: `related_to` (link, informational) vs `relates_to` (dependency, execution-blocking). When in doubt, ask: "Does this relationship block execution?" If yes, use a dependency. If no, use a link.
 5. Before creating a `duplicate_of` link, verify the entries are truly duplicates, not just related.
-5. Use `get_links` to inspect existing relationships before adding new ones to avoid redundancy.
+6. Use `get_links` to inspect existing relationships before adding new ones to avoid redundancy.
 
 ## Discovery & Introspection Protocol
 
