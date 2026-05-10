@@ -322,23 +322,26 @@ After all tasks in the queue are complete:
    review_fix_cycle = 0
    WHILE review_fix_cycle < 3:
      1. Fetch unresolved review threads via GraphQL (paginate if needed):
-        gh api graphql -f query='{
-          repository(owner:"{owner}", name:"{repo}") {
-            pullRequest(number:{pr_number}) {
-              reviewThreads(first:50) {
-                nodes {
-                  id, isResolved,
-                  comments(first:1) {
-                    nodes { id, body, path, line, author { login } }
+        gh api graphql -f query='
+          query($cursor: String) {
+            repository(owner:"{owner}", name:"{repo}") {
+              pullRequest(number:{pr_number}) {
+                reviewThreads(first:50, after: $cursor) {
+                  nodes {
+                    id, isResolved,
+                    comments(first:1) {
+                      nodes { id, databaseId, body, path, line, author { login } }
+                    }
                   }
+                  pageInfo { hasNextPage endCursor }
                 }
-                pageInfo { hasNextPage endCursor }
               }
             }
-          }
-        }'
-        If pageInfo.hasNextPage is true, re-query with after:{endCursor}
-        and merge results. Repeat until all threads are fetched.
+          }' -F cursor=null
+        On the first request, pass null for the cursor (omits the after
+        argument). If pageInfo.hasNextPage is true, re-query with
+        -f cursor="{endCursor}" and merge results. Repeat until
+        hasNextPage is false.
      2. Filter to unresolved threads only (isResolved: false)
      3. Classify each thread by the FIRST comment's author (thread initiator):
         - Copilot threads: author.login matches "copilot-pull-request-reviewer"
@@ -355,12 +358,13 @@ After all tasks in the queue are complete:
         c. Commit the fix
      7. Push all fixes in a single push
      8. FOR EACH fixed Copilot thread:
-        a. Reply to the thread using the GitHub REST API:
-           gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies
+        a. Reply using the REST API with the numeric comment ID (databaseId):
+           gh api repos/{owner}/{repo}/pulls/{pr_number}/comments
            -f body="Fixed in {commit_sha}. {brief description of fix}"
-           (Use the numeric comment ID from the thread's first comment,
-           not the GraphQL node ID.)
-        b. Resolve the thread via GraphQL:
+           -F in_reply_to={databaseId}
+           (Use databaseId from the GraphQL query — the numeric integer,
+           NOT the GraphQL node ID which starts with PRRC_.)
+        b. Resolve the thread via GraphQL using the thread node ID:
            gh api graphql -f query='mutation {
              resolveReviewThread(input: { threadId: "{thread_id}" }) {
                thread { id isResolved }
