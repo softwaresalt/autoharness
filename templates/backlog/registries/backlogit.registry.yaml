@@ -233,6 +233,97 @@ operations:
       item_id: "item_id"
       reason: "reason"
 
+  # --- Stash management ---
+
+  stash:
+    mcp_tool: "backlogit_stash"
+    cli_command: "backlogit stash add --text {{text}}"
+    params:
+      text: "text"
+      kind: "kind"
+      priority: "priority"
+
+  stash_edit:
+    mcp_tool: "backlogit_stash_edit"
+    params:
+      stash_id: "stash_id"
+      text: "text"
+      kind: "kind"
+      priority: "priority"
+
+  stash_get:
+    mcp_tool: "backlogit_stash_get"
+    params:
+      stash_id: "stash_id"
+
+  stash_remove:
+    mcp_tool: "backlogit_stash_remove"
+    params:
+      stash_id: "stash_id"
+
+  stash_archive:
+    mcp_tool: "backlogit_stash_archive"
+    params:
+      stash_id: "stash_id"
+
+  fetch_stash:
+    mcp_tool: "backlogit_fetch_stash"
+    cli_command: "backlogit stash list"
+    params:
+      kind: "kind"
+      priority: "priority"
+      group_by_priority: "group_by_priority"
+
+  harvest_stash:
+    mcp_tool: "backlogit_harvest_stash"
+    cli_command: "backlogit stash harvest"
+    params:
+      stash_id: "stash_id"
+      priority: "priority"
+      artifact_type: "artifact_type"
+      title: "title"
+      description: "description"
+      parent_id: "parent_id"
+      status: "status"
+
+  # --- Deliberation ---
+
+  deliberate:
+    mcp_tool: "backlogit_deliberate"
+    params:
+      stash_id: "stash_id"
+      title: "title"
+      problem_frame: "problem_frame"
+      options: "options"
+      chosen_direction: "chosen_direction"
+      notes: "notes"
+      open_questions: "open_questions"
+
+  # --- Semantic links ---
+
+  add_link:
+    mcp_tool: "backlogit_add_link"
+    cli_command: "backlogit link add {{source_id}} {{target_id}} --type {{link_type}}"
+    params:
+      source_id: "source_id"
+      target_id: "target_id"
+      link_type: "link_type"
+
+  remove_link:
+    mcp_tool: "backlogit_remove_link"
+    cli_command: "backlogit link remove {{source_id}} {{target_id}} --type {{link_type}}"
+    params:
+      source_id: "source_id"
+      target_id: "target_id"
+      link_type: "link_type"
+
+  get_links:
+    mcp_tool: "backlogit_get_links"
+    cli_command: "backlogit link list {{id}}"
+    params:
+      id: "id"
+      link_type: "link_type"
+
 field_mapping:
   task_id: "id"
   title: "title"
