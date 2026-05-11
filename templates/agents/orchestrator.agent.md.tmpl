@@ -233,8 +233,8 @@ When the `agent-intercom` capability pack is installed, broadcast the iteration 
 
 1. **Identify the target agent**: Match the operator's request to Auto-MergeInstall (install/discover) or Auto-Tune (tune/drift/maintenance).
 2. **Validate preconditions**:
-   - **No active Ship work**: Check for any shipment in `{{STATUS_ACTIVE}}` status. If an active shipment exists, halt with: `ELECTIVE_BLOCKED: Cannot run {agent_name} while shipment {shipment_id} is active. Elective agents modify harness artifacts (templates, instructions, skills) that Ship may be actively building against. Complete or abandon the active shipment first.`
-   - **Clean worktree**: Verify no uncommitted changes exist in the target workspace that could conflict with harness artifact modifications.
+   - **No active Ship work**: Check for any shipment in `{{STATUS_ACTIVE}}` status. If an active shipment exists, broadcast the `ELECTIVE_BLOCKED` event (when `agent-intercom` is installed), then halt with: `ELECTIVE_BLOCKED: Cannot run {agent_name} while shipment {shipment_id} is active. Elective agents modify harness artifacts (templates, instructions, skills) that Ship may be actively building against. Complete or abandon the active shipment first.`
+   - **Clean worktree**: Verify no uncommitted changes exist in the target workspace that could conflict with harness artifact modifications. If uncommitted changes are found, halt with: `ELECTIVE_BLOCKED: Cannot run {agent_name} with uncommitted changes in target workspace. Commit or stash changes before invoking elective agents.`
 3. **Invoke the elective agent** as a subagent:
    - Pass the operator's request context (target workspace path, any scope constraints).
    - The elective agent runs at depth 1 (same as Stage or Ship). Its skills run at depth 2. Any review personas run at depth 3.
