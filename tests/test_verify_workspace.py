@@ -127,7 +127,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
         ship_content = (repo_root / "templates" / "agents" / "ship.agent.md.tmpl").read_text(encoding="utf-8")
 
         # Ship's Allowed includes claim/close shipments — Stage's Forbidden should reference that
-        self.assertIn("Claim", stage_content)  # Stage Forbidden references claiming
+        # Use table-scoped assertion to avoid false matches on incidental occurrences
+        self.assertRegex(stage_content, r"\|\s*Claim\s.*\|")  # Stage Forbidden references claiming in table row
         self.assertIn("Claim shipments", ship_content)  # Ship Allowed
 
         # Stage's Allowed includes Create backlog items — Ship's Forbidden should reference that
