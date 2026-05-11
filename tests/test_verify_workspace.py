@@ -110,6 +110,56 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
+    def test_role_boundary_tables_present_in_both_agent_templates(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        for tmpl_name in ("stage.agent.md.tmpl", "ship.agent.md.tmpl"):
+            tmpl_path = repo_root / "templates" / "agents" / tmpl_name
+            with self.subTest(template=tmpl_name):
+                content = tmpl_path.read_text(encoding="utf-8")
+                self.assertIn("## Role Boundary (NON-NEGOTIABLE)", content)
+                self.assertIn("P-010", content)
+                self.assertIn("Forbidden", content)
+                self.assertIn("Allowed", content)
+
+    def test_role_boundary_tables_have_complementary_operations(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        stage_content = (repo_root / "templates" / "agents" / "stage.agent.md.tmpl").read_text(encoding="utf-8")
+        ship_content = (repo_root / "templates" / "agents" / "ship.agent.md.tmpl").read_text(encoding="utf-8")
+
+        # Ship's Allowed includes claim/close shipments — Stage's Forbidden should reference that
+        self.assertIn("Claim", stage_content)  # Stage Forbidden references claiming
+        self.assertIn("Claim shipments", ship_content)  # Ship Allowed
+
+        # Stage's Allowed includes Create backlog items — Ship's Forbidden should reference that
+        self.assertIn("Create backlog items", ship_content)  # Ship Forbidden
+        self.assertIn("Create, update, archive backlog items", stage_content)  # Stage Allowed
+
+        # Stage Forbidden: build operations. Ship Allowed: build operations.
+        self.assertIn("Run build systems", stage_content)  # Stage Forbidden
+        self.assertIn("Run build systems", ship_content)  # Ship Allowed
+
+        # Stage Forbidden: PR operations. Ship Allowed: PR operations.
+        self.assertIn("Create, push, or merge pull requests", stage_content)  # Stage Forbidden
+        self.assertIn("Create, update, and merge pull requests", ship_content)  # Ship Allowed
+
+    def test_role_enforcement_instruction_template_exists(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        tmpl_path = repo_root / "templates" / "instructions" / "role-enforcement.instructions.md.tmpl"
+        self.assertTrue(tmpl_path.exists(), f"Missing: {tmpl_path}")
+        content = tmpl_path.read_text(encoding="utf-8")
+        self.assertIn("applyTo: '**'", content)
+        self.assertIn("Role Boundary (NON-NEGOTIABLE)", content)
+        self.assertIn("P-010", content)
+        self.assertIn("Pre-Mutation Check Protocol", content)
+
+    def test_install_harness_references_role_enforcement_conditional_weaving(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        skill_path = repo_root / ".github" / "skills" / "install-harness" / "SKILL.md"
+        content = skill_path.read_text(encoding="utf-8")
+        self.assertIn("role-enforcement.instructions.md", content)
+        self.assertIn("two-agent", content)
+        self.assertIn("Role Boundary (NON-NEGOTIABLE)", content)
+
     def test_unresolved_placeholders_ignore_code_fences(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_file = Path(temp_dir) / "sample.md"

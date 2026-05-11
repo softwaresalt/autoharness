@@ -31,6 +31,7 @@ This file defines the authoritative rules for working in the autoharness reposit
 # No {{VARIABLE}} placeholders may remain in installed output
 # All cross-references between installed artifacts must resolve
 # All PR merges must use merge commits — squash and rebase are forbidden (P-009, Principle XI)
+# When both stage and ship agents are installed (two-agent model), both must declare Role Boundary tables — P-010
 ```
 
 ## Development Workflow

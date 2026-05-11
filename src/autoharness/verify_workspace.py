@@ -321,6 +321,24 @@ FOUNDATION_ASSERTIONS = [
         ],
     },
     {
+        "key": "ship_role_boundary",
+        "path": ".github/agents/ship.agent.md",
+        "must_contain": [
+            "Role Boundary (NON-NEGOTIABLE)",
+            "P-010",
+            "Forbidden",
+        ],
+    },
+    {
+        "key": "install_harness_two_agent_role_enforcement",
+        "path": ".github/skills/install-harness/SKILL.md",
+        "must_contain": [
+            "role-enforcement.instructions.md",
+            "two-agent",
+            "Role Boundary (NON-NEGOTIABLE)",
+        ],
+    },
+    {
         "key": "stage_tool_availability_gate",
         "path": ".github/agents/stage.agent.md",
         "must_contain": [

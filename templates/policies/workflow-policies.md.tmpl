@@ -211,10 +211,10 @@ P-005 violation event.
 | Field      | Value                                    |
 |------------|------------------------------------------|
 | Policy ID  | P-010                                    |
-| Applies To | `stage`, `orchestrator`                  |
-| Gate Point | Session start, any step that would violate Stage scope |
+| Applies To | `stage`, `ship`, `orchestrator`           |
+| Gate Point | Session start, any step that would violate declared role scope |
 
-**Statement**: The Stage agent is a planning and decomposition agent. It must not act outside its stash-to-shipment scope. The Orchestrator agent must not perform Stage or Ship work directly — it routes to them as subagents.
+**Statement**: Each pipeline agent must operate within its declared `## Role Boundary (NON-NEGOTIABLE)` table. The Stage agent is a planning and decomposition agent. The Ship agent is an execution and delivery agent. The Orchestrator agent must not perform Stage or Ship work directly — it routes to them as subagents.
 
 **Stage MUST NOT**:
 - Create or checkout implementation feature or chore branches for code execution
@@ -229,7 +229,21 @@ P-005 violation event.
 - Read source code files to understand context for planning
 - Invoke deliberation, spike, impl-plan, plan-harden, plan-review, harvest, and compound skills
 
-**Violation Action**: Record a P-010 violation (via P-005 telemetry) and halt. Do not proceed past the boundary even if the operator requests implementation work — redirect to Ship instead.
+**Ship MUST NOT**:
+- Create backlog items, create shipments, or update item planning fields (scope, acceptance criteria)
+- Perform stash operations, triage, or deliberation
+- Create or modify deliberation, spike, plan, or review artifacts
+- Commit or push directly to `{{DEFAULT_BRANCH}}`
+
+**Ship MAY** (within its legitimate scope):
+- Claim shipments, move tasks to active/done, close shipments, archive completed items
+- Delegate source code reads and writes to build/fix skills
+- Create and checkout feature/chore branches, commit, push
+- Run build systems, test suites, linters, format checks
+- Create, update, and merge pull requests (with operator approval)
+- Read plans and deliberation artifacts for execution context
+
+**Violation Action**: Record a P-010 violation (via P-005 telemetry) and halt. Do not proceed past the boundary even if the operator requests work outside scope — redirect to the correct agent instead.
 
 ---
 
@@ -332,7 +346,7 @@ Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare 
 | 1.2.0   | {{DATE}}     | Added P-007      | Backlogit archive integrity after shipment |
 | 1.3.0   | {{DATE}}     | Added P-008      | Markdown conformance enforcement |
 | 1.4.0   | {{DATE}}     | Added P-009      | Merge-commit-only policy |
-| 1.5.0   | {{DATE}}     | Added P-010      | Agent role boundary (Stage/Orchestrator) |
+| 1.5.0   | {{DATE}}     | Added P-010      | Agent role boundary (Stage/Ship/Orchestrator) |
 | 1.6.0   | {{DATE}}     | Added P-011      | Branch-before-mutation (Ship) |
 | 1.7.0   | {{DATE}}     | Added P-012      | Tool availability and declared degradation |
 | 1.8.0   | {{DATE}}     | Added P-013      | Agent tier hierarchy and escalation |

@@ -150,6 +150,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * `workflow-policies.md` — P-001 through P-005
 * `safety-modes/SKILL.md` — Interactive careful / freeze-scope / investigate-first workflows
 * `strict-safety.instructions.md` — Optional overlay instructions that make risky actions explicit and reviewable
+* `role-enforcement.instructions.md` — Pre-mutation role boundary check protocol for the two-agent model (conditional — installed when both stage and ship agents are present)
 * Custom architectural linters — Enforce dependency direction, naming, and layering (generated per workspace)
 
 **Design Rules**:
@@ -163,6 +164,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Terminal commands run one at a time (no chaining)
 * Architectural linters enforce structural boundaries with agent-readable error messages
 * Lint error messages include remediation instructions so agents can self-correct
+* In the two-agent model (Stage + Ship), each agent declares a `## Role Boundary (NON-NEGOTIABLE)` table with Allowed/Forbidden operations. The `role-enforcement.instructions.md` instruction teaches agents to self-check against their declared boundary before any mutation (P-010)
 
 ## Primitive 6: Injection Points and Dynamic Reminders
 
