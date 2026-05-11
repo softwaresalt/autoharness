@@ -1,8 +1,8 @@
 # Harness Role Enforcement — Deliberation
 
 **Date**: 2026-05-09
-**Shipment**: 023-S
-**Status**: complete
+**Shipment**: 026-S
+**Status**: implemented
 
 ---
 
@@ -211,12 +211,12 @@ a real use case emerges.
 
 ## Implementation Plan
 
-Based on these decisions, the follow-up shipment (024-S) should contain:
+Based on these decisions, the follow-up shipment (026-S) contains:
 
-| Task | Description | Effort |
-|---|---|---|
-| 024.001-T | Add Role Boundary table to `ship.agent.md.tmpl` (matching Stage's format) | Small |
-| 024.002-T | Create `templates/instructions/role-enforcement.instructions.md.tmpl` | Medium |
-| 024.003-T | Update `install-harness/SKILL.md` with conditional weaving for role enforcement (auto-detect two-agent model) | Medium |
-| 024.004-T | Add verify_workspace.py assertions + tests for role consistency | Medium |
-| 024.005-T | Documentation updates | Small |
+| Task | Description | Effort | Status |
+|---|---|---|---|
+| 023.002-T | Add Role Boundary table to `ship.agent.md.tmpl` (matching Stage's format) | Small | Done |
+| 023.003-T | Create `templates/instructions/role-enforcement.instructions.md.tmpl` | Medium | Done |
+| 023.004-T | Update `install-harness/SKILL.md` with conditional weaving for role enforcement (auto-detect two-agent model) | Medium | Done |
+| 023.005-T | Add verify_workspace.py assertions + tests for role consistency | Medium | Done |
+| 023.006-T | Documentation updates | Small | Done |
