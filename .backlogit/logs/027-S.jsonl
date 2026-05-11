@@ -1,1 +1,2 @@
 {"timestamp":"2026-05-10T19:12:14.5520504-07:00","actor":"backlogit","item_id":"027-S","event_type":"shipment_created","delta":{"items":["026-F","026.001-T","026.002-T"],"title":"Orchestrator Elective Agent Routing"}}
+{"timestamp":"2026-05-10T19:15:19.8651967-07:00","actor":"backlogit","item_id":"027-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
