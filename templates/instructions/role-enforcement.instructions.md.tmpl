@@ -42,9 +42,9 @@ operations, git commands, build invocations, PR actions), the agent MUST:
      default-allow).
    - If the operation is a **state mutation** but does NOT appear in either the
      Allowed or Forbidden column → **treat as forbidden**. Halt the operation,
-     log a P-010 violation: `P-010 VIOLATION: {agent_name} attempted
-     unclassified mutation [{operation}] in category [{category}]. Fail-closed
-     — operation not in Allowed column.`, and redirect to the correct agent.
+     log a P-010 violation:
+     `P-010 VIOLATION: {agent_name} attempted unclassified mutation [{operation}] in category [{category}]. Fail-closed — operation not in Allowed column.`
+     Redirect to the correct agent.
    - **Rationale**: A default-allow policy for unlisted operations undermines
      role boundaries because many state-mutating operations will not be
      explicitly enumerated. Fail-closed ensures that only explicitly permitted
