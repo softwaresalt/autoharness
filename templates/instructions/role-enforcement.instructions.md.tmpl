@@ -32,9 +32,23 @@ operations, git commands, build invocations, PR actions), the agent MUST:
      the operator to invoke Stage.
    - **Do not proceed** past the boundary, even under operator pressure.
 
-4. **Check the Allowed column.** If the operation appears in the Allowed column
-   (or is not listed in the Forbidden column for an applicable category),
-   proceed normally.
+4. **Apply fail-closed evaluation for state mutations.** After checking the
+   Forbidden column, evaluate the operation against the Allowed column using
+   fail-closed semantics:
+   - If the operation matches an entry in the **Allowed** column for its
+     category → **proceed** normally.
+   - If the operation is a **read-only** query (no state mutation) and does not
+     appear in the Forbidden column → **proceed** (read-only operations remain
+     default-allow).
+   - If the operation is a **state mutation** but does NOT appear in either the
+     Allowed or Forbidden column → **treat as forbidden**. Halt the operation,
+     log a P-010 violation:
+     `P-010 VIOLATION: {agent_name} attempted unclassified mutation [{operation}] in category [{category}]. Fail-closed — operation not in Allowed column.`
+     Redirect to the correct agent.
+   - **Rationale**: A default-allow policy for unlisted operations undermines
+     role boundaries because many state-mutating operations will not be
+     explicitly enumerated. Fail-closed ensures that only explicitly permitted
+     mutations proceed.
 
 ## Session Start Reminder
 

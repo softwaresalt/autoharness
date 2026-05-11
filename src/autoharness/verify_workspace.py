@@ -2066,6 +2066,27 @@ def verify_workspace(
             [tuple(pair) for pair in assertion.get("must_precede") or []],
         )
 
+    # Conditional: when both stage and ship agents are installed (two-agent
+    # model) AND the workspace is a harness-installed workspace (manifest
+    # present), the role-enforcement instruction file must also be present.
+    # We gate on the manifest to avoid false failures in the autoharness repo
+    # itself, which defines the templates but does not install them locally.
+    stage_agent = workspace_path / ".github/agents/stage.agent.md"
+    ship_agent = workspace_path / ".github/agents/ship.agent.md"
+    role_enforcement_instruction = workspace_path / ".github/instructions/role-enforcement.instructions.md"
+    if stage_agent.exists() and ship_agent.exists() and manifest_path.exists():
+        _add_text_check(
+            report,
+            "installed_role_enforcement_instruction",
+            role_enforcement_instruction,
+            [
+                "Pre-Mutation Check Protocol",
+                "Role Boundary (NON-NEGOTIABLE)",
+                "P-010",
+                "Fail-closed",
+            ],
+        )
+
     _add_frontmatter_tier_check(
         report,
         "orchestrator_tier_fields",
