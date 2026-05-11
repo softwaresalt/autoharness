@@ -720,6 +720,8 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    When `adversarial-review` is enabled, install `adversarial-review.instructions.md` and use it as the authoritative reference for multi-model dispatch, consensus assembly, confidence tiers, and remediation queue structure.
    When `graphtor-docs` is enabled, install `graphtor-docs.instructions.md` and use it as the authoritative reference for indexed local documentation search, semantic retrieval, doc-graph traversal, and server lifecycle workflows. Resolve `{{GRAPHTOR_SOURCES_PATH}}` from the workspace profile's `graphtor_docs.config_paths` (defaulting to `.graphtor/config/sources.yaml`) and `{{GRAPHTOR_BINARY_PATH}}` from the detected binary path (defaulting to `.graphtor/bin/graphtor-docs`).
 
+5. **Two-agent model instructions** (conditional — auto-detected): When both `stage.agent.md` and `ship.agent.md` are being installed (indicating the two-agent Stage/Ship workflow model), install `role-enforcement.instructions.md` from `role-enforcement.instructions.md.tmpl`. This instruction defines the pre-mutation check protocol that teaches each agent to self-check against its own `## Role Boundary (NON-NEGOTIABLE)` table before executing tool calls. Skip this instruction when only one agent (or neither) is installed — role enforcement is only meaningful in the two-agent model.
+
 #### Step 2.3: Backlog Tool Registration
 
 If the workspace profile includes a detected backlog tool (`backlog_tool.detected: true`):
@@ -767,6 +769,7 @@ merge install), flag them for removal.
     * When `strict-safety` is enabled, keep risky planning and approval vocabulary visible through stage, review, verification, and closure handoffs
     * When `release-observability` is enabled, ensure operational-closure and runtime-verification carry monitoring plan, observation window, and rollback trigger expectations
     * When `graphtor-docs` is enabled, add explicit workflow guidance for indexed local documentation search using graphtor-docs MCP tools (`search_local_docs`, `search_semantic`, `research_topic`) before falling back to broad filesystem or web search
+    * When both stage and ship agents are being installed (two-agent model), ensure both agent definitions contain a `## Role Boundary (NON-NEGOTIABLE)` section with Allowed/Forbidden tables. The role-enforcement instruction (Step 2.2, item 5) references these tables at runtime.
 
 2. **Support agents**: prompt-builder
    * Minimal technology adaptation needed
