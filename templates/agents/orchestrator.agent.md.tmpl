@@ -30,7 +30,7 @@ The operator can invoke the orchestrator with these commands:
 | `define groupable shipments and stage` | Steps 0–1 with grouping analysis | Review stash and queue, propose thematic groupings, stage the first group |
 | `assess state` | Step 0 only | Report current backlog state without acting |
 
-When the operator's message does not match a trigger phrase, infer intent from context: if stash entries exist and no shipment is queued, behave as `run pipeline`. If a queued shipment exists and stash is empty, behave as `ship next`.
+When the operator's message does not match a trigger phrase, infer intent from context: if stash entries exist and no shipment is queued, behave as `run pipeline`. If a queued shipment exists and stash is empty, behave as `ship next`. For install/tune requests (e.g., "install harness", "tune harness"), route to elective agents — see the **Elective Agents** section below for trigger phrases and routing rules.
 
 ## Stash Grouping Heuristic
 
@@ -233,7 +233,7 @@ When the `agent-intercom` capability pack is installed, broadcast the iteration 
 
 1. **Identify the target agent**: Match the operator's request to Auto-MergeInstall (install/discover) or Auto-Tune (tune/drift/maintenance).
 2. **Validate preconditions**:
-   - **No active Ship work**: Check for any shipment in `{{STATUS_ACTIVE}}` status. If an active shipment exists, broadcast the `ELECTIVE_BLOCKED` event (when `agent-intercom` is installed), then halt with: `ELECTIVE_BLOCKED: Cannot run {agent_name} while shipment {shipment_id} is active. Elective agents modify harness artifacts (templates, instructions, skills) that Ship may be actively building against. Complete or abandon the active shipment first.`
+   - **No active Ship work**: Check for any shipment in `{{STATUS_ACTIVE}}` status. If an active shipment exists, broadcast the corresponding warning message from the Remote Operator Integration table (when `agent-intercom` is installed), then halt with: `ELECTIVE_BLOCKED: Cannot run {agent_name} while shipment {shipment_id} is active. Elective agents modify harness artifacts (templates, instructions, skills) that Ship may be actively building against. Complete or abandon the active shipment first.`
    - **Clean worktree**: Verify no uncommitted changes exist in the target workspace that could conflict with harness artifact modifications. If uncommitted changes are found, halt with: `ELECTIVE_BLOCKED: Cannot run {agent_name} with uncommitted changes in target workspace. Commit or stash changes before invoking elective agents.`
 3. **Invoke the elective agent** as a subagent:
    - Pass the operator's request context (target workspace path, any scope constraints).
@@ -279,7 +279,7 @@ When the `agent-intercom` capability pack is installed:
 | Stall detected | `broadcast` | `warning` | `[ORCHESTRATOR] Stall detected — no progress in last iteration` |
 | Elective routed | `broadcast` | `info` | `[ORCHESTRATOR] Elective agent {agent_name} invoked — {purpose}` |
 | Elective complete | `broadcast` | `success` | `[ORCHESTRATOR] Elective agent {agent_name} complete: {summary}` |
-| Elective blocked | `broadcast` | `warning` | `[ORCHESTRATOR] Elective agent blocked: active shipment {shipment_id} in progress` |
+| Elective blocked | `broadcast` | `warning` | `[ORCHESTRATOR] Elective agent blocked: {reason}` |
 | Session complete | `broadcast` | `success` | `[ORCHESTRATOR] Session complete: {outcome}` |
 
 Use `transmit` when a Stage or Ship failure requires operator intervention before the orchestrator loop can continue.
