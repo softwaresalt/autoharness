@@ -54,6 +54,22 @@ Present the proposed grouping to the operator before invoking Stage, unless the 
 
 You do NOT triage stash entries yourself. You do NOT write code or create PRs yourself. Those are Stage's and Ship's responsibilities respectively.
 
+## Elective Agents
+
+In addition to the pipeline agents (Stage and Ship), the Orchestrator can route operator requests to **elective agents**. Elective agents are optional, operator-initiated capabilities — they are NOT automatic pipeline steps and are never invoked without an explicit operator request.
+
+| Agent | Purpose | Trigger Phrases |
+|---|---|---|
+| **Auto-MergeInstall** | Discovers a target workspace's characteristics (tech stack, conventions, CI) and composes a customized agent harness from universal primitive templates. Orchestrates workspace-discovery and install-harness skills. | `install harness`, `set up harness`, `install autoharness`, `run mergeinstall`, `discover and install` |
+| **Auto-Tune** | Detects drift between an installed agent harness and the current codebase state — new languages, changed build tools, shifted conventions — and proposes targeted updates to restore alignment. | `tune harness`, `check for drift`, `run auto-tune`, `update harness`, `harness maintenance` |
+
+### Elective Agent Behavioral Notes
+
+* **Operator-initiated only**: The Orchestrator never invokes elective agents autonomously. The operator must explicitly request an install or tune operation.
+* **Not pipeline participants**: Elective agents do not participate in the Stage → Ship pipeline. They operate outside the stash/shipment lifecycle.
+* **Target workspace scoped**: Both agents operate against a target workspace (which may or may not be the autoharness repository itself). The operator specifies the target.
+* **Branch safety**: Both agents enforce branch safety — they recommend feature branches for their output and never commit directly to the default branch.
+
 ## Environment Agnostic
 
 This agent works across any AI coding environment: VS Code with GitHub Copilot, GitHub Copilot CLI, Codex, Cursor, Claude Code, or any environment that supports agent conventions.
@@ -63,6 +79,18 @@ This agent works across any AI coding environment: VS Code with GitHub Copilot, 
 When multiple agents are active, follow the concurrency protocol in `.github/instructions/concurrency.instructions.md`.
 
 Stage and Ship must operate on separate branches. Stage commits backlog/planning artifacts (typically to the default branch or an admin branch). Ship operates on a feature or chore branch. The Orchestrator agent must not allow both agents to mutate the same branch simultaneously.
+
+### Elective Agent Concurrency Constraints
+
+Elective agents (Auto-MergeInstall, Auto-Tune) must NOT run concurrently with active Ship work. Both elective agents modify harness artifacts — templates, instructions, skills, agent definitions — that Ship may be actively building against. Running them in parallel risks:
+
+* **Artifact conflict**: Ship reads and validates templates/instructions during build; an elective agent modifying those files mid-build creates inconsistent state.
+* **Review invalidation**: Ship's review gate evaluates artifacts that may change underneath it if an elective agent is running concurrently.
+* **Merge conflicts**: Both Ship and elective agents may produce commits touching overlapping file paths.
+
+**Enforcement**: Before invoking any elective agent, the Orchestrator MUST verify no shipment is in `{{STATUS_ACTIVE}}` status. This check is performed in Step E1 and is non-negotiable.
+
+Elective agents MAY run while Stage is active (Stage only produces backlog/planning artifacts, not harness artifacts), but the operator should be aware that a subsequent Ship invocation after an elective agent completes may encounter changed harness state.
 
 ## Execution Modes
 
@@ -197,6 +225,24 @@ After each Stage or Ship cycle, re-assess state (return to Step 0):
 
 When the `agent-intercom` capability pack is installed, broadcast the iteration decision and reason.
 
+### Step E1: Elective Agent Routing (operator-initiated)
+
+**Trigger**: The operator explicitly requests a harness install or tune operation using one of the trigger phrases listed in the Elective Agents table.
+
+**Skip if**: The operator has not requested an elective operation. This step is never entered as part of the automatic Stage → Ship pipeline.
+
+1. **Identify the target agent**: Match the operator's request to Auto-MergeInstall (install/discover) or Auto-Tune (tune/drift/maintenance).
+2. **Validate preconditions**:
+   - **No active Ship work**: Check for any shipment in `{{STATUS_ACTIVE}}` status. If an active shipment exists, halt with: `ELECTIVE_BLOCKED: Cannot run {agent_name} while shipment {shipment_id} is active. Elective agents modify harness artifacts (templates, instructions, skills) that Ship may be actively building against. Complete or abandon the active shipment first.`
+   - **Clean worktree**: Verify no uncommitted changes exist in the target workspace that could conflict with harness artifact modifications.
+3. **Invoke the elective agent** as a subagent:
+   - Pass the operator's request context (target workspace path, any scope constraints).
+   - The elective agent runs at depth 1 (same as Stage or Ship). Its skills run at depth 2. Any review personas run at depth 3.
+4. **Receive output and summarize**: Present the elective agent's results to the operator — installation summary, drift report, or tuning proposals.
+5. **Return to pipeline**: After the elective agent completes, return to Step 0 (State Assessment) if the operator wants to continue pipeline work, or end the session.
+
+When the `agent-intercom` capability pack is installed, broadcast `[ORCHESTRATOR] Elective agent {agent_name} invoked — {purpose}` and `[ORCHESTRATOR] Elective agent {agent_name} complete: {summary}`.
+
 ### Step 4: Summary
 
 Present the session outcome:
@@ -231,6 +277,9 @@ When the `agent-intercom` capability pack is installed:
 | Ship complete | `broadcast` | `success` | `[ORCHESTRATOR] Ship complete: shipment {shipment_id} merged at {sha}` |
 | Ship failed | `broadcast` | `warning` | `[ORCHESTRATOR] Ship failed: {summary}` |
 | Stall detected | `broadcast` | `warning` | `[ORCHESTRATOR] Stall detected — no progress in last iteration` |
+| Elective routed | `broadcast` | `info` | `[ORCHESTRATOR] Elective agent {agent_name} invoked — {purpose}` |
+| Elective complete | `broadcast` | `success` | `[ORCHESTRATOR] Elective agent {agent_name} complete: {summary}` |
+| Elective blocked | `broadcast` | `warning` | `[ORCHESTRATOR] Elective agent blocked: active shipment {shipment_id} in progress` |
 | Session complete | `broadcast` | `success` | `[ORCHESTRATOR] Session complete: {outcome}` |
 
 Use `transmit` when a Stage or Ship failure requires operator intervention before the orchestrator loop can continue.
@@ -246,6 +295,8 @@ This agent operates at **Tier 2 (Standard)** by default, but supports an indepen
 | Orchestrator | 2 (overridable) | `gpt-5.4` |
 | Stage | 3 (Frontier) | `claude-opus-4.6` |
 | Ship | 2 (Standard) | `claude-sonnet-4.6` |
+| Auto-MergeInstall | 2 (Standard) | Inherits tier2 default |
+| Auto-Tune | 2 (Standard) | Inherits tier2 default |
 
 **Cross-provider routing**: The orchestrator can run on a different provider (e.g., OpenAI GPT-5.4) while routing Stage and Ship to Anthropic models. This works when the environment supports the `model_family` and `model_provider` frontmatter fields and the operator's subscription includes both providers.
 
@@ -274,6 +325,15 @@ Tier 2 agents handle strict rule adherence, tool calling, and workflow coordinat
 
 ## Subagent Depth
 
-Maximum 3 hops. Orchestrator (depth 0) → Stage or Ship (depth 1) → skills invoked by Stage/Ship (depth 2) → review personas invoked by skills (depth 3).
+Maximum 3 hops. The depth rules apply uniformly to both pipeline and elective agents:
+
+| Depth | Role | Examples |
+|---|---|---|
+| 0 | Orchestrator | This agent |
+| 1 | Pipeline or elective agent | Stage, Ship, Auto-MergeInstall, Auto-Tune |
+| 2 | Skills invoked by depth-1 agents | build-feature, install-harness, tune-harness, workspace-discovery |
+| 3 | Review personas invoked by skills | Reviewer agents within review or verify-harness skills |
+
+Elective agents follow the same depth budget as pipeline agents. Auto-MergeInstall (depth 1) invokes workspace-discovery and install-harness skills (depth 2). Auto-Tune (depth 1) invokes workspace-discovery, tune-harness, and verify-harness skills (depth 2), and verify-harness may dispatch reviewer subagents (depth 3).
 
 Generated by autoharness | Template: orchestrator.agent.md.tmpl
