@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0 - 2026-05-11
+
+### Added
+
+- Added context-efficiency instruction template teaching agents tool result offloading, committed change eviction, and proactive compaction triggers (Primitive 1).
+- Added role enforcement system for the two-agent Stage/Ship workflow: fail-closed pre-mutation self-check, Role Boundary tables in both agent templates, conditional weaving based on two-agent model detection, and verify_workspace assertions for role consistency.
+- Added orchestrator elective agent routing: Auto-MergeInstall and Auto-Tune are now invocable as optional subagents from the Orchestrator with concurrency constraints and intercom events.
+- Added compact-context intercom broadcasts for agent-intercom capability pack (Phase 1 start, Phase 2 candidates, Phase 4 completion).
+
+### Changed
+
+- Synchronized backlogit capability pack with full MCP surface (53/53 tools): added 23 missing operation mappings across stash management, semantic links, lifecycle, discovery/metadata, telemetry, deliberation, and maintenance categories.
+- Synchronized agent-engram capability pack with full MCP surface (20/20 tools): added 8 missing tools including query_graph_neighborhood, observability/diagnostics tools, and documented resilience features.
+- Updated install-harness to register context-efficiency instruction universally and role-enforcement instruction conditionally.
+
 ## 1.3.4 - 2026-04-27
 
 ### Added
