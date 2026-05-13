@@ -199,6 +199,156 @@ After all addressable comments are handled:
 | Review-fix-push cycles | 3 | Accept remaining comments as backlog follow-ups |
 | Same comment re-raised after fix | 2 | Escalate to operator — likely a fundamental disagreement |
 
+**Cycle limits do not clear the merge gate.** When the review-fix cycle
+limit is reached with unresolved Copilot threads remaining, the agent
+MUST NOT proceed to merge. Unresolved Copilot review threads remain
+merge-blocking until resolved or explicitly overridden by the operator.
+The cycle limit stops additional automated fixing, not the merge gate.
+
+### 1.9 Pre-Merge Review Readiness Verification (Defense in Depth)
+
+This gate is a **NON-NEGOTIABLE** pre-merge verification that runs
+independently of the review-fix loop. Even if the review-fix loop in
+§1.7–§1.8 reports completion, this gate re-checks from scratch using
+the GitHub GraphQL API. It must pass before any merge is presented as
+ready or executed.
+
+#### 1.9.1 Readiness Query
+
+Run a single GraphQL query to fetch PR head SHA, pending review
+requests, completed reviews, review decision, and unresolved threads:
+
+```bash
+gh api graphql -f query='
+  query PRReviewReadiness($owner: String!, $repo: String!, $pr: Int!, $threadCursor: String) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $pr) {
+        headRefOid
+        reviewDecision
+        reviewRequests(first: 100) {
+          nodes {
+            requestedReviewer {
+              __typename
+              ... on Bot  { login }
+              ... on User { login }
+              ... on Team { name  }
+            }
+          }
+        }
+        reviews(last: 50) {
+          nodes {
+            author { login }
+            state
+            submittedAt
+            commit { oid }
+          }
+        }
+        reviewThreads(first: 100, after: $threadCursor) {
+          nodes {
+            id
+            isResolved
+            comments(first: 1) {
+              nodes { author { login } body path line }
+            }
+          }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+  }
+' -f owner="{{REPO_OWNER}}" -f repo="{{REPO_NAME}}" -F pr=<pr_number> -f threadCursor=""
+```
+
+If `pageInfo.hasNextPage` is true, re-run the query with
+`-f threadCursor="{endCursor}"` and merge the `reviewThreads.nodes`
+results. Repeat until `hasNextPage` is false. **Do not skip
+pagination** — a hard gate that misses blocking data is unsafe. If
+pagination cannot complete (API error, rate limit), fail closed and
+halt rather than declaring readiness.
+
+#### 1.9.2 Bot Identity
+
+The Copilot review bot appears under different login strings depending
+on the API surface:
+
+| API context | Login string |
+|-------------|-------------|
+| GraphQL `Bot.login` (reviews, reviewRequests) | `copilot-pull-request-reviewer` (no `[bot]` suffix) |
+| REST `review.user.login` | `copilot-pull-request-reviewer[bot]` |
+| REST timeline `requested_reviewer.login` | `Copilot` (display form) |
+
+When matching in GraphQL responses, use `copilot-pull-request-reviewer`
+(without `[bot]`). When matching in REST responses, use
+`copilot-pull-request-reviewer[bot]`. For review thread comments
+returned via GraphQL, the `author.login` field uses the no-suffix form.
+
+#### 1.9.3 Gate Checks
+
+Evaluate three checks in order. All three must pass for merge readiness.
+
+**Check 1 — Review completion (no pending Copilot review)**:
+
+1. Inspect `reviewRequests.nodes[].requestedReviewer`. If any node has
+   `login == "copilot-pull-request-reviewer"`, a Copilot review is still
+   pending (requested but not yet submitted).
+2. If pending: wait using the back-off cadence from §1.2 (max 15 min).
+   Re-run the readiness query after each wait interval.
+3. If no Copilot review request is pending, proceed to Check 2.
+
+**Check 2 — Review freshness (review covers current HEAD)**:
+
+1. Record `headRefOid` from the query response.
+2. Filter `reviews.nodes` to entries where
+   `author.login == "copilot-pull-request-reviewer"`.
+3. Find the most recent Copilot review by `submittedAt`.
+4. Compare its `commit.oid` against `headRefOid`.
+   - If they match: the review covers the current code. Proceed to Check 3.
+   - If they do not match: the latest Copilot review is stale (applies to
+     an older commit). Treat this as equivalent to "review pending" — wait
+     and re-poll per Check 1, or halt if the wait budget (15 min) is
+     already exhausted.
+   - If no Copilot review exists at all: the review was never requested or
+     timed out. Log a warning and proceed only if §1.2 timeout already
+     applied. Otherwise, request a review per §1.1 and wait.
+
+**Check 3 — Thread resolution (no unresolved Copilot threads)**:
+
+1. From the paginated `reviewThreads.nodes`, filter to threads where:
+   - `isResolved == false`, AND
+   - the first comment's `author.login == "copilot-pull-request-reviewer"`
+2. If zero unresolved Copilot threads: **GATE PASSES**. The PR is ready
+   for merge presentation.
+3. If any unresolved Copilot threads remain: **GATE FAILS**. List each
+   unresolved thread (path, line, comment summary) and halt. Do not
+   present the PR as merge-ready.
+
+**Human and other-bot threads**: Human review threads and non-Copilot
+bot threads are surfaced in the merge-readiness summary but do not
+block this Copilot-specific gate. However, if the repository has branch
+protection rules requiring conversation resolution, approved reviews,
+or if a human reviewer submitted a `CHANGES_REQUESTED` review, those
+constraints may independently block the merge at the GitHub level. The
+`reviewDecision` field from the query reflects the overall PR review
+decision (`APPROVED`, `CHANGES_REQUESTED`, `REVIEW_REQUIRED`, or null)
+and should be reported in the merge-readiness summary.
+
+#### 1.9.4 Terminal States
+
+| Condition | Action |
+|-----------|--------|
+| Copilot review pending, wait budget (15 min) exhausted | **Halt.** Report to operator. Do not proceed to merge. |
+| Copilot review stale (wrong HEAD), wait budget exhausted | **Halt.** Report stale review and current HEAD SHA to operator. |
+| Unresolved Copilot threads remain after fix cycles exhausted | **Halt.** List unresolved threads. Do not proceed to merge. |
+| No Copilot review exists and §1.2 timeout previously applied | **Warning.** Note in PR summary that Copilot review was unavailable. Gate passes for Copilot-specific checks only. |
+| All 3 checks pass | **Ready.** Present PR for merge approval. |
+
+The timeout for a pending Copilot review results in a **halt**, not
+"proceed without review." This is the defense-in-depth distinction from
+§1.2: the initial poll (§1.2) may allow proceeding after timeout with a
+warning during the review-fix loop, but this pre-merge gate does not.
+If the operator wants to merge without Copilot review, they must
+explicitly override.
+
 ---
 
 ## Part 2: CI Check Monitoring
@@ -319,6 +469,10 @@ this sequencing:
 7. **Resolve addressed threads** (Section 1.6) — only after fixes are
    pushed and replies posted.
 8. **Final verification poll** — confirm both CI green and review clean.
+9. **Pre-merge readiness gate** (Section 1.9) — run the defense-in-depth
+   GraphQL verification to confirm the Copilot review covers the current
+   HEAD and no unresolved Copilot threads remain. This gate runs even if
+   step 8 reported clean status.
 
 ### Interaction with fix-ci Skill
 

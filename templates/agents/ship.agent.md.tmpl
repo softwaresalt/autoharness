@@ -395,9 +395,37 @@ After all tasks in the queue are complete:
    END WHILE
    ```
 
-   * If the loop exits at the cycle limit (3) with unresolved threads remaining, list the unresolved comments in the PR-ready summary for operator attention.
+   * If the loop exits at the cycle limit (3) with unresolved threads remaining, **do not treat the PR as merge-ready**. Unresolved Copilot threads remain merge-blocking until resolved or explicitly overridden by the operator. List the unresolved comments in the PR-ready summary for operator attention.
    * Human review threads are never auto-resolved — surface them to the operator.
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Review comment fix cycle {n}: {resolved_count} resolved, {remaining_count} remaining` after each cycle.
+4b. **Pre-Merge Copilot Review Readiness Gate (NON-NEGOTIABLE)**: After the review comment resolution loop (Step 4a) completes — whether by resolving all threads or exhausting the cycle limit — run the defense-in-depth verification from `.github/instructions/github-pr-automation.instructions.md` §1.9 as an independent re-check. This gate verifies the same PR state from scratch using the GitHub GraphQL API. **The agent MUST NOT skip this gate, even if Step 4a reported zero unresolved threads.**
+
+    Execute the §1.9 readiness query (paginating `reviewThreads` until `hasNextPage` is false) and evaluate all three checks:
+
+    **Check 1 — No pending Copilot review request:**
+    Inspect `reviewRequests.nodes[].requestedReviewer`. If any node has `login == "copilot-pull-request-reviewer"`, a Copilot review is still in flight. Wait using the §1.2 back-off cadence (max 15 minutes). Re-run the readiness query after each wait interval.
+
+    **Check 2 — Review covers current HEAD:**
+    Record `headRefOid` from the query. Find the most recent Copilot review (by `submittedAt`) and compare its `commit.oid` against `headRefOid`. If they do not match, the latest review is stale — it applies to an older commit. Wait for a fresh review (reuse the §1.2 cadence) or halt if the 15-minute budget is exhausted. If no Copilot review exists at all and §1.2 timeout was not already applied, request one per §1.1 and wait.
+
+    **Check 3 — Zero unresolved Copilot review threads:**
+    From the paginated `reviewThreads.nodes`, count threads where `isResolved == false` AND the first comment's `author.login == "copilot-pull-request-reviewer"`.
+    * If zero: **GATE PASSES**. Proceed to Step 5.
+    * If any unresolved threads remain AND the review-fix cycle budget from Step 4a has remaining capacity: re-enter Step 4a to address the threads. After the additional cycle, re-run this gate.
+    * If any unresolved threads remain AND the cycle budget is exhausted: **HALT**. List each unresolved thread (path, line, comment body) and report to the operator. Do not proceed to Step 5.
+
+    **Bot identity in GraphQL responses:** The Copilot bot's `author.login` in GraphQL is `copilot-pull-request-reviewer` (without `[bot]` suffix). In REST API responses, the login is `copilot-pull-request-reviewer[bot]`. Match the appropriate form for the API being used.
+
+    **Terminal states:**
+    * Pending review, wait budget exhausted → **Halt.** Report to operator.
+    * Stale review (wrong HEAD), wait budget exhausted → **Halt.** Report stale review SHA vs current HEAD.
+    * Unresolved Copilot threads, cycle budget exhausted → **Halt.** List threads.
+    * No Copilot review and §1.2 timeout previously applied → **Warning.** Note in summary, gate passes.
+    * All 3 checks pass → **Ready.** Proceed to Step 5.
+
+    Surface human review threads, `reviewDecision`, and any `CHANGES_REQUESTED` reviews in the merge-readiness summary — these may independently block merge at the GitHub level.
+
+    When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Pre-merge review gate: {PASS|HALT} — {detail}` with the gate outcome.
 5. If the changed work touches runtime surfaces, invoke **runtime-verification** with the affected surfaces
 6. Invoke **operational-closure** to produce release-readiness, monitoring, rollback, and follow-up artifacts
 7. **Stash follow-up items**: If the closure artifact or runtime-verification report identified follow-up tasks, stash every follow-up so it is visible to the Stage agent:
@@ -415,7 +443,7 @@ After all tasks in the queue are complete:
     conflicts, and breaking the Ship pipeline's assumption of single-branch scope.
 12. **Never merge automatically. Await explicit user approval before any merge.**
     * When the `agent-intercom` capability pack is installed, broadcast `[WAIT] Awaiting user merge approval` and use the intercom clarification flow if unresolved operator guidance is needed before merge.
-12. **Pre-merge strategy guardrail (P-009)**: Before executing any merge, verify the PR is
+13. **Pre-merge strategy guardrail (P-009)**: Before executing any merge, verify the PR is
     configured to use a merge commit strategy (not squash or rebase).
     * On GitHub: confirm the active merge button is "Create a merge commit" — not
       "Squash and merge" or "Rebase and merge".
