@@ -145,8 +145,8 @@ Detect whether the workspace is already configured for agent-intercom or a close
 | Signal | Meaning |
 |--------|---------|
 | `.intercom/settings.json` exists | Workspace has explicit intercom policy/configuration markers |
-| `.vscode/mcp.json` or `.vscode/settings.json` references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
-| Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows | Harness may already be partially woven for intercom |
+| `.mcp.json` (workspace root), `.vscode/mcp.json`, `.cursor/mcp.json`, or `.vscode/settings.json` references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
+| Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows; or contains `<!-- intercom:start -->` / `<!-- intercom:end -->` markers | Harness may already be partially woven for intercom |
 
 Record: `agent_intercom{}` with the following structure:
 
@@ -154,8 +154,8 @@ Record: `agent_intercom{}` with the following structure:
 agent_intercom:
   detected: true|false
   mcp_configured: true|false
-  config_paths: []
-  instruction_markers: []
+  config_paths: []          # paths where intercom MCP config was found (e.g. .mcp.json, .vscode/mcp.json)
+  instruction_markers: []   # matched markers from AGENTS.md / copilot-instructions.md (e.g. <!-- intercom:start -->)
   recommended: true|false
 ```
 
@@ -166,8 +166,8 @@ Detect whether the workspace is already configured for agent-engram or a closely
 | Signal | Meaning |
 |--------|---------|
 | `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` exists | Workspace has engram installation or persisted state markers |
-| `.vscode/mcp.json` or `.vscode/settings.json` references `agent-engram`, `engram`, or known engram tool names (`unified_search`, `query_memory`, `map_code`, `list_symbols`, `impact_analysis`, `query_graph`) | MCP server likely configured for the workspace |
-| Existing `AGENTS.md` / `.github/copilot-instructions.md` references Engram-first search, `.engram/`, or workspace binding / status checks | Harness may already be partially woven for engram |
+| `.mcp.json` (workspace root), `.vscode/mcp.json`, `.cursor/mcp.json`, or `.vscode/settings.json` references `agent-engram`, `engram`, or known engram tool names (`unified_search`, `query_memory`, `map_code`, `list_symbols`, `impact_analysis`, `query_graph`) | MCP server likely configured for the workspace |
+| Existing `AGENTS.md` / `.github/copilot-instructions.md` references Engram-first search, `.engram/`, or workspace binding / status checks; or contains `<!-- engram:start -->` / `<!-- engram:end -->` markers | Harness may already be partially woven for engram |
 
 Record: `agent_engram{}` with the following structure:
 
@@ -175,8 +175,8 @@ Record: `agent_engram{}` with the following structure:
 agent_engram:
   detected: true|false
   mcp_configured: true|false
-  config_paths: []
-  instruction_markers: []
+  config_paths: []          # paths where engram MCP config was found (e.g. .mcp.json, .vscode/mcp.json)
+  instruction_markers: []   # matched markers from AGENTS.md / copilot-instructions.md (e.g. <!-- engram:start -->)
   recommended: true|false
 ```
 
