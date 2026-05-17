@@ -116,7 +116,22 @@ If the `agent-engram` capability pack is active (`.github/instructions/agent-eng
 
 See `.github/instructions/agent-engram.instructions.md` for full search protocol, fallback rules, and freshness protocol.
 
-1. Identify the shipment or feature to work on (read-only — do not claim yet).
+### Step 0.1c: Intercom Startup Ping
+
+If the `agent-intercom` capability pack is active (`.github/instructions/agent-intercom.instructions.md` exists):
+
+1. Call heartbeat/ping with a concise session-start status message (e.g., "Ship session started — loading shipment").
+   - On success: log `INTERCOM_OK`.
+   - On failure (service unreachable): log `INTERCOM_DEGRADED — operator visibility reduced`. Do not halt. Continue with non-destructive work.
+2. In `INTERCOM_DEGRADED` mode: skip phase broadcasts; treat approval-dependent destructive operations as blocked until intercom is restored or operator provides another path.
+
+**Phase broadcasts**: Broadcast concise status at planning started, task claimed, task completed, review complete, runtime verification, and operational closure per the Progress Protocol in `.github/instructions/agent-intercom.instructions.md`.
+
+**Before destructive file operations** (deletions, directory removals): run the intercom auto-check step before executing. Block if auto-check fails and intercom is unavailable.
+
+See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, broadcast, approval, and degraded-mode rules.
+
+### Step 0.5: Work Intake
    * If a shipment exists, record its ID for use in step 4.
    * Otherwise, select queued tasks from the backlog.
 2. Verify all tasks have clear scope and acceptance criteria.

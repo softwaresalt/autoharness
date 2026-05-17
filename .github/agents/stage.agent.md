@@ -119,7 +119,22 @@ If the `agent-engram` capability pack is active (`.github/instructions/agent-eng
 
 See `.github/instructions/agent-engram.instructions.md` for full search protocol, fallback rules, and freshness protocol.
 
-1. Read `.github/copilot-instructions.md` and `AGENTS.md` for workspace context.
+### Step 0.1c: Intercom Startup Ping
+
+If the `agent-intercom` capability pack is active (`.github/instructions/agent-intercom.instructions.md` exists):
+
+1. Call heartbeat/ping with a concise session-start status message (e.g., "Stage session started — loading stash").
+   - On success: log `INTERCOM_OK`.
+   - On failure (service unreachable): log `INTERCOM_DEGRADED — operator visibility reduced`. Do not halt. Continue with non-destructive work.
+2. In `INTERCOM_DEGRADED` mode: skip phase broadcasts; do not block on approval for non-destructive operations.
+
+**Before presenting operator choices** (stash triage, plan review, shipment assembly): broadcast a self-contained summary per the combined intercom+backlogit rule — include item ID, priority, type, one-line summary, and recommended ordering; state that operator confirmation is awaited.
+
+**Before destructive backlog operations** (archive, delete, terminal-state moves): run the intercom auto-check step. If not auto-approved, request operator clearance before proceeding.
+
+See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, broadcast, approval, and degraded-mode rules.
+
+### Step 0: Session Start
 2. Check backlogit stash for pending entries:
    `backlogit_fetch_stash` or `backlogit list --status queued`
 
