@@ -34,6 +34,10 @@
         "-Command",
         "$env:GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token); npx -y @modelcontextprotocol/server-github"
       ]
+    },
+    "engram": {
+      "type": "http",
+      "url": "http://127.0.0.1:7437/mcp"
     }
   }
 }

@@ -1,0 +1,19 @@
+sources:
+  - type: code
+    language: python
+    path: src
+  - type: tests
+    language: python
+    path: tests
+  - type: docs
+    language: markdown
+    path: docs
+  - type: instructions
+    language: markdown
+    path: .github
+  - type: backlog
+    language: markdown
+    path: .backlogit
+  - type: code
+    language: json
+    path: schemas
