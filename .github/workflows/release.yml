@@ -73,22 +73,22 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
-      - name: Install build tools
-        run: python -m pip install --upgrade pip build twine
-
       - name: Build wheel and sdist
-        run: python -m build
+        run: uv build
 
       - name: Validate built distributions
-        run: python -m twine check dist/*
+        run: uvx twine check dist/*
 
       - name: Check PyPI pre-publish state
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           python - <<'PY'
+          import os
           import urllib.error
           import urllib.request
 
-          version = "${{ steps.version.outputs.version }}"
+          version = os.environ["VERSION"]
           url = f"https://pypi.org/pypi/autoharness/{version}/json"
 
           try:
@@ -115,24 +115,29 @@ jobs:
         timeout-minutes: 10
         run: |
           version="${{ steps.version.outputs.version }}"
-          export version
-          timeout 300 bash -c '
-            set -euo pipefail
-            while true; do
-              if output="$(uv tool run --isolated --no-config --from "autoharness==${version}" autoharness version 2>/dev/null)" && [ "$output" = "$version" ]; then
-                home="$(uv tool run --isolated --no-config --from "autoharness==${version}" autoharness home)"
-                if [ ! -d "$home/templates" ] || [ ! -d "$home/schemas" ] || [ ! -d "$home/.github/agents" ]; then
-                  echo "Published package is missing bundled data at $home" >&2
-                  exit 1
-                fi
-                echo "Smoke test passed for autoharness ${version} from PyPI."
-                exit 0
+          deadline=$(( $(date +%s) + 280 ))
+          while true; do
+            if output="$(uv tool run --isolated --no-config --from "autoharness==${version}" autoharness version 2>/dev/null)" \
+                && [ "$output" = "$version" ]; then
+              home="$(uv tool run --isolated --no-config --from "autoharness==${version}" autoharness home)"
+              if [ ! -d "$home/templates" ] || [ ! -d "$home/schemas" ] || [ ! -d "$home/.github/agents" ]; then
+                echo "Published package is missing bundled data at $home" >&2
+                exit 1
               fi
+              echo "Smoke test passed for autoharness ${version} from PyPI."
+              exit 0
+            fi
 
-              echo "Waiting for autoharness ${version} to become available on PyPI..."
-              sleep 10
-            done
-          '
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "--- Final attempt stderr (for diagnostics) ---" >&2
+              uv tool run --isolated --no-config --from "autoharness==${version}" autoharness version 2>&1 || true
+              echo "Smoke test failed: autoharness ${version} did not become resolvable from PyPI within 280 seconds." >&2
+              exit 1
+            fi
+
+            echo "Waiting for autoharness ${version} to become available on PyPI..."
+            sleep 10
+          done
 
       - name: Create or update GitHub Release
         env:

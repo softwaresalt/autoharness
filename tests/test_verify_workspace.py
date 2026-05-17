@@ -57,7 +57,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
         self.assertIn("id-token: write", release_workflow)
         self.assertIn("astral-sh/setup-uv@", release_workflow)
-        self.assertIn("python -m twine check dist/*", release_workflow)
+        self.assertIn("uvx twine check dist/*", release_workflow)
         self.assertIn("gh-action-pypi-publish@", release_workflow)
         self.assertIn("skip-existing: true", release_workflow)
         self.assertIn('uv tool run --isolated --no-config --from "autoharness==${version}" autoharness version', release_workflow)
