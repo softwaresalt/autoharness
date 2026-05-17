@@ -7,3 +7,4 @@
 {"timestamp":"2026-05-17T12:49:49.4851339-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035.005-T"}}
 {"timestamp":"2026-05-17T12:49:49.6959981-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035.006-T"}}
 {"timestamp":"2026-05-17T12:53:28.4543761-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-05-17T14:30:00.0000000-07:00","actor":"ship","item_id":"033-S","event_type":"shipment_retargeted","delta":{"from_version":"1.4.1","to_version":"1.4.2","reason":"Trusted Publisher prerequisite resolved; version bumped to 1.4.2 to establish a clean PyPI-first release boundary. Reflected in pyproject.toml, __init__.py, CHANGELOG.md, PR title, and shipment title."}}
