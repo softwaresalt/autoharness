@@ -1,10 +1,20 @@
 # Changelog
 
-## 1.4.1 - 2026-05-16
+## 1.4.2 - 2026-05-17
+
+### Added
+
+- Added a PyPI-backed release pipeline: on every `v*` tag push, the release
+  workflow builds a wheel and sdist, validates with twine, publishes to PyPI
+  via OIDC Trusted Publisher, smoke-tests the published package, and creates
+  or updates the GitHub Release. `uv tool install autoharness` and
+  `uv tool upgrade autoharness` now resolve from PyPI rather than requiring a
+  Git URL clone. The Git URL remains valid as an explicit snapshot or developer
+  install path.
 
 ### Changed
 
-- Packaged the already-merged PR #80 template and startup-script changes into the v1.4.1 release for downstream merge-install propagation.
+- Packaged the already-merged PR #80 template and startup-script changes into the v1.4.2 release for downstream merge-install propagation.
 - Preserved the intentional `start.ps1` / `templates/scripts/start.ps1.tmpl` launch flow, including Engram/backlogit startup, non-fatal GitHub token lookup, and `--remote` Copilot launch behavior.
 - Added a defense-in-depth pre-merge Copilot review readiness gate across the GitHub PR automation instructions, Ship template, and PR lifecycle skill.
 

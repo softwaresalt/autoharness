@@ -36,7 +36,7 @@ Locate the autoharness installation (templates, schemas, registries). Resolution
 If none resolve, halt and instruct the user to install autoharness:
 
 ```text
-uv tool install git+https://github.com/softwaresalt/autoharness.git
+uv tool install autoharness
 ```
 
 Confirm that `templates/`, `schemas/`, and `docs/` exist at the resolved path.

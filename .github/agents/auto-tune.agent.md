@@ -46,7 +46,7 @@ Locate the autoharness installation (templates, schemas, registries). Resolution
 If none resolve, halt and instruct the user to install autoharness:
 
 ```text
-uv tool install git+https://github.com/softwaresalt/autoharness.git
+uv tool install autoharness
 ```
 
 ### Step 1: Identify the Target Workspace

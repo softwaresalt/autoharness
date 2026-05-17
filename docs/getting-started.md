@@ -29,10 +29,18 @@ autoharness is installed once to a global location and invoked against target wo
 ### With uv (recommended)
 
 ```bash
-uv tool install git+https://github.com/softwaresalt/autoharness.git
+uv tool install autoharness
 ```
 
 This installs `autoharness` as a global CLI tool. Agents resolve the installation path by running `autoharness home`.
+
+If you previously installed from the Git URL, switch once with:
+
+```bash
+uv tool uninstall autoharness && uv tool install autoharness
+```
+
+Use the Git URL only when you need an unreleased snapshot from the repository tip instead of the stable PyPI release.
 
 Update when improvements are available:
 
@@ -452,6 +460,8 @@ uv tool upgrade autoharness
 # If installed with git clone
 cd ~/.autoharness && git pull
 ```
+
+If your existing `uv` install still points at `git+https://github.com/softwaresalt/autoharness.git`, reinstall once from PyPI with `uv tool uninstall autoharness && uv tool install autoharness` so future upgrades use the published wheel instead of a Git checkout.
 
 Existing target workspace harnesses are not affected until you run the tuner against them. The tuner will detect template improvements and propose updates.
 

@@ -86,7 +86,7 @@ copilot plugin marketplace add softwaresalt/autoharness
 copilot plugin install autoharness@autoharness
 
 # Option B: Python CLI (for setup-vscode and verify-workspace)
-uv tool install git+https://github.com/softwaresalt/autoharness.git
+uv tool install autoharness
 autoharness setup-vscode        # VS Code with GitHub Copilot
 
 # Register with other AI environments (requires Python CLI)
@@ -100,12 +100,19 @@ autoharness setup-codex         # Codex
 autoharness verify-workspace --workspace .
 ```
 
+If you previously installed the Python CLI from the Git URL, switch once with
+`uv tool uninstall autoharness && uv tool install autoharness` so future
+`uv tool upgrade autoharness` runs upgrade from the published wheel instead of
+recloning the repository.
+
 If the target workspace is Git-backed, treat install and tune output as
 feature-branch work. autoharness may still generate local uncommitted changes
 while you are on the default branch, but the intended review path is feature
 branch plus pull request, not a direct commit or push to the default branch.
 
 The marketplace-based plugin install path gives Copilot CLI users built-in versioning and update management with no Python dependency. The Python CLI is still needed for `setup-vscode` (writing VS Code user settings), `verify-workspace` (CI-friendly JSON Schema validation), and registering with Claude Code or Codex.
+
+The PyPI package is the stable Python CLI distribution path. Use the Git URL only when you explicitly want an unreleased snapshot from the repository tip.
 
 The `setup-claude` and `setup-codex` commands copy agent or skill files into each tool's standard global config directory, so rerun them after upgrading autoharness to refresh those files. `setup-vscode` writes user-settings pointers to `autoharness home`; rerun it only if that resolved install path changes.
 
