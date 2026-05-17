@@ -104,15 +104,36 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
-    def test_reference_library_is_indexed_without_git_submodules(self) -> None:
+    def test_reference_library_submodules_are_registered(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        self.assertFalse((repo_root / ".gitmodules").exists())
-        self.assertTrue((repo_root / "references" / "README.md").exists())
+        gitmodules_path = repo_root / ".gitmodules"
+
+        # .gitmodules must exist — submodules are kept as in-repo developer references
+        self.assertTrue(gitmodules_path.exists(), ".gitmodules must exist at repo root")
+
+        gitmodules_content = gitmodules_path.read_text(encoding="utf-8")
+        expected_paths = [
+            "references/awesome-copilot",
+            "references/awesome-agent-skills",
+            "references/awesome-claude-skills",
+            "references/ai-skills",
+            "references/awesome-agents",
+            "references/agent-skills",
+        ]
+        for path in expected_paths:
+            self.assertIn(path, gitmodules_content, f"Expected submodule path '{path}' in .gitmodules")
 
         reference_library = (repo_root / "docs" / "reference-library.md").read_text(encoding="utf-8")
-        self.assertIn("references/README.md", reference_library)
-        self.assertNotIn("git submodule update --remote", reference_library)
-        self.assertNotIn("git submodule status", reference_library)
+
+        # Contrary passage from the rejected submodule-removal model must be gone
+        self.assertNotIn(
+            "kept out of the autoharness Git install path",
+            reference_library,
+            "Contrary submodule-removal passage must not appear in reference-library.md",
+        )
+
+        # Document must still reference the references/ directory
+        self.assertIn("references/", reference_library)
 
     def test_branch_safety_guidance_is_woven_through_install_and_tune_workflows(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
