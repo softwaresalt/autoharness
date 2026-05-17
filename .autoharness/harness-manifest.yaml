@@ -193,6 +193,11 @@ artifacts:
     template: "instructions/agent-intercom.instructions.md.tmpl"
     checksum: "4cd9147cf25345fe1c4de46e7bc26251716a4d5b7494e84a2f5e6a2e31375f0c"
     note: "agent-intercom capability pack overlay instruction"
+  - path: ".github/instructions/graphtor-docs.instructions.md"
+    primitive: 1
+    template: "instructions/graphtor-docs.instructions.md.tmpl"
+    checksum: "0519312293272c6c052fea4d96e0ea81649c39db12817a1b518ce7e4e85aa3c1"
+    note: "graphtor-docs capability pack overlay instruction (vars resolved: GRAPHTOR_SOURCES_PATH=.graphtor/config/sources.yaml, GRAPHTOR_BINARY_PATH=.graphtor/bin/graphtor-docs.exe)"
 variables_used:
   PROJECT_NAME: "autoharness"
   PRIMARY_LANGUAGE: "Python"
