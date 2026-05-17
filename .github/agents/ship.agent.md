@@ -105,7 +105,16 @@ After tool availability probing (Step 0.0), and before any subsequent semantic s
   - If the CLI succeeds: log `INDEX_SYNC_OK (CLI fallback)`.
   - If both fail: log `INDEX_SYNC_WARN — proceeding with potentially stale index` and continue.
 
-### Step 0.5: Work Intake
+### Step 0.1b: Engram Readiness Check
+
+If the `agent-engram` capability pack is active (`.github/instructions/agent-engram.instructions.md` exists or `agent_engram.detected: true` in workspace profile):
+
+1. Call `get_workspace_status` to verify daemon readiness and workspace binding.
+   - On success: log `ENGRAM_OK: workspace bound`.
+   - On failure (timeout or unavailable): log `ENGRAM_DEGRADED — falling back to file-based exploration`. Do not halt.
+2. In `ENGRAM_DEGRADED` mode, proceed with grep/glob/view for codebase discovery; skip Engram search calls.
+
+See `.github/instructions/agent-engram.instructions.md` for full search protocol, fallback rules, and freshness protocol.
 
 1. Identify the shipment or feature to work on (read-only — do not claim yet).
    * If a shipment exists, record its ID for use in step 4.
@@ -141,12 +150,13 @@ After tool availability probing (Step 0.0), and before any subsequent semantic s
 For each task in the shipment/feature:
 
 1. **Claim**: Move the task to active via `backlogit_move_item`.
-2. **Execute**: Perform the template authoring, schema change, skill
+2. **Pre-build Engram search** (when `ENGRAM_OK`): Run `impact_analysis` on the task's primary symbol or file scope to surface unexpected callers and assess blast radius before beginning implementation. See `.github/instructions/agent-engram.instructions.md`.
+3. **Execute**: Perform the template authoring, schema change, skill
    development, or documentation work.
-3. **Validate**: Run quality gates.
-4. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`, `test:`).
-5. **Complete**: Move the task to done via `backlogit_move_item`.
-6. **Track**: Associate the commit via `backlogit_track_commit`.
+4. **Validate**: Run quality gates.
+5. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`, `test:`).
+6. **Complete**: Move the task to done via `backlogit_move_item`.
+7. **Track**: Associate the commit via `backlogit_track_commit`.
 
 ### Step 3: Review Gate
 

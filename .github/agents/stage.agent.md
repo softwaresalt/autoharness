@@ -108,7 +108,16 @@ After tool availability probing (Step 0.0), and before any subsequent semantic b
   - If the CLI succeeds: log `INDEX_SYNC_OK (CLI fallback)`.
   - If both fail: log `INDEX_SYNC_WARN — proceeding with potentially stale index` and continue.
 
-### Step 0: Session Start
+### Step 0.1b: Engram Readiness Check
+
+If the `agent-engram` capability pack is active (`.github/instructions/agent-engram.instructions.md` exists or `agent_engram.detected: true` in workspace profile):
+
+1. Call `get_workspace_status` to verify daemon readiness and workspace binding.
+   - On success: log `ENGRAM_OK: workspace bound`.
+   - On failure (timeout or unavailable): log `ENGRAM_DEGRADED — falling back to file-based exploration`. Do not halt.
+2. In `ENGRAM_DEGRADED` mode, proceed with grep/glob/view for codebase discovery; skip Engram search calls.
+
+See `.github/instructions/agent-engram.instructions.md` for full search protocol, fallback rules, and freshness protocol.
 
 1. Read `.github/copilot-instructions.md` and `AGENTS.md` for workspace context.
 2. Check backlogit stash for pending entries:
@@ -134,10 +143,11 @@ Based on classification:
 
 ### Step 3: Planning
 
-1. Invoke `impl-plan` skill with the feature/chore description and relevant context.
-2. If the plan has elevated blast radius (touches schemas, CLI distribution,
+1. **Pre-planning Engram search** (when `ENGRAM_OK`): Run `unified_search` or `impact_analysis` on the feature/chore scope to assess blast radius and surface relevant prior context before producing the plan. Reference `.github/instructions/agent-engram.instructions.md` for tool selection guidance.
+2. Invoke `impl-plan` skill with the feature/chore description and relevant context.
+3. If the plan has elevated blast radius (touches schemas, CLI distribution,
    or multiple template families), invoke `plan-harden` before review.
-3. Gate through `plan-review` skill before proceeding.
+4. Gate through `plan-review` skill before proceeding.
 
 ### Step 4: Harvest
 
