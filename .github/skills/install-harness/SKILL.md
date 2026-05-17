@@ -618,6 +618,40 @@ Example overlay target map for `agent-engram`:
 * stage.agent.md and ship.agent.md contain `get_workspace_status` reference (text search)
 * copilot-instructions.md contains `engram:start` / `engram:end` markers (text search)
 
+#### Formal Overlay Contract: `agent-intercom`
+
+**Eligibility signals** (when to recommend agent-intercom):
+* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`)
+* `AGENTS.md` or agent files contain intercom tool names or `<!-- intercom:start -->` marker
+
+**Recommendation logic**: Recommend when `agent_intercom.mcp_configured: true` OR `agent_intercom.detected: true` in the workspace profile.
+
+**Overlay targets**:
+* `agent-intercom.instructions.md` — primary instruction file installed at `.github/instructions/`
+* `pipeline-agents` — stage.agent.md, ship.agent.md: startup heartbeat, phase broadcasts, approval routing, operator-choice broadcasts
+* `destructive-action-workflows` — anywhere the harness gates destructive operations (file deletion, directory removal)
+* `operator-choice-surfaces` — stash triage, plan review, shipment assembly (self-contained broadcast with backlogit item details)
+
+**Behavior deltas**:
+* Session start: heartbeat/ping with concise status message; log `INTERCOM_OK` or `INTERCOM_DEGRADED`
+* Before operator-facing choices: self-contained broadcast with item ID, priority, type, one-line summary, ordering rationale, and explicit wait-for-confirmation statement
+* Before destructive ops: auto-check → request clearance if not auto-approved; block if intercom unavailable
+* Phase transitions: broadcast at planning started, build started, task claimed, task completed, review complete, runtime verification, operational closure
+* Fallback: `INTERCOM_DEGRADED` — non-destructive work continues; approval-dependent ops blocked until restored
+
+**Combined backlogit+intercom operator-presentation rule**: When both `agent-intercom` and `backlogit` packs are active, operator-facing backlog presentation (stash triage choices, queue items, plan review options) must be broadcast as a self-contained message: include item ID, priority, type, one-line summary, recommended ordering or shortlist rationale, and an explicit statement that operator confirmation is awaited. The operator may be reading remotely and cannot recover context from the chat transcript.
+
+**Verification checks** (installation-time):
+* `agent-intercom.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
+* stage.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
+* ship.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
+* No unresolved `{{VARIABLE}}` in `agent-intercom.instructions.md` (template has none — direct copy)
+
+**Tuning drift checks**:
+* `agent-intercom.instructions.md` checksum vs. template checksum in harness-manifest
+* stage.agent.md and ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
+* MCP config path in manifest references `.mcp.json` (not stale `.vscode/mcp.json`)
+
 Example overlay target map for `browser-verification`:
 
 | Overlay Element | Required Targets |
