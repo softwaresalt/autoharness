@@ -1,0 +1,9 @@
+# Engram plugin configuration
+# See documentation for all available options.
+#
+# [daemon]
+# idle_timeout_minutes = 240   # Shut down after 4 hours of inactivity
+# debounce_ms = 500            # File event debounce window
+#
+# [watcher]
+exclude_patterns = [".engram/", ".git/", "node_modules/", "target/", ".claude/", ".cursor/", ".graphtor/", ".pytest_cache/", ".venv/", ".vscode/"]

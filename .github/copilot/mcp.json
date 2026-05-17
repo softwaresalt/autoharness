@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "graphtor-docs": {
+      "command": ".graphtor/bin/graphtor-docs.exe",
+      "args": ["serve"],
+      "transport": "stdio"
+    }
+  }
+}
