@@ -8,9 +8,6 @@ sources:
   - type: docs
     language: markdown
     path: docs
-  - type: docs
-    language: markdown
-    path: references
   - type: instructions
     language: markdown
     path: .github

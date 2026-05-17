@@ -7,7 +7,7 @@
       "args": [
         "serve"
       ],
-      "command": ".graphtor/bin/graphtor-docs.exe",
+      "command": "graphtor-docs",
       "transport": "stdio"
     }
   }
