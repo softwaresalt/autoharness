@@ -188,6 +188,11 @@ artifacts:
     template: "instructions/agent-engram.instructions.md.tmpl"
     checksum: "4e77366ee9f33650b4f9c0ebecda70f0be2f917023053d7ca4a3981ff78459f2"
     note: "agent-engram capability pack overlay instruction"
+  - path: ".github/instructions/agent-intercom.instructions.md"
+    primitive: 4
+    template: "instructions/agent-intercom.instructions.md.tmpl"
+    checksum: "4cd9147cf25345fe1c4de46e7bc26251716a4d5b7494e84a2f5e6a2e31375f0c"
+    note: "agent-intercom capability pack overlay instruction"
 variables_used:
   PROJECT_NAME: "autoharness"
   PRIMARY_LANGUAGE: "Python"
