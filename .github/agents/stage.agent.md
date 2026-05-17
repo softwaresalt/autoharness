@@ -148,7 +148,7 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
 ### Step 0: Session Start
 
 1. Read `.github/copilot-instructions.md` and `AGENTS.md` for workspace context.
-   `backlogit_fetch_stash` or `backlogit list --status queued`
+2. Check backlogit stash and queued items: `backlogit_fetch_stash` or `backlogit list --status queued`
 
 ### Step 1: Stash Triage
 

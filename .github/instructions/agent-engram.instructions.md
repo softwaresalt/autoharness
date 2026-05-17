@@ -5,7 +5,7 @@ applyTo: '**'
 
 # Agent-Engram Instructions
 
-Use these rules when the workspace enabled the `agent-engram` capability pack. This pack is not a
+Use these rules when the workspace has enabled the `agent-engram` capability pack. This pack is not a
 generic search preference toggle. It weaves engram-first indexed retrieval and code-graph-aware
 reasoning through the harness workflow.
 

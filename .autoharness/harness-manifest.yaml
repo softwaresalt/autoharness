@@ -33,7 +33,7 @@ capability_pack_overlays:
       - "long-running-skills"
       - "ping-loop-prompt"
     verification_checks:
-      - "agent-intercom MCP configured in .mcp.json"
+      - "agent-intercom MCP configured in .vscode/mcp.json (or .cursor/mcp.json / .mcp.json)"
       - "agent-intercom.instructions.md installed at .github/instructions/"
       - "ping-loop prompt references intercom heartbeat"
   - pack: "backlogit"
@@ -43,7 +43,7 @@ capability_pack_overlays:
       - "pipeline-agents"
       - "backlog-aware-workflows"
     verification_checks:
-      - "backlogit MCP configured in .mcp.json"
+      - "backlogit MCP configured in .vscode/mcp.json (or .mcp.json)"
       - "backlogit registry installed at .autoharness/backlog-registry.yaml"
   - pack: "agent-engram"
     overlay_targets:

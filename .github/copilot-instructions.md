@@ -124,7 +124,7 @@ Templates are documentation artifacts, not code. Quality is verified through:
 <!-- engram:start -->
 ## Engram Agent Memory — Capability Pack Overlay
 
-Engram is registered as an MCP server via `D:/Tools/engram.exe shim` in `.mcp.json` (workspace root).
+Engram is registered as an MCP server via the local MCP configuration (`.vscode/mcp.json` and/or `.cursor/mcp.json`). The exact registration path differs by editor; `.mcp.json` at workspace root is gitignored and machine-specific.
 
 ### Available Tools
 

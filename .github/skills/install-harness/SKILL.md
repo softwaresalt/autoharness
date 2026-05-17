@@ -650,7 +650,7 @@ Example overlay target map for `agent-engram`:
 **Tuning drift checks**:
 * `agent-intercom.instructions.md` checksum vs. template checksum in harness-manifest
 * stage.agent.md and ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
-* MCP config path in manifest references `.mcp.json` (not stale `.vscode/mcp.json`)
+* MCP config path in manifest accepts any committed location: `.vscode/mcp.json`, `.cursor/mcp.json`, or `.mcp.json` (gitignored, machine-local)
 
 #### Formal Overlay Contract: `graphtor-docs`
 
@@ -666,7 +666,7 @@ Example overlay target map for `agent-engram`:
 * `graphtor-docs.instructions.md` — primary instruction file (two template variables require discovery-first resolution)
 * `pipeline-agents` — stage.agent.md, ship.agent.md: session-start server check, pre-planning doc research, pre-build doc search, multi-pack routing note
 * `research-skills` — any research or learnings-retrieval skill: prefer graphtor-docs for doc lookup over broad grep
-* `workspace-profile` — requires `graphtor_docs` section with `sources_path` and `binary_path`
+* `workspace-profile` — requires `graphtor_docs` section with `sources_path` and `binary_on_path` (boolean)
 
 **Behavior deltas**:
 * Session start: `get_status` check once per session — log `GRAPHTOR_OK` or `GRAPHTOR_UNAVAILABLE`
@@ -690,7 +690,7 @@ After resolution, verify no `{{...}}` remain in the rendered file before recordi
 * `graphtor-docs.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
 * Zero `{{VARIABLE}}` placeholders in installed file (both `GRAPHTOR_SOURCES_PATH` and `GRAPHTOR_BINARY_PATH` must be resolved)
 * stage.agent.md and ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference
-* workspace-profile.yaml has `graphtor_docs` section with `sources_path` and `binary_path`
+* workspace-profile.yaml has `graphtor_docs` section with `sources_path` and `binary_on_path` (boolean)
 
 **Tuning drift checks**:
 * `graphtor-docs.instructions.md` checksum comparison: note that because template variables are resolved at install time, the installed checksum is workspace-specific — the tuner should compare the rendered content against a fresh render from the template (re-resolving variables), NOT against the raw template file. If both `GRAPHTOR_SOURCES_PATH` and `GRAPHTOR_BINARY_PATH` are unchanged, checksums will match; if the paths changed, the tuner should flag for re-render.
@@ -830,7 +830,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    When `strict-safety` is enabled, install `strict-safety.instructions.md` and use it as the authoritative reference for `ProposedAction`, `ActionRisk`, `ActionResult`, approval routing, and risky-work legibility.
    When `release-observability` is enabled, install `release-observability.instructions.md` and use it as the authoritative reference for monitoring plans, pre-deploy audits, observation windows, and rollback trigger discipline.
    When `adversarial-review` is enabled, install `adversarial-review.instructions.md` and use it as the authoritative reference for multi-model dispatch, consensus assembly, confidence tiers, and remediation queue structure.
-   When `graphtor-docs` is enabled, install `graphtor-docs.instructions.md` and use it as the authoritative reference for indexed local documentation search, semantic retrieval, doc-graph traversal, and server lifecycle workflows. Resolve `{{GRAPHTOR_SOURCES_PATH}}` from the workspace profile's `graphtor_docs.sources_path` (defaulting to `.graphtor/config/sources.yaml`) and `{{GRAPHTOR_BINARY_PATH}}` from `graphtor_docs.binary_path` (defaulting to `.graphtor/bin/graphtor-docs`).
+   When `graphtor-docs` is enabled, install `graphtor-docs.instructions.md` and use it as the authoritative reference for indexed local documentation search, semantic retrieval, doc-graph traversal, and server lifecycle workflows. Resolve `{{GRAPHTOR_SOURCES_PATH}}` from the workspace profile's `graphtor_docs.sources_path` (defaulting to `.graphtor/config/sources.yaml`) and `{{GRAPHTOR_BINARY_PATH}}` from `graphtor_docs.binary_on_path`: if `true`, default to `graphtor` (assumes PATH); if `false`, probe `.graphtor/bin/graphtor-docs.exe` and `.graphtor/bin/graphtor-docs` in that order; final default: `graphtor` (assumes PATH).
 
 5. **Two-agent model instructions** (conditional — auto-detected): When both `stage.agent.md` and `ship.agent.md` are being installed (indicating the two-agent Stage/Ship workflow model), install `role-enforcement.instructions.md` from `role-enforcement.instructions.md.tmpl`. This instruction defines the pre-mutation check protocol that teaches each agent to self-check against its own `## Role Boundary (NON-NEGOTIABLE)` table before executing tool calls. Skip this instruction when only one agent (or neither) is installed — role enforcement is only meaningful in the two-agent model.
 

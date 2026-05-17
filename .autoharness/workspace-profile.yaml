@@ -101,18 +101,19 @@ harness_recommendations:
       - "autoharness is the harness framework itself — full preset ensures all primitives are exercised"
     capability_packs:
       - item: "agent-intercom"
-        because: "MCP server configured in .mcp.json"
+        because: "MCP server configured in .vscode/mcp.json"
         signals:
-          - ".mcp.json"
+          - ".vscode/mcp.json"
       - item: "backlogit"
         because: "MCP server configured and .backlogit/ directory present with full config"
         signals:
-          - ".mcp.json"
+          - ".vscode/mcp.json"
           - ".backlogit/config.yaml"
       - item: "agent-engram"
-        because: "Engram MCP server configured in .mcp.json and .engram/ directory present"
+        because: "Engram MCP server configured in .vscode/mcp.json and .cursor/mcp.json, and .engram/ directory present"
         signals:
-          - ".mcp.json"
+          - ".vscode/mcp.json"
+          - ".cursor/mcp.json"
           - ".engram/config.toml"
       - item: "graphtor-docs"
         because: "graphtor-docs binary present at .graphtor/bin/graphtor-docs.exe and sources configured at .graphtor/config/sources.yaml"
@@ -125,8 +126,7 @@ agent_intercom:
   detected: true
   mcp_configured: true
   config_paths:
-    - ".mcp.json"
-    - ".cursor/mcp.json"
+    - ".vscode/mcp.json"
   instruction_markers: []
   recommended: true
 
@@ -134,17 +134,20 @@ agent_engram:
   detected: true
   mcp_configured: true
   config_paths:
-    - ".mcp.json"
+    - ".vscode/mcp.json"
+    - ".cursor/mcp.json"
   instruction_markers:
     - "<!-- engram:start -->"
   recommended: true
 
 graphtor_docs:
   detected: true
-  mcp_configured: false
-  config_paths: []
+  mcp_configured: true
+  config_paths:
+    - ".cursor/mcp.json"
   sources_path: ".graphtor/config/sources.yaml"
-  binary_path: ".graphtor/bin/graphtor-docs.exe"
+  binary_on_path: true
+  instruction_markers: []
   recommended: true
 
 agent_native:

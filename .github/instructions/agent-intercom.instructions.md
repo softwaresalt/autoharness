@@ -5,7 +5,7 @@ applyTo: '**'
 
 # Agent-Intercom Instructions
 
-Use these rules when the workspace enabled the `agent-intercom` capability pack. This pack is not a
+Use these rules when the workspace has enabled the `agent-intercom` capability pack. This pack is not a
 single bolt-on step. It weaves remote operator visibility and approval routing through the harness
 workflow.
 
