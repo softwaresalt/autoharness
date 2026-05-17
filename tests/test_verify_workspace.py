@@ -1565,7 +1565,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 {
                     "schema_version": "1.0.0",
                     "installed_at": "2026-05-05T00:00:00Z",
-                    "autoharness_version": "1.4.0",
+                    "autoharness_version": "1.4.1",
                     "profile_hash": "abc",
                     "primitives_installed": [5, 7],
                     "capability_packs": [],
@@ -1678,7 +1678,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 {
                     "schema_version": "1.0.0",
                     "installed_at": "2026-05-05T00:00:00Z",
-                    "autoharness_version": "1.4.0",
+                    "autoharness_version": "1.4.1",
                     "profile_hash": "abc",
                     "primitives_installed": [4, 5],
                     "capability_packs": ["browser-verification"],
