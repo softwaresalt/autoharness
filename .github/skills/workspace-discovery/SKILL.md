@@ -200,13 +200,13 @@ graphtor_docs:
   mcp_configured: true|false
   config_paths: []          # paths to MCP and other non-sources config files found (e.g. .mcp.json, .vscode/mcp.json)
   sources_path: ""          # path to sources.yaml (the graphtor-docs source-index config); empty string if not found
-  binary_on_path: true|false
+  binary_path: ""           # path to graphtor-docs binary; empty string if not found (e.g. .graphtor/bin/graphtor-docs.exe or absolute PATH entry)
   instruction_markers: []   # matched phrases from AGENTS.md / copilot-instructions.md
   recommended: true|false
 ```
 
 Recommend `graphtor-docs` when:
-* `.graphtor/` is present AND either `mcp_configured` or `binary_on_path` is `true`, OR
+* `.graphtor/` is present AND either `mcp_configured` is `true` OR `binary_path` is non-empty, OR
 * Any graphtor MCP tool name is referenced in MCP config files.
 
 #### Step 1.5e: Agent-Native Surface Detection

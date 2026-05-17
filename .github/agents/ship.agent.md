@@ -145,6 +145,7 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
 ### Step 0.5: Work Intake
 
 1. Identify the shipment or feature to work on (read-only — do not claim yet).
+   * If a shipment exists, record its ID for use in step 4.
    * Otherwise, select queued tasks from the backlog.
 2. Verify all tasks have clear scope and acceptance criteria.
 3. **Branch Creation Gate (P-011, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active:
