@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.1 - 2026-05-16
+## 1.4.2 - 2026-05-16
 
 ### Added
 
@@ -14,7 +14,7 @@
 
 ### Changed
 
-- Packaged the already-merged PR #80 template and startup-script changes into the v1.4.1 release for downstream merge-install propagation.
+- Packaged the already-merged PR #80 template and startup-script changes into the v1.4.2 release for downstream merge-install propagation.
 - Preserved the intentional `start.ps1` / `templates/scripts/start.ps1.tmpl` launch flow, including Engram/backlogit startup, non-fatal GitHub token lookup, and `--remote` Copilot launch behavior.
 - Added a defense-in-depth pre-merge Copilot review readiness gate across the GitHub PR automation instructions, Ship template, and PR lifecycle skill.
 
