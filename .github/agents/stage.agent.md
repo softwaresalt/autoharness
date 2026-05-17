@@ -134,8 +134,20 @@ If the `agent-intercom` capability pack is active (`.github/instructions/agent-i
 
 See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, broadcast, approval, and degraded-mode rules.
 
+### Step 0.1d: Graphtor-Docs Server Check
+
+If the `graphtor-docs` capability pack is active (`.github/instructions/graphtor-docs.instructions.md` exists):
+
+1. Call `get_status` to verify the server is reachable and the index is fresh.
+   - On success: log `GRAPHTOR_OK: index fresh` (or note staleness if reported).
+   - On failure (unreachable): log `GRAPHTOR_UNAVAILABLE — falling back to file-based doc search`. Do not halt.
+2. In `GRAPHTOR_UNAVAILABLE` mode, fall back to grep/view over `docs/` for documentation questions.
+
+See `.github/instructions/graphtor-docs.instructions.md` for full search protocol, server lifecycle, and fallback rules.
+
 ### Step 0: Session Start
-2. Check backlogit stash for pending entries:
+
+1. Read `.github/copilot-instructions.md` and `AGENTS.md` for workspace context.
    `backlogit_fetch_stash` or `backlogit list --status queued`
 
 ### Step 1: Stash Triage
@@ -158,7 +170,11 @@ Based on classification:
 
 ### Step 3: Planning
 
-1. **Pre-planning Engram search** (when `ENGRAM_OK`): Run `unified_search` or `impact_analysis` on the feature/chore scope to assess blast radius and surface relevant prior context before producing the plan. Reference `.github/instructions/agent-engram.instructions.md` for tool selection guidance.
+1. **Pre-planning knowledge retrieval** (use available packs):
+   - When `ENGRAM_OK`: Run `unified_search` or `impact_analysis` for code relationships, blast radius, and symbol-level context.
+   - When `GRAPHTOR_OK`: Run `research_topic` or `search_local_docs` to resolve domain concepts, architecture questions, or API references from indexed documentation.
+   - **Multi-pack routing**: Use Engram for code relationships and impact analysis; use graphtor-docs for documentation lookup and concept research. Both may be used in the same planning step for complementary perspectives.
+   - See `.github/instructions/agent-engram.instructions.md` and `.github/instructions/graphtor-docs.instructions.md` for tool guidance.
 2. Invoke `impl-plan` skill with the feature/chore description and relevant context.
 3. If the plan has elevated blast radius (touches schemas, CLI distribution,
    or multiple template families), invoke `plan-harden` before review.

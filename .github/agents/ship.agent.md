@@ -131,8 +131,20 @@ If the `agent-intercom` capability pack is active (`.github/instructions/agent-i
 
 See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, broadcast, approval, and degraded-mode rules.
 
+### Step 0.1d: Graphtor-Docs Server Check
+
+If the `graphtor-docs` capability pack is active (`.github/instructions/graphtor-docs.instructions.md` exists):
+
+1. Call `get_status` to verify the server is reachable and the index is fresh.
+   - On success: log `GRAPHTOR_OK: index fresh` (or note staleness if reported).
+   - On failure (unreachable): log `GRAPHTOR_UNAVAILABLE — falling back to file-based doc search`. Do not halt.
+2. In `GRAPHTOR_UNAVAILABLE` mode, fall back to grep/view over `docs/` for documentation questions.
+
+See `.github/instructions/graphtor-docs.instructions.md` for full search protocol, server lifecycle, and fallback rules.
+
 ### Step 0.5: Work Intake
-   * If a shipment exists, record its ID for use in step 4.
+
+1. Identify the shipment or feature to work on (read-only — do not claim yet).
    * Otherwise, select queued tasks from the backlog.
 2. Verify all tasks have clear scope and acceptance criteria.
 3. **Branch Creation Gate (P-011, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active:
@@ -165,7 +177,10 @@ See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, br
 For each task in the shipment/feature:
 
 1. **Claim**: Move the task to active via `backlogit_move_item`.
-2. **Pre-build Engram search** (when `ENGRAM_OK`): Run `impact_analysis` on the task's primary symbol or file scope to surface unexpected callers and assess blast radius before beginning implementation. See `.github/instructions/agent-engram.instructions.md`.
+2. **Pre-build knowledge retrieval** (use available packs):
+   - When `ENGRAM_OK`: Run `impact_analysis` on the task's primary symbol or file scope to surface unexpected callers and assess blast radius.
+   - When `GRAPHTOR_OK`: Run `search_local_docs` or `search_semantic` to resolve any documentation questions about the feature scope before beginning implementation.
+   - **Multi-pack routing**: Use Engram for code relationships and impact analysis; use graphtor-docs for documentation lookup, API references, and concept research. See `.github/instructions/agent-engram.instructions.md` and `.github/instructions/graphtor-docs.instructions.md`.
 3. **Execute**: Perform the template authoring, schema change, skill
    development, or documentation work.
 4. **Validate**: Run quality gates.
