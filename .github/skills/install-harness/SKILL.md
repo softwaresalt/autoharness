@@ -585,6 +585,39 @@ Example overlay target map for `agent-engram`:
 | Workspace binding and freshness | instructions plus workflows that depend on indexed results |
 | Code-graph blast radius analysis | harness / build / repair workflows that inspect symbols and callers |
 
+#### Formal Overlay Contract: `agent-engram`
+
+**Eligibility signals** (when to recommend agent-engram):
+* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `engram` server or known engram tool names
+* `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` present at workspace root
+* `AGENTS.md` or `.github/copilot-instructions.md` contains `<!-- engram:start -->` marker or Engram tool names
+
+**Recommendation logic**: Recommend when `agent_engram.mcp_configured: true` OR `agent_engram.detected: true` in the workspace profile.
+
+**Overlay targets**:
+* `foundation-docs` — AGENTS.md, copilot-instructions.md (engram:start/end block)
+* `agent-engram.instructions.md` — primary instruction file installed at `.github/instructions/`
+* `pipeline-agents` — stage.agent.md, ship.agent.md: session-start daemon check, pre-planning search, pre-build impact analysis
+* `analysis-heavy-workflows` — research/planning/build skills: add `unified_search` / `impact_analysis` guidance
+
+**Behavior deltas**:
+* Session start: call `get_workspace_status` to verify daemon readiness and workspace binding; log `ENGRAM_OK` or `ENGRAM_DEGRADED`
+* Before planning: run `unified_search` or `impact_analysis` to assess blast radius before invoking impl-plan
+* Before build: run `impact_analysis` on the task's primary symbol/file scope before beginning code changes
+* Fallback: `ENGRAM_DEGRADED` mode — use file-based tools (grep, glob, view); do not halt session
+
+**Verification checks** (installation-time):
+* `agent-engram.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
+* `stage.agent.md` contains Engram session-start check (`get_workspace_status`) and pre-planning search step
+* `ship.agent.md` contains Engram session-start check (`get_workspace_status`) and pre-build impact-analysis step
+* `copilot-instructions.md` engram block cross-references installed instructions (`agent-engram.instructions.md`)
+* No unresolved `{{VARIABLE}}` in `agent-engram.instructions.md` (template has none — direct copy)
+
+**Tuning drift checks**:
+* `agent-engram.instructions.md` checksum vs. template checksum in harness-manifest
+* stage.agent.md and ship.agent.md contain `get_workspace_status` reference (text search)
+* copilot-instructions.md contains `engram:start` / `engram:end` markers (text search)
+
 Example overlay target map for `browser-verification`:
 
 | Overlay Element | Required Targets |
@@ -1046,16 +1079,23 @@ primary_stack_pack: {{PRIMARY_STACK_PACK}}
 stack_packs: [{{STACK_PACKS}}]
 install_layers: [{{INSTALL_LAYERS}}]
 capability_packs: [{{CAPABILITY_PACKS}}]
-# Example when Engram is enabled:
-# capability_packs: ["agent-engram"]
 capability_pack_overlays:
   - pack: "{{PACK_NAME}}"
     overlay_targets: [{{OVERLAY_TARGETS}}]
     verification_checks: [{{OVERLAY_VERIFICATION_CHECKS}}]
-  # Example agent-engram overlay:
+  # When agent-engram is enabled, a real (non-commented) overlay entry is required:
   # - pack: "agent-engram"
-  #   overlay_targets: ["foundation-docs", "instructions", "analysis-workflows"]
-  #   verification_checks: ["agent-engram instruction installed", "engram-first search guidance woven"]
+  #   overlay_targets:
+  #     - "foundation-docs"
+  #     - "agent-engram.instructions.md"
+  #     - "pipeline-agents"
+  #     - "analysis-heavy-workflows"
+  #   verification_checks:
+  #     - "agent-engram.instructions.md installed at .github/instructions/"
+  #     - "stage.agent.md contains Engram session-start check (get_workspace_status)"
+  #     - "ship.agent.md contains Engram session-start check (get_workspace_status)"
+  #     - "copilot-instructions.md engram block cross-references installed instructions"
+  #     - "No unresolved {{VARIABLE}} in agent-engram.instructions.md"
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 vscode_settings:
   applied: true|false               # false when vscode.detected was false
