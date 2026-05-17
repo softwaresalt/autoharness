@@ -652,6 +652,51 @@ Example overlay target map for `agent-engram`:
 * stage.agent.md and ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
 * MCP config path in manifest references `.mcp.json` (not stale `.vscode/mcp.json`)
 
+#### Formal Overlay Contract: `graphtor-docs`
+
+**Eligibility signals** (when to recommend graphtor-docs):
+* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `graphtor` or `graphtor-docs` server
+* `.graphtor/` directory present at workspace root, OR `.graphtor/config/sources.yaml` or `.graphtor/config/` exists
+* `AGENTS.md` or agent files reference graphtor-docs tool names (`search_local_docs`, `search_semantic`, `research_topic`, `get_status`)
+* `graphtor-docs` binary present on PATH or at `.graphtor/bin/`
+
+**Recommendation logic**: Recommend when `graphtor_docs.mcp_configured: true` OR `graphtor_docs.detected: true` in the workspace profile.
+
+**Overlay targets**:
+* `graphtor-docs.instructions.md` — primary instruction file (two template variables require discovery-first resolution)
+* `pipeline-agents` — stage.agent.md, ship.agent.md: session-start server check, pre-planning doc research, pre-build doc search, multi-pack routing note
+* `research-skills` — any research or learnings-retrieval skill: prefer graphtor-docs for doc lookup over broad grep
+* `workspace-profile` — requires `graphtor_docs` section with `sources_path` and `binary_path`
+
+**Behavior deltas**:
+* Session start: `get_status` check once per session — log `GRAPHTOR_OK` or `GRAPHTOR_UNAVAILABLE`
+* Before planning: `research_topic` or `search_local_docs` before impl-plan for domain concepts and API references
+* Before build: `search_local_docs` or `search_semantic` for documentation questions
+* Routing split when Engram is also active: Engram handles code relationships, impact analysis, and git history; graphtor-docs handles documentation lookup, API references, and concept research
+* Fallback: `GRAPHTOR_UNAVAILABLE` — grep/view over `docs/` directory; do not halt session
+
+**Variable resolution for `graphtor-docs.instructions.md`**:
+
+This is the only pack in the current instruction set that produces a workspace-specific installed file — both template variables require discovery before rendering:
+
+| Variable | Resolution Order | Example |
+|---|---|---|
+| `{{GRAPHTOR_SOURCES_PATH}}` | 1. Check `.graphtor/config/sources.yaml`; 2. Check `.graphtor/sources.yaml`; 3. Default: `.graphtor/config/sources.yaml` | `.graphtor/config/sources.yaml` |
+| `{{GRAPHTOR_BINARY_PATH}}` | 1. `graphtor` on PATH (`which graphtor`); 2. `.graphtor/bin/graphtor-docs.exe` or `.graphtor/bin/graphtor-docs`; 3. Default: `graphtor` (assumes PATH) | `.graphtor/bin/graphtor-docs.exe` |
+
+After resolution, verify no `{{...}}` remain in the rendered file before recording the artifact checksum.
+
+**Verification checks** (installation-time):
+* `graphtor-docs.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
+* Zero `{{VARIABLE}}` placeholders in installed file (both `GRAPHTOR_SOURCES_PATH` and `GRAPHTOR_BINARY_PATH` must be resolved)
+* stage.agent.md and ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference
+* workspace-profile.yaml has `graphtor_docs` section with `sources_path` and `binary_path`
+
+**Tuning drift checks**:
+* `graphtor-docs.instructions.md` checksum comparison: note that because template variables are resolved at install time, the installed checksum is workspace-specific — the tuner should compare the rendered content against a fresh render from the template (re-resolving variables), NOT against the raw template file. If both `GRAPHTOR_SOURCES_PATH` and `GRAPHTOR_BINARY_PATH` are unchanged, checksums will match; if the paths changed, the tuner should flag for re-render.
+* stage.agent.md and ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference (text search)
+* workspace-profile.yaml contains `graphtor_docs` section (structural check)
+
 Example overlay target map for `browser-verification`:
 
 | Overlay Element | Required Targets |
