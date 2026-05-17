@@ -51,6 +51,69 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertEqual(len(marketplace_manifest["plugins"]), 1)
         self.assertEqual(marketplace_manifest["plugins"][0]["version"], expected_version)
 
+    def test_release_workflow_publishes_to_pypi(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        release_workflow = (repo_root / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+        self.assertIn("id-token: write", release_workflow)
+        self.assertIn("astral-sh/setup-uv@", release_workflow)
+        self.assertIn("python -m twine check dist/*", release_workflow)
+        self.assertIn("gh-action-pypi-publish@", release_workflow)
+        self.assertIn("skip-existing: true", release_workflow)
+        self.assertIn('uv tool run --isolated --no-config --from "autoharness==${version}" autoharness version', release_workflow)
+        self.assertIn('echo "version=${version}" >> "$GITHUB_OUTPUT"', release_workflow)
+        self.assertLess(
+            release_workflow.index("Extract changelog for this version"),
+            release_workflow.index("Publish distribution to PyPI"),
+        )
+        self.assertLess(
+            release_workflow.index("Publish distribution to PyPI"),
+            release_workflow.index("Smoke test published package from PyPI"),
+        )
+        self.assertLess(
+            release_workflow.index("Smoke test published package from PyPI"),
+            release_workflow.index("Create or update GitHub Release"),
+        )
+
+    def test_python_cli_install_guidance_prefers_pypi_releases(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
+            repo_root / "README.md": [
+                "uv tool install autoharness",
+                "uv tool uninstall autoharness && uv tool install autoharness",
+            ],
+            repo_root / "docs" / "getting-started.md": [
+                "uv tool install autoharness",
+                "uv tool uninstall autoharness && uv tool install autoharness",
+            ],
+            repo_root / ".github" / "agents" / "auto-mergeinstall.agent.md": [
+                "uv tool install autoharness",
+            ],
+            repo_root / ".github" / "agents" / "auto-tune.agent.md": [
+                "uv tool install autoharness",
+            ],
+            repo_root / "src" / "autoharness" / "cli.py": [
+                "uv tool install autoharness",
+                "unreleased snapshots from GitHub",
+            ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
+
+    def test_reference_library_is_indexed_without_git_submodules(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        self.assertFalse((repo_root / ".gitmodules").exists())
+        self.assertTrue((repo_root / "references" / "README.md").exists())
+
+        reference_library = (repo_root / "docs" / "reference-library.md").read_text(encoding="utf-8")
+        self.assertIn("references/README.md", reference_library)
+        self.assertNotIn("git submodule update --remote", reference_library)
+        self.assertNotIn("git submodule status", reference_library)
+
     def test_branch_safety_guidance_is_woven_through_install_and_tune_workflows(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         expected_phrases_by_file = {

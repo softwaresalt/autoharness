@@ -48,13 +48,15 @@ Install (Copilot CLI plugin — recommended, no Python needed):
     copilot plugin marketplace add softwaresalt/autoharness
     copilot plugin install autoharness@autoharness
 
-Install (Python CLI — for setup-vscode and verify-workspace):
+Install (Python CLI — stable releases on PyPI):
   uv tool install autoharness
+
+Install (Python CLI — unreleased snapshots from GitHub):
   uv tool install git+https://github.com/softwaresalt/autoharness.git
 
 Update:
   copilot plugin update autoharness          # plugin
-  uv tool upgrade autoharness                # Python CLI
+  uv tool upgrade autoharness                # Python CLI from PyPI
 
 The AI coding assistant is the runtime. This CLI primarily helps agents
 resolve the autoharness home path via `autoharness home`, and also
