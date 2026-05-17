@@ -1,0 +1,1 @@
+{"id":"712621E0","priority":"high","deliberation_id":"003-DL","kind":"feature","text":"Keep reference submodules in-repo and move stable autoharness distribution to a PyPI-backed release pipeline; plan the migration and delivery workflow","created_at":"2026-05-17T19:44:39.4396198Z"}

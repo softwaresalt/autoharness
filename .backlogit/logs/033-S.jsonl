@@ -1,0 +1,9 @@
+{"timestamp":"2026-05-17T12:49:38.2179898-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_created","delta":{"items":[],"title":"PyPI-First Distribution Pipeline — autoharness 1.4.1"}}
+{"timestamp":"2026-05-17T12:49:43.0293255-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035-F"}}
+{"timestamp":"2026-05-17T12:49:48.4160552-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035.001-T"}}
+{"timestamp":"2026-05-17T12:49:48.841631-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035.002-T"}}
+{"timestamp":"2026-05-17T12:49:49.0742198-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035.003-T"}}
+{"timestamp":"2026-05-17T12:49:49.2751288-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035.004-T"}}
+{"timestamp":"2026-05-17T12:49:49.4851339-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035.005-T"}}
+{"timestamp":"2026-05-17T12:49:49.6959981-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_item_added","delta":{"item_id":"035.006-T"}}
+{"timestamp":"2026-05-17T12:53:28.4543761-07:00","actor":"backlogit","item_id":"033-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
