@@ -1,0 +1,4 @@
+{"timestamp":"2026-05-16T22:07:51.2052275-07:00","actor":"backlogit","item_id":"032-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-05-16T22:07:57.3695827-07:00","actor":"backlogit","item_id":"032-F","event_type":"status_changed","delta":{"from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-05-16T22:08:00.4787683-07:00","actor":"backlogit","item_id":"032-F","event_type":"commit_tracked","delta":{"author":"","commit_sha":"a21e905e98077a1ce60d4f723849826e1f261b54","message":"Merge pull request #80 from softwaresalt/fix/stash-batch-2026-05-16"}}
+{"timestamp":"2026-05-16T22:08:01.902016-07:00","actor":"backlogit","item_id":"032-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/032-F.md"}}
