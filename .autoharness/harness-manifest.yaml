@@ -183,6 +183,11 @@ artifacts:
     template: "global prompt definition"
     checksum: "bf8f75345c0da4c1f86ca76eabd7048ed9431aa9d2878a39e7991cb1ddd9b3a1"
     note: "pre-existing, source-controlled global artifact"
+  - path: ".github/instructions/agent-engram.instructions.md"
+    primitive: 1
+    template: "instructions/agent-engram.instructions.md.tmpl"
+    checksum: "4e77366ee9f33650b4f9c0ebecda70f0be2f917023053d7ca4a3981ff78459f2"
+    note: "agent-engram capability pack overlay instruction"
 variables_used:
   PROJECT_NAME: "autoharness"
   PRIMARY_LANGUAGE: "Python"
