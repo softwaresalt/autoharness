@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.4.3 - 2026-05-17
+
+### Added
+
+- Added full capability-pack overlay weave for all three capability packs:
+  `agent-engram`, `agent-intercom`, and `graphtor-docs`. Each pack is now
+  woven coherently across Stage and Ship agent templates, the install-harness
+  SKILL, and copilot-instructions. A partially-woven or isolated instruction
+  file is no longer a valid overlay — all packs must touch every declared
+  overlay target (PR #86, shipment 034-S).
+
+### Changed
+
+- Strengthened P-001 (single top-level release-unit completion): Ship execution
+  is now blocked until the full post-merge release closure for the current
+  shipment is complete. This closes the policy gap where a Ship session could
+  begin before the previous release cycle was fully recorded and tagged
+  (PR #86 commit 943c079).
+
+- Fixed `binary_on_path` → `binary_path` field-name drift in
+  `schemas/workspace-profile.schema.json`, `docs/capability-packs.md`, and
+  `.autoharness/workspace-profile.yaml` to match the canonical field name
+  established in the workspace-discovery SKILL and emitted by actual
+  workspace-profile output (039.007-T, stash 8FDEC777).
+
 ## 1.4.2 - 2026-05-17
 
 ### Added
