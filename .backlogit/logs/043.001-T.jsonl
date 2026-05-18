@@ -1,1 +1,3 @@
 {"timestamp":"2026-05-18T14:57:04.5741075-07:00","actor":"backlogit","item_id":"043.001-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-05-18T15:26:20.5876278-07:00","actor":"backlogit","item_id":"043.001-T","event_type":"commit_tracked","delta":{"author":"ship-agent","commit_sha":"6570a1aa4c98e860aa57120c291241fc1fd629d1","message":"Merge PR #98"}}
+{"timestamp":"2026-05-18T15:26:20.838135-07:00","actor":"backlogit","item_id":"043.001-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/043.001-T.md"}}
