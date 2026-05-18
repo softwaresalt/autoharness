@@ -15,8 +15,8 @@ tags:
 
 ## Summary
 
-Completed the full v1.4.3 release cycle for autoharness. All tasks 039.001-T through 039.006-T
-delivered. Shipment 035-S is now shipped.
+Completed the full v1.4.3 release cycle for autoharness. All tasks 039.001-T through 039.007-T
+delivered (039.007-T: Fix graphtor-docs binary_path field-name drift). Shipment 035-S is now shipped.
 
 ## Tasks Completed
 
