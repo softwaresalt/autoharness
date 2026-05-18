@@ -12,7 +12,7 @@ repositories that serve as source material for curating community templates in
 These repositories are **never deployed to target workspaces** and are
 **not included in the autoharness PyPI wheel** (they are not listed in
 `pyproject.toml` distribution targets). End-users who install from PyPI with
-`uv tool install autoharness` never encounter the submodule trees.
+`python -m pip install autoharness` never encounter the submodule trees.
 
 The submodules are registered in `.gitmodules` and can be initialised
 individually by maintainers when deeper exploration of a reference repository

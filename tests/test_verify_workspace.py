@@ -86,6 +86,9 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "pip install autoharness",
                 "pip install --upgrade autoharness",
             ],
+            repo_root / "docs" / "reference-library.md": [
+                "pip install autoharness",
+            ],
             repo_root / ".github" / "agents" / "auto-mergeinstall.agent.md": [
                 "pip install autoharness",
             ],
