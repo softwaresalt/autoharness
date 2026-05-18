@@ -12,7 +12,7 @@
     {
       "name": "autoharness",
       "description": "Discover workspace characteristics and install a customized agent harness from universal primitive templates. Includes Auto-MergeInstall, Auto-Tune, and workspace-discovery, install-harness, tune-harness, and verify-harness skills.",
-      "version": "1.4.2",
+      "version": "1.4.3",
       "source": "."
     }
   ]
