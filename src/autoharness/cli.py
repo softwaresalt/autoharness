@@ -49,14 +49,14 @@ Install (Copilot CLI plugin — recommended, no Python needed):
     copilot plugin install autoharness@autoharness
 
 Install (Python CLI — stable releases on PyPI):
-  uv tool install autoharness
+  python -m pip install autoharness
 
 Install (Python CLI — unreleased snapshots from GitHub):
-  uv tool install git+https://github.com/softwaresalt/autoharness.git
+  python -m pip install git+https://github.com/softwaresalt/autoharness.git
 
 Update:
   copilot plugin update autoharness          # plugin
-  uv tool upgrade autoharness                # Python CLI from PyPI
+  python -m pip install --upgrade autoharness  # Python CLI from PyPI
 
 The AI coding assistant is the runtime. This CLI primarily helps agents
 resolve the autoharness home path via `autoharness home`, and also

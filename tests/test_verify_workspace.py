@@ -104,7 +104,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         expected_phrases_by_file = {
             repo_root / "src" / "autoharness" / "cli.py": [
-                "uv tool install autoharness",
+                "pip install autoharness",
+                "pip install --upgrade autoharness",
                 "unreleased snapshots from GitHub",
             ],
         }
