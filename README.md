@@ -86,7 +86,7 @@ copilot plugin marketplace add softwaresalt/autoharness
 copilot plugin install autoharness@autoharness
 
 # Option B: Python CLI (for setup-vscode and verify-workspace)
-uv tool install autoharness
+python -m pip install autoharness
 autoharness setup-vscode        # VS Code with GitHub Copilot
 
 # Register with other AI environments (requires Python CLI)
@@ -100,10 +100,11 @@ autoharness setup-codex         # Codex
 autoharness verify-workspace --workspace .
 ```
 
-If you previously installed the Python CLI from the Git URL, switch once with
-`uv tool uninstall autoharness && uv tool install autoharness` so future
-`uv tool upgrade autoharness` runs upgrade from the published wheel instead of
-recloning the repository.
+If you previously installed the Python CLI from the Git URL or `uv tool`,
+reinstall once with `python -m pip install autoharness` (and run
+`uv tool uninstall autoharness` first if applicable) so future
+`python -m pip install --upgrade autoharness` updates use the published wheel
+instead of recloning the repository.
 
 If the target workspace is Git-backed, treat install and tune output as
 feature-branch work. autoharness may still generate local uncommitted changes

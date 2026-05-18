@@ -75,23 +75,34 @@ class VerifyWorkspaceTests(unittest.TestCase):
             release_workflow.index("Create or update GitHub Release"),
         )
 
-    def test_python_cli_install_guidance_prefers_pypi_releases(self) -> None:
+    def test_user_facing_python_cli_docs_prefer_pip_install(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         expected_phrases_by_file = {
             repo_root / "README.md": [
-                "uv tool install autoharness",
-                "uv tool uninstall autoharness && uv tool install autoharness",
+                "pip install autoharness",
+                "pip install --upgrade autoharness",
             ],
             repo_root / "docs" / "getting-started.md": [
-                "uv tool install autoharness",
-                "uv tool uninstall autoharness && uv tool install autoharness",
+                "pip install autoharness",
+                "pip install --upgrade autoharness",
             ],
             repo_root / ".github" / "agents" / "auto-mergeinstall.agent.md": [
-                "uv tool install autoharness",
+                "pip install autoharness",
             ],
             repo_root / ".github" / "agents" / "auto-tune.agent.md": [
-                "uv tool install autoharness",
+                "pip install autoharness",
             ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
+
+    def test_cli_help_mentions_python_cli_install_and_github_snapshots(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
             repo_root / "src" / "autoharness" / "cli.py": [
                 "uv tool install autoharness",
                 "unreleased snapshots from GitHub",

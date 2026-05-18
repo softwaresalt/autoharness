@@ -26,18 +26,19 @@ autoharness is installed once to a global location and invoked against target wo
 
 ## Step 1: Install autoharness Globally
 
-### With uv (recommended)
+### With pip (recommended)
 
 ```bash
-uv tool install autoharness
+python -m pip install autoharness
 ```
 
 This installs `autoharness` as a global CLI tool. Agents resolve the installation path by running `autoharness home`.
 
-If you previously installed from the Git URL, switch once with:
+If you previously installed from the Git URL or `uv tool`, switch once with:
 
 ```bash
-uv tool uninstall autoharness && uv tool install autoharness
+uv tool uninstall autoharness   # if applicable
+python -m pip install autoharness
 ```
 
 Use the Git URL only when you need an unreleased snapshot from the repository tip instead of the stable PyPI release.
@@ -45,7 +46,7 @@ Use the Git URL only when you need an unreleased snapshot from the repository ti
 Update when improvements are available:
 
 ```bash
-uv tool upgrade autoharness
+python -m pip install --upgrade autoharness
 ```
 
 ### With git clone (alternative)
@@ -455,13 +456,13 @@ To get new templates, improved agents, and updated schemas:
 
 ```bash
 # If installed with uv
-uv tool upgrade autoharness
+python -m pip install --upgrade autoharness
 
 # If installed with git clone
 cd ~/.autoharness && git pull
 ```
 
-If your existing `uv` install still points at `git+https://github.com/softwaresalt/autoharness.git`, reinstall once from PyPI with `uv tool uninstall autoharness && uv tool install autoharness` so future upgrades use the published wheel instead of a Git checkout.
+If your existing install still points at `git+https://github.com/softwaresalt/autoharness.git` or an older `uv tool` environment, reinstall once from PyPI with `python -m pip install autoharness` (and run `uv tool uninstall autoharness` first if needed) so future upgrades use the published wheel instead of a Git checkout.
 
 Existing target workspace harnesses are not affected until you run the tuner against them. The tuner will detect template improvements and propose updates.
 
