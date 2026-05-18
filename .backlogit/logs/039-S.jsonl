@@ -1,2 +1,5 @@
 {"timestamp":"2026-05-18T14:52:23.9928775-07:00","actor":"backlogit","item_id":"039-S","event_type":"shipment_created","delta":{"items":["043-F","043.001-T"],"title":"Repository hygiene: untrack accidental .worktrees gitlink"}}
 {"timestamp":"2026-05-18T14:57:03.2489012-07:00","actor":"backlogit","item_id":"039-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-05-18T15:26:19.7102717-07:00","actor":"backlogit","item_id":"039-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-05-18T15:26:19.9985795-07:00","actor":"backlogit","item_id":"039-S","event_type":"commit_tracked","delta":{"author":"ship-agent","commit_sha":"6570a1aa4c98e860aa57120c291241fc1fd629d1","message":"Merge PR #98"}}
+{"timestamp":"2026-05-18T15:26:21.1212792-07:00","actor":"backlogit","item_id":"039-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/039-S.md"}}
