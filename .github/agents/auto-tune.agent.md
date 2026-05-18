@@ -46,7 +46,7 @@ Locate the autoharness installation (templates, schemas, registries). Resolution
 If none resolve, halt and instruct the user to install autoharness:
 
 ```text
-uv tool install autoharness
+python -m pip install autoharness
 ```
 
 ### Step 1: Identify the Target Workspace

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.5 - 2026-05-18
+
+### Changed
+
+- Clarified the stable Python CLI install path across README, getting-started
+  docs, and CLI guidance so users switch from Git-URL or `uv tool` installs to
+  the PyPI wheel with an explicit uninstall-then-reinstall migration step.
+- Synchronized the packaged plugin manifests with the 1.4.5 Python distribution
+  version so release metadata stays aligned across `pyproject.toml`,
+  `plugin.json`, and `.github/plugin/marketplace.json`.
+
 ## 1.4.4 - 2026-05-17
 
 ### Changed

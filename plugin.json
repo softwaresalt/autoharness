@@ -1,7 +1,7 @@
 {
   "name": "autoharness",
   "description": "Agent harness framework — compose 10 irreducible AI coding assistant primitives into any workspace",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "author": {
     "name": "softwaresalt"
   },

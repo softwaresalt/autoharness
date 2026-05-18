@@ -1,0 +1,5 @@
+{"timestamp":"2026-05-18T00:12:31.7886388-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_created","delta":{"items":[],"title":"Pip-install guidance follow-up for Python CLI distribution"}}
+{"timestamp":"2026-05-18T00:12:35.3946923-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_item_added","delta":{"item_id":"042-F"}}
+{"timestamp":"2026-05-18T00:12:35.6394155-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_item_added","delta":{"item_id":"042.001-T"}}
+{"timestamp":"2026-05-18T00:12:35.9496787-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_item_added","delta":{"item_id":"042.002-T"}}
+{"timestamp":"2026-05-18T00:30:36.0839972-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
