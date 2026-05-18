@@ -1,0 +1,2 @@
+{"timestamp":"2026-05-17T17:12:42.0581835-07:00","actor":"backlogit","item_id":"037.001-T","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"8cd4fcd70bf62db95d58a34613856e630c4ad8c6","message":"Merge pull request #86 from softwaresalt/feat/capability-packs-full-weave"}}
+{"timestamp":"2026-05-17T17:12:46.096906-07:00","actor":"backlogit","item_id":"037.001-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/037.001-T.md"}}
