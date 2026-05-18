@@ -271,7 +271,7 @@
           "type": "string",
           "description": "Path to the graphtor-docs sources configuration file (sources.yaml) that declares which paths, repos, and URLs to index"
         },
-        "binary_on_path": { "type": "boolean" },
+        "binary_path": { "type": "boolean" },
         "instruction_markers": {
           "type": "array",
           "items": { "type": "string" }
