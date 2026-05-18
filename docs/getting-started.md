@@ -455,7 +455,7 @@ The installer runs automatic verification. You can also manually check:
 To get new templates, improved agents, and updated schemas:
 
 ```bash
-# If installed with uv
+# If installed with pip
 python -m pip install --upgrade autoharness
 
 # If installed with git clone
