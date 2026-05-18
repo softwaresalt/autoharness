@@ -37,7 +37,8 @@ This installs `autoharness` as a global CLI tool. Agents resolve the installatio
 If you previously installed from the Git URL or `uv tool`, switch once with:
 
 ```bash
-uv tool uninstall autoharness   # if applicable
+python -m pip uninstall autoharness   # if installed from a pip Git URL
+uv tool uninstall autoharness         # if installed with uv tool
 python -m pip install autoharness
 ```
 
@@ -462,7 +463,7 @@ python -m pip install --upgrade autoharness
 cd ~/.autoharness && git pull
 ```
 
-If your existing install still points at `git+https://github.com/softwaresalt/autoharness.git` or an older `uv tool` environment, reinstall once from PyPI with `python -m pip install autoharness` (and run `uv tool uninstall autoharness` first if needed) so future upgrades use the published wheel instead of a Git checkout.
+If your existing install still points at `git+https://github.com/softwaresalt/autoharness.git` or an older `uv tool` environment, switch once to the PyPI wheel by uninstalling the current install first (`python -m pip uninstall autoharness` for pip Git-URL installs, `uv tool uninstall autoharness` for uv installs) and then running `python -m pip install autoharness` so future upgrades use the published wheel instead of a Git checkout.
 
 Existing target workspace harnesses are not affected until you run the tuner against them. The tuner will detect template improvements and propose updates.
 

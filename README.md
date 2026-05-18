@@ -101,10 +101,17 @@ autoharness verify-workspace --workspace .
 ```
 
 If you previously installed the Python CLI from the Git URL or `uv tool`,
-reinstall once with `python -m pip install autoharness` (and run
-`uv tool uninstall autoharness` first if applicable) so future
-`python -m pip install --upgrade autoharness` updates use the published wheel
-instead of recloning the repository.
+switch once to the PyPI wheel before relying on upgrades:
+
+```bash
+python -m pip uninstall autoharness   # if installed from a pip Git URL
+uv tool uninstall autoharness         # if installed with uv tool
+python -m pip install autoharness
+```
+
+That ensures future `python -m pip install --upgrade autoharness` updates use
+the published wheel instead of leaving a Git-based install in place or
+recloning the repository.
 
 If the target workspace is Git-backed, treat install and tune output as
 feature-branch work. autoharness may still generate local uncommitted changes
