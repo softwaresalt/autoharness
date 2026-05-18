@@ -253,6 +253,8 @@ When a post-merge closure branch and PR are created:
 5. Obtain explicit operator approval — the prior main PR approval does not transfer.
 6. P-014 applies in full. Record a P-014 violation via P-005 telemetry if this gate is skipped.
 
+#### Closure Tasks
+
 1. Close the shipment via `backlogit_ship_shipment` if applicable.
 2. Write compound learnings for hard-won solutions.
 3. Update documentation if templates changed significantly.
