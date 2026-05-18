@@ -28,8 +28,8 @@ After creating or updating a PR, request a Copilot review:
 
 ```text
 Tool: mcp_github_request_copilot_review
-  owner: {{REPO_OWNER}}
-  repo:  {{REPO_NAME}}
+  owner: softwaresalt
+  repo:  autoharness
   pullNumber: <pr_number>
 ```
 
@@ -56,8 +56,8 @@ back-off polling strategy:
 
 ```text
 Tool: mcp_github_pull_request_read
-  owner: {{REPO_OWNER}}
-  repo:  {{REPO_NAME}}
+  owner: softwaresalt
+  repo:  autoharness
   pullNumber: <pr_number>
 ```
 
@@ -93,7 +93,7 @@ For each comment requiring a fix:
 2. **Apply the fix**: Make the minimal targeted change that resolves the
    issue without introducing scope creep.
 3. **Verify locally**: Run the relevant quality gate
-   (`{{FORMAT_CHECK_COMMAND}}`, `{{LINT_COMMAND}}`, `{{TEST_COMMAND}}`)
+   (`# no format check command configured`, `markdownlint "**/*.md"`, `uv run python -m pytest`)
    to confirm the fix doesn't break anything.
 4. **Commit**: Use a `fix:` conventional commit referencing the comment
    (e.g., `fix: address copilot review — null check on user input`).
@@ -104,8 +104,8 @@ After fixing each comment, reply to the review thread:
 
 ```text
 Tool: mcp_github_add_reply_to_pull_request_comment
-  owner: {{REPO_OWNER}}
-  repo:  {{REPO_NAME}}
+  owner: softwaresalt
+  repo:  autoharness
   pullNumber: <pr_number>
   commentId: <comment_id>
   body: "Fixed in <commit_sha>. <brief description of the fix>"
@@ -161,7 +161,7 @@ gh api graphql -f query='
       }
     }
   }
-' -f owner="{{REPO_OWNER}}" -f repo="{{REPO_NAME}}" -F pr=<pr_number>
+' -f owner="softwaresalt" -f repo="autoharness" -F pr=<pr_number>
 ```
 
 Match threads to addressed comments by `path` and `line`, then resolve
@@ -185,8 +185,8 @@ After all addressable comments are handled:
 
    ```text
    Tool: mcp_github_request_copilot_review
-     owner: {{REPO_OWNER}}
-     repo:  {{REPO_NAME}}
+     owner: softwaresalt
+     repo:  autoharness
      pullNumber: <pr_number>
    ```
 
@@ -261,7 +261,7 @@ gh api graphql -f query='
       }
     }
   }
-' -f owner="{{REPO_OWNER}}" -f repo="{{REPO_NAME}}" -F pr=<pr_number> -f threadCursor=""
+' -f owner="softwaresalt" -f repo="autoharness" -F pr=<pr_number> -f threadCursor=""
 ```
 
 If `pageInfo.hasNextPage` is true, re-run the query with
@@ -384,8 +384,8 @@ Use the MCP tool to read check run status:
 
 ```text
 Tool: mcp_github_pull_request_read
-  owner: {{REPO_OWNER}}
-  repo:  {{REPO_NAME}}
+  owner: softwaresalt
+  repo:  autoharness
   pullNumber: <pr_number>
 ```
 
@@ -398,7 +398,7 @@ gh pr checks <pr_number> --watch --fail-fast
 Or query check runs directly:
 
 ```bash
-gh api repos/{{REPO_OWNER}}/{{REPO_NAME}}/commits/<head_sha>/check-runs \
+gh api repos/softwaresalt/autoharness/commits/<head_sha>/check-runs \
   --jq '.check_runs[] | {name, status, conclusion}'
 ```
 
@@ -438,7 +438,7 @@ Parse check run results into actionable categories:
 When a check fails, extract the failure details for diagnosis:
 
 ```bash
-gh api repos/{{REPO_OWNER}}/{{REPO_NAME}}/check-runs/<check_run_id>/annotations \
+gh api repos/softwaresalt/autoharness/check-runs/<check_run_id>/annotations \
   --jq '.[] | {path, start_line, end_line, annotation_level, message}'
 ```
 
@@ -527,7 +527,7 @@ For GitHub-hosted repositories:
 * Part 2 (CI polling and check monitoring) applies when the workspace
   CI platform is GitHub Actions. Agents MAY detect that via:
   * Presence of `.github/workflows/` directory
-  * `{{CI_PLATFORM}}` resolving to `GitHub Actions`
+  * `GitHub Actions` as the CI platform
 
 When the repository is not on GitHub, these instructions do not apply.
 Fall back to the generic CI and PR protocols in `ci-security.instructions.md`

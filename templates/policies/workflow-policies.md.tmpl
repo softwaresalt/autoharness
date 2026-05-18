@@ -337,6 +337,29 @@ Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare 
 
 ---
 
+## P-014: Copilot Review Merge Gate
+
+| Field      | Value                                         |
+|------------|-----------------------------------------------|
+| Policy ID  | P-014                                         |
+| Applies To | `ship`, `pr-lifecycle` skill                  |
+| Gate Point | Pre-merge (Step 5 of pr-lifecycle, Step 4 of ship); applies to ALL PRs including post-merge closure PRs |
+
+**Statement**: No pull request — feature, chore, or post-merge closure — may be merged until both conditions are met and verified in order:
+
+1. The §1.9 Pre-Merge Review Readiness gate in `.github/instructions/github-pr-automation.instructions.md` has passed with zero unresolved Copilot review threads and a fresh Copilot review covering the current HEAD.
+2. The operator has given an explicit merge approval signal. Green CI and a passing §1.9 gate are necessary but not sufficient — they do not constitute merge authorization.
+
+Neither condition may be waived by the agent. Green CI alone is not approval. Operator approval without a passing §1.9 gate is not authorization.
+
+**Precondition**: `github-pr-automation.instructions.md` is installed at `.github/instructions/github-pr-automation.instructions.md`.
+
+**Postcondition**: The merge commit records: (a) Copilot review SHA that passed §1.9 Check 2, (b) that zero unresolved Copilot threads were present at gate time, and (c) that operator approval was received after the gate passed.
+
+**Violation Action**: Halt. Record a P-014 violation (via P-005 telemetry) naming the failed condition (§1.9 check number, or absent operator approval). Do not proceed with merge. Surface the violation in the PR description and session broadcast.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -350,3 +373,4 @@ Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare 
 | 1.6.0   | {{DATE}}     | Added P-011      | Branch-before-mutation (Ship) |
 | 1.7.0   | {{DATE}}     | Added P-012      | Tool availability and declared degradation |
 | 1.8.0   | {{DATE}}     | Added P-013      | Agent tier hierarchy and escalation |
+| 1.9.0   | {{DATE}}     | Added P-014      | Copilot Review Merge Gate — elevates §1.9 instruction to first-class policy with P-005 telemetry |
