@@ -271,7 +271,10 @@
           "type": "string",
           "description": "Path to the graphtor-docs sources configuration file (sources.yaml) that declares which paths, repos, and URLs to index"
         },
-        "binary_path": { "type": "boolean" },
+        "binary_path": {
+          "type": ["string", "null"],
+          "description": "Resolved path to the graphtor-docs binary. Null when the binary is discovered via PATH or the default '.graphtor/bin/' location."
+        },
         "instruction_markers": {
           "type": "array",
           "items": { "type": "string" }

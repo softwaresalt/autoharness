@@ -454,7 +454,7 @@ search interface.
 
 ### Recommendation logic
 
-* **Automatically recommended** when `.graphtor/` is present AND either `mcp_configured` or `binary_path` is true
+* **Automatically recommended** when `.graphtor/` is present AND either `mcp_configured` is true or `binary_path` is non-null/non-empty
 * **Automatically recommended** when any graphtor MCP tool name is referenced in MCP configuration files
 * **Not recommended by default** for workspaces without a graphtor-docs installation
 
