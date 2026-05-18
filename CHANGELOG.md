@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.4.4 - 2026-05-17
+
+### Changed
+
+- Hardened the Copilot Review Merge Gate (P-014) across the full Ship pipeline:
+  added defense-in-depth pre-merge verification (§1.9) to `ship.agent.md`,
+  `pr-lifecycle/SKILL.md.tmpl`, and `workflow-policies.md.tmpl`. Every PR —
+  including post-merge closure PRs — must pass the paginated GraphQL thread-
+  resolution check against the current HEAD before merge is presented or
+  executed (PR #90, shipment 036-S follow-up).
+- Installed `github-pr-automation.instructions.md` with §1.9 pre-merge
+  readiness gate and §1.10 post-merge closure PR Copilot surveillance protocol.
+  Ship agents now enforce Copilot review freshness and zero-unresolved-thread
+  requirements as a non-negotiable pre-merge step (PR #90).
+
+### Fixed
+
+- Corrected `035-S` archive frontmatter: status set to `shipped`, commit SHA
+  aligned to the actual merge SHA (`38a6c77`). Reconciled post-merge closure
+  artifacts from PR #89 follow-up (PR #91, shipment 036-S).
+- Archived 036-S shipment artifacts and session memory; corrected
+  `archived_from` queue paths in frontmatter (chore/036-S-post-merge-closure).
+
 ## 1.4.3 - 2026-05-17
 
 ### Added
