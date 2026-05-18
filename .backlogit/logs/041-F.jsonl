@@ -2,3 +2,4 @@
 {"timestamp":"2026-05-17T20:27:42.3839471-07:00","actor":"backlogit","item_id":"041-F","event_type":"commit_tracked","delta":{"author":"","commit_sha":"6b43b560348c9c6bdabaad1fa5039b5167b35e0d","message":"policy(harness): Harden Copilot review merge gate and post-merge closure polling — merged PR #90"}}
 {"timestamp":"2026-05-17T20:27:45.5138031-07:00","actor":"backlogit","item_id":"041-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/041-F.md"}}
 {"timestamp":"2026-05-17T23:12:25.84058-07:00","actor":"backlogit","item_id":"041-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-05-17T23:36:04.1159841-07:00","actor":"backlogit","item_id":"041-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/041-F.md"}}
