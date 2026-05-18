@@ -1,0 +1,2 @@
+{"timestamp":"2026-05-18T14:52:23.9928775-07:00","actor":"backlogit","item_id":"039-S","event_type":"shipment_created","delta":{"items":["043-F","043.001-T"],"title":"Repository hygiene: untrack accidental .worktrees gitlink"}}
+{"timestamp":"2026-05-18T14:57:03.2489012-07:00","actor":"backlogit","item_id":"039-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
