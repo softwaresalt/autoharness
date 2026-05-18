@@ -146,7 +146,7 @@ graphtor_docs:
   config_paths:
     - ".cursor/mcp.json"
   sources_path: ".graphtor/config/sources.yaml"
-  binary_on_path: true
+  binary_path: null
   instruction_markers: []
   recommended: true
 
