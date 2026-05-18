@@ -1,2 +1,3 @@
 {"timestamp":"2026-05-17T17:49:18.7289871-07:00","actor":"backlogit","item_id":"035-S","event_type":"shipment_created","delta":{"items":["039-F","039.001-T","039.002-T","039.003-T","039.004-T","039.005-T","039.006-T"],"title":"Release autoharness v1.4.3"}}
 {"timestamp":"2026-05-17T17:53:39.4133223-07:00","actor":"backlogit","item_id":"035-S","event_type":"shipment_item_added","delta":{"item_id":"039.007-T"}}
+{"timestamp":"2026-05-17T17:56:24.1900818-07:00","actor":"backlogit","item_id":"035-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
