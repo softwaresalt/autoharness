@@ -3,3 +3,6 @@
 {"timestamp":"2026-05-18T00:12:35.6394155-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_item_added","delta":{"item_id":"042.001-T"}}
 {"timestamp":"2026-05-18T00:12:35.9496787-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_item_added","delta":{"item_id":"042.002-T"}}
 {"timestamp":"2026-05-18T00:30:36.0839972-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-05-18T10:18:22.1594495-07:00","actor":"backlogit","item_id":"038-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-05-18T10:18:22.3864665-07:00","actor":"backlogit","item_id":"038-S","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"36c6a8b1cdfb87c48640c670f3a359bd5a551a56","message":"Merge pull request #96 from softwaresalt/feat/pip-install-guidance"}}
+{"timestamp":"2026-05-18T10:18:24.2362645-07:00","actor":"backlogit","item_id":"038-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/038-S.md"}}
