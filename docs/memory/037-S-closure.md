@@ -21,7 +21,7 @@
 - Fix commit was a minor formatting fix (heading addition) directly addressing the sole Copilot comment
 - Operator explicitly approved admin bypass merge
 - current_user_can_bypass: pull_requests_only was available (RepositoryRole 5 / Admin)
-- Ruleset PR-Required: llowed_merge_methods: ["merge"] — P-009 compliant merge commit used
+- Ruleset PR-Required: `allowed_merge_methods: ["merge"]` — P-009 compliant merge commit used
 
 ## Hard-Won Learnings
 
