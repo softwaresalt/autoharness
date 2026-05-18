@@ -1,0 +1,1 @@
+{"timestamp":"2026-05-18T00:12:31.8619379-07:00","actor":"stage","item_id":"042-F","event_type":"comment","delta":{"comment":"Triage: medium-priority follow-up, ready for planning/harvest without separate deliberation or spike. Split into width-isolated docs/instructions and CLI-help tasks to satisfy the 2-hour rule and avoid mixing documentation with CLI source changes."}}
