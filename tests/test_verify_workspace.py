@@ -237,6 +237,43 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertIn("P-010", content)
         self.assertIn("Pre-Mutation Check Protocol", content)
 
+    def test_release_unit_policy_requires_post_merge_closure_before_next_ship_execution(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
+            repo_root / "templates" / "policies" / "workflow-policies.md.tmpl": [
+                "post-merge release closure",
+                "{{FEATURE_SHIPMENTS}}",
+                "missing tag",
+                "pending publish step",
+            ],
+            repo_root / "templates" / "agents" / "orchestrator.agent.md.tmpl": [
+                "awaiting required post-merge release closure",
+                "Stage may proceed with planning",
+                "must not route a second shipment to Ship until closure is complete",
+            ],
+            repo_root / "templates" / "agents" / "ship.agent.md.tmpl": [
+                "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
+                "post-merge release closure",
+                "Treat the shipment as still active for P-001 purposes",
+            ],
+            repo_root / ".github" / "agents" / "orchestrator.agent.md": [
+                "awaiting required post-merge release closure",
+                "Stage may proceed with planning",
+                "must not route a second shipment to Ship until closure is complete",
+            ],
+            repo_root / ".github" / "agents" / "ship.agent.md": [
+                "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
+                "post-merge release closure",
+                "Treat the shipment as still active for P-001 purposes",
+            ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
+
     def test_install_harness_references_role_enforcement_conditional_weaving(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         skill_path = repo_root / ".github" / "skills" / "install-harness" / "SKILL.md"
@@ -2254,6 +2291,72 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertEqual(report["blockers"], [])
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["p013_policy_in_workflow_policies"]["ok"])
+
+    def test_verify_workspace_flags_missing_release_closure_sequence_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-07T00:00:00Z",
+                    "autoharness_version": "1.5.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [4, 8],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+                "## Role Boundary (NON-NEGOTIABLE)\nP-010\nForbidden\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "agents" / "orchestrator.agent.md").write_text(
+                "# Orchestrator\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertFalse(targeted_checks["ship_release_closure_sequence"]["ok"])
+            self.assertFalse(targeted_checks["orchestrator_release_closure_sequence"]["ok"])
 
     def test_verify_workspace_checks_graphtor_docs_pack_assertions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

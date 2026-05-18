@@ -169,9 +169,10 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
 
 ### Step 1: Pre-Flight Checks
 
-1. Verify the workspace compiles: `uv run autoharness --help`.
-2. Read the constitution and quality gate expectations.
-3. Ensure the working branch is clean.
+1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog, and treat any previously merged shipment with incomplete required post-merge release closure (for example, an open post-merge closure PR/branch, a missing tag, or a pending publish step) as still active for P-001 purposes.
+2. Verify the workspace compiles: `uv run autoharness --help`.
+3. Read the constitution and quality gate expectations.
+4. Ensure the working branch is clean.
 
 ### Step 2: Task Execution Loop
 
@@ -218,6 +219,14 @@ Before any post-merge closure work begins, confirm the PR has actually merged:
    - Exit code 0: confirmed. Proceed.
    - Non-zero: halt with `MERGE_NOT_CONFIRMED: SHA not yet in origin/main history.`
 3. Proceed only after both checks pass.
+
+#### Release Closure Completion Gate (P-001, NON-NEGOTIABLE)
+
+A merged PR does not complete the top-level release unit by itself. For P-001 purposes, treat the shipment as still active until all required Step 5 closure work is complete.
+
+1. Complete the post-merge closure workflow before declaring the shipment closed.
+2. When the shipment carries release obligations, complete any required tag, publish, release-record, or post-merge closure branch/PR steps.
+3. If any required post-merge release closure remains open, halt with `RELEASE_CLOSURE_INCOMPLETE`. Treat the shipment as still active for P-001 purposes, and another top-level release unit may not begin yet.
 
 1. Close the shipment via `backlogit_ship_shipment` if applicable.
 2. Write compound learnings for hard-won solutions.

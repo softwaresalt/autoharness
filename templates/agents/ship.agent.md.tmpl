@@ -230,7 +230,7 @@ it halts and requests that Stage be run first.
 
 ### Step 1: Pre-Flight Checks
 
-1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog
+1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog, and treat any previously merged shipment with incomplete required post-merge release closure (for example, an open post-merge closure PR/branch, a missing tag, or a pending publish step when `{{FEATURE_SHIPMENTS}}` is true) as still active for P-001 purposes
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
 3. **Re-read constitution**: Load `.github/instructions/constitution.instructions.md` Principles I, II, IV
 4. If the task has elevated blast radius, uncertain root cause, or destructive potential, invoke **safety-modes** in the appropriate mode before modifying code
@@ -476,6 +476,14 @@ Do not begin any post-merge closure work until the PR merge is confirmed. Even w
    - Exit code 0: merge commit confirmed in `origin/{{DEFAULT_BRANCH}}` history. Proceed.
    - Non-zero: halt with `MERGE_NOT_CONFIRMED: merge SHA {merge_sha} is not yet in origin/{{DEFAULT_BRANCH}} history. Wait for the push to propagate.`
 3. Proceed to Step 6.0 only after both checks pass.
+
+#### Release Closure Completion Gate (P-001, NON-NEGOTIABLE)
+
+A merged PR does not complete the top-level release unit by itself. For P-001 purposes, treat the shipment as still active until all required Step 6 closure work is complete.
+
+1. Complete the post-merge closure branch/PR workflow in Step 6.0 before declaring the release unit closed.
+2. When `{{FEATURE_SHIPMENTS}}` is `true`, also complete any required tag, publish, release-record, or other release checklist steps tied to this shipment.
+3. If any required post-merge release closure remains open, halt with `RELEASE_CLOSURE_INCOMPLETE: shipment {shipment_id} still awaiting required post-merge closure`. Treat the shipment as still active for P-001 purposes, and do not allow another top-level release unit to begin yet.
 
 #### Step 6.0: Post-Merge Branch Protocol (NON-NEGOTIABLE)
 

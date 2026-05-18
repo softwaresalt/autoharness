@@ -25,6 +25,7 @@ You are an orchestration layer only. You do not perform Stage or Ship work direc
 * Route queued shipments to Ship for execution, CI, PR, and closure
 * Enforce role isolation: Stage never gets build/PR scope; Ship never gets stash/planning scope
 * Support pipelined execution: Stage may work on the next stash batch while Ship executes the current shipment, provided P-001 and P-011 constraints are satisfied
+* Treat a shipment awaiting required post-merge release closure as still blocking Ship routing under P-001 until that closure finishes
 
 You do NOT triage stash entries yourself. You do NOT write code or create PRs yourself. Those are Stage's and Ship's responsibilities respectively.
 
@@ -43,7 +44,7 @@ This workspace uses **backlogit** for structured backlog management. All task tr
 Route the full pipeline in order:
 1. If stash has entries and no queued shipment covers them → invoke Stage
 2. After Stage produces a shipment → invoke Ship with the shipment ID
-3. After Ship merges and closes → assess remaining stash and repeat
+3. After Ship merges and completes closure (including any required tag/publish closure) → assess remaining stash and repeat
 
 ### Pipelined Mode (when P-001 permits)
 
@@ -54,7 +55,7 @@ Stage works on the **next** stash batch while Ship executes the **current** queu
 * Stage must not modify the active Ship shipment manifest
 * Stage's planned shipment must be in `queued` — not `active`
 * Both agents must be on different branches
-* If Ship's active shipment is in CI remediation or awaiting merge: Stage may proceed with planning
+* If Ship's active shipment is in CI remediation, awaiting merge, or awaiting required post-merge release closure: Stage may proceed with planning, but the Orchestrator must not route a second shipment to Ship until closure is complete
 
 ## Required Steps
 
@@ -99,7 +100,7 @@ Before any pipeline work begins, verify tool availability per P-012. Probe requi
 **Trigger**: A `queued` shipment exists AND no active Ship shipment blocks (or pipelined mode permits).
 
 1. Select the highest-priority queued shipment.
-2. Enforce P-001: confirm no other top-level release unit is `active` (unless pipelined mode).
+2. Enforce P-001: confirm no other top-level release unit is `active`, and no previously merged shipment is still awaiting required post-merge release closure, before routing a new shipment to Ship. Stage-only pipelining remains allowed when the current Ship shipment is awaiting closure.
 3. Invoke the **Ship** subagent with the `shipment_id`.
 4. Receive Ship's output: record merge SHA and any follow-up stash items.
 5. If Ship halts or fails: surface the failure to the operator.
