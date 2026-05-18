@@ -1,0 +1,3 @@
+{"timestamp":"2026-05-17T21:56:29.4243053-07:00","actor":"backlogit","item_id":"040-F","event_type":"status_changed","delta":{"from":"queued","reason":"child status rollup","to":"done"}}
+{"timestamp":"2026-05-17T21:56:30.2752204-07:00","actor":"backlogit","item_id":"040-F","event_type":"commit_tracked","delta":{"author":"software.salt@gmail.com","commit_sha":"77fd377e7eb2390c05c0a7916e92ea9c5cb3fefa","message":"Merge pull request #91: fix(backlog): reconcile 035-S post-merge closure artifacts (036-S / PR #89 follow-up)"}}
+{"timestamp":"2026-05-17T21:56:32.3137014-07:00","actor":"backlogit","item_id":"040-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/040-F.md"}}
