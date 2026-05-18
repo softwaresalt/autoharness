@@ -585,6 +585,118 @@ Example overlay target map for `agent-engram`:
 | Workspace binding and freshness | instructions plus workflows that depend on indexed results |
 | Code-graph blast radius analysis | harness / build / repair workflows that inspect symbols and callers |
 
+#### Formal Overlay Contract: `agent-engram`
+
+**Eligibility signals** (when to recommend agent-engram):
+* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `engram` server or known engram tool names
+* `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` present at workspace root
+* `AGENTS.md` or `.github/copilot-instructions.md` contains `<!-- engram:start -->` marker or Engram tool names
+
+**Recommendation logic**: Recommend when `agent_engram.mcp_configured: true` OR `agent_engram.detected: true` in the workspace profile.
+
+**Overlay targets**:
+* `foundation-docs` — AGENTS.md, copilot-instructions.md (engram:start/end block)
+* `agent-engram.instructions.md` — primary instruction file installed at `.github/instructions/`
+* `pipeline-agents` — stage.agent.md, ship.agent.md: session-start daemon check, pre-planning search, pre-build impact analysis
+* `analysis-heavy-workflows` — research/planning/build skills: add `unified_search` / `impact_analysis` guidance
+
+**Behavior deltas**:
+* Session start: call `get_workspace_status` to verify daemon readiness and workspace binding; log `ENGRAM_OK` or `ENGRAM_DEGRADED`
+* Before planning: run `unified_search` or `impact_analysis` to assess blast radius before invoking impl-plan
+* Before build: run `impact_analysis` on the task's primary symbol/file scope before beginning code changes
+* Fallback: `ENGRAM_DEGRADED` mode — use file-based tools (grep, glob, view); do not halt session
+
+**Verification checks** (installation-time):
+* `agent-engram.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
+* `stage.agent.md` contains Engram session-start check (`get_workspace_status`) and pre-planning search step
+* `ship.agent.md` contains Engram session-start check (`get_workspace_status`) and pre-build impact-analysis step
+* `copilot-instructions.md` engram block cross-references installed instructions (`agent-engram.instructions.md`)
+* No unresolved `{{VARIABLE}}` in `agent-engram.instructions.md` (template has none — direct copy)
+
+**Tuning drift checks**:
+* `agent-engram.instructions.md` checksum vs. template checksum in harness-manifest
+* stage.agent.md and ship.agent.md contain `get_workspace_status` reference (text search)
+* copilot-instructions.md contains `engram:start` / `engram:end` markers (text search)
+
+#### Formal Overlay Contract: `agent-intercom`
+
+**Eligibility signals** (when to recommend agent-intercom):
+* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`)
+* `AGENTS.md` or agent files contain intercom tool names or `<!-- intercom:start -->` marker
+
+**Recommendation logic**: Recommend when `agent_intercom.mcp_configured: true` OR `agent_intercom.detected: true` in the workspace profile.
+
+**Overlay targets**:
+* `agent-intercom.instructions.md` — primary instruction file installed at `.github/instructions/`
+* `pipeline-agents` — stage.agent.md, ship.agent.md: startup heartbeat, phase broadcasts, approval routing, operator-choice broadcasts
+* `destructive-action-workflows` — anywhere the harness gates destructive operations (file deletion, directory removal)
+* `operator-choice-surfaces` — stash triage, plan review, shipment assembly (self-contained broadcast with backlogit item details)
+
+**Behavior deltas**:
+* Session start: heartbeat/ping with concise status message; log `INTERCOM_OK` or `INTERCOM_DEGRADED`
+* Before operator-facing choices: self-contained broadcast with item ID, priority, type, one-line summary, ordering rationale, and explicit wait-for-confirmation statement
+* Before destructive ops: auto-check → request clearance if not auto-approved; block if intercom unavailable
+* Phase transitions: broadcast at planning started, build started, task claimed, task completed, review complete, runtime verification, operational closure
+* Fallback: `INTERCOM_DEGRADED` — non-destructive work continues; approval-dependent ops blocked until restored
+
+**Combined backlogit+intercom operator-presentation rule**: When both `agent-intercom` and `backlogit` packs are active, operator-facing backlog presentation (stash triage choices, queue items, plan review options) must be broadcast as a self-contained message: include item ID, priority, type, one-line summary, recommended ordering or shortlist rationale, and an explicit statement that operator confirmation is awaited. The operator may be reading remotely and cannot recover context from the chat transcript.
+
+**Verification checks** (installation-time):
+* `agent-intercom.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
+* stage.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
+* ship.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
+* No unresolved `{{VARIABLE}}` in `agent-intercom.instructions.md` (template has none — direct copy)
+
+**Tuning drift checks**:
+* `agent-intercom.instructions.md` checksum vs. template checksum in harness-manifest
+* stage.agent.md and ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
+* MCP config path in manifest accepts any committed location: `.vscode/mcp.json`, `.cursor/mcp.json`, or `.mcp.json` (gitignored, machine-local)
+
+#### Formal Overlay Contract: `graphtor-docs`
+
+**Eligibility signals** (when to recommend graphtor-docs):
+* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `graphtor` or `graphtor-docs` server
+* `.graphtor/` directory present at workspace root, OR `.graphtor/config/sources.yaml` or `.graphtor/config/` exists
+* `AGENTS.md` or agent files reference graphtor-docs tool names (`search_local_docs`, `search_semantic`, `research_topic`, `get_status`)
+* `graphtor-docs` binary present on PATH or at `.graphtor/bin/`
+
+**Recommendation logic**: Recommend when `graphtor_docs.mcp_configured: true` OR `graphtor_docs.detected: true` in the workspace profile.
+
+**Overlay targets**:
+* `graphtor-docs.instructions.md` — primary instruction file (two template variables require discovery-first resolution)
+* `pipeline-agents` — stage.agent.md, ship.agent.md: session-start server check, pre-planning doc research, pre-build doc search, multi-pack routing note
+* `research-skills` — any research or learnings-retrieval skill: prefer graphtor-docs for doc lookup over broad grep
+* `workspace-profile` — requires `graphtor_docs` section with `sources_path` and `binary_on_path` (boolean)
+
+**Behavior deltas**:
+* Session start: `get_status` check once per session — log `GRAPHTOR_OK` or `GRAPHTOR_UNAVAILABLE`
+* Before planning: `research_topic` or `search_local_docs` before impl-plan for domain concepts and API references
+* Before build: `search_local_docs` or `search_semantic` for documentation questions
+* Routing split when Engram is also active: Engram handles code relationships, impact analysis, and git history; graphtor-docs handles documentation lookup, API references, and concept research
+* Fallback: `GRAPHTOR_UNAVAILABLE` — grep/view over `docs/` directory; do not halt session
+
+**Variable resolution for `graphtor-docs.instructions.md`**:
+
+This is the only pack in the current instruction set that produces a workspace-specific installed file — both template variables require discovery before rendering:
+
+| Variable | Resolution Order | Example |
+|---|---|---|
+| `{{GRAPHTOR_SOURCES_PATH}}` | 1. Check `.graphtor/config/sources.yaml`; 2. Check `.graphtor/sources.yaml`; 3. Default: `.graphtor/config/sources.yaml` | `.graphtor/config/sources.yaml` |
+| `{{GRAPHTOR_BINARY_PATH}}` | 1. `graphtor` on PATH (`which graphtor`); 2. `.graphtor/bin/graphtor-docs.exe` or `.graphtor/bin/graphtor-docs`; 3. Default: `graphtor` (assumes PATH) | `.graphtor/bin/graphtor-docs.exe` |
+
+After resolution, verify no `{{...}}` remain in the rendered file before recording the artifact checksum.
+
+**Verification checks** (installation-time):
+* `graphtor-docs.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
+* Zero `{{VARIABLE}}` placeholders in installed file (both `GRAPHTOR_SOURCES_PATH` and `GRAPHTOR_BINARY_PATH` must be resolved)
+* stage.agent.md and ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference
+* workspace-profile.yaml has `graphtor_docs` section with `sources_path` and `binary_on_path` (boolean)
+
+**Tuning drift checks**:
+* `graphtor-docs.instructions.md` checksum comparison: note that because template variables are resolved at install time, the installed checksum is workspace-specific — the tuner should compare the rendered content against a fresh render from the template (re-resolving variables), NOT against the raw template file. If both `GRAPHTOR_SOURCES_PATH` and `GRAPHTOR_BINARY_PATH` are unchanged, checksums will match; if the paths changed, the tuner should flag for re-render.
+* stage.agent.md and ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference (text search)
+* workspace-profile.yaml contains `graphtor_docs` section (structural check)
+
 Example overlay target map for `browser-verification`:
 
 | Overlay Element | Required Targets |
@@ -718,7 +830,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    When `strict-safety` is enabled, install `strict-safety.instructions.md` and use it as the authoritative reference for `ProposedAction`, `ActionRisk`, `ActionResult`, approval routing, and risky-work legibility.
    When `release-observability` is enabled, install `release-observability.instructions.md` and use it as the authoritative reference for monitoring plans, pre-deploy audits, observation windows, and rollback trigger discipline.
    When `adversarial-review` is enabled, install `adversarial-review.instructions.md` and use it as the authoritative reference for multi-model dispatch, consensus assembly, confidence tiers, and remediation queue structure.
-   When `graphtor-docs` is enabled, install `graphtor-docs.instructions.md` and use it as the authoritative reference for indexed local documentation search, semantic retrieval, doc-graph traversal, and server lifecycle workflows. Resolve `{{GRAPHTOR_SOURCES_PATH}}` from the workspace profile's `graphtor_docs.config_paths` (defaulting to `.graphtor/config/sources.yaml`) and `{{GRAPHTOR_BINARY_PATH}}` from the detected binary path (defaulting to `.graphtor/bin/graphtor-docs`).
+   When `graphtor-docs` is enabled, install `graphtor-docs.instructions.md` and use it as the authoritative reference for indexed local documentation search, semantic retrieval, doc-graph traversal, and server lifecycle workflows. Resolve `{{GRAPHTOR_SOURCES_PATH}}` from the workspace profile's `graphtor_docs.sources_path` (defaulting to `.graphtor/config/sources.yaml`) and `{{GRAPHTOR_BINARY_PATH}}` from `graphtor_docs.binary_on_path`: if `true`, default to `graphtor` (assumes PATH); if `false`, probe `.graphtor/bin/graphtor-docs.exe` and `.graphtor/bin/graphtor-docs` in that order; final default: `graphtor` (assumes PATH).
 
 5. **Two-agent model instructions** (conditional — auto-detected): When both `stage.agent.md` and `ship.agent.md` are being installed (indicating the two-agent Stage/Ship workflow model), install `role-enforcement.instructions.md` from `role-enforcement.instructions.md.tmpl`. This instruction defines the pre-mutation check protocol that teaches each agent to self-check against its own `## Role Boundary (NON-NEGOTIABLE)` table before executing tool calls. Skip this instruction when only one agent (or neither) is installed — role enforcement is only meaningful in the two-agent model.
 
@@ -1046,16 +1158,23 @@ primary_stack_pack: {{PRIMARY_STACK_PACK}}
 stack_packs: [{{STACK_PACKS}}]
 install_layers: [{{INSTALL_LAYERS}}]
 capability_packs: [{{CAPABILITY_PACKS}}]
-# Example when Engram is enabled:
-# capability_packs: ["agent-engram"]
 capability_pack_overlays:
   - pack: "{{PACK_NAME}}"
     overlay_targets: [{{OVERLAY_TARGETS}}]
     verification_checks: [{{OVERLAY_VERIFICATION_CHECKS}}]
-  # Example agent-engram overlay:
+  # When agent-engram is enabled, a real (non-commented) overlay entry is required:
   # - pack: "agent-engram"
-  #   overlay_targets: ["foundation-docs", "instructions", "analysis-workflows"]
-  #   verification_checks: ["agent-engram instruction installed", "engram-first search guidance woven"]
+  #   overlay_targets:
+  #     - "foundation-docs"
+  #     - "agent-engram.instructions.md"
+  #     - "pipeline-agents"
+  #     - "analysis-heavy-workflows"
+  #   verification_checks:
+  #     - "agent-engram.instructions.md installed at .github/instructions/"
+  #     - "stage.agent.md contains Engram session-start check (get_workspace_status)"
+  #     - "ship.agent.md contains Engram session-start check (get_workspace_status)"
+  #     - "copilot-instructions.md engram block cross-references installed instructions"
+  #     - "No unresolved {{VARIABLE}} in agent-engram.instructions.md"
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 vscode_settings:
   applied: true|false               # false when vscode.detected was false

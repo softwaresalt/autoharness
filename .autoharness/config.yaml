@@ -20,6 +20,8 @@ install_layers:
 capability_packs:
   - "agent-intercom"
   - "backlogit"
+  - "agent-engram"
+  - "graphtor-docs"
 
 backlog:
   tool: "backlogit"

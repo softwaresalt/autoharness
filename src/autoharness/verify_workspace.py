@@ -330,6 +330,25 @@ FOUNDATION_ASSERTIONS = [
         ],
     },
     {
+        "key": "ship_release_closure_sequence",
+        "path": ".github/agents/ship.agent.md",
+        "must_contain": [
+            "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
+            "post-merge release closure",
+            "Treat the shipment as still active for P-001 purposes",
+            "another top-level release unit may not begin yet",
+        ],
+    },
+    {
+        "key": "orchestrator_release_closure_sequence",
+        "path": ".github/agents/orchestrator.agent.md",
+        "must_contain": [
+            "awaiting required post-merge release closure",
+            "Stage may proceed with planning",
+            "must not route a second shipment to Ship until closure is complete",
+        ],
+    },
+    {
         "key": "install_harness_two_agent_role_enforcement",
         "path": ".github/skills/install-harness/SKILL.md",
         "must_contain": [

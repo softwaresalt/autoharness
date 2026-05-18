@@ -21,11 +21,11 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Applies To | `ship`           |
 | Gate Point | Pre-flight (Step 1)            |
 
-**Statement**: The ship agent must complete one top-level release unit (feature or chore) through to PR merge before starting a new one. Parallel in-flight release units create branch conflicts, context fragmentation, and agent interference.
+**Statement**: The ship agent must complete one top-level release unit (feature or chore) through PR merge **and any required post-merge release closure** before starting a new one. When `{{FEATURE_SHIPMENTS}}` is `true`, a merged release unit remains in-flight until Ship Step 5 has finished any required tag, publish, release-record, or post-merge closure-branch work. Parallel in-flight release units create branch conflicts, context fragmentation, and agent interference.
 
-**Precondition**: No backlog tasks with status `Active` exist under any top-level work item other than the current feature or chore.
+**Precondition**: No backlog tasks with status `Active` exist under any top-level work item other than the current feature or chore, and no previously merged top-level release unit is still awaiting required post-merge release closure (for example, an open post-merge closure branch/PR, a missing tag, or a pending publish step when `{{FEATURE_SHIPMENTS}}` is `true`).
 
-**Postcondition**: All tasks under the current top-level work item are `Done` before the orchestrator claims work on a new feature or chore.
+**Postcondition**: All tasks under the current top-level work item are `Done`, and any required post-merge release closure is complete, before the orchestrator claims work on a new feature or chore.
 
 **Violation Action**: Halt. Do not proceed until the conflict is resolved or the operator explicitly overrides with `skip_policy: P-001`.
 

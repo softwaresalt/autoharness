@@ -108,11 +108,47 @@ After tool availability probing (Step 0.0), and before any subsequent semantic b
   - If the CLI succeeds: log `INDEX_SYNC_OK (CLI fallback)`.
   - If both fail: log `INDEX_SYNC_WARN — proceeding with potentially stale index` and continue.
 
+### Step 0.1b: Engram Readiness Check
+
+If the `agent-engram` capability pack is active (`.github/instructions/agent-engram.instructions.md` exists or `agent_engram.detected: true` in workspace profile):
+
+1. Call `get_workspace_status` to verify daemon readiness and workspace binding.
+   - On success: log `ENGRAM_OK: workspace bound`.
+   - On failure (timeout or unavailable): log `ENGRAM_DEGRADED — falling back to file-based exploration`. Do not halt.
+2. In `ENGRAM_DEGRADED` mode, proceed with grep/glob/view for codebase discovery; skip Engram search calls.
+
+See `.github/instructions/agent-engram.instructions.md` for full search protocol, fallback rules, and freshness protocol.
+
+### Step 0.1c: Intercom Startup Ping
+
+If the `agent-intercom` capability pack is active (`.github/instructions/agent-intercom.instructions.md` exists):
+
+1. Call heartbeat/ping with a concise session-start status message (e.g., "Stage session started — loading stash").
+   - On success: log `INTERCOM_OK`.
+   - On failure (service unreachable): log `INTERCOM_DEGRADED — operator visibility reduced`. Do not halt. Continue with non-destructive work.
+2. In `INTERCOM_DEGRADED` mode: skip phase broadcasts; do not block on approval for non-destructive operations.
+
+**Before presenting operator choices** (stash triage, plan review, shipment assembly): broadcast a self-contained summary per the combined intercom+backlogit rule — include item ID, priority, type, one-line summary, and recommended ordering; state that operator confirmation is awaited.
+
+**Before destructive backlog operations** (archive, delete, terminal-state moves): run the intercom auto-check step. If not auto-approved, request operator clearance before proceeding.
+
+See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, broadcast, approval, and degraded-mode rules.
+
+### Step 0.1d: Graphtor-Docs Server Check
+
+If the `graphtor-docs` capability pack is active (`.github/instructions/graphtor-docs.instructions.md` exists):
+
+1. Call `get_status` to verify the server is reachable and the index is fresh.
+   - On success: log `GRAPHTOR_OK: index fresh` (or note staleness if reported).
+   - On failure (unreachable): log `GRAPHTOR_UNAVAILABLE — falling back to file-based doc search`. Do not halt.
+2. In `GRAPHTOR_UNAVAILABLE` mode, fall back to grep/view over `docs/` for documentation questions.
+
+See `.github/instructions/graphtor-docs.instructions.md` for full search protocol, server lifecycle, and fallback rules.
+
 ### Step 0: Session Start
 
 1. Read `.github/copilot-instructions.md` and `AGENTS.md` for workspace context.
-2. Check backlogit stash for pending entries:
-   `backlogit_fetch_stash` or `backlogit list --status queued`
+2. Check backlogit stash and queued items: `backlogit_fetch_stash` or `backlogit list --status queued`
 
 ### Step 1: Stash Triage
 
@@ -134,10 +170,15 @@ Based on classification:
 
 ### Step 3: Planning
 
-1. Invoke `impl-plan` skill with the feature/chore description and relevant context.
-2. If the plan has elevated blast radius (touches schemas, CLI distribution,
+1. **Pre-planning knowledge retrieval** (use available packs):
+   - When `ENGRAM_OK`: Run `unified_search` or `impact_analysis` for code relationships, blast radius, and symbol-level context.
+   - When `GRAPHTOR_OK`: Run `research_topic` or `search_local_docs` to resolve domain concepts, architecture questions, or API references from indexed documentation.
+   - **Multi-pack routing**: Use Engram for code relationships and impact analysis; use graphtor-docs for documentation lookup and concept research. Both may be used in the same planning step for complementary perspectives.
+   - See `.github/instructions/agent-engram.instructions.md` and `.github/instructions/graphtor-docs.instructions.md` for tool guidance.
+2. Invoke `impl-plan` skill with the feature/chore description and relevant context.
+3. If the plan has elevated blast radius (touches schemas, CLI distribution,
    or multiple template families), invoke `plan-harden` before review.
-3. Gate through `plan-review` skill before proceeding.
+4. Gate through `plan-review` skill before proceeding.
 
 ### Step 4: Harvest
 

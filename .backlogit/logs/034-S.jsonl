@@ -1,0 +1,19 @@
+{"timestamp":"2026-05-17T15:03:45.8205954-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_created","delta":{"items":[],"title":"Engram First-Line Integration — autoharness Dogfood Workspace"}}
+{"timestamp":"2026-05-17T15:03:52.5092578-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"036-F"}}
+{"timestamp":"2026-05-17T15:03:52.7037403-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"036.001-T"}}
+{"timestamp":"2026-05-17T15:03:52.9760178-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"036.002-T"}}
+{"timestamp":"2026-05-17T15:03:53.1655332-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"036.003-T"}}
+{"timestamp":"2026-05-17T15:03:53.4300093-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"036.004-T"}}
+{"timestamp":"2026-05-17T15:03:53.6654019-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"036.005-T"}}
+{"timestamp":"2026-05-17T15:03:53.8428407-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"036.006-T"}}
+{"timestamp":"2026-05-17T15:10:55.2146464-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"037-F"}}
+{"timestamp":"2026-05-17T15:10:55.4253993-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"037.001-T"}}
+{"timestamp":"2026-05-17T15:10:55.6382492-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"037.002-T"}}
+{"timestamp":"2026-05-17T15:10:55.881823-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"037.003-T"}}
+{"timestamp":"2026-05-17T15:10:56.0703909-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"037.004-T"}}
+{"timestamp":"2026-05-17T15:10:56.2872524-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"038-F"}}
+{"timestamp":"2026-05-17T15:10:56.6308861-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"038.001-T"}}
+{"timestamp":"2026-05-17T15:10:56.9870721-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"038.002-T"}}
+{"timestamp":"2026-05-17T15:10:57.1820808-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"038.003-T"}}
+{"timestamp":"2026-05-17T15:10:57.3844811-07:00","actor":"backlogit","item_id":"034-S","event_type":"shipment_item_added","delta":{"item_id":"038.004-T"}}
+{"timestamp":"2026-05-17T15:11:47.7198343-07:00","actor":"stage","item_id":"034-S","event_type":"comment","delta":{"comment":"Stage session (2026-05-17): Amended shipment scope per stash entry 9FA0B915 and deliberation 005-DL. Decision: amend additively (Option B) — existing Engram workstream (036-F, 036.001-T–036.006-T) preserved intact. Added 037-F (agent-intercom, 4 tasks IC-A–IC-D) and 038-F (graphtor-docs, 4 tasks GD-A–GD-D). Total: 3 features, 14 tasks. All dependency chains wired (IC-A→IC-B→IC-C→IC-D; GD-A→GD-B→GD-C→GD-D). P-001 gate and branch constraint (feat/capability-packs-full-weave from main) added to shipment, 036-F, 037-F, and 038-F. Key finding: agent-intercom.instructions.md is real drift (in manifest capability_packs but not installed). graphtor-docs requires discovery step (GD-A) to resolve 2 template vars before rendering. Cross-pack agent-file edit conflicts flagged in shipment description. Shipment remains queued pending 033-S merge."}}

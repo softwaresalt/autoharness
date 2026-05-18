@@ -22,6 +22,8 @@ install_layers:
 capability_packs:
   - "agent-intercom"
   - "backlogit"
+  - "agent-engram"
+  - "graphtor-docs"
 capability_pack_overlays:
   - pack: "agent-intercom"
     overlay_targets:
@@ -31,7 +33,8 @@ capability_pack_overlays:
       - "long-running-skills"
       - "ping-loop-prompt"
     verification_checks:
-      - "agent-intercom MCP configured in .vscode/mcp.json"
+      - "agent-intercom MCP configured in .vscode/mcp.json (or .cursor/mcp.json / .mcp.json)"
+      - "agent-intercom.instructions.md installed at .github/instructions/"
       - "ping-loop prompt references intercom heartbeat"
   - pack: "backlogit"
     overlay_targets:
@@ -40,8 +43,30 @@ capability_pack_overlays:
       - "pipeline-agents"
       - "backlog-aware-workflows"
     verification_checks:
-      - "backlogit MCP configured in .vscode/mcp.json"
+      - "backlogit MCP configured in .vscode/mcp.json (or .mcp.json)"
       - "backlogit registry installed at .autoharness/backlog-registry.yaml"
+  - pack: "agent-engram"
+    overlay_targets:
+      - "foundation-docs"
+      - "agent-engram.instructions.md"
+      - "pipeline-agents"
+      - "analysis-heavy-workflows"
+    verification_checks:
+      - "agent-engram.instructions.md installed at .github/instructions/"
+      - "stage.agent.md contains Engram session-start check (get_workspace_status)"
+      - "ship.agent.md contains Engram session-start check (get_workspace_status)"
+      - "copilot-instructions.md engram block cross-references installed instructions"
+      - "No unresolved {{VARIABLE}} in agent-engram.instructions.md"
+  - pack: "graphtor-docs"
+    overlay_targets:
+      - "graphtor-docs.instructions.md"
+      - "pipeline-agents"
+      - "workspace-profile"
+    verification_checks:
+      - "graphtor-docs.instructions.md installed at .github/instructions/"
+      - "Zero {{VARIABLE}} placeholders in installed graphtor-docs.instructions.md"
+      - "stage.agent.md and ship.agent.md contain GRAPHTOR_UNAVAILABLE references"
+      - "workspace-profile.yaml has graphtor_docs section"
 primitives_installed:
   - 1
   - 2
@@ -158,6 +183,21 @@ artifacts:
     template: "global prompt definition"
     checksum: "bf8f75345c0da4c1f86ca76eabd7048ed9431aa9d2878a39e7991cb1ddd9b3a1"
     note: "pre-existing, source-controlled global artifact"
+  - path: ".github/instructions/agent-engram.instructions.md"
+    primitive: 1
+    template: "instructions/agent-engram.instructions.md.tmpl"
+    checksum: "4e77366ee9f33650b4f9c0ebecda70f0be2f917023053d7ca4a3981ff78459f2"
+    note: "agent-engram capability pack overlay instruction"
+  - path: ".github/instructions/agent-intercom.instructions.md"
+    primitive: 4
+    template: "instructions/agent-intercom.instructions.md.tmpl"
+    checksum: "4cd9147cf25345fe1c4de46e7bc26251716a4d5b7494e84a2f5e6a2e31375f0c"
+    note: "agent-intercom capability pack overlay instruction"
+  - path: ".github/instructions/graphtor-docs.instructions.md"
+    primitive: 1
+    template: "instructions/graphtor-docs.instructions.md.tmpl"
+    checksum: "0519312293272c6c052fea4d96e0ea81649c39db12817a1b518ce7e4e85aa3c1"
+    note: "graphtor-docs capability pack overlay instruction (vars resolved: GRAPHTOR_SOURCES_PATH=.graphtor/config/sources.yaml, GRAPHTOR_BINARY_PATH=.graphtor/bin/graphtor-docs.exe)"
 variables_used:
   PROJECT_NAME: "autoharness"
   PRIMARY_LANGUAGE: "Python"

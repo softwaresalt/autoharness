@@ -105,6 +105,43 @@ After tool availability probing (Step 0.0), and before any subsequent semantic s
   - If the CLI succeeds: log `INDEX_SYNC_OK (CLI fallback)`.
   - If both fail: log `INDEX_SYNC_WARN — proceeding with potentially stale index` and continue.
 
+### Step 0.1b: Engram Readiness Check
+
+If the `agent-engram` capability pack is active (`.github/instructions/agent-engram.instructions.md` exists or `agent_engram.detected: true` in workspace profile):
+
+1. Call `get_workspace_status` to verify daemon readiness and workspace binding.
+   - On success: log `ENGRAM_OK: workspace bound`.
+   - On failure (timeout or unavailable): log `ENGRAM_DEGRADED — falling back to file-based exploration`. Do not halt.
+2. In `ENGRAM_DEGRADED` mode, proceed with grep/glob/view for codebase discovery; skip Engram search calls.
+
+See `.github/instructions/agent-engram.instructions.md` for full search protocol, fallback rules, and freshness protocol.
+
+### Step 0.1c: Intercom Startup Ping
+
+If the `agent-intercom` capability pack is active (`.github/instructions/agent-intercom.instructions.md` exists):
+
+1. Call heartbeat/ping with a concise session-start status message (e.g., "Ship session started — loading shipment").
+   - On success: log `INTERCOM_OK`.
+   - On failure (service unreachable): log `INTERCOM_DEGRADED — operator visibility reduced`. Do not halt. Continue with non-destructive work.
+2. In `INTERCOM_DEGRADED` mode: skip phase broadcasts; treat approval-dependent destructive operations as blocked until intercom is restored or operator provides another path.
+
+**Phase broadcasts**: Broadcast concise status at planning started, task claimed, task completed, review complete, runtime verification, and operational closure per the Progress Protocol in `.github/instructions/agent-intercom.instructions.md`.
+
+**Before destructive file operations** (deletions, directory removals): run the intercom auto-check step before executing. Block if auto-check fails and intercom is unavailable.
+
+See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, broadcast, approval, and degraded-mode rules.
+
+### Step 0.1d: Graphtor-Docs Server Check
+
+If the `graphtor-docs` capability pack is active (`.github/instructions/graphtor-docs.instructions.md` exists):
+
+1. Call `get_status` to verify the server is reachable and the index is fresh.
+   - On success: log `GRAPHTOR_OK: index fresh` (or note staleness if reported).
+   - On failure (unreachable): log `GRAPHTOR_UNAVAILABLE — falling back to file-based doc search`. Do not halt.
+2. In `GRAPHTOR_UNAVAILABLE` mode, fall back to grep/view over `docs/` for documentation questions.
+
+See `.github/instructions/graphtor-docs.instructions.md` for full search protocol, server lifecycle, and fallback rules.
+
 ### Step 0.5: Work Intake
 
 1. Identify the shipment or feature to work on (read-only — do not claim yet).
@@ -132,21 +169,26 @@ After tool availability probing (Step 0.0), and before any subsequent semantic s
 
 ### Step 1: Pre-Flight Checks
 
-1. Verify the workspace compiles: `uv run autoharness --help`.
-2. Read the constitution and quality gate expectations.
-3. Ensure the working branch is clean.
+1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog, and treat any previously merged shipment with incomplete required post-merge release closure (for example, an open post-merge closure PR/branch, a missing tag, or a pending publish step) as still active for P-001 purposes.
+2. Verify the workspace compiles: `uv run autoharness --help`.
+3. Read the constitution and quality gate expectations.
+4. Ensure the working branch is clean.
 
 ### Step 2: Task Execution Loop
 
 For each task in the shipment/feature:
 
 1. **Claim**: Move the task to active via `backlogit_move_item`.
-2. **Execute**: Perform the template authoring, schema change, skill
+2. **Pre-build knowledge retrieval** (use available packs):
+   - When `ENGRAM_OK`: Run `impact_analysis` on the task's primary symbol or file scope to surface unexpected callers and assess blast radius.
+   - When `GRAPHTOR_OK`: Run `search_local_docs` or `search_semantic` to resolve any documentation questions about the feature scope before beginning implementation.
+   - **Multi-pack routing**: Use Engram for code relationships and impact analysis; use graphtor-docs for documentation lookup, API references, and concept research. See `.github/instructions/agent-engram.instructions.md` and `.github/instructions/graphtor-docs.instructions.md`.
+3. **Execute**: Perform the template authoring, schema change, skill
    development, or documentation work.
-3. **Validate**: Run quality gates.
-4. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`, `test:`).
-5. **Complete**: Move the task to done via `backlogit_move_item`.
-6. **Track**: Associate the commit via `backlogit_track_commit`.
+4. **Validate**: Run quality gates.
+5. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`, `test:`).
+6. **Complete**: Move the task to done via `backlogit_move_item`.
+7. **Track**: Associate the commit via `backlogit_track_commit`.
 
 ### Step 3: Review Gate
 
@@ -177,6 +219,14 @@ Before any post-merge closure work begins, confirm the PR has actually merged:
    - Exit code 0: confirmed. Proceed.
    - Non-zero: halt with `MERGE_NOT_CONFIRMED: SHA not yet in origin/main history.`
 3. Proceed only after both checks pass.
+
+#### Release Closure Completion Gate (P-001, NON-NEGOTIABLE)
+
+A merged PR does not complete the top-level release unit by itself. For P-001 purposes, treat the shipment as still active until all required Step 5 closure work is complete.
+
+1. Complete the post-merge closure workflow before declaring the shipment closed.
+2. When the shipment carries release obligations, complete any required tag, publish, release-record, or post-merge closure branch/PR steps.
+3. If any required post-merge release closure remains open, halt with `RELEASE_CLOSURE_INCOMPLETE`. Treat the shipment as still active for P-001 purposes, and another top-level release unit may not begin yet.
 
 1. Close the shipment via `backlogit_ship_shipment` if applicable.
 2. Write compound learnings for hard-won solutions.

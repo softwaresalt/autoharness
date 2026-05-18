@@ -93,6 +93,8 @@ harness_recommendations:
   capability_packs:
     - "agent-intercom"
     - "backlogit"
+    - "agent-engram"
+    - "graphtor-docs"
   install_layers: []
   recommendation_reasons:
     preset:
@@ -107,6 +109,17 @@ harness_recommendations:
         signals:
           - ".vscode/mcp.json"
           - ".backlogit/config.yaml"
+      - item: "agent-engram"
+        because: "Engram MCP server configured in .vscode/mcp.json and .cursor/mcp.json, and .engram/ directory present"
+        signals:
+          - ".vscode/mcp.json"
+          - ".cursor/mcp.json"
+          - ".engram/config.toml"
+      - item: "graphtor-docs"
+        because: "graphtor-docs binary present at .graphtor/bin/graphtor-docs.exe and sources configured at .graphtor/config/sources.yaml"
+        signals:
+          - ".graphtor/bin/graphtor-docs.exe"
+          - ".graphtor/config/sources.yaml"
     install_layers: []
 
 agent_intercom:
@@ -118,11 +131,24 @@ agent_intercom:
   recommended: true
 
 agent_engram:
-  detected: false
-  mcp_configured: false
-  config_paths: []
+  detected: true
+  mcp_configured: true
+  config_paths:
+    - ".vscode/mcp.json"
+    - ".cursor/mcp.json"
+  instruction_markers:
+    - "<!-- engram:start -->"
+  recommended: true
+
+graphtor_docs:
+  detected: true
+  mcp_configured: true
+  config_paths:
+    - ".cursor/mcp.json"
+  sources_path: ".graphtor/config/sources.yaml"
+  binary_on_path: true
   instruction_markers: []
-  recommended: false
+  recommended: true
 
 agent_native:
   detected: false
