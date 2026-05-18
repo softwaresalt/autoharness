@@ -151,10 +151,32 @@ Copilot review readiness verification defined in
 3. **Never auto-merge** and never treat silence as approval.
 4. If the user does not approve merge, leave the PR open and report
    the ready state.
-5. **Branch retention (NON-NEGOTIABLE)**: Remain on the current feature
+5. **Operator approval gate (P-014)**: After the §1.9 gate passes, wait for an
+   explicit operator approval signal. Green CI is not approval. A passing §1.9
+   gate is not approval. Record P-014 (via P-005 telemetry) if merge is executed
+   without an explicit approval signal.
+6. **Branch retention (NON-NEGOTIABLE)**: Remain on the current feature
    or chore branch while awaiting merge approval. Do NOT checkout
    `{{DEFAULT_BRANCH}}` or any other branch. The calling agent (Ship)
    depends on the branch context being preserved for post-merge work.
+
+#### Step 5c: Last-Mile §1.9 Re-check Before Merge Execution
+
+After receiving operator approval and before executing the merge:
+
+1. Check whether any new commits have been pushed to the branch since the §1.9
+   gate ran. If yes, re-run §1.9 in full — the prior gate result is stale.
+2. Check whether any new Copilot review threads have been opened since the §1.9
+   gate ran (query `reviewThreads` filtered to `isResolved == false` and
+   `author.login == "copilot-pull-request-reviewer"`). If any new unresolved
+   threads exist, halt and report — do not proceed to merge.
+3. If the branch HEAD and review state are unchanged from the §1.9 gate run,
+   log `P-014 LAST-MILE CHECK PASSED: branch unchanged, no new unresolved threads`.
+4. Execute the merge only after this check passes.
+
+This last-mile check closes the race window between approval receipt and merge
+execution. It is a lightweight incremental query (not a full §1.9 re-run) when the
+branch has not changed.
 
 ### Step 6: Post-merge cleanup
 

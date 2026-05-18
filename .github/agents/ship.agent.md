@@ -200,7 +200,20 @@ For each task in the shipment/feature:
 
 1. Push the branch and invoke the `pr-lifecycle` skill.
 2. Handle CI feedback via the `fix-ci` skill if needed.
-3. Wait for operator approval before merge.
+3. **P-014 Copilot Review Merge Gate (NON-NEGOTIABLE)**: Before presenting the PR as
+   merge-ready, read `.github/instructions/github-pr-automation.instructions.md` and
+   execute the §1.9 Pre-Merge Review Readiness Verification:
+   - Run the §1.9 readiness query (with full thread pagination).
+   - Evaluate Check 1 (no pending Copilot review), Check 2 (review covers current HEAD),
+     and Check 3 (zero unresolved Copilot threads) in order.
+   - If any check fails: halt. Record a P-014 violation via P-005 telemetry. Do not proceed.
+   - If all three checks pass: log `P-014 GATE PASSED: §1.9 verified at HEAD={headRefOid}`.
+4. **Operator approval gate**: After the §1.9 gate passes, present the PR readiness summary
+   to the operator and wait for an explicit approval signal. Never treat silence, green CI,
+   or a passing §1.9 gate as approval. Never auto-merge.
+5. Execute the merge only after receiving explicit operator approval AND having a §1.9 gate
+   pass on record. If new commits are pushed between the §1.9 check and the approval signal,
+   re-run §1.9 before executing the merge.
 
 ### Step 5: Post-Merge Closure
 
@@ -227,6 +240,20 @@ A merged PR does not complete the top-level release unit by itself. For P-001 pu
 1. Complete the post-merge closure workflow before declaring the shipment closed.
 2. When the shipment carries release obligations, complete any required tag, publish, release-record, or post-merge closure branch/PR steps.
 3. If any required post-merge release closure remains open, halt with `RELEASE_CLOSURE_INCOMPLETE`. Treat the shipment as still active for P-001 purposes, and another top-level release unit may not begin yet.
+
+#### Post-Merge Closure PR Copilot Gate (P-014, NON-NEGOTIABLE)
+
+When a post-merge closure branch and PR are created:
+
+1. Request Copilot Review immediately after PR creation (per §1.1 of
+   `.github/instructions/github-pr-automation.instructions.md`).
+2. Poll for review completion per §1.2 back-off cadence.
+3. Address any comments per §1.3–§1.7.
+4. Run §1.9 readiness gate before presenting the post-merge closure PR for merge.
+5. Obtain explicit operator approval — the prior main PR approval does not transfer.
+6. P-014 applies in full. Record a P-014 violation via P-005 telemetry if this gate is skipped.
+
+#### Closure Tasks
 
 1. Close the shipment via `backlogit_ship_shipment` if applicable.
 2. Write compound learnings for hard-won solutions.
