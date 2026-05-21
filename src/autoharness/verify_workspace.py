@@ -650,7 +650,20 @@ def _summarize_warnings(warnings: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _normalize_stage_path(staging_dir: Path, relative_path: str) -> Path:
-    return staging_dir / Path(relative_path.replace("/", "/"))
+    """Map a relative artifact path into the staging directory.
+
+    Normalises path separators and sanitises the path so that absolute paths
+    (Unix-rooted or Windows drive-letter form) and parent-directory traversal
+    (``..``) cannot escape ``staging_dir``.
+    """
+    # Normalise to forward slashes, strip any leading separators.
+    normalized = relative_path.replace("\\", "/").lstrip("/")
+    # Strip a Windows drive-letter prefix (e.g. "C:/..." → "...").
+    if len(normalized) >= 2 and normalized[1] == ":" and normalized[0].isalpha():
+        normalized = normalized[2:].lstrip("/")
+    # Remove empty and parent-directory components to block ``../`` traversal.
+    clean_parts = [p for p in normalized.split("/") if p and p != ".."]
+    return staging_dir.joinpath(*clean_parts) if clean_parts else staging_dir
 
 
 def _ensure_parent(path: Path) -> None:
@@ -1793,9 +1806,9 @@ def verify_workspace(
         )
         json_path = staging_root / "verify-workspace-report.json"
         markdown_path = staging_root / "verify-workspace-report.md"
+        report["report_paths"] = {"json": str(json_path), "markdown": str(markdown_path)}
         json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
         _write_markdown_report(report, markdown_path)
-        report["report_paths"] = {"json": str(json_path), "markdown": str(markdown_path)}
         return report
 
     try:
@@ -2149,8 +2162,7 @@ def verify_workspace(
 
     json_path = staging_root / "verify-workspace-report.json"
     markdown_path = staging_root / "verify-workspace-report.md"
-    json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    _write_markdown_report(report, markdown_path)
     report["report_paths"] = {"json": str(json_path), "markdown": str(markdown_path)}
     json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    _write_markdown_report(report, markdown_path)
     return report
