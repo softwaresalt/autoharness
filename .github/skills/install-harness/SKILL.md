@@ -396,6 +396,22 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 
 Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
+**Alternate Model Variables** (used by `adversarial-review` and `doc-review` templates when alternate provider support is enabled):
+
+| Template Variable | Source | Example (Gemini) | Example (none) |
+|---|---|---|---|
+| `{{ALT_REVIEW_PROVIDER}}` | `config.model_routing.alt_review.model_provider` or operator override | `google` | _(empty string)_ |
+| `{{ALT_REVIEW_FAMILY}}` | `config.model_routing.alt_review.model_family` or operator override | `gemini-2.5-flash` | _(empty string)_ |
+| `{{ALT_DOC_REVIEW_PROVIDER}}` | `config.model_routing.alt_doc_review.model_provider` or operator override | `google` | _(empty string)_ |
+| `{{ALT_DOC_REVIEW_FAMILY}}` | `config.model_routing.alt_doc_review.model_family` or operator override | `gemini-2.5-pro` | _(empty string)_ |
+
+Resolution notes for alternate model variables:
+
+* When both `*_PROVIDER` and `*_FAMILY` are non-empty, the corresponding skill or agent routes one reviewer/review slot to the alternate provider. When either is empty, standard tier routing applies.
+* `{{ALT_REVIEW_PROVIDER}}` / `{{ALT_REVIEW_FAMILY}}` replace Reviewer-B (Tier 2 slot) in the adversarial-review agent's reviewer pool. This ensures cross-provider diversity without requiring additional reviewer count.
+* `{{ALT_DOC_REVIEW_PROVIDER}}` / `{{ALT_DOC_REVIEW_FAMILY}}` determine the model used for the entire doc-review skill pass. When empty, doc-review uses Tier 2.
+* These variables resolve to the empty string when the operator has not configured an alternate model. Templates that reference them must degrade gracefully to Tier 2 defaults when the variables are empty.
+
 **Community template variables** — used by templates in `templates/community/` when selected during Step 1.3a:
 
 | Variable | Resolved From | Example (Rust) | Example (Go) | Example (Python) |

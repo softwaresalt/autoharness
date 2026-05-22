@@ -1,0 +1,296 @@
+---
+name: doc-review
+description: "Structured documentation review skill that identifies broken cross-references, stale content, missing frontmatter, markdown structure violations, and template variable drift in installed harness docs. Supports an alternate model provider for the review pass."
+argument-hint: "[mode:autofix|mode:report-only] [path or glob]"
+---
+
+# Documentation Review
+
+Reviews installed harness documentation and workspace docs for quality issues.
+Identifies broken cross-references, stale content, missing or malformed
+frontmatter, markdown structure violations (MD001/MD025/MD041), and unresolved
+template variable drift (double-brace placeholders remaining in installed
+output). Produces structured findings with severity tiers and action classes
+compatible with the standard review persona routing model.
+
+## When to Use
+
+* After installing or tuning the harness — verify no template variables remain
+  unresolved and all cross-references are intact.
+* As part of the ship agent's post-merge closure documentation gardening pass.
+* On-demand when doc quality has drifted or a structural refactor has been
+  applied.
+* Before a release when documentation accuracy is a gate condition.
+
+## Alternate Model Support
+
+When `{{ALT_DOC_REVIEW_PROVIDER}}` and `{{ALT_DOC_REVIEW_FAMILY}}` are
+configured, the review pass uses those provider and family values instead of
+the default Tier 2 routing. This allows the documentation review to use Gemini,
+a different Anthropic family, or any provider registered in the workspace model
+configuration — independent of the standard tier routing set.
+
+When these variables resolve to empty strings (no alternate model configured),
+the skill falls back to Tier 2 defaults.
+
+## Agent-Intercom Communication
+
+Call `ping` at session start. If agent-intercom is reachable, broadcast at
+every step. If unreachable, warn that operator visibility is degraded.
+
+| Event | Level | Message prefix |
+|---|---|---|
+| Doc review start | info | `[DOC-REVIEW] Starting {mode} review of {scope}` |
+| Scope analyzed | info | `[DOC-REVIEW] Scope: {file_count} docs, {check_count} checks` |
+| Check pass | info | `[DOC-REVIEW] Check passed: {check_name}` |
+| Check finding | warning | `[DOC-REVIEW] Finding ({severity}): {summary} in {file}` |
+| Autofix applied | info | `[DOC-REVIEW] Applied safe_auto fix: {summary}` |
+| Review written | success | `[DOC-REVIEW] Artifact: {file_path}` |
+| Review complete | success | `[DOC-REVIEW] Complete: {p0} P0, {p1} P1, {p2} P2, {p3} P3` |
+
+## Subagent Depth Constraint
+
+This skill is a leaf executor. It MUST NOT spawn its own subagents.
+Maximum depth: caller → doc-review skill (1 hop).
+
+## Mode Detection
+
+Check arguments for `mode:autofix` or `mode:report-only`.
+
+| Mode | Behavior |
+|---|---|
+| **Interactive** (default) | Review, present findings, ask for decisions |
+| **Autofix** | Apply `safe_auto` fixes only; write artifact; emit residual work |
+| **Report-only** | Read-only; return structured findings; no side effects |
+
+## Severity Scale
+
+| Level | Meaning | Gate action |
+|---|---|---|
+| **P0** | Unresolved double-brace template placeholders in installed output; broken required cross-reference | Block merge/release |
+| **P1** | Missing required frontmatter; MD001/MD025/MD041 violation causing structural failure | Block merge |
+| **P2** | Stale content (references removed files/sections); soft cross-reference gaps | Backlog follow-up |
+| **P3** | Minor style, wording, or organizational improvement | Advisory |
+
+## Action Classes
+
+| Class | Default owner | Meaning |
+|---|---|---|
+| `safe_auto` | Doc-review skill (autofix mode) | Deterministic local fix |
+| `gated_auto` | agent-intercom approval | Fix changes meaning or structure |
+| `manual` | Backlog follow-up item | Requires human judgment |
+| `advisory` | Informational | Suggestion; no defect |
+
+## Check Suite
+
+### Check 1 — Template Variable Drift (P0)
+
+Scan all Markdown and YAML files in scope for unresolved template variable
+patterns matching `\{\{[A-Z_][A-Z0-9_]*\}\}`. Any match in installed output
+files (not `.tmpl` source files) is a P0 finding.
+
+```text
+Pattern: \{\{[A-Z_][A-Z0-9_]*\}\}
+Scope:    installed harness files (exclude *.tmpl, exclude .backlogit/)
+Severity: P0
+Action:   manual — the installer must re-run or the variable must be resolved
+```
+
+### Check 2 — YAML Frontmatter Validity (P1)
+
+For each file with a `---` frontmatter block:
+
+1. Extract the YAML block between the first and second `---` delimiters.
+2. Parse the YAML. Any parse error is a P1 finding.
+3. Verify required keys are present per file type:
+   * Agent files: `name`, `description`
+   * Skill files: `name`, `description`
+   * Instruction files: `description`
+   * Template files: at minimum `description` or `name`
+
+```text
+Action class: gated_auto (reformatting) or manual (missing keys)
+```
+
+### Check 3 — Markdown Heading Hierarchy (P1)
+
+Apply markdownlint-compatible rules:
+
+* **MD001** — Heading levels increment by one (no skips from H1 → H3).
+* **MD025** — Only one top-level H1 heading per document.
+* **MD041** — First line of a Markdown file must be a top-level heading
+  (unless the file begins with YAML frontmatter, in which case the first
+  heading after the frontmatter close must be H1 for content files).
+
+```text
+Action class: safe_auto for level-skip corrections; gated_auto for
+multi-H1 (structural ambiguity); manual when context is unclear
+```
+
+### Check 4 — Cross-Reference Integrity (P1/P2)
+
+Scan all Markdown links, `applyTo` glob values, and explicit file path
+references in documentation:
+
+1. For each internal link `[text](path)` or `[text](path#anchor)`:
+   * Verify the target file exists relative to the workspace root or the
+     referring file.
+   * If the file exists but the anchor is missing: P2 finding.
+   * If the file is missing entirely: P1 finding.
+2. For agent definition references in skill tables or AGENTS.md:
+   * Verify the referenced agent file exists in `.github/agents/`.
+3. For skill references in agent protocols or instruction files:
+   * Verify the referenced skill directory and `SKILL.md` exist in
+     `.github/skills/`.
+
+```text
+Missing file: P1 — manual
+Missing anchor only: P2 — advisory
+```
+
+### Check 5 — Stale Content Detection (P2)
+
+Identify content that references:
+
+* Files or paths that no longer exist in the workspace.
+* Commands that no longer appear in the project toolchain
+  (`{{BUILD_COMMAND}}`, `{{TEST_COMMAND}}`, `{{LINT_COMMAND}}`).
+* Backlog item IDs mentioned as "active" but archived.
+* Section anchors referenced internally that have been renamed.
+
+```text
+Action class: advisory for informational mentions; manual for
+content that asserts an incorrect current state
+```
+
+### Check 6 — Frontmatter Field Completeness (P2)
+
+Verify optional-but-recommended frontmatter fields:
+
+* Instruction files: `applyTo` glob is present and non-empty.
+* Skill files: `argument-hint` is present.
+* Agent files: `model_tier` is present (not just the deprecated
+  `model_routing` string field).
+
+```text
+Action class: advisory — missing recommended fields do not block but
+degrade runtime behavior or tooling integration
+```
+
+## Workflow
+
+### Step 1: Resolve Scope
+
+1. If arguments specify a path or glob, resolve it to a list of files.
+2. Otherwise, default scope:
+   * `.github/agents/*.md`
+   * `.github/skills/**/SKILL.md`
+   * `.github/instructions/*.md`
+   * `AGENTS.md`
+   * `docs/**/*.md` (excluding `docs/archive/`)
+3. Announce scope size. Broadcast.
+
+### Step 2: Select Review Model
+
+1. Read `{{ALT_DOC_REVIEW_PROVIDER}}` and `{{ALT_DOC_REVIEW_FAMILY}}`.
+2. If both are non-empty: use the alternate provider/family for this review
+   pass. Log `[DOC-REVIEW] Using alternate model: {{ALT_DOC_REVIEW_FAMILY}}
+   (provider: {{ALT_DOC_REVIEW_PROVIDER}})`.
+3. If either is empty: use Tier 2 defaults.
+
+### Step 3: Run Check Suite
+
+Execute Checks 1–6 over the resolved scope. For each finding:
+
+1. Record: `{file, line, check_id, severity, message, action_class, fix_hint}`.
+2. Broadcast the finding at the appropriate level.
+
+### Step 4: Apply Actions (mode-dependent)
+
+**Autofix mode:**
+
+1. Apply all `safe_auto` findings automatically.
+2. Create backlog follow-up items for `manual` findings using
+   `{{OP_CREATE_CLI}}`.
+3. Write the review artifact to `{{DOCS_CLOSURE}}/`.
+
+**Report-only mode:**
+
+1. Return structured findings to caller.
+2. No side effects: no edits, no artifact, no follow-up items.
+
+**Interactive mode:**
+
+1. Present findings grouped by severity (P0 first).
+2. For each P0/P1, ask the user to accept, modify, or reject the fix.
+3. Apply approved fixes. Write review artifact.
+
+### Step 5: Produce Output
+
+Assemble the findings report:
+
+```markdown
+# Doc Review: {scope_summary}
+
+Date: {YYYY-MM-DD}
+Mode: {mode}
+Model: {model_used}
+Files reviewed: {count}
+
+## P0 Findings
+
+{findings}
+
+## P1 Findings
+
+{findings}
+
+## P2 Findings
+
+{findings}
+
+## P3 / Advisory Findings
+
+{findings}
+
+## Summary
+
+| Severity | Count | Auto-fixed | Deferred |
+|---|---|---|---|
+| P0 | {n} | {n} | {n} |
+| P1 | {n} | {n} | {n} |
+| P2 | {n} | {n} | {n} |
+| P3 | {n} | {n} | {n} |
+```
+
+Write to `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-doc-review-{slug}.md` (autofix and
+interactive modes). Return structured findings to caller in report-only mode.
+
+## Integration with Review Skill
+
+The `review/SKILL.md` persona routing model may invoke `doc-review` as a
+conditional reviewer when the diff touches:
+
+* `.github/agents/`, `.github/skills/`, `.github/instructions/`
+* `AGENTS.md`, `docs/`
+* Any `.tmpl` file
+
+When invoked from `review/SKILL.md` as a persona, this skill operates in
+**report-only** mode and returns its structured findings for inclusion in
+the parent review's finding merge and dedup pipeline.
+
+## Quality Criteria
+
+* Every file in scope is checked against all applicable checks.
+* All P0 findings must be reported; none may be silently dropped.
+* The review artifact (autofix and interactive modes) is written even if all
+  findings are P3/advisory.
+* The alternate model is used when configured; the fallback is Tier 2
+  (never Tier 3 without explicit configuration).
+
+## Model Routing
+
+When `{{ALT_DOC_REVIEW_PROVIDER}}` / `{{ALT_DOC_REVIEW_FAMILY}}` are set:
+uses the alternate model (e.g., Gemini). Otherwise: **Tier 2 (Standard)**.
+
+Generated by autoharness | Template: doc-review/SKILL.md.tmpl

@@ -56,3 +56,4 @@ This file defines the authoritative rules for working in the autoharness reposit
 | `install-harness` | Compose and install harness from templates |
 | `tune-harness` | Detect drift and propose updates |
 | `verify-harness` | Multi-model adversarial verification of installed artifacts |
+| `doc-review` | Documentation quality review: cross-reference integrity, frontmatter, markdown structure, template variable drift; supports alternate model provider |
