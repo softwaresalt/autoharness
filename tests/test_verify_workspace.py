@@ -3173,6 +3173,9 @@ class PortabilityTests(unittest.TestCase):
                 "C:/Windows/System32/evil.dll",         # Windows absolute (forward slashes)
                 "C:\\Windows\\System32\\evil.dll",      # Windows absolute (backslashes)
                 "D:/secrets.txt",                       # Windows drive letter
+                "foo/C:/Windows/evil.dll",             # Mid-path Windows drive anchor
+                "foo/C:Windows/evil.dll",              # Mid-path drive-relative segment
+                "\\\\?\\C:\\Windows\\evil.dll",        # Windows extended-length path
                 "../../../etc/shadow",                  # Unix parent traversal
                 "subdir/../../../../../../etc/hosts",   # Mixed traversal
                 "../sibling/file.txt",                  # Parent traversal one level
@@ -3195,4 +3198,3 @@ class PortabilityTests(unittest.TestCase):
             for rel in degenerate_cases:
                 with self.assertRaises(ValueError, msg=f"Degenerate path must raise: {rel!r}"):
                     _normalize_stage_path(staging, rel)
-
