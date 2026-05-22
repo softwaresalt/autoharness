@@ -1077,9 +1077,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Foundation / copilot-instructions.md | `{workspace}/.github/copilot-instructions.md` |
 | Foundation / constitution | `{workspace}/.github/instructions/constitution.instructions.md` |
 | Instructions | `{workspace}/.github/instructions/` |
-| Agents | `{workspace}/.github/agents/` |
-| Review Personas | `{workspace}/.github/agents/review/` |
-| Research Agents | `{workspace}/.github/agents/research/` |
+| Agents | `{workspace}/.github/agents/` — top-level agents (Orchestrator, Stage, Ship, Auto-MergeInstall, Auto-Tune) |
+| Subagents | `{workspace}/.github/agents/subagents/` — all non-top-level agents: review personas, researchers, language-engineer, prompt-builder, adversarial-review, security-sentinel |
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Scripts (when Primitive 5 or 6 selected) | `{workspace}/scripts/` — copy all `.ps1` and `.sh` files from `{autoharness_home}/templates/skills/{skill-name}/scripts/` for each skill that includes scripts (file-lock, skill-search) |
 | Startup scripts | `{workspace}/start.ps1`, `{workspace}/start.sh` — generated from `{autoharness_home}/templates/scripts/start.ps1.tmpl` and `start.sh.tmpl`; always installed at workspace root regardless of preset |
