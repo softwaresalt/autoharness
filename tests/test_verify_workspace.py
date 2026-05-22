@@ -3144,8 +3144,8 @@ class PortabilityTests(unittest.TestCase):
     def test_normalize_stage_path_prevents_path_escape(self) -> None:
         """_normalize_stage_path must contain all outputs within staging_dir.
 
-        Covers Unix absolute paths, Windows drive-letter paths, and parent-directory
-        traversal — all common path-injection vectors (046-F).
+        Covers Unix absolute paths, Windows drive-letter paths, parent-directory
+        traversal, and degenerate/empty paths (046-F).
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             staging = Path(temp_dir) / "staging"
@@ -3162,8 +3162,7 @@ class PortabilityTests(unittest.TestCase):
             for rel in safe_cases:
                 result = _normalize_stage_path(staging, rel)
                 self.assertTrue(
-                    str(result).startswith(str(staging_resolved)) or
-                    str(result.resolve()).startswith(str(staging_resolved)),
+                    result.resolve().is_relative_to(staging_resolved),
                     f"Safe path should stay under staging_dir: {rel!r} → {result}",
                 )
 
@@ -3180,9 +3179,20 @@ class PortabilityTests(unittest.TestCase):
             ]
             for rel in escape_attempts:
                 result = _normalize_stage_path(staging, rel)
-                result_str = str(result.resolve())
                 self.assertTrue(
-                    result_str.startswith(str(staging_resolved)),
-                    f"Escape attempt must be contained: {rel!r} → {result} (resolved: {result_str})",
+                    result.resolve().is_relative_to(staging_resolved),
+                    f"Escape attempt must be contained: {rel!r} → {result}",
                 )
+
+            # Degenerate inputs must raise ValueError (would otherwise write to staging_dir itself)
+            degenerate_cases = [
+                "",         # empty string
+                ".",        # current dir
+                "..",       # parent only
+                "../..",    # multiple parents
+                "./",       # current dir with trailing slash
+            ]
+            for rel in degenerate_cases:
+                with self.assertRaises(ValueError, msg=f"Degenerate path must raise: {rel!r}"):
+                    _normalize_stage_path(staging, rel)
 

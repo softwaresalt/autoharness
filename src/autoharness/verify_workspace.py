@@ -653,17 +653,28 @@ def _normalize_stage_path(staging_dir: Path, relative_path: str) -> Path:
     """Map a relative artifact path into the staging directory.
 
     Normalises path separators and sanitises the path so that absolute paths
-    (Unix-rooted or Windows drive-letter form) and parent-directory traversal
-    (``..``) cannot escape ``staging_dir``.
+    (Unix-rooted or Windows drive-letter form), parent-directory traversal
+    (``..``), and degenerate self-references (``.``) cannot escape or
+    corrupt ``staging_dir``.
+
+    Raises :class:`ValueError` when the sanitised path is empty (e.g. the
+    input was ``""``, ``"."``, or only ``".."`` components), because writing
+    to ``staging_dir`` itself would raise ``IsADirectoryError`` at the call
+    site.
     """
     # Normalise to forward slashes, strip any leading separators.
     normalized = relative_path.replace("\\", "/").lstrip("/")
     # Strip a Windows drive-letter prefix (e.g. "C:/..." → "...").
     if len(normalized) >= 2 and normalized[1] == ":" and normalized[0].isalpha():
         normalized = normalized[2:].lstrip("/")
-    # Remove empty and parent-directory components to block ``../`` traversal.
-    clean_parts = [p for p in normalized.split("/") if p and p != ".."]
-    return staging_dir.joinpath(*clean_parts) if clean_parts else staging_dir
+    # Remove empty, current-directory (.), and parent-directory (..) components
+    # to block traversal and degenerate paths.
+    clean_parts = [p for p in normalized.split("/") if p and p not in (".", "..")]
+    if not clean_parts:
+        raise ValueError(
+            f"Artifact path {relative_path!r} is empty or degenerate after sanitisation"
+        )
+    return staging_dir.joinpath(*clean_parts)
 
 
 def _ensure_parent(path: Path) -> None:
@@ -1980,7 +1991,17 @@ def verify_workspace(
             )
             continue
 
-        stage_path = _normalize_stage_path(staging_root, relative_path)
+        try:
+            stage_path = _normalize_stage_path(staging_root, relative_path)
+        except ValueError as exc:
+            report["skipped"].append(
+                {
+                    "path": relative_path,
+                    "template": str(artifact.get("template", "")),
+                    "reason": str(exc),
+                }
+            )
+            continue
         _ensure_parent(stage_path)
         source_content = source_path.read_text(encoding="utf-8")
         if source_path.suffix == ".tmpl" or mode == "template":
