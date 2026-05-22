@@ -1,0 +1,3 @@
+{"timestamp":"2026-05-22T01:13:52.6510662-07:00","actor":"backlogit","item_id":"048-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-05-22T01:35:50.6102722-07:00","actor":"backlogit","item_id":"048-F","event_type":"status_changed","delta":{"from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-05-22T01:36:03.0997963-07:00","actor":"backlogit","item_id":"048-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/048-F.md"}}

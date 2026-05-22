@@ -1,0 +1,3 @@
+{"timestamp":"2026-05-22T01:13:49.8447135-07:00","actor":"backlogit","item_id":"048-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-05-22T01:35:54.4726121-07:00","actor":"backlogit","item_id":"048-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-05-22T01:36:06.9057185-07:00","actor":"backlogit","item_id":"048-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/048-S.md"}}
