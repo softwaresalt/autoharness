@@ -650,7 +650,47 @@ def _summarize_warnings(warnings: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _normalize_stage_path(staging_dir: Path, relative_path: str) -> Path:
-    return staging_dir / Path(relative_path.replace("/", "/"))
+    """Map a relative artifact path into the staging directory.
+
+    Normalises path separators and sanitises the path so that absolute paths
+    (Unix-rooted, Windows drive-letter, or extended-length form), later
+    drive-anchored path components, parent-directory traversal (``..``), and
+    degenerate self-references (``.``) cannot escape or corrupt
+    ``staging_dir``.
+
+    Raises :class:`ValueError` when the sanitised path is empty (e.g. the
+    input was ``""``, ``"."``, or only ``".."`` components), because writing
+    to ``staging_dir`` itself would raise ``IsADirectoryError`` at the call
+    site.
+    """
+    # Normalise to forward slashes, strip any leading separators.
+    normalized = relative_path.replace("\\", "/").lstrip("/")
+    clean_parts: list[str] = []
+    for raw_part in normalized.split("/"):
+        # Drop empty/current/parent markers and the extended-path marker left
+        # behind when normalising paths like "\\\\?\\C:\\...".
+        if not raw_part or raw_part in (".", "..", "?"):
+            continue
+        # Strip Windows drive prefixes even when they appear mid-path
+        # (e.g. "foo/C:/Windows/evil.dll" or "foo/C:Windows/evil.dll").
+        if len(raw_part) >= 2 and raw_part[1] == ":" and raw_part[0].isalpha():
+            part = raw_part[2:]
+        else:
+            part = raw_part
+        if not part or part in (".", "..", "?"):
+            continue
+        clean_parts.append(part)
+    if not clean_parts:
+        raise ValueError(
+            f"Artifact path {relative_path!r} is empty or degenerate after sanitisation"
+        )
+    candidate = staging_dir.joinpath(*clean_parts)
+    staging_resolved = staging_dir.resolve()
+    if not candidate.resolve().is_relative_to(staging_resolved):
+        raise ValueError(
+            f"Artifact path {relative_path!r} escapes staging_dir after sanitisation"
+        )
+    return candidate
 
 
 def _ensure_parent(path: Path) -> None:
@@ -1793,9 +1833,9 @@ def verify_workspace(
         )
         json_path = staging_root / "verify-workspace-report.json"
         markdown_path = staging_root / "verify-workspace-report.md"
+        report["report_paths"] = {"json": str(json_path), "markdown": str(markdown_path)}
         json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
         _write_markdown_report(report, markdown_path)
-        report["report_paths"] = {"json": str(json_path), "markdown": str(markdown_path)}
         return report
 
     try:
@@ -1967,7 +2007,17 @@ def verify_workspace(
             )
             continue
 
-        stage_path = _normalize_stage_path(staging_root, relative_path)
+        try:
+            stage_path = _normalize_stage_path(staging_root, relative_path)
+        except ValueError as exc:
+            report["skipped"].append(
+                {
+                    "path": relative_path,
+                    "template": str(artifact.get("template", "")),
+                    "reason": str(exc),
+                }
+            )
+            continue
         _ensure_parent(stage_path)
         source_content = source_path.read_text(encoding="utf-8")
         if source_path.suffix == ".tmpl" or mode == "template":
@@ -2149,8 +2199,7 @@ def verify_workspace(
 
     json_path = staging_root / "verify-workspace-report.json"
     markdown_path = staging_root / "verify-workspace-report.md"
-    json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    _write_markdown_report(report, markdown_path)
     report["report_paths"] = {"json": str(json_path), "markdown": str(markdown_path)}
     json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    _write_markdown_report(report, markdown_path)
     return report

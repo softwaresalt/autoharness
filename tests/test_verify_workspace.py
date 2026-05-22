@@ -17,7 +17,7 @@ from autoharness.schema_contracts import (
     resolve_contract_schema_path,
     summarize_schema_contract,
 )
-from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _run_portability_scan, verify_workspace
+from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _run_portability_scan, verify_workspace
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -2973,3 +2973,228 @@ class PortabilityTests(unittest.TestCase):
             msg=f"Unexpected portability findings in dogfood: {findings}",
         )
 
+    # ------------------------------------------------------------------
+    # Output path-placement contract (046-F / 046.001-T)
+    # ------------------------------------------------------------------
+
+    def _build_minimal_workspace_for_path_tests(
+        self, root: Path
+    ) -> tuple[Path, Path]:
+        """Shared fixture: minimal workspace + autoharness_home for path-placement tests."""
+        autoharness_home = root / "autoharness-home"
+        workspace = root / "workspace"
+
+        (autoharness_home / "templates" / "foundation").mkdir(parents=True, exist_ok=True)
+        (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+        (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+
+        schema = {"$schema": "http://json-schema.org/draft-07/schema#", "type": "object"}
+        for schema_name in (
+            "harness-manifest.schema.json",
+            "harness-config.schema.json",
+            "workspace-profile.schema.json",
+        ):
+            (autoharness_home / "schemas" / schema_name).write_text(
+                json.dumps(schema), encoding="utf-8"
+            )
+
+        (autoharness_home / "templates" / "foundation" / "AGENTS.md.tmpl").write_text(
+            "# {{PROJECT_NAME}}\n", encoding="utf-8"
+        )
+        _write_yaml(
+            workspace / ".autoharness" / "harness-manifest.yaml",
+            {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-04-24T00:00:00Z",
+                "autoharness_version": "1.3.2",
+                "profile_hash": "abc",
+                "primitives_installed": [9],
+                "capability_packs": [],
+                "artifacts": [
+                    {
+                        "path": "AGENTS.md",
+                        "primitive": 9,
+                        "template": "templates/foundation/AGENTS.md.tmpl",
+                        "checksum": "",
+                    }
+                ],
+                "variables_used": {"PROJECT_NAME": "path-test-workspace"},
+            },
+        )
+        _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+        _write_yaml(
+            workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"}
+        )
+        (workspace / "AGENTS.md").write_text("# Path Test\n", encoding="utf-8")
+        return autoharness_home, workspace
+
+    def test_verify_workspace_reports_land_under_autoharness_staging_by_default(self) -> None:
+        """When --staging-dir is omitted, reports must land under .autoharness/staging/, not workspace root."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home, workspace = self._build_minimal_workspace_for_path_tests(root)
+
+            # Call without explicit staging_dir — must default to .autoharness/staging/
+            report = verify_workspace(workspace, autoharness_home)
+
+            expected_staging = workspace / ".autoharness" / "staging"
+            json_path = expected_staging / "verify-workspace-report.json"
+            md_path = expected_staging / "verify-workspace-report.md"
+
+            # Files must exist under .autoharness/staging/
+            self.assertTrue(json_path.exists(), "JSON report must be under .autoharness/staging/")
+            self.assertTrue(md_path.exists(), "Markdown report must be under .autoharness/staging/")
+
+            # report dict must carry the correct paths
+            self.assertEqual(
+                Path(report["report_paths"]["json"]).resolve(),
+                json_path.resolve(),
+            )
+            self.assertEqual(
+                Path(report["report_paths"]["markdown"]).resolve(),
+                md_path.resolve(),
+            )
+
+            # The staging_dir value in the report must match
+            self.assertEqual(
+                Path(report["staging_dir"]).resolve(),
+                expected_staging.resolve(),
+            )
+
+            # Files must NOT exist at the workspace root
+            self.assertFalse(
+                (workspace / "verify-workspace-report.json").exists(),
+                "JSON report must not appear at workspace root",
+            )
+            self.assertFalse(
+                (workspace / "verify-workspace-report.md").exists(),
+                "Markdown report must not appear at workspace root",
+            )
+
+    def test_verify_workspace_early_exit_reports_land_under_autoharness_staging(self) -> None:
+        """Missing-manifest early exit must still write reports under .autoharness/staging/."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            workspace = root / "workspace"
+            autoharness_home = root / "autoharness-home"
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            # Intentionally no harness-manifest.yaml → early exit path
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            expected_staging = workspace / ".autoharness" / "staging"
+            json_path = expected_staging / "verify-workspace-report.json"
+            md_path = expected_staging / "verify-workspace-report.md"
+
+            # Early exit must write to .autoharness/staging/
+            self.assertTrue(json_path.exists(), "Early-exit JSON report must be under .autoharness/staging/")
+            self.assertTrue(md_path.exists(), "Early-exit Markdown report must be under .autoharness/staging/")
+
+            # report_paths must be populated (and match what's on disk)
+            self.assertEqual(
+                Path(report["report_paths"]["json"]).resolve(),
+                json_path.resolve(),
+            )
+            self.assertEqual(
+                Path(report["report_paths"]["markdown"]).resolve(),
+                md_path.resolve(),
+            )
+
+            # The JSON on disk must include report_paths (written after populating it)
+            written = json.loads(json_path.read_text(encoding="utf-8"))
+            self.assertIn("report_paths", written, "On-disk JSON must include report_paths")
+            self.assertEqual(
+                Path(written["report_paths"]["json"]).resolve(),
+                json_path.resolve(),
+            )
+
+            # Must have the missing-manifest blocker
+            kinds = [b["kind"] for b in report["blockers"]]
+            self.assertIn("missing-manifest", kinds)
+
+    def test_verify_workspace_report_paths_in_json_on_disk_match_return_value(self) -> None:
+        """report_paths in the on-disk JSON must match the dict returned to callers (no double-write drift)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home, workspace = self._build_minimal_workspace_for_path_tests(root)
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            json_path = Path(report["report_paths"]["json"])
+            written = json.loads(json_path.read_text(encoding="utf-8"))
+
+            # The on-disk file must include report_paths
+            self.assertIn("report_paths", written)
+            self.assertEqual(
+                Path(written["report_paths"]["json"]).resolve(),
+                Path(report["report_paths"]["json"]).resolve(),
+            )
+            self.assertEqual(
+                Path(written["report_paths"]["markdown"]).resolve(),
+                Path(report["report_paths"]["markdown"]).resolve(),
+            )
+
+            # Confirm the written file contains the same staging_dir as the return value
+            self.assertEqual(
+                Path(written["staging_dir"]).resolve(),
+                Path(report["staging_dir"]).resolve(),
+            )
+
+    def test_normalize_stage_path_prevents_path_escape(self) -> None:
+        """_normalize_stage_path must contain all outputs within staging_dir.
+
+        Covers Unix absolute paths, Windows drive-letter paths, parent-directory
+        traversal, and degenerate/empty paths (046-F).
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            staging = Path(temp_dir) / "staging"
+            staging.mkdir()
+            staging_resolved = staging.resolve()
+
+            safe_cases = [
+                "AGENTS.md",
+                "subdir/file.txt",
+                ".github/copilot-instructions.md",
+                ".autoharness/config.yaml",
+                "deep/nested/dir/file.md",
+            ]
+            for rel in safe_cases:
+                result = _normalize_stage_path(staging, rel)
+                self.assertTrue(
+                    result.resolve().is_relative_to(staging_resolved),
+                    f"Safe path should stay under staging_dir: {rel!r} → {result}",
+                )
+
+            # These must all be contained — not escape staging_dir
+            escape_attempts = [
+                "/etc/passwd",                          # Unix absolute
+                "/absolute/path/to/file.txt",           # Unix absolute (no drive)
+                "C:/Windows/System32/evil.dll",         # Windows absolute (forward slashes)
+                "C:\\Windows\\System32\\evil.dll",      # Windows absolute (backslashes)
+                "D:/secrets.txt",                       # Windows drive letter
+                "foo/C:/Windows/evil.dll",             # Mid-path Windows drive anchor
+                "foo/C:Windows/evil.dll",              # Mid-path drive-relative segment
+                "\\\\?\\C:\\Windows\\evil.dll",        # Windows extended-length path
+                "../../../etc/shadow",                  # Unix parent traversal
+                "subdir/../../../../../../etc/hosts",   # Mixed traversal
+                "../sibling/file.txt",                  # Parent traversal one level
+            ]
+            for rel in escape_attempts:
+                result = _normalize_stage_path(staging, rel)
+                self.assertTrue(
+                    result.resolve().is_relative_to(staging_resolved),
+                    f"Escape attempt must be contained: {rel!r} → {result}",
+                )
+
+            # Degenerate inputs must raise ValueError (would otherwise write to staging_dir itself)
+            degenerate_cases = [
+                "",         # empty string
+                ".",        # current dir
+                "..",       # parent only
+                "../..",    # multiple parents
+                "./",       # current dir with trailing slash
+            ]
+            for rel in degenerate_cases:
+                with self.assertRaises(ValueError, msg=f"Degenerate path must raise: {rel!r}"):
+                    _normalize_stage_path(staging, rel)
