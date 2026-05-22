@@ -9,7 +9,7 @@ argument-hint: "[mode:autofix|mode:report-only] [path or glob]"
 Reviews installed harness documentation and workspace docs for quality issues.
 Identifies broken cross-references, stale content, missing or malformed
 frontmatter, markdown structure violations (MD001/MD025/MD041), and unresolved
-template variable drift (`{{VARIABLE}}` placeholders remaining in installed
+template variable drift (double-brace placeholders remaining in installed
 output). Produces structured findings with severity tiers and action classes
 compatible with the standard review persona routing model.
 
@@ -67,7 +67,7 @@ Check arguments for `mode:autofix` or `mode:report-only`.
 
 | Level | Meaning | Gate action |
 |---|---|---|
-| **P0** | Unresolved `{{VARIABLE}}` placeholders in installed output; broken required cross-reference | Block merge/release |
+| **P0** | Unresolved double-brace template placeholders in installed output; broken required cross-reference | Block merge/release |
 | **P1** | Missing required frontmatter; MD001/MD025/MD041 violation causing structural failure | Block merge |
 | **P2** | Stale content (references removed files/sections); soft cross-reference gaps | Backlog follow-up |
 | **P3** | Minor style, wording, or organizational improvement | Advisory |
