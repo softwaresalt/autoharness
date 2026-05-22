@@ -98,7 +98,7 @@ scenarios. All original Copilot threads were resolved before merge.
 
 ## Backlog State
 
-- 041-S: done (archived)
-- 047-F: done (archived)
-- 047.001-T: done (archived)
-- 047.002-T: done (archived)
+- 041-S: archived (shipment shipped, PR #102 merged)
+- 047-F: archived (feature shipped)
+- 047.001-T: archived (task complete, commit af581ee)
+- 047.002-T: archived (task complete, commit c889d1c)
