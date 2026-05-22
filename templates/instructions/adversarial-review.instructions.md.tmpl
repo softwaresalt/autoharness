@@ -1,5 +1,5 @@
 ---
-description: "Adversarial-review workflow rules for multi-model dispatch, consensus-weighted findings, and remediation queue assembly"
+description: "Adversarial-review workflow rules for multi-model dispatch, alternate model provider routing, post-remediation re-review, consensus-weighted findings, and remediation queue assembly"
 applyTo: '**'
 ---
 
@@ -8,7 +8,8 @@ applyTo: '**'
 Use these rules when the workspace enabled the `adversarial-review`
 capability pack. This pack provides multi-model parallel review for higher
 review confidence on security-sensitive, compliance-critical, or large-scale
-code changes.
+code changes. It also supports alternate model providers (e.g., Gemini) so
+reviewer diversity is not limited to the standard tier routing set.
 
 ## When to Escalate
 
@@ -28,6 +29,48 @@ instances across different model tiers:
 * prefer cross-model diversity: Tier 1, Tier 2, and Tier 3 reviewers
 * each reviewer operates independently and does not see other reviewers'
   findings until consensus assembly
+
+## Alternate Model Provider Support
+
+When `{{ALT_REVIEW_PROVIDER}}` and `{{ALT_REVIEW_FAMILY}}` are configured,
+one reviewer slot (Reviewer-B, the Tier 2 slot by default) is reassigned to
+the alternate provider and family. This allows a Gemini model, a different
+Anthropic family, or any registered provider to participate in the reviewer
+pool without requiring additional reviewer count.
+
+**Escalation path**: If the standard tier routing set produces repeated
+disagreements (no consensus after 3 invocations on the same change), consider
+enabling the alternate provider to break the deadlock with a genuinely
+different perspective.
+
+**Provider failure handling**: If the alternate provider is unreachable or
+returns an error, fall back to the Tier 2 standard model for that reviewer
+slot. Log the fallback. Do not halt the review.
+
+## Post-Remediation Re-Review
+
+After `safe_auto` fixes are applied from the remediation plan, the
+adversarial-review agent re-dispatches the same reviewer pool over the fixed
+files to verify no new issues were introduced. This prevents a targeted fix
+from inadvertently breaking a related invariant.
+
+**Recursion rules**:
+
+* Maximum 2 re-review cycles per invocation.
+* Re-review scope is limited to files modified by `safe_auto` fixes only —
+  not the full original scope.
+* If the cap is reached and findings remain, they are recorded as
+  `post_remediation_residual` in the output report. No further fixes are
+  applied automatically.
+* The recursion cap is a hard limit. The agent MUST NOT recurse more than
+  twice, regardless of the number or severity of residual findings.
+* `post_remediation_review: false` disables the re-review phase entirely for
+  callers that manage their own fix-verify loop.
+
+**Cap reached with residual findings**: When 2 cycles complete and residual
+findings remain, the output report records them as follow-up backlog items
+with `post_remediation_residual: true`. The operator should review these
+before merge.
 
 ## Consensus Assembly
 

@@ -1,6 +1,6 @@
 ---
 name: Adversarial Review
-description: "Multi-model parallel review using independent reviewer agents with different models, assembled into a consensus report with confidence-weighted findings and remediation queue"
+description: "Multi-model parallel review using independent reviewer agents with different models, assembled into a consensus report with confidence-weighted findings and remediation queue. Supports alternate model providers (e.g., Gemini) for reviewer diversity and a post-remediation re-review phase."
 maturity: stable
 tools: read, agent, search, edit
 model_routing: "Tier 3 (Frontier)"  # DEPRECATED — use model_tier
@@ -9,6 +9,8 @@ max_subagent_tier: 1
 reasoning_effort: "{{TIER_3_REASONING_EFFORT}}"
 model_provider: "{{TIER_3_PROVIDER}}"
 model_family: "{{TIER_3_FAMILY}}"
+alt_review_provider: "{{ALT_REVIEW_PROVIDER}}"
+alt_review_family: "{{ALT_REVIEW_FAMILY}}"
 subagent_depth: 2
 ---
 
@@ -20,6 +22,10 @@ high-confidence findings; unique findings from a single model are preserved as
 low-confidence observations worth human attention. The result is a structured
 remediation queue with findings ordered by confidence × severity.
 
+After auto-fixes are applied, a post-remediation re-review phase re-dispatches the
+same reviewer pool over the fixed files to verify no new issues were introduced.
+Recursion is capped at 2 cycles to prevent infinite loops.
+
 ## Why Adversarial
 
 Different models have different blind spots. A finding that appears in all reviewer
@@ -27,6 +33,11 @@ outputs is almost certainly real. A finding that appears in only one model's out
 may be a false positive — or a subtle issue that only one model caught. The protocol
 preserves both signals with appropriate confidence labels, rather than losing unique
 findings or trusting any single model too much.
+
+Alternate model provider support (`{{ALT_REVIEW_PROVIDER}}` / `{{ALT_REVIEW_FAMILY}}`)
+allows reviewer slots to be assigned to Gemini or other providers outside the standard
+tier routing set, ensuring reviewer diversity is not limited to a single provider's
+model family.
 
 ## When to Use
 
@@ -45,11 +56,19 @@ findings or trusting any single model too much.
   one Tier 1, one Tier 2, one Tier 3 model — ensuring diversity across the
   speed/quality spectrum. Specify as a list matching the `reviewers` count, or
   leave unset to use the default tier distribution.
+* `alt_provider`: (Optional) Alternate model provider name (e.g., `google`).
+  Overrides `{{ALT_REVIEW_PROVIDER}}` for this invocation. When set, one reviewer
+  slot is assigned to the alternate provider.
+* `alt_family`: (Optional) Alternate model family (e.g., `gemini-2.5-flash`).
+  Overrides `{{ALT_REVIEW_FAMILY}}` for this invocation. Paired with `alt_provider`.
 * `ruleset`: (Optional) Path to a ruleset file. Defaults to
   `.github/copilot-review-instructions.md` if present, otherwise uses the
   built-in harness review ruleset.
 * `output_mode`: (Optional) `consensus-only` (return only high-confidence findings)
   or `full` (default — return consensus + majority + unique with confidence labels).
+* `post_remediation_review`: (Optional, default `true`) Whether to run the
+  post-remediation re-review phase (Phase 7) after auto-fixes are applied. Set
+  to `false` to disable re-review and exit after the remediation plan.
 
 ## Output
 
@@ -78,7 +97,29 @@ Output file at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-review.md`.
      (standard), Reviewer-C = Tier 3 (frontier).
    * For 4 reviewers: add a second Tier 2 with a different model identifier.
    * For 5 reviewers: add Tier 1 and Tier 2 variants.
-4. Confirm with the operator if the review is interactive mode.
+4. Apply alternate model provider assignment:
+   * Read `{{ALT_REVIEW_PROVIDER}}` and `{{ALT_REVIEW_FAMILY}}` (or `alt_provider`
+     / `alt_family` input overrides).
+   * If both are non-empty: replace one reviewer slot with the alternate provider.
+     Replace Reviewer-B (Tier 2 slot) by default to maximize diversity while
+     preserving Tier 1 and Tier 3 coverage.
+   * Log the model tier assignment table (see below).
+5. Confirm with the operator if the review is interactive mode.
+
+#### Model Tier Assignment Table
+
+| Reviewer | Default Tier | Default Model | With Alternate Provider |
+|---|---|---|---|
+| Reviewer-A | Tier 1 (fast/cheap) | `{{TIER_1_FAMILY}}` | unchanged |
+| Reviewer-B | Tier 2 (standard) | `{{TIER_2_FAMILY}}` | `{{ALT_REVIEW_FAMILY}}` via `{{ALT_REVIEW_PROVIDER}}` |
+| Reviewer-C | Tier 3 (frontier) | `{{TIER_3_FAMILY}}` | unchanged |
+| Reviewer-D (4-reviewer) | Tier 2 variant | different from B | unchanged |
+| Reviewer-E (5-reviewer) | Tier 1 variant | different from A | unchanged |
+
+When `{{ALT_REVIEW_PROVIDER}}` is empty, all reviewer slots use standard tier
+routing. When `{{ALT_REVIEW_PROVIDER}}` is non-empty, Reviewer-B is routed to the
+alternate provider. This ensures reviewer diversity is not limited to a single
+provider's model family even when only 3 reviewers are used.
 
 ### Phase 2: Parallel Dispatch
 
@@ -162,11 +203,45 @@ Write the output report to `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-rev
 If in interactive mode, present the consensus findings and remediation plan to the
 operator for confirmation before creating any backlog items.
 
+If `post_remediation_review` is `true` (the default), apply all `safe_auto` fixes
+from the remediation plan and proceed to Phase 7.
+
+### Phase 7: Post-Remediation Re-Review
+
+After `safe_auto` fixes are applied in Phase 6, re-dispatch the same reviewer pool
+over the fixed files to verify no new issues were introduced. This phase prevents
+a fix in one location from inadvertently breaking a related invariant.
+
+**Recursion cap**: Maximum 2 re-review cycles (Phase 7 executes at most twice per
+invocation). Track the cycle count. When the cap is reached, note any remaining
+findings in the output report and halt the re-review loop — do not continue.
+
+**Re-review protocol**:
+
+1. Identify files modified by `safe_auto` fixes in the previous cycle.
+2. Re-dispatch all reviewer agents over those files only (not the full original scope).
+3. Aggregate and classify new findings per Phases 3–5.
+4. If new HIGH-confidence findings are introduced: add them to the remediation plan,
+   apply any new `safe_auto` entries, and increment the cycle counter.
+5. If the cycle counter reaches 2 and findings remain: record them as
+   `post_remediation_residual` in the output report. Do not apply further fixes.
+6. If no new findings: mark the post-remediation phase clean and finish.
+
+**Cycle tracking** in the output report:
+
+```yaml
+post_remediation:
+  cycles_run: {0|1|2}
+  cap_reached: {true|false}
+  residual_findings: {count}
+  status: "clean|residual_capped|skipped"
+```
+
 ## Subagent Depth
 
 Maximum 2 hops. This agent dispatches review skill instances (hop 1), which may invoke
-review persona subagents (hop 2). The consensus-assembly phase runs in this agent — no
-further delegation.
+review persona subagents (hop 2). The consensus-assembly phase and post-remediation
+re-review loop run in this agent — no further delegation.
 
 ## Quality Criteria
 
@@ -176,5 +251,11 @@ further delegation.
 * Every P0 finding, regardless of confidence, must appear in the remediation plan
 * The output file must be written even if all findings are advisory
 * If fewer than 2 reviewer instances return results, halt and report the failure
+* Post-remediation re-review runs when `post_remediation_review` is `true` and
+  `safe_auto` fixes were applied; it is skipped when no fixes were made
+* The recursion cap of 2 cycles is enforced — the agent MUST NOT recurse more than
+  twice regardless of remaining findings
+* When `{{ALT_REVIEW_PROVIDER}}` is set, at least one reviewer must use the alternate
+  provider; failure to route to the alternate provider is a configuration error
 
 Generated by autoharness | Template: adversarial-review.agent.md.tmpl
