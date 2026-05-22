@@ -750,13 +750,13 @@ Map primitives to template groups:
 
 | Primitive | Template Groups |
 |---|---|
-| 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh`, `skills/harness-doctor` (install health baseline and pre-flight context), `instructions/context-efficiency` |
+| 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/subagents/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh`, `skills/harness-doctor` (install health baseline and pre-flight context), `instructions/context-efficiency` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
 | 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true) |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight and tool availability gate), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions`, `skills/skill-search` |
-| 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
+| 7 - Observability | `agents/subagents/*`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
 | 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc` |
 | 10 - Operational Closure | `skills/runtime-verification`, `skills/operational-closure`, PR and CI handoff sections in pipeline templates |
@@ -1077,9 +1077,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Foundation / copilot-instructions.md | `{workspace}/.github/copilot-instructions.md` |
 | Foundation / constitution | `{workspace}/.github/instructions/constitution.instructions.md` |
 | Instructions | `{workspace}/.github/instructions/` |
-| Agents | `{workspace}/.github/agents/` |
-| Review Personas | `{workspace}/.github/agents/review/` |
-| Research Agents | `{workspace}/.github/agents/research/` |
+| Agents | `{workspace}/.github/agents/` — top-level agents (Orchestrator, Stage, Ship, Auto-MergeInstall, Auto-Tune) |
+| Subagents | `{workspace}/.github/agents/subagents/` — all non-top-level agents: review personas, researchers, language-engineer, prompt-builder, adversarial-review, security-sentinel |
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Scripts (when Primitive 5 or 6 selected) | `{workspace}/scripts/` — copy all `.ps1` and `.sh` files from `{autoharness_home}/templates/skills/{skill-name}/scripts/` for each skill that includes scripts (file-lock, skill-search) |
 | Startup scripts | `{workspace}/start.ps1`, `{workspace}/start.sh` — generated from `{autoharness_home}/templates/scripts/start.ps1.tmpl` and `start.sh.tmpl`; always installed at workspace root regardless of preset |

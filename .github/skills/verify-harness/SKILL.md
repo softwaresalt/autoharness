@@ -57,7 +57,7 @@ The skill is mandatory for `standard` and `full` presets. It may be skipped for
    * Every enabled capability pack and its declared overlay targets
    * The skills table from `AGENTS.md` and `copilot-instructions.md`
    * The actual skill directories in `.github/skills/`
-   * The actual agent files in `.github/agents/` and `.github/agents/review/`
+   * The actual agent files in `.github/agents/` and `.github/agents/subagents/`
    * The "Where to look next" or equivalent discovery table in `AGENTS.md`
    * The workspace profile's capability pack detection flags
 
