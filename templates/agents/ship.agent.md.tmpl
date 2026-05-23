@@ -413,17 +413,16 @@ A merged PR does not complete the top-level release unit by itself. For P-001 pu
 2. When `{{FEATURE_SHIPMENTS}}` is `true`, also complete any required tag, publish, release-record, or other release checklist steps tied to this shipment.
 3. If any required post-merge release closure remains open, halt with `RELEASE_CLOSURE_INCOMPLETE: shipment {shipment_id} still awaiting required post-merge closure`. Treat the shipment as still active for P-001 purposes, and do not allow another top-level release unit to begin yet.
 
-#### Post-Merge Closure PR Copilot Gate (P-014, NON-NEGOTIABLE)
+#### Post-Merge Closure PR Local Review Gate (P-014, NON-NEGOTIABLE)
 
 When a post-merge closure branch and PR are created:
 
-1. Request Copilot Review immediately after PR creation (per §1.1 of
-   `.github/instructions/github-pr-automation.instructions.md`).
-2. Poll for review completion per §1.2 back-off cadence.
-3. Address any comments per §1.3–§1.7.
-4. Run §1.9 readiness gate before presenting the post-merge closure PR for merge.
-5. Obtain explicit operator approval — the prior main PR approval does not transfer.
-6. P-014 applies in full. Record a P-014 violation via P-005 telemetry if this gate is skipped.
+1. Run local review for the closure branch and record the readiness outcome for the current HEAD in the PR body.
+2. Optional Copilot shadow review may run per §1.1–§1.7 of
+   `.github/instructions/github-pr-automation.instructions.md`, but it is advisory by default unless the operator explicitly elevates it.
+3. Run §1.9 readiness gate before presenting the post-merge closure PR for merge.
+4. Obtain explicit operator approval — the prior main PR approval does not transfer.
+5. P-014 applies in full. Record a P-014 violation via P-005 telemetry if this gate is skipped.
 
 #### Step 6.0: Post-Merge Branch Protocol (NON-NEGOTIABLE)
 

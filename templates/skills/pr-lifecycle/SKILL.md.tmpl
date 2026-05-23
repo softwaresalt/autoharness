@@ -136,8 +136,8 @@ Before presenting the PR as merge-ready, run the defense-in-depth
 local review readiness verification defined in
 `.github/instructions/github-pr-automation.instructions.md` §1.9:
 
-1. Execute the §1.9 readiness query (with full pagination of review
-   metadata when needed).
+1. Execute the §1.9 readiness query with full pagination until `hasNextPage`
+   is false. If pagination cannot complete, fail closed and halt.
 2. Evaluate all three gate checks in order:
    - **Check 1**: A local review readiness record exists for the current `headRefOid`.
    - **Check 2**: The local review outcome is `READY` or `READY_WITH_FOLLOWUPS`.

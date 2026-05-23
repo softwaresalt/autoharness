@@ -1636,7 +1636,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 report["warnings"],
             )
 
-    def test_security_surface_templates_exist_and_routing_is_wired(self) -> None:
+    def test_review_surface_templates_and_routing_are_wired(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
         expected_templates = [
