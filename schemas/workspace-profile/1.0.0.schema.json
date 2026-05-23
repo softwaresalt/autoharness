@@ -563,7 +563,8 @@
               "continuous-learning",
               "strict-safety",
               "release-observability",
-              "adversarial-review"
+              "adversarial-review",
+              "graphtor-docs"
             ]
           }
         },
@@ -613,7 +614,8 @@
                       "continuous-learning",
                       "strict-safety",
                       "release-observability",
-                      "adversarial-review"
+                      "adversarial-review",
+                      "graphtor-docs"
                     ]
                   },
                   "because": {

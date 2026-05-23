@@ -1,3 +1,4 @@
+---
 description: "Validate affected runtime surfaces after build and CI using adapter-based runtime validators and structured evidence"
 ---
 
@@ -19,7 +20,8 @@ Invoke after CI is green, before merge, after merge, or after deployment wheneve
 
 * `surface`: (Required) One of `cli`, `api`, `browser`, `background-job`, or `auto`.
 * `target`: (Optional) Path, URL, command, or subsystem to verify.
-* `mode`: (Optional, default `auto`) One of `manual`, `api`, `browser`, or `auto`.
+* `mode`: (Optional, default `auto`) Operator-facing execution mode. One of `manual`, `api`, `browser`, or `auto`.
+* `adapter`: (Optional) Explicit validator adapter override. One of `command`, `http`, `browser`, `job`, or `manual`.
 * `context`: (Optional) PR, task, branch, or feature context.
 * `validator_manifest`: (Optional) Structured contract from `runtime_validation.validator_manifest` describing surface adapters, probe hints, and manual checkpoints.
 * `validation_expectations`: (Optional) Structured expectations from `runtime_validation.validation_expectations` describing required surfaces, minimum verdict, invariants, and explicit release blockers.
@@ -70,6 +72,16 @@ Choose the lowest-cost adapter that still gives confidence:
 * **API / HTTP adapter** → hit representative endpoints, confirm response shape/status, inspect logs if available
 * **Browser adapter** → verify user-visible flows, rendering, navigation, and critical interactions
 * **Background-job adapter** → confirm trigger path, observable side effects, and logs or queue state
+
+If `adapter` is provided, validate that it is compatible with the selected
+surface and document why it overrides the default choice. If `mode` is provided,
+treat it as the execution style (`browser`, `api`, `manual`) and derive the
+concrete adapter from `validator_manifest.surfaces[].adapter_hint`:
+
+* `mode=api` usually maps to the `http` adapter
+* `mode=browser` maps to the `browser` adapter
+* `mode=manual` maps to the `manual` adapter
+* `mode=auto` defers to the manifest's adapter hint or the inferred surface
 
 If `surface=auto`, infer the surface from the changed files and PR context, then
 confirm the selected surface appears in `validator_manifest.surfaces[]` before
