@@ -333,6 +333,11 @@ Separately, treat conditional reviewer drift as real harness drift when the
 workspace now requires parity-sensitive review but the review layer still lacks
 `agent-native-parity-reviewer.agent.md` or the routing logic to invoke it.
 
+Also treat local-first review drift as real harness drift when the review layer
+lacks `template-integrity-reviewer.agent.md`, `schema-cli-docs-coupling-reviewer.agent.md`,
+or the local review readiness contract (`READY`, `READY_WITH_FOLLOWUPS`, `BLOCKED`)
+that Ship and pr-lifecycle depend on before PR presentation.
+
 **graphtor-docs overlay coherence checks**: When `graphtor-docs` is in the enabled pack list, verify:
 
 1. `graphtor-docs.instructions.md` is present in the workspace's instructions directory
