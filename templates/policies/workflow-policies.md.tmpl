@@ -337,26 +337,28 @@ Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare 
 
 ---
 
-## P-014: Copilot Review Merge Gate
+## P-014: Local Review Readiness Merge Gate
 
 | Field      | Value                                         |
 |------------|-----------------------------------------------|
 | Policy ID  | P-014                                         |
 | Applies To | `ship`, `pr-lifecycle` skill                  |
-| Gate Point | Pre-merge (Step 5 of pr-lifecycle, Step 4 of ship); applies to ALL PRs including post-merge closure PRs |
+| Gate Point | Pre-PR presentation (Ship Step 4 / Step 5) and pre-merge readiness presentation for ALL PRs including post-merge closure PRs |
 
-**Statement**: No pull request — feature, chore, or post-merge closure — may be merged until both conditions are met and verified in order:
+**Statement**: No pull request — feature, chore, or post-merge closure — may be presented as merge-ready or merged until both conditions are met and verified in order:
 
-1. The §1.9 Pre-Merge Review Readiness gate in `.github/instructions/github-pr-automation.instructions.md` has passed with zero unresolved Copilot review threads and a fresh Copilot review covering the current HEAD.
-2. The operator has given an explicit merge approval signal. Green CI and a passing §1.9 gate are necessary but not sufficient — they do not constitute merge authorization.
+1. The local review readiness contract has passed for the current HEAD: the latest local review result records `READY` or `READY_WITH_FOLLOWUPS`, covers the current HEAD SHA, and leaves no unresolved P0/P1 findings.
+2. The operator has given an explicit merge approval signal after the local readiness gate passed. Green CI and a passing readiness gate are necessary but not sufficient — they do not constitute merge authorization.
 
-Neither condition may be waived by the agent. Green CI alone is not approval. Operator approval without a passing §1.9 gate is not authorization.
+Optional Copilot or other GitHub-hosted review may run in advisory shadow mode during migration, but those remote reviews are not a required dependency for this policy unless the operator explicitly elevates them for the current PR.
 
-**Precondition**: `github-pr-automation.instructions.md` is installed at `.github/instructions/github-pr-automation.instructions.md`.
+Neither condition may be waived by the agent. Green CI alone is not approval. Operator approval without a passing local readiness gate is not authorization.
 
-**Postcondition**: The merge commit records: (a) Copilot review SHA that passed §1.9 Check 2, (b) that zero unresolved Copilot threads were present at gate time, and (c) that operator approval was received after the gate passed.
+**Precondition**: `github-pr-automation.instructions.md` is installed at `.github/instructions/github-pr-automation.instructions.md`, and the local review summary records: reviewed HEAD SHA, readiness outcome, blocking finding count, and any required follow-up item IDs or residual-risk notes.
 
-**Violation Action**: Halt. Record a P-014 violation (via P-005 telemetry) naming the failed condition (§1.9 check number, or absent operator approval). Do not proceed with merge. Surface the violation in the PR description and session broadcast.
+**Postcondition**: The PR readiness summary or merge record includes: (a) the reviewed HEAD SHA that passed the local readiness gate, (b) readiness outcome `READY` or `READY_WITH_FOLLOWUPS`, (c) zero unresolved P0/P1 findings at gate time, (d) explicit follow-up handling for any residual P2/P3 findings, and (e) operator approval received after the gate passed.
+
+**Violation Action**: Halt. Record a P-014 violation (via P-005 telemetry) naming the failed condition (missing current-HEAD review coverage, blocking findings still open, follow-up handling missing, or absent operator approval). Do not proceed with PR presentation or merge. Surface the violation in the PR description and session broadcast.
 
 ---
 
@@ -373,4 +375,4 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 | 1.6.0   | {{DATE}}     | Added P-011      | Branch-before-mutation (Ship) |
 | 1.7.0   | {{DATE}}     | Added P-012      | Tool availability and declared degradation |
 | 1.8.0   | {{DATE}}     | Added P-013      | Agent tier hierarchy and escalation |
-| 1.9.0   | {{DATE}}     | Added P-014      | Copilot Review Merge Gate — elevates §1.9 instruction to first-class policy with P-005 telemetry |
+| 1.9.0   | {{DATE}}     | Added P-014      | Local review readiness merge gate — preserves explicit approval and advisory shadow-review migration |

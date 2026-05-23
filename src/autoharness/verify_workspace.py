@@ -449,6 +449,31 @@ FOUNDATION_ASSERTIONS = [
         ],
     },
     {
+        "key": "local_review_readiness_contract",
+        "path": ".github/skills/review/SKILL.md",
+        "must_contain": [
+            "READY_WITH_FOLLOWUPS",
+            "BLOCKED",
+            "reviewed HEAD SHA",
+        ],
+    },
+    {
+        "key": "template_integrity_reviewer_routing",
+        "path": ".github/skills/review/SKILL.md",
+        "must_contain": [
+            "Template Integrity Reviewer",
+            "template-integrity-reviewer.agent.md",
+        ],
+    },
+    {
+        "key": "schema_cli_docs_reviewer_routing",
+        "path": ".github/skills/review/SKILL.md",
+        "must_contain": [
+            "Schema-CLI-Docs Coupling Reviewer",
+            "schema-cli-docs-coupling-reviewer.agent.md",
+        ],
+    },
+    {
         "key": "security_plan_review_persona_routing",
         "path": ".github/skills/plan-review/SKILL.md",
         "must_contain": [
@@ -500,6 +525,15 @@ FOUNDATION_ASSERTIONS = [
             "P-013",
             "model_tier",
             "max_subagent_tier",
+        ],
+    },
+    {
+        "key": "p014_local_review_policy",
+        "path": ".github/policies/workflow-policies.md",
+        "must_contain": [
+            "Local Review Readiness Merge Gate",
+            "READY_WITH_FOLLOWUPS",
+            "reviewed HEAD SHA",
         ],
     },
 ]

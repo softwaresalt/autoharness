@@ -1642,6 +1642,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
         expected_templates = [
             repo_root / "templates" / "agents" / "review" / "security-reviewer.agent.md.tmpl",
             repo_root / "templates" / "agents" / "review" / "security-lens-reviewer.agent.md.tmpl",
+            repo_root / "templates" / "agents" / "review" / "template-integrity-reviewer.agent.md.tmpl",
+            repo_root / "templates" / "agents" / "review" / "schema-cli-docs-coupling-reviewer.agent.md.tmpl",
             repo_root / "templates" / "agents" / "security-sentinel.agent.md.tmpl",
             repo_root / "templates" / "skills" / "security-audit" / "SKILL.md.tmpl",
         ]
@@ -1653,6 +1655,11 @@ class VerifyWorkspaceTests(unittest.TestCase):
         review_content = review_skill.read_text(encoding="utf-8")
         self.assertIn("Security Reviewer", review_content)
         self.assertIn("security-reviewer.agent.md", review_content)
+        self.assertIn("Template Integrity Reviewer", review_content)
+        self.assertIn("template-integrity-reviewer.agent.md", review_content)
+        self.assertIn("Schema-CLI-Docs Coupling Reviewer", review_content)
+        self.assertIn("schema-cli-docs-coupling-reviewer.agent.md", review_content)
+        self.assertIn("READY_WITH_FOLLOWUPS", review_content)
 
         plan_review_skill = repo_root / "templates" / "skills" / "plan-review" / "SKILL.md.tmpl"
         plan_review_content = plan_review_skill.read_text(encoding="utf-8")
@@ -1714,7 +1721,14 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (workspace / ".github" / "skills" / "review" / "SKILL.md").write_text(
                 "## Conditional Personas\n"
                 "| **Security Reviewer** | auth middleware, endpoints | Different |\n"
-                "security-reviewer.agent.md\n",
+                "| **Template Integrity Reviewer** | templates, markdown harness assets | Different |\n"
+                "| **Schema-CLI-Docs Coupling Reviewer** | schemas + docs + verification | Different |\n"
+                "READY_WITH_FOLLOWUPS\n"
+                "BLOCKED\n"
+                "reviewed HEAD SHA\n"
+                "security-reviewer.agent.md\n"
+                "template-integrity-reviewer.agent.md\n"
+                "schema-cli-docs-coupling-reviewer.agent.md\n",
                 encoding="utf-8",
             )
             (workspace / ".github" / "skills" / "plan-review" / "SKILL.md").write_text(
@@ -1731,6 +1745,9 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["security_review_persona_routing"]["ok"])
+            self.assertTrue(targeted_checks["local_review_readiness_contract"]["ok"])
+            self.assertTrue(targeted_checks["template_integrity_reviewer_routing"]["ok"])
+            self.assertTrue(targeted_checks["schema_cli_docs_reviewer_routing"]["ok"])
             self.assertTrue(targeted_checks["security_plan_review_persona_routing"]["ok"])
 
     def test_browser_experiment_skill_templates_exist_and_install_harness_is_wired(self) -> None:
@@ -2296,7 +2313,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (workspace / ".github" / "policies" / "workflow-policies.md").write_text(
                 "## P-013: Agent Tier Hierarchy and Escalation\n\n"
                 "Every agent must operate at the tier declared in its frontmatter model_tier field.\n"
-                "An agent must not invoke a subagent at a tier higher than its max_subagent_tier.\n",
+                "An agent must not invoke a subagent at a tier higher than its max_subagent_tier.\n\n"
+                "## P-014: Local Review Readiness Merge Gate\n\n"
+                "The readiness summary must include the reviewed HEAD SHA.\n"
+                "Outcome may be READY or READY_WITH_FOLLOWUPS.\n",
                 encoding="utf-8",
             )
 
@@ -2306,6 +2326,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertEqual(report["blockers"], [])
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["p013_policy_in_workflow_policies"]["ok"])
+            self.assertTrue(targeted_checks["p014_local_review_policy"]["ok"])
 
     def test_verify_workspace_flags_missing_release_closure_sequence_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

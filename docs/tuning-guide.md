@@ -99,6 +99,8 @@ Additional examples: a web UI exists but no browser-verification pack is enabled
 
 Additional examples: the workspace now exposes MCP tool handlers or agent-facing product actions, but the review layer still lacks the `agent-native-parity-reviewer` persona and parity-focused routing guidance.
 
+Additional examples: the workspace depends on local-first PR review, but the installed harness still lacks the `template-integrity-reviewer` / `schema-cli-docs-coupling-reviewer` personas or still treats Copilot review as the required pre-merge gate.
+
 Additional examples: the team wants recurring workflow observations to become explicit harness guidance, but the `continuous-learning` pack and its `observe` / `learn` / `evolve` workflows are missing.
 
 Additional examples: discovery now classifies the repo as `web-app` + `deployable-service`, but the installed composition still lacks the expected `runtime` or `overlays` layers.
@@ -202,6 +204,7 @@ All harness artifacts are regular Markdown files. You can edit them directly:
 * **Continuous Learning**: Keep the observation lifecycle explicit by tuning `continuous-learning.instructions.md` and the `observe` / `learn` / `evolve` skills together
 * **Strict Safety**: Tune `strict-safety.instructions.md`, `plan-harden`, `safety-modes`, review, and closure guidance together so risky actions stay legible across the workflow
 * **Conditional Reviewers**: Install or retarget `agent-native-parity-reviewer.agent.md` when agent-facing product surfaces appear
+* **Local Review Migration**: Tune workflow policies, `review/SKILL.md`, `pr-lifecycle`, and GitHub PR automation instructions together so the local readiness contract covers the current HEAD and Copilot stays advisory during migration
 * **Policies**: Add new policies or modify existing gate conditions
 * **Constitution**: Update quality gates, change error handling patterns
 

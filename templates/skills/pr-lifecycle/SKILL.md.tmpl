@@ -61,7 +61,17 @@ warn the operator that visibility is degraded and continue locally.
 1. Confirm the branch exists locally and is ready to push.
 2. Gather or generate the PR title and body before calling GitHub
    tooling.
-3. Push the branch if it is not already available on the remote.
+3. Ensure the PR body contains the `## Local Review Readiness` block required by
+   `.github/instructions/github-pr-automation.instructions.md` §1.9, including:
+   * reviewed HEAD SHA
+   * outcome (`READY`, `READY_WITH_FOLLOWUPS`, or `BLOCKED`)
+   * blocking-finding summary
+   * follow-up item IDs or residual-risk notes when applicable
+4. Halt instead of creating/updating the PR if the calling agent cannot provide
+   a current-HEAD local readiness record.
+5. Halt instead of creating/updating the PR if the current-HEAD readiness record
+   reports `BLOCKED`.
+6. Push the branch if it is not already available on the remote.
 
 ### Step 2: Create or update the pull request
 
@@ -70,21 +80,22 @@ warn the operator that visibility is degraded and continue locally.
 2. Capture the PR URL, branch, and base branch as the active context.
 3. Reuse an existing PR when the branch already has one instead of
    creating duplicates.
+4. After PR creation or update, verify the local readiness block is still present
+   in the PR body and references the current HEAD SHA.
 
-### Step 2b: Request automated review
+### Step 2b: Optional shadow review
 
-When the repository is hosted on GitHub, request Copilot Review
-immediately after PR creation or after pushing new commits:
+When the repository is hosted on GitHub, Copilot Review may be requested in
+advisory shadow mode immediately after PR creation or after pushing new commits:
 
-1. Request review per `.github/instructions/github-pr-automation.instructions.md` §1.1.
-2. Poll for review completion using the back-off cadence in §1.2.
-3. Do not block on review — proceed to CI monitoring in parallel when
-   possible, but complete the review poll before entering the fix cycle.
+1. Request shadow review per `.github/instructions/github-pr-automation.instructions.md` §1.1 when the operator or workflow enables migration shadow mode.
+2. Poll for completion using the back-off cadence in §1.2.
+3. Do not treat shadow review as a required dependency for merge readiness unless the operator explicitly elevates it for the current PR.
 
 ### Step 3: Handle review feedback
 
-1. Monitor PR review comments, especially automated review comments.
-2. For GitHub-hosted repositories, follow the complete Copilot Review
+1. Monitor PR review comments, especially automated shadow-review comments when requested.
+2. For GitHub-hosted repositories, follow the optional shadow-review
    workflow in `.github/instructions/github-pr-automation.instructions.md` Part 1:
    categorize comments (§1.3), apply fixes (§1.4), reply to threads
    (§1.5), and resolve bot-authored threads via GraphQL (§1.6).
@@ -107,9 +118,10 @@ immediately after PR creation or after pushing new commits:
 
 ### Step 4b: Re-request review after fixes
 
-When fixes were pushed (from either review or CI remediation):
+When fixes were pushed (from either review or CI remediation) and shadow review
+is enabled:
 
-1. Re-request Copilot Review per `.github/instructions/github-pr-automation.instructions.md`
+1. Re-request shadow review per `.github/instructions/github-pr-automation.instructions.md`
    §1.7.
 2. Poll for the new review using the same back-off cadence.
 3. Resolve any remaining bot-authored threads per §1.6.
@@ -121,24 +133,18 @@ When fixes were pushed (from either review or CI remediation):
 #### Step 5a: Pre-Merge Review Readiness Verification (NON-NEGOTIABLE)
 
 Before presenting the PR as merge-ready, run the defense-in-depth
-Copilot review readiness verification defined in
+local review readiness verification defined in
 `.github/instructions/github-pr-automation.instructions.md` §1.9:
 
 1. Execute the §1.9 readiness query (with full pagination of review
-   threads).
+   metadata when needed).
 2. Evaluate all three gate checks in order:
-   - **Check 1**: No pending Copilot review request. If pending, wait
-     per §1.2 back-off cadence.
-   - **Check 2**: Latest Copilot review covers the current `headRefOid`.
-     If stale, wait for a fresh review.
-   - **Check 3**: Zero unresolved Copilot review threads. If any remain,
-     halt and report.
-3. If any check fails and the wait budget is exhausted, **halt**. Do not
-   present the PR as merge-ready. Report the blocking condition to the
-   operator.
-4. If Check 3 fails with unresolved threads and the review-fix cycle
-   budget (§1.8) has remaining capacity, loop back to Step 3 to address
-   the unresolved comments. If the budget is exhausted, halt.
+   - **Check 1**: A local review readiness record exists for the current `headRefOid`.
+   - **Check 2**: The local review outcome is `READY` or `READY_WITH_FOLLOWUPS`.
+   - **Check 3**: Any residual P2/P3 findings are explicitly tracked as follow-up items or residual-risk notes.
+3. If any check fails, **halt immediately**. Do not present the PR as
+   merge-ready. Report the blocking condition to the operator.
+4. If advisory shadow-review feedback exists, surface it in the merge-readiness summary without treating it as merge-blocking by default.
 5. Surface human review threads, `reviewDecision`, and any
    `CHANGES_REQUESTED` reviews in the merge-readiness summary — these
    may independently block merge at the GitHub level.
@@ -166,12 +172,11 @@ After receiving operator approval and before executing the merge:
 
 1. Check whether any new commits have been pushed to the branch since the §1.9
    gate ran. If yes, re-run §1.9 in full — the prior gate result is stale.
-2. Check whether any new Copilot review threads have been opened since the §1.9
-   gate ran (query `reviewThreads` filtered to `isResolved == false` and
-   `author.login == "copilot-pull-request-reviewer"`). If any new unresolved
-   threads exist, halt and report — do not proceed to merge.
+2. Check whether the local review readiness record still covers the current HEAD.
+   If the branch advanced or the recorded reviewed SHA differs from HEAD, halt and
+   re-run the local review gate before merge.
 3. If the branch HEAD and review state are unchanged from the §1.9 gate run,
-   log `P-014 LAST-MILE CHECK PASSED: branch unchanged, no new unresolved threads`.
+   log `P-014 LAST-MILE CHECK PASSED: branch unchanged, local readiness still covers HEAD`.
 4. Execute the merge only after this check passes.
 
 This last-mile check closes the race window between approval receipt and merge
@@ -205,7 +210,7 @@ The skill is complete only when one of these outcomes is explicit:
 | Counter | Limit | Action |
 |---|---|---|
 | Fix-CI delegation cycles | 5 | Halt, leave PR for manual intervention |
-| Review-fix cycles | 3 | Accept remaining as backlog follow-ups |
+| Review-fix cycles | 3 | Accept remaining advisory shadow-review comments as backlog follow-ups |
 
 ## Model Routing
 
