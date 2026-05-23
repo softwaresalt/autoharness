@@ -126,6 +126,7 @@ Detect whether the workspace has runtime surfaces that need post-build verificat
 
 | Signal | Surface |
 |--------|---------|
+| CLI entrypoints, console scripts, `bin/`, `cmd/`, Click / Typer / Cobra / Clap / Commander | CLI |
 | Next.js / Vite / Angular / Rails views / templates / `public/` frontend assets | Web UI |
 | OpenAPI files, route declarations, controllers, `api/` or `routes/` directories | Public API |
 | Queue libraries, job workers, cron config, message consumers | Background jobs |
@@ -134,9 +135,37 @@ Detect whether the workspace has runtime surfaces that need post-build verificat
 Also detect browser-verification tooling from package dependencies or config files
 such as Playwright, Cypress, Puppeteer, Selenium, or equivalent browser runners.
 
-Record: `runtime_surfaces{}` with booleans for `web_ui`, `public_api`, and
-`background_jobs`, `browser_tooling[]`, plus `deployment_manifests[]` for
+Record: `runtime_surfaces{}` with booleans for `cli`, `web_ui`, `public_api`,
+and `background_jobs`, `browser_tooling[]`, plus `deployment_manifests[]` for
 discovered paths.
+
+Also build the runtime validator contract that downstream Ship,
+runtime-verification, and operational-closure guidance consume. Detect probe
+hints from existing smoke commands, dev-server paths, API roots, background-job
+triggers, browser tooling, and operator-assisted checkpoints that the current
+environment cannot automate safely.
+
+Record: `runtime_validation{}` with the following structure:
+
+```yaml
+runtime_validation:
+  validator_manifest:
+    surfaces:
+      - surface: "cli"|"api"|"browser"|"background-job"
+        adapter_hint: "command"|"http"|"browser"|"job"|"manual"|"auto"
+        probe_hints: []
+        manual_checkpoints: []
+  validation_expectations:
+    required: true|false
+    surfaces_expected: []
+    minimum_verdict: "PASS"|"PASS_WITH_FOLLOW_UP"|"FAIL"|"BLOCKED"
+    preserve_invariants: []
+    release_blockers: []
+  releasability:
+    required: true|false
+    status_when_satisfied: "READY"|"READY_WITH_CONDITIONS"|"BLOCKED"
+    required_evidence: []
+```
 
 #### Step 1.5c: Agent-Intercom Detection
 
@@ -614,6 +643,7 @@ The summary MUST include:
 * Recommended preset (`starter`, `standard`, or `full`)
 * Recommended install layers derived from preset, stack packs, runtime surfaces, and overlays
 * Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true` and browser tooling is present)
+* Runtime validator expectations — which surfaces are expected, which probe hints were detected, and whether releasability evidence is required before Ship treats runtime validation as complete
 * Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
 * Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
 * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
