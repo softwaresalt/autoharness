@@ -282,6 +282,7 @@ surfaces and browser-capable verification tooling.
 * route selection is driven by changed surfaces and adjacent critical paths
 * headed vs headless mode is chosen intentionally and recorded
 * external or operator-assisted flows become explicit checkpoints instead of silent test gaps
+* browser probes emit validator evidence and manual checkpoint evidence that operational closure can promote into releasability evidence
 
 ### Verification checks
 
@@ -423,13 +424,13 @@ alerting, and rollback discipline beyond what operational-closure provides by de
 * pre-deploy audits verify feature flags, rollback paths, and cross-service awareness
 * post-deploy observation windows have explicit owner, duration, and active monitoring
 * rollback triggers name specific metrics and thresholds rather than vague "if things go wrong"
-* closure artifacts carry monitoring and rollback artifacts as structured sections
+* closure artifacts carry monitoring and rollback artifacts as structured releasability evidence sections
 
 ### Verification checks
 
 * `release-observability.instructions.md` is installed
 * foundation docs mention the overlay
-* operational-closure and runtime-verification skills reference monitoring plan and rollback expectations consistently
+* operational-closure and runtime-verification skills reference monitoring plan, rollback expectations, validator evidence, and releasability evidence consistently
 
 ### Tuning drift rules
 
