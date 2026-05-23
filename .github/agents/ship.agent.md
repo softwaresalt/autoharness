@@ -30,7 +30,7 @@ through quality gates and review. You manage:
 * invoke the `review` skill as the quality gate
 * invoke the `fix-ci` skill when CI or review feedback requires remediation
 * invoke the `pr-lifecycle` skill for pull request creation and follow-up
-* invoke `operational-closure` for post-build validation
+* invoke `runtime-verification` and `operational-closure` for structured validator evidence and releasability evidence
 * handle knowledge graduation and documentation updates after merge
 * preserve explicit user approval before any merge happens
 
@@ -209,10 +209,12 @@ For each task in the shipment/feature:
    - Confirm any residual P2/P3 findings have explicit follow-up handling.
    - If any check fails: halt. Record a P-014 violation via P-005 telemetry. Do not proceed.
    - If all checks pass: log `P-014 GATE PASSED: local readiness verified at HEAD={headRefOid}`.
-4. **Operator approval gate**: After the §1.9 gate passes, present the PR readiness summary
+4. **Runtime validator handoff (NON-NEGOTIABLE)**: When work touches runtime surfaces or rollout-sensitive behavior, read `.autoharness/workspace-profile.yaml` and carry `runtime_validation.validator_manifest` plus `runtime_validation.validation_expectations` into `runtime-verification`. Emit validator evidence for probe outcomes, manual checkpoint evidence, and blocked prerequisites. Never fake unsupported automation.
+5. **Operational closure handoff**: Invoke `operational-closure` with the validator evidence plus `runtime_validation.releasability` so the closure artifact becomes explicit releasability evidence (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`) covering monitoring, rollback, owner, validation window, and follow-up requirements.
+6. **Operator approval gate**: After the §1.9 gate passes and the releasability evidence is in hand, present the PR readiness summary
    to the operator and wait for an explicit approval signal. Never treat silence, green CI,
    or a passing §1.9 gate as approval. Never auto-merge.
-5. Execute the merge only after receiving explicit operator approval AND having a §1.9 gate
+7. Execute the merge only after receiving explicit operator approval AND having a §1.9 gate
    pass on record. If new commits are pushed between the §1.9 check and the approval signal,
    re-run §1.9 before executing the merge.
 

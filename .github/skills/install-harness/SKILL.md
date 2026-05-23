@@ -396,6 +396,14 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 
 Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
+**Runtime validator profile inputs** (consumed structurally — not emitted as literal template variables):
+
+| Profile Path | Primary Consumers | Purpose |
+|---|---|---|
+| `runtime_validation.validator_manifest` | `ship.agent.md`, `runtime-verification/SKILL.md` | Surface adapters, probe hints, and manual checkpoints for the runtime validator |
+| `runtime_validation.validation_expectations` | `ship.agent.md`, `runtime-verification/SKILL.md` | Expected surfaces, minimum verdict, invariants, and explicit release blockers |
+| `runtime_validation.releasability` | `operational-closure/SKILL.md`, `release-observability.instructions.md` | Required releasability evidence such as monitoring, rollback, owner, and validation-window expectations |
+
 **Alternate Model Variables** (used by `adversarial-review` and `doc-review` templates when alternate provider support is enabled):
 
 | Template Variable | Source | Example (Gemini) | Example (none) |
@@ -746,6 +754,13 @@ Example overlay target map for `release-observability`:
 | Rollback trigger requirements | `operational-closure/SKILL.md`, `runtime-verification/SKILL.md` |
 | Observation windows | closure-facing skills and PR lifecycle handoff sections |
 
+Runtime validator structural contract:
+
+* workspace-profile.yaml contains `runtime_validation.validator_manifest`, `runtime_validation.validation_expectations`, and `runtime_validation.releasability`
+* ship.agent.md references validator evidence and releasability evidence handoff
+* runtime-verification/SKILL.md emits validator evidence with surface adapters, probe hints, manual checkpoint evidence, and verdict
+* operational-closure/SKILL.md converts validator evidence into releasability evidence
+
 Map primitives to template groups:
 
 | Primitive | Template Groups |
@@ -895,7 +910,8 @@ merge install), flag them for removal.
     * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
     * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
     * When `strict-safety` is enabled, keep risky planning and approval vocabulary visible through stage, review, verification, and closure handoffs
-    * When `release-observability` is enabled, ensure operational-closure and runtime-verification carry monitoring plan, observation window, and rollback trigger expectations
+    * When runtime validation is in scope, ensure Ship, runtime-verification, and operational-closure carry `runtime_validation.validator_manifest`, `runtime_validation.validation_expectations`, validator evidence, and releasability evidence rather than report-oriented runtime notes
+    * When `release-observability` is enabled, ensure operational-closure and runtime-verification carry monitoring plan, observation window, rollback trigger expectations, and releasability evidence requirements
     * When `graphtor-docs` is enabled, add explicit workflow guidance for indexed local documentation search using graphtor-docs MCP tools (`search_local_docs`, `search_semantic`, `research_topic`) before falling back to broad filesystem or web search
     * When both stage and ship agents are being installed (two-agent model), ensure both agent definitions contain a `## Role Boundary (NON-NEGOTIABLE)` section with Allowed/Forbidden tables. The role-enforcement instruction (Step 2.2, item 5) references these tables at runtime.
 
