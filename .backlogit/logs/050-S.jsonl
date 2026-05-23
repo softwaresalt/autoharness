@@ -1,1 +1,2 @@
 {"timestamp":"2026-05-22T19:33:24.6828121-07:00","actor":"backlogit","item_id":"050-S","event_type":"shipment_created","delta":{"items":["045-F","045.001-T","045.002-T","045.003-T","045.004-T","045.005-T","045.006-T","045.007-T","045.008-T","045.009-T"],"title":"045-F Runtime validator and releasability framework"}}
+{"timestamp":"2026-05-22T23:46:20.2363551-07:00","actor":"backlogit","item_id":"050-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
