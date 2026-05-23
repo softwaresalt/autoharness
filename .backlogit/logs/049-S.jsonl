@@ -1,2 +1,5 @@
 {"timestamp":"2026-05-22T19:33:10.0155942-07:00","actor":"backlogit","item_id":"049-S","event_type":"shipment_created","delta":{"items":["044-F","044.001-T","044.002-T","044.003-T","044.004-T","044.005-T","044.006-T","044.007-T","044.008-T"],"title":"044-F Local-first PR review migration"}}
 {"timestamp":"2026-05-22T20:35:04.8847917-07:00","actor":"backlogit","item_id":"049-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-05-22T22:05:03.9269379-07:00","actor":"backlogit","item_id":"049-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-05-22T22:05:05.4264865-07:00","actor":"backlogit","item_id":"049-S","event_type":"commit_tracked","delta":{"author":"42183845+softwaresalt@users.noreply.github.com","commit_sha":"16348c578cd9e0c87edc146b597be95eb0aa4fe1","message":"Merge pull request #106 from softwaresalt/feat/049-s-local-first-pr-review-migration"}}
+{"timestamp":"2026-05-22T22:05:34.4686966-07:00","actor":"backlogit","item_id":"049-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/049-S.md"}}
