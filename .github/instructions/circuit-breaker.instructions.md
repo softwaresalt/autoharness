@@ -80,7 +80,9 @@ operator immediately.
    repeatedly retrying the failing operation.
 3. When the cooldown expires, auto-reset the circuit state and allow **one**
    retry.
-4. If that retry fails and re-trips the breaker, start a fresh cooldown window.
+4. If that retry fails, re-trip the circuit immediately and start a fresh
+   cooldown window. The probe retry is a one-shot test and does not restart
+   the universal 3-failure count.
 5. After **3 circuit trips** for the same operation in one session, stop
    auto-resetting and escalate to the operator.
 
