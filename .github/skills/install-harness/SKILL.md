@@ -311,6 +311,16 @@ Resolution notes for browser and experiment variables:
 * `{{EXPERIMENT_BRANCH_PREFIX}}`: Must end with `/`. Validate at resolution time and append `/` if missing.
 * `{{EXPERIMENT_RESULTS_DIR}}`: Must be a relative path within the workspace. Validate at resolution time.
 
+**Guardrail Variables** (used by instruction templates):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{CIRCUIT_BREAKER_COOLDOWN}}` | `config.overrides.CIRCUIT_BREAKER_COOLDOWN` or resolved install defaults | `5 minutes` | Cooldown window used by the optional circuit-breaker auto-reset guidance before a single retry is allowed |
+
+Resolution note for guardrail variables:
+
+* `{{CIRCUIT_BREAKER_COOLDOWN}}`: Default to `5 minutes` unless the operator explicitly overrides it. Keep the value human-readable because it is rendered into instruction prose rather than parsed as machine configuration.
+
 **Health-Check Variables** (used by the harness-doctor skill template):
 
 | Template Variable | Source | Default | Description |
@@ -839,10 +849,11 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `commit-message.instructions.md` — Adapt scopes to match workspace directory structure
    * `markdown.instructions.md` — Universal (install as-is with minimal adaptation)
    * `writing-style.instructions.md` — Universal (install as-is)
+   * `coding-discipline.instructions.md` — Behavioral coding guardrails: think before coding, simplicity first, surgical changes, and goal-driven verification. Universal (install as-is).
    * `git-merge.instructions.md` — Universal (install as-is)
    * `pull-request.instructions.md` — Universal (install as-is)
    * `prompt-builder.instructions.md` — Universal (install as-is)
-   * `circuit-breaker.instructions.md` — Anti-spinning protocol with retry thresholds, escalation, and error logging. Universal (install as-is). Referenced by the constitution's Stop Conditions section.
+   * `circuit-breaker.instructions.md` — Anti-spinning protocol with retry thresholds, escalation, error logging, and optional cooldown/auto-reset guidance. Universal (install as-is). Resolve `{{CIRCUIT_BREAKER_COOLDOWN}}` with default `5 minutes`. Referenced by the constitution's Stop Conditions section.
    * `concurrency.instructions.md` — File operation locking protocol for multi-agent and human+agent concurrency control. Universal (install as-is). Requires the `file-lock` skill scripts to be installed alongside.
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
    * `context-efficiency.instructions.md` — Context window hygiene: tool result offloading, committed change eviction, and proactive compaction triggers (Primitive 1). Universal (install as-is).
@@ -925,6 +936,8 @@ merge install), flag them for removal.
    layer is active
    * `architecture-strategist.agent.md` — Universal with domain adaptation
    * `constitution-reviewer.agent.md` — References local constitution
+   * `correctness-reviewer.agent.md` — Always-on behavioral correctness reviewer
+   * `maintainability-reviewer.agent.md` — Always-on maintainability and complexity reviewer
    * `scope-boundary-auditor.agent.md` — Universal
     * `technology-reviewer.agent.md` → `{language}-reviewer.agent.md` — Fully technology-specific
     * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives

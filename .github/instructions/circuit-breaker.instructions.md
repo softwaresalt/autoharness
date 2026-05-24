@@ -38,7 +38,7 @@ Upon hitting the retry threshold (universal or skill-managed):
 
 1. **Stop** — do not attempt the operation again.
 2. **Log** — record the failure chain as a session memory checkpoint at
-   `{{DOCS_MEMORY}}/{YYYY-MM-DD}/circuit-break-{operation-slug}.md`.
+   `docs/memory/{YYYY-MM-DD}/circuit-break-{operation-slug}.md`.
    Each entry MUST include:
    * Timestamp (ISO 8601)
    * Operation that failed
@@ -48,7 +48,7 @@ Upon hitting the retry threshold (universal or skill-managed):
    * Agent and skill context
    * Whether this was a universal or skill-managed breaker trip
 3. **Prompt** — surface the following message to the operator:
-   `Circuit breaker triggered after {N} consecutive failures. Details: {{DOCS_MEMORY}}/{filename}. Please advise.`
+   `Circuit breaker triggered after {N} consecutive failures. Details: docs/memory/{filename}. Please advise.`
 4. **Checkpoint** — write a memory checkpoint so session state is preserved
    if the operator decides to restart or reassign.
 
@@ -59,7 +59,7 @@ limit governs.
 
 | Counter                                     | Limit | Action on breach                                    |
 |---------------------------------------------|-------|-----------------------------------------------------|
-| Build/test fix attempts per task            | 5     | Mark task `{{STATUS_BLOCKED}}`, exit loop (skill-managed) |
+| Build/test fix attempts per task            | 5     | Mark task `blocked`, exit loop (skill-managed) |
 | Same-error recurrence within skill loop     | 3     | Universal breaker applies: stop, log, prompt        |
 | Consecutive same-check failures in fix-ci   | 3     | Halt fix-ci, report check stability issue           |
 | Total fix-ci cycles per PR                  | 5     | Halt, leave PR open for manual intervention (skill-managed) |
@@ -75,7 +75,7 @@ automatically (network hiccups, temporary tool unavailability, short-lived rate
 limit windows), agents MAY use a time-bounded cooldown before escalating to the
 operator immediately.
 
-1. On circuit trip, record `circuit_open_until = now + {{CIRCUIT_BREAKER_COOLDOWN}}`.
+1. On circuit trip, record `circuit_open_until = now + 5 minutes`.
 2. While `now < circuit_open_until`, return early in degraded mode rather than
    repeatedly retrying the failing operation.
 3. When the cooldown expires, auto-reset the circuit state and allow **one**
@@ -110,7 +110,7 @@ template.
 A review-fix cycle is one complete iteration of: (1) invoke review skill →
 (2) parse findings → (3) apply fixes. Cycle counting starts at 0 (first review).
 After 3 fix cycles, accept remaining P2/P3 findings as new backlog items,
-commit the task, and move it to `{{STATUS_DONE}}`.
+commit the task, and move it to `done`.
 
 ## Stall Detection
 
@@ -135,7 +135,7 @@ prevents forward progress. The session stall counter increments when:
 4. An agent-intercom heartbeat ping fails (when the pack is enabled)
 
 After 3 session stalls in a single session, the agent MUST halt execution,
-write a session checkpoint to `{{DOCS_MEMORY}}/`, and prompt the operator:
+write a session checkpoint to `docs/memory/`, and prompt the operator:
 
 `Session stall limit (3) reached. Environment may be unstable. Please investigate.`
 
@@ -154,7 +154,7 @@ Agents MUST NOT attempt to work around the circuit breaker by:
 
 ## Log Format
 
-Each circuit breaker checkpoint in `{{DOCS_MEMORY}}/` follows this structure:
+Each circuit breaker checkpoint in `docs/memory/` follows this structure:
 
 ```markdown
 ---

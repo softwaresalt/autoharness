@@ -112,6 +112,8 @@ The readiness summary must include:
 |---|---|
 | **Constitution Reviewer** | Constitutional compliance |
 | **{{PRIMARY_LANGUAGE}} Reviewer** | Language-specific safety and correctness |
+| **Correctness Reviewer** | Logic errors, edge cases, and behavioral correctness |
+| **Maintainability Reviewer** | Complexity, coupling, and premature abstraction |
 | **Learnings Researcher** | Search compound library for related past issues |
 
 ### Conditional (based on changed files)
@@ -139,7 +141,7 @@ Use a different model from the caller when available to force genuine diversity 
 
 ### Step 2: Route Personas
 
-1. Always-on: spawn Constitution Reviewer, {{PRIMARY_LANGUAGE}} Reviewer, Learnings Researcher
+1. Always-on: spawn Constitution Reviewer, {{PRIMARY_LANGUAGE}} Reviewer, Correctness Reviewer, Maintainability Reviewer, Learnings Researcher
 2. Conditional: analyze changed file paths, content patterns, and workspace agent-native signals to select additional personas:
    * Select **Security Reviewer** (`security-reviewer.agent.md`) when the diff touches: authentication or authorization code, public endpoint handlers, user input processing, permission or role checks, secret or credential management, or files matching `{{SECURITY_REVIEW_PATTERNS}}`
    * Select **Template Integrity Reviewer** (`template-integrity-reviewer.agent.md`) when the diff touches template files, Markdown harness artifacts, review/policy/instruction assets, or generated-artifact reference tables
