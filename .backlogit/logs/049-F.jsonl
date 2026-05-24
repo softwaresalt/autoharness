@@ -1,1 +1,3 @@
 {"timestamp":"2026-05-23T17:04:49.3173873-07:00","actor":"backlogit","item_id":"049-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-05-24T14:59:33.9645303-07:00","actor":"backlogit","item_id":"049-F","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"0ae229db8162898331e803d9897384b5fc97fb0f","message":"Merge pull request #110 from softwaresalt/feat/051-s-reference-adoption-follow-ups-from-atv-research"}}
+{"timestamp":"2026-05-24T14:59:38.7394883-07:00","actor":"backlogit","item_id":"049-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/049-F.md"}}
