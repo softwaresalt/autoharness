@@ -30,7 +30,7 @@ through quality gates and review. You manage:
 * invoke the `review` skill as the quality gate
 * invoke the `fix-ci` skill when CI or review feedback requires remediation
 * invoke the `pr-lifecycle` skill for pull request creation and follow-up
-* invoke `operational-closure` for post-build validation
+* invoke `runtime-verification` and `operational-closure` for structured validator evidence and releasability evidence
 * handle knowledge graduation and documentation updates after merge
 * preserve explicit user approval before any merge happens
 
@@ -200,18 +200,21 @@ For each task in the shipment/feature:
 
 1. Push the branch and invoke the `pr-lifecycle` skill.
 2. Handle CI feedback via the `fix-ci` skill if needed.
-3. **P-014 Copilot Review Merge Gate (NON-NEGOTIABLE)**: Before presenting the PR as
+3. **P-014 Local Review Readiness Gate (NON-NEGOTIABLE)**: Before presenting the PR as
    merge-ready, read `.github/instructions/github-pr-automation.instructions.md` and
    execute the §1.9 Pre-Merge Review Readiness Verification:
-   - Run the §1.9 readiness query (with full thread pagination).
-   - Evaluate Check 1 (no pending Copilot review), Check 2 (review covers current HEAD),
-     and Check 3 (zero unresolved Copilot threads) in order.
+   - Ensure the PR body contains the `## Local Review Readiness` block for the current HEAD.
+   - Confirm the local review readiness record covers the current HEAD.
+   - Confirm the recorded outcome is `READY` or `READY_WITH_FOLLOWUPS`.
+   - Confirm any residual P2/P3 findings have explicit follow-up handling.
    - If any check fails: halt. Record a P-014 violation via P-005 telemetry. Do not proceed.
-   - If all three checks pass: log `P-014 GATE PASSED: §1.9 verified at HEAD={headRefOid}`.
-4. **Operator approval gate**: After the §1.9 gate passes, present the PR readiness summary
+   - If all checks pass: log `P-014 GATE PASSED: local readiness verified at HEAD={headRefOid}`.
+4. **Runtime validator handoff (NON-NEGOTIABLE)**: When work touches runtime surfaces or rollout-sensitive behavior, read `.autoharness/workspace-profile.yaml` and carry `runtime_validation.validator_manifest` plus `runtime_validation.validation_expectations` into `runtime-verification`. Emit validator evidence for probe outcomes, manual checkpoint evidence, and blocked prerequisites. Never fake unsupported automation.
+5. **Operational closure handoff**: Invoke `operational-closure` with the validator evidence plus `runtime_validation.releasability` so the closure artifact becomes explicit releasability evidence (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`) covering monitoring, rollback, owner, validation window, and follow-up requirements.
+6. **Operator approval gate**: After the §1.9 gate passes and the releasability evidence is in hand, present the PR readiness summary
    to the operator and wait for an explicit approval signal. Never treat silence, green CI,
    or a passing §1.9 gate as approval. Never auto-merge.
-5. Execute the merge only after receiving explicit operator approval AND having a §1.9 gate
+7. Execute the merge only after receiving explicit operator approval AND having a §1.9 gate
    pass on record. If new commits are pushed between the §1.9 check and the approval signal,
    re-run §1.9 before executing the merge.
 
@@ -241,17 +244,16 @@ A merged PR does not complete the top-level release unit by itself. For P-001 pu
 2. When the shipment carries release obligations, complete any required tag, publish, release-record, or post-merge closure branch/PR steps.
 3. If any required post-merge release closure remains open, halt with `RELEASE_CLOSURE_INCOMPLETE`. Treat the shipment as still active for P-001 purposes, and another top-level release unit may not begin yet.
 
-#### Post-Merge Closure PR Copilot Gate (P-014, NON-NEGOTIABLE)
+#### Post-Merge Closure PR Local Review Gate (P-014, NON-NEGOTIABLE)
 
 When a post-merge closure branch and PR are created:
 
-1. Request Copilot Review immediately after PR creation (per §1.1 of
-   `.github/instructions/github-pr-automation.instructions.md`).
-2. Poll for review completion per §1.2 back-off cadence.
-3. Address any comments per §1.3–§1.7.
-4. Run §1.9 readiness gate before presenting the post-merge closure PR for merge.
-5. Obtain explicit operator approval — the prior main PR approval does not transfer.
-6. P-014 applies in full. Record a P-014 violation via P-005 telemetry if this gate is skipped.
+1. Run local review for the closure branch and record the readiness outcome for the current HEAD.
+2. Optional Copilot shadow review may run per §1.1–§1.7 of
+   `.github/instructions/github-pr-automation.instructions.md`, but it is advisory by default.
+3. Run §1.9 readiness gate before presenting the post-merge closure PR for merge.
+4. Obtain explicit operator approval — the prior main PR approval does not transfer.
+5. P-014 applies in full. Record a P-014 violation via P-005 telemetry if this gate is skipped.
 
 #### Closure Tasks
 

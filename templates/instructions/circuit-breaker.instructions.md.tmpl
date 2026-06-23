@@ -68,6 +68,43 @@ limit governs.
 | Tasks attempted in session                  | 20    | Halt, write memory checkpoint, exit session          |
 | Session stalls                              | 3     | Halt, write checkpoint, prompt operator              |
 
+## Cooldown and Auto-Reset (Optional)
+
+For transient failures where the underlying cause is likely to resolve
+automatically (network hiccups, temporary tool unavailability, short-lived rate
+limit windows), agents MAY use a time-bounded cooldown before escalating to the
+operator immediately.
+
+1. On circuit trip, record `circuit_open_until = now + {{CIRCUIT_BREAKER_COOLDOWN}}`.
+2. While `now < circuit_open_until`, return early in degraded mode rather than
+   repeatedly retrying the failing operation.
+3. When the cooldown expires, auto-reset the circuit state and allow **one**
+   retry.
+4. If that retry fails, re-trip the circuit immediately and start a fresh
+   cooldown window. The probe retry is a one-shot test and does not restart
+   the universal 3-failure count.
+5. After **3 circuit trips** for the same operation in one session, stop
+   auto-resetting and escalate to the operator.
+
+Cooldown is appropriate when:
+
+* the operation is non-critical
+* the failures match transient conditions such as timeouts or temporary tool
+  unavailability
+* unattended recovery is preferable to indefinite waiting
+
+Cooldown is **not** appropriate when:
+
+* the failure indicates a logic or contract problem (wrong arguments, auth
+  failure, schema mismatch)
+* the operation is a mandatory gate (for example: index sync, shipment claim,
+  PR merge readiness)
+* repeated trips show the condition is not transient
+
+**Out of scope:** SDK-style minimum-interval throttles and hourly query budgets
+are separate rate-limiting patterns, not part of this universal circuit breaker
+template.
+
 ### Review-Fix Cycle Definition
 
 A review-fix cycle is one complete iteration of: (1) invoke review skill →

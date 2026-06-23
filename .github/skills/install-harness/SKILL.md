@@ -311,6 +311,16 @@ Resolution notes for browser and experiment variables:
 * `{{EXPERIMENT_BRANCH_PREFIX}}`: Must end with `/`. Validate at resolution time and append `/` if missing.
 * `{{EXPERIMENT_RESULTS_DIR}}`: Must be a relative path within the workspace. Validate at resolution time.
 
+**Guardrail Variables** (used by instruction templates):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{CIRCUIT_BREAKER_COOLDOWN}}` | `config.overrides.CIRCUIT_BREAKER_COOLDOWN` or resolved install defaults | `5 minutes` | Cooldown window used by the optional circuit-breaker auto-reset guidance before a single retry is allowed |
+
+Resolution note for guardrail variables:
+
+* `{{CIRCUIT_BREAKER_COOLDOWN}}`: Default to `5 minutes` unless the operator explicitly overrides it. Keep the value human-readable because it is rendered into instruction prose rather than parsed as machine configuration.
+
 **Health-Check Variables** (used by the harness-doctor skill template):
 
 | Template Variable | Source | Default | Description |
@@ -395,6 +405,14 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 | `{{GRAPHTOR_BINARY_PATH}}` | binary path from `graphtor_docs` detection or operator `graphtor_docs.binary_path` | `.graphtor/bin/graphtor-docs` | `.graphtor/bin/graphtor-docs` |
 
 Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
+
+**Runtime validator profile inputs** (consumed structurally — not emitted as literal template variables):
+
+| Profile Path | Primary Consumers | Purpose |
+|---|---|---|
+| `runtime_validation.validator_manifest` | `ship.agent.md`, `runtime-verification/SKILL.md` | Surface adapters, probe hints, and manual checkpoints for the runtime validator |
+| `runtime_validation.validation_expectations` | `ship.agent.md`, `runtime-verification/SKILL.md` | Expected surfaces, minimum verdict, invariants, and explicit release blockers |
+| `runtime_validation.releasability` | `operational-closure/SKILL.md`, `release-observability.instructions.md` | Required releasability evidence such as monitoring, rollback, owner, and validation-window expectations |
 
 **Alternate Model Variables** (used by `adversarial-review` and `doc-review` templates when alternate provider support is enabled):
 
@@ -746,6 +764,13 @@ Example overlay target map for `release-observability`:
 | Rollback trigger requirements | `operational-closure/SKILL.md`, `runtime-verification/SKILL.md` |
 | Observation windows | closure-facing skills and PR lifecycle handoff sections |
 
+Runtime validator structural contract:
+
+* workspace-profile.yaml contains `runtime_validation.validator_manifest`, `runtime_validation.validation_expectations`, and `runtime_validation.releasability`
+* ship.agent.md references validator evidence and releasability evidence handoff
+* runtime-verification/SKILL.md emits validator evidence with surface adapters, probe hints, manual checkpoint evidence, and verdict
+* operational-closure/SKILL.md converts validator evidence into releasability evidence
+
 Map primitives to template groups:
 
 | Primitive | Template Groups |
@@ -824,16 +849,17 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `commit-message.instructions.md` — Adapt scopes to match workspace directory structure
    * `markdown.instructions.md` — Universal (install as-is with minimal adaptation)
    * `writing-style.instructions.md` — Universal (install as-is)
+   * `coding-discipline.instructions.md` — Behavioral coding guardrails: think before coding, simplicity first, surgical changes, and goal-driven verification. Universal (install as-is).
    * `git-merge.instructions.md` — Universal (install as-is)
    * `pull-request.instructions.md` — Universal (install as-is)
    * `prompt-builder.instructions.md` — Universal (install as-is)
-   * `circuit-breaker.instructions.md` — Anti-spinning protocol with retry thresholds, escalation, and error logging. Universal (install as-is). Referenced by the constitution's Stop Conditions section.
+   * `circuit-breaker.instructions.md` — Anti-spinning protocol with retry thresholds, escalation, error logging, and optional cooldown/auto-reset guidance. Universal (install as-is). Resolve `{{CIRCUIT_BREAKER_COOLDOWN}}` with default `5 minutes`. Referenced by the constitution's Stop Conditions section.
    * `concurrency.instructions.md` — File operation locking protocol for multi-agent and human+agent concurrency control. Universal (install as-is). Requires the `file-lock` skill scripts to be installed alongside.
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
    * `context-efficiency.instructions.md` — Context window hygiene: tool result offloading, committed change eviction, and proactive compaction triggers (Primitive 1). Universal (install as-is).
    * `ci-security.instructions.md` — CI/CD security and hygiene conventions. Adapt `{{CI_WORKFLOW_GLOB}}` to match the workspace CI platform (e.g., `**/.github/workflows/*.yml` for GitHub Actions). Install when the workspace uses a CI system detected during discovery.
    * `workflows.instructions.md` — CI/CD workflow structural conventions (job naming, artifacts, caching, matrix, reusable workflows). Install alongside `ci-security.instructions.md` when a CI system is detected.
-   * `github-pr-automation.instructions.md` — GitHub-specific PR automation: Copilot Review polling, review comment lifecycle (categorize, fix, reply, resolve threads via GraphQL), and CI check monitoring with back-off polling. Install when the workspace is hosted on GitHub (git remote contains `github.com` or `{{CI_PLATFORM}}` is `GitHub Actions`). Resolves `{{REPO_OWNER}}` and `{{REPO_NAME}}` from the git remote URL.
+   * `github-pr-automation.instructions.md` — GitHub-specific PR automation: local-review readiness verification, optional Copilot shadow-review lifecycle during migration, and CI check monitoring with back-off polling. Install when the workspace is hosted on GitHub (git remote contains `github.com` or `{{CI_PLATFORM}}` is `GitHub Actions`). Resolves `{{REPO_OWNER}}` and `{{REPO_NAME}}` from the git remote URL.
    * `mcp-server.instructions.md` — MCP server development conventions. Install when workspace-discovery detects an MCP server project (MCP SDK in dependencies). Resolves `{{MCP_SDK}}`, `{{MCP_TRANSPORT}}`, `{{MCP_PROJECT_STRUCTURE}}`.
 
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
@@ -895,7 +921,8 @@ merge install), flag them for removal.
     * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
     * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
     * When `strict-safety` is enabled, keep risky planning and approval vocabulary visible through stage, review, verification, and closure handoffs
-    * When `release-observability` is enabled, ensure operational-closure and runtime-verification carry monitoring plan, observation window, and rollback trigger expectations
+    * When runtime validation is in scope, ensure Ship, runtime-verification, and operational-closure carry `runtime_validation.validator_manifest`, `runtime_validation.validation_expectations`, validator evidence, and releasability evidence rather than report-oriented runtime notes
+    * When `release-observability` is enabled, ensure operational-closure and runtime-verification carry monitoring plan, observation window, rollback trigger expectations, and releasability evidence requirements
     * When `graphtor-docs` is enabled, add explicit workflow guidance for indexed local documentation search using graphtor-docs MCP tools (`search_local_docs`, `search_semantic`, `research_topic`) before falling back to broad filesystem or web search
     * When both stage and ship agents are being installed (two-agent model), ensure both agent definitions contain a `## Role Boundary (NON-NEGOTIABLE)` section with Allowed/Forbidden tables. The role-enforcement instruction (Step 2.2, item 5) references these tables at runtime.
 
@@ -909,15 +936,19 @@ merge install), flag them for removal.
    layer is active
    * `architecture-strategist.agent.md` — Universal with domain adaptation
    * `constitution-reviewer.agent.md` — References local constitution
+   * `correctness-reviewer.agent.md` — Always-on behavioral correctness reviewer
+   * `maintainability-reviewer.agent.md` — Always-on maintainability and complexity reviewer
    * `scope-boundary-auditor.agent.md` — Universal
     * `technology-reviewer.agent.md` → `{language}-reviewer.agent.md` — Fully technology-specific
     * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
     * `agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
     * `security-reviewer.agent.md` — Include when the `review` layer is active; universal security code review persona
     * `security-lens-reviewer.agent.md` — Include when the `review` layer is active; plan-level security review persona
+    * `template-integrity-reviewer.agent.md` — Include when the workspace produces template-driven or Markdown-heavy product surfaces so frontmatter, placeholder, markdown, and cross-reference defects are caught before PR submission
+    * `schema-cli-docs-coupling-reviewer.agent.md` — Include when diffs commonly span schemas, CLI verification logic, install/tune flows, and operator docs
     * `learnings-researcher.agent.md` — Universal
 
-5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. Install when the `review` layer is active. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
+5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. Install when the `review` layer is active. Ensure `review/SKILL.md` produces a local review readiness outcome (`READY`, `READY_WITH_FOLLOWUPS`, `BLOCKED`) and routes residual P2/P3 findings into explicit follow-up handling. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed
    * Install as skills (not agents)
 

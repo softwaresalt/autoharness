@@ -223,7 +223,7 @@ For each installed artifact, check:
 * **Constitution**: Do technology-specific rules match the current stack?
 * **AGENTS.md**: Do quality gates and commands match current tooling?
 * **Backlog registry**: Does the registered backlog tool still match the installed tool? Has the tool been switched?
-* **Runtime verification and closure skills**: Do they match the current runtime surfaces and deployment model?
+* **Runtime verification and closure skills**: Do they match the current runtime surfaces, `runtime_validation.validator_manifest`, `runtime_validation.validation_expectations`, and `runtime_validation.releasability` rather than stale report-oriented runtime notes?
 * **Risky-plan hardening coherence**: Verify the plan-hardening pipeline is consistent:
   1. impl-plan template still includes the `Plan Hardening Signals` section and concludes with `Requires plan hardening: yes|no`
   2. stage agent Step 3 references the `Requires plan hardening` conclusion and invokes plan-harden when `yes`
@@ -233,10 +233,10 @@ For each installed artifact, check:
 * **Agent-intercom weaving**: If intercom markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference heartbeat, broadcast, approval-routing, and degraded-mode handling?
 * **Agent-engram weaving**: If engram markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference engram-first search, workspace binding, and freshness / fallback behavior?
 * **backlogit weaving**: If backlogit is the selected backlog tool, do instructions and backlog-aware agents consistently reference queue, query, dependency, memory, checkpoint, or traceability behaviors?
-* **Browser-verification weaving**: If browser tooling and web UI surfaces exist, do AGENTS.md, copilot-instructions, runtime verification, operational closure, and the browser-verification instruction file consistently reference server readiness, route selection, headed/headless choice, and human checkpoints?
+* **Browser-verification weaving**: If browser tooling and web UI surfaces exist, do AGENTS.md, copilot-instructions, runtime verification, operational closure, and the browser-verification instruction file consistently reference server readiness, route selection, headed/headless choice, human checkpoints, validator evidence, and manual checkpoint evidence?
 * **Continuous-learning weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, the continuous-learning instruction file, and the `observe` / `learn` / `evolve` skills consistently reference observation capture, instinct formation, and promotion thresholds?
 * **Strict-safety weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `strict-safety.instructions.md`, `safety-modes`, `plan-harden`, review, and closure workflows consistently reference `ProposedAction`, `ActionRisk`, `ActionResult`, and approval expectations?
-* **Release-observability weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `release-observability.instructions.md`, operational-closure, and runtime-verification consistently reference monitoring plans, observation windows, and rollback triggers?
+* **Release-observability weaving**: If the pack is enabled, do AGENTS.md, copilot-instructions, `release-observability.instructions.md`, operational-closure, and runtime-verification consistently reference monitoring plans, observation windows, rollback triggers, validator evidence, and releasability evidence?
 * **Agent-native parity reviewer**: If MCP or parity-sensitive agent tooling is now present, does the review layer install and route `agent-native-parity-reviewer.agent.md` where appropriate?
 * **Script artifacts**: For each manifest-recorded script artifact (acquire_lock.ps1/.sh, release_lock.ps1/.sh, search.ps1/.sh):
   1. Verify the file exists at `{workspace_path}/scripts/{script_name}`
@@ -302,6 +302,7 @@ current workspace profile recommendations:
 | agent-engram markers detected but `agent-engram` pack missing | Growth or Degrading | Propose enabling the pack and weaving engram-first search guidance through the harness |
 | backlogit detected as the active backlog tool but `backlogit` pack missing | Growth or Degrading | Propose enabling the pack and weaving backlogit-native workflows through the harness |
 | Browser tooling and web UI detected but `browser-verification` pack missing | Growth or Degrading | Propose enabling the pack and weaving browser-verification guidance through runtime verification and closure |
+| `runtime_validation.validator_manifest` or `runtime_validation.releasability` missing/stale for detected runtime surfaces | Degrading | Propose rerunning workspace-discovery and rewiring Ship/runtime/closure artifacts to the validator evidence / releasability evidence model |
 | Recurring observation/learning workflow desired but `continuous-learning` pack missing | Growth | Propose enabling the pack and installing observe / learn / evolve workflows |
 | Elevated runtime, migration, or security risk detected but `strict-safety` pack missing | Growth or Degrading | Propose enabling the pack and weaving explicit action classification through risky workflows |
 | Risky-plan hardening guidance missing or stale | Degrading | Propose retuning stage, plan-harden, and plan-review together so risky plans are hardened before harvest |
@@ -332,6 +333,12 @@ Treat partially woven overlays as a first-class drift category rather than a cos
 Separately, treat conditional reviewer drift as real harness drift when the
 workspace now requires parity-sensitive review but the review layer still lacks
 `agent-native-parity-reviewer.agent.md` or the routing logic to invoke it.
+
+Also treat local-first review drift as real harness drift when the review layer
+lacks `correctness-reviewer.agent.md`, `maintainability-reviewer.agent.md`,
+`template-integrity-reviewer.agent.md`, `schema-cli-docs-coupling-reviewer.agent.md`, or the
+local review readiness contract (`READY`, `READY_WITH_FOLLOWUPS`, `BLOCKED`)
+that Ship and pr-lifecycle depend on before PR presentation.
 
 **graphtor-docs overlay coherence checks**: When `graphtor-docs` is in the enabled pack list, verify:
 

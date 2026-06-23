@@ -56,11 +56,45 @@ structure:
   doc_layout: "docs"
 
 runtime_surfaces:
+  cli: true
   web_ui: false
   public_api: false
   background_jobs: false
   browser_tooling: []
   deployment_manifests: []
+
+runtime_validation:
+  validator_manifest:
+    surfaces:
+      - surface: "cli"
+        adapter_hint: "command"
+        probe_hints:
+          - id: "cli-help"
+            kind: "command"
+            target: "autoharness --help"
+            command: "uv run autoharness --help"
+            url: null
+            route: null
+            expected_signal: "Command exits successfully and prints CLI help text"
+            required: true
+            evidence_types:
+              - "stdout"
+              - "exit-code"
+            notes: "Smoke-check the packaged CLI entrypoint before treating a release as validated"
+        manual_checkpoints: []
+  validation_expectations:
+    required: true
+    surfaces_expected:
+      - "cli"
+    minimum_verdict: "PASS"
+    preserve_invariants:
+      - "The autoharness CLI starts without import, packaging, or option-parsing failures"
+    release_blockers:
+      - "The CLI help smoke check fails"
+  releasability:
+    required: false
+    status_when_satisfied: "READY"
+    required_evidence: []
 
 conventions:
   code_style:

@@ -211,6 +211,96 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
+    def test_runtime_validator_model_is_woven_through_runtime_and_architecture_surfaces(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
+            repo_root / "schemas" / "workspace-profile.schema.json": [
+                '"runtime_validation"',
+                '"validator_manifest"',
+                '"PASS_WITH_FOLLOW_UP"',
+                '"READY_WITH_CONDITIONS"',
+            ],
+            repo_root / "schemas" / "workspace-profile" / "1.0.0.schema.json": [
+                '"runtime_validation"',
+                '"validator_manifest"',
+                '"PASS_WITH_FOLLOW_UP"',
+                '"READY_WITH_CONDITIONS"',
+            ],
+            repo_root / ".autoharness" / "workspace-profile.yaml": [
+                "runtime_validation:",
+                "validator_manifest:",
+                'minimum_verdict: "PASS"',
+                'status_when_satisfied: "READY"',
+            ],
+            repo_root / "templates" / "skills" / "runtime-verification" / "SKILL.md.tmpl": [
+                "runtime_validation.validator_manifest",
+                "validator evidence",
+                "manual checkpoint evidence",
+                "PASS_WITH_FOLLOW_UP",
+            ],
+            repo_root / "templates" / "skills" / "operational-closure" / "SKILL.md.tmpl": [
+                "validator evidence",
+                "releasability evidence",
+                "READY_WITH_CONDITIONS",
+            ],
+            repo_root / "templates" / "instructions" / "browser-verification.instructions.md.tmpl": [
+                "validator evidence",
+                "manual checkpoint evidence",
+                "releasability evidence",
+            ],
+            repo_root / "templates" / "instructions" / "release-observability.instructions.md.tmpl": [
+                "validator evidence",
+                "releasability evidence",
+                "READY_WITH_CONDITIONS",
+            ],
+            repo_root / "templates" / "agents" / "ship.agent.md.tmpl": [
+                "runtime_validation.validator_manifest",
+                "validator evidence",
+                "releasability evidence",
+            ],
+            repo_root / ".github" / "agents" / "ship.agent.md": [
+                "runtime_validation.validator_manifest",
+                "validator evidence",
+                "releasability evidence",
+            ],
+            repo_root / ".github" / "skills" / "workspace-discovery" / "SKILL.md": [
+                "runtime_validation:",
+                "validator_manifest",
+                "validation_expectations",
+                "releasability:",
+            ],
+            repo_root / ".github" / "skills" / "install-harness" / "SKILL.md": [
+                "runtime_validation.validator_manifest",
+                "runtime_validation.validation_expectations",
+                "runtime_validation.releasability",
+            ],
+            repo_root / ".github" / "skills" / "tune-harness" / "SKILL.md": [
+                "runtime_validation.validator_manifest",
+                "validator evidence",
+                "releasability evidence",
+            ],
+            repo_root / ".github" / "instructions" / "harness-architecture.instructions.md": [
+                "validator evidence",
+                "releasability evidence",
+                "report-oriented runtime checks",
+            ],
+            repo_root / "docs" / "primitives.md": [
+                "validator evidence",
+                "releasability evidence",
+                "report-oriented runtime checks",
+            ],
+            repo_root / "docs" / "capability-packs.md": [
+                "validator evidence",
+                "releasability evidence",
+            ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
+
     def test_role_boundary_tables_present_in_both_agent_templates(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         for tmpl_name in ("stage.agent.md.tmpl", "ship.agent.md.tmpl"):
@@ -826,6 +916,244 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 encoding="utf-8"
             )
             self.assertIn("grouped summaries: 2 (from 9 findings)", markdown_report)
+
+    def test_verify_workspace_checks_runtime_validation_contracts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "instructions").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "workspace-discovery").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "install-harness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "tune-harness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-23T00:00:00Z",
+                    "autoharness_version": "1.3.4",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1, 4, 10],
+                    "capability_packs": ["browser-verification", "release-observability"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(
+                workspace / ".autoharness" / "workspace-profile.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "runtime_surfaces": {
+                        "cli": True,
+                        "web_ui": True,
+                        "public_api": False,
+                        "background_jobs": False,
+                        "browser_tooling": ["playwright"],
+                        "deployment_manifests": ["Dockerfile"],
+                    },
+                    "runtime_validation": {
+                        "validator_manifest": {
+                            "surfaces": [
+                                {
+                                    "surface": "cli",
+                                    "adapter_hint": "command",
+                                    "probe_hints": [
+                                        {
+                                            "id": "cli-help",
+                                            "kind": "command",
+                                            "target": "demo --help",
+                                            "required": True,
+                                            "evidence_types": ["stdout", "exit-code"],
+                                        }
+                                    ],
+                                    "manual_checkpoints": [],
+                                },
+                                {
+                                    "surface": "browser",
+                                    "adapter_hint": "browser",
+                                    "probe_hints": [
+                                        {
+                                            "id": "ui-smoke",
+                                            "kind": "browser-flow",
+                                            "target": "/",
+                                            "required": True,
+                                            "evidence_types": ["screenshot", "trace"],
+                                        }
+                                    ],
+                                    "manual_checkpoints": [
+                                        {
+                                            "id": "oauth",
+                                            "label": "Complete SSO",
+                                            "reason": "External IdP",
+                                            "required_for_release": True,
+                                            "evidence_types": ["operator-note"],
+                                        }
+                                    ],
+                                },
+                            ]
+                        },
+                        "validation_expectations": {
+                            "required": True,
+                            "surfaces_expected": ["cli", "browser"],
+                            "minimum_verdict": "PASS",
+                            "preserve_invariants": ["CLI starts cleanly"],
+                            "release_blockers": ["Browser smoke fails"],
+                        },
+                        "releasability": {
+                            "required": True,
+                            "status_when_satisfied": "READY_WITH_CONDITIONS",
+                            "required_evidence": [
+                                {"kind": "monitoring-plan", "required": True},
+                                {"kind": "rollback-trigger", "required": True},
+                            ],
+                        },
+                    },
+                },
+            )
+
+            (workspace / ".github" / "instructions" / "browser-verification.instructions.md").write_text(
+                "headed\nheadless\nroute\nvalidator evidence\nmanual checkpoint evidence\nreleasability evidence\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "instructions" / "release-observability.instructions.md").write_text(
+                "monitoring\nrollback\nobservation window\nvalidator evidence\nreleasability evidence\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "workspace-discovery" / "SKILL.md").write_text(
+                "runtime_validation:\nvalidator_manifest\nvalidation_expectations\nreleasability:\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "install-harness" / "SKILL.md").write_text(
+                "runtime_validation.validator_manifest\nruntime_validation.validation_expectations\nruntime_validation.releasability\nvalidator evidence\nreleasability evidence\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "tune-harness" / "SKILL.md").write_text(
+                "runtime_validation.validator_manifest\nruntime_validation.validation_expectations\nruntime_validation.releasability\nvalidator evidence\nreleasability evidence\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+                "runtime_validation.validator_manifest\nruntime_validation.validation_expectations\nvalidator evidence\nreleasability evidence\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "instructions" / "harness-architecture.instructions.md").write_text(
+                "validator evidence\nreleasability evidence\nreport-oriented runtime checks\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["runtime_validation_profile_contract"]["ok"])
+            self.assertTrue(targeted_checks["browser_verification_instruction"]["ok"])
+            self.assertTrue(targeted_checks["release_observability_instruction"]["ok"])
+            self.assertTrue(targeted_checks["workspace_discovery_runtime_validation_contract"]["ok"])
+            self.assertTrue(targeted_checks["install_harness_runtime_validation_contract"]["ok"])
+            self.assertTrue(targeted_checks["tune_harness_runtime_validation_contract"]["ok"])
+            self.assertTrue(targeted_checks["ship_runtime_validation_contract"]["ok"])
+            self.assertTrue(targeted_checks["harness_architecture_runtime_validation_contract"]["ok"])
+
+    def test_verify_workspace_flags_missing_runtime_validation_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-05-23T00:00:00Z",
+                    "autoharness_version": "1.3.4",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1, 10],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(
+                workspace / ".autoharness" / "workspace-profile.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "runtime_surfaces": {
+                        "cli": True,
+                        "web_ui": False,
+                        "public_api": False,
+                        "background_jobs": False,
+                        "browser_tooling": [],
+                        "deployment_manifests": [],
+                    },
+                },
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            check = report["targeted_checks"]["runtime_validation_profile_contract"]
+            self.assertFalse(check["ok"])
+            self.assertIn("runtime_validation", check["missing"])
 
     def test_verify_workspace_checks_backlogit_overlay_docs_and_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1638,12 +1966,14 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 report["warnings"],
             )
 
-    def test_security_surface_templates_exist_and_routing_is_wired(self) -> None:
+    def test_review_surface_templates_and_routing_are_wired(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
         expected_templates = [
             repo_root / "templates" / "agents" / "review" / "security-reviewer.agent.md.tmpl",
             repo_root / "templates" / "agents" / "review" / "security-lens-reviewer.agent.md.tmpl",
+            repo_root / "templates" / "agents" / "review" / "template-integrity-reviewer.agent.md.tmpl",
+            repo_root / "templates" / "agents" / "review" / "schema-cli-docs-coupling-reviewer.agent.md.tmpl",
             repo_root / "templates" / "agents" / "security-sentinel.agent.md.tmpl",
             repo_root / "templates" / "skills" / "security-audit" / "SKILL.md.tmpl",
         ]
@@ -1655,6 +1985,11 @@ class VerifyWorkspaceTests(unittest.TestCase):
         review_content = review_skill.read_text(encoding="utf-8")
         self.assertIn("Security Reviewer", review_content)
         self.assertIn("security-reviewer.agent.md", review_content)
+        self.assertIn("Template Integrity Reviewer", review_content)
+        self.assertIn("template-integrity-reviewer.agent.md", review_content)
+        self.assertIn("Schema-CLI-Docs Coupling Reviewer", review_content)
+        self.assertIn("schema-cli-docs-coupling-reviewer.agent.md", review_content)
+        self.assertIn("READY_WITH_FOLLOWUPS", review_content)
 
         plan_review_skill = repo_root / "templates" / "skills" / "plan-review" / "SKILL.md.tmpl"
         plan_review_content = plan_review_skill.read_text(encoding="utf-8")
@@ -1716,7 +2051,14 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (workspace / ".github" / "skills" / "review" / "SKILL.md").write_text(
                 "## Conditional Personas\n"
                 "| **Security Reviewer** | auth middleware, endpoints | Different |\n"
-                "security-reviewer.agent.md\n",
+                "| **Template Integrity Reviewer** | templates, markdown harness assets | Different |\n"
+                "| **Schema-CLI-Docs Coupling Reviewer** | schemas + docs + verification | Different |\n"
+                "READY_WITH_FOLLOWUPS\n"
+                "BLOCKED\n"
+                "reviewed HEAD SHA\n"
+                "security-reviewer.agent.md\n"
+                "template-integrity-reviewer.agent.md\n"
+                "schema-cli-docs-coupling-reviewer.agent.md\n",
                 encoding="utf-8",
             )
             (workspace / ".github" / "skills" / "plan-review" / "SKILL.md").write_text(
@@ -1733,6 +2075,9 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["security_review_persona_routing"]["ok"])
+            self.assertTrue(targeted_checks["local_review_readiness_contract"]["ok"])
+            self.assertTrue(targeted_checks["template_integrity_reviewer_routing"]["ok"])
+            self.assertTrue(targeted_checks["schema_cli_docs_reviewer_routing"]["ok"])
             self.assertTrue(targeted_checks["security_plan_review_persona_routing"]["ok"])
 
     def test_browser_experiment_skill_templates_exist_and_install_harness_is_wired(self) -> None:
@@ -2298,7 +2643,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (workspace / ".github" / "policies" / "workflow-policies.md").write_text(
                 "## P-013: Agent Tier Hierarchy and Escalation\n\n"
                 "Every agent must operate at the tier declared in its frontmatter model_tier field.\n"
-                "An agent must not invoke a subagent at a tier higher than its max_subagent_tier.\n",
+                "An agent must not invoke a subagent at a tier higher than its max_subagent_tier.\n\n"
+                "## P-014: Local Review Readiness Merge Gate\n\n"
+                "The readiness summary must include the reviewed HEAD SHA.\n"
+                "Outcome may be READY or READY_WITH_FOLLOWUPS.\n",
                 encoding="utf-8",
             )
 
@@ -2308,6 +2656,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertEqual(report["blockers"], [])
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["p013_policy_in_workflow_policies"]["ok"])
+            self.assertTrue(targeted_checks["p014_local_review_policy"]["ok"])
 
     def test_verify_workspace_flags_missing_release_closure_sequence_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -1,0 +1,5 @@
+{"timestamp":"2026-05-23T16:46:17.1756167-07:00","actor":"backlogit","item_id":"051-S","event_type":"shipment_created","delta":{"items":["049-F","049.001-T","049.002-T","049.003-T","049.004-T"],"title":"Reference adoption follow-ups from ATV research"}}
+{"timestamp":"2026-05-23T17:04:45.8608901-07:00","actor":"backlogit","item_id":"051-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-05-24T14:59:33.1849129-07:00","actor":"backlogit","item_id":"051-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-05-24T14:59:33.593158-07:00","actor":"backlogit","item_id":"051-S","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"0ae229db8162898331e803d9897384b5fc97fb0f","message":"Merge pull request #110 from softwaresalt/feat/051-s-reference-adoption-follow-ups-from-atv-research"}}
+{"timestamp":"2026-05-24T14:59:39.1396975-07:00","actor":"backlogit","item_id":"051-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/051-S.md"}}

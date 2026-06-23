@@ -218,14 +218,27 @@ PACK_ASSERTIONS = {
         {
             "key": "release_observability_instruction",
             "path": ".github/instructions/release-observability.instructions.md",
-            "must_contain": ["monitoring", "rollback", "observation window"],
+            "must_contain": [
+                "monitoring",
+                "rollback",
+                "observation window",
+                "validator evidence",
+                "releasability evidence",
+            ],
         }
     ],
     "browser-verification": [
         {
             "key": "browser_verification_instruction",
             "path": ".github/instructions/browser-verification.instructions.md",
-            "must_contain": ["headed", "headless", "route"],
+            "must_contain": [
+                "headed",
+                "headless",
+                "route",
+                "validator evidence",
+                "manual checkpoint evidence",
+                "releasability evidence",
+            ],
         }
     ],
     "continuous-learning": [
@@ -299,6 +312,57 @@ FOUNDATION_ASSERTIONS = [
             "queue-aware and dependency-aware operations",
             "commit-tracking",
             "parallel markdown trackers",
+        ],
+    },
+    {
+        "key": "workspace_discovery_runtime_validation_contract",
+        "path": ".github/skills/workspace-discovery/SKILL.md",
+        "must_contain": [
+            "runtime_validation:",
+            "validator_manifest",
+            "validation_expectations",
+            "releasability:",
+        ],
+    },
+    {
+        "key": "install_harness_runtime_validation_contract",
+        "path": ".github/skills/install-harness/SKILL.md",
+        "must_contain": [
+            "runtime_validation.validator_manifest",
+            "runtime_validation.validation_expectations",
+            "runtime_validation.releasability",
+            "validator evidence",
+            "releasability evidence",
+        ],
+    },
+    {
+        "key": "tune_harness_runtime_validation_contract",
+        "path": ".github/skills/tune-harness/SKILL.md",
+        "must_contain": [
+            "runtime_validation.validator_manifest",
+            "runtime_validation.validation_expectations",
+            "runtime_validation.releasability",
+            "validator evidence",
+            "releasability evidence",
+        ],
+    },
+    {
+        "key": "ship_runtime_validation_contract",
+        "path": ".github/agents/ship.agent.md",
+        "must_contain": [
+            "runtime_validation.validator_manifest",
+            "runtime_validation.validation_expectations",
+            "validator evidence",
+            "releasability evidence",
+        ],
+    },
+    {
+        "key": "harness_architecture_runtime_validation_contract",
+        "path": ".github/instructions/harness-architecture.instructions.md",
+        "must_contain": [
+            "validator evidence",
+            "releasability evidence",
+            "report-oriented runtime checks",
         ],
     },
     {
@@ -449,6 +513,31 @@ FOUNDATION_ASSERTIONS = [
         ],
     },
     {
+        "key": "local_review_readiness_contract",
+        "path": ".github/skills/review/SKILL.md",
+        "must_contain": [
+            "READY_WITH_FOLLOWUPS",
+            "BLOCKED",
+            "reviewed HEAD SHA",
+        ],
+    },
+    {
+        "key": "template_integrity_reviewer_routing",
+        "path": ".github/skills/review/SKILL.md",
+        "must_contain": [
+            "Template Integrity Reviewer",
+            "template-integrity-reviewer.agent.md",
+        ],
+    },
+    {
+        "key": "schema_cli_docs_reviewer_routing",
+        "path": ".github/skills/review/SKILL.md",
+        "must_contain": [
+            "Schema-CLI-Docs Coupling Reviewer",
+            "schema-cli-docs-coupling-reviewer.agent.md",
+        ],
+    },
+    {
         "key": "security_plan_review_persona_routing",
         "path": ".github/skills/plan-review/SKILL.md",
         "must_contain": [
@@ -500,6 +589,15 @@ FOUNDATION_ASSERTIONS = [
             "P-013",
             "model_tier",
             "max_subagent_tier",
+        ],
+    },
+    {
+        "key": "p014_local_review_policy",
+        "path": ".github/policies/workflow-policies.md",
+        "must_contain": [
+            "Local Review Readiness Merge Gate",
+            "READY_WITH_FOLLOWUPS",
+            "reviewed HEAD SHA",
         ],
     },
 ]
@@ -1602,6 +1700,137 @@ def _add_text_check(
     }
 
 
+def _add_runtime_validation_profile_check(
+    report: dict[str, Any],
+    profile_path: Path,
+    profile: dict[str, Any],
+    installed_packs: list[str],
+) -> None:
+    runtime_validation = profile.get("runtime_validation")
+    runtime_surfaces = profile.get("runtime_surfaces") or {}
+
+    missing: list[str] = []
+    errors: list[str] = []
+    manifest_surfaces: set[str] = set()
+    expected_surfaces_from_profile: set[str] = set()
+    surfaces_expected: set[str] = set()
+
+    surface_flags = {
+        "cli": bool(runtime_surfaces.get("cli")),
+        "api": bool(runtime_surfaces.get("public_api")),
+        "browser": bool(runtime_surfaces.get("web_ui")),
+        "background-job": bool(runtime_surfaces.get("background_jobs")),
+    }
+    expected_surfaces_from_profile = {
+        surface_name for surface_name, present in surface_flags.items() if present
+    }
+
+    if not isinstance(runtime_validation, dict):
+        missing.append("runtime_validation")
+    else:
+        validator_manifest = runtime_validation.get("validator_manifest")
+        validation_expectations = runtime_validation.get("validation_expectations")
+        releasability = runtime_validation.get("releasability")
+
+        if not isinstance(validator_manifest, dict):
+            missing.append("runtime_validation.validator_manifest")
+        else:
+            raw_surfaces = validator_manifest.get("surfaces")
+            if not isinstance(raw_surfaces, list):
+                missing.append("runtime_validation.validator_manifest.surfaces")
+            else:
+                for index, entry in enumerate(raw_surfaces):
+                    if not isinstance(entry, dict):
+                        errors.append(
+                            f"runtime_validation.validator_manifest.surfaces[{index}] must be an object"
+                        )
+                        continue
+                    surface_name = entry.get("surface")
+                    if isinstance(surface_name, str) and surface_name:
+                        manifest_surfaces.add(surface_name)
+                    else:
+                        errors.append(
+                            f"runtime_validation.validator_manifest.surfaces[{index}].surface missing"
+                        )
+
+                    probe_hints = entry.get("probe_hints")
+                    if not isinstance(probe_hints, list):
+                        errors.append(
+                            f"runtime_validation.validator_manifest.surfaces[{index}].probe_hints missing"
+                        )
+
+                    manual_checkpoints = entry.get("manual_checkpoints")
+                    if not isinstance(manual_checkpoints, list):
+                        errors.append(
+                            f"runtime_validation.validator_manifest.surfaces[{index}].manual_checkpoints missing"
+                        )
+
+        if not isinstance(validation_expectations, dict):
+            missing.append("runtime_validation.validation_expectations")
+        else:
+            raw_surfaces_expected = validation_expectations.get("surfaces_expected")
+            if not isinstance(raw_surfaces_expected, list):
+                missing.append("runtime_validation.validation_expectations.surfaces_expected")
+            else:
+                surfaces_expected = {
+                    str(surface_name)
+                    for surface_name in raw_surfaces_expected
+                    if isinstance(surface_name, str) and surface_name
+                }
+
+            if "required" not in validation_expectations:
+                missing.append("runtime_validation.validation_expectations.required")
+            elif expected_surfaces_from_profile and not bool(validation_expectations.get("required")):
+                errors.append(
+                    "runtime_validation.validation_expectations.required must be true when runtime surfaces were detected"
+                )
+
+            if "minimum_verdict" not in validation_expectations:
+                missing.append("runtime_validation.validation_expectations.minimum_verdict")
+
+        if not isinstance(releasability, dict):
+            missing.append("runtime_validation.releasability")
+        else:
+            if "required" not in releasability:
+                missing.append("runtime_validation.releasability.required")
+            if "status_when_satisfied" not in releasability:
+                missing.append("runtime_validation.releasability.status_when_satisfied")
+            if not isinstance(releasability.get("required_evidence"), list):
+                missing.append("runtime_validation.releasability.required_evidence")
+
+            needs_releasability = bool(runtime_surfaces.get("deployment_manifests")) or (
+                "release-observability" in installed_packs
+            )
+            if needs_releasability and not bool(releasability.get("required")):
+                errors.append(
+                    "runtime_validation.releasability.required must be true when deployment or release-observability signals are present"
+                )
+
+    missing_manifest_surfaces = sorted(expected_surfaces_from_profile - manifest_surfaces)
+    if missing_manifest_surfaces:
+        errors.append(
+            "validator_manifest is missing detected runtime surfaces: "
+            + ", ".join(missing_manifest_surfaces)
+        )
+
+    missing_expected_surfaces = sorted(expected_surfaces_from_profile - surfaces_expected)
+    if missing_expected_surfaces:
+        errors.append(
+            "validation_expectations.surfaces_expected is missing detected runtime surfaces: "
+            + ", ".join(missing_expected_surfaces)
+        )
+
+    report["targeted_checks"]["runtime_validation_profile_contract"] = {
+        "path": str(profile_path),
+        "ok": not missing and not errors,
+        "missing": missing,
+        "errors": errors,
+        "expected_surfaces": sorted(expected_surfaces_from_profile),
+        "manifest_surfaces": sorted(manifest_surfaces),
+        "surfaces_expected": sorted(surfaces_expected),
+    }
+
+
 def _run_portability_scan(workspace_path: Path) -> list[dict[str, Any]]:
     """Scan harness artifact directories for non-portable environment-specific paths."""
     scan_dirs = [
@@ -1753,6 +1982,8 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
             lines.append(f"- {key}: {status}")
             if check.get("missing"):
                 lines.append(f"  missing: {', '.join(check['missing'])}")
+            if check.get("errors"):
+                lines.append(f"  errors: {'; '.join(check['errors'])}")
             elif check.get("reason"):
                 lines.append(f"  reason: {check['reason']}")
     else:
@@ -1916,6 +2147,12 @@ def verify_workspace(
             plan_schema_contract_migrations(kind, path, data, contract_warnings)
         )
 
+    installed_packs = [
+        str(pack)
+        for pack in (manifest.get("capability_packs") or config.get("capability_packs") or [])
+        if str(pack) in SUPPORTED_CAPABILITY_PACKS
+    ]
+
     variables = _derive_template_variables(workspace_path, manifest, config, profile, registry)
     report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
 
@@ -2035,11 +2272,14 @@ def verify_workspace(
         )
         report["unresolved"].extend(_find_unresolved_placeholders(stage_path))
 
-    installed_packs = [
-        str(pack)
-        for pack in (manifest.get("capability_packs") or config.get("capability_packs") or [])
-        if str(pack) in SUPPORTED_CAPABILITY_PACKS
-    ]
+    if profile_path.exists() and profile:
+        _add_runtime_validation_profile_check(
+            report,
+            profile_path,
+            profile,
+            installed_packs,
+        )
+
     for pack in installed_packs:
         for assertion in PACK_ASSERTIONS.get(pack, []):
             _add_text_check(

@@ -317,6 +317,8 @@ target-workspace/
         scope-boundary-auditor.agent.md
         {language}-reviewer.agent.md     # Technology-specific reviewer
         concurrency-reviewer.agent.md    # If applicable
+        template-integrity-reviewer.agent.md
+        schema-cli-docs-coupling-reviewer.agent.md
       research/
         learnings-researcher.agent.md
     skills/
@@ -408,6 +410,8 @@ Review personas are specialized subagents spawned by the `review` and
 | Concurrency Reviewer | Concurrent/async patterns (if applicable) | Race conditions, deadlocks |
 | Scope Boundary Auditor | Changes spanning multiple domains | Scope creep, YAGNI |
 | Agent-Native Parity Reviewer | MCP tools, agent-facing actions | User/agent workflow symmetry |
+| Template Integrity Reviewer | `.tmpl` files, Markdown harness surfaces | Frontmatter, placeholder, and cross-reference integrity |
+| Schema-CLI-Docs Coupling Reviewer | Schema + CLI + docs diffs | Cross-domain migration and documentation coupling |
 
 Cross-model diversity is preferred (different models for different personas)
 but not blocking.
@@ -432,9 +436,10 @@ The installer runs automatic verification. You can also manually check:
 4. Confirm instruction file `applyTo` patterns match your file extensions
 5. Confirm the selected preset and capability packs are recorded in `.autoharness/harness-manifest.yaml`
 6. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
-7. If `agent-intercom` is enabled, verify `.github/instructions/agent-intercom.instructions.md` exists and the installed agents/skills reference intercom heartbeat, broadcast, and approval usage where expected
-8. If `agent-engram` is enabled, verify `.github/instructions/agent-engram.instructions.md` exists and the installed agents/skills reference engram-first search, workspace binding, or indexed-fallback behaviors where expected
-9. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md`, `.github/instructions/backlogit-sql-schema.instructions.md`, and `.github/instructions/backlogit-yaml-header-tooling.instructions.md` exist and the installed agents/skills reference backlogit query / queue / memory / traceability / source-artifact-cleanup behaviors where expected
+7. Confirm the local review layer is present: `.github/skills/review/SKILL.md` declares `READY`, `READY_WITH_FOLLOWUPS`, and `BLOCKED`, and `.github/policies/workflow-policies.md` records the P-014 local review readiness gate
+8. If `agent-intercom` is enabled, verify `.github/instructions/agent-intercom.instructions.md` exists and the installed agents/skills reference intercom heartbeat, broadcast, and approval usage where expected
+9. If `agent-engram` is enabled, verify `.github/instructions/agent-engram.instructions.md` exists and the installed agents/skills reference engram-first search, workspace binding, or indexed-fallback behaviors where expected
+10. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md`, `.github/instructions/backlogit-sql-schema.instructions.md`, and `.github/instructions/backlogit-yaml-header-tooling.instructions.md` exist and the installed agents/skills reference backlogit query / queue / memory / traceability / source-artifact-cleanup behaviors where expected
 
 ### First Use
 
@@ -443,13 +448,14 @@ The installer runs automatic verification. You can also manually check:
 3. Review the decision or findings artifact and promote to a plan or queue
 4. If promoted to plan, the stage agent decomposes it into tasks via the harvest skill
 5. Select the **Ship** agent from the agents dropdown to implement the feature or chore
-6. The ship agent handles harness generation, build, review, CI, and PR lifecycle
-7. If the feature or chore changes runtime behavior, ship runs `runtime-verification`
-8. Ship captures release readiness and follow-up monitoring with `operational-closure`
-9. After merge, ship can invoke `compound-refresh` when shipped work supersedes, duplicates, or invalidates existing learnings in `docs/compound/`
-10. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
-11. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
-12. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, checkpoint, YAML/frontmatter, or source-artifact-cleanup workflows
+6. Ship runs the local review gate before PR presentation and records a readiness outcome for the reviewed HEAD: `READY`, `READY_WITH_FOLLOWUPS`, or `BLOCKED`
+7. Optional Copilot shadow review can still run on GitHub during migration, but local review readiness is the required gate
+8. If the feature or chore changes runtime behavior, ship runs `runtime-verification`
+9. Ship captures release readiness and follow-up monitoring with `operational-closure`
+10. After merge, ship can invoke `compound-refresh` when shipped work supersedes, duplicates, or invalidates existing learnings in `docs/compound/`
+11. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
+12. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
+13. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, checkpoint, YAML/frontmatter, or source-artifact-cleanup workflows
 
 ## Updating autoharness
 

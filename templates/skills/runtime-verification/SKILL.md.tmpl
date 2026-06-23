@@ -1,5 +1,5 @@
 ---
-description: "Validate affected runtime surfaces after build and CI using manual, API, or browser-backed verification"
+description: "Validate affected runtime surfaces after build and CI using adapter-based runtime validators and structured evidence"
 ---
 
 ## Runtime Verification
@@ -20,13 +20,17 @@ Invoke after CI is green, before merge, after merge, or after deployment wheneve
 
 * `surface`: (Required) One of `cli`, `api`, `browser`, `background-job`, or `auto`.
 * `target`: (Optional) Path, URL, command, or subsystem to verify.
-* `mode`: (Optional, default `auto`) One of `manual`, `api`, `browser`, or `auto`.
+* `mode`: (Optional, default `auto`) Operator-facing execution mode. One of `manual`, `api`, `browser`, or `auto`.
+* `adapter`: (Optional) Explicit validator adapter override. One of `command`, `http`, `browser`, `job`, or `manual`.
 * `context`: (Optional) PR, task, branch, or feature context.
+* `validator_manifest`: (Optional) Structured contract from `runtime_validation.validator_manifest` describing surface adapters, probe hints, and manual checkpoints.
+* `validation_expectations`: (Optional) Structured expectations from `runtime_validation.validation_expectations` describing required surfaces, minimum verdict, invariants, and explicit release blockers.
 
 ## Output
 
 * Verification report at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-runtime-verification.md`
-* PASS / PASS WITH FOLLOW-UP / FAIL / BLOCKED verdict with evidence, follow-up risks, and recommended next action
+* Structured validator evidence containing surface adapter selection, probe outcomes, manual checkpoint evidence, blocked prerequisites, follow-up risks, and recommended next action
+* `PASS`, `PASS_WITH_FOLLOW_UP`, `FAIL`, or `BLOCKED` verdict (render `PASS WITH FOLLOW-UP` in prose when helpful)
 
 ## Required Protocol
 
@@ -52,17 +56,36 @@ When the `release-observability` capability pack is installed, also follow
 monitoring plan and rollback triggers during verification so the verification
 report can confirm whether monitoring is active and rollback paths are ready.
 
-### Step 1: Determine Verification Depth and Invariants
+### Step 1: Load the Validator Contract
 
-Choose the lowest-cost verification that still gives confidence:
+Resolve the structured runtime-validation contract from explicit inputs or
+`.autoharness/workspace-profile.yaml`:
 
-* **CLI** → run representative commands, inspect output, validate exit codes
-* **API** → hit representative endpoints, confirm response shape/status, inspect logs if available
-* **Browser** → verify user-visible flows, rendering, navigation, and critical interactions
-* **Background job** → confirm trigger path, observable side effects, and logs or queue state
+* `runtime_validation.validator_manifest` — source of truth for surface adapters,
+  probe hints, and manual checkpoints
+* `runtime_validation.validation_expectations` — expected surfaces, minimum
+  verdict, invariants, and explicit release blockers
 
-If `surface=auto`, infer the surface from the changed files and PR context. Record
-the main invariants that must still hold after the change.
+Choose the lowest-cost adapter that still gives confidence:
+
+* **CLI / command adapter** → run representative commands, inspect output, validate exit codes
+* **API / HTTP adapter** → hit representative endpoints, confirm response shape/status, inspect logs if available
+* **Browser adapter** → verify user-visible flows, rendering, navigation, and critical interactions
+* **Background-job adapter** → confirm trigger path, observable side effects, and logs or queue state
+
+If `adapter` is provided, validate that it is compatible with the selected
+surface and document why it overrides the default choice. If `mode` is provided,
+treat it as the execution style (`browser`, `api`, `manual`) and derive the
+concrete adapter from `validator_manifest.surfaces[].adapter_hint`:
+
+* `mode=api` usually maps to the `http` adapter
+* `mode=browser` maps to the `browser` adapter
+* `mode=manual` maps to the `manual` adapter
+* `mode=auto` defers to the manifest's adapter hint or the inferred surface
+
+If `surface=auto`, infer the surface from the changed files and PR context, then
+confirm the selected surface appears in `validator_manifest.surfaces[]` before
+continuing. Record the main invariants that must still hold after the change.
 
 ### Step 2: Run Environment Prechecks
 
@@ -77,11 +100,12 @@ Before exercising the runtime surface, verify:
 If the environment cannot support meaningful verification, return **BLOCKED**
 with the exact missing prerequisite instead of pretending the surface was tested.
 
-### Step 3: Select Verification Mode
+### Step 3: Select Adapter and Execution Mode
 
 * Use **browser** mode only when browser tooling is available or the workspace enabled the `browser-verification` capability pack
 * Use **api** mode when HTTP or RPC verification is sufficient
 * Use **manual** mode when the runtime surface cannot be exercised automatically in the current environment
+* Prefer the adapter hinted by `validator_manifest.surfaces[].adapter_hint` unless the current environment forces a safer downgrade
 
 When browser mode is selected:
 
@@ -106,37 +130,40 @@ Choose scenarios from the changed surface, not from convenience alone:
 Record:
 
 * What was verified
+* Which validator adapter ran for each surface
 * Any relevant risky action and current `ActionResult` when the verification is tied to a high-risk, destructive, migration, or rollback-sensitive step
-* The exact commands, URLs, or scenarios used
+* The exact commands, URLs, routes, jobs, or scenarios used
 * Expected behavior
 * Observed behavior
-* Evidence collected (logs, responses, screenshots, or notes)
+* Validator evidence collected (logs, responses, screenshots, traces, stdout, exit codes, or notes)
 
 For browser-backed verification:
 
 * confirm the server is available before launching the browser
 * record whether verification ran headed or headless
-* pause at declared human stop points and capture what the operator must confirm
+* pause at declared human stop points and capture manual checkpoint evidence describing what the operator must confirm, what actually happened, and whether the checkpoint blocks release
 
 ### Step 6: Decide Verification Status
 
 Return one of:
 
-* **PASS** — the runtime surface behaved as expected
-* **PASS WITH FOLLOW-UP** — usable but additional monitoring or cleanup is required
-* **FAIL** — the runtime surface did not behave as expected
-* **BLOCKED** — meaningful verification could not proceed because a required environment dependency was missing
+* **PASS** / `PASS` — the runtime surface behaved as expected
+* **PASS WITH FOLLOW-UP** / `PASS_WITH_FOLLOW_UP` — usable but additional monitoring or cleanup is required
+* **FAIL** / `FAIL` — the runtime surface did not behave as expected
+* **BLOCKED** / `BLOCKED` — meaningful verification could not proceed because a required environment dependency was missing
 
 ### Step 7: Feed Operational Closure
 
-Hand the following to `operational-closure` as a structured handoff:
+Hand the following to `operational-closure` as structured validator evidence:
 
 * **Verification verdict**: PASS, PASS WITH FOLLOW-UP, FAIL, or BLOCKED
-* **Runtime surfaces verified**: which surfaces were exercised and how
-* **Evidence collected**: commands, URLs, responses, logs, screenshots, or notes
+* **Runtime surfaces verified**: which surfaces were exercised, which adapters were used, and how those choices mapped to `runtime_validation.validator_manifest`
+* **Evidence collected**: commands, URLs, responses, logs, screenshots, traces, or notes
+* **Manual checkpoint evidence**: explicit outcomes for any operator-assisted or external flow stop points
 * **BLOCKED prerequisites**: if BLOCKED, the exact missing dependency or environment gap
 * **Risky action state**: any `ProposedAction` entries and their current `ActionResult` when verification is tied to a high-risk or rollback-sensitive path
 * **Follow-up recommendations**: monitoring, cleanup, or additional verification needed
+* **Releasability handoff**: which monitoring, rollback, owner, or validation-window requirements from `runtime_validation.releasability` remain to be satisfied during closure
 
 The ship agent MUST invoke operational-closure even when verification is BLOCKED —
 a BLOCKED verdict is not equivalent to PASS and must be recorded as a closure
@@ -147,6 +174,7 @@ condition.
 * Verification targets the runtime surface actually changed by the work
 * Environment prechecks are recorded, not implied
 * Evidence is specific enough that another operator could reproduce it
+* Validator evidence and manual checkpoint evidence stay structured rather than collapsing into report-oriented runtime notes
 * Browser verification chooses headed vs headless intentionally rather than by habit
 * Route or scenario selection is traceable to the changed surface
 * Human verification stop points are explicit when automation cannot complete the flow

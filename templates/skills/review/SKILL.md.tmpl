@@ -42,7 +42,7 @@ Check arguments for `mode:autofix` or `mode:report-only`. Strip the mode token b
 |---|---|---|
 | **Interactive** (default) | No mode token | Review, present findings, ask for decisions |
 | **Autofix** | `mode:autofix` | No user interaction. Apply `safe_auto` fixes only, write artifact, emit residual work |
-| **Report-only** | `mode:report-only` | Read-only. Report findings with no edits, no artifacts, no follow-up item creation |
+| **Report-only** | `mode:report-only` | Read-only. Report findings plus a readiness verdict, with no edits or follow-up item creation |
 
 ### Autofix mode rules
 
@@ -51,13 +51,14 @@ Check arguments for `mode:autofix` or `mode:report-only`. Strip the mode token b
 - Leave `gated_auto`, `manual`, and `advisory` findings unresolved
 - Write a review artifact to `{{DOCS_CLOSURE}}/`
 - Create backlog follow-up items for unresolved actionable findings
+- Record a readiness outcome: `READY`, `READY_WITH_FOLLOWUPS`, or `BLOCKED`
 - Never commit, push, or create a PR
 
 ### Report-only mode rules
 
 - Skip all user questions
 - Never edit files
-- Return structured findings to caller
+- Return structured findings plus a readiness outcome to caller
 - Do not write a review artifact
 - Do not create backlog follow-up items
 - Safe for the ship agent to invoke during the build loop
@@ -86,6 +87,23 @@ Routing rules:
 - Only `safe_auto` findings enter the autofix queue
 - `requires_verification: true` means a fix needs tests or re-review
 
+## Readiness Outcome Contract
+
+Every review run must produce one of these outcomes for the reviewed HEAD:
+
+| Outcome | Meaning | Ship / PR action |
+|---|---|---|
+| `READY` | Zero unresolved P0/P1 findings and no required follow-up items | PR may be prepared |
+| `READY_WITH_FOLLOWUPS` | Zero unresolved P0/P1 findings, but one or more P2/P3 findings need explicit follow-up tracking or residual-risk notes | PR may be prepared only with follow-up handling recorded |
+| `BLOCKED` | One or more unresolved P0/P1 findings remain | Do not create or present a PR |
+
+The readiness summary must include:
+
+* reviewed HEAD SHA or equivalent diff identity
+* counts for P0, P1, P2, and P3 findings
+* follow-up item IDs or residual-risk notes when outcome is `READY_WITH_FOLLOWUPS`
+* whether runtime verification follow-up is required
+
 ## Reviewer Personas
 
 ### Always-On (every review)
@@ -94,6 +112,8 @@ Routing rules:
 |---|---|
 | **Constitution Reviewer** | Constitutional compliance |
 | **{{PRIMARY_LANGUAGE}} Reviewer** | Language-specific safety and correctness |
+| **Correctness Reviewer** | Logic errors, edge cases, and behavioral correctness |
+| **Maintainability Reviewer** | Complexity, coupling, and premature abstraction |
 | **Learnings Researcher** | Search compound library for related past issues |
 
 ### Conditional (based on changed files)
@@ -107,6 +127,8 @@ Use a different model from the caller when available to force genuine diversity 
 | **Scope Boundary Auditor** | Changes spanning multiple domains or exceeding expected scope | Different from caller |
 | **Agent-Native Parity Reviewer** | MCP SDKs, tool handlers, agent-exposed actions, or user/agent parity-critical flows | Different from caller |
 | **Security Reviewer** | Auth middleware, public endpoints, input handling, permission checks, secret management | Different from caller |
+| **Template Integrity Reviewer** | `.tmpl` files, Markdown workflow assets, generated artifact references, or policy/instruction surfaces | Different from caller |
+| **Schema-CLI-Docs Coupling Reviewer** | Cross-domain diffs spanning schemas, CLI verification logic, install/tune skills, and operator docs | Different from caller |
 
 ## Workflow
 
@@ -119,9 +141,11 @@ Use a different model from the caller when available to force genuine diversity 
 
 ### Step 2: Route Personas
 
-1. Always-on: spawn Constitution Reviewer, {{PRIMARY_LANGUAGE}} Reviewer, Learnings Researcher
+1. Always-on: spawn Constitution Reviewer, {{PRIMARY_LANGUAGE}} Reviewer, Correctness Reviewer, Maintainability Reviewer, Learnings Researcher
 2. Conditional: analyze changed file paths, content patterns, and workspace agent-native signals to select additional personas:
    * Select **Security Reviewer** (`security-reviewer.agent.md`) when the diff touches: authentication or authorization code, public endpoint handlers, user input processing, permission or role checks, secret or credential management, or files matching `{{SECURITY_REVIEW_PATTERNS}}`
+   * Select **Template Integrity Reviewer** (`template-integrity-reviewer.agent.md`) when the diff touches template files, Markdown harness artifacts, review/policy/instruction assets, or generated-artifact reference tables
+   * Select **Schema-CLI-Docs Coupling Reviewer** (`schema-cli-docs-coupling-reviewer.agent.md`) when the diff spans schema files, `src/` verification logic, install/tune skills, or operator-facing documentation in the same change set
 3. Broadcast the routing decision with persona count
 
 ### Step 3: Spawn Persona Subagents
@@ -144,6 +168,10 @@ As each persona returns:
 3. Deduplicate: merge findings that identify the same issue
 4. Assign final severity (more conservative on disagreement)
 5. Assign final action routing
+6. Derive the readiness outcome:
+   * `BLOCKED` if any unresolved P0/P1 findings remain
+   * `READY_WITH_FOLLOWUPS` if P0/P1 is clear but actionable P2/P3 findings require backlog follow-up or explicit residual-risk notes
+   * `READY` otherwise
 
 ### Step 5: Apply Actions (mode-dependent)
 
@@ -158,10 +186,11 @@ As each persona returns:
 1. Apply all `safe_auto` findings automatically
 2. Create backlog follow-up items for unresolved actionable findings
 3. Write review artifact to `{{DOCS_CLOSURE}}/`
+4. Include the readiness outcome, reviewed HEAD, and follow-up item IDs in the artifact
 
 **Report-only mode:**
 
-1. Return structured findings to caller
+1. Return structured findings and the readiness outcome to caller
 2. No side effects: no edits, no review artifact, no follow-up items
 
 When the diff changes runtime surfaces, include an explicit recommendation for whether follow-up runtime verification is required and which mode (`manual`, `api`, `browser`) is appropriate.

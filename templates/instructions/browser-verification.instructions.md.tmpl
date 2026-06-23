@@ -67,11 +67,23 @@ these as explicit checkpoints rather than silent test gaps:
 Capture what the operator must verify and feed the result into runtime
 verification and operational closure.
 
+## Validator Evidence Protocol
+
+Every browser probe MUST emit validator evidence:
+
+* record the selected route, environment, adapter, and headed/headless mode
+* attach screenshots, traces, console output, or other browser-native evidence
+  references when available
+* for operator-assisted flows, emit manual checkpoint evidence with the expected
+  confirmation, the observed result, and whether the checkpoint blocks release
+* if the browser path cannot run, record `BLOCKED` validator evidence with the
+  exact missing prerequisite rather than silently downgrading the result
+
 ## Closure Handoff Rule
 
 Browser verification findings must be reflected in closure artifacts:
 
-* successful browser checks become healthy signals or post-deploy checks
+* successful browser checks become releasability evidence entries such as healthy signals or post-deploy checks
 * blocked or partial browser flows become conditions, follow-up monitoring, or
   manual verification requirements
 * failed browser checks must name the route, environment, and observed breakage

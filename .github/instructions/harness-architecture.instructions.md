@@ -267,8 +267,9 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 **Design Rules**:
 
 * Green tests are necessary but not sufficient; runtime validation requirements must be explicit
-* Runtime verification records environment prechecks, affected-surface heuristics, and human verification stop points when automation cannot finish the flow
+* Runtime verification emits structured validator evidence — surface adapters, probe hints, manual checkpoint evidence, verdicts, and blocked prerequisites — instead of report-oriented runtime checks
 * When the `browser-verification` overlay is enabled, runtime verification and closure explicitly model server readiness, route selection, headed/headless choice, and human checkpoints for external flows
+* Operational closure converts validator evidence plus monitoring/rollback requirements into explicit releasability evidence (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`)
 * Closure artifacts record healthy signals, failure signals, validation windows, rollback triggers, and owner
 * Runtime findings feed back into compound learnings, documentation updates, and tuning proposals
 * Primitive 10 is the formal handoff from “implemented” to “safely absorbed by the running system”

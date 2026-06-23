@@ -348,9 +348,9 @@ Many harnesses stop too early. The code compiles, the tests pass, and a PR exist
 
 Operational closure turns “implementation complete” into “change safely closed over” through four mechanisms:
 
-1. **Runtime Verification Skill**: Validate the affected runtime surfaces using the right depth for the work. This includes environment prechecks, route or scenario selection tied to the changed surface, and explicit human stop points when automation cannot complete the flow (for example OAuth, payments, email, or SMS).
+1. **Runtime Verification Skill**: Validate the affected runtime surfaces using the right depth for the work. This now emits structured validator evidence — surface adapters, probe hints, manual checkpoint evidence, verdicts, and blocked prerequisites — instead of report-oriented runtime checks. Environment prechecks, route or scenario selection, and explicit human stop points remain part of the model.
 
-2. **Operational Closure Skill**: Produce structured closure artifacts covering release readiness, invariants, pre-deploy audits, post-deploy checks, monitoring expectations, rollback triggers and procedures, ownership, validation windows, and follow-up actions.
+2. **Operational Closure Skill**: Produce structured closure artifacts covering release readiness, invariants, pre-deploy audits, post-deploy checks, monitoring expectations, rollback triggers and procedures, ownership, validation windows, follow-up actions, and explicit releasability evidence (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`).
 
 3. **PR and CI Handoff Sections**: Pull request descriptions and CI remediation workflows carry explicit runtime verification and operational validation sections so the release context survives past implementation.
 
@@ -361,7 +361,7 @@ Operational closure turns “implementation complete” into “change safely cl
 Primitive 10 is what closes the loop on the rest of the system:
 
 * Primitive 4 can now hand off to a defined closure mechanism rather than ending ambiguously at “PR created” or “CI green”
-* Primitive 7 gains runtime evidence rather than relying only on static review findings
+* Primitive 7 gains validator evidence and releasability evidence rather than relying only on static review findings
 * Primitive 1 receives higher-quality learnings because they include runtime outcomes, not just build-time fixes
 * Primitive 9 stays current because operational learnings graduate back into durable repository knowledge
 

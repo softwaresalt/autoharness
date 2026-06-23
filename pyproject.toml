@@ -43,3 +43,6 @@ packages = ["src/autoharness"]
 ".github/copilot-review-instructions.md" = "src/autoharness/data/.github/copilot-review-instructions.md"
 "docs" = "src/autoharness/data/docs"
 "AGENTS.md" = "src/autoharness/data/AGENTS.md"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
