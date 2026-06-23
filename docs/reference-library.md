@@ -109,6 +109,30 @@ Composable agent skill implementations organized under a `skills/` directory.
 
 ---
 
+### `references/mattpocock-eng-skills`
+
+**Source**: [mattpocock/skills](https://github.com/mattpocock/skills)
+
+General-purpose skill implementations and patterns collected in a dedicated
+`skills/` repository.
+
+**Best for**: Additional composable skill examples and lightweight workflow
+patterns suitable for adaptation.
+
+---
+
+### `references/atv-starterkit`
+
+**Source**: [All-The-Vibes/ATV-StarterKit](https://github.com/All-The-Vibes/ATV-StarterKit)
+
+Starter-kit assets spanning plugins, command surfaces, documentation, and
+supporting packages for agent-oriented workflows.
+
+**Best for**: Broader end-to-end reference patterns that combine skills with
+supporting tooling and repository structure.
+
+---
+
 ## Keeping references current
 
 The submodule registrations in `.gitmodules` are the index of record for these

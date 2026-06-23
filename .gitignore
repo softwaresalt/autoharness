@@ -25,3 +25,6 @@ src/autoharness/__pycache__/*.pyc
 .engram/logs/
 .engram/metrics/
 .engram/.workspace-id
+.engram-bkp/
+
+references/

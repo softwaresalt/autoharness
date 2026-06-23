@@ -6,4 +6,4 @@
 # debounce_ms = 500            # File event debounce window
 #
 # [watcher]
-exclude_patterns = [".engram/", ".git/", "node_modules/", "target/", ".claude/", ".cursor/", ".graphtor/", ".pytest_cache/", ".venv/", ".vscode/"]
+# exclude_patterns = [".engram/", ".git/", "node_modules/", "target/"]
