@@ -122,31 +122,27 @@ Templates are documentation artifacts, not code. Quality is verified through:
 4. Cross-reference integrity (all referenced files, skills, agents exist)
 
 <!-- engram:start -->
-## Engram Agent Memory — Capability Pack Overlay
+## Engram Agent Memory — GitHub Copilot Integration
 
-Engram is registered as an MCP server via the local MCP configuration (`.vscode/mcp.json` and/or `.cursor/mcp.json`). The exact registration path differs by editor; `.mcp.json` at workspace root is gitignored and machine-specific.
+Engram is running as an MCP server at `http://127.0.0.1:7437/mcp`.
 
 ### Available Tools
 
 | Tool | Purpose |
 |------|---------|
-| `get_workspace_status` | Verify daemon readiness and workspace binding at session start |
-| `set_workspace` | Register this workspace (only when not already auto-bound) |
-| `query_memory` | Retrieve stored context and code knowledge |
+| `set_workspace` | Register this workspace at session start |
+| `query_memory` | Retrieve stored context, tasks, and code knowledge |
+| `create_task` | Create a new task in the workspace task list |
+| `update_task` | Update task status or details |
 | `map_code` | Index code files for semantic navigation |
-| `unified_search` | Search across all content types (code, docs, history) |
+| `unified_search` | Search across all content types |
 | `query_changes` | Query git commit history by file, symbol, or date |
-| `list_symbols` | List symbols in a file or matching a concept |
-| `impact_analysis` | Assess blast radius before modifying a symbol |
-| `query_graph` | Run read-only graph queries across the full code graph |
 
 ### Recommended Workflow
 
-1. **Session start**: Call `get_workspace_status` to verify daemon readiness and workspace binding. If this fails with a startup timeout, retry once, then proceed in `ENGRAM_DEGRADED` mode using file-based tools. Do not halt session.
-2. **Before coding or planning**: Call `unified_search` or `impact_analysis` to load relevant context and assess blast radius.
-3. **Code navigation**: Use `list_symbols`, `map_code`, and `impact_analysis` for codebase exploration.
-4. **Change history**: Use `query_changes` to understand recent modifications.
-5. **Graph queries**: Use `query_graph` for read-only Cypher-style traversal when structural questions require graph context.
-
-Full protocol: see `.github/instructions/agent-engram.instructions.md`
+1. **Session start**: Call `set_workspace` with the current workspace path.
+2. **Before coding**: Call `query_memory` to load relevant context.
+3. **Task tracking**: Use `create_task` and `update_task` to record progress.
+4. **Code navigation**: Use `map_code` and `unified_search` for codebase exploration.
+5. **Change history**: Use `query_changes` to understand recent modifications.
 <!-- engram:end -->
