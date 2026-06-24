@@ -96,6 +96,12 @@ autoharness setup-codex         # Codex
 # Install a harness (from the target workspace)
 /install-harness preset=standard
 
+# Run the full Stage -> Ship lifecycle through the Orchestrator
+/feature-flow
+
+# Prefer pipelined Stage + Ship execution when policy and branch safety allow it
+/feature-flow-parallel
+
 # Run deterministic verification against an installed workspace
 autoharness verify-workspace --workspace .
 ```
@@ -125,6 +131,17 @@ The PyPI package is the stable Python CLI distribution path. Use the Git URL onl
 The `setup-claude` and `setup-codex` commands copy agent or skill files into each tool's standard global config directory, so rerun them after upgrading autoharness to refresh those files. `setup-vscode` writes user-settings pointers to `autoharness home`; rerun it only if that resolved install path changes.
 
 See [Getting Started](docs/getting-started.md) for the full walkthrough, including workspace configuration, install layers, selective installation, and post-install verification.
+
+## Workflow Entry Points
+
+After a harness is installed, the primary user-facing lifecycle entrypoints are:
+
+| Prompt | Use When | What It Does |
+|---|---|---|
+| `/feature-flow` | You want the normal full lifecycle for the next feature or chore | Routes through the Orchestrator, which runs the standard sequential Stage -> Ship workflow |
+| `/feature-flow-parallel` | You want the same lifecycle but want parallel planning/shipping when safe | Routes through the Orchestrator, which prefers pipelined execution and falls back to sequential mode when policy or branch-safety constraints block pipelining |
+
+These are workflow aliases, not separate pipelines. They do not bypass Stage, Ship, the backlog model, or shipment policies. They are simply the polished front door to the existing Orchestrator workflow.
 
 ## Documentation
 

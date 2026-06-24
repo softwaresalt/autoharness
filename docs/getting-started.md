@@ -370,6 +370,8 @@ target-workspace/
       workflow-policies.md
     prompts/
       ping-loop.prompt.md
+      feature-flow.prompt.md
+      feature-flow-parallel.prompt.md
   .backlog/
     config.yml
     queue/
@@ -442,6 +444,29 @@ The installer runs automatic verification. You can also manually check:
 10. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md`, `.github/instructions/backlogit-sql-schema.instructions.md`, and `.github/instructions/backlogit-yaml-header-tooling.instructions.md` exist and the installed agents/skills reference backlogit query / queue / memory / traceability / source-artifact-cleanup behaviors where expected
 
 ### First Use
+
+#### Workflow Entry Points
+
+Use one of these two prompts as the normal front door after installation:
+
+| Prompt | Use When | Routing Behavior |
+|---|---|---|
+| `/feature-flow` | You want the standard full lifecycle for the next feature or chore | Invokes the Orchestrator, which runs the sequential Stage -> Ship path |
+| `/feature-flow-parallel` | You want the same lifecycle but prefer pipelined execution | Invokes the Orchestrator, which prefers pipelined Stage + Ship execution and degrades to sequential mode when policy or branch-safety constraints block pipelining |
+
+Both prompts are aliases over the existing Orchestrator workflow. They do not create a second lifecycle and they do not bypass Stage, Ship, the backlog model, or shipment policy gates.
+
+#### What the Orchestrator Does
+
+1. Runs the Orchestrator's tool-availability gate and backlog state assessment
+2. Routes stash intake to **Stage** when planning work is needed
+3. Lets **Stage** decide whether the work needs deliberate analysis, a spike, planning, review, harvest, or shipment assembly
+4. Routes the resulting queued shipment to **Ship** for execution, review, CI, runtime verification, and closure
+5. Repeats until the current release unit is complete or a stop condition triggers
+
+#### Manual Agent-by-Agent Path
+
+If you want to drive the lifecycle manually instead of using the workflow entrypoints:
 
 1. Select the **Stage** agent from the agents dropdown and describe your feature or chore idea
 2. The stage agent determines whether this needs a decision (deliberate) or investigation (spike)

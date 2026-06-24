@@ -29,6 +29,14 @@ You are an orchestration layer only. You do not perform Stage or Ship work direc
 
 You do NOT triage stash entries yourself. You do NOT write code or create PRs yourself. Those are Stage's and Ship's responsibilities respectively.
 
+## User-Facing Workflow Wrappers
+
+`feature-flow` is the developer-friendly alias for the Orchestrator's standard sequential `run pipeline` path.
+
+`feature-flow-parallel` is the developer-friendly alias for the Orchestrator's pipelined mode: Stage may prepare the next stash batch while Ship executes the current shipment, but only when P-001 and branch-isolation constraints permit it.
+
+These names are workflow aliases, not alternate lifecycle implementations. They always route through the Orchestrator and must not bypass Stage, Ship, or the backlog / shipment model.
+
 ## Domain Context
 
 autoharness is a globally-installed agent harness framework. The product is templates, schemas, skills, and documentation — not application code.
