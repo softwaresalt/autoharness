@@ -136,7 +136,7 @@ PACK_ASSERTIONS = {
         },
         {
             "key": "ship_source_artifact_cleanup",
-            "path": ".github/agents/ship.agent.md",
+            "path": ".github/agents/.ship.agent.md",
             "must_contain": [
                 "source_stash_id",
                 "source_deliberation_id",
@@ -155,7 +155,7 @@ PACK_ASSERTIONS = {
         },
         {
             "key": "stage_index_sync_gate",
-            "path": ".github/agents/stage.agent.md",
+            "path": ".github/agents/.stage.agent.md",
             "must_contain": [
                 "Index Sync",
                 "backlogit_sync_index",
@@ -164,7 +164,7 @@ PACK_ASSERTIONS = {
         },
         {
             "key": "ship_index_sync_gate",
-            "path": ".github/agents/ship.agent.md",
+            "path": ".github/agents/.ship.agent.md",
             "must_contain": [
                 "backlogit_sync_index",
                 "CLOSURE_INDEX_SYNC_OK",
@@ -265,12 +265,12 @@ PACK_ASSERTIONS = {
         },
         {
             "key": "graphtor_docs_stage_weaving",
-            "path": ".github/agents/stage.agent.md",
+            "path": ".github/agents/.stage.agent.md",
             "must_contain": ["graphtor-docs", "graphtor-docs.instructions.md"],
         },
         {
             "key": "graphtor_docs_ship_weaving",
-            "path": ".github/agents/ship.agent.md",
+            "path": ".github/agents/.ship.agent.md",
             "must_contain": ["graphtor-docs", "graphtor-docs.instructions.md"],
         },
     ],
@@ -348,7 +348,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_runtime_validation_contract",
-        "path": ".github/agents/ship.agent.md",
+        "path": ".github/agents/.ship.agent.md",
         "must_contain": [
             "runtime_validation.validator_manifest",
             "runtime_validation.validation_expectations",
@@ -367,7 +367,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "stage_shipment_determinism",
-        "path": ".github/agents/stage.agent.md",
+        "path": ".github/agents/.stage.agent.md",
         "must_contain": [
             "Step Sequence Contract (NON-NEGOTIABLE)",
             "Shipment Assembly (NON-NEGOTIABLE when shipments are supported)",
@@ -377,7 +377,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "stage_role_boundary",
-        "path": ".github/agents/stage.agent.md",
+        "path": ".github/agents/.stage.agent.md",
         "must_contain": [
             "Role Boundary (NON-NEGOTIABLE)",
             "P-010",
@@ -386,7 +386,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_role_boundary",
-        "path": ".github/agents/ship.agent.md",
+        "path": ".github/agents/.ship.agent.md",
         "must_contain": [
             "Role Boundary (NON-NEGOTIABLE)",
             "P-010",
@@ -395,7 +395,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_release_closure_sequence",
-        "path": ".github/agents/ship.agent.md",
+        "path": ".github/agents/.ship.agent.md",
         "must_contain": [
             "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
             "post-merge release closure",
@@ -405,7 +405,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "orchestrator_release_closure_sequence",
-        "path": ".github/agents/orchestrator.agent.md",
+        "path": ".github/agents/_orchestrator.agent.md",
         "must_contain": [
             "awaiting required post-merge release closure",
             "Stage may proceed with planning",
@@ -423,7 +423,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "stage_tool_availability_gate",
-        "path": ".github/agents/stage.agent.md",
+        "path": ".github/agents/.stage.agent.md",
         "must_contain": [
             "Tool Availability Gate",
             "TOOL_OK",
@@ -434,7 +434,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_branch_management",
-        "path": ".github/agents/ship.agent.md",
+        "path": ".github/agents/.ship.agent.md",
         "must_contain": [
             "Branch retention (NON-NEGOTIABLE)",
             "Post-Merge Branch Protocol (NON-NEGOTIABLE)",
@@ -444,7 +444,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_branch_creation_gate",
-        "path": ".github/agents/ship.agent.md",
+        "path": ".github/agents/.ship.agent.md",
         "must_contain": [
             "Branch Creation Gate (P-011, NON-NEGOTIABLE)",
             "git branch --show-current",
@@ -455,7 +455,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_tool_availability_gate",
-        "path": ".github/agents/ship.agent.md",
+        "path": ".github/agents/.ship.agent.md",
         "must_contain": [
             "Tool Availability Gate",
             "TOOL_OK",
@@ -466,7 +466,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_merge_confirmation_gate",
-        "path": ".github/agents/ship.agent.md",
+        "path": ".github/agents/.ship.agent.md",
         "must_contain": [
             "Merge Confirmation Gate",
             "MERGE_CONFIRMED",
@@ -2380,8 +2380,8 @@ def verify_workspace(
     # present), the role-enforcement instruction file must also be present.
     # We gate on the manifest to avoid false failures in the autoharness repo
     # itself, which defines the templates but does not install them locally.
-    stage_agent = workspace_path / ".github/agents/stage.agent.md"
-    ship_agent = workspace_path / ".github/agents/ship.agent.md"
+    stage_agent = workspace_path / ".github/agents/.stage.agent.md"
+    ship_agent = workspace_path / ".github/agents/.ship.agent.md"
     role_enforcement_instruction = workspace_path / ".github/instructions/role-enforcement.instructions.md"
     if stage_agent.exists() and ship_agent.exists() and manifest_path.exists():
         _add_text_check(
@@ -2399,7 +2399,7 @@ def verify_workspace(
     _add_frontmatter_tier_check(
         report,
         "orchestrator_tier_fields",
-        workspace_path / ".github/agents/orchestrator.agent.md",
+        workspace_path / ".github/agents/_orchestrator.agent.md",
     )
 
     project_name = variables.get("PROJECT_NAME", workspace_path.name)
@@ -2407,9 +2407,9 @@ def verify_workspace(
         r"for the \*\*" + re.escape(project_name) + r"\*\* repository"
     )
     for agent_file, check_key in [
-        (".github/agents/orchestrator.agent.md", "orchestrator_workspace_identity"),
-        (".github/agents/stage.agent.md", "stage_workspace_identity"),
-        (".github/agents/ship.agent.md", "ship_workspace_identity"),
+        (".github/agents/_orchestrator.agent.md", "orchestrator_workspace_identity"),
+        (".github/agents/.stage.agent.md", "stage_workspace_identity"),
+        (".github/agents/.ship.agent.md", "ship_workspace_identity"),
     ]:
         agent_path = workspace_path / agent_file
         if agent_path.exists():

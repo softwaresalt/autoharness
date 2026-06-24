@@ -163,7 +163,7 @@ Install layers are the artifact classes the installer composes into the target w
 |---|---|---|
 | `foundation` | `AGENTS.md`, `constitution.instructions.md`, `copilot-instructions.md` | Always (core identity) |
 | `instructions` | Technology-specific and cross-cutting instruction files (`*.instructions.md`) | Always |
-| `workflow` | Agent definitions (`stage.agent.md`, `ship.agent.md`), skill definitions, prompt files | Always |
+| `workflow` | Agent definitions (`.stage.agent.md`, `.ship.agent.md`), skill definitions, prompt files | Always |
 | `review` | Review and plan-review agents/skills, reviewer persona agents | Standard and above |
 | `runtime` | Runtime verification and operational closure skills | When runtime surfaces are detected |
 | `backlog` | Backlog tool config, stash template, registry wiring | When a backlog tool is detected or configured |
@@ -306,8 +306,8 @@ target-workspace/
   .github/
     copilot-instructions.md              # Shared development guidelines
     agents/                              # Agent definitions
-      stage.agent.md
-      ship.agent.md
+      .stage.agent.md
+      .ship.agent.md
       prompt-builder.agent.md
       {language}-engineer.agent.md       # Technology-specific expert
       deprecated/                        # Superseded agents kept for reference

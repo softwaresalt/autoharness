@@ -61,7 +61,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `stage.agent.md` — Session state persistence is inline in both primary agents
+* `.stage.agent.md` — Session state persistence is inline in both primary agents
 * `research/learnings-researcher.agent.md` — Retrieves relevant prior solutions before planning and review
 * `compact-context/SKILL.md` — Mandatory workflow step: consolidates memory, plans, and closure artifacts in the docs root; archives verbose originals to docs/archive/
 * `compound/SKILL.md` — Captures institutional knowledge to `docs/compound/` (default; configurable)
@@ -86,7 +86,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 **Key Artifacts**:
 
 * Embedded in `AGENTS.md` (Task Granularity section)
-* `stage.agent.md` — Enforces granularity during decomposition via harvest skill
+* `.stage.agent.md` — Enforces granularity during decomposition via harvest skill
 * `impl-plan/SKILL.md` — Produces granular implementation units
 
 **Design Rules**:
@@ -104,7 +104,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 **Key Artifacts**:
 
 * Agent definitions (each declares its tier)
-* `ship.agent.md` — Implements escalation logic
+* `.ship.agent.md` — Implements escalation logic
 
 **Design Rules**:
 
@@ -119,9 +119,9 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `stage.agent.md` — Stash-to-backlog pipeline (triage → deliberate/spike → impl-plan → plan-harden when needed → plan-review → harvest)
+* `.stage.agent.md` — Stash-to-backlog pipeline (triage → deliberate/spike → impl-plan → plan-harden when needed → plan-review → harvest)
 * `plan-harden/SKILL.md` — Risk-triggered hardening of high-blast-radius plans before review
-* `ship.agent.md` — Backlog-to-shipped pipeline (harness → build → review → PR → fix-ci → closure)
+* `.ship.agent.md` — Backlog-to-shipped pipeline (harness → build → review → PR → fix-ci → closure)
 * `harness-architect/SKILL.md` — TDD harness generation
 * `build-feature/SKILL.md` — Harness loop execution
 * `deliberate/SKILL.md` — Structured deliberation and decision capture
@@ -174,7 +174,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 * Instruction files with `applyTo` glob patterns
 * `build-feature/SKILL.md` — Instruction reinforcement at each fix iteration
-* `ship.agent.md` — Constitution re-read at session start
+* `.ship.agent.md` — Constitution re-read at session start
 
 **Design Rules**:
 
@@ -261,7 +261,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 * `runtime-verification/SKILL.md` — Validates affected runtime surfaces with the appropriate depth
 * `operational-closure/SKILL.md` — Produces release-readiness, monitoring, rollback, and follow-up artifacts
-* `ship.agent.md` — Carries verification and closure expectations into PR descriptions via pr-lifecycle skill
+* `.ship.agent.md` — Carries verification and closure expectations into PR descriptions via pr-lifecycle skill
 * `fix-ci/SKILL.md` — Ensures green CI is not the final stop when runtime validation is still required
 
 **Design Rules**:
