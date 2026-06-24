@@ -31,21 +31,13 @@
     },
     "tavily": {
       "type": "stdio",
-      "command": "pwsh",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "if ([string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) { throw 'TAVILY_API_KEY is not set.' }; npx -y tavily-mcp@latest"
-      ]
+      "command": "npx",
+      "args": ["-y", "tavily-mcp@latest"]
     },
     "github": {
       "type": "stdio",
-      "command": "pwsh",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "$env:GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token); npx -y @modelcontextprotocol/server-github"
-      ],
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
       "tools": ["*"]
     }
   }
