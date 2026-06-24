@@ -70,8 +70,8 @@ That design currently includes:
 * shipment envelopes that group one branch and one pull request around existing work items
 * possible stash migration from markdown to JSONL
 
-Stage and Ship are **autoharness-native agent templates** (`stage.agent.md.tmpl`
-and `ship.agent.md.tmpl`) that implement Primitive 4 (Orchestration). They are
+Stage and Ship are **autoharness-native agent templates** (`.stage.agent.md.tmpl`
+and `.ship.agent.md.tmpl`) that implement Primitive 4 (Orchestration). They are
 not backlogit-originated workflow surfaces that need to graduate into
 autoharness — the dependency runs the other direction. Backlogit is the first
 target workspace to consume these templates.

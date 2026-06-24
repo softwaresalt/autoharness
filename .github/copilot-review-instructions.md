@@ -32,7 +32,7 @@ Enforce these naming patterns strictly:
 | Artifact Type | Pattern | Example |
 |---|---|---|
 | Template | `{name}.{ext}.tmpl` | `constitution.instructions.md.tmpl` |
-| Agent definition | `{name}.agent.md` | `stage.agent.md` |
+| Agent definition | `{name}.agent.md` | `.stage.agent.md` |
 | Skill | `{skill-name}/SKILL.md` | `spike/SKILL.md` |
 | Instruction | `{name}.instructions.md` | `agent-engram.instructions.md` |
 | Prompt | `{name}.prompt.md` | `ping-loop.prompt.md` |

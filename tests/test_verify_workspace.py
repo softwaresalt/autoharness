@@ -278,12 +278,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "releasability evidence",
                 "READY_WITH_CONDITIONS",
             ],
-            repo_root / "templates" / "agents" / "ship.agent.md.tmpl": [
+            repo_root / "templates" / "agents" / ".ship.agent.md.tmpl": [
                 "runtime_validation.validator_manifest",
                 "validator evidence",
                 "releasability evidence",
             ],
-            repo_root / ".github" / "agents" / "ship.agent.md": [
+            repo_root / ".github" / "agents" / ".ship.agent.md": [
                 "runtime_validation.validator_manifest",
                 "validator evidence",
                 "releasability evidence",
@@ -328,7 +328,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
     def test_role_boundary_tables_present_in_both_agent_templates(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        for tmpl_name in ("stage.agent.md.tmpl", "ship.agent.md.tmpl"):
+        for tmpl_name in (".stage.agent.md.tmpl", ".ship.agent.md.tmpl"):
             tmpl_path = repo_root / "templates" / "agents" / tmpl_name
             with self.subTest(template=tmpl_name):
                 content = tmpl_path.read_text(encoding="utf-8")
@@ -339,8 +339,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
     def test_role_boundary_tables_have_complementary_operations(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        stage_content = (repo_root / "templates" / "agents" / "stage.agent.md.tmpl").read_text(encoding="utf-8")
-        ship_content = (repo_root / "templates" / "agents" / "ship.agent.md.tmpl").read_text(encoding="utf-8")
+        stage_content = (repo_root / "templates" / "agents" / ".stage.agent.md.tmpl").read_text(encoding="utf-8")
+        ship_content = (repo_root / "templates" / "agents" / ".ship.agent.md.tmpl").read_text(encoding="utf-8")
 
         # Ship's Allowed includes claim/close shipments — Stage's Forbidden should reference that
         # Use table-scoped assertion to avoid false matches on incidental occurrences
@@ -378,22 +378,22 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "missing tag",
                 "pending publish step",
             ],
-            repo_root / "templates" / "agents" / "orchestrator.agent.md.tmpl": [
+            repo_root / "templates" / "agents" / "_orchestrator.agent.md.tmpl": [
                 "awaiting required post-merge release closure",
                 "Stage may proceed with planning",
                 "must not route a second shipment to Ship until closure is complete",
             ],
-            repo_root / "templates" / "agents" / "ship.agent.md.tmpl": [
+            repo_root / "templates" / "agents" / ".ship.agent.md.tmpl": [
                 "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
                 "post-merge release closure",
                 "Treat the shipment as still active for P-001 purposes",
             ],
-            repo_root / ".github" / "agents" / "orchestrator.agent.md": [
+            repo_root / ".github" / "agents" / "_orchestrator.agent.md": [
                 "awaiting required post-merge release closure",
                 "Stage may proceed with planning",
                 "must not route a second shipment to Ship until closure is complete",
             ],
-            repo_root / ".github" / "agents" / "ship.agent.md": [
+            repo_root / ".github" / "agents" / ".ship.agent.md": [
                 "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
                 "post-merge release closure",
                 "Treat the shipment as still active for P-001 purposes",
@@ -435,12 +435,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "agent: Orchestrator",
                 "pipelined execution mode",
             ],
-            repo_root / "templates" / "agents" / "orchestrator.agent.md.tmpl": [
+            repo_root / "templates" / "agents" / "_orchestrator.agent.md.tmpl": [
                 "`feature-flow`",
                 "`feature-flow-parallel`",
                 "workflow aliases, not alternate lifecycle implementations",
             ],
-            repo_root / ".github" / "agents" / "orchestrator.agent.md": [
+            repo_root / ".github" / "agents" / "_orchestrator.agent.md": [
                 "feature-flow",
                 "feature-flow-parallel",
                 "must not bypass Stage, Ship, or the backlog / shipment model",
@@ -1154,7 +1154,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "runtime_validation.validator_manifest\nruntime_validation.validation_expectations\nruntime_validation.releasability\nvalidator evidence\nreleasability evidence\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
                 "runtime_validation.validator_manifest\nruntime_validation.validation_expectations\nvalidator evidence\nreleasability evidence\n",
                 encoding="utf-8",
             )
@@ -1316,7 +1316,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "custom_fields\nreferences\nbacklogit_update_item\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
                 "source_stash_id\nsource_deliberation_id\nbacklogit_stash_remove\nbacklogit_archive_item\n",
                 encoding="utf-8",
             )
@@ -2345,7 +2345,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            (workspace / ".github" / "agents" / "stage.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".stage.agent.md").write_text(
                 "## Role Boundary (NON-NEGOTIABLE)\n"
                 "P-010\n"
                 "Forbidden\n"
@@ -2356,7 +2356,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "P-012\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
                 "Branch Creation Gate (P-011, NON-NEGOTIABLE)\n"
                 "git branch --show-current\n"
                 "BRANCH_OK\n"
@@ -2437,13 +2437,13 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            (workspace / ".github" / "agents" / "stage.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".stage.agent.md").write_text(
                 "## Index Sync\n"
                 "backlogit_sync_index\n"
                 "INDEX_SYNC_OK\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
                 "backlogit_sync_index\n"
                 "INDEX_SYNC_OK\n"
                 "CLOSURE_INDEX_SYNC_OK\n"
@@ -2467,10 +2467,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
     def test_orchestrator_template_exists_and_dispatch_template_removed(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
-        orchestrator_tmpl = repo_root / "templates" / "agents" / "orchestrator.agent.md.tmpl"
+        orchestrator_tmpl = repo_root / "templates" / "agents" / "_orchestrator.agent.md.tmpl"
         dispatch_tmpl = repo_root / "templates" / "agents" / "dispatch.agent.md.tmpl"
 
-        self.assertTrue(orchestrator_tmpl.exists(), "orchestrator.agent.md.tmpl must exist")
+        self.assertTrue(orchestrator_tmpl.exists(), "_orchestrator.agent.md.tmpl must exist")
         self.assertFalse(dispatch_tmpl.exists(), "dispatch.agent.md.tmpl must not exist after P-013 rename")
 
     def test_no_operator_ai_persona_in_agent_templates(self) -> None:
@@ -2502,7 +2502,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
     def test_orchestrator_template_has_tier_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        orchestrator_tmpl = repo_root / "templates" / "agents" / "orchestrator.agent.md.tmpl"
+        orchestrator_tmpl = repo_root / "templates" / "agents" / "_orchestrator.agent.md.tmpl"
 
         content = orchestrator_tmpl.read_text(encoding="utf-8")
         self.assertIn("model_tier:", content, "orchestrator template must declare model_tier")
@@ -2585,7 +2585,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
             # Valid frontmatter: both fields present as integers in range 1-3
-            (workspace / ".github" / "agents" / "orchestrator.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
                 "---\n"
                 "name: Orchestrator\n"
                 "model_tier: 2\n"
@@ -2656,7 +2656,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
             # Invalid: model_tier is a string, max_subagent_tier is out of range
-            (workspace / ".github" / "agents" / "orchestrator.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
                 "---\n"
                 "name: Orchestrator\n"
                 'model_tier: "Tier 2 (Standard)"\n'
@@ -2801,11 +2801,11 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
                 "## Role Boundary (NON-NEGOTIABLE)\nP-010\nForbidden\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / "orchestrator.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
                 "# Orchestrator\n",
                 encoding="utf-8",
             )
@@ -2873,10 +2873,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 encoding="utf-8",
             )
             # Write stage and ship agents with graphtor-docs weaving
-            (workspace / ".github" / "agents" / "stage.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".stage.agent.md").write_text(
                 "graphtor-docs\ngraphtor-docs.instructions.md\n", encoding="utf-8"
             )
-            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
                 "graphtor-docs\ngraphtor-docs.instructions.md\n", encoding="utf-8"
             )
 
@@ -2944,10 +2944,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (workspace / ".github" / "instructions" / "graphtor-docs.instructions.md").write_text(
                 "This is a stub instruction file with no tool names.\n", encoding="utf-8"
             )
-            (workspace / ".github" / "agents" / "stage.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".stage.agent.md").write_text(
                 "# Stage\n\nNo graphtor mention here.\n", encoding="utf-8"
             )
-            (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
                 "# Ship\n\nNo graphtor mention here.\n", encoding="utf-8"
             )
 
@@ -3213,13 +3213,13 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
             agents_dir = ws / ".github" / "agents"
             agents_dir.mkdir(parents=True)
-            (agents_dir / "orchestrator.agent.md").write_text(
+            (agents_dir / "_orchestrator.agent.md").write_text(
                 "You are the Orchestrator agent for the **my-project** repository.", encoding="utf-8"
             )
-            (agents_dir / "stage.agent.md").write_text(
+            (agents_dir / ".stage.agent.md").write_text(
                 "You are the Stage agent for the **my-project** repository.", encoding="utf-8"
             )
-            (agents_dir / "ship.agent.md").write_text(
+            (agents_dir / ".ship.agent.md").write_text(
                 "You are the Ship agent for the **my-project** repository.", encoding="utf-8"
             )
 
@@ -3266,7 +3266,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
             agents_dir = ws / ".github" / "agents"
             agents_dir.mkdir(parents=True)
-            (agents_dir / "orchestrator.agent.md").write_text(
+            (agents_dir / "_orchestrator.agent.md").write_text(
                 "You are the Orchestrator agent for the **{{PROJECT_NAME}}** repository.", encoding="utf-8"
             )
 
@@ -3291,12 +3291,12 @@ class PortabilityTests(unittest.TestCase):
         return p
 
     def test_clean_artifact_produces_no_findings(self) -> None:
-        self._mk(".github/agents/stage.agent.md", "# Stage\n\nNo hardcoded paths here.\n")
+        self._mk(".github/agents/.stage.agent.md", "# Stage\n\nNo hardcoded paths here.\n")
         findings = _run_portability_scan(self.ws)
         self.assertEqual(findings, [])
 
     def test_hardcoded_user_home_path_detected(self) -> None:
-        self._mk(".github/agents/ship.agent.md", "# Ship\n\nRun: cp ~/.ssh/id_rsa .\n")
+        self._mk(".github/agents/.ship.agent.md", "# Ship\n\nRun: cp ~/.ssh/id_rsa .\n")
         findings = _run_portability_scan(self.ws)
         self.assertTrue(any(f["rule"] == "hardcoded_user_home" for f in findings))
         self.assertEqual(findings[0]["severity"], "P1")
@@ -3310,12 +3310,12 @@ class PortabilityTests(unittest.TestCase):
         self.assertTrue(any(f["rule"] == "local_agents_dir" for f in findings))
 
     def test_mcp_plugin_tool_name_detected(self) -> None:
-        self._mk(".github/agents/stage.agent.md", "# Stage\n\nCall mcp__plugin_backlogit__create_task here.\n")
+        self._mk(".github/agents/.stage.agent.md", "# Stage\n\nCall mcp__plugin_backlogit__create_task here.\n")
         findings = _run_portability_scan(self.ws)
         self.assertTrue(any(f["rule"] == "mcp_plugin_tool_name" for f in findings))
 
     def test_hardcoded_ah_home_detected(self) -> None:
-        self._mk(".github/agents/stage.agent.md", "# Stage\n\nPath: ~/.autoharness/templates\n")
+        self._mk(".github/agents/.stage.agent.md", "# Stage\n\nPath: ~/.autoharness/templates\n")
         findings = _run_portability_scan(self.ws)
         self.assertTrue(any(f["rule"] == "hardcoded_ah_home" for f in findings))
 
@@ -3348,7 +3348,7 @@ class PortabilityTests(unittest.TestCase):
     def test_one_finding_per_rule_per_file(self) -> None:
         """Each rule produces at most one finding per file even if the pattern matches multiple lines."""
         self._mk(
-            ".github/agents/ship.agent.md",
+            ".github/agents/.ship.agent.md",
             "# Ship\n\nPath: ~/.ssh/key\nAlso: ~/.config/foo\n",
         )
         findings = _run_portability_scan(self.ws)
@@ -3396,7 +3396,7 @@ class PortabilityTests(unittest.TestCase):
         _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
         _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-        (workspace / ".github" / "agents" / "ship.agent.md").write_text(
+        (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
             "# Ship\n\nRun: cp ~/.ssh/id_rsa .\n", encoding="utf-8"
         )
 
