@@ -391,10 +391,10 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 |---|---|---|---|
 | `{{AGENT_INTERCOM_ENABLED}}` | `capability_packs` contains `agent-intercom` | `true` | `false` |
 | `{{AGENT_INTERCOM_DETECTED}}` | `agent_intercom.detected` | `true` | `false` |
-| `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.vscode/mcp.json, .intercom/settings.json` | empty |
+| `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.mcp.json, .intercom/settings.json` | empty |
 | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
 | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
-| `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.vscode/mcp.json, .engram/config.toml` | empty |
+| `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.mcp.json, .engram/config.toml` | empty |
 | `{{BROWSER_VERIFICATION_ENABLED}}` | `capability_packs` contains `browser-verification` | `true` | `false` |
 | `{{CONTINUOUS_LEARNING_ENABLED}}` | `capability_packs` contains `continuous-learning` | `true` | `false` |
 | `{{AGENT_NATIVE_REVIEWER_RECOMMENDED}}` | `agent_native.recommended_reviewer` | `true` | `false` |
@@ -622,7 +622,8 @@ Example overlay target map for `agent-engram`:
 #### Formal Overlay Contract: `agent-engram`
 
 **Eligibility signals** (when to recommend agent-engram):
-* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `engram` server or known engram tool names
+* `.mcp.json` (root, canonical shared config) references `engram` server or known engram tool names
+* legacy editor-local MCP settings still reference Engram tool names (compatibility fallback only)
 * `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` present at workspace root
 * `AGENTS.md` or `.github/copilot-instructions.md` contains `<!-- engram:start -->` marker or Engram tool names
 
@@ -655,7 +656,8 @@ Example overlay target map for `agent-engram`:
 #### Formal Overlay Contract: `agent-intercom`
 
 **Eligibility signals** (when to recommend agent-intercom):
-* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`)
+* `.mcp.json` (root, canonical shared config) references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`)
+* legacy editor-local MCP settings still reference intercom tool names (compatibility fallback only)
 * `AGENTS.md` or agent files contain intercom tool names or `<!-- intercom:start -->` marker
 
 **Recommendation logic**: Recommend when `agent_intercom.mcp_configured: true` OR `agent_intercom.detected: true` in the workspace profile.
@@ -684,12 +686,13 @@ Example overlay target map for `agent-engram`:
 **Tuning drift checks**:
 * `agent-intercom.instructions.md` checksum vs. template checksum in harness-manifest
 * stage.agent.md and ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
-* MCP config path in manifest accepts any committed location: `.vscode/mcp.json`, `.cursor/mcp.json`, or `.mcp.json` (gitignored, machine-local)
+* MCP config path in manifest should normally resolve to `.mcp.json`; legacy editor-local config paths may still appear when tuning older workspaces
 
 #### Formal Overlay Contract: `graphtor-docs`
 
 **Eligibility signals** (when to recommend graphtor-docs):
-* `.mcp.json` (root), `.vscode/mcp.json`, or `.cursor/mcp.json` references `graphtor` or `graphtor-docs` server
+* `.mcp.json` (root, canonical shared config) references `graphtor` or `graphtor-docs` server
+* legacy editor-local MCP settings still reference graphtor-docs tool names (compatibility fallback only)
 * `.graphtor/` directory present at workspace root, OR `.graphtor/config/sources.yaml` or `.graphtor/config/` exists
 * `AGENTS.md` or agent files reference graphtor-docs tool names (`search_local_docs`, `search_semantic`, `research_topic`, `get_status`)
 * `graphtor-docs` binary present on PATH or at `.graphtor/bin/`

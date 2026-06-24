@@ -13,8 +13,8 @@ resorting to broad web search or raw filesystem scan.
 ## Required Tool Surface
 
 The workspace exposes an MCP tool surface from the graphtor-docs server. Tool names are registered
-through MCP configuration (`.mcp.json`, `.vscode/mcp.json`, or editor settings) — not through the
-source-index configuration. The canonical tool surface includes:
+through the workspace-root `.mcp.json` (with editor-local settings only as compatibility fallbacks)
+— not through the source-index configuration. The canonical tool surface includes:
 
 | Tool | Purpose |
 |---|---|

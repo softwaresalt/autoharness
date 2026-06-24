@@ -1,0 +1,52 @@
+{
+  "mcpServers": {
+    "backlogit": {
+      "type": "stdio",
+      "command": "backlogit",
+      "args": ["mcp"],
+      "env": {
+        "BACKLOGIT_WORKSPACE": "${workspaceFolder}"
+      },
+      "tools": ["*"]
+    },
+    "engram": {
+      "type": "stdio",
+      "command": "engram",
+      "args": ["shim"],
+      "env": {
+        "ENGRAM_WORKSPACE": "${workspaceFolder}"
+      }
+    },
+    "graphtor-docs": {
+      "type": "stdio",
+      "command": "graphtor-docs",
+      "args": ["serve"],
+      "tools": ["*"]
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "tools": ["*"]
+    },
+    "tavily": {
+      "type": "stdio",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "if ([string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) { throw 'TAVILY_API_KEY is not set.' }; npx -y tavily-mcp@latest"
+      ]
+    },
+    "github": {
+      "type": "stdio",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "$env:GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token); npx -y @modelcontextprotocol/server-github"
+      ],
+      "tools": ["*"]
+    }
+  }
+}

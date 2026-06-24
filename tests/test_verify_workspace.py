@@ -119,6 +119,31 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
+    def test_root_mcp_config_is_canonical_shared_config(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        root_mcp = repo_root / ".mcp.json"
+        vscode_mcp = repo_root / ".vscode" / "mcp.json"
+        cursor_mcp = repo_root / ".cursor" / "mcp.json"
+        gitignore = (repo_root / ".gitignore").read_text(encoding="utf-8")
+        root_mcp_text = root_mcp.read_text(encoding="utf-8")
+        copilot_instructions = (repo_root / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
+
+        self.assertTrue(root_mcp.exists(), "Root .mcp.json must exist as the canonical shared MCP config")
+        self.assertFalse(vscode_mcp.exists(), ".vscode/mcp.json should not be tracked as a first-class repo config")
+        self.assertFalse(cursor_mcp.exists(), ".cursor/mcp.json should not be tracked as a first-class repo config")
+
+        self.assertNotIn("\n.mcp.json\n", gitignore)
+        self.assertIn(".vscode/mcp.json", gitignore)
+        self.assertIn(".cursor/mcp.json", gitignore)
+        self.assertIn(".claude/mcp.json", gitignore)
+
+        self.assertIn('"command": "engram"', root_mcp_text)
+        self.assertIn('${workspaceFolder}', root_mcp_text)
+        self.assertIn('"graphtor-docs"', root_mcp_text)
+
+        self.assertIn("workspace-root `.mcp.json`", copilot_instructions)
+
     def test_reference_library_submodules_are_registered(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         gitmodules_path = repo_root / ".gitmodules"

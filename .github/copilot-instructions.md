@@ -124,7 +124,7 @@ Templates are documentation artifacts, not code. Quality is verified through:
 <!-- engram:start -->
 ## Engram Agent Memory — Capability Pack Overlay
 
-Engram may be registered as an MCP server through local editor configuration such as `.vscode/mcp.json`, `.cursor/mcp.json`, or a machine-specific workspace MCP file. Registration details like URLs, executable paths, and transport choices are environment-specific and are not the canonical source of workflow guidance.
+Engram is expected to be registered through the workspace-root `.mcp.json`, which is the canonical shared MCP configuration surface across agent IDEs. Editor-local MCP files or settings may still exist as compatibility fallbacks, but they are not the preferred committed integration path.
 
 ### Canonical Guidance
 

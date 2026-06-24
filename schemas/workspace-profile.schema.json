@@ -734,7 +734,7 @@
         },
         "config_paths": {
           "type": "array",
-          "description": "Paths to MCP and other non-sources config files found (e.g. .mcp.json, .vscode/mcp.json)",
+          "description": "Paths to MCP and other non-sources config files found (normally .mcp.json; legacy editor-local MCP files may also be recorded when discovered)",
           "items": {
             "type": "string"
           }
