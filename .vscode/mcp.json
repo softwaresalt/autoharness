@@ -2,8 +2,11 @@
   "mcpServers": {
     "engram": {
       "type": "stdio",
-      "command": "D:/Tools/engram.exe",
-      "args": []
+      "command": "engram",
+      "args": ["shim"],
+      "env": {
+        "ENGRAM_WORKSPACE": "${workspaceFolder}"
+      }
     }
   }
 }

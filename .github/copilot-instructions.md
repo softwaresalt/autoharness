@@ -122,27 +122,24 @@ Templates are documentation artifacts, not code. Quality is verified through:
 4. Cross-reference integrity (all referenced files, skills, agents exist)
 
 <!-- engram:start -->
-## Engram Agent Memory — GitHub Copilot Integration
+## Engram Agent Memory — Capability Pack Overlay
 
-Engram is running as an MCP server at `http://127.0.0.1:7437/mcp`.
+Engram may be registered as an MCP server through local editor configuration such as `.vscode/mcp.json`, `.cursor/mcp.json`, or a machine-specific workspace MCP file. Registration details like URLs, executable paths, and transport choices are environment-specific and are not the canonical source of workflow guidance.
 
-### Available Tools
+### Canonical Guidance
 
-| Tool | Purpose |
+Follow `.github/instructions/agent-engram.instructions.md` for the authoritative Engram workflow: lifecycle checks, workspace binding, freshness rules, search routing, code-graph lookup, and fallback behavior.
+
+### Common Tool Families
+
+The active environment should expose an Engram-style tool surface covering these families:
+
+| Tool Family | Common Operations |
 |------|---------|
-| `set_workspace` | Register this workspace at session start |
-| `query_memory` | Retrieve stored context, tasks, and code knowledge |
-| `create_task` | Create a new task in the workspace task list |
-| `update_task` | Update task status or details |
-| `map_code` | Index code files for semantic navigation |
-| `unified_search` | Search across all content types |
-| `query_changes` | Query git commit history by file, symbol, or date |
+| `lifecycle / status` | `get_daemon_status`, `get_workspace_status`, `set_workspace` |
+| `indexing / freshness` | `index_workspace`, `sync_workspace`, `flush_state` |
+| `semantic / contextual search` | `unified_search`, `query_memory` |
+| `code graph lookup` | `list_symbols`, `map_code`, `impact_analysis`, `query_graph` |
 
-### Recommended Workflow
-
-1. **Session start**: Call `set_workspace` with the current workspace path.
-2. **Before coding**: Call `query_memory` to load relevant context.
-3. **Task tracking**: Use `create_task` and `update_task` to record progress.
-4. **Code navigation**: Use `map_code` and `unified_search` for codebase exploration.
-5. **Change history**: Use `query_changes` to understand recent modifications.
+Use the workspace's registered Engram tool names or aliases rather than assuming one specific client or transport.
 <!-- engram:end -->
