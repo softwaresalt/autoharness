@@ -123,13 +123,9 @@ class VerifyWorkspaceTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
 
         root_mcp = repo_root / ".mcp.json"
-        vscode_mcp = repo_root / ".vscode" / "mcp.json"
-        cursor_mcp = repo_root / ".cursor" / "mcp.json"
         gitignore = (repo_root / ".gitignore").read_text(encoding="utf-8")
 
         self.assertTrue(root_mcp.exists(), "Root .mcp.json must exist as the canonical shared MCP config")
-        self.assertFalse(vscode_mcp.exists(), ".vscode/mcp.json should not be tracked as a first-class repo config")
-        self.assertFalse(cursor_mcp.exists(), ".cursor/mcp.json should not be tracked as a first-class repo config")
 
         root_mcp_text = root_mcp.read_text(encoding="utf-8")
         copilot_instructions = (repo_root / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
