@@ -3,7 +3,6 @@
 *.code-workspace
 *.copilot
 *.pyc
-.mcp.json
 .autoharness/staging/
 .worktrees/
 .backlogit/*.db
@@ -13,6 +12,13 @@
 src/autoharness/__pycache__/*.pyc
 .*.lock
 **/.*.lock
+
+# MCP configuration
+# The root .mcp.json is the canonical shared workspace config and is tracked.
+# Editor-specific mcp.json files are legacy/local compatibility fallbacks and should not be committed.
+.vscode/mcp.json
+.cursor/mcp.json
+.claude/mcp.json
 
 # graphtor-docs — managed by graphtor-docs install
 .graphtor/
@@ -25,3 +31,6 @@ src/autoharness/__pycache__/*.pyc
 .engram/logs/
 .engram/metrics/
 .engram/.workspace-id
+.engram-bkp/
+
+references/

@@ -124,29 +124,22 @@ Templates are documentation artifacts, not code. Quality is verified through:
 <!-- engram:start -->
 ## Engram Agent Memory — Capability Pack Overlay
 
-Engram is registered as an MCP server via the local MCP configuration (`.vscode/mcp.json` and/or `.cursor/mcp.json`). The exact registration path differs by editor; `.mcp.json` at workspace root is gitignored and machine-specific.
+Engram is expected to be registered through the workspace-root `.mcp.json`, which is the canonical shared MCP configuration surface across agent IDEs. Editor-local MCP files or settings may still exist as compatibility fallbacks, but they are not the preferred committed integration path.
 
-### Available Tools
+### Canonical Guidance
 
-| Tool | Purpose |
+Follow `.github/instructions/agent-engram.instructions.md` for the authoritative Engram workflow: lifecycle checks, workspace binding, freshness rules, search routing, code-graph lookup, and fallback behavior.
+
+### Common Tool Families
+
+The active environment should expose an Engram-style tool surface covering these families:
+
+| Tool Family | Common Operations |
 |------|---------|
-| `get_workspace_status` | Verify daemon readiness and workspace binding at session start |
-| `set_workspace` | Register this workspace (only when not already auto-bound) |
-| `query_memory` | Retrieve stored context and code knowledge |
-| `map_code` | Index code files for semantic navigation |
-| `unified_search` | Search across all content types (code, docs, history) |
-| `query_changes` | Query git commit history by file, symbol, or date |
-| `list_symbols` | List symbols in a file or matching a concept |
-| `impact_analysis` | Assess blast radius before modifying a symbol |
-| `query_graph` | Run read-only graph queries across the full code graph |
+| `lifecycle / status` | `get_daemon_status`, `get_workspace_status`, `set_workspace` |
+| `indexing / freshness` | `index_workspace`, `sync_workspace`, `flush_state` |
+| `semantic / contextual search` | `unified_search`, `query_memory` |
+| `code graph lookup` | `list_symbols`, `map_code`, `impact_analysis`, `query_graph` |
 
-### Recommended Workflow
-
-1. **Session start**: Call `get_workspace_status` to verify daemon readiness and workspace binding. If this fails with a startup timeout, retry once, then proceed in `ENGRAM_DEGRADED` mode using file-based tools. Do not halt session.
-2. **Before coding or planning**: Call `unified_search` or `impact_analysis` to load relevant context and assess blast radius.
-3. **Code navigation**: Use `list_symbols`, `map_code`, and `impact_analysis` for codebase exploration.
-4. **Change history**: Use `query_changes` to understand recent modifications.
-5. **Graph queries**: Use `query_graph` for read-only Cypher-style traversal when structural questions require graph context.
-
-Full protocol: see `.github/instructions/agent-engram.instructions.md`
+Use the workspace's registered Engram tool names or aliases rather than assuming one specific client or transport.
 <!-- engram:end -->

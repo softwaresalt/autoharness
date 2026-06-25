@@ -147,7 +147,8 @@ semantic search, and workspace-memory layer.
 ### Eligibility signals
 
 * `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` exists
-* `.vscode/mcp.json` or `.vscode/settings.json` references `agent-engram`, `engram`, or engram tool names
+* `.mcp.json` references `agent-engram`, `engram`, or engram tool names
+* legacy editor settings still reference Engram tool names (compatibility fallback only)
 * existing docs already describe Engram-first search, workspace binding, or `.engram/` persistence
 
 ### Overlay targets
@@ -180,7 +181,8 @@ This pack does not replace general search guidance. It deepens it when a workspa
 ### Eligibility signals
 
 * `.intercom/settings.json`
-* `.vscode/mcp.json` or settings referencing intercom tools
+* `.mcp.json` references intercom tools
+* legacy editor settings still reference intercom tools (compatibility fallback only)
 * existing docs already describing remote approval or operator steering
 
 ### Overlay targets
@@ -450,7 +452,8 @@ search interface.
 
 * `.graphtor/` directory exists at the workspace root (indicates an active graphtor-docs installation or persisted index state)
 * `.graphtor/config/sources.yaml` declares which documentation sources to index
-* `.mcp.json`, `.vscode/mcp.json`, or `.vscode/settings.json` references `graphtor-docs`, `graphtor`, or any of the 8 graphtor-docs MCP tool names
+* `.mcp.json` references `graphtor-docs`, `graphtor`, or any of the 8 graphtor-docs MCP tool names
+* legacy editor settings still reference graphtor-docs tool names (compatibility fallback only)
 * `graphtor-docs` binary is on PATH or at `.graphtor/bin/`
 
 ### Recommendation logic

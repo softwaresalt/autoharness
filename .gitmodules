@@ -22,3 +22,11 @@
 	path = references/agent-skills
 	url = https://github.com/CommandCodeAI/agent-skills
 	branch = main
+[submodule "references/mattpocock-eng-skills"]
+	path = references/mattpocock-eng-skills
+	url = https://github.com/mattpocock/skills
+	branch = main
+[submodule "references/atv-starterkit"]
+	path = references/atv-starterkit
+	url = https://github.com/All-The-Vibes/ATV-StarterKit
+	branch = main

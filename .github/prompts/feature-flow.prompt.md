@@ -1,0 +1,21 @@
+---
+description: "Developer-friendly entrypoint for the standard sequential Stage → Ship workflow"
+agent: Orchestrator
+argument-hint: "[optional note about the next feature or chore already captured in stash/backlog]"
+---
+
+# Feature Flow
+
+Use the existing Orchestrator pipeline to take the next feature or chore through the full autoharness lifecycle.
+
+## Intent
+
+This prompt is a user-friendly alias for the Orchestrator's standard `run pipeline` behavior. It does not define a second pipeline and it does not bypass the backlog / shipment lifecycle.
+
+## Requirements
+
+1. Follow the Orchestrator's Step 0.0 tool-availability gate and Step 0 state assessment before doing any routing.
+2. Prefer **sequential mode**. Route stash intake through Stage, then route the resulting queued shipment through Ship.
+3. Do not invoke Stage or Ship directly unless the Orchestrator is unavailable. The Orchestrator owns lifecycle coordination, stop conditions, and role isolation.
+4. If the requested work exists only in chat and is not yet captured in the configured stash / backlog workflow, stop and ask the operator to capture it through the normal intake path before continuing.
+5. Continue iterating until the release unit is planned, executed, validated, and closed, or until an Orchestrator stop condition triggers.

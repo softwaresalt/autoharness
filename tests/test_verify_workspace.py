@@ -119,6 +119,28 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
+    def test_root_mcp_config_is_canonical_shared_config(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        root_mcp = repo_root / ".mcp.json"
+        gitignore = (repo_root / ".gitignore").read_text(encoding="utf-8")
+
+        self.assertTrue(root_mcp.exists(), "Root .mcp.json must exist as the canonical shared MCP config")
+
+        root_mcp_text = root_mcp.read_text(encoding="utf-8")
+        copilot_instructions = (repo_root / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
+
+        self.assertNotIn("\n.mcp.json\n", gitignore)
+        self.assertIn(".vscode/mcp.json", gitignore)
+        self.assertIn(".cursor/mcp.json", gitignore)
+        self.assertIn(".claude/mcp.json", gitignore)
+
+        self.assertIn('"command": "engram"', root_mcp_text)
+        self.assertIn('${workspaceFolder}', root_mcp_text)
+        self.assertIn('"graphtor-docs"', root_mcp_text)
+
+        self.assertIn("workspace-root `.mcp.json`", copilot_instructions)
+
     def test_reference_library_submodules_are_registered(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         gitmodules_path = repo_root / ".gitmodules"
@@ -134,6 +156,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
             "references/ai-skills",
             "references/awesome-agents",
             "references/agent-skills",
+            "references/mattpocock-eng-skills",
+            "references/atv-starterkit",
         ]
         for path in expected_paths:
             self.assertIn(path, gitmodules_content, f"Expected submodule path '{path}' in .gitmodules")
@@ -386,6 +410,73 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertIn("role-enforcement.instructions.md", content)
         self.assertIn("two-agent", content)
         self.assertIn("Role Boundary (NON-NEGOTIABLE)", content)
+
+    def test_feature_flow_prompts_route_through_orchestrator(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
+            repo_root / "templates" / "prompts" / "feature-flow.prompt.md.tmpl": [
+                "agent: Orchestrator",
+                "standard `run pipeline` behavior",
+                "Do not invoke Stage or Ship directly",
+            ],
+            repo_root / "templates" / "prompts" / "feature-flow-parallel.prompt.md.tmpl": [
+                "agent: Orchestrator",
+                "pipelined execution mode",
+                "degrade to the standard sequential `feature-flow` path",
+            ],
+            repo_root / ".github" / "prompts" / "feature-flow.prompt.md": [
+                "agent: Orchestrator",
+                "standard `run pipeline` behavior",
+            ],
+            repo_root / ".github" / "prompts" / "feature-flow-parallel.prompt.md": [
+                "agent: Orchestrator",
+                "pipelined execution mode",
+            ],
+            repo_root / "templates" / "agents" / "_orchestrator.agent.md.tmpl": [
+                "`feature-flow`",
+                "`feature-flow-parallel`",
+                "workflow aliases, not alternate lifecycle implementations",
+            ],
+            repo_root / ".github" / "agents" / "_orchestrator.agent.md": [
+                "feature-flow",
+                "feature-flow-parallel",
+                "must not bypass Stage, Ship, or the backlog / shipment model",
+            ],
+            repo_root / ".github" / "skills" / "install-harness" / "SKILL.md": [
+                "feature-flow.prompt.md",
+                "feature-flow-parallel.prompt.md",
+                "Orchestrator's pipelined full-cycle routing preference",
+            ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
+
+    def test_user_facing_docs_explain_feature_flow_entrypoints(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
+            repo_root / "README.md": [
+                "/feature-flow",
+                "/feature-flow-parallel",
+                "workflow aliases, not separate pipelines",
+                "existing Orchestrator workflow",
+            ],
+            repo_root / "docs" / "getting-started.md": [
+                "Workflow Entry Points",
+                "Invokes the Orchestrator",
+                "degrades to sequential mode",
+                "Manual Agent-by-Agent Path",
+            ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
 
     def test_unresolved_placeholders_ignore_code_fences(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

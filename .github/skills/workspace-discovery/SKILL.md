@@ -174,7 +174,7 @@ Detect whether the workspace is already configured for agent-intercom or a close
 | Signal | Meaning |
 |--------|---------|
 | `.intercom/settings.json` exists | Workspace has explicit intercom policy/configuration markers |
-| `.mcp.json` (workspace root), `.vscode/mcp.json`, `.cursor/mcp.json`, or `.vscode/settings.json` references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
+| `.mcp.json` (workspace root, canonical shared config) or legacy editor settings reference `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
 | Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows; or contains `<!-- intercom:start -->` / `<!-- intercom:end -->` markers | Harness may already be partially woven for intercom |
 
 Record: `agent_intercom{}` with the following structure:
@@ -183,7 +183,7 @@ Record: `agent_intercom{}` with the following structure:
 agent_intercom:
   detected: true|false
   mcp_configured: true|false
-  config_paths: []          # paths where intercom MCP config was found (e.g. .mcp.json, .vscode/mcp.json)
+  config_paths: []          # paths where intercom MCP config was found (normally .mcp.json)
   instruction_markers: []   # matched markers from AGENTS.md / copilot-instructions.md (e.g. <!-- intercom:start -->)
   recommended: true|false
 ```
@@ -195,7 +195,7 @@ Detect whether the workspace is already configured for agent-engram or a closely
 | Signal | Meaning |
 |--------|---------|
 | `.engram/config.toml`, `.engram/registry.yaml`, or `.engram/code-graph/` exists | Workspace has engram installation or persisted state markers |
-| `.mcp.json` (workspace root), `.vscode/mcp.json`, `.cursor/mcp.json`, or `.vscode/settings.json` references `agent-engram`, `engram`, or known engram tool names (`unified_search`, `query_memory`, `map_code`, `list_symbols`, `impact_analysis`, `query_graph`) | MCP server likely configured for the workspace |
+| `.mcp.json` (workspace root, canonical shared config) or legacy editor settings reference `agent-engram`, `engram`, or known engram tool names (`unified_search`, `query_memory`, `map_code`, `list_symbols`, `impact_analysis`, `query_graph`) | MCP server likely configured for the workspace |
 | Existing `AGENTS.md` / `.github/copilot-instructions.md` references Engram-first search, `.engram/`, or workspace binding / status checks; or contains `<!-- engram:start -->` / `<!-- engram:end -->` markers | Harness may already be partially woven for engram |
 
 Record: `agent_engram{}` with the following structure:
@@ -204,7 +204,7 @@ Record: `agent_engram{}` with the following structure:
 agent_engram:
   detected: true|false
   mcp_configured: true|false
-  config_paths: []          # paths where engram MCP config was found (e.g. .mcp.json, .vscode/mcp.json)
+  config_paths: []          # paths where engram MCP config was found (normally .mcp.json)
   instruction_markers: []   # matched markers from AGENTS.md / copilot-instructions.md (e.g. <!-- engram:start -->)
   recommended: true|false
 ```
@@ -217,7 +217,7 @@ Detect whether the workspace is configured for graphtor-docs or a closely relate
 |--------|---------|
 | `.graphtor/` directory exists at the workspace root | Workspace has a graphtor-docs installation or persistent index state |
 | `.graphtor/config/sources.yaml` or `.graphtor/config/` directory exists | graphtor-docs source index is configured |
-| `.mcp.json`, `.vscode/mcp.json`, or `.vscode/settings.json` references `graphtor-docs`, `graphtor`, or known graphtor tool names (`search_local_docs`, `search_semantic`, `research_topic`, `traverse_doc_links`, `list_sources`, `get_chunk_by_id`, `get_document`, `get_status`) | MCP server likely configured for the workspace |
+| `.mcp.json` (workspace root, canonical shared config) or legacy editor settings reference `graphtor-docs`, `graphtor`, or known graphtor tool names (`search_local_docs`, `search_semantic`, `research_topic`, `traverse_doc_links`, `list_sources`, `get_chunk_by_id`, `get_document`, `get_status`) | MCP server likely configured for the workspace |
 | `graphtor-docs` binary is present on PATH or at `.graphtor/bin/` | Binary installation confirmed |
 | Existing `AGENTS.md` / `.github/copilot-instructions.md` references graphtor-docs, indexed local docs, or graphtor MCP tool names | Harness may already be partially woven for graphtor-docs |
 
@@ -227,7 +227,7 @@ Record: `graphtor_docs{}` with the following structure:
 graphtor_docs:
   detected: true|false
   mcp_configured: true|false
-  config_paths: []          # paths to MCP and other non-sources config files found (e.g. .mcp.json, .vscode/mcp.json)
+  config_paths: []          # paths to MCP and other non-sources config files found (normally .mcp.json)
   sources_path: ""          # path to sources.yaml (the graphtor-docs source-index config); empty string if not found
   binary_path: ""           # path to graphtor-docs binary; empty string if not found (e.g. .graphtor/bin/graphtor-docs.exe or absolute PATH entry)
   instruction_markers: []   # matched phrases from AGENTS.md / copilot-instructions.md
@@ -586,7 +586,7 @@ agent_engram:
   # Example when Engram is present:
   # detected: true
   # mcp_configured: true
-  # config_paths: [".vscode/mcp.json", ".engram/config.toml"]
+  # config_paths: [".mcp.json", ".engram/config.toml"]
   # recommended: true
 
 agent_native:

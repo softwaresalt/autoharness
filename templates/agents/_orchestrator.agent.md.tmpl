@@ -25,12 +25,16 @@ The operator can invoke the orchestrator with these commands:
 | Command | Pipeline Scope | Description |
 |---|---|---|
 | `run pipeline` / `process stash` | Full cycle (Steps 0–3) | Triage stash, group related entries, stage a shipment, hand off to Ship, iterate |
+| `feature-flow` | Full cycle (Steps 0–3) | Developer-friendly alias for the standard sequential Stage → Ship lifecycle |
+| `feature-flow-parallel` | Full cycle with pipelined preference | Developer-friendly alias for the same lifecycle, but prefer pipelined execution when policy and branch-safety constraints permit |
 | `stage next` | Steps 0–1 only | Triage stash and produce a queued shipment; do not invoke Ship |
 | `ship next` / `ship {id}` | Step 2 only | Execute the next queued shipment (or a specific one); do not triage stash |
 | `define groupable shipments and stage` | Steps 0–1 with grouping analysis | Review stash and queue, propose thematic groupings, stage the first group |
 | `assess state` | Step 0 only | Report current backlog state without acting |
 
 When the operator's message does not match a trigger phrase, infer intent from context: if stash entries exist and no shipment is queued, behave as `run pipeline`. If a queued shipment exists and stash is empty, behave as `ship next`. For install/tune requests (e.g., "install harness", "tune harness"), route to elective agents — see the **Elective Agents** section below for trigger phrases and routing rules.
+
+`feature-flow` and `feature-flow-parallel` are workflow aliases, not alternate lifecycle implementations. Both names always route through the Orchestrator, preserve Stage / Ship role boundaries, and must not bypass the backlog / shipment model. `feature-flow-parallel` degrades to normal sequential execution whenever pipelined mode is unsafe or unavailable.
 
 ## Stash Grouping Heuristic
 
