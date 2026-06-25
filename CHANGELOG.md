@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.4.6 - 2026-06-24
+
+### Changed
+
+- Renamed the source-controlled workflow agents and their templates for sort
+  priority and explicit identity: `orchestrator.agent.md` →
+  `_orchestrator.agent.md` (`_Orchestrator`), `stage.agent.md` →
+  `.stage.agent.md` (`.Stage`), and `ship.agent.md` → `.ship.agent.md`
+  (`.Ship`). Updated the dogfood harness manifest, workspace profile, install
+  guidance, verification logic, tests, and documentation to match the new
+  filenames and frontmatter identities (PR #112).
+- Added developer-friendly Orchestrator workflow entrypoints:
+  `/feature-flow` for the standard sequential Stage → Ship lifecycle and
+  `/feature-flow-parallel` for the pipelined preference path. The prompts,
+  installer wiring, user-facing docs, and regression tests now treat them as
+  aliases over the existing Orchestrator workflow rather than a separate
+  pipeline (PR #113).
+- Standardized on a tracked workspace-root `.mcp.json` as the canonical shared
+  MCP configuration surface across agent IDEs. Removed tracked editor-specific
+  `.vscode/mcp.json` and `.cursor/mcp.json`, made the shared config portable,
+  and updated discovery/install/tuning guidance so editor-local MCP files are
+  treated only as legacy compatibility fallbacks (PR #113).
+
 ## 1.4.5 - 2026-05-18
 
 ### Changed
