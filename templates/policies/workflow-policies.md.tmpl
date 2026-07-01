@@ -23,6 +23,8 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 **Statement**: The ship agent must complete one top-level release unit (feature or chore) through PR merge **and any required post-merge release closure** before starting a new one. When `{{FEATURE_SHIPMENTS}}` is `true`, a merged release unit remains in-flight until Ship Step 5 has finished any required tag, publish, release-record, or post-merge closure-branch work. Parallel in-flight release units create branch conflicts, context fragmentation, and agent interference.
 
+**Default workflow**: This policy makes **sequential single-PR-at-a-time the enforced default workflow** of the harness — at most one release-unit PR is in flight at any time (zero when the harness is idle). Parallel or pipelined shipping (see the Orchestrator's pipelined execution mode) is an **explicit opt-in** that remains bound by this policy: it may pipeline planning work, but must never allow a second release-unit PR to be in flight while the current one is unmerged or awaiting required post-merge closure.
+
 **Precondition**: No backlog tasks with status `Active` exist under any top-level work item other than the current feature or chore, and no previously merged top-level release unit is still awaiting required post-merge release closure (for example, an open post-merge closure branch/PR, a missing tag, or a pending publish step when `{{FEATURE_SHIPMENTS}}` is `true`).
 
 **Postcondition**: All tasks under the current top-level work item are `Done`, and any required post-merge release closure is complete, before the orchestrator claims work on a new feature or chore.

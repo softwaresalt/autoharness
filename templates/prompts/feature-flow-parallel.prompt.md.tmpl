@@ -10,7 +10,7 @@ Use the existing Orchestrator pipeline to move work through the autoharness life
 
 ## Intent
 
-This prompt is a user-friendly alias for the Orchestrator's pipelined execution mode. It still uses the normal Stage → Ship lifecycle and falls back to sequential execution whenever pipelining would violate policy or branch-safety constraints.
+This prompt is a user-friendly alias for the Orchestrator's pipelined execution mode. It is an **opt-in alternative** to the sequential single-PR-at-a-time default (`feature-flow`); it still uses the normal Stage → Ship lifecycle and falls back to sequential execution whenever pipelining would violate policy or branch-safety constraints.
 
 ## Requirements
 

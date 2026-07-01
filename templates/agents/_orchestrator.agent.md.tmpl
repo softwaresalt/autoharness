@@ -99,6 +99,8 @@ Elective agents MAY run while Stage is active (Stage only produces backlog/plann
 
 ## Execution Modes
 
+**Sequential single-PR-at-a-time is the enforced default** (P-001): route one release unit through Ship to merge and closure before starting the next, keeping at most one release-unit PR in flight. Pipelined mode is an **explicit opt-in** and remains P-001-constrained — it may prepare the next batch's planning, but never routes a second release-unit shipment to Ship while one is in flight.
+
 ### Sequential Mode (default)
 
 Route the full pipeline in order:
@@ -106,7 +108,7 @@ Route the full pipeline in order:
 2. After Stage produces a shipment → invoke Ship with the shipment ID
 3. After Ship merges and completes closure (including any required tag/publish closure) → assess remaining stash and repeat
 
-### Pipelined Mode (when P-001 permits)
+### Pipelined Mode (opt-in; when P-001 permits)
 
 Route Stage and Ship to operate on different batches concurrently:
 * Stage works on the **next** stash batch (producing a future shipment)
