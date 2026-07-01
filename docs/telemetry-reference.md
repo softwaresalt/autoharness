@@ -56,8 +56,17 @@ telemetry:
 | Field | Required | Default | Description |
 |---|---|---|---|
 | `mode` | no | `none` | `sqlite` enables the SQLite aggregator; `none` disables all telemetry (kill-switch). |
-| `database_path` | no | `.autoharness/metrics/execution_epochs.db` | Repo-relative path to the local SQLite DB. Resolved against the workspace root. |
+| `database_path` | no | `.autoharness/metrics/execution_epochs.db` | Repo-relative path to the local SQLite DB. Resolved against the workspace root and **confined to it** (see below). |
 | `emit_jsonl` | no | `false` | When `true`, also append a JSONL epoch stream alongside the DB. |
+
+Telemetry artifacts are **confined to the workspace**. `database_path` (and the
+JSONL stream derived from it) is resolved against the workspace root, and the
+resolved real path must live **inside** the workspace. A `database_path` that
+escapes the repo — an absolute path outside the workspace, or a relative path
+using `..` traversal — is rejected and telemetry **fails open to disabled** (a
+warning is logged; nothing is emitted outside the repo). This keeps every
+artifact under the gitignored default location (`.autoharness/metrics/`), so
+emission never writes tracked files or escapes the working tree.
 
 The commented activation guidance ships through
 [`templates/harness-config.yaml.tmpl`](../templates/harness-config.yaml.tmpl) so

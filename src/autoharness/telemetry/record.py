@@ -66,16 +66,30 @@ def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummar
 def load_workspace_telemetry_config(workspace: Path) -> TelemetryConfig:
     """Read ``<workspace>/.autoharness/config.yaml`` and load its telemetry block.
 
-    An absent config file or absent/``none`` telemetry block yields a disabled
-    config (fail-open). This reads the raw ``telemetry`` mapping directly so the
-    telemetry package stays decoupled from ``gates/``.
+    Fail-open: an absent config file, an absent/``none`` telemetry block, an
+    unreadable file, malformed YAML, or an invalid telemetry block all yield a
+    disabled config. No parse error ever propagates — telemetry is off the
+    completion critical path.
     """
+    import logging
+
     import yaml
+
+    from autoharness.telemetry.config import TelemetryConfigError
+
+    logger = logging.getLogger(__name__)
 
     config_path = workspace / ".autoharness" / "config.yaml"
     telemetry_block: Any = None
-    if config_path.exists():
-        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-        if isinstance(loaded, dict):
-            telemetry_block = loaded.get("telemetry")
-    return load_telemetry_config(telemetry_block, workspace_root=workspace)
+    try:
+        if config_path.exists():
+            loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                telemetry_block = loaded.get("telemetry")
+        return load_telemetry_config(telemetry_block, workspace_root=workspace)
+    except (yaml.YAMLError, OSError, TelemetryConfigError) as exc:
+        logger.warning("Telemetry disabled (fail-open): could not load config: %s", exc)
+        return TelemetryConfig()
+    except Exception as exc:  # fail-open: no config problem may block completion
+        logger.warning("Telemetry disabled (fail-open): unexpected config error: %s", exc)
+        return TelemetryConfig()

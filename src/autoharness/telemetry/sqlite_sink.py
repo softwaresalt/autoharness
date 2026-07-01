@@ -11,9 +11,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from pathlib import Path
 
 from autoharness.telemetry.epoch import ExecutionEpoch
+
+_BUSY_TIMEOUT_SECONDS = 5.0
+_BUSY_TIMEOUT_MS = 5000
+_MAX_WRITE_RETRIES = 5
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS execution_epochs (
@@ -36,8 +41,9 @@ CREATE TABLE IF NOT EXISTS execution_epochs (
 
 
 def _connect(database_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(database_path))
+    conn = sqlite3.connect(str(database_path), timeout=_BUSY_TIMEOUT_SECONDS)
     conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS};")
     return conn
 
 
@@ -53,37 +59,51 @@ def ensure_schema(database_path: Path) -> None:
 
 
 def write_epoch(epoch: ExecutionEpoch, database_path: Path) -> None:
-    """Persist a single epoch. Opens and closes a short-lived connection."""
+    """Persist a single epoch. Opens and closes a short-lived connection.
+
+    Uses a busy timeout plus a small bounded retry on ``database is locked`` so
+    parallel emitters do not drop rows under contention.
+    """
     ensure_schema(database_path)
-    conn = _connect(database_path)
-    try:
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO execution_epochs (
-                epoch_id, schema_version, task_id, timestamp,
-                primary_model, models,
-                input_tokens, output_tokens, total_tokens,
-                cogs_usd, duration_seconds,
-                cli_tools, gate_exit_codes, blocked
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                epoch.epoch_id,
-                epoch.schema_version,
-                epoch.task_id,
-                epoch.timestamp,
-                epoch.route.primary_model,
-                json.dumps(list(epoch.route.models)),
-                epoch.economics.input_tokens,
-                epoch.economics.output_tokens,
-                epoch.economics.total_tokens,
-                epoch.economics.cogs_usd,
-                epoch.economics.duration_seconds,
-                json.dumps(list(epoch.operations.cli_tools)),
-                json.dumps(list(epoch.outcome.gate_exit_codes)),
-                int(epoch.outcome.blocked),
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+    last_exc: sqlite3.OperationalError | None = None
+    for attempt in range(_MAX_WRITE_RETRIES):
+        conn = _connect(database_path)
+        try:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO execution_epochs (
+                    epoch_id, schema_version, task_id, timestamp,
+                    primary_model, models,
+                    input_tokens, output_tokens, total_tokens,
+                    cogs_usd, duration_seconds,
+                    cli_tools, gate_exit_codes, blocked
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    epoch.epoch_id,
+                    epoch.schema_version,
+                    epoch.task_id,
+                    epoch.timestamp,
+                    epoch.route.primary_model,
+                    json.dumps(list(epoch.route.models)),
+                    epoch.economics.input_tokens,
+                    epoch.economics.output_tokens,
+                    epoch.economics.total_tokens,
+                    epoch.economics.cogs_usd,
+                    epoch.economics.duration_seconds,
+                    json.dumps(list(epoch.operations.cli_tools)),
+                    json.dumps(list(epoch.outcome.gate_exit_codes)),
+                    int(epoch.outcome.blocked),
+                ),
+            )
+            conn.commit()
+            return
+        except sqlite3.OperationalError as exc:
+            if "database is locked" not in str(exc).lower():
+                raise
+            last_exc = exc
+            time.sleep(0.05 * (attempt + 1))
+        finally:
+            conn.close()
+    if last_exc is not None:
+        raise last_exc

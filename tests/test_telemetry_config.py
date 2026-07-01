@@ -56,13 +56,44 @@ class TelemetryConfigLoaderTests(unittest.TestCase):
         )
         self.assertEqual(config.database_path.parent, config.jsonl_path.parent)
 
-    def test_absolute_database_path_is_preserved(self) -> None:
-        abs_path = Path.cwd().resolve() / "custom" / "epochs.db"
-        config = load_telemetry_config(
-            {"mode": "sqlite", "database_path": str(abs_path)},
-            workspace_root="/some/other/root",
-        )
-        self.assertEqual(config.database_path, abs_path)
+    def test_escaping_absolute_path_is_rejected_disabled(self) -> None:
+        # An absolute path outside the workspace root must NOT be honored — the
+        # config fails open to disabled rather than emitting outside the repo.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as ws, tempfile.TemporaryDirectory() as outside:
+            abs_path = Path(outside).resolve() / "epochs.db"
+            config = load_telemetry_config(
+                {"mode": "sqlite", "database_path": str(abs_path)},
+                workspace_root=ws,
+            )
+            self.assertFalse(config.enabled)
+            self.assertIsNone(config.database_path)
+
+    def test_parent_traversal_path_is_rejected_disabled(self) -> None:
+        # A relative path that escapes the workspace via '..' must be rejected.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as ws:
+            config = load_telemetry_config(
+                {"mode": "sqlite", "database_path": "../outside/epochs.db"},
+                workspace_root=ws,
+            )
+            self.assertFalse(config.enabled)
+            self.assertIsNone(config.database_path)
+
+    def test_relative_path_outside_metrics_but_inside_workspace_is_allowed(self) -> None:
+        # Containment is to the workspace root, not the metrics dir; an in-repo
+        # relative path stays enabled.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as ws:
+            config = load_telemetry_config(
+                {"mode": "sqlite", "database_path": "telemetry.db"},
+                workspace_root=ws,
+            )
+            self.assertTrue(config.enabled)
+            self.assertEqual(config.database_path, (Path(ws) / "telemetry.db").resolve())
 
     def test_unsupported_mode_raises(self) -> None:
         with self.assertRaises(TelemetryConfigError):

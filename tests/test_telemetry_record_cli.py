@@ -110,6 +110,46 @@ class TelemetryRecordCliTests(unittest.TestCase):
             self._run()
         self.assertEqual(ctx.exception.code, 2)
 
+    def test_mode_none_with_garbage_payload_is_noop_success(self) -> None:
+        # Telemetry disabled ⇒ the payload is never parsed; garbage is a no-op
+        # success (exit 0), NOT an exit-2 validation failure.
+        self._write_config(_DISABLED_CONFIG)
+        self.payload_path.write_text("{ not json", encoding="utf-8")
+        self._run()  # no SystemExit ⇒ exit 0
+        db_path = self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+        self.assertFalse(db_path.exists())
+
+    def test_malformed_config_yaml_is_failopen_disabled(self) -> None:
+        # A config.yaml that cannot be parsed must fail open to disabled (exit 0),
+        # never propagate a YAMLError traceback.
+        self._write_config("telemetry: : : not valid yaml: [\n")
+        self.payload_path.write_text("{ not json", encoding="utf-8")
+        self._run()  # no SystemExit ⇒ exit 0 disabled
+        db_path = self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+        self.assertFalse(db_path.exists())
+
+    def test_enabled_malformed_payload_route_shape_exits_2(self) -> None:
+        # route: [] would raise AttributeError deep in from_mapping; it must be
+        # normalized to a controlled exit 2 (no raw traceback).
+        self._write_config(_ENABLED_CONFIG)
+        bad = dict(_PAYLOAD)
+        bad["route"] = []
+        self.payload_path.write_text(json.dumps(bad), encoding="utf-8")
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_enabled_bad_token_coercion_exits_2(self) -> None:
+        # input_tokens: "abc" would raise ValueError via int("abc"); normalized to
+        # a controlled exit 2.
+        self._write_config(_ENABLED_CONFIG)
+        bad = dict(_PAYLOAD)
+        bad["economics"] = {"input_tokens": "abc"}
+        self.payload_path.write_text(json.dumps(bad), encoding="utf-8")
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+        self.assertEqual(ctx.exception.code, 2)
+
 
 class RecordEpochFailOpenTests(unittest.TestCase):
     """A failing sink must never propagate a completion-blocking signal (P2-1)."""

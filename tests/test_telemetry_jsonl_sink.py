@@ -60,6 +60,29 @@ class JsonlSinkTests(unittest.TestCase):
         append_epoch(_epoch("x"), self.jsonl_path)
         self.assertTrue(self.jsonl_path.exists())
 
+    def test_concurrent_appends_produce_intact_lines(self) -> None:
+        # Each append must land as exactly one atomic, complete line even under
+        # many concurrent writers — no interleaving or split lines.
+        import threading
+
+        n_threads = 12
+        m_records = 120
+
+        def worker(tid: int) -> None:
+            for i in range(m_records):
+                append_epoch(_epoch(f"t{tid}-{i}"), self.jsonl_path)
+
+        threads = [threading.Thread(target=worker, args=(t,)) for t in range(n_threads)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+
+        lines = self.jsonl_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), n_threads * m_records)
+        for line in lines:
+            json.loads(line)  # every line must be valid, complete JSON
+
 
 if __name__ == "__main__":
     unittest.main()

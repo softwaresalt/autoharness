@@ -368,9 +368,25 @@ def _telemetry_command(args: list[str]) -> None:
         print(TELEMETRY_USAGE, file=sys.stderr)
         sys.exit(2)
 
-    from autoharness.telemetry.config import TelemetryConfigError
     from autoharness.telemetry.epoch import EpochError, ExecutionEpoch
-    from autoharness.telemetry.record import load_workspace_telemetry_config, record_epoch
+    from autoharness.telemetry.record import (
+        RecordSummary,
+        load_workspace_telemetry_config,
+        record_epoch,
+    )
+
+    # Load telemetry config FIRST. It is fail-open and never raises: an absent or
+    # `mode: none` block, or ANY config-parse failure, yields a disabled config.
+    config = load_workspace_telemetry_config(parsed["workspace"])
+
+    # When telemetry is disabled the command is a no-op SUCCESS (exit 0) — the
+    # payload is never read or validated.
+    if not config.enabled:
+        if parsed["emit_json"]:
+            print(json.dumps(RecordSummary(enabled=False).to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print("Telemetry disabled (mode: none or absent); epoch not recorded.")
+        return
 
     # Read the epoch payload from a file or stdin.
     if parsed["from_json"] is not None:
@@ -388,25 +404,17 @@ def _telemetry_command(args: list[str]) -> None:
         print(f"Invalid epoch payload — not valid JSON: {exc}", file=sys.stderr)
         sys.exit(2)
 
+    # All payload shape/coercion failures are normalized to EpochError → exit 2.
     try:
         epoch = ExecutionEpoch.from_mapping(payload)
     except EpochError as exc:
         print(f"Invalid epoch payload: {exc}", file=sys.stderr)
         sys.exit(2)
 
-    # Telemetry is fail-open: config problems must not block completion.
-    try:
-        config = load_workspace_telemetry_config(parsed["workspace"])
-    except TelemetryConfigError as exc:
-        print(f"Telemetry disabled — invalid configuration (fail-open): {exc}", file=sys.stderr)
-        return
-
     summary = record_epoch(epoch, config)
 
     if parsed["emit_json"]:
         print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))
-    elif not summary.enabled:
-        print("Telemetry disabled (mode: none or absent); epoch not recorded.")
     else:
         sinks = []
         if summary.sqlite_written:

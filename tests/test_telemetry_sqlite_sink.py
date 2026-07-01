@@ -84,6 +84,31 @@ class SqliteSinkTests(unittest.TestCase):
             conn.close()
         self.assertEqual(count, 2)
 
+    def test_concurrent_writes_drop_no_rows(self) -> None:
+        # Parallel emitters must not lose rows to "database is locked".
+        import threading
+
+        ensure_schema(self.db_path)
+        n_threads = 10
+        m_records = 40
+
+        def worker(tid: int) -> None:
+            for i in range(m_records):
+                write_epoch(_epoch(f"t{tid}-{i}"), self.db_path)
+
+        threads = [threading.Thread(target=worker, args=(t,)) for t in range(n_threads)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM execution_epochs").fetchone()[0]
+        finally:
+            conn.close()
+        self.assertEqual(count, n_threads * m_records)
+
 
 if __name__ == "__main__":
     unittest.main()

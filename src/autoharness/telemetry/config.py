@@ -11,9 +11,12 @@ the fail-open-to-current default with no emission and no side effects.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_DATABASE_PATH = ".autoharness/metrics/execution_epochs.db"
 DEFAULT_JSONL_NAME = "execution_epochs.jsonl"
@@ -39,11 +42,24 @@ class TelemetryConfig:
     jsonl_path: Path | None = None
 
 
+def _is_within(root: Path, candidate: Path) -> bool:
+    """True when ``candidate`` resolves inside ``root`` (no ``..``/absolute escape)."""
+    try:
+        candidate.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
 def _resolve(root: Path, raw: str) -> Path:
-    """Resolve a possibly repo-relative path against the workspace root."""
+    """Resolve a possibly repo-relative path against the workspace root.
+
+    Absolute inputs are honored as given (still subject to the containment
+    check by the caller); relative inputs resolve against ``root``.
+    """
     candidate = Path(raw)
     if candidate.is_absolute():
-        return candidate
+        return candidate.resolve()
     return (root / candidate).resolve()
 
 
@@ -68,6 +84,7 @@ def load_telemetry_config(
         TelemetryConfigError: when a present block declares an unsupported mode.
     """
     root = Path(workspace_root) if workspace_root is not None else Path.cwd()
+    root = root.resolve()
 
     if not isinstance(telemetry, Mapping) or not telemetry:
         return TelemetryConfig()
@@ -82,6 +99,19 @@ def load_telemetry_config(
 
     db_raw = telemetry.get("database_path") or DEFAULT_DATABASE_PATH
     database_path = _resolve(root, str(db_raw))
+
+    # Confine telemetry artifacts to the workspace. An absolute-outside path or a
+    # '..' traversal that escapes the repo fails open to disabled — telemetry must
+    # never emit tracked files outside the gitignored metrics directory.
+    if not _is_within(root, database_path):
+        logger.warning(
+            "Telemetry disabled (fail-open): database_path %r escapes the "
+            "workspace root %r.",
+            str(db_raw),
+            str(root),
+        )
+        return TelemetryConfig(mode="none")
+
     emit_jsonl = bool(telemetry.get("emit_jsonl", False))
     jsonl_path = database_path.parent / DEFAULT_JSONL_NAME
 

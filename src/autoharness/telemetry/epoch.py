@@ -173,17 +173,25 @@ class ExecutionEpoch:
             if key not in data:
                 raise EpochError(f"Epoch payload is missing the required '{key}' payload class.")
 
-        fields: dict[str, Any] = {
-            "task_id": str(data["task_id"]),
-            "route": RouteConfiguration.from_mapping(data["route"]),
-            "economics": EconomicPayload.from_mapping(data["economics"]),
-            "operations": OperationalReality.from_mapping(data["operations"]),
-            "outcome": AbsoluteOutcome.from_mapping(data["outcome"]),
-        }
-        if data.get("epoch_id"):
-            fields["epoch_id"] = str(data["epoch_id"])
-        if data.get("timestamp"):
-            fields["timestamp"] = str(data["timestamp"])
-        if data.get("schema_version"):
-            fields["schema_version"] = str(data["schema_version"])
-        return cls(**fields)
+        # Normalize every downstream shape/coercion failure (e.g. ``route: []``
+        # raising AttributeError, or ``input_tokens: "abc"`` raising ValueError)
+        # into a single controlled EpochError so the CLI never leaks a traceback.
+        try:
+            fields: dict[str, Any] = {
+                "task_id": str(data["task_id"]),
+                "route": RouteConfiguration.from_mapping(data["route"]),
+                "economics": EconomicPayload.from_mapping(data["economics"]),
+                "operations": OperationalReality.from_mapping(data["operations"]),
+                "outcome": AbsoluteOutcome.from_mapping(data["outcome"]),
+            }
+            if data.get("epoch_id"):
+                fields["epoch_id"] = str(data["epoch_id"])
+            if data.get("timestamp"):
+                fields["timestamp"] = str(data["timestamp"])
+            if data.get("schema_version"):
+                fields["schema_version"] = str(data["schema_version"])
+            return cls(**fields)
+        except EpochError:
+            raise
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise EpochError(f"Epoch payload is malformed: {exc}") from exc
