@@ -101,8 +101,10 @@ def load_telemetry_config(
     database_path = _resolve(root, str(db_raw))
 
     # Confine telemetry artifacts to the workspace. An absolute-outside path or a
-    # '..' traversal that escapes the repo fails open to disabled — telemetry must
-    # never emit tracked files outside the gitignored metrics directory.
+    # '..' traversal that escapes the repo fails open to disabled. Any in-workspace
+    # path is allowed; only the default `.autoharness/metrics/` location is
+    # gitignored, so a custom path outside it needs its own ignore rule (see
+    # docs/telemetry-reference.md).
     if not _is_within(root, database_path):
         logger.warning(
             "Telemetry disabled (fail-open): database_path %r escapes the "
