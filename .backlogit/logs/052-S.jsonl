@@ -1,0 +1,10 @@
+{"timestamp":"2026-06-30T19:10:11.9250321-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_created","delta":{"items":[],"title":"Deterministic Validation Gates (Phase 1) — autoharness"}}
+{"timestamp":"2026-06-30T19:10:18.6167025-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050-F"}}
+{"timestamp":"2026-06-30T19:10:26.1297432-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.001-T"}}
+{"timestamp":"2026-06-30T19:10:26.2276527-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.002-T"}}
+{"timestamp":"2026-06-30T19:10:26.3471776-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.003-T"}}
+{"timestamp":"2026-06-30T19:10:26.4467221-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.005-T"}}
+{"timestamp":"2026-06-30T19:10:26.5695277-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.004-T"}}
+{"timestamp":"2026-06-30T19:10:26.6991311-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.006-T"}}
+{"timestamp":"2026-06-30T19:10:26.8055695-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.008-T"}}
+{"timestamp":"2026-06-30T19:10:26.9184371-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.007-T"}}
