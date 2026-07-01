@@ -458,3 +458,46 @@ def plan_schema_contract_migrations(
         proposals.append(proposal)
 
     return proposals
+
+
+VALIDATION_GATES_SCHEMA_DIR = "validation-gates"
+VALIDATION_GATES_SCHEMA_VERSION = "1.0.0"
+
+
+def resolve_validation_gates_schema_path(autoharness_home: Path) -> Path | None:
+    """Resolve the versioned validation-gates schema, falling back to the pointer.
+
+    Returns ``None`` when neither the versioned schema nor the pointer schema is
+    present, so the caller can decide to skip deep validation rather than crash.
+    """
+    versioned = (
+        autoharness_home
+        / "schemas"
+        / VALIDATION_GATES_SCHEMA_DIR
+        / f"{VALIDATION_GATES_SCHEMA_VERSION}.schema.json"
+    )
+    if versioned.exists():
+        return versioned
+    pointer = autoharness_home / "schemas" / "validation-gates.schema.json"
+    if pointer.exists():
+        return pointer
+    return None
+
+
+def load_lifecycle_hooks_config(
+    config_data: Any,
+    autoharness_home: Path,
+    *,
+    validate: bool = True,
+):
+    """Resolution path for the optional lifecycle_hooks/telemetry config block.
+
+    An absent ``lifecycle_hooks`` block yields a disabled gate configuration
+    (fail-open-to-current). A present block is validated against the versioned
+    validation-gates schema (when ``validate`` is True and the schema resolves)
+    and parsed into a typed :class:`autoharness.gates.config.GatesConfig`.
+    """
+    from autoharness.gates.config import load_gates_config
+
+    schema_path = resolve_validation_gates_schema_path(autoharness_home) if validate else None
+    return load_gates_config(config_data, schema_path=schema_path)
