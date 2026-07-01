@@ -37,7 +37,7 @@ This is a leaf executor. No subagent spawning. Maximum depth: 0.
 | Variable | Purpose |
 |---|---|
 | `{{HARNESS_MANIFEST_PATH}}` | Path to the installed harness manifest (default: `.autoharness/harness-manifest.yaml`) |
-| `{{AUTOHARNESS_VERSION}}` | Expected autoharness version string from `autoharness_home` metadata |
+| `{{AUTOHARNESS_VERSION}}` | Fallback autoharness version string baked at install time (used only when the `autoharness version` CLI is unavailable at diagnostic time) |
 
 ## Workflow
 
@@ -66,11 +66,11 @@ Determine what is installed before running any checks.
 
 **Skip condition**: Skip if Phase 1 found no manifest.
 
-Compare the installed version with the current `autoharness_home` version.
+Compare the version that performed the install against the current autoharness version.
 
-1. Read `autoharness_version` from the manifest.
-2. Compare against `{{AUTOHARNESS_VERSION}}` (the version of the autoharness installation that would perform upgrades).
-3. Classify the drift:
+1. Read `autoharness_version` from the manifest (the version that performed the install).
+2. Resolve the **current** autoharness version by running the `autoharness version` CLI at diagnostic time (this is the version that would perform upgrades). If the CLI is unavailable, fall back to the install-time `{{AUTOHARNESS_VERSION}}` value.
+3. Compare the manifest version against the current version and classify the drift:
 
 | Condition | Signal |
 |---|---|

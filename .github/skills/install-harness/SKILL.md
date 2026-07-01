@@ -326,12 +326,12 @@ Resolution note for guardrail variables:
 | Template Variable | Source | Default | Description |
 |---|---|---|---|
 | `{{HARNESS_MANIFEST_PATH}}` | `config.harness.manifest_path` or schema default | `.autoharness/harness-manifest.yaml` | Path to the installed harness manifest; used by harness-doctor to locate the manifest for integrity and version checks |
-| `{{AUTOHARNESS_VERSION}}` | `autoharness_home` metadata (`version` field in `autoharness_home/pyproject.toml` or equivalent) | _(resolved at install time)_ | Expected autoharness version string; harness-doctor compares this against the manifest's `autoharness_version` field to detect version drift |
+| `{{AUTOHARNESS_VERSION}}` | Output of the `autoharness version` CLI at install time | _(resolved at install time)_ | The autoharness version that performed the install; written to the manifest's `autoharness_version` field. harness-doctor resolves the *current* version live and compares it against this recorded value to detect version drift |
 
 Resolution notes for health-check variables:
 
 * `{{HARNESS_MANIFEST_PATH}}`: Defaults to `.autoharness/harness-manifest.yaml` relative to the workspace root. Override via `config.harness.manifest_path` in the workspace config. Must be a relative path.
-* `{{AUTOHARNESS_VERSION}}`: Read from the autoharness installation at install time (e.g., `autoharness_home/src/autoharness/__init__.py` `__version__` attribute, or equivalent metadata file). Baked into the template at installation so the installed harness-doctor knows what version it was installed from.
+* `{{AUTOHARNESS_VERSION}}`: Resolve by running the `autoharness version` CLI at install time. It returns the installed package version via `importlib.metadata` (with a source fallback), so it works for pip, plugin, and editable installs — unlike reading `autoharness_home`, whose bundled data directory does not include `pyproject.toml` or `src/autoharness/__init__.py`. This value is written to the manifest's `autoharness_version` field to record which version performed the install.
 
 **Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
 
