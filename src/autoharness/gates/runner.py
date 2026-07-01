@@ -40,6 +40,7 @@ class GateResult:
     duration: float
     timed_out: bool = False
     missing_binary: bool = False
+    enforcement: str | None = None
     argv: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -123,6 +124,7 @@ def run_gate(
             ),
             duration=duration,
             missing_binary=True,
+            enforcement=gate.enforcement,
             argv=tuple(argv),
         )
     except subprocess.TimeoutExpired as exc:
@@ -138,6 +140,7 @@ def run_gate(
             stderr=(partial + f"\n[gate killed: exceeded timeout of {gate.timeout_seconds}s]").strip(),
             duration=duration,
             timed_out=True,
+            enforcement=gate.enforcement,
             argv=tuple(argv),
         )
 
@@ -149,5 +152,6 @@ def run_gate(
         exit_code=proc.returncode,
         stderr=proc.stderr or "",
         duration=duration,
+        enforcement=gate.enforcement,
         argv=tuple(argv),
     )
