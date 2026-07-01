@@ -1,1 +1,3 @@
 {"timestamp":"2026-07-01T01:01:28.9027647-07:00","actor":"backlogit","item_id":"054.001-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-07-01T01:25:55.6982558-07:00","actor":"backlogit","item_id":"054.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"5ab29eb8fde830653dabefa7fe158d4aa76e5740","message":"Merge pull request #119"}}
+{"timestamp":"2026-07-01T01:25:55.8064684-07:00","actor":"backlogit","item_id":"054.001-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/054.001-T.md"}}
