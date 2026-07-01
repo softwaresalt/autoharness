@@ -9,3 +9,6 @@
 {"timestamp":"2026-06-30T19:10:26.8055695-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.008-T"}}
 {"timestamp":"2026-06-30T19:10:26.9184371-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_item_added","delta":{"item_id":"050.007-T"}}
 {"timestamp":"2026-06-30T23:01:49.03741-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-01T00:30:05.0241419-07:00","actor":"backlogit","item_id":"052-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-07-01T00:30:05.1333673-07:00","actor":"backlogit","item_id":"052-S","event_type":"commit_tracked","delta":{"author":"","commit_sha":"c8d2048ebb140a488c9badba1fe37eed72ca7bc3","message":"Merge pull request #115 from softwaresalt/feat/deterministic-validation-gates"}}
+{"timestamp":"2026-07-01T00:30:07.1922833-07:00","actor":"backlogit","item_id":"052-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/052-S.md"}}
