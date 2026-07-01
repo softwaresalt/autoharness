@@ -1200,7 +1200,7 @@ the tuner can later re-hash for deterministic drift detection:
 ```yaml
 schema_version: "1.0.0"
 installed_at: "{{ISO_8601_TIMESTAMP}}"
-autoharness_version: "1.0.0"
+autoharness_version: "{{AUTOHARNESS_VERSION}}"
 autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
 config_hash: "{{SHA256_OF_CONFIG_OR_NULL}}"  # null if no .autoharness/config.yaml was present
