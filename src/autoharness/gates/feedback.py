@@ -219,7 +219,7 @@ def enforce(
         return GateOutcome(
             status=STATUS_FORCED,
             exit_code=0,
-            blocked=True,
+            blocked=False,
             forced=True,
             messages=(
                 f"OPERATOR FORCE BYPASS applied to {len(blocking)} blocking "

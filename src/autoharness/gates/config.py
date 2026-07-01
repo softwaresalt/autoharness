@@ -135,8 +135,10 @@ def load_gates_config(
     Args:
         config_data: The parsed ``.autoharness/config.yaml`` mapping (or any
             mapping containing ``lifecycle_hooks``/``telemetry``). Anything that
-            is not a mapping, or a mapping without a ``lifecycle_hooks`` key,
-            yields a disabled config (no behavior change).
+            is not a mapping, or a mapping with neither a ``lifecycle_hooks`` nor
+            a ``telemetry`` key, yields a disabled config (no behavior change). A
+            ``telemetry``-only mapping yields a disabled config whose telemetry
+            block is retained for forward compatibility.
         schema_path: Path to the versioned validation-gates JSON Schema. When
             provided and a ``lifecycle_hooks`` block is present, the block is
             validated before parsing. When ``None``, validation is skipped.
@@ -147,11 +149,25 @@ def load_gates_config(
     Raises:
         GatesConfigError: When a present block fails schema validation.
     """
-    if not isinstance(config_data, dict) or "lifecycle_hooks" not in config_data:
+    if not isinstance(config_data, dict):
+        return GatesConfig(enabled=False)
+
+    has_lifecycle = "lifecycle_hooks" in config_data
+    has_telemetry = "telemetry" in config_data
+    if not has_lifecycle and not has_telemetry:
         return GatesConfig(enabled=False)
 
     if schema_path is not None:
         _validate(config_data, schema_path)
+
+    telemetry = config_data.get("telemetry") or {}
+    if not isinstance(telemetry, dict):
+        telemetry = {}
+
+    if not has_lifecycle:
+        # Telemetry-only configuration: gates stay disabled (fail-open-to-current
+        # for gating), but the telemetry block is retained for forward compatibility.
+        return GatesConfig(enabled=False, telemetry=telemetry)
 
     lifecycle_raw = config_data.get("lifecycle_hooks") or {}
     if not isinstance(lifecycle_raw, dict):
@@ -160,10 +176,6 @@ def load_gates_config(
     pre_execution = tuple(_parse_action(a) for a in lifecycle_raw.get("pre_execution", []))
     ptc_raw = lifecycle_raw.get("pre_task_completion")
     pre_task_completion = _parse_policy(ptc_raw) if isinstance(ptc_raw, dict) else None
-
-    telemetry = config_data.get("telemetry") or {}
-    if not isinstance(telemetry, dict):
-        telemetry = {}
 
     return GatesConfig(
         enabled=True,

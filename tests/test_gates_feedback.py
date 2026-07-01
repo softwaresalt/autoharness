@@ -139,6 +139,7 @@ class ForceBypassTests(unittest.TestCase):
             self.assertEqual(outcome.status, "forced")
             self.assertEqual(outcome.exit_code, 0)
             self.assertTrue(outcome.forced)
+            self.assertFalse(outcome.blocked)
             audit = Path(tmp) / ".autoharness" / "gate-force-audit.log"
             self.assertTrue(audit.exists())
             text = audit.read_text(encoding="utf-8")

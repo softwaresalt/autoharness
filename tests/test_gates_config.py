@@ -58,6 +58,19 @@ class LifecycleHooksLoaderTests(unittest.TestCase):
         # Non-dict / None inputs also fail-open to disabled.
         self.assertFalse(load_gates_config(None, schema_path=_SCHEMA_PATH).enabled)
 
+    def test_telemetry_only_config_is_retained(self) -> None:
+        # A telemetry-only block (no lifecycle_hooks) keeps gates disabled but
+        # must NOT discard the telemetry configuration.
+        data = {
+            "schema_version": "1.0.0",
+            "telemetry": {"mode": "sqlite", "emit_jsonl": True},
+        }
+        config = load_gates_config(data, schema_path=_SCHEMA_PATH)
+        self.assertFalse(config.enabled)
+        self.assertEqual(config.validation_gates, ())
+        self.assertEqual(config.telemetry.get("mode"), "sqlite")
+        self.assertTrue(config.telemetry.get("emit_jsonl"))
+
     def test_present_block_parses_into_typed_structure(self) -> None:
         data = yaml.safe_load(PRESENT_CONFIG)
         config = load_gates_config(data, schema_path=_SCHEMA_PATH)

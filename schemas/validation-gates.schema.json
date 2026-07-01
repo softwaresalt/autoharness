@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/softwaresalt/autoharness/schemas/validation-gates/1.0.0.schema.json",
+  "$id": "https://github.com/softwaresalt/autoharness/schemas/validation-gates.schema.json",
   "title": "Validation Gates (lifecycle_hooks + telemetry)",
   "description": "Additive, OPTIONAL configuration for deterministic validation gates in .autoharness/config.yaml. Validates the design-doc section 5 contract: the lifecycle_hooks block (pre_execution actions and pre_task_completion validation_gates) and the telemetry block. The entire lifecycle_hooks and telemetry blocks are optional; an absent block means no gates run and behavior is identical to an install without gates.",
   "type": "object",

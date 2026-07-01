@@ -212,7 +212,7 @@
     },
     "lifecycle_hooks": {
       "type": "object",
-      "description": "Optional deterministic validation gates (pre_execution actions and pre_task_completion validation_gates). Validated in depth against schemas/validation-gates/1.0.0.schema.json by the config loader. Absent block means no gates run. See docs/reference/validation-gates.md."
+      "description": "Optional deterministic validation gates (pre_execution actions and pre_task_completion validation_gates). Validated in depth against schemas/validation-gates/1.0.0.schema.json by the config loader. Absent block means no gates run. See docs/gates-reference.md."
     },
     "telemetry": {
       "type": "object",

@@ -92,11 +92,18 @@ class ValidationGatesSchemaTests(unittest.TestCase):
         self.assertTrue(validator.is_valid({}))
         self.assertTrue(validator.is_valid({"telemetry": {"mode": "none"}}))
 
-    def test_pointer_schema_mirrors_versioned_schema(self) -> None:
-        self.assertEqual(
-            json.loads(_POINTER_PATH.read_text(encoding="utf-8")),
-            json.loads(_SCHEMA_PATH.read_text(encoding="utf-8")),
-        )
+    def test_pointer_schema_mirrors_versioned_schema_except_id(self) -> None:
+        pointer = json.loads(_POINTER_PATH.read_text(encoding="utf-8"))
+        versioned = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+        # Each file must carry its own $id (matching its own path) so tooling
+        # that keys on $id treats them as distinct documents.
+        self.assertNotEqual(pointer["$id"], versioned["$id"])
+        self.assertTrue(pointer["$id"].endswith("/schemas/validation-gates.schema.json"))
+        self.assertTrue(versioned["$id"].endswith("/schemas/validation-gates/1.0.0.schema.json"))
+        # Apart from $id, the pointer mirrors the versioned schema verbatim.
+        pointer.pop("$id", None)
+        versioned.pop("$id", None)
+        self.assertEqual(pointer, versioned)
 
 
 if __name__ == "__main__":
