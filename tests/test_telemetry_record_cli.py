@@ -103,6 +103,17 @@ class TelemetryRecordCliTests(unittest.TestCase):
             self._run()
         self.assertEqual(ctx.exception.code, 2)
 
+    def test_enabled_numeric_overflow_payload_exits_2(self) -> None:
+        # A numeric field that overflows int() (1e309 -> inf) must be a
+        # controlled exit 2, not a raw OverflowError traceback.
+        self._write_config(_ENABLED_CONFIG)
+        bad = json.loads(json.dumps(_PAYLOAD))
+        bad["economics"]["input_tokens"] = 1e309
+        self.payload_path.write_text(json.dumps(bad), encoding="utf-8")
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+        self.assertEqual(ctx.exception.code, 2)
+
     def test_invalid_json_payload_exits_2(self) -> None:
         self._write_config(_ENABLED_CONFIG)
         self.payload_path.write_text("{ not valid json", encoding="utf-8")

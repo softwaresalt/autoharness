@@ -193,5 +193,5 @@ class ExecutionEpoch:
             return cls(**fields)
         except EpochError:
             raise
-        except (AttributeError, TypeError, ValueError) as exc:
+        except (AttributeError, TypeError, ValueError, ArithmeticError) as exc:
             raise EpochError(f"Epoch payload is malformed: {exc}") from exc
