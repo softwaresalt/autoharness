@@ -1,2 +1,5 @@
 {"timestamp":"2026-07-01T01:01:16.60843-07:00","actor":"backlogit","item_id":"054-S","event_type":"shipment_created","delta":{"items":["054-F","054.001-T"],"title":"Record autoharness version on install"}}
 {"timestamp":"2026-07-01T01:01:28.6677986-07:00","actor":"backlogit","item_id":"054-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-01T01:25:55.2897451-07:00","actor":"backlogit","item_id":"054-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-07-01T01:25:55.4380031-07:00","actor":"backlogit","item_id":"054-S","event_type":"commit_tracked","delta":{"author":"","commit_sha":"5ab29eb8fde830653dabefa7fe158d4aa76e5740","message":"Merge pull request #119"}}
+{"timestamp":"2026-07-01T01:25:56.0629747-07:00","actor":"backlogit","item_id":"054-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/054-S.md"}}
