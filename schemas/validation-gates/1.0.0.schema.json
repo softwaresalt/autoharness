@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/softwaresalt/autoharness/schemas/validation-gates/1.0.0.schema.json",
+  "title": "Validation Gates (lifecycle_hooks + telemetry)",
+  "description": "Additive, OPTIONAL configuration for deterministic validation gates in .autoharness/config.yaml. Validates the design-doc section 5 contract: the lifecycle_hooks block (pre_execution actions and pre_task_completion validation_gates) and the telemetry block. The entire lifecycle_hooks and telemetry blocks are optional; an absent block means no gates run and behavior is identical to an install without gates.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "lifecycle_hooks": { "$ref": "#/definitions/lifecycle_hooks" },
+    "telemetry": { "$ref": "#/definitions/telemetry" }
+  },
+  "definitions": {
+    "interpolated_command": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^([^{}]|\\{(file_path|task_id|result)\\})*$",
+      "description": "Interpolated command/write-back template. Only the closed placeholder vocabulary {file_path}, {task_id}, {result} is permitted. Any other {placeholder} or stray brace is rejected so subprocess construction stays auditable and injection-safe."
+    },
+    "action": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(internal:|shell:).+$",
+      "description": "Namespaced action: internal:<fn> for an autoharness built-in, or shell:<cmd> for an external command."
+    },
+    "enforcement": {
+      "type": "string",
+      "enum": ["absolute", "advisory"],
+      "description": "absolute = hard stop the agent cannot bypass (default). advisory = failing gates warn but do not block."
+    },
+    "lifecycle_hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Deterministic lifecycle hooks. Entirely optional.",
+      "properties": {
+        "pre_execution": {
+          "type": "array",
+          "description": "Actions evaluated before a task begins (e.g. complexity sizing).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "action"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Unique name of the pre-execution action within the list."
+              },
+              "condition": {
+                "type": "string",
+                "description": "Optional condition expression. Defaults to always-run when omitted."
+              },
+              "action": { "$ref": "#/definitions/action" },
+              "write_back": { "$ref": "#/definitions/interpolated_command" }
+            }
+          }
+        },
+        "pre_task_completion": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Gate policy and validation gates evaluated before a task may transition to a completed state.",
+          "properties": {
+            "enforcement": { "$ref": "#/definitions/enforcement" },
+            "on_repeated_failure": {
+              "type": "string",
+              "enum": ["block", "escalate"],
+              "description": "block = force the task to blocked and requeue after max_gate_failures (default). escalate = route to a heavier model tier first, then block."
+            },
+            "max_gate_failures": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Consecutive gate-failure count that trips block+requeue. Default 3, aligned with the circuit-breaker MAXIMUM_RETRY_THRESHOLD."
+            },
+            "validation_gates": {
+              "type": "array",
+              "description": "Per-pattern validation gates. Each matched modified file is validated by the mapped command.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pattern", "command", "timeout_seconds"],
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Doublestar glob over forward-slash-normalized, repo-relative paths."
+                  },
+                  "command": { "$ref": "#/definitions/interpolated_command" },
+                  "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Hard per-file timeout in seconds. The subprocess is killed when exceeded."
+                  },
+                  "enforcement": { "$ref": "#/definitions/enforcement" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional telemetry configuration. Phase 1 does not build the telemetry sink; these keys are reserved and validated for forward compatibility.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["sqlite", "none"],
+          "description": "Telemetry sink mode. Defaults to none."
+        },
+        "database_path": {
+          "type": "string",
+          "description": "Repo-relative path to the local telemetry database (Phase 2)."
+        },
+        "emit_jsonl": {
+          "type": "boolean",
+          "description": "Whether to emit JSONL telemetry (Phase 2). Defaults to false."
+        }
+      }
+    }
+  }
+}

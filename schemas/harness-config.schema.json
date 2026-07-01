@@ -352,6 +352,14 @@
       "type": "object",
       "description": "Explicit overrides for template variables that take precedence over auto-detected values. Use sparingly — prefer correcting the workspace setup over overriding discovery.",
       "additionalProperties": { "type": "string" }
+    },
+    "lifecycle_hooks": {
+      "type": "object",
+      "description": "Optional deterministic validation gates (pre_execution actions and pre_task_completion validation_gates). Validated in depth against schemas/validation-gates/1.0.0.schema.json by the config loader. Absent block means no gates run. See docs/reference/validation-gates.md."
+    },
+    "telemetry": {
+      "type": "object",
+      "description": "Optional telemetry configuration (Phase 2 sink is not built in Phase 1). Validated in depth against schemas/validation-gates/1.0.0.schema.json by the config loader."
     }
   }
 }
