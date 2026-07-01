@@ -70,9 +70,16 @@ max_subagent_tier: 3
   validates `model_tier` and `max_subagent_tier` (integers 1–3) via
   `_add_frontmatter_tier_check()` — never `model_routing`.
 - Present on line 6 of all agent templates and their installed copies.
+- **Exception:** the installed repo-local workflow agents
+  `.github/agents/.stage.agent.md` and `.github/agents/.ship.agent.md` currently
+  carry ONLY `model_routing` and have no `model_tier`/`max_subagent_tier`. For
+  those two files, `model_routing` is the *only* tier marker.
 
-**Removing Construct 1 is LOW risk** because `model_tier` is already the
-authoritative, verified tier declaration. It is dead/deprecated metadata.
+**Removing Construct 1 is LOW risk for every agent that already declares
+`model_tier`** — there it is dead/deprecated metadata superseded by the verified
+integer field. It is NOT yet safe for `.stage.agent.md` / `.ship.agent.md`, which
+must first be backfilled with `model_tier` (and `max_subagent_tier`) so removal
+does not strip their only tier declaration.
 
 ### Construct 2 — Config `model_routing:` object (ACTIVE / CORE to P-013)
 
@@ -123,10 +130,10 @@ measured.) Python sources reference only `model_tier` — **never**
 
 | Artifact family | Representative paths | Count / notes |
 |---|---|---|
-| **Config schema** (Construct 2) | `schemas/harness-config.schema.json`, `schemas/harness-config/1.0.0.schema.json` | 1 field def each; `type: object`, tier1/2/3 as `oneOf:[string,object]`; **not required** |
+| **Config schema** (Construct 2) | `schemas/harness-config.schema.json`, `schemas/harness-config/1.0.0.schema.json` | 1 field def each; `type: object`, **not required**. Schema-version skew: the unversioned schema defines tier1/2/3 as `oneOf:[string,object]`, but the versioned `1.0.0` schema still defines them as plain strings — any rename/remove plan must reconcile both |
 | **Config template** (Construct 2) | `templates/harness-config.yaml.tmpl` (lines 64–84) | `model_routing:` block with tier1/2/3/orchestrator |
 | **Live self-config** (Construct 2) | `.autoharness/config.yaml` | 1 block |
-| **Agent frontmatter** (Construct 1) | 16 agent `*.agent.md.tmpl` (line 6) + `.github/agents/{_orchestrator,.stage,.ship}.agent.md` | 19 legacy `model_routing:` strings; **all templates also carry `model_tier`** |
+| **Agent frontmatter** (Construct 1) | 16 agent `*.agent.md.tmpl` (line 6) + `.github/agents/{_orchestrator,.stage,.ship}.agent.md` | 19 legacy `model_routing:` strings. All *templates* also carry `model_tier`; but installed `.stage.agent.md` / `.ship.agent.md` carry ONLY `model_routing` (no `model_tier`) and must be backfilled before removal |
 | **Installer resolution** (Construct 2) | `.github/skills/install-harness/SKILL.md` | 21 references (`config.model_routing.*` variable-resolution table) |
 | **Orchestrator prose** (Construct 2) | `templates/agents/_orchestrator.agent.md.tmpl` (config example ~line 313) | 3 references |
 | **Spec / compound** (Construct 3) | `docs/product-specs/orchestrator-model-routing-spec.md`, `docs/compound/p013-orchestrator-model-routing.md` | 8 references |
@@ -206,9 +213,12 @@ frontmatter string.
 ### Option D (Hybrid) — Retire Construct 1 now, defer Construct 2 decision
 
 Scope 053-F to **only** removing the deprecated Construct 1 frontmatter
-`model_routing:` string (low risk, P-013-safe), and split the Construct 2
-config-block decision (rename vs remove vs keep) into a separate operator-gated
-item.
+`model_routing:` string (low risk, P-013-safe) from agents that already declare
+`model_tier`, and split the Construct 2 config-block decision (rename vs remove vs
+keep) into a separate operator-gated item. **Prerequisite:** first backfill
+`model_tier`/`max_subagent_tier` into `.github/agents/.stage.agent.md` and
+`.ship.agent.md` (which today carry only `model_routing`), or exclude those two
+files from the cleanup, so removal never strips an agent's only tier marker.
 
 - **Pros:** Delivers safe, verifiable cleanup immediately; isolates the risky
   design decision behind operator intent; aligns with P-013's own stated goal of
