@@ -64,9 +64,12 @@ JSONL stream derived from it) is resolved against the workspace root, and the
 resolved real path must live **inside** the workspace. A `database_path` that
 escapes the repo — an absolute path outside the workspace, or a relative path
 using `..` traversal — is rejected and telemetry **fails open to disabled** (a
-warning is logged; nothing is emitted outside the repo). This keeps every
-artifact under the gitignored default location (`.autoharness/metrics/`), so
-emission never writes tracked files or escapes the working tree.
+warning is logged; nothing is emitted outside the repo). The **default**
+location `.autoharness/metrics/` is gitignored, so default emission never dirties
+the working tree. If you override `database_path` to an in-workspace location
+*outside* `.autoharness/metrics/`, confinement still holds, but those artifacts
+are **not** covered by the default gitignore rule — add your own ignore entry so
+emission does not produce tracked-file changes.
 
 The commented activation guidance ships through
 [`templates/harness-config.yaml.tmpl`](../templates/harness-config.yaml.tmpl) so

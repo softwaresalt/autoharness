@@ -32,7 +32,11 @@ def _atomic_append_bytes(path: Path, data: bytes) -> None:
         return
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
     try:
-        os.write(fd, data)
+        written = os.write(fd, data)
+        if written != len(data):
+            raise OSError(
+                f"short JSONL append: wrote {written} of {len(data)} bytes to {path}"
+            )
     finally:
         os.close(fd)
 
@@ -65,6 +69,10 @@ def _win_atomic_append(path: Path, data: bytes) -> None:
         ok = kernel32.WriteFile(handle, data, len(data), ctypes.byref(written), None)
         if not ok:
             raise OSError(ctypes.get_last_error(), f"WriteFile failed for {path}")
+        if written.value != len(data):
+            raise OSError(
+                f"short JSONL append: wrote {written.value} of {len(data)} bytes to {path}"
+            )
     finally:
         kernel32.CloseHandle(handle)
 

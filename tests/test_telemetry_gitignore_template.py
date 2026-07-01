@@ -79,6 +79,10 @@ class MetricsEmissionHardGateTests(unittest.TestCase):
                 if line.strip() == ".autoharness/metrics/"
             )
             (repo / ".gitignore").write_text(metrics_rule + "\n", encoding="utf-8")
+            # Commit .gitignore so a fully-clean `git status` directly proves the
+            # emitted metrics artifacts are ignored (nothing shows at all).
+            self._git(repo, "add", ".gitignore")
+            self._git(repo, "commit", "-m", "add gitignore")
 
             metrics = repo / ".autoharness" / "metrics"
             db_path = metrics / "execution_epochs.db"
@@ -107,6 +111,12 @@ class MetricsEmissionHardGateTests(unittest.TestCase):
                 offending,
                 [],
                 f"metrics artifacts leaked into git status: {offending!r}",
+            )
+            # With .gitignore committed, emission must leave the tree fully clean.
+            self.assertEqual(
+                status.stdout.strip(),
+                "",
+                f"emission dirtied the working tree; git status:\n{status.stdout}",
             )
 
 

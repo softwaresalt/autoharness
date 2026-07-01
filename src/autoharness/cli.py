@@ -392,11 +392,15 @@ def _telemetry_command(args: list[str]) -> None:
     if parsed["from_json"] is not None:
         try:
             raw = parsed["from_json"].read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             print(f"Could not read epoch payload: {exc}", file=sys.stderr)
             sys.exit(2)
     else:
-        raw = sys.stdin.read()
+        try:
+            raw = sys.stdin.read()
+        except UnicodeDecodeError as exc:
+            print(f"Could not read epoch payload from stdin: {exc}", file=sys.stderr)
+            sys.exit(2)
 
     try:
         payload = json.loads(raw)

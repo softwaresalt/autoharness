@@ -94,6 +94,15 @@ class TelemetryRecordCliTests(unittest.TestCase):
         db_path = self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"
         self.assertFalse(db_path.exists())
 
+    def test_enabled_non_utf8_payload_file_exits_2(self) -> None:
+        # A non-UTF-8 payload file on the ENABLED path must be a controlled
+        # exit 2, never a raw UnicodeDecodeError traceback.
+        self._write_config(_ENABLED_CONFIG)
+        self.payload_path.write_bytes(b"\xff\xfe\x00 not utf-8 \xff")
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+        self.assertEqual(ctx.exception.code, 2)
+
     def test_invalid_json_payload_exits_2(self) -> None:
         self._write_config(_ENABLED_CONFIG)
         self.payload_path.write_text("{ not valid json", encoding="utf-8")
