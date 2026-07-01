@@ -5,6 +5,7 @@
 *.pyc
 .autoharness/staging/
 .autoharness/gates/
+.autoharness/metrics/
 .worktrees/
 .backlogit/*.db
 .backlogit/hooks_queue.jsonl

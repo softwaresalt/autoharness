@@ -39,6 +39,7 @@ Usage:
   autoharness version           Print the installed version
   autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness gate check        Run deterministic validation gates on modified files
+  autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
   autoharness setup-copilot-cli Copy agents/skills into Copilot CLI (deprecated — use plugin)
   autoharness setup-claude      Copy agents and skills into the Claude Code global config dir
@@ -294,6 +295,127 @@ def _gate_command(args: list[str]) -> None:
 
     if outcome.exit_code != 0:
         sys.exit(outcome.exit_code)
+
+
+TELEMETRY_USAGE = """\
+autoharness telemetry record — record an execution epoch to the configured sink(s)
+
+Usage:
+  autoharness telemetry record [--from-json <path>] [--workspace <path>] [--json]
+
+Options:
+  --from-json <path>  Read the epoch payload (a JSON object) from a file.
+                      When omitted, the payload is read from stdin.
+  --workspace, -w     Workspace root containing .autoharness/config.yaml. Default: .
+  --json              Emit the dispatch summary as JSON.
+
+The epoch payload is the serialized shape produced by the harness runtime at
+task close (route/economics/operations/outcome + task_id). See
+docs/telemetry-reference.md for the emission contract.
+
+Telemetry is fail-open and observational: an absent or `mode: none` telemetry
+block is a no-op (exit 0), and a failing sink is reported without blocking.
+
+Exit codes:
+  0  epoch recorded, or telemetry disabled (no-op), or sink failed (fail-open).
+  2  invalid arguments or an invalid/malformed epoch payload.
+"""
+
+
+def _parse_telemetry_record_args(args: list[str]) -> dict:
+    parsed: dict = {"from_json": None, "workspace": Path("."), "emit_json": False}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--from-json":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --from-json")
+            parsed["from_json"] = Path(args[index])
+        elif arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown telemetry record argument: {arg}")
+        index += 1
+    return parsed
+
+
+def _telemetry_command(args: list[str]) -> None:
+    """Dispatch `autoharness telemetry <subcommand>`."""
+    if not args or args[0] in ("help", "--help", "-h"):
+        print(TELEMETRY_USAGE)
+        return
+
+    subcommand = args[0]
+    if subcommand != "record":
+        print(f"Unknown telemetry subcommand: {subcommand}", file=sys.stderr)
+        print(TELEMETRY_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    if any(flag in ("help", "--help", "-h") for flag in args[1:]):
+        print(TELEMETRY_USAGE)
+        return
+
+    try:
+        parsed = _parse_telemetry_record_args(args[1:])
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(TELEMETRY_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.telemetry.config import TelemetryConfigError
+    from autoharness.telemetry.epoch import EpochError, ExecutionEpoch
+    from autoharness.telemetry.record import load_workspace_telemetry_config, record_epoch
+
+    # Read the epoch payload from a file or stdin.
+    if parsed["from_json"] is not None:
+        try:
+            raw = parsed["from_json"].read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"Could not read epoch payload: {exc}", file=sys.stderr)
+            sys.exit(2)
+    else:
+        raw = sys.stdin.read()
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"Invalid epoch payload — not valid JSON: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        epoch = ExecutionEpoch.from_mapping(payload)
+    except EpochError as exc:
+        print(f"Invalid epoch payload: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    # Telemetry is fail-open: config problems must not block completion.
+    try:
+        config = load_workspace_telemetry_config(parsed["workspace"])
+    except TelemetryConfigError as exc:
+        print(f"Telemetry disabled — invalid configuration (fail-open): {exc}", file=sys.stderr)
+        return
+
+    summary = record_epoch(epoch, config)
+
+    if parsed["emit_json"]:
+        print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))
+    elif not summary.enabled:
+        print("Telemetry disabled (mode: none or absent); epoch not recorded.")
+    else:
+        sinks = []
+        if summary.sqlite_written:
+            sinks.append("sqlite")
+        if summary.jsonl_written:
+            sinks.append("jsonl")
+        print(f"Recorded epoch {epoch.epoch_id} to: {', '.join(sinks) or 'no sink'}")
+        for err in summary.errors:
+            print(f"  warning (fail-open): {err}", file=sys.stderr)
 
 
 def _vscode_user_settings_path() -> Path | None:
@@ -671,6 +793,8 @@ def main(argv: list[str] | None = None) -> None:
         _verify_workspace_command(args[1:])
     elif command == "gate":
         _gate_command(args[1:])
+    elif command == "telemetry":
+        _telemetry_command(args[1:])
     elif command == "setup-vscode":
         _setup_vscode()
     elif command == "setup-copilot-cli":
