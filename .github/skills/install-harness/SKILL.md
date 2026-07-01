@@ -326,12 +326,12 @@ Resolution note for guardrail variables:
 | Template Variable | Source | Default | Description |
 |---|---|---|---|
 | `{{HARNESS_MANIFEST_PATH}}` | `config.harness.manifest_path` or schema default | `.autoharness/harness-manifest.yaml` | Path to the installed harness manifest; used by harness-doctor to locate the manifest for integrity and version checks |
-| `{{AUTOHARNESS_VERSION}}` | Output of the `autoharness version` CLI at install time | _(resolved at install time)_ | The autoharness version that performed the install; written to the manifest's `autoharness_version` field. harness-doctor resolves the *current* version live and compares it against this recorded value to detect version drift |
+| `{{AUTOHARNESS_VERSION}}` | `autoharness version` CLI when available, else `autoharness_home` package metadata (`pyproject.toml` / `src/autoharness/__init__.py`) for clone-only installs | _(resolved at install time)_ | The autoharness version that performed the install; written to the manifest's `autoharness_version` field. harness-doctor resolves the *current* version live and compares it against this recorded value to detect version drift |
 
 Resolution notes for health-check variables:
 
 * `{{HARNESS_MANIFEST_PATH}}`: Defaults to `.autoharness/harness-manifest.yaml` relative to the workspace root. Override via `config.harness.manifest_path` in the workspace config. Must be a relative path.
-* `{{AUTOHARNESS_VERSION}}`: Resolve by running the `autoharness version` CLI at install time. It returns the installed package version via `importlib.metadata` (with a source fallback), so it works for pip, plugin, and editable installs — unlike reading `autoharness_home`, whose bundled data directory does not include `pyproject.toml` or `src/autoharness/__init__.py`. This value is written to the manifest's `autoharness_version` field to record which version performed the install.
+* `{{AUTOHARNESS_VERSION}}`: Resolve at install time from whichever source is available: (1) run the `autoharness version` CLI for pip, plugin, and editable installs (it returns the installed package version via `importlib.metadata`); (2) for clone-only installs where the CLI is not on `PATH`, read the version from `autoharness_home/pyproject.toml` (`[project].version`) or `autoharness_home/src/autoharness/__init__.py` (`__version__`) — those files are present in a source checkout even though the released wheel data directory omits them. One of these paths always resolves; the field must never be written to the manifest as a literal `{{AUTOHARNESS_VERSION}}` placeholder.
 
 **Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
 
