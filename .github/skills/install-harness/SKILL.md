@@ -1273,7 +1273,7 @@ Scan every installed artifact for unresolved template variables:
    are intentional examples
 3. For each match, record the file path, line number, and variable name
 4. **FAIL** verification if any unresolved variables are found outside code fences
-5. Also scan the written `.autoharness/harness-manifest.yaml` for unresolved `{{...}}`
+5. Also scan the written harness manifest (`{{HARNESS_MANIFEST_PATH}}`) for unresolved `{{...}}`
    in scalar field values. In particular, `autoharness_version` MUST be a concrete
    version string, never a literal `{{AUTOHARNESS_VERSION}}`. **FAIL** verification if
    the manifest contains an unresolved placeholder — a literal version would silently

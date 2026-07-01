@@ -28,6 +28,21 @@ class EpochError(ValueError):
     """Raised when an epoch payload is malformed or a required class is missing."""
 
 
+def _as_tuple(value: Any, field: str) -> tuple:
+    """Coerce a JSON array into a tuple, rejecting strings/bytes and non-arrays.
+
+    A bare string is iterable, so ``tuple("abc")`` would silently yield
+    ``('a', 'b', 'c')``. Reject that so a malformed shape (e.g. ``models`` given
+    as a string) becomes a controlled :class:`EpochError` rather than nonsense
+    telemetry that still exits 0.
+    """
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)) or not isinstance(value, (list, tuple)):
+        raise TypeError(f"'{field}' must be a JSON array, got {type(value).__name__}")
+    return tuple(value)
+
+
 @dataclass(frozen=True)
 class RouteConfiguration:
     """Route configuration — the models used during the epoch."""
@@ -43,7 +58,7 @@ class RouteConfiguration:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "RouteConfiguration":
-        return cls(models=tuple(data.get("models", ())))
+        return cls(models=_as_tuple(data.get("models"), "route.models"))
 
 
 @dataclass(frozen=True)
@@ -88,7 +103,7 @@ class OperationalReality:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "OperationalReality":
-        return cls(cli_tools=tuple(data.get("cli_tools", ())))
+        return cls(cli_tools=_as_tuple(data.get("cli_tools"), "operations.cli_tools"))
 
 
 @dataclass(frozen=True)
@@ -107,7 +122,8 @@ class AbsoluteOutcome:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AbsoluteOutcome":
-        return cls(gate_exit_codes=tuple(int(c) for c in data.get("gate_exit_codes", ())))
+        codes = _as_tuple(data.get("gate_exit_codes"), "outcome.gate_exit_codes")
+        return cls(gate_exit_codes=tuple(int(c) for c in codes))
 
 
 def _utc_now_iso() -> str:

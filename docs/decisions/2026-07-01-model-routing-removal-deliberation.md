@@ -99,11 +99,12 @@ model_routing:
 - This is the **functional tier→model resolution mechanism** that P-013.3
   introduced (*"advanced routing configurations injected via workspace
   configuration"*).
-- It drives ~15 installer variable resolutions in
-  `.github/skills/install-harness/SKILL.md` (`{{MODEL_ROUTING_TIER1..3}}`,
+- It drives the installer's `{{MODEL_ROUTING_TIER1..3}}`,
   `{{TIER_n_REASONING_EFFORT}}`, `{{TIER_n_PROVIDER}}`, `{{TIER_n_FAMILY}}`,
   `{{ORCHESTRATOR_*}}`, and `alt_review` / `alt_doc_review` provider/family
-  resolution).
+  resolution in `.github/skills/install-harness/SKILL.md` — ~15 distinct
+  template variables spanning the 21 `config.model_routing.*` references counted
+  for that file in the inventory below.
 - It is **not** a schema-`required` field (only `schema_version` is required),
   but the installer reads it to populate every agent's `model_family` /
   `model_provider` / `reasoning_effort` frontmatter.
@@ -122,7 +123,10 @@ coordinated updates under any removal.
 ## Current State — Inventory of `model_routing` Usage
 
 A scoped scan (`*.md`, `*.tmpl`, `*.json`, `*.yaml`; excluding `.venv`,
-`.backlogit`, `.copilot`, `.git`) found **70 matches across 37 files**. (The
+`.backlogit`, `.copilot`, `.git`), taken at this deliberation's authoring time
+and **excluding this decision document itself**, found **70 matches across 37
+files**. Treat the counts as a point-in-time baseline (this doc adds further
+`model_routing` mentions), not a post-merge live count. (The
 stash's "~101" estimate is an over-count relative to this scoped scan; the
 discrepancy is itself a signal that the blast radius was estimated, not
 measured.) Python sources reference only `model_tier` — **never**

@@ -114,6 +114,17 @@ class TelemetryRecordCliTests(unittest.TestCase):
             self._run()
         self.assertEqual(ctx.exception.code, 2)
 
+    def test_enabled_route_models_as_string_exits_2(self) -> None:
+        # route.models given as a string (not an array) must be rejected as a
+        # malformed shape (exit 2), never silently split into a tuple of chars.
+        self._write_config(_ENABLED_CONFIG)
+        bad = json.loads(json.dumps(_PAYLOAD))
+        bad["route"]["models"] = "claude-opus-4.6"
+        self.payload_path.write_text(json.dumps(bad), encoding="utf-8")
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+        self.assertEqual(ctx.exception.code, 2)
+
     def test_invalid_json_payload_exits_2(self) -> None:
         self._write_config(_ENABLED_CONFIG)
         self.payload_path.write_text("{ not valid json", encoding="utf-8")

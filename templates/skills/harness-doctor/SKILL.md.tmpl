@@ -71,7 +71,7 @@ Compare the version that performed the install against the current autoharness v
 1. Read `autoharness_version` from the manifest (the version that performed the install).
 2. Resolve the **current** autoharness version live by running the `autoharness version` CLI at diagnostic time (this is the version that would perform upgrades).
    * If the CLI is unavailable, current-version resolution has **failed** — do NOT substitute the install-time `{{AUTOHARNESS_VERSION}}` value as the current version (comparing install-time against install-time would report a false match). Record **WARN — current autoharness version could not be resolved; drift undetectable** and skip the drift classification below.
-3. When the current version resolved, compare it against the manifest version and classify the drift:
+3. When the current version is resolved, compare it against the manifest version and classify the drift:
 
 | Condition | Signal |
 |---|---|
