@@ -99,7 +99,7 @@ Elective agents MAY run while Stage is active (Stage only produces backlog/plann
 
 ## Execution Modes
 
-**Sequential single-PR-at-a-time is the enforced default** (P-001): route one release unit through Ship to merge and closure before starting the next, keeping exactly one release-unit PR in flight. Pipelined mode is an **explicit opt-in** and remains P-001-constrained — it may prepare the next batch's planning, but never routes a second release-unit shipment to Ship while one is in flight.
+**Sequential single-PR-at-a-time is the enforced default** (P-001): route one release unit through Ship to merge and closure before starting the next, keeping at most one release-unit PR in flight. Pipelined mode is an **explicit opt-in** and remains P-001-constrained — it may prepare the next batch's planning, but never routes a second release-unit shipment to Ship while one is in flight.
 
 ### Sequential Mode (default)
 

@@ -230,7 +230,7 @@ it halts and requests that Stage be run first.
 
 ### Step 1: Pre-Flight Checks
 
-1. **P-001 Gate**: Sequential single-PR-at-a-time is the default — exactly one top-level release unit may be in flight. Check that no other top-level release units (features or chores) are `Active` in the backlog, and treat any previously merged shipment with incomplete required post-merge release closure (for example, an open post-merge closure PR/branch, a missing tag, or a pending publish step when `{{FEATURE_SHIPMENTS}}` is true) as still active for P-001 purposes
+1. **P-001 Gate**: Sequential single-PR-at-a-time is the default — at most one top-level release unit may be in flight. Check that no other top-level release units (features or chores) are `Active` in the backlog, and treat any previously merged shipment with incomplete required post-merge release closure (for example, an open post-merge closure PR/branch, a missing tag, or a pending publish step when `{{FEATURE_SHIPMENTS}}` is true) as still active for P-001 purposes
 2. **Verify compilation**: Run `{{BUILD_CHECK_COMMAND}}` to confirm the project builds
 3. **Re-read constitution**: Load `.github/instructions/constitution.instructions.md` Principles I, II, IV
 4. If the task has elevated blast radius, uncertain root cause, or destructive potential, invoke **safety-modes** in the appropriate mode before modifying code
