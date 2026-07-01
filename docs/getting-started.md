@@ -505,3 +505,4 @@ Existing target workspace harnesses are not affected until you run the tuner aga
 - **[Primitives](primitives.md)** — Deep reference for the 10 irreducible harness primitives
 - **[Capability Packs](capability-packs.md)** — Overlay pattern and pack catalog
 - **[Backlog Integration](backlog-integration.md)** — Backlog tool setup and registry abstraction
+- **[Validation Gates](gates-reference.md)** — Deterministic pre-task-completion gates, the `autoharness gate check` contract, and the kill-switch rollback

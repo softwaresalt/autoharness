@@ -104,3 +104,43 @@ experiments:
 # Explicit template variable overrides applied during install/tune (use sparingly —
 # prefer fixing the workspace setup over overriding discovery results)
 overrides: {{HARNESS_OVERRIDES_YAML}}
+
+# ---------------------------------------------------------------------------
+# Optional: Deterministic validation gates (lifecycle_hooks + telemetry)
+# ---------------------------------------------------------------------------
+# The ENTIRE lifecycle_hooks block is OPTIONAL and disabled by default.
+# When absent, no gates run and behavior is identical to an install without
+# gates (fail-open-to-current). Validated against
+# schemas/validation-gates/1.0.0.schema.json. See docs/gates-reference.md.
+#
+# KILL-SWITCH: remove or empty this block to disable all gating with zero code
+# change.
+#
+# Uncomment and adapt to enable. Only the closed placeholder vocabulary
+# {file_path}, {task_id}, {result} is permitted in command/write_back strings.
+#
+# lifecycle_hooks:
+#   pre_execution:
+#     - name: "estimate_complexity"
+#       condition: "task.size == null"
+#       action: "internal:estimate_tshirt_size"
+#       write_back: "backlogit update {task_id} --size {result}"
+#   pre_task_completion:
+#     enforcement: "absolute"          # absolute | advisory (default absolute)
+#     on_repeated_failure: "block"     # block | escalate  (default block)
+#     max_gate_failures: 3             # aligns circuit-breaker threshold
+#     validation_gates:
+#       - pattern: "docs/**/*.md"
+#         command: "engram verify {file_path}"
+#         timeout_seconds: 15
+#       - pattern: ".backlogit/queue/*.md"
+#         command: "backlogit doctor --target {file_path}"
+#         timeout_seconds: 5
+#       - pattern: "src/**/*.py"
+#         command: "pytest tests/ --lf"
+#         timeout_seconds: 60
+#
+# telemetry:                           # Phase 2 sink — reserved, not built yet
+#   mode: "none"                       # sqlite | none (default none)
+#   database_path: ".autoharness/metrics/execution_epochs.db"
+#   emit_jsonl: false

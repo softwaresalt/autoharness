@@ -38,6 +38,7 @@ Usage:
   autoharness home              Print the autoharness installation path
   autoharness version           Print the installed version
   autoharness verify-workspace  Deterministically verify an installed workspace harness
+  autoharness gate check        Run deterministic validation gates on modified files
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
   autoharness setup-copilot-cli Copy agents/skills into Copilot CLI (deprecated — use plugin)
   autoharness setup-claude      Copy agents and skills into the Claude Code global config dir
@@ -151,6 +152,148 @@ def _verify_workspace_command(args: list[str]) -> None:
 
     if _report_has_failures(report):
         sys.exit(1)
+
+
+GATE_USAGE = """\
+autoharness gate check — run deterministic validation gates on modified files
+
+Usage:
+  autoharness gate check --base <ref> [--task <id>] [--head <ref>]
+                         [--workspace <path>] [--json] [--force]
+
+Options:
+  --base <ref>        Git ref to diff against (the task branch base). Required.
+  --task <id>         Active backlog task ID (interpolated as {task_id}).
+  --head <ref>        Git ref for the modified side of the diff. Default: HEAD.
+  --workspace, -w     Workspace root containing .autoharness/config.yaml. Default: .
+  --json              Emit the correction report as JSON.
+  --force             Operator-only bypass of a failing gate. Audited. Never
+                      reachable from an agent surface.
+
+Exit codes:
+  0  all matched gates passed, or no gates configured, or no files matched.
+  1  at least one matched file failed its gate (blocked), unless advisory.
+  2  invalid arguments or invalid gate configuration.
+"""
+
+
+def _parse_gate_check_args(args: list[str]) -> dict:
+    parsed: dict = {
+        "base": None,
+        "task": None,
+        "head": "HEAD",
+        "workspace": Path("."),
+        "emit_json": False,
+        "force": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--base":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --base")
+            parsed["base"] = args[index]
+        elif arg == "--task":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --task")
+            parsed["task"] = args[index]
+        elif arg == "--head":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --head")
+            parsed["head"] = args[index]
+        elif arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        elif arg == "--force":
+            parsed["force"] = True
+        else:
+            raise ValueError(f"Unknown gate check argument: {arg}")
+        index += 1
+
+    if parsed["base"] is None:
+        raise ValueError("gate check requires --base <ref>")
+    return parsed
+
+
+def _load_gate_config(workspace: Path):
+    """Load and validate the workspace gate configuration (fail-open when absent)."""
+    import yaml
+
+    from autoharness.schema_contracts import load_lifecycle_hooks_config
+
+    config_path = workspace / ".autoharness" / "config.yaml"
+    config_data: dict = {}
+    if config_path.exists():
+        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            config_data = loaded
+    return load_lifecycle_hooks_config(config_data, _home())
+
+
+def _gate_command(args: list[str]) -> None:
+    """Dispatch `autoharness gate <subcommand>`."""
+    if not args or args[0] in ("help", "--help", "-h"):
+        print(GATE_USAGE)
+        return
+
+    subcommand = args[0]
+    if subcommand != "check":
+        print(f"Unknown gate subcommand: {subcommand}", file=sys.stderr)
+        print(GATE_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    if any(flag in ("help", "--help", "-h") for flag in args[1:]):
+        print(GATE_USAGE)
+        return
+
+    try:
+        parsed = _parse_gate_check_args(args[1:])
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(GATE_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.gates import gate as gate_mod
+    from autoharness.gates.config import GatesConfigError
+
+    try:
+        config = _load_gate_config(parsed["workspace"])
+    except GatesConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(2)
+
+    if not config.enabled or not config.validation_gates:
+        print("No validation gates configured; nothing to check.")
+        return
+
+    report = gate_mod.check(
+        config,
+        parsed["base"],
+        parsed["head"],
+        task_id=parsed["task"],
+        cwd=parsed["workspace"],
+    )
+
+    from autoharness.gates.feedback import build_correction_report, enforce
+
+    outcome = enforce(
+        report,
+        config.policy,
+        task_id=parsed["task"],
+        workspace=parsed["workspace"],
+        force=parsed["force"],
+    )
+    print(build_correction_report(report, outcome, emit_json=parsed["emit_json"]))
+
+    if outcome.exit_code != 0:
+        sys.exit(outcome.exit_code)
 
 
 def _vscode_user_settings_path() -> Path | None:
@@ -526,6 +669,8 @@ def main(argv: list[str] | None = None) -> None:
         print(_version())
     elif command == "verify-workspace":
         _verify_workspace_command(args[1:])
+    elif command == "gate":
+        _gate_command(args[1:])
     elif command == "setup-vscode":
         _setup_vscode()
     elif command == "setup-copilot-cli":
