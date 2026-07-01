@@ -14,9 +14,9 @@ or source files are valid, the harness runs operator-authored commands and block
 completion when any of them fail.
 
 This is **Phase 1** of the Deterministic Gates & Evaluation Engine design. It
-delivers the gate execution surface only. Telemetry (SQLite epochs, JSONL emission)
-and estimation are **Phase 2** and are intentionally *not* implemented here — see
-[the design document](design-docs/autoharness-evals-gates-design.md) §4.
+delivers the gate execution surface only. Telemetry capture (SQLite epochs, JSONL
+emission) is **Phase 2** — see the [Telemetry Reference](telemetry-reference.md)
+and [the design document](design-docs/autoharness-evals-gates-design.md) §4.
 
 Gates are **entirely opt-in**. When no `lifecycle_hooks` block is configured, the
 harness behaves exactly as it did before gates existed (fail-open-to-current). See

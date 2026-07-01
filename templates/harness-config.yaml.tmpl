@@ -140,7 +140,15 @@ overrides: {{HARNESS_OVERRIDES_YAML}}
 #         command: "pytest tests/ --lf"
 #         timeout_seconds: 60
 #
-# telemetry:                           # Phase 2 sink — reserved, not built yet
-#   mode: "none"                       # sqlite | none (default none)
+# telemetry:                           # Phase 2 sink — repo-local Execution Epochs
+#   mode: "sqlite"                     # sqlite | none (default none = kill-switch)
 #   database_path: ".autoharness/metrics/execution_epochs.db"
-#   emit_jsonl: false
+#   emit_jsonl: true                   # append one JSON epoch per line (emit-only)
+#
+# ACTIVATION: set mode: "sqlite" to record execution epochs to the repo-local
+# SQLite aggregator at database_path (parent dirs auto-created, WAL journaling).
+# Set emit_jsonl: true to also append a JSONL stream alongside the DB for the
+# external agent-engram ingestion boundary. The runtime artifacts under
+# .autoharness/metrics/ are gitignored so emission never dirties the tree.
+# KILL-SWITCH: mode: "none" (or removing this block) disables all telemetry with
+# zero code change (fail-open-to-current). See docs/telemetry-reference.md.
