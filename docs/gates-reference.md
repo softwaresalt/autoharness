@@ -187,6 +187,19 @@ did before gates existed. This is the fail-open-to-current guarantee: gating is
 additive and fully reversible by configuration alone — no re-installation, no code
 edit, no schema change.
 
+### Runtime artifacts
+
+`autoharness gate check` writes transient per-workspace state to a dedicated
+runtime directory, **`.autoharness/gates/`**, which is gitignored so running a
+gate check never dirties the working tree:
+
+* `.autoharness/gates/gate-state.json` — consecutive-failure counters per task.
+* `.autoharness/gates/gate-force-audit.log` — append-only `--force` bypass audit.
+
+Circuit-breaker checkpoints (written on the 3rd consecutive failure) are the one
+intentional exception: they are committed session memory under
+`docs/memory/{date}/circuit-break-gate-{task}.md`.
+
 ## References
 
 * [Deterministic Gates, Telemetry & Evaluation Engine — design document](design-docs/autoharness-evals-gates-design.md)

@@ -71,6 +71,31 @@ class LifecycleHooksLoaderTests(unittest.TestCase):
         self.assertEqual(config.telemetry.get("mode"), "sqlite")
         self.assertTrue(config.telemetry.get("emit_jsonl"))
 
+    def test_emptied_blocks_are_killswitch_disabled(self) -> None:
+        # The documented kill-switch: removing OR emptying the block disables
+        # gating. In YAML an emptied key parses as null (or an empty mapping).
+        for raw in ('lifecycle_hooks:\n', 'lifecycle_hooks: {}\n'):
+            data = yaml.safe_load('schema_version: "1.0.0"\n' + raw)
+            config = load_gates_config(data, schema_path=_SCHEMA_PATH)
+            self.assertFalse(config.enabled)
+            self.assertEqual(config.validation_gates, ())
+
+    def test_null_telemetry_is_treated_as_absent(self) -> None:
+        data = yaml.safe_load('schema_version: "1.0.0"\ntelemetry:\n')
+        config = load_gates_config(data, schema_path=_SCHEMA_PATH)
+        self.assertFalse(config.enabled)
+
+    def test_lifecycle_hooks_without_gates_is_disabled(self) -> None:
+        # A lifecycle_hooks block with a policy but no validation_gates has no
+        # gates to run, so enabled must be False (matches the docstring).
+        data = {
+            "schema_version": "1.0.0",
+            "lifecycle_hooks": {"pre_task_completion": {"enforcement": "absolute"}},
+        }
+        config = load_gates_config(data, schema_path=_SCHEMA_PATH)
+        self.assertFalse(config.enabled)
+        self.assertEqual(config.validation_gates, ())
+
     def test_present_block_parses_into_typed_structure(self) -> None:
         data = yaml.safe_load(PRESENT_CONFIG)
         config = load_gates_config(data, schema_path=_SCHEMA_PATH)

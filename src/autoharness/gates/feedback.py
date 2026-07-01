@@ -68,7 +68,7 @@ def _effective_enforcement(result: GateResult, policy: GatePolicy) -> str:
 
 
 def _state_path(workspace: Path) -> Path:
-    return Path(workspace) / ".autoharness" / "gate-state.json"
+    return Path(workspace) / ".autoharness" / "gates" / "gate-state.json"
 
 
 def _read_state(workspace: Path) -> dict:
@@ -98,7 +98,7 @@ def _now(clock: Callable[[], datetime] | None) -> datetime:
 
 def _audit_force(workspace: Path, task_id: str | None, report: GateCheckReport, when: datetime) -> str:
     """Append a P-005-style audit line for an operator --force bypass."""
-    audit_path = Path(workspace) / ".autoharness" / "gate-force-audit.log"
+    audit_path = Path(workspace) / ".autoharness" / "gates" / "gate-force-audit.log"
     audit_path.parent.mkdir(parents=True, exist_ok=True)
     failed = ", ".join(sorted({r.file for r in report.failures})) or "<none>"
     line = (
@@ -123,26 +123,32 @@ def _write_checkpoint(
     date_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = date_dir / f"circuit-break-gate-{slug}.md"
 
+    files_involved = ", ".join(sorted({r.file for r in report.failures})) or "<none>"
     lines = [
         "---",
         "type: circuit-breaker",
         f"timestamp: {when.isoformat()}",
-        "agent: ship",
+        "agent: autoharness-gate-check",
         "skill: gate-check",
         "breaker_type: skill-managed",
-        f"operation: validation gate check for task {_consecutive_key(task_id)}",
+        f"operation: pre_task_completion validation gate check for task {_consecutive_key(task_id)}",
         f"attempts: {attempts}",
         "---",
         "",
         "## Failure Chain",
         "",
-        f"The pre_task_completion validation gate failed {attempts} consecutive "
-        "times for the same task, reaching `max_gate_failures`. The task has been "
-        "requeued for rework.",
-        "",
-        "## Failing Files",
-        "",
     ]
+    # Detailed stderr is only available for the current (final) attempt; earlier
+    # attempts were recorded in prior `autoharness gate check` runs.
+    for n in range(1, attempts):
+        lines.append(f"### Attempt {n}")
+        lines.append("Recorded in a prior `autoharness gate check` run for this task.")
+        lines.append("")
+    lines.append(f"### Attempt {attempts}")
+    lines.append(
+        f"The pre_task_completion validation gate failed for {len(report.failures)} "
+        "file(s), reaching `max_gate_failures`. The task has been requeued for rework."
+    )
     for result in report.failures:
         reason = result.failure_reason or "nonzero-exit"
         exit_code = "None" if result.exit_code is None else str(result.exit_code)
@@ -155,7 +161,7 @@ def _write_checkpoint(
         "",
         "## Context",
         "",
-        f"- Files involved: {len(report.failures)} failing gate(s)",
+        f"- Files involved: {files_involved}",
         "- Resolution: Circuit breaker triggered. Task requeued for rework.",
         "- Suggested next steps: Fix the failing files, then re-run "
         "`autoharness gate check`.",

@@ -91,6 +91,9 @@ class ValidationGatesSchemaTests(unittest.TestCase):
         # An empty document and a telemetry-only document must both validate.
         self.assertTrue(validator.is_valid({}))
         self.assertTrue(validator.is_valid({"telemetry": {"mode": "none"}}))
+        # Emptied (null) blocks are the kill-switch and must validate too.
+        self.assertTrue(validator.is_valid({"lifecycle_hooks": None}))
+        self.assertTrue(validator.is_valid({"telemetry": None}))
 
     def test_pointer_schema_mirrors_versioned_schema_except_id(self) -> None:
         pointer = json.loads(_POINTER_PATH.read_text(encoding="utf-8"))

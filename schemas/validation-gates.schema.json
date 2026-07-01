@@ -28,9 +28,9 @@
       "description": "absolute = hard stop the agent cannot bypass (default). advisory = failing gates warn but do not block."
     },
     "lifecycle_hooks": {
-      "type": "object",
+      "type": ["object", "null"],
       "additionalProperties": false,
-      "description": "Deterministic lifecycle hooks. Entirely optional.",
+      "description": "Deterministic lifecycle hooks. Entirely optional; an absent, null, or empty block disables gating (kill-switch).",
       "properties": {
         "pre_execution": {
           "type": "array",
@@ -98,9 +98,9 @@
       }
     },
     "telemetry": {
-      "type": "object",
+      "type": ["object", "null"],
       "additionalProperties": false,
-      "description": "Optional telemetry configuration. Phase 1 does not build the telemetry sink; these keys are reserved and validated for forward compatibility.",
+      "description": "Optional telemetry configuration. Phase 1 does not build the telemetry sink; these keys are reserved and validated for forward compatibility. May be null/absent.",
       "properties": {
         "mode": {
           "type": "string",

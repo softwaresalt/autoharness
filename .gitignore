@@ -4,6 +4,7 @@
 *.copilot
 *.pyc
 .autoharness/staging/
+.autoharness/gates/
 .worktrees/
 .backlogit/*.db
 .backlogit/hooks_queue.jsonl

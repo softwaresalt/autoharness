@@ -270,7 +270,7 @@ def _gate_command(args: list[str]) -> None:
         sys.exit(2)
 
     if not config.enabled or not config.validation_gates:
-        print("No validation gates configured (lifecycle_hooks absent); nothing to check.")
+        print("No validation gates configured; nothing to check.")
         return
 
     report = gate_mod.check(

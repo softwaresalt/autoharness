@@ -25,7 +25,6 @@ from typing import Any, Callable
 from autoharness.gates.config import ValidationGate
 
 _PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
-_ALLOWED_PLACEHOLDERS = frozenset({"file_path", "task_id", "result"})
 
 
 @dataclass(frozen=True)

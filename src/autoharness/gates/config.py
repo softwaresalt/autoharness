@@ -65,8 +65,9 @@ class LifecycleHooks:
 class GatesConfig:
     """Top-level parsed gate configuration.
 
-    ``enabled`` is False when no ``lifecycle_hooks`` block is present, which is
-    the fail-open-to-current default.
+    ``enabled`` is True only when validation gates are actually configured. An
+    absent, null, or emptied ``lifecycle_hooks`` block (the kill-switch) yields
+    a disabled config — the fail-open-to-current default.
     """
 
     enabled: bool = False
@@ -125,6 +126,11 @@ def _parse_action(raw: dict[str, Any]) -> PreExecutionAction:
     )
 
 
+def _is_empty_block(value: Any) -> bool:
+    """A block emptied via the kill-switch parses as YAML null or an empty map."""
+    return value is None or (isinstance(value, dict) and not value)
+
+
 def load_gates_config(
     config_data: Any,
     *,
@@ -135,8 +141,9 @@ def load_gates_config(
     Args:
         config_data: The parsed ``.autoharness/config.yaml`` mapping (or any
             mapping containing ``lifecycle_hooks``/``telemetry``). Anything that
-            is not a mapping, or a mapping with neither a ``lifecycle_hooks`` nor
-            a ``telemetry`` key, yields a disabled config (no behavior change). A
+            is not a mapping, or whose ``lifecycle_hooks``/``telemetry`` content
+            is absent, null, or emptied (the kill-switch), yields a disabled
+            config (no behavior change). A
             ``telemetry``-only mapping yields a disabled config whose telemetry
             block is retained for forward compatibility.
         schema_path: Path to the versioned validation-gates JSON Schema. When
@@ -152,24 +159,28 @@ def load_gates_config(
     if not isinstance(config_data, dict):
         return GatesConfig(enabled=False)
 
-    has_lifecycle = "lifecycle_hooks" in config_data
-    has_telemetry = "telemetry" in config_data
-    if not has_lifecycle and not has_telemetry:
+    lifecycle_raw = config_data.get("lifecycle_hooks")
+    telemetry_raw = config_data.get("telemetry")
+
+    # The documented kill-switch is "remove OR empty the block". In YAML an
+    # emptied key parses as null (or an empty mapping), so a null/empty block is
+    # normalized to "absent": gating is disabled without failing validation.
+    lifecycle_absent = "lifecycle_hooks" not in config_data or _is_empty_block(lifecycle_raw)
+    telemetry_absent = "telemetry" not in config_data or _is_empty_block(telemetry_raw)
+
+    if lifecycle_absent and telemetry_absent:
         return GatesConfig(enabled=False)
 
     if schema_path is not None:
         _validate(config_data, schema_path)
 
-    telemetry = config_data.get("telemetry") or {}
-    if not isinstance(telemetry, dict):
-        telemetry = {}
+    telemetry = telemetry_raw if (not telemetry_absent and isinstance(telemetry_raw, dict)) else {}
 
-    if not has_lifecycle:
+    if lifecycle_absent:
         # Telemetry-only configuration: gates stay disabled (fail-open-to-current
         # for gating), but the telemetry block is retained for forward compatibility.
         return GatesConfig(enabled=False, telemetry=telemetry)
 
-    lifecycle_raw = config_data.get("lifecycle_hooks") or {}
     if not isinstance(lifecycle_raw, dict):
         raise GatesConfigError("lifecycle_hooks must be a mapping when present.")
 
@@ -177,8 +188,12 @@ def load_gates_config(
     ptc_raw = lifecycle_raw.get("pre_task_completion")
     pre_task_completion = _parse_policy(ptc_raw) if isinstance(ptc_raw, dict) else None
 
+    # "enabled" reflects whether any validation gates are actually configured;
+    # Phase 1 executes only pre_task_completion validation_gates.
+    enabled = bool(pre_task_completion and pre_task_completion.validation_gates)
+
     return GatesConfig(
-        enabled=True,
+        enabled=enabled,
         lifecycle_hooks=LifecycleHooks(
             pre_execution=pre_execution,
             pre_task_completion=pre_task_completion,
