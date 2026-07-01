@@ -326,12 +326,12 @@ Resolution note for guardrail variables:
 | Template Variable | Source | Default | Description |
 |---|---|---|---|
 | `{{HARNESS_MANIFEST_PATH}}` | `config.harness.manifest_path` or schema default | `.autoharness/harness-manifest.yaml` | Path to the installed harness manifest; used by harness-doctor to locate the manifest for integrity and version checks |
-| `{{AUTOHARNESS_VERSION}}` | `autoharness_home` metadata (`version` field in `autoharness_home/pyproject.toml` or equivalent) | _(resolved at install time)_ | Expected autoharness version string; harness-doctor compares this against the manifest's `autoharness_version` field to detect version drift |
+| `{{AUTOHARNESS_VERSION}}` | `autoharness version` CLI when available, else `autoharness_home` package/plugin metadata (`pyproject.toml` / `src/autoharness/__init__.py` / plugin manifest) | _(resolved at install time)_ | The autoharness version that performed the install; written to the manifest's `autoharness_version` field. harness-doctor resolves the *current* version live and compares it against this recorded value to detect version drift |
 
 Resolution notes for health-check variables:
 
 * `{{HARNESS_MANIFEST_PATH}}`: Defaults to `.autoharness/harness-manifest.yaml` relative to the workspace root. Override via `config.harness.manifest_path` in the workspace config. Must be a relative path.
-* `{{AUTOHARNESS_VERSION}}`: Read from the autoharness installation at install time (e.g., `autoharness_home/src/autoharness/__init__.py` `__version__` attribute, or equivalent metadata file). Baked into the template at installation so the installed harness-doctor knows what version it was installed from.
+* `{{AUTOHARNESS_VERSION}}`: Resolve at install time to the **concrete** version of the autoharness distribution performing the install, using the first available source: (1) the `autoharness version` CLI (pip and editable installs); (2) `autoharness_home` package metadata — `autoharness_home/pyproject.toml` (`[project].version`) or `autoharness_home/src/autoharness/__init__.py` (`__version__`), present in source/clone checkouts even though the released wheel data directory omits them; (3) for plugin installs with no Python CLI, the plugin/package manifest version that `autoharness_home` was resolved from. The install MUST resolve one of these to a concrete version and MUST never write a literal `{{AUTOHARNESS_VERSION}}` to the manifest — Step 4.1 fails the install if it does.
 
 **Config Write-Back Variables** (used only in `harness-config.yaml.tmpl` for the resolved config file):
 
@@ -1200,7 +1200,7 @@ the tuner can later re-hash for deterministic drift detection:
 ```yaml
 schema_version: "1.0.0"
 installed_at: "{{ISO_8601_TIMESTAMP}}"
-autoharness_version: "1.0.0"
+autoharness_version: "{{AUTOHARNESS_VERSION}}"
 autoharness_home: "{{AUTOHARNESS_HOME}}"
 profile_hash: "{{SHA256_OF_PROFILE}}"
 config_hash: "{{SHA256_OF_CONFIG_OR_NULL}}"  # null if no .autoharness/config.yaml was present
@@ -1273,6 +1273,11 @@ Scan every installed artifact for unresolved template variables:
    are intentional examples
 3. For each match, record the file path, line number, and variable name
 4. **FAIL** verification if any unresolved variables are found outside code fences
+5. Also scan the written `.autoharness/harness-manifest.yaml` for unresolved `{{...}}`
+   in scalar field values. In particular, `autoharness_version` MUST be a concrete
+   version string, never a literal `{{AUTOHARNESS_VERSION}}`. **FAIL** verification if
+   the manifest contains an unresolved placeholder — a literal version would silently
+   poison harness-doctor's drift check.
 
 #### Step 4.2: Cross-Reference Sweep
 
