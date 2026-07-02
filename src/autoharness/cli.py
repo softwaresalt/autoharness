@@ -466,10 +466,73 @@ Exit codes:
 """
 
 
+def _parse_eval_review_args(args: list[str]) -> dict:
+    parsed: dict = {
+        "base": None,
+        "head": "HEAD",
+        "workspace": Path("."),
+        "emit_json": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--base":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --base")
+            parsed["base"] = args[index]
+        elif arg == "--head":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --head")
+            parsed["head"] = args[index]
+        elif arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown eval review argument: {arg}")
+        index += 1
+    if parsed["base"] is None:
+        raise ValueError("Missing required argument: --base")
+    return parsed
+
+
+def _print_review_result(result) -> None:
+    print(f"Reviewer matrix (ruleset {result.ruleset_version}) — overall {result.overall:.2f}/10")
+    if result.files:
+        print(f"Files reviewed: {len(result.files)}")
+    for dimension, score in result.dimensions.items():
+        print(f"  {dimension:<16} {score.score:>5.2f}/{score.max_score:.0f}")
+        for penalty in score.penalties:
+            print(
+                f"    - {penalty.path}:{penalty.line} "
+                f"[{penalty.rule} -{penalty.points}] {penalty.message}"
+            )
+
+
 def _eval_review_command(args: list[str]) -> None:
-    """Run the deterministic reviewer matrix over a git diff (wired in 055.002-T)."""
-    print("autoharness eval review is not available in this build.", file=sys.stderr)
-    sys.exit(2)
+    """Run the deterministic reviewer matrix over a git diff (055.002-T)."""
+    try:
+        parsed = _parse_eval_review_args(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(EVAL_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.eval.reviewer import review_git_diff
+
+    result = review_git_diff(
+        parsed["base"], parsed["head"], cwd=parsed["workspace"]
+    )
+
+    if parsed["emit_json"]:
+        print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        _print_review_result(result)
 
 
 def _eval_run_command(args: list[str]) -> None:
