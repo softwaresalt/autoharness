@@ -40,6 +40,7 @@ Usage:
   autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness gate check        Run deterministic validation gates on modified files
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
+  autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
   autoharness setup-copilot-cli Copy agents/skills into Copilot CLI (deprecated — use plugin)
   autoharness setup-claude      Copy agents and skills into the Claude Code global config dir
@@ -430,6 +431,267 @@ def _telemetry_command(args: list[str]) -> None:
             print(f"  warning (fail-open): {err}", file=sys.stderr)
 
 
+EVAL_USAGE = """\
+autoharness eval — headless evaluation (frozen-state runner + reviewer matrix)
+
+Usage:
+  autoharness eval run --matrix <path> [--base <ref>] [--head <ref>]
+                       [--review] [--workspace <path>] [--json]
+  autoharness eval review --base <ref> [--head <ref>] [--workspace <path>] [--json]
+
+Subcommands:
+  run     Execute a frozen-state baseline across the matrix's model configs,
+          persist one comparable ExecutionEpoch per config via the configured
+          telemetry sink(s), and print a comparative baseline summary.
+  review  Run the deterministic rule-based reviewer matrix over a git diff and
+          print per-dimension scores with line-number-cited penalties.
+
+Options:
+  --matrix <path>     Eval model-config matrix (.yaml/.yml/.json). Required for run.
+  --base <ref>        Git ref for the frozen-state base of the diff. Required for
+                      review; overrides the matrix frozen_state.base for run.
+  --head <ref>        Git ref for the head side of the diff. Default: HEAD.
+  --review            (run) Also grade the frozen diff and fold quality scores
+                      into the comparative summary.
+  --workspace, -w     Workspace root containing .autoharness/config.yaml. Default: .
+  --json              Emit the result as JSON.
+
+The eval runner performs NO live model or network calls: model economics are
+replayed from each config's recorded `baseline` block, and the reviewer is a
+deterministic rule-based grader. See docs/telemetry-reference.md.
+
+Exit codes:
+  0  evaluation completed (summary/review emitted).
+  2  invalid arguments or an invalid/malformed matrix.
+"""
+
+
+def _parse_eval_review_args(args: list[str]) -> dict:
+    parsed: dict = {
+        "base": None,
+        "head": "HEAD",
+        "workspace": Path("."),
+        "emit_json": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--base":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --base")
+            parsed["base"] = args[index]
+        elif arg == "--head":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --head")
+            parsed["head"] = args[index]
+        elif arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown eval review argument: {arg}")
+        index += 1
+    if parsed["base"] is None:
+        raise ValueError("Missing required argument: --base")
+    return parsed
+
+
+def _print_review_result(result) -> None:
+    print(f"Reviewer matrix (ruleset {result.ruleset_version}) — overall {result.overall:.2f}/10")
+    if result.files:
+        print(f"Files reviewed: {len(result.files)}")
+    for dimension, score in result.dimensions.items():
+        print(f"  {dimension:<16} {score.score:>5.2f}/{score.max_score:.0f}")
+        for penalty in score.penalties:
+            print(
+                f"    - {penalty.path}:{penalty.line} "
+                f"[{penalty.rule} -{penalty.points}] {penalty.message}"
+            )
+
+
+def _eval_review_command(args: list[str]) -> None:
+    """Run the deterministic reviewer matrix over a git diff (055.002-T)."""
+    try:
+        parsed = _parse_eval_review_args(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(EVAL_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.eval.reviewer import review_git_diff
+
+    result = review_git_diff(
+        parsed["base"], parsed["head"], cwd=parsed["workspace"]
+    )
+
+    if parsed["emit_json"]:
+        print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        _print_review_result(result)
+
+
+def _parse_eval_run_args(args: list[str]) -> dict:
+    parsed: dict = {
+        "matrix": None,
+        "base": None,
+        "head": None,
+        "review": False,
+        "workspace": Path("."),
+        "emit_json": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--matrix":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --matrix")
+            parsed["matrix"] = Path(args[index])
+        elif arg == "--base":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --base")
+            parsed["base"] = args[index]
+        elif arg == "--head":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --head")
+            parsed["head"] = args[index]
+        elif arg == "--review":
+            parsed["review"] = True
+        elif arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown eval run argument: {arg}")
+        index += 1
+    if parsed["matrix"] is None:
+        raise ValueError("Missing required argument: --matrix")
+    return parsed
+
+
+def _print_baseline_summary(summary) -> None:
+    frozen = summary.frozen_sha or summary.frozen_head or "?"
+    print(f"Eval baseline summary — frozen {summary.frozen_base or '?'}...{frozen}")
+    print(f"Configs: {len(summary.configs)}  "
+          f"total tokens: {summary.total_tokens}  "
+          f"total COGS: ${summary.total_cogs_usd:.4f}")
+    for config in summary.configs:
+        quality = (
+            f"  quality {config.quality_overall:.2f}/10"
+            if config.quality_overall is not None
+            else ""
+        )
+        flag = "  [BLOCKED]" if config.blocked else ""
+        print(
+            f"  {config.config_name:<18} "
+            f"tokens={config.total_tokens:<8} "
+            f"cogs=${config.cogs_usd:<7.4f} "
+            f"dur={config.duration_seconds:.1f}s{quality}{flag}"
+        )
+    print("Comparative:")
+    print(f"  cheapest={summary.cheapest_config}  costliest={summary.costliest_config}")
+    print(f"  fastest={summary.fastest_config}  lowest-tokens={summary.lowest_token_config}")
+    if summary.highest_quality_config is not None:
+        print(f"  highest-quality={summary.highest_quality_config}")
+    if summary.blocked_configs:
+        print(f"  blocked={', '.join(summary.blocked_configs)}")
+
+
+def _eval_run_command(args: list[str]) -> None:
+    """Run a frozen-state baseline across the matrix (055.005-T + 055.006-T)."""
+    try:
+        parsed = _parse_eval_run_args(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(EVAL_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.eval.matrix import EvalMatrixError, load_matrix_file
+    from autoharness.eval.reviewer import review_git_diff
+    from autoharness.eval.runner import run_matrix
+    from autoharness.eval.summary import summarize_baseline
+    from autoharness.telemetry.record import load_workspace_telemetry_config
+
+    try:
+        matrix = load_matrix_file(parsed["matrix"])
+    except EvalMatrixError as exc:
+        print(f"Invalid eval matrix: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    telemetry_config = load_workspace_telemetry_config(parsed["workspace"])
+
+    report = run_matrix(
+        matrix,
+        telemetry_config,
+        base_override=parsed["base"],
+        head_override=parsed["head"],
+        cwd=parsed["workspace"],
+    )
+
+    reviews = None
+    if parsed["review"]:
+        frozen = report.frozen_state
+        if frozen is None:
+            print(
+                "warning: --review requested but no frozen base is available "
+                "(matrix frozen_state.base or --base); skipping reviewer matrix.",
+                file=sys.stderr,
+            )
+        else:
+            result = review_git_diff(
+                frozen.base, frozen.head, cwd=parsed["workspace"]
+            )
+            reviews = {config.name: result for config in matrix.configs}
+
+    summary = summarize_baseline(report, reviews=reviews)
+
+    if parsed["emit_json"]:
+        print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        _print_baseline_summary(summary)
+
+
+def _eval_wants_help(rest: list[str]) -> bool:
+    if rest and rest[0] == "help":
+        return True
+    return any(flag in ("--help", "-h") for flag in rest)
+
+
+def _eval_command(args: list[str]) -> None:
+    """Dispatch `autoharness eval <subcommand>`."""
+    if not args or args[0] in ("help", "--help", "-h"):
+        print(EVAL_USAGE)
+        return
+
+    subcommand = args[0]
+    rest = args[1:]
+
+    if subcommand == "review":
+        if _eval_wants_help(rest):
+            print(EVAL_USAGE)
+            return
+        _eval_review_command(rest)
+    elif subcommand == "run":
+        if _eval_wants_help(rest):
+            print(EVAL_USAGE)
+            return
+        _eval_run_command(rest)
+    else:
+        print(f"Unknown eval subcommand: {subcommand}", file=sys.stderr)
+        print(EVAL_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+
 def _vscode_user_settings_path() -> Path | None:
     """Return the platform-appropriate VS Code user settings path (no tilde)."""
     system = platform.system()
@@ -807,6 +1069,8 @@ def main(argv: list[str] | None = None) -> None:
         _gate_command(args[1:])
     elif command == "telemetry":
         _telemetry_command(args[1:])
+    elif command == "eval":
+        _eval_command(args[1:])
     elif command == "setup-vscode":
         _setup_vscode()
     elif command == "setup-copilot-cli":
