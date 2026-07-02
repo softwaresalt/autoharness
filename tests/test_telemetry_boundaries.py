@@ -21,6 +21,8 @@ _FORBIDDEN_IMPORT_FRAGMENTS = (
     "autoharness.schema_contracts",
     "autoharness.install",
     "autoharness.tune",
+    # eval depends on telemetry, never the reverse (one-directional coupling).
+    "autoharness.eval",
 )
 
 # Emit-only boundary: no external ingestion vocabulary belongs in this package.

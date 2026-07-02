@@ -40,6 +40,7 @@ Usage:
   autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness gate check        Run deterministic validation gates on modified files
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
+  autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
   autoharness setup-copilot-cli Copy agents/skills into Copilot CLI (deprecated — use plugin)
   autoharness setup-claude      Copy agents and skills into the Claude Code global config dir
@@ -430,6 +431,78 @@ def _telemetry_command(args: list[str]) -> None:
             print(f"  warning (fail-open): {err}", file=sys.stderr)
 
 
+EVAL_USAGE = """\
+autoharness eval — headless evaluation (frozen-state runner + reviewer matrix)
+
+Usage:
+  autoharness eval run --matrix <path> [--base <ref>] [--head <ref>]
+                       [--review] [--workspace <path>] [--json]
+  autoharness eval review --base <ref> [--head <ref>] [--workspace <path>] [--json]
+
+Subcommands:
+  run     Execute a frozen-state baseline across the matrix's model configs,
+          persist one comparable ExecutionEpoch per config via the configured
+          telemetry sink(s), and print a comparative baseline summary.
+  review  Run the deterministic rule-based reviewer matrix over a git diff and
+          print per-dimension scores with line-number-cited penalties.
+
+Options:
+  --matrix <path>     Eval model-config matrix (.yaml/.yml/.json). Required for run.
+  --base <ref>        Git ref for the frozen-state base of the diff. Required for
+                      review; overrides the matrix frozen_state.base for run.
+  --head <ref>        Git ref for the head side of the diff. Default: HEAD.
+  --review            (run) Also grade the frozen diff and fold quality scores
+                      into the comparative summary.
+  --workspace, -w     Workspace root containing .autoharness/config.yaml. Default: .
+  --json              Emit the result as JSON.
+
+The eval runner performs NO live model or network calls: model economics are
+replayed from each config's recorded `baseline` block, and the reviewer is a
+deterministic rule-based grader. See docs/telemetry-reference.md.
+
+Exit codes:
+  0  evaluation completed (summary/review emitted).
+  2  invalid arguments or an invalid/malformed matrix.
+"""
+
+
+def _eval_review_command(args: list[str]) -> None:
+    """Run the deterministic reviewer matrix over a git diff (wired in 055.002-T)."""
+    print("autoharness eval review is not available in this build.", file=sys.stderr)
+    sys.exit(2)
+
+
+def _eval_run_command(args: list[str]) -> None:
+    """Run a frozen-state baseline across the matrix (wired in 055.005/055.006-T)."""
+    print("autoharness eval run is not available in this build.", file=sys.stderr)
+    sys.exit(2)
+
+
+def _eval_command(args: list[str]) -> None:
+    """Dispatch `autoharness eval <subcommand>`."""
+    if not args or args[0] in ("help", "--help", "-h"):
+        print(EVAL_USAGE)
+        return
+
+    subcommand = args[0]
+    rest = args[1:]
+
+    if subcommand == "review":
+        if any(flag in ("help", "--help", "-h") for flag in rest):
+            print(EVAL_USAGE)
+            return
+        _eval_review_command(rest)
+    elif subcommand == "run":
+        if any(flag in ("help", "--help", "-h") for flag in rest):
+            print(EVAL_USAGE)
+            return
+        _eval_run_command(rest)
+    else:
+        print(f"Unknown eval subcommand: {subcommand}", file=sys.stderr)
+        print(EVAL_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+
 def _vscode_user_settings_path() -> Path | None:
     """Return the platform-appropriate VS Code user settings path (no tilde)."""
     system = platform.system()
@@ -807,6 +880,8 @@ def main(argv: list[str] | None = None) -> None:
         _gate_command(args[1:])
     elif command == "telemetry":
         _telemetry_command(args[1:])
+    elif command == "eval":
+        _eval_command(args[1:])
     elif command == "setup-vscode":
         _setup_vscode()
     elif command == "setup-copilot-cli":
