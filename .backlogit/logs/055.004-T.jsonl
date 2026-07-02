@@ -1,1 +1,3 @@
 {"timestamp":"2026-07-01T23:48:34.4450956-07:00","actor":"backlogit","item_id":"055.004-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-07-01T23:57:06.2224817-07:00","actor":"backlogit","item_id":"055.004-T","event_type":"status_changed","delta":{"from":"active","reason":"move_item_with_commit_sha","to":"done"},"commit_sha":"63bbaa1"}
+{"timestamp":"2026-07-01T23:57:10.9225432-07:00","actor":"backlogit","item_id":"055.004-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"63bbaa1","message":"feat(eval): add eval model-config matrix loader (055.004-T)"}}
