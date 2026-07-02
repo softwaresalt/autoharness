@@ -29,12 +29,56 @@ from autoharness.eval.matrix import (
     load_matrix,
     load_matrix_file,
 )
+from autoharness.eval.reviewer import (
+    AddedLine,
+    DimensionScore,
+    Penalty,
+    ReviewMatrixResult,
+    parse_unified_diff,
+    review_diff,
+    review_git_diff,
+)
+from autoharness.eval.runner import (
+    EvalRun,
+    EvalRunOutcome,
+    EvalRunReport,
+    ResolvedFrozenState,
+    replay_runner,
+    resolve_frozen_state,
+    run_matrix,
+)
+from autoharness.eval.summary import (
+    BaselineSummary,
+    ConfigSummary,
+    summarize_baseline,
+)
 
 __all__ = [
+    # matrix
     "EvalMatrix",
     "EvalMatrixError",
     "FrozenState",
     "ModelConfig",
     "load_matrix",
     "load_matrix_file",
+    # runner
+    "EvalRun",
+    "EvalRunOutcome",
+    "EvalRunReport",
+    "ResolvedFrozenState",
+    "replay_runner",
+    "resolve_frozen_state",
+    "run_matrix",
+    # reviewer
+    "AddedLine",
+    "DimensionScore",
+    "Penalty",
+    "ReviewMatrixResult",
+    "parse_unified_diff",
+    "review_diff",
+    "review_git_diff",
+    # summary
+    "BaselineSummary",
+    "ConfigSummary",
+    "summarize_baseline",
 ]

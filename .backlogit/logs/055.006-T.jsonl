@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-01T23:48:34.7033185-07:00","actor":"backlogit","item_id":"055.006-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-07-02T00:11:31.7228271-07:00","actor":"backlogit","item_id":"055.006-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"b970e1b3acaa8efaa8799a22292c700d170f23f0","message":"feat: add comparative baseline summary and wire eval run CLI (055.006-T)"}}

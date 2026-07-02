@@ -94,8 +94,18 @@ def _parse_config(raw: Any, index: int) -> ModelConfig:
     models = _require_str_list(raw.get("models"), f"configs[{index}].models")
 
     baseline = raw.get("baseline")
-    if baseline is not None and not isinstance(baseline, Mapping):
-        raise EvalMatrixError(f"configs[{index}].baseline must be a mapping when present.")
+    if baseline is not None:
+        if not isinstance(baseline, Mapping):
+            raise EvalMatrixError(f"configs[{index}].baseline must be a mapping when present.")
+        # Validate the replay sub-blocks so a malformed baseline fails here
+        # (controlled EvalMatrixError → exit 2) rather than as an uncaught
+        # AttributeError when the replay runner later coerces them.
+        for sub_block in ("economics", "operations", "outcome"):
+            value = baseline.get(sub_block)
+            if value is not None and not isinstance(value, Mapping):
+                raise EvalMatrixError(
+                    f"configs[{index}].baseline.{sub_block} must be a mapping when present."
+                )
 
     return ModelConfig(name=name, models=models, baseline=baseline)
 

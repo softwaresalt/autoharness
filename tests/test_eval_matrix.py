@@ -104,6 +104,23 @@ class LoadMatrixTests(unittest.TestCase):
         with self.assertRaises(EvalMatrixError):
             load_matrix({"configs": [{"name": "c", "models": "claude"}]})
 
+    def test_baseline_not_mapping_raises(self) -> None:
+        with self.assertRaises(EvalMatrixError):
+            load_matrix({"configs": [{"name": "c", "models": ["m"], "baseline": "nope"}]})
+
+    def test_baseline_sub_block_not_mapping_raises(self) -> None:
+        # A present economics/operations/outcome sub-block must be a mapping so
+        # the replay runner never hits an uncaught AttributeError downstream.
+        for key in ("economics", "operations", "outcome"):
+            with self.subTest(sub_block=key):
+                data = {
+                    "configs": [
+                        {"name": "c", "models": ["m"], "baseline": {key: "not-a-map"}}
+                    ]
+                }
+                with self.assertRaises(EvalMatrixError):
+                    load_matrix(data)
+
     def test_frozen_state_missing_base_raises(self) -> None:
         with self.assertRaises(EvalMatrixError):
             load_matrix({"configs": [{"name": "c", "models": ["m"]}], "frozen_state": {}})

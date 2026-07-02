@@ -105,6 +105,27 @@ class EvalRunCliTests(unittest.TestCase):
             main(["eval", "run", "--matrix", str(bad), "--workspace", str(self.workspace)])
         self.assertEqual(ctx.exception.code, 2)
 
+    def test_run_rejects_malformed_baseline_sub_block(self) -> None:
+        # A malformed baseline must exit 2 (documented contract), not leak a
+        # traceback from the replay runner.
+        bad = self.workspace / "bad_baseline.json"
+        bad.write_text(
+            json.dumps(
+                {
+                    "configs": [
+                        {"name": "c", "models": ["m"], "baseline": {"economics": "not-a-map"}}
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaises(SystemExit) as ctx:
+            main([
+                "eval", "run", "--matrix", str(bad),
+                "--base", "main", "--workspace", str(self.workspace),
+            ])
+        self.assertEqual(ctx.exception.code, 2)
+
 
 class EvalReviewCliTests(unittest.TestCase):
     def setUp(self) -> None:
