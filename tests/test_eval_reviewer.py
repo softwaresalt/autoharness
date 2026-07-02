@@ -78,6 +78,35 @@ index 1111111..2222222 100644
 +def test_compute():
 """
 
+# An added line whose *content* begins with "++ " yields a raw diff line of
+# "+++ still an added line". This must be parsed as an added content line, not
+# misread as a "+++ b/<path>" header (which would reset hunk state mid-hunk).
+_DIFF_PLUS_PLUS_CONTENT = """diff --git a/src/autoharness/edge.py b/src/autoharness/edge.py
+index 1111111..2222222 100644
+--- a/src/autoharness/edge.py
++++ b/src/autoharness/edge.py
+@@ -1,1 +1,3 @@
+ import os
++++ still an added line
++trailing = 1
+"""
+
+_DIFF_MULTI_FILE = """diff --git a/src/a.py b/src/a.py
+index 1111111..2222222 100644
+--- a/src/a.py
++++ b/src/a.py
+@@ -1,1 +1,2 @@
+ import os
++alpha = 1
+diff --git a/src/b.py b/src/b.py
+index 3333333..4444444 100644
+--- a/src/b.py
++++ b/src/b.py
+@@ -1,1 +1,2 @@
+ import sys
++beta = 2
+"""
+
 
 class ParseUnifiedDiffTests(unittest.TestCase):
     def test_added_lines_carry_correct_new_line_numbers(self) -> None:
@@ -104,6 +133,32 @@ class ParseUnifiedDiffTests(unittest.TestCase):
         )
         added = parse_unified_diff(diff)
         self.assertEqual([(a.path, a.lineno) for a in added], [("src/m.py", 2)])
+
+    def test_added_line_content_starting_with_plus_plus_is_not_a_header(self) -> None:
+        # Raw diff line "+++ still an added line" is an added content line
+        # ("++ still an added line"), NOT a "+++ b/<path>" header. The parser
+        # must keep hunk state and continue capturing the following added line.
+        added = parse_unified_diff(_DIFF_PLUS_PLUS_CONTENT)
+        self.assertEqual(
+            [(a.path, a.lineno, a.content) for a in added],
+            [
+                ("src/autoharness/edge.py", 2, "++ still an added line"),
+                ("src/autoharness/edge.py", 3, "trailing = 1"),
+            ],
+        )
+
+    def test_multi_file_added_lines_attributed_to_correct_path(self) -> None:
+        # Each "diff --git" block resets hunk state so the next file's
+        # "+++ b/<path>" header is captured and its added lines attributed
+        # to the correct path.
+        added = parse_unified_diff(_DIFF_MULTI_FILE)
+        self.assertEqual(
+            [(a.path, a.lineno, a.content) for a in added],
+            [
+                ("src/a.py", 2, "alpha = 1"),
+                ("src/b.py", 2, "beta = 2"),
+            ],
+        )
 
 
 class ReviewDiffTests(unittest.TestCase):

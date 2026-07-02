@@ -661,6 +661,12 @@ def _eval_run_command(args: list[str]) -> None:
         _print_baseline_summary(summary)
 
 
+def _eval_wants_help(rest: list[str]) -> bool:
+    if rest and rest[0] == "help":
+        return True
+    return any(flag in ("--help", "-h") for flag in rest)
+
+
 def _eval_command(args: list[str]) -> None:
     """Dispatch `autoharness eval <subcommand>`."""
     if not args or args[0] in ("help", "--help", "-h"):
@@ -671,12 +677,12 @@ def _eval_command(args: list[str]) -> None:
     rest = args[1:]
 
     if subcommand == "review":
-        if any(flag in ("help", "--help", "-h") for flag in rest):
+        if _eval_wants_help(rest):
             print(EVAL_USAGE)
             return
         _eval_review_command(rest)
     elif subcommand == "run":
-        if any(flag in ("help", "--help", "-h") for flag in rest):
+        if _eval_wants_help(rest):
             print(EVAL_USAGE)
             return
         _eval_run_command(rest)

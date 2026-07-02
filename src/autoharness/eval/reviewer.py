@@ -142,9 +142,14 @@ def parse_unified_diff(text: str) -> list[AddedLine]:
     in_hunk = False
 
     for raw in text.splitlines():
-        if raw.startswith("+++ "):
-            path = _strip_side_path(raw[4:])
+        if raw.startswith("diff --git"):
+            # New file block: reset hunk state so a following "+++ b/<path>" is
+            # parsed as a header, and clear any pending path.
             in_hunk = False
+            path = None
+            continue
+        if not in_hunk and raw.startswith("+++ "):
+            path = _strip_side_path(raw[4:])
             continue
         if any(raw.startswith(prefix) for prefix in _SKIP_PREFIXES):
             continue

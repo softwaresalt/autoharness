@@ -149,5 +149,47 @@ class EvalReviewCliTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 2)
 
 
+class EvalWantsHelpTests(unittest.TestCase):
+    def test_leading_positional_help_is_help(self) -> None:
+        from autoharness.cli import _eval_wants_help
+        self.assertTrue(_eval_wants_help(["help"]))
+
+    def test_help_flag_anywhere_is_help(self) -> None:
+        from autoharness.cli import _eval_wants_help
+        self.assertTrue(_eval_wants_help(["--matrix", "m.yaml", "--help"]))
+        self.assertTrue(_eval_wants_help(["-h"]))
+
+    def test_help_as_flag_value_is_not_help(self) -> None:
+        # A git ref literally named "help" passed as --base/--head must not be
+        # treated as a help request.
+        from autoharness.cli import _eval_wants_help
+        self.assertFalse(_eval_wants_help(["--base", "help"]))
+        self.assertFalse(_eval_wants_help(["--base", "help", "--head", "HEAD"]))
+
+    def test_review_with_base_help_invokes_reviewer(self) -> None:
+        # `eval review --base help` must not short-circuit to usage; it should
+        # invoke the reviewer with base == "help".
+        from unittest import mock
+
+        from autoharness.cli import _eval_command
+
+        captured: dict = {}
+
+        class _StubResult:
+            def to_dict(self) -> dict:
+                return {"overall": 10.0}
+
+        def _fake_review(base, head, cwd=None):
+            captured["base"] = base
+            captured["head"] = head
+            return _StubResult()
+
+        with mock.patch("autoharness.eval.reviewer.review_git_diff", _fake_review):
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                _eval_command(["review", "--base", "help", "--json"])
+        self.assertEqual(captured.get("base"), "help")
+
+
 if __name__ == "__main__":
     unittest.main()
