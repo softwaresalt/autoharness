@@ -535,10 +535,130 @@ def _eval_review_command(args: list[str]) -> None:
         _print_review_result(result)
 
 
+def _parse_eval_run_args(args: list[str]) -> dict:
+    parsed: dict = {
+        "matrix": None,
+        "base": None,
+        "head": None,
+        "review": False,
+        "workspace": Path("."),
+        "emit_json": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--matrix":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --matrix")
+            parsed["matrix"] = Path(args[index])
+        elif arg == "--base":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --base")
+            parsed["base"] = args[index]
+        elif arg == "--head":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --head")
+            parsed["head"] = args[index]
+        elif arg == "--review":
+            parsed["review"] = True
+        elif arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown eval run argument: {arg}")
+        index += 1
+    if parsed["matrix"] is None:
+        raise ValueError("Missing required argument: --matrix")
+    return parsed
+
+
+def _print_baseline_summary(summary) -> None:
+    frozen = summary.frozen_sha or summary.frozen_head or "?"
+    print(f"Eval baseline summary — frozen {summary.frozen_base or '?'}...{frozen}")
+    print(f"Configs: {len(summary.configs)}  "
+          f"total tokens: {summary.total_tokens}  "
+          f"total COGS: ${summary.total_cogs_usd:.4f}")
+    for config in summary.configs:
+        quality = (
+            f"  quality {config.quality_overall:.2f}/10"
+            if config.quality_overall is not None
+            else ""
+        )
+        flag = "  [BLOCKED]" if config.blocked else ""
+        print(
+            f"  {config.config_name:<18} "
+            f"tokens={config.total_tokens:<8} "
+            f"cogs=${config.cogs_usd:<7.4f} "
+            f"dur={config.duration_seconds:.1f}s{quality}{flag}"
+        )
+    print("Comparative:")
+    print(f"  cheapest={summary.cheapest_config}  costliest={summary.costliest_config}")
+    print(f"  fastest={summary.fastest_config}  lowest-tokens={summary.lowest_token_config}")
+    if summary.highest_quality_config is not None:
+        print(f"  highest-quality={summary.highest_quality_config}")
+    if summary.blocked_configs:
+        print(f"  blocked={', '.join(summary.blocked_configs)}")
+
+
 def _eval_run_command(args: list[str]) -> None:
-    """Run a frozen-state baseline across the matrix (wired in 055.005/055.006-T)."""
-    print("autoharness eval run is not available in this build.", file=sys.stderr)
-    sys.exit(2)
+    """Run a frozen-state baseline across the matrix (055.005-T + 055.006-T)."""
+    try:
+        parsed = _parse_eval_run_args(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(EVAL_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.eval.matrix import EvalMatrixError, load_matrix_file
+    from autoharness.eval.reviewer import review_git_diff
+    from autoharness.eval.runner import run_matrix
+    from autoharness.eval.summary import summarize_baseline
+    from autoharness.telemetry.record import load_workspace_telemetry_config
+
+    try:
+        matrix = load_matrix_file(parsed["matrix"])
+    except EvalMatrixError as exc:
+        print(f"Invalid eval matrix: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    telemetry_config = load_workspace_telemetry_config(parsed["workspace"])
+
+    report = run_matrix(
+        matrix,
+        telemetry_config,
+        base_override=parsed["base"],
+        head_override=parsed["head"],
+        cwd=parsed["workspace"],
+    )
+
+    reviews = None
+    if parsed["review"]:
+        frozen = report.frozen_state
+        if frozen is None:
+            print(
+                "warning: --review requested but no frozen base is available "
+                "(matrix frozen_state.base or --base); skipping reviewer matrix.",
+                file=sys.stderr,
+            )
+        else:
+            result = review_git_diff(
+                frozen.base, frozen.head, cwd=parsed["workspace"]
+            )
+            reviews = {config.name: result for config in matrix.configs}
+
+    summary = summarize_baseline(report, reviews=reviews)
+
+    if parsed["emit_json"]:
+        print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        _print_baseline_summary(summary)
 
 
 def _eval_command(args: list[str]) -> None:

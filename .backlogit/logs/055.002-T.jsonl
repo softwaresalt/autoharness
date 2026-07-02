@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-01T23:48:34.1647465-07:00","actor":"backlogit","item_id":"055.002-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-07-02T00:06:17.0139686-07:00","actor":"backlogit","item_id":"055.002-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"74f62d64bc65129e839be59be7e0d0038ccd5c1b","message":"feat: add deterministic reviewer matrix diff grader (055.002-T)"}}
