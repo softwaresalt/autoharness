@@ -1,2 +1,3 @@
 {"timestamp":"2026-07-02T11:52:53.056735-07:00","actor":"backlogit","item_id":"057-S","event_type":"shipment_created","delta":{"items":["056.001-T","056.002-T","056.003-T"],"title":"Harness shipment closure cascade guard (056-F tasks)"}}
 {"timestamp":"2026-07-02T19:04:58.0068905-07:00","actor":"backlogit","item_id":"057-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-02T21:22:12.4797516-07:00","actor":"backlogit","item_id":"057-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/057-S.md"}}
