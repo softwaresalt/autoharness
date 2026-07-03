@@ -135,7 +135,7 @@ Present the session outcome: shipments planned, executed, and archived; stash en
 
 ## Model Routing
 
-This agent operates at **Tier 2 (Standard)** — orchestration and coordination.
+This agent operates at **Tier 3 (Frontier)** — orchestration and coordination.
 
 ## Subagent Depth
 
