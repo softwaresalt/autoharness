@@ -201,8 +201,10 @@ step 1 first and release it on completion.
 4. **Archive each manifest item individually** (loop over `items` ONLY):
    * If the item's file is in `{{BACKLOG_DIRECTORY}}/queue/`: move it to
      `{{STATUS_DONE}}` via `{{OP_MOVE_MCP}}`, then archive that single artifact via
-     `{{OP_ARCHIVE_ITEM_MCP}}` (CLI fallback `{{OP_ARCHIVE_ITEM_CLI}}`). Record the
-     `merge_commit_sha` on the archived item for traceability. Classify `matched`.
+     `{{OP_ARCHIVE_ITEM_MCP}}` (CLI fallback `{{OP_ARCHIVE_ITEM_CLI}}`). When the
+     backlog registry's `archive_item` operation supports commit metadata, record
+     the merge SHA using that tool's configured field (for backlogit, `commit_sha`);
+     otherwise record the merge SHA in the closure report. Classify `matched`.
    * If the item's file is already in `{{BACKLOG_DIRECTORY}}/archive/`: classify
      `pre-archived` and **skip** — do not re-archive. Reusing the `pre-archived`
      classification prevents false-positive cascade flags on items that were
