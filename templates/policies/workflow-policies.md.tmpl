@@ -364,6 +364,34 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 
 ---
 
+## P-015: Single-Artifact Shipment Closure (No Cascade Ship)
+
+| Field      | Value                                             |
+|------------|---------------------------------------------------|
+| Policy ID  | P-015                                             |
+| Applies To | `ship`, `shipment-reconcile` skill                |
+| Gate Point | Ship Step 6 post-merge closure (shipment close)   |
+
+**Applies when**: `{{FEATURE_SHIPMENTS}}` is true and shipments may cover a partial subset of a covering feature's tasks (partial-feature shipments).
+
+**Statement**: The ship agent MUST close a shipment by archiving **only** the shipment manifest's explicit item IDs, one artifact at a time, via the `shipment-reconcile` safe-close procedure. It MUST NOT call the cascade `{{OP_SHIP_SHIPMENT_MCP}}` for closure. The cascade op treats a shipment as a proxy for its covering feature and archives the parent feature and any unshipped sibling tasks — corrupting the backlog whenever the shipment is a partial-feature shipment that intentionally excludes them.
+
+**Precondition**: The shipment manifest (`items`) has been read, and the **protected set** — the covering feature file plus every unshipped sibling task file that is not in the manifest — has been computed (partial-feature detection). A clean git baseline for `{{BACKLOG_DIRECTORY}}/` has been captured so any archival or deletion of a protected-set path can be attributed to the closure procedure.
+
+**Required Check (verify-after-each invariant)**: After archiving each single manifest item (move to `{{STATUS_DONE}}`, then archive that one artifact), confirm every protected-set file still exists in `{{BACKLOG_DIRECTORY}}/queue/` — not moved to `{{BACKLOG_DIRECTORY}}/archive/`, not deleted from the working tree. Items legitimately archived before this run (`pre-archived`) are excluded from the check to avoid false positives.
+
+**Postcondition**: Every shipment manifest item is archived in `{{BACKLOG_DIRECTORY}}/archive/`, the entire protected set remains present in `{{BACKLOG_DIRECTORY}}/queue/`, and the cascade `{{OP_SHIP_SHIPMENT_MCP}}` was never called.
+
+**Violation Action (git-revert-on-cascade)**:
+
+1. If any non-manifest artifact (the parent feature or a sibling task) was archived or deleted, run `git restore -- {{BACKLOG_DIRECTORY}}/queue/ {{BACKLOG_DIRECTORY}}/archive/` (or `git revert <commit>` if the cascade was already committed) to recover the protected artifact.
+2. Re-verify that the full protected set is intact.
+3. Halt with `HALT — cascade detected, revert required`. Broadcast a P-005 violation event naming the cascaded artifact IDs. Do NOT commit a corrupt backlog and do NOT auto-prune the manifest.
+
+**Relationship to P-007**: P-015 complements **P-007** (backlogit archive integrity after shipment). P-007 restores archive files silently deleted from the working tree by the archival step; P-015 prevents the distinct parent-cascade failure where the covering feature and unshipped siblings — artifacts outside the manifest — are archived at all. Both are enforced at Ship Step 6 closure.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -378,3 +406,4 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 | 1.7.0   | {{DATE}}     | Added P-012      | Tool availability and declared degradation |
 | 1.8.0   | {{DATE}}     | Added P-013      | Agent tier hierarchy and escalation |
 | 1.9.0   | {{DATE}}     | Added P-014      | Local review readiness merge gate — preserves explicit approval and advisory shadow-review migration |
+| 1.10.0  | {{DATE}}     | Added P-015      | Single-artifact shipment closure — prohibits cascade shipment-ship, requires verify-after-each invariant + git-revert-on-cascade |
