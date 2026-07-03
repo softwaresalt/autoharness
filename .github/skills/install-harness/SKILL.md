@@ -155,6 +155,7 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_MOVE_MCP}}` | Registry `operations.move_task.mcp_tool` | `backlogit_move_item` | `task_edit` |
 | `{{OP_SEARCH_MCP}}` | Registry `operations.search_tasks.mcp_tool` | `backlogit_search_items` | `task_search` |
 | `{{OP_COMPLETE_MCP}}` | Registry `operations.complete_task.mcp_tool` | `backlogit_move_item` | `task_complete` |
+| `{{OP_ARCHIVE_ITEM_MCP}}` | Registry `operations.archive_item.mcp_tool` | `backlogit_archive_item` | `task_archive` |
 | `{{OP_CREATE_CLI}}` | Registry `operations.create_task.cli_command` | `backlogit add` | `backlog task create` |
 | `{{OP_LIST_CLI}}` | Registry `operations.list_tasks.cli_command` | `backlogit list` | `backlog task list` |
 | `{{OP_GET_CLI}}` | Registry `operations.get_task.cli_command` | `backlogit show {id}` | `backlog task view {id}` |
@@ -162,6 +163,7 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{OP_MOVE_CLI}}` | Registry `operations.move_task.cli_command` | `backlogit move {id} {status}` | `backlog task move {id}` |
 | `{{OP_SEARCH_CLI}}` | Registry `operations.search_tasks.cli_command` | `backlogit search {query}` | `backlog task search` |
 | `{{OP_COMPLETE_CLI}}` | Registry `operations.complete_task.cli_command` | `backlogit done {id}` | `backlog task complete {id}` |
+| `{{OP_ARCHIVE_ITEM_CLI}}` | Registry `operations.archive_item.cli_command` | `backlogit archive {id}` | `backlog archive {id}` |
 
 **Status Variables** (derived from `registry.status_values` — these map abstract status names to tool-specific strings):
 
