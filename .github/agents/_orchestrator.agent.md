@@ -3,12 +3,11 @@ name: _Orchestrator
 description: "Coordinates the Stage → Ship pipeline for continuous iteration: routes stash intake through Stage and queued shipments through Ship"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, web, 'microsoft-docs/*', 'backlogit/*', ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo
-model_routing: "Tier 2 (Standard)"  # DEPRECATED — use model_tier
-model_tier: 2
+model_tier: 3
 max_subagent_tier: 3
-reasoning_effort: ""
-model_provider: ""
-model_family: "gpt-5.4"
+reasoning_effort: "xhigh"
+model_provider: "openai"
+model_family: "gpt-5.5"
 subagent_depth: 3
 ---
 
