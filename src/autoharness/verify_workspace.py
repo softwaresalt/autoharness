@@ -831,8 +831,9 @@ def _scan_manifest_scalar_placeholders(
 
     Only string-valued top-level fields are inspected. Lists and dicts such as
     ``artifacts`` are rendered and scanned separately, so they are skipped here.
-    Detection reuses :data:`PLACEHOLDER_RE` to keep semantics identical to the
-    artifact scan performed by :func:`_find_unresolved_placeholders`.
+    Detection reuses :data:`PLACEHOLDER_RE` for placeholder token matching.
+    Unlike rendered artifact Markdown, manifest scalar values are not treated
+    as fenced Markdown content.
     """
     blockers: list[dict[str, Any]] = []
     if not isinstance(manifest, dict):
