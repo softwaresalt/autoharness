@@ -5,7 +5,7 @@
       "command": "backlogit",
       "args": ["mcp"],
       "env": {
-        "BACKLOGIT_WORKSPACE": "${workspaceFolder}"
+        "BACKLOGIT_WORKSPACE": "C:\\Source\\GitHub\\autoharness"
       },
       "tools": ["*"]
     },
@@ -14,7 +14,7 @@
       "command": "engram",
       "args": ["shim"],
       "env": {
-        "ENGRAM_WORKSPACE": "${workspaceFolder}"
+        "ENGRAM_WORKSPACE": "C:\\Source\\GitHub\\autoharness"
       }
     },
     "graphtor-docs": {
@@ -31,8 +31,12 @@
     },
     "tavily": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "tavily-mcp@latest"]
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "if ([string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) { throw 'TAVILY_API_KEY is not set.' }; npx -y tavily-mcp@latest"
+      ]
     },
     "github": {
       "type": "stdio",
