@@ -134,9 +134,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
         if root_mcp.exists():
             root_mcp_text = root_mcp.read_text(encoding="utf-8")
-            if "${workspaceFolder}" in root_mcp_text:
-                self.assertIn('"command": "engram"', root_mcp_text)
-                self.assertIn('"graphtor-docs"', root_mcp_text)
+            self.assertIn('"command": "engram"', root_mcp_text)
+            self.assertIn('"graphtor-docs"', root_mcp_text)
 
         self.assertIn("workspace-root `.mcp.json`", copilot_instructions)
 
