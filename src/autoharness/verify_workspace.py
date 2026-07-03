@@ -67,6 +67,7 @@ OPERATION_VARIABLES = {
     "ship_shipment": "OP_SHIP_SHIPMENT_MCP",
     "add_to_shipment": "OP_ADD_TO_SHIPMENT_MCP",
     "return_blocked": "OP_RETURN_BLOCKED_MCP",
+    "archive_item": "OP_ARCHIVE_ITEM_MCP",
     "create_checkpoint": "OP_CREATE_CHECKPOINT_MCP",
     "list_checkpoints": "OP_LIST_CHECKPOINTS_MCP",
     "get_checkpoint": "OP_GET_CHECKPOINT_MCP",
@@ -83,6 +84,7 @@ CLI_OPERATION_VARIABLES = {
     "search_tasks": "OP_SEARCH_CLI",
     "complete_task": "OP_COMPLETE_CLI",
     "sync_index": "OP_SYNC_INDEX_CLI",
+    "archive_item": "OP_ARCHIVE_ITEM_CLI",
 }
 STATUS_VARIABLES = {
     "STATUS_QUEUED": ("queued", "todo"),

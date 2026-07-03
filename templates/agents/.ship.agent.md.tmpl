@@ -466,14 +466,16 @@ branch-per-release-unit principle.
         completes in step 1.d.
    b. **Safe-close (single-artifact archival — NEVER the cascade op, P-015)**: Invoke the
       `shipment-reconcile` skill with `mode: safe-close`, `shipment_id`, and the
-      `merge_commit_sha`. This archives **only** the shipment manifest's explicit item IDs,
-      one artifact at a time (move each to `{{STATUS_DONE}}` via `{{OP_MOVE_MCP}}`, then
-      archive that single artifact via `{{OP_ARCHIVE_ITEM_MCP}}`) to
-      `{{BACKLOG_DIRECTORY}}/archive/`. Before archiving, the skill computes the
-      **protected set** (partial-feature detection: the parent feature file plus every
-      unshipped sibling task file that is not in the manifest) and, after each single-item
-      archival, runs the **verify-after-each invariant** confirming every protected-set file
-      still exists in `{{BACKLOG_DIRECTORY}}/queue/`.
+      `merge_commit_sha`. This archives the shipment manifest's explicit item IDs one
+      artifact at a time (move each to `{{STATUS_DONE}}` via `{{OP_MOVE_MCP}}`, then
+      archive that single artifact via `{{OP_ARCHIVE_ITEM_MCP}}`) and finally the shipment
+      record itself as its own single artifact — all to `{{BACKLOG_DIRECTORY}}/archive/`.
+      Before archiving anything, the skill computes the **protected set** (partial-feature
+      detection from **expected IDs**: the parent feature plus every unshipped sibling task
+      not in the manifest) and proves it is fully present in `{{BACKLOG_DIRECTORY}}/queue/`
+      at a **baseline gate**; after each single-item archival it runs the
+      **verify-after-each invariant** confirming every protected-set member still exists in
+      `{{BACKLOG_DIRECTORY}}/queue/`.
       * **Do NOT call `{{OP_SHIP_SHIPMENT_MCP}}`.** The cascade op treats the shipment as a
         proxy for its covering feature and archives the parent feature and any unshipped
         siblings — corrupting the backlog on partial-feature shipments (see P-015 in

@@ -524,6 +524,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             "operations": {
                 "create_task": {"mcp_tool": "backlogit_create_item"},
                 "create_checkpoint": {"mcp_tool": "backlogit_create_checkpoint"},
+                "archive_item": {"mcp_tool": "backlogit_archive_item", "cli_command": "backlogit archive {{id}}"},
             },
             "status_values": {"todo": "queued", "in_progress": "active", "done": "done", "blocked": "blocked"},
             "field_mapping": {"task_id": "id", "artifact_type": "artifact_type"},
@@ -536,6 +537,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertEqual(variables["DOCS_PLANS"], "docs/exec-plans")
         self.assertEqual(variables["OP_CREATE_MCP"], "backlogit_create_item")
         self.assertEqual(variables["OP_CREATE_CHECKPOINT_MCP"], "backlogit_create_checkpoint")
+        self.assertEqual(variables["OP_ARCHIVE_ITEM_MCP"], "backlogit_archive_item")
+        self.assertEqual(variables["OP_ARCHIVE_ITEM_CLI"], "backlogit archive {{id}}")
         self.assertEqual(variables["STATUS_QUEUED"], "queued")
         self.assertEqual(variables["FIELD_TYPE"], "artifact_type")
         self.assertEqual(variables["FEATURE_SHIPMENTS"], "true")

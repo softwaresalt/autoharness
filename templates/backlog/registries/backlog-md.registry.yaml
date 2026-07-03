@@ -63,6 +63,12 @@ operations:
     params:
       task_id: "id"
 
+  archive_item:
+    mcp_tool: "task_archive"
+    cli_command: "backlog archive {{id}}"
+    params:
+      task_id: "id"
+
   search_tasks:
     mcp_tool: "task_search"
     cli_command: "backlog search {{query}}"

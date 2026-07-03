@@ -63,7 +63,9 @@ The report ends with a `recommendation`:
 * `PROCEED` — all items are `matched` or `pre-archived`; no action needed
 * `HALT — operator reconcile required` — one or more missing, status-mismatch, or orphan items (pre-mode)
 * `HALT — restore archives` — missing archive files or unrestored deletions (post-mode)
-* `CLOSED` — safe-close archived every manifest item individually and the protected set (parent feature + unshipped siblings) is intact
+* `CLOSED` — safe-close archived every manifest item individually, archived the
+  shipment record itself, and the protected set (parent feature + unshipped siblings)
+  is intact
 * `HALT — cascade detected, revert required` — safe-close found a non-manifest artifact (parent feature or a sibling task) archived or deleted; the unintended change must be reverted before any commit
 
 For `mode: safe-close`, the report also records the **protected set** (the parent
@@ -79,9 +81,10 @@ double-archival and false-positive cascade flags).
   In pre- and post-mode it only reports; operators must manually reconcile via
   existing backlog tools and re-invoke Ship Step 6.
 * **Manifest-scoped mutation only.** In `mode: safe-close`, the ONLY artifacts
-  this skill may move or archive are the shipment manifest's explicit item IDs.
-  It must NEVER archive the parent feature or any sibling task that is not in the
-  manifest. It never calls the cascade `{{OP_SHIP_SHIPMENT_MCP}}`.
+  this skill may move or archive are the shipment manifest's explicit item IDs and
+  the shipment record itself (`{shipment_id}`). It must NEVER archive the parent
+  feature or any sibling task that is not in the manifest. It never calls the cascade
+  `{{OP_SHIP_SHIPMENT_MCP}}`; the shipment record is closed as its own single artifact.
 * **No prune / no auto-repair.** Auto-mutation of the manifest itself is reserved
   for a future version. Safe-close never prunes the manifest and never
   auto-deletes non-manifest artifacts; on cascade detection it reverts the
@@ -174,16 +177,26 @@ step 1 first and release it on completion.
    * Derive the covering feature ID from the manifest item hierarchy
      (e.g. a task `055.002-{{SUFFIX_TASK}}` belongs to feature `055-{{SUFFIX_FEATURE}}`).
    * If the covering feature ID is **not** in the manifest `items`, this is a
-     **partial-feature shipment**. Add the feature's queue file to the protected set.
-   * Scan `{{BACKLOG_DIRECTORY}}/queue/` for every task file sharing the covering
-     feature's hierarchy prefix whose ID is **not** in the manifest `items`
-     (the unshipped siblings). Add each to the protected set.
-   * The **protected set** is the parent feature file plus every unshipped sibling
-     task file that MUST remain in `{{BACKLOG_DIRECTORY}}/queue/` after closure.
+     **partial-feature shipment**. Add the covering feature to the protected set.
+   * Enumerate every task sharing the covering feature's hierarchy prefix whose ID
+     is **not** in the manifest `items` (the unshipped siblings) by scanning **both**
+     `{{BACKLOG_DIRECTORY}}/queue/` **and** `{{BACKLOG_DIRECTORY}}/archive/` (plus the
+     feature file's declared children when available). Add each to the protected set.
+   * The **protected set** is the parent feature plus every unshipped sibling task
+     that MUST remain in `{{BACKLOG_DIRECTORY}}/queue/` after closure. It is computed
+     from **expected IDs**, not merely the files currently present in queue, so a
+     sibling or parent that was already wrongly archived is still detected.
 
-3. **Snapshot the baseline**: Run `git status --short -- "{{BACKLOG_DIRECTORY}}/"`
-   and record the pre-closure working-tree state so any archival or deletion of a
-   protected-set path introduced by later steps can be attributed to this procedure.
+3. **Baseline integrity gate** (before archiving anything): Run
+   `git status --short -- "{{BACKLOG_DIRECTORY}}/"` and record the pre-closure
+   working-tree state so any later archival or deletion of a protected-set path can be
+   attributed to this procedure. Then confirm **every** protected-set member currently
+   exists in `{{BACKLOG_DIRECTORY}}/queue/`. If any protected-set member is already in
+   `{{BACKLOG_DIRECTORY}}/archive/` or missing from the working tree, a cascade has
+   **already** occurred (or the shipment scope is wrong): halt immediately with
+   `HALT — cascade detected, revert required`, name the affected artifact IDs, and do
+   NOT archive any manifest item. The `pre-archived` exemption (step 4) applies to
+   **manifest items only** — never to the protected set.
 
 4. **Archive each manifest item individually** (loop over `items` ONLY):
    * If the item's file is in `{{BACKLOG_DIRECTORY}}/queue/`: move it to
@@ -198,14 +211,16 @@ step 1 first and release it on completion.
      `RECONCILE_FAIL`, and do not continue archiving.
 
 5. **Verify-after-each invariant** (run immediately after each item's archival):
-   * Confirm **every** protected-set file is still present in
+   * Confirm **every** protected-set member is still present in
      `{{BACKLOG_DIRECTORY}}/queue/` — not moved to `{{BACKLOG_DIRECTORY}}/archive/`,
      not deleted from the working tree.
    * Run `git status --short -- "{{BACKLOG_DIRECTORY}}/"` and confirm no
      protected-set path appears as a deletion, rename into `archive/`, or new
      `archive/` addition beyond the baseline captured in step 3.
-   * A protected-set item that was `pre-archived` before this run began is **not**
-     a cascade — exclude it from the invariant check.
+   * The protected set was proven fully present in queue at the baseline gate
+     (step 3), so **any** protected-set member now found in `archive/` or missing from
+     the working tree is a cascade. There is **no** pre-archived exemption for the
+     protected set — the exemption in step 4 covers manifest items only.
 
 6. **git-revert-on-cascade**: If the invariant fails (a protected-set artifact was
    archived or deleted by the preceding archival):
@@ -221,14 +236,22 @@ step 1 first and release it on completion.
 7. **Final invariant re-check**: After the loop completes, re-confirm the full
    protected set is intact in `{{BACKLOG_DIRECTORY}}/queue/`.
 
-8. **Produce safe-close report** per the same schema, recording the protected set,
-   each item's classification, and the recommendation.
+8. **Archive the shipment record itself** (single artifact, non-cascading): archive
+   only the `{shipment_id}` artifact via `{{OP_ARCHIVE_ITEM_MCP}}` (CLI fallback
+   `{{OP_ARCHIVE_ITEM_CLI}}`), recording `merge_commit_sha` for traceability. Closing
+   the shipment record is the point of safe-close, so it is **not** in the protected
+   set — but it must be archived as its own single artifact, **never** via the cascade
+   `{{OP_SHIP_SHIPMENT_MCP}}`. Then re-run the verify-after-each invariant (step 5) to
+   confirm archiving the shipment record did not disturb the protected set.
 
-9. **Gate decision**:
-   * All manifest items `matched` or `pre-archived` and the protected set intact →
-     `recommendation: CLOSED`. Proceed to post-mode.
-   * Any cascade detected → `recommendation: HALT — cascade detected, revert required`
-     (see step 6). Do not proceed to the commit step.
+9. **Produce safe-close report** per the same schema, recording the protected set,
+   each item's classification, the shipment-record archival, and the recommendation.
+
+10. **Gate decision**:
+    * All manifest items `matched` or `pre-archived`, the shipment record archived,
+      and the protected set intact → `recommendation: CLOSED`. Proceed to post-mode.
+    * Any cascade detected → `recommendation: HALT — cascade detected, revert required`
+      (see step 6). Do not proceed to the commit step.
 
 ### Lock-Conflict Scenario
 
@@ -243,8 +266,10 @@ If pre-mode cannot acquire the lock because another process holds it:
 
 * `mode: pre` runs before closing a shipment in Ship Step 6
 * `mode: pre` with `expected_status: {{STATUS_QUEUED}}` (or `{{STATUS_ACTIVE}}` for already-claimed shipments) runs at Ship Step 0.5 intake
-* `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs, one artifact at a time
-* Safe-close computes the protected set (parent feature + unshipped siblings) and verifies it survives after every single-item archival (verify-after-each invariant)
+* `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself
+* Safe-close computes the protected set (parent feature + unshipped siblings) from expected IDs and proves it is fully present in queue at a baseline gate before archiving anything
+* Safe-close verifies the protected set survives after every single-item archival (verify-after-each invariant), with no pre-archived exemption for protected-set members
+* Safe-close archives the shipment record as its own single artifact and never via the cascade op
 * Safe-close reverts on cascade detection (`git restore`/`git revert`) and halts with a P-005 violation; it never auto-prunes the manifest
 * `mode: post` runs after the safe-close archive sequence in Ship Step 6
 * All five item classifications are represented in the schema
