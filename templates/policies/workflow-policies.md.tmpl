@@ -333,7 +333,7 @@ Skipping escalation steps and halting prematurely is a P-013 violation.
 
 ### P-013.4 — Tier Annotation in Agent Definitions
 
-Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare `model_tier` and `max_subagent_tier` as integer frontmatter fields. Agents that use only the opaque `model_routing` string and omit the structured fields are non-conformant and must be updated before the next harness verification pass.
+Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare `model_tier` and `max_subagent_tier` as integer frontmatter fields. Agents that omit these structured fields are non-conformant and must be updated before the next harness verification pass.
 
 **Violation Action**: Record a P-013 violation (via P-005 telemetry) with the specific sub-policy identifier (P-013.1–P-013.4), halt the violating invocation, and surface the violation to the operator.
 
