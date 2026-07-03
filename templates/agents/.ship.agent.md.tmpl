@@ -464,8 +464,29 @@ branch-per-release-unit principle.
         to the operator. Do NOT proceed to step 1.b.
       * If the skill returns `PROCEED`: continue. The lock remains held until post-mode
         completes in step 1.d.
-   b. Call `{{OP_SHIP_SHIPMENT_MCP}}` with the merge commit SHA. This archives all queue
-      items (feature + tasks) to `{{BACKLOG_DIRECTORY}}/archive/`.
+   b. **Safe-close (single-artifact archival — NEVER the cascade op, P-015)**: Invoke the
+      `shipment-reconcile` skill with `mode: safe-close`, `shipment_id`, and the
+      `merge_commit_sha`. This archives **only** the shipment manifest's explicit item IDs,
+      one artifact at a time (move each to `{{STATUS_DONE}}` via `{{OP_MOVE_MCP}}`, then
+      archive that single artifact via `{{OP_ARCHIVE_ITEM_MCP}}`) to
+      `{{BACKLOG_DIRECTORY}}/archive/`. Before archiving, the skill computes the
+      **protected set** (partial-feature detection: the parent feature file plus every
+      unshipped sibling task file that is not in the manifest) and, after each single-item
+      archival, runs the **verify-after-each invariant** confirming every protected-set file
+      still exists in `{{BACKLOG_DIRECTORY}}/queue/`.
+      * **Do NOT call `{{OP_SHIP_SHIPMENT_MCP}}`.** The cascade op treats the shipment as a
+        proxy for its covering feature and archives the parent feature and any unshipped
+        siblings — corrupting the backlog on partial-feature shipments (see P-015 in
+        workflow-policies).
+      * **git-revert-on-cascade**: If the skill returns `HALT — cascade detected, revert
+        required`, a non-manifest artifact (parent feature or a sibling task) was
+        archived/deleted. Run
+        `git restore -- {{BACKLOG_DIRECTORY}}/queue/ {{BACKLOG_DIRECTORY}}/archive/` (or
+        `git revert <commit>` if the cascade was already committed) to recover the protected
+        artifact, broadcast a P-005 violation event naming the cascaded IDs, and halt. Do
+        NOT commit a corrupt backlog.
+      * On `CLOSED`: the manifest items are archived and the protected set is intact;
+        continue to step 1.c.
    c. **Verify archive integrity (P-007)**: Run `git status -- "{{BACKLOG_DIRECTORY}}/archive/"`.
       If any archive files appear as working-tree deletions, restore them immediately:
       `git restore {{BACKLOG_DIRECTORY}}/archive/`. See P-007 in workflow-policies for the
@@ -474,7 +495,9 @@ branch-per-release-unit principle.
       `merge_commit_sha`. If the skill returns `HALT — restore archives`, run
       `git restore {{BACKLOG_DIRECTORY}}/archive/` before step 1.e.
       The lock is released by the skill at the end of post-mode.
-   e. Commit the backlog state in two separate terminal commands:
+   e. Commit the backlog state **only after** safe-close returned `CLOSED` and post-mode
+      returned `PROCEED` (never commit after a `HALT — cascade detected` until the revert in
+      step 1.b is complete). Use two separate terminal commands:
       `git add {{BACKLOG_DIRECTORY}}/`
       `git commit -m "chore: archive {shipment_id} backlog artifacts"`
 2. Invoke `operational-closure` in `mode=post-merge` to produce release-readiness, monitoring, and rollback artifacts in `{{DOCS_CLOSURE}}/`.
