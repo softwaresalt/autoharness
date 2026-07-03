@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-02T23:03:50.8504495-07:00","actor":"backlogit","item_id":"058-S","event_type":"shipment_created","delta":{"items":["053.001-T","053.002-T","053.003-T"],"title":"053-F Construct 1: remove deprecated model_routing frontmatter + carry-along 0CF1D6CF"}}
+{"timestamp":"2026-07-03T00:17:43.4243017-07:00","actor":"backlogit","item_id":"058-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
