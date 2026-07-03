@@ -1,18 +1,31 @@
 ---
 name: shipment-reconcile
-description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status before or after {{OP_SHIP_SHIPMENT_MCP}} runs."
+description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs with a verify-after-each invariant + git-revert-on-cascade instead of the destructive cascade {{OP_SHIP_SHIPMENT_MCP}}."
 ---
 
 # Shipment Reconcile
 
 Provides a double-entry (GI/GR) integrity check for shipment manifests. Run
-`mode: pre` before calling `{{OP_SHIP_SHIPMENT_MCP}}` and `mode: post` after
-the archive + restore steps complete.
+`mode: pre` before closing a shipment and `mode: post` after the archive +
+restore steps complete. Run `mode: safe-close` **in place of** the destructive
+cascade `{{OP_SHIP_SHIPMENT_MCP}}` call to archive only the shipment manifest's
+explicit item IDs one artifact at a time, verifying after each that the parent
+feature and any unshipped sibling tasks survive.
+
+> **Why safe-close exists.** `{{OP_SHIP_SHIPMENT_MCP}}` treats a shipment as a
+> proxy for its covering feature and cascade-archives the whole feature subtree.
+> For **partial-feature** shipments (which intentionally exclude the parent
+> feature and some sibling tasks) this is destructive: it archives the parent
+> feature and orphans unshipped siblings that are **not in the shipment
+> manifest**. Safe-close prevents that corruption instead of merely detecting it
+> after the fact. See **P-015** in `workflow-policies` for the governing policy.
 
 ## When to Use
 
-* **Ship Step 6** (mandatory): pre-mode immediately before `{{OP_SHIP_SHIPMENT_MCP}}`;
-  post-mode immediately after the `git restore {{BACKLOG_DIRECTORY}}/archive/` step.
+* **Ship Step 6 closure** (mandatory): run `mode: pre`, then `mode: safe-close`
+  **instead of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call, then `mode: post`.
+  Safe-close archives only the manifest item IDs individually; it never calls the
+  cascade op.
 * **Ship Step 0.5** (sanity check): pre-mode at intake with `expected_status: {{STATUS_QUEUED}}`
   (or `{{STATUS_ACTIVE}}` if the shipment was already claimed in a prior session)
   to catch Stage-side over-inclusion before any build work begins.
@@ -22,10 +35,10 @@ the archive + restore steps complete.
 
 | Parameter | Required | Values | Notes |
 |---|---|---|---|
-| `mode` | yes | `pre` \| `post` | Controls which check phase runs |
+| `mode` | yes | `pre` \| `post` \| `safe-close` | Controls which check/close phase runs |
 | `shipment_id` | yes | e.g. `004-{{SUFFIX_SHIPMENT}}` | The shipment to reconcile |
 | `expected_status` | pre-mode only | `{{STATUS_QUEUED}}` \| `{{STATUS_ACTIVE}}` \| `{{STATUS_DONE}}` | `{{STATUS_QUEUED}}` for fresh intake; `{{STATUS_ACTIVE}}` when shipment already claimed in a prior session; `{{STATUS_DONE}}` for pre-ship check |
-| `merge_commit_sha` | post-mode only | git SHA | The merge commit that closed the PR |
+| `merge_commit_sha` | post-mode and safe-close | git SHA | The merge commit that closed the PR; recorded on archived items for traceability |
 
 ## Output
 
@@ -48,21 +61,38 @@ Every item in the manifest is classified as one of:
 The report ends with a `recommendation`:
 
 * `PROCEED` — all items are `matched` or `pre-archived`; no action needed
-* `HALT — operator reconcile required` — one or more missing, status-mismatch, or orphan items
+* `HALT — operator reconcile required` — one or more missing, status-mismatch, or orphan items (pre-mode)
+* `HALT — restore archives` — missing archive files or unrestored deletions (post-mode)
+* `CLOSED` — safe-close archived every manifest item individually and the protected set (parent feature + unshipped siblings) is intact
+* `HALT — cascade detected, revert required` — safe-close found a non-manifest artifact (parent feature or a sibling task) archived or deleted; the unintended change must be reverted before any commit
+
+For `mode: safe-close`, the report also records the **protected set** (the parent
+feature file and every unshipped sibling task file that must survive closure) and,
+per manifest item, whether it was `matched` (archived by this run) or
+`pre-archived` (already archived before this run; skipped to avoid
+double-archival and false-positive cascade flags).
 
 ## Behavioral Constraints
 
-* **Report-and-halt only.** This skill NEVER modifies the shipment manifest, queue
-  files, or archive contents. Operator must manually reconcile via existing
-  backlog tools and re-invoke Ship Step 6.
-* **No prune mode in v1.** Auto-mutation of the manifest is reserved for a future
-  version after upstream backlog tool validation surface is confirmed.
+* **Report-and-halt only.** This skill NEVER modifies the shipment manifest or
+  queue/archive files **outside the safe-close mode's manifest-scoped archival**.
+  In pre- and post-mode it only reports; operators must manually reconcile via
+  existing backlog tools and re-invoke Ship Step 6.
+* **Manifest-scoped mutation only.** In `mode: safe-close`, the ONLY artifacts
+  this skill may move or archive are the shipment manifest's explicit item IDs.
+  It must NEVER archive the parent feature or any sibling task that is not in the
+  manifest. It never calls the cascade `{{OP_SHIP_SHIPMENT_MCP}}`.
+* **No prune / no auto-repair.** Auto-mutation of the manifest itself is reserved
+  for a future version. Safe-close never prunes the manifest and never
+  auto-deletes non-manifest artifacts; on cascade detection it reverts the
+  unintended change and halts.
 * **Single-writer lock.** When invoked from Ship Step 6, this skill holds the
   `{{BACKLOG_DIRECTORY}}/queue/{shipment_id}.md` file lock (via the `file-lock` skill) for
-  the duration of pre-mode → post-mode. See lock protocol in the Required Protocol
-  section below.
-* **Halt on RECONCILE_FAIL.** Do not proceed to `{{OP_SHIP_SHIPMENT_MCP}}` unless
-  pre-mode returns `PROCEED`. Surface the report path to the operator.
+  the duration of pre-mode → safe-close → post-mode. See lock protocol in the
+  Required Protocol section below.
+* **Halt on RECONCILE_FAIL.** Do not proceed to safe-close unless pre-mode
+  returns `PROCEED`. Do not commit backlog state if safe-close returns
+  `HALT — cascade detected, revert required`. Surface the report path to the operator.
 
 ## Required Protocol
 
@@ -127,6 +157,79 @@ The report ends with a `recommendation`:
    Invoke `file-lock` release for `{{BACKLOG_DIRECTORY}}/queue/{shipment_id}.md`.
    If release fails, log a warning — stale locks are operator-recoverable.
 
+### Safe-Close Mode
+
+Runs **in place of** the destructive cascade `{{OP_SHIP_SHIPMENT_MCP}}` call.
+Archives only the shipment manifest's explicit item IDs, one artifact at a time,
+verifying after each archival that the parent feature and any unshipped sibling
+tasks survive. Invoked between pre-mode (`PROCEED`) and post-mode, under the lock
+pre-mode already holds. If invoked standalone, acquire the lock per pre-mode
+step 1 first and release it on completion.
+
+1. **Load manifest** via `{{OP_GET_SHIPMENT_MCP}}(shipment_id)`. Extract the
+   `items` list. These IDs are the **only** artifacts safe-close may move or
+   archive.
+
+2. **Compute the protected set** (partial-feature detection):
+   * Derive the covering feature ID from the manifest item hierarchy
+     (e.g. a task `055.002-{{SUFFIX_TASK}}` belongs to feature `055-{{SUFFIX_FEATURE}}`).
+   * If the covering feature ID is **not** in the manifest `items`, this is a
+     **partial-feature shipment**. Add the feature's queue file to the protected set.
+   * Scan `{{BACKLOG_DIRECTORY}}/queue/` for every task file sharing the covering
+     feature's hierarchy prefix whose ID is **not** in the manifest `items`
+     (the unshipped siblings). Add each to the protected set.
+   * The **protected set** is the parent feature file plus every unshipped sibling
+     task file that MUST remain in `{{BACKLOG_DIRECTORY}}/queue/` after closure.
+
+3. **Snapshot the baseline**: Run `git status --short -- "{{BACKLOG_DIRECTORY}}/"`
+   and record the pre-closure working-tree state so any archival or deletion of a
+   protected-set path introduced by later steps can be attributed to this procedure.
+
+4. **Archive each manifest item individually** (loop over `items` ONLY):
+   * If the item's file is in `{{BACKLOG_DIRECTORY}}/queue/`: move it to
+     `{{STATUS_DONE}}` via `{{OP_MOVE_MCP}}`, then archive that single artifact via
+     `{{OP_ARCHIVE_ITEM_MCP}}` (CLI fallback `{{OP_ARCHIVE_ITEM_CLI}}`). Record the
+     `merge_commit_sha` on the archived item for traceability. Classify `matched`.
+   * If the item's file is already in `{{BACKLOG_DIRECTORY}}/archive/`: classify
+     `pre-archived` and **skip** — do not re-archive. Reusing the `pre-archived`
+     classification prevents false-positive cascade flags on items that were
+     legitimately shipped earlier.
+   * If the item's file is in neither location: classify `missing`, halt with
+     `RECONCILE_FAIL`, and do not continue archiving.
+
+5. **Verify-after-each invariant** (run immediately after each item's archival):
+   * Confirm **every** protected-set file is still present in
+     `{{BACKLOG_DIRECTORY}}/queue/` — not moved to `{{BACKLOG_DIRECTORY}}/archive/`,
+     not deleted from the working tree.
+   * Run `git status --short -- "{{BACKLOG_DIRECTORY}}/"` and confirm no
+     protected-set path appears as a deletion, rename into `archive/`, or new
+     `archive/` addition beyond the baseline captured in step 3.
+   * A protected-set item that was `pre-archived` before this run began is **not**
+     a cascade — exclude it from the invariant check.
+
+6. **git-revert-on-cascade**: If the invariant fails (a protected-set artifact was
+   archived or deleted by the preceding archival):
+   * **Cascade detected.** Immediately restore the unintended change:
+     `git restore -- {{BACKLOG_DIRECTORY}}/queue/ {{BACKLOG_DIRECTORY}}/archive/`
+     for working-tree moves/deletions, or `git revert <commit>` if the cascade was
+     already committed.
+   * Re-run the invariant to confirm the protected set is intact again.
+   * Halt with `HALT — cascade detected, revert required`, emit a **P-005**
+     violation event (naming the cascaded artifact IDs), and do **NOT** commit the
+     backlog state. Do not auto-prune the manifest.
+
+7. **Final invariant re-check**: After the loop completes, re-confirm the full
+   protected set is intact in `{{BACKLOG_DIRECTORY}}/queue/`.
+
+8. **Produce safe-close report** per the same schema, recording the protected set,
+   each item's classification, and the recommendation.
+
+9. **Gate decision**:
+   * All manifest items `matched` or `pre-archived` and the protected set intact →
+     `recommendation: CLOSED`. Proceed to post-mode.
+   * Any cascade detected → `recommendation: HALT — cascade detected, revert required`
+     (see step 6). Do not proceed to the commit step.
+
 ### Lock-Conflict Scenario
 
 If pre-mode cannot acquire the lock because another process holds it:
@@ -138,19 +241,22 @@ If pre-mode cannot acquire the lock because another process holds it:
 
 ## Quality Criteria
 
-* `mode: pre` runs before every `{{OP_SHIP_SHIPMENT_MCP}}` call in Ship Step 6
+* `mode: pre` runs before closing a shipment in Ship Step 6
 * `mode: pre` with `expected_status: {{STATUS_QUEUED}}` (or `{{STATUS_ACTIVE}}` for already-claimed shipments) runs at Ship Step 0.5 intake
-* `mode: post` runs after every archive + restore sequence in Ship Step 6
+* `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs, one artifact at a time
+* Safe-close computes the protected set (parent feature + unshipped siblings) and verifies it survives after every single-item archival (verify-after-each invariant)
+* Safe-close reverts on cascade detection (`git restore`/`git revert`) and halts with a P-005 violation; it never auto-prunes the manifest
+* `mode: post` runs after the safe-close archive sequence in Ship Step 6
 * All five item classifications are represented in the schema
 * Lock is acquired before pre-mode and released after post-mode (or on any halt)
-* Report-and-halt is the only mutation path; no auto-prune
+* Report-and-halt in pre/post mode; safe-close mutation is strictly manifest-scoped with no auto-prune
 
 ## Related Artifacts
 
 * `.github/skills/file-lock/SKILL.md` — lock acquisition/release primitives
-* `.github/agents/.ship.agent.md` — integration points (Step 0.5, Step 6)
+* `.github/agents/.ship.agent.md` — integration points (Step 0.5, Step 6 safe-close)
 * `.github/agents/.stage.agent.md` — scope guard (Step 5.5)
-* `.github/policies/workflow-policies.md` — P-007 archive integrity policy
+* `.github/policies/workflow-policies.md` — P-007 archive integrity policy; P-015 single-artifact closure (cascade prohibition)
 
 ## Model Routing
 
