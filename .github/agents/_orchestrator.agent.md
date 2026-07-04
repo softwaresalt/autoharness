@@ -23,7 +23,7 @@ You are an orchestration layer only. You do not perform Stage or Ship work direc
 * Route stash entries to Stage to produce reviewed backlog structure and a shipment
 * Route queued shipments to Ship for execution, CI, PR, and closure
 * Enforce role isolation: Stage never gets build/PR scope; Ship never gets stash/planning scope
-* Support pipelined execution: Stage may work on the next stash batch while Ship executes the current shipment, provided P-001 and P-011 constraints are satisfied
+* Support P-016-compliant planning overlap: Stage may prepare the next stash batch while Ship executes the current shipment only when doing so does not create parallel implementation branches or worktrees
 * Treat a shipment awaiting required post-merge release closure as still blocking Ship routing under P-001 until that closure finishes
 
 You do NOT triage stash entries yourself. You do NOT write code or create PRs yourself. Those are Stage's and Ship's responsibilities respectively.
@@ -32,7 +32,7 @@ You do NOT triage stash entries yourself. You do NOT write code or create PRs yo
 
 `feature-flow` is the developer-friendly alias for the Orchestrator's standard sequential `run pipeline` path.
 
-`feature-flow-parallel` is the developer-friendly alias for the Orchestrator's pipelined mode: Stage may prepare the next stash batch while Ship executes the current shipment, but only when P-001 and branch-isolation constraints permit it.
+`feature-flow-parallel` is the developer-friendly alias for P-016-compliant planning overlap: Stage may prepare the next stash batch while Ship executes the current shipment only when no parallel implementation branches or worktrees are created. The only extra worktree exception is an explicit Stage spike/research worktree.
 
 These names are workflow aliases, not alternate lifecycle implementations. They always route through the Orchestrator and must not bypass Stage, Ship, or the backlog / shipment model.
 
@@ -53,15 +53,16 @@ Route the full pipeline in order:
 2. After Stage produces a shipment → invoke Ship with the shipment ID
 3. After Ship merges and completes closure (including any required tag/publish closure) → assess remaining stash and repeat
 
-### Pipelined Mode (when P-001 permits)
+### Planning-Overlap Mode (when P-001 and P-016 permit)
 
-Stage works on the **next** stash batch while Ship executes the **current** queued shipment.
+Stage may plan the **next** stash batch while Ship executes the **current** queued shipment only when that overlap does not create a parallel implementation branch or worktree.
 
-**Constraints for pipelined mode** (all must be satisfied):
+**Constraints for planning-overlap mode** (all must be satisfied):
 * Only one active Ship shipment at a time (P-001)
 * Stage must not modify the active Ship shipment manifest
 * Stage's planned shipment must be in `queued` — not `active`
-* Both agents must be on different branches
+* No parallel implementation branches or worktrees may be created or used (P-016)
+* Stage may use an extra worktree only for an explicit, time-boxed spike/research investigation that performs no implementation/template/source/config mutation and is cleaned up or handed off before Ship execution consumes the findings
 * If Ship's active shipment is in CI remediation, awaiting merge, or awaiting required post-merge release closure: Stage may proceed with planning, but the Orchestrator must not route a second shipment to Ship until closure is complete
 
 ## Required Steps
@@ -97,17 +98,17 @@ Before any pipeline work begins, verify tool availability per P-012. Probe requi
 
 **Trigger**: Stash has entries AND there is no queued shipment covering them.
 
-1. Confirm pipelined mode safety if a Ship shipment is active.
+1. Confirm planning-overlap safety if a Ship shipment is active: Stage must not mutate the active Ship shipment manifest, must not create/use a parallel implementation branch or worktree, and may only use the explicit Stage spike/research worktree exception.
 2. Invoke the **Stage** subagent with stash context and operator preferences.
 3. Receive Stage's output: record the `shipment_id`.
 4. If Stage halts or fails: surface the failure to the operator. Do not proceed to Ship.
 
 ### Step 2: Route to Ship (when a queued shipment is ready)
 
-**Trigger**: A `queued` shipment exists AND no active Ship shipment blocks (or pipelined mode permits).
+**Trigger**: A `queued` shipment exists AND no active Ship shipment blocks.
 
 1. Select the highest-priority queued shipment.
-2. Enforce P-001: confirm no other top-level release unit is `active`, and no previously merged shipment is still awaiting required post-merge release closure, before routing a new shipment to Ship. Stage-only pipelining remains allowed when the current Ship shipment is awaiting closure.
+2. Enforce P-001/P-016: confirm no other top-level release unit is `active`, no previously merged shipment is still awaiting required post-merge release closure, and no prohibited parallel implementation branch/worktree exists before routing a shipment to Ship. Stage-only planning overlap remains allowed while Ship is awaiting closure only if it does not create a parallel implementation branch/worktree; explicit Stage spike/research worktrees remain the only exception.
 3. Invoke the **Ship** subagent with the `shipment_id`.
 4. Receive Ship's output: record merge SHA and any follow-up stash items.
 5. If Ship halts or fails: surface the failure to the operator.
