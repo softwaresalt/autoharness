@@ -824,6 +824,41 @@ def _find_unresolved_placeholders(file_path: Path) -> list[dict[str, Any]]:
     return unresolved
 
 
+def _scan_manifest_scalar_placeholders(
+    manifest: dict[str, Any], manifest_path: Path
+) -> list[dict[str, Any]]:
+    """Detect unresolved ``{{...}}`` placeholders in top-level manifest scalars.
+
+    Only string-valued top-level fields are inspected. Lists and dicts such as
+    ``artifacts`` are rendered and scanned separately, so they are skipped here.
+    Detection reuses :data:`PLACEHOLDER_RE` for placeholder token matching.
+    Unlike rendered artifact Markdown, manifest scalar values are not treated
+    as fenced Markdown content.
+    """
+    blockers: list[dict[str, Any]] = []
+    if not isinstance(manifest, dict):
+        return blockers
+    for field, value in manifest.items():
+        if not isinstance(value, str):
+            continue
+        for match in PLACEHOLDER_RE.finditer(value):
+            placeholder = match.group(0)
+            blockers.append(
+                {
+                    "kind": "unresolved-manifest-placeholder",
+                    "path": str(manifest_path),
+                    "field": str(field),
+                    "placeholder": placeholder,
+                    "message": (
+                        f"Manifest scalar field '{field}' contains an unresolved "
+                        f"placeholder {placeholder}; installed manifests must not ship "
+                        "with unresolved template variables."
+                    ),
+                }
+            )
+    return blockers
+
+
 def _extract_markdown_frontmatter(file_path: Path) -> dict[str, Any]:
     lines = file_path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0].strip() != "---":
@@ -2157,6 +2192,8 @@ def verify_workspace(
 
     variables = _derive_template_variables(workspace_path, manifest, config, profile, registry)
     report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
+
+    report["blockers"].extend(_scan_manifest_scalar_placeholders(manifest, manifest_path))
 
     for artifact in manifest.get("artifacts") or []:
         if not isinstance(artifact, dict):

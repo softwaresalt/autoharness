@@ -17,6 +17,7 @@ from autoharness.schema_contracts import (
     resolve_contract_schema_path,
     summarize_schema_contract,
 )
+from autoharness.cli import _report_has_failures
 from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _run_portability_scan, verify_workspace
 
 
@@ -119,25 +120,22 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
-    def test_root_mcp_config_is_canonical_shared_config(self) -> None:
+    def test_mcp_config_guidance_allows_local_root_config(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
         root_mcp = repo_root / ".mcp.json"
         gitignore = (repo_root / ".gitignore").read_text(encoding="utf-8")
 
-        self.assertTrue(root_mcp.exists(), "Root .mcp.json must exist as the canonical shared MCP config")
-
-        root_mcp_text = root_mcp.read_text(encoding="utf-8")
         copilot_instructions = (repo_root / ".github" / "copilot-instructions.md").read_text(encoding="utf-8")
 
-        self.assertNotIn("\n.mcp.json\n", gitignore)
         self.assertIn(".vscode/mcp.json", gitignore)
         self.assertIn(".cursor/mcp.json", gitignore)
         self.assertIn(".claude/mcp.json", gitignore)
 
-        self.assertIn('"command": "engram"', root_mcp_text)
-        self.assertIn('${workspaceFolder}', root_mcp_text)
-        self.assertIn('"graphtor-docs"', root_mcp_text)
+        if root_mcp.exists():
+            root_mcp_text = root_mcp.read_text(encoding="utf-8")
+            self.assertIn('"command": "engram"', root_mcp_text)
+            self.assertIn('"graphtor-docs"', root_mcp_text)
 
         self.assertIn("workspace-root `.mcp.json`", copilot_instructions)
 
@@ -769,6 +767,93 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 )
             )
             self.assertEqual(report["skipped"], [])
+
+    def _run_manifest_placeholder_scan(self, root: Path, autoharness_version: str) -> dict:
+        autoharness_home = root / "autoharness-home"
+        workspace = root / "workspace"
+        staging = workspace / ".autoharness" / "staging"
+
+        (autoharness_home / "templates" / "foundation").mkdir(parents=True, exist_ok=True)
+        (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+        (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+
+        (autoharness_home / "templates" / "foundation" / "AGENTS.md.tmpl").write_text(
+            "# {{PROJECT_NAME}}\n",
+            encoding="utf-8",
+        )
+
+        schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+        }
+        for schema_name in (
+            "harness-manifest.schema.json",
+            "harness-config.schema.json",
+            "workspace-profile.schema.json",
+        ):
+            (autoharness_home / "schemas" / schema_name).write_text(
+                json.dumps(schema),
+                encoding="utf-8",
+            )
+
+        _write_yaml(
+            workspace / ".autoharness" / "harness-manifest.yaml",
+            {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-04-24T00:00:00Z",
+                "autoharness_version": autoharness_version,
+                "profile_hash": "abc",
+                "primitives_installed": [1],
+                "capability_packs": [],
+                "artifacts": [
+                    {
+                        "path": "AGENTS.md",
+                        "primitive": 9,
+                        "template": "templates/foundation/AGENTS.md.tmpl",
+                        "checksum": "stale-checksum",
+                    }
+                ],
+                "variables_used": {"PROJECT_NAME": "demo-workspace"},
+            },
+        )
+        _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+        _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+        (workspace / "AGENTS.md").write_text("# Existing\n", encoding="utf-8")
+
+        return verify_workspace(workspace, autoharness_home, staging)
+
+    def test_verify_workspace_flags_unresolved_manifest_scalar_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = self._run_manifest_placeholder_scan(
+                Path(temp_dir), "{{AUTOHARNESS_VERSION}}"
+            )
+
+            manifest_blockers = [
+                blocker
+                for blocker in report["blockers"]
+                if blocker.get("kind") == "unresolved-manifest-placeholder"
+            ]
+            self.assertEqual(len(manifest_blockers), 1)
+            blocker = manifest_blockers[0]
+            self.assertEqual(blocker["field"], "autoharness_version")
+            self.assertEqual(blocker["placeholder"], "{{AUTOHARNESS_VERSION}}")
+            self.assertIn("autoharness_version", blocker["message"])
+            self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_passes_resolved_manifest_scalars(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = self._run_manifest_placeholder_scan(Path(temp_dir), "1.3.2")
+
+            self.assertEqual(
+                [
+                    blocker
+                    for blocker in report["blockers"]
+                    if blocker.get("kind") == "unresolved-manifest-placeholder"
+                ],
+                [],
+            )
+            self.assertEqual(report["blockers"], [])
+            self.assertEqual(report["unresolved"], [])
 
     def test_verify_workspace_reports_legacy_config_migrations(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

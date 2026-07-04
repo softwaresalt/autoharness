@@ -21,6 +21,7 @@ src/autoharness/__pycache__/*.pyc
 .vscode/mcp.json
 .cursor/mcp.json
 .claude/mcp.json
+.mcp.json
 
 # graphtor-docs — managed by graphtor-docs install
 .graphtor/
@@ -36,3 +37,8 @@ src/autoharness/__pycache__/*.pyc
 .engram-bkp/
 
 references/
+
+# Local environment files (secrets) — never commit. Only .env.example may be tracked.
+.env
+.env.*
+!.env.example
