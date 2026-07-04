@@ -27,11 +27,14 @@ src/autoharness/__pycache__/*.pyc
 .graphtor/
 
 # Engram runtime data (keep templates/, registry.yaml, .version)
-.engram/
+.engram/*
 !.engram/.version
 !.engram/.workspace-id
 !.engram/config.toml
 !.engram/registry.yaml
+!.engram/templates/
+!.engram/templates/**
+.engram-bkp/
 
 references/
 
