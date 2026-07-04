@@ -38,6 +38,26 @@ function Invoke-EngramCommandWithProgress {
     }
 }
 
+$envLocalPath = Join-Path $PSScriptRoot ".env.local"
+if (Test-Path -LiteralPath $envLocalPath -PathType Leaf) {
+    Get-Content -LiteralPath $envLocalPath | ForEach-Object {
+        if ($_ -match '^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$') {
+            $name = $matches[1]
+            if ($null -eq [Environment]::GetEnvironmentVariable($name, "Process")) {
+                $value = $matches[2]
+                if ($value.Length -ge 2) {
+                    $firstChar = $value[0]
+                    $lastChar = $value[$value.Length - 1]
+                    if ((($firstChar -eq '"') -or ($firstChar -eq "'")) -and ($lastChar -eq $firstChar)) {
+                        $value = $value.Substring(1, $value.Length - 2)
+                    }
+                }
+                [Environment]::SetEnvironmentVariable($name, $value, "Process")
+            }
+        }
+    }
+}
+
 $env:COPILOT_HOME = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { Join-Path $PSScriptRoot ".copilot" }
 $env:ENGRAM_DATA_DIR = if ($env:ENGRAM_DATA_DIR) { $env:ENGRAM_DATA_DIR } else { Join-Path $PSScriptRoot ".engram" }
 if (-not $env:GITHUB_TOKEN) {
