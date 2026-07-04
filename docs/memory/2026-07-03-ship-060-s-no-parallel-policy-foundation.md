@@ -47,13 +47,15 @@ Copilot advisory findings were addressed before merge:
 Safe closure steps:
 
 1. `backlogit move 060-S --status done`
-2. `backlogit update 060-S --commit a39e72a39d9f75e0e8a4a9606756fb5407ee43da`
-3. `backlogit sync`
-4. `backlogit doctor --format json`
+2. Correct the archived shipment metadata to `status: shipped` because shipment
+   work-item metadata uses `shipped` as the terminal completed state.
+3. `backlogit update 060-S --commit a39e72a39d9f75e0e8a4a9606756fb5407ee43da`
+4. `backlogit sync`
+5. `backlogit doctor --format json`
 
 Post-close state:
 
-- `060-S` is archived/done with merge commit recorded.
+- `060-S` is archived/shipped with merge commit recorded.
 - `060.001-T` remains archived/done.
 - `060-F` remains active in the queue carrying deferred tasks.
 - `060.002-T`, `060.003-T`, and `060.004-T` remain queued and linked to
