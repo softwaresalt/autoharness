@@ -257,22 +257,26 @@ P-005 violation event.
 | Applies To | `ship`                                   |
 | Gate Point | Ship Step 0.5, before any workspace or backlog mutation |
 
-**Statement**: The Ship agent must verify that a feature or chore branch is active before performing any workspace mutation (code changes, file writes, backlog claim). The default branch must never be the active branch when Ship performs implementation work.
+**Statement**: The Ship agent must verify that a feature or chore branch is active and that P-016's no-parallel worktree invariant holds before performing any workspace mutation (code changes, file writes, backlog claim). The default branch must never be the active branch when Ship performs implementation work.
 
-**Precondition**: A branch named `feat/{slug}` or `chore/{slug}` is checked out and the worktree is clean before the first mutation.
+**Precondition**: A branch named `feat/{slug}` or `chore/{slug}` is checked out, the current worktree is clean before the first mutation, and `git worktree list --porcelain` shows no prohibited additional worktrees under P-016.
 
 **Required sequence** (when not already on the correct branch):
 1. `git status --short` — verify the worktree is clean
-2. `git checkout {{DEFAULT_BRANCH}}`
-3. `git pull`
-4. `git checkout -b feat/{feature-slug}` or `git checkout -b chore/{chore-slug}`
+2. `git worktree list --porcelain` — verify no prohibited parallel worktrees are attached
+3. `git checkout {{DEFAULT_BRANCH}}`
+4. `git pull`
+5. `git checkout -b feat/{feature-slug}` or `git checkout -b chore/{chore-slug}`
 
 **Edge cases**:
 - If already on the correct shipment branch: proceed without creating a new branch
 - If on a wrong non-default branch: halt and require operator instruction
 - If worktree is dirty before branch creation: halt and do not create branch
+- If any additional worktree is attached and is not an explicit Stage spike/research worktree allowed by P-016: halt and do not claim or mutate
 
-**Violation Action**: Record a P-011 violation (via P-005 telemetry) and halt. Do not proceed with any workspace mutations until a feature branch is active.
+**Relationship to P-016**: P-011 is Ship's branch-creation hook. P-016 is the broader invariant that forbids parallel implementation branches and worktrees across all agents.
+
+**Violation Action**: Record a P-011 violation (via P-005 telemetry) and halt. Do not proceed with any workspace mutations until a feature branch is active and the P-016 worktree gate passes.
 
 ---
 
@@ -392,6 +396,40 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 
 ---
 
+## P-016: No Parallel Branch/Worktree Execution
+
+| Field      | Value                                             |
+|------------|---------------------------------------------------|
+| Policy ID  | P-016                                             |
+| Applies To | All agents and skills that create, select, or mutate branches/worktrees |
+| Gate Point | Session start, before shipment claim, before branch creation, before worktree creation/use, and before Orchestrator pipelining |
+
+**Statement**: Agents MUST NOT work across parallel implementation branches or worktrees. At any point where an agent will mutate the workspace for implementation, backlog execution, PR preparation, or closure, there must be exactly one agent-owned implementation branch/worktree in use. A local branch plus one or more parallel implementation worktrees is prohibited because remote operators cannot reliably track which branch owns which changes or which state is visible in the active workspace.
+
+**Allowed exception (Stage spike/research only)**: Stage MAY create or use a separate worktree only for an explicit, time-boxed spike or research investigation during staging. That worktree MUST NOT be used for implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution. Stage MUST record the spike/research context and clean up the worktree or hand off findings before Ship execution begins.
+
+**Precondition**: Before any agent claims a shipment, creates a branch, creates/uses a worktree, or mutates the workspace, the agent has checked current branch/worktree state and determined that no prohibited parallel implementation worktree exists.
+
+**Required checks**:
+
+1. Inspect the active branch and worktree.
+2. Inspect attached worktrees (for example, `git worktree list --porcelain`).
+3. Classify any additional worktree as one of:
+   - current worktree;
+   - explicit Stage spike/research worktree with no implementation or Ship scope;
+   - prohibited/ambiguous.
+4. Fail closed on any prohibited or ambiguous extra worktree.
+
+**Relationship to P-001**: P-001 limits top-level release-unit completion. P-016 limits the branch/worktree topology used to execute that work. Even when only one release unit is active, agents may not split execution across parallel implementation worktrees.
+
+**Relationship to P-010**: P-010 defines Stage/Ship/Orchestrator role boundaries. P-016 prevents a role-boundary workaround where separate worktrees make it appear that multiple agents can execute incompatible roles in parallel.
+
+**Relationship to P-011**: P-011 is Ship's branch-before-mutation gate. P-016 extends that gate to all branch/worktree selection and requires Ship to reject prohibited extra worktrees before claiming or mutating.
+
+**Violation Action**: Record a P-016 violation through P-005 telemetry and halt. Do not claim shipments, create branches, mutate files, or proceed with PR/closure work until the operator resolves the branch/worktree topology.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -407,3 +445,4 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 | 1.8.0   | {{DATE}}     | Added P-013      | Agent tier hierarchy and escalation |
 | 1.9.0   | {{DATE}}     | Added P-014      | Local review readiness merge gate — preserves explicit approval and advisory shadow-review migration |
 | 1.10.0  | {{DATE}}     | Added P-015      | Single-artifact shipment closure — prohibits cascade shipment-ship, requires verify-after-each invariant + git-revert-on-cascade |
+| 1.11.0  | {{DATE}}     | Added P-016      | No parallel branch/worktree execution, with only explicit Stage spike/research worktrees exempt |

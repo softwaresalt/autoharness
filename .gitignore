@@ -26,14 +26,13 @@ src/autoharness/__pycache__/*.pyc
 # graphtor-docs — managed by graphtor-docs install
 .graphtor/
 
-# engram plugin (runtime artifacts — state files are intentionally tracked)
-.engram/run/
-.engram/db/
-.engram/code-graph/
-.engram/cozo/
-.engram/logs/
-.engram/metrics/
-.engram/.workspace-id
+# Engram runtime data (keep templates/, config.toml, registry.yaml, .version)
+.engram/*
+!.engram/.version
+!.engram/config.toml
+!.engram/registry.yaml
+!.engram/templates/
+!.engram/templates/**
 .engram-bkp/
 
 references/
