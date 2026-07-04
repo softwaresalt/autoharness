@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-03T23:35:23.7457602-07:00","actor":"backlogit","item_id":"061-S","event_type":"shipment_created","delta":{"items":["060.002-T"],"title":"No-parallel worktree Ship gate enforcement"}}
+{"timestamp":"2026-07-04T00:05:36.5702197-07:00","actor":"backlogit","item_id":"061-S","event_type":"shipment_status_changed","delta":{"status":"active"}}

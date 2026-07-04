@@ -163,10 +163,13 @@ build work begins:
 1. Load the shipment using `{{OP_GET_SHIPMENT_MCP}}`. Confirm it is in `{{STATUS_QUEUED}}` or `{{STATUS_ACTIVE}}` status.
 2. Confirm the shipment has explicit item membership (feature + tasks).
 3. Verify no item in the shipment is missing a covering feature parent.
-3a. **Branch Creation Gate (P-011, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active:
+3a. **Branch Creation Gate (P-011, NON-NEGOTIABLE) + Worktree Topology Gate (P-016, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active and no prohibited parallel worktree is attached:
     - Check current branch:
       `git branch --show-current`
-    - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `BRANCH_OK: {branch_name}` and proceed to step 4.
+    - Check attached worktrees before logging `BRANCH_OK`, creating a branch, or claiming a shipment:
+      `git worktree list --porcelain`
+      Classify each worktree as the current worktree, an explicit Stage-owned spike/research worktree, or prohibited/ambiguous. If any non-current worktree is not clearly an allowed Stage spike/research worktree, halt with `WORKTREE_TOPOLOGY_BLOCKED: prohibited or ambiguous parallel worktree detected` and record a P-016/P-005 violation. Ship must not create or use parallel worktrees.
+    - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `WORKTREE_TOPOLOGY_OK` and `BRANCH_OK: {branch_name}` and proceed to step 4.
     - If on `{{DEFAULT_BRANCH}}` (the default branch):
       a. Verify the worktree is clean:
          `git status --short`
@@ -180,7 +183,7 @@ build work begins:
          where `{feature-slug}` is derived from the shipment title: lowercase, spaces replaced with hyphens.
       e. Log `BRANCH_CREATED: {branch_name}`.
     - If on an unrelated non-default branch: halt with `BRANCH_MISMATCH: currently on {branch_name} — does not match shipment scope. Checkout the correct branch or create one manually.`
-    - Note: All four git commands above are run as separate sequential steps, not chained.
+    - Note: All git commands above are run as separate sequential steps, not chained.
 4. If the shipment is still in `{{STATUS_QUEUED}}` status, claim it using `{{OP_CLAIM_SHIPMENT_MCP}}` before
    build work begins. Broadcast `[SHIP] Shipment claimed: {shipment_id}`.
 5. Record `shipment_id` as the session scope. All build execution and PR scope is bounded
@@ -206,10 +209,11 @@ When `shipment_id` is not provided (Ship invoked directly by the operator):
    a. Identify the covering feature: the highest-priority queued feature without an existing
       shipment. If the work is bare tasks without a covering feature, halt and request that
       Stage be run first to synthesize a covering feature and assemble the shipment.
-   b. Create the shipment using `{{OP_CREATE_SHIPMENT_MCP}}` with a title from the feature
+   b. Run the Branch Creation Gate + Worktree Topology Gate from primary-path step 3a before creating the fallback shipment.
+   c. Create the shipment using `{{OP_CREATE_SHIPMENT_MCP}}` with a title from the feature
       and an initial `items` list containing the covering feature ID (e.g., `[feature_id]`).
-   c. Add each task in dependency order. Add each subtask after its parent task.
-   d. Broadcast `[SHIP] Shipment assembled (fallback): {shipment_id} — {feature_id} +
+   d. Add each task in dependency order. Add each subtask after its parent task.
+   e. Broadcast `[SHIP] Shipment assembled (fallback): {shipment_id} — {feature_id} +
       {task_count} tasks`.
 4. Claim and record `shipment_id` as the session scope.
 
