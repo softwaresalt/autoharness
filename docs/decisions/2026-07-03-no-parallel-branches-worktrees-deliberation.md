@@ -110,6 +110,7 @@ the remote-operator management model.
 
 ## Guardrails
 
-This is a staging decision only. No source, template, policy, agent, or config
-implementation file was modified. No branch or worktree was created. Execution
-is owned by Ship via feature `060-F` and its child tasks.
+This section describes the original staging deliberation constraints: during
+deliberation, Stage did not create implementation branches or worktrees and did
+not perform the policy/template implementation. Execution is owned by Ship via
+feature `060-F` and its child tasks.
