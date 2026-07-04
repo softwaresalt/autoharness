@@ -38,10 +38,13 @@ function Invoke-EngramCommandWithProgress {
     }
 }
 
-Get-Content .env.local | ForEach-Object {
-  if ($_ -match '^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.+?)\s*$') {
-    Set-Item -Path "env:$($matches[1])" -Value $matches[2]
-  }
+$envLocalPath = Join-Path $PSScriptRoot ".env.local"
+if (Test-Path -LiteralPath $envLocalPath -PathType Leaf) {
+    Get-Content -LiteralPath $envLocalPath | ForEach-Object {
+        if ($_ -match '^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.+?)\s*$') {
+            Set-Item -Path "env:$($matches[1])" -Value $matches[2]
+        }
+    }
 }
 
 $env:COPILOT_HOME = if ($env:COPILOT_HOME) { $env:COPILOT_HOME } else { Join-Path $PSScriptRoot ".copilot" }
