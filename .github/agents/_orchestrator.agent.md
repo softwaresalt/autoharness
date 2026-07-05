@@ -64,8 +64,9 @@ state, stop conditions, visibility mode, and excluded items. When
 remote operator to audit the run without reading the full chat transcript.
 
 At completion or halt, emit `DARK_MODE_COMPLETE` or `DARK_MODE_HALTED` naming
-shipped/closed shipments, unfinished scoped items, closure status, merge/fallback
-outcomes, follow-up items, and the reason dark mode ended. Clear
+shipped/closed shipments, unfinished scoped items, decisions, gate outcomes,
+reviewed HEADs, closure status, merge/fallback outcomes, admin-fallback result
+or status, follow-up items, and the reason dark mode ended. Clear
 `DARK_MODE_ACTIVE` when the bounded scope is complete or halted.
 
 ## Domain Context
