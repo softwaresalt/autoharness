@@ -24,6 +24,7 @@ The operator can invoke the orchestrator with these commands:
 | Command | Pipeline Scope | Description |
 |---|---|---|
 | `run pipeline` / `process stash` | Full cycle (Steps 0–3) | Triage stash, group related entries, stage a shipment, hand off to Ship, iterate |
+| `Run pipeline in dark mode` / `Run pipeline in dark factory mode` | Full cycle under P-017 | Activate bounded dark factory mode, record `DARK_MODE_ACTIVE`, and route Stage → Ship autonomously only for the declared scope |
 | `feature-flow` | Full cycle (Steps 0–3) | Developer-friendly alias for the standard sequential Stage → Ship lifecycle |
 | `feature-flow-parallel` | Full cycle with P-016-compliant planning-overlap preference | Developer-friendly alias for the same lifecycle, but prefer planning overlap when policy permits and no parallel implementation branches/worktrees are created |
 | `stage next` | Steps 0–1 only | Triage stash and produce a queued shipment; do not invoke Ship |
@@ -34,6 +35,29 @@ The operator can invoke the orchestrator with these commands:
 When the operator's message does not match a trigger phrase, infer intent from context: if stash entries exist and no shipment is queued, behave as `run pipeline`. If a queued shipment exists and stash is empty, behave as `ship next`. For install/tune requests (e.g., "install harness", "tune harness"), route to elective agents — see the **Elective Agents** section below for trigger phrases and routing rules.
 
 `feature-flow` and `feature-flow-parallel` are workflow aliases, not alternate lifecycle implementations. Both names always route through the Orchestrator, preserve Stage / Ship role boundaries, and must not bypass the backlog / shipment model. `feature-flow-parallel` degrades to normal sequential execution whenever P-016-compliant planning overlap is unsafe or unavailable.
+
+### Dark Factory Mode Trigger Semantics (P-017)
+
+Dark factory mode activates only when the operator uses one of the exact trigger phrases documented in P-017:
+
+* Canonical: `Run pipeline in dark mode`
+* Explicit alias: `Run pipeline in dark factory mode`
+
+Do not infer dark factory mode from vague autonomy language such as `run everything`, `go autonomous`, `handle it all`, or `go fast`. If the operator asks for autonomy without the exact trigger, continue in the normal non-dark pipeline when intent is otherwise clear, or ask for clarification when approval authority, scope, or safety posture is ambiguous.
+
+When dark mode activates, record `DARK_MODE_ACTIVE` in session state before invoking Stage or Ship. The activation record MUST include:
+
+| Field | Required Semantics |
+|---|---|
+| `scope` | The bounded stash IDs, feature/task IDs, shipment IDs, or explicit backlog selection covered by dark mode. If the operator says "all stashed and/or queued work", resolve that to the current stash/shipment IDs at activation time rather than leaving it open-ended. |
+| `merge_approval_pre_authorized` | Whether the operator has pre-authorized PR merge approval for this scope. If absent or ambiguous, set `false`. |
+| `admin_fallback_pre_authorized` | Whether the operator has explicitly authorized admin fallback for branch-protection review requirements. If absent or ambiguous, set `false`. |
+| `stop_conditions` | At minimum: P-001, P-009, P-014, P-016, P-017 violations; scope expansion; unavailable required tools; unresolved P0/P1 findings; failed required CI/checks; unsafe destructive action; ambiguous approval/admin authority. |
+| `visibility_mode` | Operator-visible reporting channel, plus degraded-visibility behavior when the intercom path is unavailable. |
+
+Dark mode does not change normal `run pipeline` behavior. It only changes autonomy and approval routing for the recorded scope, and it never permits Orchestrator to perform Stage or Ship work directly. Pass the `DARK_MODE_ACTIVE` record to Stage/Ship subagents as context so they can enforce the same scope and stop conditions.
+
+At activation, emit an operator-visible start summary containing the resolved scope, approval authority, admin fallback state, and stop conditions. At completion or halt, emit a stop summary naming shipped/closed shipments, unfinished scoped items, and the reason dark mode ended. Clear `DARK_MODE_ACTIVE` when the bounded scope is complete or halted.
 
 ## Stash Grouping Heuristic
 
@@ -153,7 +177,8 @@ Gather the full current backlog state:
    - Active Ship work: {shipment_id or none}
    - Queued shipments: {count}
    - Stash entries: {count}
-   - Mode: {sequential | pipelined}
+   - Mode: {sequential | planning-overlap | dark-factory}
+   - DARK_MODE_ACTIVE: {inactive | active(scope={ids})}
    ```
 
 When the `agent-intercom` capability pack is installed, broadcast the state summary.
