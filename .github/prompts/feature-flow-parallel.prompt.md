@@ -10,7 +10,7 @@ Use the existing Orchestrator pipeline to move work through the autoharness life
 
 ## Intent
 
-This prompt is a user-friendly alias for the Orchestrator's pipelined execution mode, now constrained to P-016-compliant planning overlap. It still uses the normal Stage → Ship lifecycle and falls back to sequential execution whenever overlap would create parallel implementation branches/worktrees or otherwise violate policy.
+This prompt is a user-friendly alias for the Orchestrator's pipelined execution mode, now constrained to P-016-compliant planning overlap. It is an **opt-in alternative** to the sequential single-PR-at-a-time default (`feature-flow`); it still uses the normal Stage → Ship lifecycle and falls back to sequential execution whenever overlap would create parallel implementation branches/worktrees or otherwise violate policy.
 
 ## Requirements
 

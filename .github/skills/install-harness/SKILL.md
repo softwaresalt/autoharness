@@ -1023,7 +1023,7 @@ Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 * P-004 (Red Phase Before Implementation) — Adapt compilation and test failure detection
 * P-005 (Policy Violation Telemetry) — Universal
 * P-006 (Plan Hardening Gate) — Universal
-* P-007 through P-015 — Universal backlog, markdown, merge, role, tool, tier, review-readiness, and shipment-closure policies
+* P-007 through P-015 — Universal backlog, markdown, merge, role, branch, tool, tier, review-readiness, and shipment-closure policies
 * P-016 (No Parallel Branch/Worktree Execution) — Universal. Preserve the Stage spike/research worktree exception and ensure generated Stage, Ship, Orchestrator, AGENTS.md, and concurrency guidance do not endorse parallel implementation branches/worktrees.
 
 #### Step 2.7: Prompt Layer
