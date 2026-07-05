@@ -548,6 +548,16 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "instructions/output-timestamps",
                 "no variable-resolution-table entry is required",
             ],
+            repo_root / "templates" / "instructions" / "agent-intercom.instructions.md.tmpl": [
+                "output-timestamps.instructions.md",
+                "single source of truth",
+                "ISO-8601 UTC",
+            ],
+            repo_root / ".github" / "instructions" / "agent-intercom.instructions.md": [
+                "output-timestamps.instructions.md",
+                "single source of truth",
+                "ISO-8601 UTC",
+            ],
         }
 
         for file_path, expected_phrases in expected_phrases_by_file.items():
