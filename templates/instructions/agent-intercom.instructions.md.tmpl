@@ -39,6 +39,11 @@ Broadcast at meaningful transitions, not every trivial thought:
 * runtime verification started / passed / follow-up needed / failed
 * operational closure ready / ready with conditions / blocked
 
+Every progress broadcast at these meaningful transitions must carry the output
+timestamp defined by `.github/instructions/output-timestamps.instructions.md`.
+Use that universal instruction as the single source of truth for the ISO-8601 UTC
+plus delta format; do not duplicate or diverge from the format here.
+
 For non-destructive file writes, prefer concise status messages such as `[FILE] created:` or `[FILE] modified:` with the affected path when the intercom workflow supports it.
 
 ## Dark Factory Visibility Protocol
