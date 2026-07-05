@@ -32,7 +32,8 @@ The skill should be a requirements-and-decisions intake surface:
 - it answers **what** and **why** before `impl-plan` answers **how**;
 - it uses ATV Starter Kit's `/ce-brainstorm` interaction model as the reference
   pattern;
-- it writes a durable requirements artifact under `docs/brainstorms/`;
+- it writes a durable requirements artifact under the existing
+  `docs/product-specs/` surface;
 - it may link to or invoke `deliberate` when trade-off analysis is needed;
 - it hands a stable artifact to `impl-plan`, `plan-review`, and `harvest`;
 - it must not perform implementation, template/source/config mutation, shipment
@@ -82,21 +83,25 @@ From `references/atv-starterkit/.github/skills/ce-brainstorm/SKILL.md`:
 
 ### Artifact path
 
-Brainstorm artifacts should live under:
+Brainstorm requirements artifacts should initially live under the existing
+product-specs surface:
 
 ```text
-docs/brainstorms/YYYY-MM-DD-<topic>-requirements.md
+docs/product-specs/YYYY-MM-DD-<topic>-requirements.md
 ```
 
-This is distinct from:
+This uses the repository's registered product-spec documentation path rather
+than introducing a new `docs/brainstorms/` directory before docline and
+autoharness docs-path configuration understand it. It is distinct from:
 
 - `docs/decisions/` for deliberations and durable decisions;
 - `docs/plans/` for implementation plans;
 - `.backlogit/` for active work items.
 
-If a workspace config later needs a variable for this path, add it explicitly to
-the docs path variable table. Do not hard-code it in generated artifacts without
-documenting the variable.
+If a future implementation wants an ATV-style `docs/brainstorms/` directory, it
+must first add that path to the docs path variable table, docline path map, and
+validation taxonomy. Do not hard-code unregistered docs paths in generated
+artifacts.
 
 ### Artifact frontmatter
 
@@ -106,6 +111,9 @@ queryable:
 ```yaml
 ---
 title: "<topic>"
+description: "<one-line requirements summary>"
+doc_type: spec
+source: "docs/product-specs/YYYY-MM-DD-<topic>-requirements.md"
 date: "YYYY-MM-DD"
 source_stash_ids: []
 source_research:
@@ -117,6 +125,13 @@ requirement_ids:
   - "R1"
 ---
 ```
+
+Use `doc_type: spec` for the initial implementation because the artifact is a
+requirements/specification handoff and the product-specs surface is already part
+of the repository knowledge model. If a future implementation wants a dedicated
+`brainstorm` or `requirements` document type, it must update the docline
+taxonomy/path-map and validation surfaces before generated brainstorm documents
+use that type.
 
 ### Required sections
 
@@ -218,8 +233,9 @@ trade-off analysis rather than duplicating all deliberation mechanics.
 
 Future implementation should verify:
 
-1. The brainstorm skill writes only to `docs/brainstorms/` and optional backlog
-   planning artifacts.
+1. The brainstorm skill writes only to `docs/product-specs/` and optional
+   backlog planning artifacts unless a future task first registers
+   `docs/brainstorms/` in the docs path and docline model.
 2. The skill refuses implementation and Ship execution.
 3. Requirements docs contain stable IDs and a `handoff_status`.
 4. A requirements doc with unresolved `Resolve Before Planning` items cannot be
@@ -235,6 +251,8 @@ This design should feed future tasks that add:
 - `templates/skills/brainstorm/SKILL.md.tmpl`;
 - optional installed mirror under `.github/skills/brainstorm/SKILL.md`;
 - install-harness registration in the planning/Primitive 4 skill set;
-- docs path guidance for `docs/brainstorms/`;
+- docs path guidance for brainstorm requirements under `docs/product-specs/`;
+- docline path-map/taxonomy support if using a dedicated brainstorm or
+  requirements document type instead of `doc_type: spec`;
 - Orchestrator dark-mode trigger integration in `061.003-T`;
 - final docs/verification updates in `061.007-T`.
