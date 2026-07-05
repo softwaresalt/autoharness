@@ -530,6 +530,32 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
+    def test_output_timestamp_instruction_is_registered(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
+            repo_root / "templates" / "instructions" / "output-timestamps.instructions.md.tmpl": [
+                "2026-07-02T18:49:41Z (+2m13s)",
+                "phase transitions and long-running operation boundaries",
+                "first stamp in a session",
+            ],
+            repo_root / ".github" / "instructions" / "output-timestamps.instructions.md": [
+                "2026-07-02T18:49:41Z (+2m13s)",
+                "phase transitions and long-running operation boundaries",
+                "first stamp in a session",
+            ],
+            repo_root / ".github" / "skills" / "install-harness" / "SKILL.md": [
+                "output-timestamps.instructions.md",
+                "instructions/output-timestamps",
+                "no variable-resolution-table entry is required",
+            ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
+
     def test_verify_workspace_flags_missing_dark_factory_surfaces(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
