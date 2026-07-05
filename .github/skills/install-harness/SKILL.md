@@ -1026,7 +1026,12 @@ Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 * P-007 through P-015 — Universal backlog, markdown, merge, role, branch, tool, tier, review-readiness, and shipment-closure policies
 * P-016 (No Parallel Branch/Worktree Execution) — Universal. Preserve the Stage spike/research worktree exception and ensure generated Stage, Ship, Orchestrator, AGENTS.md, and concurrency guidance do not endorse parallel implementation branches/worktrees.
 * P-017 (Dark Factory Autonomy Contract) — Universal when dark-mode prompts or guidance are installed. Preserve the exact trigger, bounded scope, local-review-first readiness, merge/admin fallback fail-closed behavior, telemetry events, and closure evidence requirements.
-* Full-build PR gate — Universal. Ensure Ship, pr-lifecycle, and GitHub PR automation guidance require a successful full local build before any code-changing PR is created, updated, or presented, with explicit non-applicability allowed only for documentation-only/backlog-only PRs.
+
+The full-build PR gate is a cross-cutting Agent / Skill / Instruction-layer
+requirement rather than a numbered workflow policy. Ensure Ship, pr-lifecycle,
+and GitHub PR automation guidance require a successful full local build before
+any code-changing PR is created, updated, or presented, with explicit
+non-applicability allowed only for documentation-only/backlog-only PRs.
 
 #### Step 2.7: Prompt Layer
 
