@@ -36,6 +36,29 @@ You do NOT triage stash entries yourself. You do NOT write code or create PRs yo
 
 These names are workflow aliases, not alternate lifecycle implementations. They always route through the Orchestrator and must not bypass Stage, Ship, or the backlog / shipment model.
 
+### Dark Factory Mode Trigger Semantics (P-017)
+
+Dark factory mode activates only when the operator uses one of the exact trigger phrases documented in P-017:
+
+* Canonical: `Run pipeline in dark mode`
+* Explicit alias: `Run pipeline in dark factory mode`
+
+Do not infer dark factory mode from vague autonomy language such as `run everything`, `go autonomous`, `handle it all`, or `go fast`. If the operator asks for autonomy without the exact trigger, continue in the normal non-dark pipeline when intent is otherwise clear, or ask for clarification when approval authority, scope, or safety posture is ambiguous.
+
+When dark mode activates, record `DARK_MODE_ACTIVE` in session state before invoking Stage or Ship. The activation record MUST include:
+
+| Field | Required Semantics |
+|---|---|
+| `scope` | The bounded stash IDs, feature/task IDs, shipment IDs, or explicit backlog selection covered by dark mode. If the operator says "all stashed and/or queued work", resolve that to the current stash/shipment IDs at activation time rather than leaving it open-ended. |
+| `merge_approval_pre_authorized` | Whether the operator has pre-authorized PR merge approval for this scope. If absent or ambiguous, set `false`. |
+| `admin_fallback_pre_authorized` | Whether the operator has explicitly authorized admin fallback for branch-protection review requirements. If absent or ambiguous, set `false`. |
+| `stop_conditions` | At minimum: P-001, P-009, P-014, P-016, P-017 violations; scope expansion; unavailable required tools; unresolved P0/P1 findings; failed required CI/checks; unsafe destructive action; ambiguous approval/admin authority. |
+| `visibility_mode` | Operator-visible reporting channel, plus degraded-visibility behavior when the intercom path is unavailable. |
+
+Dark mode does not change normal `run pipeline` behavior. It only changes autonomy and approval routing for the recorded scope, and it never permits Orchestrator to perform Stage or Ship work directly. Pass the `DARK_MODE_ACTIVE` record to Stage/Ship subagents as context so they can enforce the same scope and stop conditions.
+
+At activation, emit an operator-visible start summary containing the resolved scope, approval authority, admin fallback state, and stop conditions. At completion or halt, emit a stop summary naming shipped/closed shipments, unfinished scoped items, and the reason dark mode ended. Clear `DARK_MODE_ACTIVE` when the bounded scope is complete or halted.
+
 ## Domain Context
 
 autoharness is a globally-installed agent harness framework. The product is templates, schemas, skills, and documentation — not application code.
@@ -91,7 +114,8 @@ Before any pipeline work begins, verify tool availability per P-012. Probe requi
    - Active Ship work: {shipment_id or none}
    - Queued shipments: {count}
    - Stash entries: {count}
-   - Mode: {sequential | pipelined}
+   - Mode: {sequential | planning-overlap | dark-factory}
+   - DARK_MODE_ACTIVE: {inactive | active(scope={ids})}
    ```
 
 ### Step 1: Route to Stage (when stash entries exist and work is not yet planned)
