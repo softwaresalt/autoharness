@@ -71,6 +71,14 @@ reviewed HEADs, closure status, merge/fallback outcomes, admin-fallback result
 or status, follow-up items, and the reason dark mode ended. Clear
 `DARK_MODE_ACTIVE` when the bounded scope is complete or halted.
 
+When the activation scope explicitly covers "all stashed and/or queued work",
+resolve that phrase to concrete stash IDs and queued shipment IDs at activation
+time, then continue Stage → Ship iteration until every scoped item is complete
+or a stop condition makes further autonomous work unsafe. Do not stop for routine
+coordination decisions while the operator is AFK; use the recorded activation
+contract and sound judgment. Halt instead of guessing when scope, safety, merge
+authority, required checks, or branch-protection state is ambiguous.
+
 ## Domain Context
 
 autoharness is a globally-installed agent harness framework. The product is templates, schemas, skills, and documentation — not application code.
