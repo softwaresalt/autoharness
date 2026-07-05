@@ -33,11 +33,12 @@ Tool: mcp_github_request_copilot_review
   pullNumber: <pr_number>
 ```
 
-If the MCP tool is unavailable, fall back to the CLI:
-
-```bash
-gh pr edit <pr_number> --add-reviewer "@copilot"
-```
+If the MCP tool is unavailable, use a repository-approved GitHub API or CLI
+wrapper only when one is explicitly configured for Copilot review requests. Do
+not treat `gh pr edit --add-reviewer` as a required fallback for Copilot review:
+GitHub CLI reviewer flags do not reliably support Copilot's special reviewer
+identity across versions. When no supported fallback is configured, record
+shadow review as unavailable/advisory and continue to the local readiness gate.
 
 Shadow review is advisory by default. The required dependency for merge
 readiness is a current-HEAD local review result.
