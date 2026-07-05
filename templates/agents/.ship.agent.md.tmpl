@@ -382,10 +382,19 @@ After all tasks in the queue are complete:
     Never treat silence, green CI, or a passing §1.9 gate as approval. Never auto-merge.
     Record a P-014 violation (via P-005 telemetry) if merge is executed without an explicit
     approval signal.
+    * In dark mode, the `DARK_MODE_ACTIVE` activation record may satisfy this approval
+      signal only when the PR is inside the recorded scope, `merge_approval_pre_authorized`
+      is true, §1.9 passed for the current HEAD, required CI/checks are green or explicitly
+      non-applicable, and P-009/P-016 checks have passed. Otherwise, wait for explicit
+      operator approval.
     * When the `agent-intercom` capability pack is installed, broadcast `[WAIT] Awaiting user merge approval` and use the intercom clarification flow if unresolved operator guidance is needed before merge.
-15. **Last-mile §1.9 re-check**: If new commits are pushed to the branch between the §1.9
-    gate run and the operator approval signal, re-run §1.9 in full before executing the merge.
-    The prior gate result is stale if the branch HEAD has advanced.
+15. **Last-mile §1.9 re-check**: Immediately before any normal merge or admin
+    fallback, re-query the PR `headRefOid` and confirm it still matches the HEAD
+    covered by the latest passed §1.9 gate. If the branch HEAD advanced at any
+    point after the §1.9 gate, re-run §1.9 in full before executing the merge,
+    regardless of whether approval came from an operator message or a
+    `DARK_MODE_ACTIVE` activation record. The prior gate result is stale if the
+    branch HEAD has advanced.
 16. **Pre-merge strategy guardrail (P-009)**: Before executing any merge, verify the PR is
     configured to use a merge commit strategy (not squash or rebase).
     * On GitHub: confirm the active merge button is "Create a merge commit" — not
@@ -396,6 +405,17 @@ After all tasks in the queue are complete:
       `action: halted`). Instruct the operator to update repository settings (GitHub Settings
       → General → Pull Requests → uncheck "Allow squash merging" and "Allow rebase merging")
       before proceeding.
+ 17. **Dark-mode merge/admin fallback state machine (P-017)**: When `DARK_MODE_ACTIVE`
+     is present, attempt the normal merge path first. If it is rejected, classify the
+     result as `REVIEW_REQUIRED_BLOCK`, `CONVERSATION_RESOLUTION_BLOCK`, `CHECKS_BLOCK`,
+     `MERGE_STRATEGY_BLOCK`, `MISSING_ADMIN_RIGHTS`, or `UNKNOWN_MERGE_BLOCK`.
+     Admin fallback may be attempted only when `admin_fallback_pre_authorized` is true
+     and the block is an explicitly covered branch-protection review/conversation block.
+     Never use admin fallback for failed/pending/missing required checks, stale local
+     readiness, unresolved local P0/P1 findings, P-009 violations, P-016 violations,
+     secrets-safety risk, scope mismatch, or unknown merge blocks. Record every normal
+     merge and admin fallback attempt as operator-visible audit evidence, including the
+     state, decision, command/API used, and result.
 
 ### Step 6: Post-Merge Closure (mandatory after user-approved merge)
 

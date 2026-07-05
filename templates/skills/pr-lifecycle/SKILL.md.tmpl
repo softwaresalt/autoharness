@@ -168,6 +168,11 @@ local review readiness verification defined in
    explicit operator approval signal. Green CI is not approval. A passing §1.9
    gate is not approval. Record P-014 (via P-005 telemetry) if merge is executed
    without an explicit approval signal.
+   When `DARK_MODE_ACTIVE` is present, the activation record may satisfy this
+   approval signal only when the PR is inside scope, `merge_approval_pre_authorized`
+   is `true`, §1.9 passed for the current HEAD, required checks are green or
+   explicitly non-applicable, and P-009/P-016 have passed. Otherwise, wait for
+   explicit operator approval.
 6. **Branch retention (NON-NEGOTIABLE)**: Remain on the current feature
    or chore branch while awaiting merge approval. Do NOT checkout
    `{{DEFAULT_BRANCH}}` or any other branch. The calling agent (Ship)
@@ -175,20 +180,47 @@ local review readiness verification defined in
 
 #### Step 5c: Last-Mile §1.9 Re-check Before Merge Execution
 
-After receiving operator approval and before executing the merge:
+After receiving operator approval, or after confirming a valid
+`DARK_MODE_ACTIVE` approval record, and before executing any normal merge or
+admin fallback:
 
-1. Check whether any new commits have been pushed to the branch since the §1.9
-   gate ran. If yes, re-run §1.9 in full — the prior gate result is stale.
-2. Check whether the local review readiness record still covers the current HEAD.
-   If the branch advanced or the recorded reviewed SHA differs from HEAD, halt and
-   re-run the local review gate before merge.
-3. If the branch HEAD and review state are unchanged from the §1.9 gate run,
+1. Re-query the PR `headRefOid`.
+2. Confirm the `headRefOid` still matches the HEAD covered by the latest passed
+   §1.9 gate and the PR body's `Reviewed HEAD` value.
+3. If the branch advanced, the PR body reviewed SHA differs from `headRefOid`, or
+   the latest passed §1.9 gate covered a different SHA, re-run §1.9 in full
+   before merge or fallback — the prior gate result is stale.
+4. If the branch HEAD and review state are unchanged from the §1.9 gate run,
    log `P-014 LAST-MILE CHECK PASSED: branch unchanged, local readiness still covers HEAD`.
-4. Execute the merge only after this check passes.
+5. Execute the merge or admin fallback only after this check passes.
 
 This last-mile check closes the race window between approval receipt and merge
 execution. It is a lightweight incremental query (not a full §1.9 re-run) when the
 branch has not changed.
+
+#### Step 5d: Merge Execution and Admin Fallback State Machine
+
+1. Attempt the normal merge path first using merge-commit strategy.
+2. If normal merge succeeds, record `NORMAL_MERGE_READY` / merged and finish.
+3. If normal merge is rejected, classify the blocking state before taking any
+   fallback action:
+   * `REVIEW_REQUIRED_BLOCK`
+   * `CONVERSATION_RESOLUTION_BLOCK`
+   * `CHECKS_BLOCK`
+   * `MERGE_STRATEGY_BLOCK`
+   * `MISSING_ADMIN_RIGHTS`
+   * `UNKNOWN_MERGE_BLOCK`
+4. In dark mode, admin fallback may be attempted only for branch-protection
+   review/conversation blocks explicitly covered by `admin_fallback_pre_authorized`.
+   Before fallback, run Step 5c's immediate `headRefOid` re-query/comparison and
+   re-confirm required checks, P-009 merge-commit strategy, P-016 topology, and
+   scope match.
+5. Never use admin fallback for failed/pending/missing required checks, stale
+   local review readiness, unresolved local P0/P1 findings, squash/rebase-only
+   merge strategy, secrets-safety risk, scope mismatch, or unknown merge blocks.
+6. Record every normal merge and admin fallback attempt in the PR summary or
+   merge evidence with state, reason, command/API used, and result. If fallback
+   fails because credentials lack bypass rights, halt with `MISSING_ADMIN_RIGHTS`.
 
 ### Step 6: Post-merge cleanup
 

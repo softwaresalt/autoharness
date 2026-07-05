@@ -373,6 +373,39 @@ and should be reported in the merge-readiness summary.
 Shadow-review timeout does not fail this gate by itself. The required dependency
 is local review coverage for the current HEAD.
 
+#### 1.9.6 Dark-Mode Merge Authorization and Admin Fallback
+
+When `DARK_MODE_ACTIVE` is present under P-017, the activation record may satisfy
+the P-014 operator approval signal only when all of these are true:
+
+1. The PR is inside the recorded dark-mode `scope`.
+2. `merge_approval_pre_authorized` is `true`.
+3. The §1.9 local readiness gate passed for the current `headRefOid`.
+4. Required CI/checks are green or explicitly marked non-applicable.
+5. P-009 merge-commit-only and P-016 worktree topology checks passed.
+
+If any condition is false or ambiguous, fail closed and wait for an explicit
+operator approval signal.
+
+Before any admin fallback, attempt the normal merge path first and classify the
+result:
+
+| State | Meaning | Dark-mode action |
+|---|---|---|
+| `NORMAL_MERGE_READY` | Normal merge can proceed with merge commit strategy | Merge normally; record `DARK_MODE_MERGE_AUTHORIZED` when approval came from the activation record |
+| `REVIEW_REQUIRED_BLOCK` | Branch protection rejected merge for required review approval | Admin fallback may be attempted only if `admin_fallback_pre_authorized` is `true` |
+| `CONVERSATION_RESOLUTION_BLOCK` | Branch protection requires unresolved conversations to be resolved | Admin fallback may be attempted only if explicitly covered by `admin_fallback_pre_authorized`; otherwise halt |
+| `CHECKS_BLOCK` | Required checks are failed, pending, missing, or not explicitly non-applicable | Halt; admin fallback is forbidden |
+| `MERGE_STRATEGY_BLOCK` | Merge commit strategy is unavailable or squash/rebase is selected | Halt under P-009; admin fallback is forbidden |
+| `MISSING_ADMIN_RIGHTS` | Admin fallback was authorized but credentials lack bypass rights | Halt with an operator-visible reason |
+| `UNKNOWN_MERGE_BLOCK` | The merge rejection cannot be classified confidently | Halt; do not guess or bypass |
+
+Admin fallback cannot bypass stale local readiness, unresolved local P0/P1
+findings, failed required CI/checks, P-009, P-016, secrets-safety concerns, or
+scope mismatch. Every normal merge attempt and admin fallback attempt must be
+recorded in the PR readiness/merge summary with the state, decision, command/API
+used, and result.
+
 ### 1.10 Post-Merge Closure PR Shadow Review Surveillance
 
 When the Ship agent creates a dedicated post-merge closure branch and PR:
