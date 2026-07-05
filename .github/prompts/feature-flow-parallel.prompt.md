@@ -1,21 +1,21 @@
 ---
-description: "Developer-friendly entrypoint for the pipelined Stage → Ship workflow when parallel planning and shipping are safe"
+description: "Developer-friendly entrypoint for P-016-compliant Stage planning overlap while Ship executes"
 agent: Orchestrator
 argument-hint: "[optional note about the next feature or chore already captured in stash/backlog]"
 ---
 
 # Feature Flow Parallel
 
-Use the existing Orchestrator pipeline to move work through the autoharness lifecycle with a preference for pipelined execution.
+Use the existing Orchestrator pipeline to move work through the autoharness lifecycle with a preference for P-016-compliant planning overlap.
 
 ## Intent
 
-This prompt is a user-friendly alias for the Orchestrator's pipelined execution mode. It still uses the normal Stage → Ship lifecycle and falls back to sequential execution whenever pipelining would violate policy or branch-safety constraints.
+This prompt is a user-friendly alias for the Orchestrator's pipelined execution mode, now constrained to P-016-compliant planning overlap. It still uses the normal Stage → Ship lifecycle and falls back to sequential execution whenever overlap would create parallel implementation branches/worktrees or otherwise violate policy.
 
 ## Requirements
 
 1. Follow the Orchestrator's Step 0.0 tool-availability gate and Step 0 state assessment before doing any routing.
-2. Prefer **pipelined mode**: while Ship executes the current queued shipment, Stage may prepare the next stash batch on a different branch when P-001 and branch-isolation constraints permit.
+2. Prefer **P-016 planning-overlap mode**: while Ship executes the current queued shipment, Stage may prepare the next stash batch only when doing so does not create a parallel implementation branch or worktree. The only extra worktree exception is an explicit, time-boxed Stage spike/research worktree with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
 3. Never bypass Orchestrator routing and never allow more than one active Ship shipment. A second shipment must not route to Ship until the current shipment's required release closure is complete.
-4. If pipelined mode is unsafe, unavailable, or unnecessary for the current backlog state, degrade to the standard sequential `feature-flow` path.
+4. If planning-overlap mode is unsafe, unavailable, or unnecessary for the current backlog state, degrade to the standard sequential `feature-flow` path.
 5. If the requested work exists only in chat and is not yet captured in the configured stash / backlog workflow, stop and ask the operator to capture it through the normal intake path before continuing.

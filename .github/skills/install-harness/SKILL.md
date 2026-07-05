@@ -783,8 +783,8 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh`, `skills/harness-doctor` (install health baseline and pre-flight context), `instructions/context-efficiency` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true), `prompts/feature-flow`, `prompts/feature-flow-parallel` |
-| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight and tool availability gate), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
+| 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true), `prompts/feature-flow`, `prompts/feature-flow-parallel` (P-016 planning-overlap alias, not parallel implementation) |
+| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight, tool availability gate, and P-016 topology awareness), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions`, `skills/skill-search` |
 | 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
@@ -1023,6 +1023,8 @@ Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 * P-004 (Red Phase Before Implementation) — Adapt compilation and test failure detection
 * P-005 (Policy Violation Telemetry) — Universal
 * P-006 (Plan Hardening Gate) — Universal
+* P-007 through P-015 — Universal backlog, markdown, merge, role, tool, tier, review-readiness, and shipment-closure policies
+* P-016 (No Parallel Branch/Worktree Execution) — Universal. Preserve the Stage spike/research worktree exception and ensure generated Stage, Ship, Orchestrator, AGENTS.md, and concurrency guidance do not endorse parallel implementation branches/worktrees.
 
 #### Step 2.7: Prompt Layer
 
@@ -1030,7 +1032,7 @@ Generate prompt files:
 
 * `ping-loop.prompt.md` — Universal
 * `feature-flow.prompt.md` — Install when Primitive 4 is selected. User-facing alias to the Orchestrator's standard sequential full-cycle routing.
-* `feature-flow-parallel.prompt.md` — Install when Primitive 4 is selected. User-facing alias to the Orchestrator's pipelined full-cycle routing preference.
+* `feature-flow-parallel.prompt.md` — Install when Primitive 4 is selected. User-facing alias to the Orchestrator's pipelined full-cycle routing preference, now constrained to P-016-compliant planning overlap; it must degrade to sequential execution when overlap would create parallel implementation branches/worktrees.
 
 #### Step 2.8: Backlog Structure
 
@@ -1340,6 +1342,13 @@ For each enabled capability pack:
       guardrail referencing P-009
    d. Confirm `git-merge.instructions.md` contains a squash-merge prohibition section
    e. Report FAIL for any missing artifact — absent merge policy is a P-009 violation risk
+7. **No-parallel branch/worktree verification** (universal — applies to all installed harnesses):
+   a. Confirm `workflow-policies` contains `P-016` and "No Parallel Branch/Worktree Execution"
+   b. Confirm `constitution.instructions.md` or root `AGENTS.md` states single active implementation branch/worktree behavior
+   c. Confirm `.ship.agent.md` contains a P-016 worktree topology gate before shipment claim or mutation
+   d. Confirm `.stage.agent.md` limits extra worktrees to explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
+   e. Confirm `_orchestrator.agent.md` describes planning overlap without requiring different implementation branches
+   f. Report FAIL for stale guidance that endorses parallel implementation branches/worktrees outside the Stage spike/research exception
 
 #### Step 4.5: Adversarial Verification
 

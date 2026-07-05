@@ -452,9 +452,9 @@ Use one of these two prompts as the normal front door after installation:
 | Prompt | Use When | Routing Behavior |
 |---|---|---|
 | `/feature-flow` | You want the standard full lifecycle for the next feature or chore | Invokes the Orchestrator, which runs the sequential Stage -> Ship path |
-| `/feature-flow-parallel` | You want the same lifecycle but prefer pipelined execution | Invokes the Orchestrator, which prefers pipelined Stage + Ship execution and degrades to sequential mode when policy or branch-safety constraints block pipelining |
+| `/feature-flow-parallel` | You want the same lifecycle but prefer P-016-compliant planning overlap | Invokes the Orchestrator, which lets Stage plan ahead only when doing so does not create parallel implementation branches/worktrees; otherwise it degrades to sequential mode |
 
-Both prompts are aliases over the existing Orchestrator workflow. They do not create a second lifecycle and they do not bypass Stage, Ship, the backlog model, or shipment policy gates.
+Both prompts are aliases over the existing Orchestrator workflow. They do not create a second lifecycle and they do not bypass Stage, Ship, the backlog model, or shipment policy gates. `feature-flow-parallel` does not authorize parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
 
 #### What the Orchestrator Does
 
