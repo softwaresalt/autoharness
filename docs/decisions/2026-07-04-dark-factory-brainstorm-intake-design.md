@@ -3,6 +3,8 @@ title: "Dark Factory Brainstorm Intake Design"
 description: "Design for a brainstorm-led requirements intake that precedes dark factory handoff while preserving autoharness' deliberate/impl-plan/harvest lineage."
 topic: "How should autoharness support brainstorm-led research intake before dark factory execution?"
 decision_status: "accepted"
+doc_type: decision
+source: docs/decisions/2026-07-04-dark-factory-brainstorm-intake-design.md
 source_documents:
   - "docs/decisions/2026-07-04-safe-dark-factory-mode-deliberation.md"
   - "docs/plans/2026-07-04-safe-dark-factory-mode-plan.md"
@@ -163,7 +165,8 @@ When ready, the downstream handoff is:
 brainstorm requirements doc
   -> impl-plan source document
   -> plan-review
-  -> harvest into backlog feature/tasks/shipments
+  -> harvest into backlog feature/tasks
+  -> Stage shipment assembly or Ship fallback shipment selection
   -> optional dark factory execution under P-017
 ```
 
