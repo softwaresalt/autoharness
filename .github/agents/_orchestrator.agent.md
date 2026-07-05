@@ -57,7 +57,16 @@ When dark mode activates, record `DARK_MODE_ACTIVE` in session state before invo
 
 Dark mode does not change normal `run pipeline` behavior. It only changes autonomy and approval routing for the recorded scope, and it never permits Orchestrator to perform Stage or Ship work directly. Pass the `DARK_MODE_ACTIVE` record to Stage/Ship subagents as context so they can enforce the same scope and stop conditions.
 
-At activation, emit an operator-visible start summary containing the resolved scope, approval authority, admin fallback state, and stop conditions. At completion or halt, emit a stop summary naming shipped/closed shipments, unfinished scoped items, and the reason dark mode ended. Clear `DARK_MODE_ACTIVE` when the bounded scope is complete or halted.
+At activation, emit `DARK_MODE_START` and `DARK_MODE_SCOPE` as operator-visible
+summaries containing the resolved scope, approval authority, admin fallback
+state, stop conditions, visibility mode, and excluded items. When
+`agent-intercom` is installed, broadcast these events with enough context for a
+remote operator to audit the run without reading the full chat transcript.
+
+At completion or halt, emit `DARK_MODE_COMPLETE` or `DARK_MODE_HALTED` naming
+shipped/closed shipments, unfinished scoped items, closure status, merge/fallback
+outcomes, follow-up items, and the reason dark mode ended. Clear
+`DARK_MODE_ACTIVE` when the bounded scope is complete or halted.
 
 ## Domain Context
 

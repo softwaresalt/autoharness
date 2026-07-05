@@ -496,7 +496,17 @@ Do not infer dark factory mode from vague autonomy language such as `run everyth
 * `DARK_MODE_HALTED`
 * `DARK_MODE_COMPLETE`
 
-When `agent-intercom` is installed, these events should be broadcast with enough context for a remote operator to understand the current scope and risk without reading the full chat transcript.
+Each event MUST include the affected scope item, gate or decision state, outcome,
+and next action. When `agent-intercom` is installed, these events should be
+broadcast with enough context for a remote operator to understand the current
+scope and risk without reading the full chat transcript. When intercom is
+unavailable, the same event evidence must be recorded in the session/PR summary
+and approval-dependent destructive actions, admin fallback, scope expansion,
+secrets-risk work, and ambiguous branch-protection states must halt.
+
+Dark-mode closure summaries MUST list decisions, gates, reviewed HEADs,
+merge/fallback status, admin fallback result if any, closure status, and
+follow-up items before `DARK_MODE_COMPLETE` is emitted.
 
 **Relationship to P-001**: Dark mode does not permit parallel release-unit shipping. It automates the pipeline for a bounded scope; it does not widen the number of active Ship release units.
 
