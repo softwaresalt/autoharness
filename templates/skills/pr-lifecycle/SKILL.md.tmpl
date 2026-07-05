@@ -102,6 +102,11 @@ advisory shadow mode immediately after PR creation or after pushing new commits:
    workflow in `.github/instructions/github-pr-automation.instructions.md` Part 1:
    categorize comments (§1.3), apply fixes (§1.4), reply to threads
    (§1.5), and resolve bot-authored threads via GraphQL (§1.6).
+   When `DARK_MODE_ACTIVE` is present and the operator is AFK, continue these
+   bounded review-fix-push iterations autonomously: fix valid comments, commit and
+   push, reply with the fixing commit, resolve bot-authored threads, and only halt
+   for unsafe changes, unresolved P0/P1 findings, elevated blocking review, or
+   circuit-breaker limits.
 3. For non-GitHub repositories, apply bounded fixes directly when they
    are clearly actionable.
 4. Re-run the relevant validation after each fix cycle.

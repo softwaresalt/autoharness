@@ -203,6 +203,12 @@ After all addressable comments are handled:
 
 3. Poll again per Section 1.2 to verify the new review is clean.
 
+When `DARK_MODE_ACTIVE` is present and the operator is AFK, continue this
+comment-handling loop autonomously within the review-fix cycle limits. Every
+actionable bot comment must receive a reply after the fix commit is pushed, and
+every fixed or explicitly declined bot-authored thread must be resolved via
+GraphQL before merge readiness is presented.
+
 ### 1.8 Stop Conditions for Shadow-Review Cycles
 
 | Counter | Limit | Action |
