@@ -430,6 +430,84 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 
 ---
 
+## P-017: Dark Factory Autonomy Contract
+
+| Field      | Value                                             |
+|------------|---------------------------------------------------|
+| Policy ID  | P-017                                             |
+| Applies To | Orchestrator, Stage, Ship, pr-lifecycle, review, fix-ci, operational-closure |
+| Gate Point | Dark-mode activation, local review readiness, PR merge, admin fallback, and post-merge closure |
+
+**Statement**: Dark factory mode is an explicit, bounded, auditable operating mode in which the operator pre-authorizes autonomous Stage → Ship execution and PR merge approval for a declared scope. It is not a waiver of safety policies. Dark mode MUST preserve P-001, P-009, P-014, P-016, role boundaries, local review readiness, and required closure.
+
+**Trigger phrases**:
+
+* Canonical: `Run pipeline in dark mode`
+* Explicit alias: `Run pipeline in dark factory mode`
+
+Do not infer dark factory mode from vague autonomy language such as `run everything`, `go autonomous`, `handle it all`, or `go fast`. If the trigger is ambiguous, proceed in the normal non-dark pipeline or ask for clarification.
+
+**Activation contract**: On activation, Orchestrator MUST record and surface:
+
+1. the bounded scope (stash IDs, feature ID, shipment ID, or explicit backlog selection);
+2. whether PR merge approval is pre-authorized for that scope;
+3. whether admin fallback is pre-authorized for branch-protection review requirements;
+4. required stop conditions;
+5. operator-visibility mode and degraded-visibility behavior.
+
+**Scope rule**: Dark mode applies only to the declared scope. It MUST NOT silently expand to unrelated stash entries, queued tasks, or shipments. Each release unit remains subject to P-001: one Ship release unit through merge and required closure before another Ship release unit begins.
+
+**Brainstorm/research handoff**: For new features or epics, dark mode SHOULD be preceded by a research and brainstorm intake that captures hard questions, decisions, stable requirement IDs, scope boundaries, success criteria, assumptions, and deferred planning questions. The brainstorm output feeds deliberate / impl-plan / plan-review / harvest before dark-mode execution.
+
+**Local review authority**: Local review readiness is authoritative. Dark mode MAY reduce reliance on hosted shadow reviews, but it MUST NOT merge with unresolved P0/P1 local findings. `READY_WITH_FOLLOWUPS` is allowed only when follow-up item IDs or explicit residual-risk notes are present.
+
+**Hosted review posture**: GitHub Copilot or other hosted review remains advisory by default. Shadow-review timeout, unavailability, or absence does not block dark mode unless the operator explicitly elevates hosted review for the current scope.
+
+**Merge approval and admin fallback**:
+
+1. Dark mode may satisfy the operator approval signal only for the declared bounded scope and only after current-HEAD local readiness passes.
+2. Required CI/checks MUST be green or explicitly non-applicable before dark-mode merge authorization applies.
+3. Normal merge MUST be attempted before admin fallback.
+4. Admin fallback MAY be used only when explicitly pre-authorized by the dark-mode activation contract.
+5. Admin fallback cannot bypass current-HEAD local readiness, required CI/check success or explicit non-applicability, P-009 merge-commit-only, P-014 readiness evidence, P-016 worktree topology, secrets safety, or declared scope.
+6. Every merge attempt and admin fallback attempt MUST be recorded as operator-visible audit evidence.
+
+**Required stop conditions**:
+
+* scope expansion or ambiguous scope;
+* missing current-HEAD local review readiness;
+* unresolved P0/P1 findings;
+* required CI/checks that are failed, pending, missing, not yet run, or not explicitly marked non-applicable;
+* P-016 branch/worktree topology violation;
+* destructive action requiring approval outside the dark-mode contract;
+* secrets exposure risk;
+* unavailable required tools with no fallback;
+* branch-protection/admin state not covered by the activation contract;
+* any policy violation that P-005 requires surfacing and halting.
+
+**Required telemetry / visibility events**:
+
+* `DARK_MODE_START`
+* `DARK_MODE_SCOPE`
+* `BRAINSTORM_HANDOFF_READY`
+* `LOCAL_REVIEW_READY`
+* `DARK_MODE_MERGE_AUTHORIZED`
+* `ADMIN_FALLBACK_ATTEMPTED`
+* `DARK_MODE_HALTED`
+* `DARK_MODE_COMPLETE`
+
+When `agent-intercom` is installed, these events should be broadcast with enough context for a remote operator to understand the current scope and risk without reading the full chat transcript.
+
+**Relationship to P-001**: Dark mode does not permit parallel release-unit shipping. It automates the pipeline for a bounded scope; it does not widen the number of active Ship release units.
+
+**Relationship to P-014**: Dark mode can supply the explicit operator approval signal only after the current-HEAD local readiness gate passes.
+
+**Relationship to P-016**: Dark mode does not permit parallel implementation branches or worktrees. Stage spike/research worktrees remain the only exception and only under P-016's limits.
+
+**Violation Action**: Record a P-017 violation through P-005 telemetry and halt dark-mode execution. Leave the active task/shipment in its current backlog state unless a separate safe-close or rollback policy explicitly applies.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -446,3 +524,4 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 | 1.9.0   | {{DATE}}     | Added P-014      | Local review readiness merge gate — preserves explicit approval and advisory shadow-review migration |
 | 1.10.0  | {{DATE}}     | Added P-015      | Single-artifact shipment closure — prohibits cascade shipment-ship, requires verify-after-each invariant + git-revert-on-cascade |
 | 1.11.0  | {{DATE}}     | Added P-016      | No parallel branch/worktree execution, with only explicit Stage spike/research worktrees exempt |
+| 1.12.0  | {{DATE}}     | Added P-017      | Dark factory autonomy contract — bounded autonomous execution, local-review authority, and audited merge approval |
