@@ -110,7 +110,11 @@ For each comment requiring a fix:
    to confirm the fix doesn't break anything.
 4. **Commit**: Use a `fix:` conventional commit referencing the comment
    (e.g., `fix: address copilot review — null check on user input`).
-5. **Push**: Push the fix commit before posting any "fixed" reply or resolving
+5. **Full-build gate before PR update**: If the fix adds, removes, or changes
+   source code, run the full local build successfully before pushing. If the fix
+   is documentation-only or backlog-only, record full-build non-applicability.
+   Halt on missing or failed build evidence.
+6. **Push**: Push the fix commit before posting any "fixed" reply or resolving
    the review thread, so the reviewer and PR timeline can see the referenced fix.
 
 ### 1.5 Reply to Addressed Comments
@@ -197,6 +201,8 @@ each thread using its `id`.
 After all addressable comments are handled:
 
 1. Confirm the fix commits have been pushed to the branch.
+   Code-changing fix commits must already have successful full local build
+   evidence; documentation-only/backlog-only fixes must record non-applicability.
 2. Re-request Copilot shadow review if new code was pushed:
 
    ```text
@@ -539,10 +545,13 @@ gh run view <run_id> --log-failed
 After diagnosing and fixing CI failures:
 
 1. Run the failing checks locally first (per fix-ci skill protocol).
-2. Commit and push the fix.
-3. Wait for CI to re-trigger (Section 2.1 timing).
-4. Poll for new check results (Section 2.3 cadence).
-5. Repeat until all checks pass or circuit breaker triggers.
+2. If the fix adds, removes, or changes source code, run the full local build
+   successfully before pushing. If the fix is documentation-only or backlog-only,
+   record full-build non-applicability. Halt on missing or failed build evidence.
+3. Commit and push the fix.
+4. Wait for CI to re-trigger (Section 2.1 timing).
+5. Poll for new check results (Section 2.3 cadence).
+6. Repeat until all checks pass or circuit breaker triggers.
 
 ### 2.7 CI Circuit Breakers
 

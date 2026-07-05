@@ -114,7 +114,10 @@ advisory shadow mode immediately after PR creation or after pushing new commits:
 3. For non-GitHub repositories, apply bounded fixes directly when they
    are clearly actionable.
 4. Re-run the relevant validation after each fix cycle.
-5. Keep the PR description and review context aligned with the latest
+5. Before every code-changing fix push, require successful full local build
+   evidence. Documentation-only/backlog-only fixes may record full-build
+   non-applicability. Halt on missing or failed build evidence.
+6. Keep the PR description and review context aligned with the latest
    branch state.
 
 ### Step 4: Handle CI failures
@@ -124,9 +127,12 @@ advisory shadow mode immediately after PR creation or after pushing new commits:
 2. For GitHub-hosted repositories, ensure the fix-ci skill follows the
    CI polling protocol in `.github/instructions/github-pr-automation.instructions.md` Part 2
    for status monitoring, failure extraction, and fix-push-poll loops.
-3. Let `fix-ci` own the remediation loop for failing checks and
+3. Ensure code-changing CI remediation pushes include successful full local build
+   evidence, or documentation-only/backlog-only remediation records explicit
+   non-applicability.
+4. Let `fix-ci` own the remediation loop for failing checks and
    unresolved review comments.
-4. Return to PR monitoring once CI and review status are clean again.
+5. Return to PR monitoring once CI and review status are clean again.
 
 ### Step 4b: Re-request review after fixes
 
