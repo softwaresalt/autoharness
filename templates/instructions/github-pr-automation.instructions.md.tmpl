@@ -110,10 +110,12 @@ For each comment requiring a fix:
    to confirm the fix doesn't break anything.
 4. **Commit**: Use a `fix:` conventional commit referencing the comment
    (e.g., `fix: address copilot review — null check on user input`).
+5. **Push**: Push the fix commit before posting any "fixed" reply or resolving
+   the review thread, so the reviewer and PR timeline can see the referenced fix.
 
 ### 1.5 Reply to Addressed Comments
 
-After fixing each comment, reply to the review thread:
+After the fixing commit has been pushed, reply to the review thread:
 
 ```text
 Tool: mcp_github_add_reply_to_pull_request_comment
@@ -139,7 +141,8 @@ Not applied: <what was declined and why>."
 
 ### 1.6 Resolve Review Threads
 
-After replying to a comment, resolve the review thread using the
+After the fixing commit has been pushed and the explanatory reply has been
+posted, resolve the review thread using the
 GitHub GraphQL API. There is no REST endpoint or MCP tool for thread
 resolution — use `gh api graphql`:
 
@@ -193,7 +196,7 @@ each thread using its `id`.
 
 After all addressable comments are handled:
 
-1. Push the fix commits to the branch.
+1. Confirm the fix commits have been pushed to the branch.
 2. Re-request Copilot shadow review if new code was pushed:
 
    ```text
