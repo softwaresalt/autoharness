@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-04T19:31:43.5168292-07:00","actor":"backlogit","item_id":"065-S","event_type":"shipment_created","delta":{"items":["061.002-T"],"title":"Dark factory brainstorm intake design"}}
+{"timestamp":"2026-07-04T19:32:17.300106-07:00","actor":"backlogit","item_id":"065-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
