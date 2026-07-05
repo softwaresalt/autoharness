@@ -41,6 +41,31 @@ Broadcast at meaningful transitions, not every trivial thought:
 
 For non-destructive file writes, prefer concise status messages such as `[FILE] created:` or `[FILE] modified:` with the affected path when the intercom workflow supports it.
 
+## Dark Factory Visibility Protocol
+
+When `DARK_MODE_ACTIVE` is present under P-017, broadcasts must be self-contained
+enough for a remote operator to understand scope, authority, gate state, and
+risk without reading the full chat transcript.
+
+Emit these dark-mode events or their workspace-equivalent log records:
+
+| Event | Required broadcast content |
+|---|---|
+| `DARK_MODE_START` | resolved scope, merge-approval authority, admin-fallback authority, stop conditions, visibility mode |
+| `DARK_MODE_SCOPE` | concrete stash IDs, feature/task IDs, shipment IDs, and any explicitly excluded items |
+| `BRAINSTORM_HANDOFF_READY` | brainstorm/requirements artifact path, unresolved questions, and handoff target |
+| `LOCAL_REVIEW_READY` | reviewed HEAD, readiness outcome, P0/P1 counts, follow-ups or residual-risk notes, shadow-review posture |
+| `DARK_MODE_MERGE_AUTHORIZED` | PR number, reviewed HEAD, checks state, merge strategy, approval source, and scope match |
+| `ADMIN_FALLBACK_ATTEMPTED` | after the fallback command/API returns: PR number, block classification, fallback authority, command/API used, and actual result |
+| `DARK_MODE_HALTED` | halt reason, violated policy or stop condition, affected scope item, and required operator action |
+| `DARK_MODE_COMPLETE` | shipped/closed shipments, decisions, gate outcomes, reviewed HEADs, merge/fallback outcome, closure status, and follow-up items |
+
+If intercom becomes unavailable during dark mode, emit a degraded-visibility
+warning in the local session/PR summary and continue only with safe,
+non-destructive work. Approval-dependent destructive actions, scope expansion,
+admin fallback, failed local readiness, secrets exposure risk, and ambiguous
+branch-protection state must halt rather than proceed silently.
+
 ## Combined Rule for backlogit-enabled staging
 
 When the `agent-intercom` and `backlogit` capability packs are both enabled and

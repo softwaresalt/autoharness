@@ -360,6 +360,10 @@ After all tasks in the queue are complete:
     follow-up item IDs or residual-risk notes, and shadow-review timeout or
     unavailability is advisory unless elevated by the P-017 activation contract
     or operator.
+    Emit `LOCAL_REVIEW_READY` when the gate passes, including reviewed HEAD,
+    readiness outcome, P0/P1 counts, follow-up handling, and shadow-review
+    posture. If the gate fails under dark mode, emit `DARK_MODE_HALTED` with the
+    failed check and affected shipment/PR.
 
     When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Pre-merge review gate: {PASS|HALT} — {detail}` with the gate outcome.
 7. If the changed work touches runtime surfaces, load `.autoharness/workspace-profile.yaml` and invoke **runtime-verification** with `runtime_validation.validator_manifest` plus `runtime_validation.validation_expectations` so the skill produces validator evidence for surface adapters, probe outcomes, manual checkpoint evidence, and blocked prerequisites. Do not fake unsupported automation.
@@ -387,6 +391,9 @@ After all tasks in the queue are complete:
       is true, §1.9 passed for the current HEAD, required CI/checks are green or explicitly
       non-applicable, and P-009/P-016 checks have passed. Otherwise, wait for explicit
       operator approval.
+      When the activation record supplies approval, emit `DARK_MODE_MERGE_AUTHORIZED`
+      with PR number, reviewed HEAD, checks state, merge strategy, approval source,
+      and scope match.
     * When the `agent-intercom` capability pack is installed, broadcast `[WAIT] Awaiting user merge approval` and use the intercom clarification flow if unresolved operator guidance is needed before merge.
 15. **Last-mile §1.9 re-check**: Immediately before any normal merge or admin
     fallback, re-query the PR `headRefOid` and confirm it still matches the HEAD
@@ -416,6 +423,10 @@ After all tasks in the queue are complete:
     secrets-safety risk, scope mismatch, or unknown merge blocks. Record every normal
     merge and admin fallback attempt as operator-visible audit evidence, including the
     state, decision, command/API used, and result.
+    Emit `ADMIN_FALLBACK_ATTEMPTED` after any authorized fallback command/API returns
+    and include the block classification, fallback authority, command/API, and actual
+    result. Emit `DARK_MODE_HALTED` instead of fallback when the block is not
+    explicitly covered.
 
 ### Step 6: Post-Merge Closure (mandatory after user-approved merge)
 
@@ -538,6 +549,9 @@ branch-per-release-unit principle.
       `git add {{BACKLOG_DIRECTORY}}/`
       `git commit -m "chore: archive {shipment_id} backlog artifacts"`
 2. Invoke `operational-closure` in `mode=post-merge` to produce release-readiness, monitoring, and rollback artifacts in `{{DOCS_CLOSURE}}/`.
+   In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
+   merge/fallback status, admin fallback result if any, closure status, and
+   follow-up items before `DARK_MODE_COMPLETE` can be emitted.
 3. Evaluate whether documentation or compound learnings need updates for the shipped scope:
    * `{{DOCS_ROOT}}/ARCHITECTURE.md` for structural changes
    * `AGENTS.md` for agent or skill changes
