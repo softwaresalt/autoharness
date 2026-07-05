@@ -2515,7 +2515,6 @@ def verify_workspace(
     dark_factory_installed = bool(
         {
             ".github/prompts/feature-flow-dark.prompt.md",
-            ".github/policies/workflow-policies.md",
         }
         & artifact_paths
     )

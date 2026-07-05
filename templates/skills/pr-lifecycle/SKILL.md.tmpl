@@ -66,12 +66,16 @@ warn the operator that visibility is degraded and continue locally.
    * reviewed HEAD SHA
    * outcome (`READY`, `READY_WITH_FOLLOWUPS`, or `BLOCKED`)
    * blocking-finding summary
+   * successful full local build evidence for code-changing PRs, or explicit non-applicability
+     for documentation-only/backlog-only PRs
    * follow-up item IDs or residual-risk notes when applicable
 4. Halt instead of creating/updating the PR if the calling agent cannot provide
    a current-HEAD local readiness record.
 5. Halt instead of creating/updating the PR if the current-HEAD readiness record
    reports `BLOCKED`.
-6. Push the branch if it is not already available on the remote.
+6. Halt instead of creating/updating the PR if code was added, removed, or changed
+   and the readiness evidence lacks a successful full local build command/result.
+7. Push the branch if it is not already available on the remote.
 
 ### Step 2: Create or update the pull request
 
@@ -110,7 +114,10 @@ advisory shadow mode immediately after PR creation or after pushing new commits:
 3. For non-GitHub repositories, apply bounded fixes directly when they
    are clearly actionable.
 4. Re-run the relevant validation after each fix cycle.
-5. Keep the PR description and review context aligned with the latest
+5. Before every code-changing fix push, require successful full local build
+   evidence. Documentation-only/backlog-only fixes may record full-build
+   non-applicability. Halt on missing or failed build evidence.
+6. Keep the PR description and review context aligned with the latest
    branch state.
 
 ### Step 4: Handle CI failures
@@ -120,9 +127,12 @@ advisory shadow mode immediately after PR creation or after pushing new commits:
 2. For GitHub-hosted repositories, ensure the fix-ci skill follows the
    CI polling protocol in `.github/instructions/github-pr-automation.instructions.md` Part 2
    for status monitoring, failure extraction, and fix-push-poll loops.
-3. Let `fix-ci` own the remediation loop for failing checks and
+3. Ensure code-changing CI remediation pushes include successful full local build
+   evidence, or documentation-only/backlog-only remediation records explicit
+   non-applicability.
+4. Let `fix-ci` own the remediation loop for failing checks and
    unresolved review comments.
-4. Return to PR monitoring once CI and review status are clean again.
+5. Return to PR monitoring once CI and review status are clean again.
 
 ### Step 4b: Re-request review after fixes
 
@@ -146,10 +156,12 @@ local review readiness verification defined in
 
 1. Execute the §1.9 readiness query with full pagination until `hasNextPage`
    is false. If pagination cannot complete, fail closed and halt.
-2. Evaluate all three gate checks in order:
+2. Evaluate all four gate checks in order:
    - **Check 1**: A local review readiness record exists for the current `headRefOid`.
    - **Check 2**: The local review outcome is `READY` or `READY_WITH_FOLLOWUPS`.
    - **Check 3**: Any residual P2/P3 findings are explicitly tracked as follow-up items or residual-risk notes.
+   - **Check 4**: Code-changing PRs include successful full local build evidence, or
+     documentation-only/backlog-only PRs explicitly mark full-build non-applicability.
 3. If any check fails, **halt immediately**. Do not present the PR as
    merge-ready. Report the blocking condition to the operator.
 4. If advisory shadow-review feedback exists, surface it in the merge-readiness summary without treating it as merge-blocking by default.

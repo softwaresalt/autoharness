@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-05T12:09:52.0434711-07:00","actor":"backlogit","item_id":"072-S","event_type":"shipment_created","delta":{"items":["062.002-T"],"title":"Full local build PR gate"}}
+{"timestamp":"2026-07-05T12:09:52.6349294-07:00","actor":"backlogit","item_id":"072-S","event_type":"shipment_status_changed","delta":{"status":"active"}}

@@ -597,6 +597,58 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertEqual(checks["dark_factory_prompt_contract"]["reason"], "missing file")
             self.assertTrue(_report_has_failures(report))
 
+    def test_verify_workspace_does_not_run_dark_factory_checks_for_policy_only_installs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            staging = workspace / ".autoharness" / "staging"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+
+            schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-24T00:00:00Z",
+                    "autoharness_version": "1.3.2",
+                    "profile_hash": "abc",
+                    "primitives_installed": [8],
+                    "capability_packs": [],
+                    "artifacts": [
+                        {
+                            "path": ".github/policies/workflow-policies.md",
+                            "primitive": 8,
+                            "template": "templates/policies/workflow-policies.md.tmpl",
+                            "checksum": "stale-checksum",
+                        }
+                    ],
+                    "variables_used": {"PROJECT_NAME": "demo-workspace"},
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            report = verify_workspace(workspace, autoharness_home, staging)
+
+            self.assertNotIn("dark_factory_policy_contract", report["targeted_checks"])
+            self.assertNotIn("dark_factory_prompt_contract", report["targeted_checks"])
+
     def test_unresolved_placeholders_ignore_code_fences(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_file = Path(temp_dir) / "sample.md"

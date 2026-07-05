@@ -1027,6 +1027,12 @@ Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 * P-016 (No Parallel Branch/Worktree Execution) — Universal. Preserve the Stage spike/research worktree exception and ensure generated Stage, Ship, Orchestrator, AGENTS.md, and concurrency guidance do not endorse parallel implementation branches/worktrees.
 * P-017 (Dark Factory Autonomy Contract) — Universal when dark-mode prompts or guidance are installed. Preserve the exact trigger, bounded scope, local-review-first readiness, merge/admin fallback fail-closed behavior, telemetry events, and closure evidence requirements.
 
+The full-build PR gate is a cross-cutting Agent / Skill / Instruction-layer
+requirement rather than a numbered workflow policy. Ensure Ship, pr-lifecycle,
+and GitHub PR automation guidance require a successful full local build before
+any code-changing PR is created, updated, or presented, with explicit
+non-applicability allowed only for documentation-only/backlog-only PRs.
+
 #### Step 2.7: Prompt Layer
 
 Generate prompt files:
@@ -1344,6 +1350,11 @@ For each enabled capability pack:
       guardrail referencing P-009
    d. Confirm `git-merge.instructions.md` contains a squash-merge prohibition section
    e. Report FAIL for any missing artifact — absent merge policy is a P-009 violation risk
+ 6a. **Full-build PR gate verification** (universal — applies to all installed harnesses):
+    a. Confirm `.ship.agent.md` requires a full local build before code-changing PRs
+    b. Confirm `pr-lifecycle/SKILL.md` requires successful full local build evidence in PR readiness for code-changing PRs
+    c. Confirm `github-pr-automation.instructions.md` includes the `Full local build` readiness field and gate check
+    d. Report FAIL for stale guidance that allows code-changing PRs without successful full local build evidence
 7. **No-parallel branch/worktree verification** (universal — applies to all installed harnesses):
    a. Confirm `workflow-policies` contains `P-016` and "No Parallel Branch/Worktree Execution"
    b. Confirm `constitution.instructions.md` or root `AGENTS.md` states single active implementation branch/worktree behavior
