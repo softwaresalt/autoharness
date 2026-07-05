@@ -73,7 +73,7 @@ or status, follow-up items, and the reason dark mode ended. Clear
 
 When the activation scope explicitly covers "all stashed and/or queued work",
 resolve that phrase to concrete stash IDs and queued shipment IDs at activation
-time, then continue Stage -> Ship iteration until every scoped item is complete
+time, then continue Stage → Ship iteration until every scoped item is complete
 or a stop condition makes further autonomous work unsafe. Do not stop for routine
 coordination decisions while the operator is AFK; use the recorded activation
 contract and sound judgment. Halt instead of guessing when scope, safety, merge
