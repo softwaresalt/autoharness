@@ -32,6 +32,7 @@ This file defines the authoritative rules for working in the autoharness reposit
 # All cross-references between installed artifacts must resolve
 # All PR merges must use merge commits — squash and rebase are forbidden (P-009, Principle XI)
 # When both stage and ship agents are installed (two-agent model), both must declare Role Boundary tables — P-010
+# Agents must not work across parallel implementation branches or worktrees — P-016
 ```
 
 ## Development Workflow
@@ -40,6 +41,7 @@ This file defines the authoritative rules for working in the autoharness reposit
 2. Ensure the template works for at least 3 different technology profiles
 3. Update the variable resolution table in install-harness SKILL.md
 4. Test the template produces valid output when all variables are resolved
+5. Keep one active implementation branch/worktree; only explicit Stage spike/research worktrees are exempt (P-016)
 
 ## Available Agents
 
