@@ -25,6 +25,7 @@ The operator can invoke the orchestrator with these commands:
 |---|---|---|
 | `run pipeline` / `process stash` | Full cycle (Steps 0–3) | Triage stash, group related entries, stage a shipment, hand off to Ship, iterate |
 | `Run pipeline in dark mode` / `Run pipeline in dark factory mode` | Full cycle under P-017 | Activate bounded dark factory mode, record `DARK_MODE_ACTIVE`, and route Stage → Ship autonomously only for the declared scope |
+| `feature-flow-dark` | Full cycle under P-017 | Developer-friendly prompt shim for `Run pipeline in dark mode`; activates dark mode only through the Orchestrator |
 | `feature-flow` | Full cycle (Steps 0–3) | Developer-friendly alias for the standard sequential Stage → Ship lifecycle |
 | `feature-flow-parallel` | Full cycle with P-016-compliant planning-overlap preference | Developer-friendly alias for the same lifecycle, but prefer planning overlap when policy permits and no parallel implementation branches/worktrees are created |
 | `stage next` | Steps 0–1 only | Triage stash and produce a queued shipment; do not invoke Ship |
@@ -34,7 +35,7 @@ The operator can invoke the orchestrator with these commands:
 
 When the operator's message does not match a trigger phrase, infer intent from context: if stash entries exist and no shipment is queued, behave as `run pipeline`. If a queued shipment exists and stash is empty, behave as `ship next`. For install/tune requests (e.g., "install harness", "tune harness"), route to elective agents — see the **Elective Agents** section below for trigger phrases and routing rules.
 
-`feature-flow` and `feature-flow-parallel` are workflow aliases, not alternate lifecycle implementations. Both names always route through the Orchestrator, preserve Stage / Ship role boundaries, and must not bypass the backlog / shipment model. `feature-flow-parallel` degrades to normal sequential execution whenever P-016-compliant planning overlap is unsafe or unavailable.
+`feature-flow`, `feature-flow-parallel`, and `feature-flow-dark` are workflow aliases, not alternate lifecycle implementations. All names always route through the Orchestrator, preserve Stage / Ship role boundaries, and must not bypass the backlog / shipment model. `feature-flow-parallel` degrades to normal sequential execution whenever P-016-compliant planning overlap is unsafe or unavailable. `feature-flow-dark` is a shim for the exact P-017 dark-mode trigger, not a waiver of local readiness, merge, telemetry, or closure gates.
 
 ### Dark Factory Mode Trigger Semantics (P-017)
 

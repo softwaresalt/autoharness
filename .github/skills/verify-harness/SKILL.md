@@ -61,6 +61,7 @@ The skill is mandatory for `standard` and `full` presets. It may be skipped for
    * The "Where to look next" or equivalent discovery table in `AGENTS.md`
    * The workspace profile's capability pack detection flags
    * The local review readiness surfaces: workflow policy text, review skill readiness contract, and GitHub PR automation readiness instructions
+   * The dark factory mode surfaces when P-017 is installed: Orchestrator trigger/state guidance, Ship/pr-lifecycle merge/admin fallback guidance, `agent-intercom` event contract, `feature-flow-dark` prompt, and foundation docs
 
 ### Phase 2: Define Review Domains
 
@@ -71,7 +72,7 @@ dispatched in parallel:
 |---|---|---|
 | **Template Fidelity** | Compare every installed artifact against its source template | Dropped content, unresolved variables, missing sections, incorrect variable resolution, missing Model Routing sections |
 | **Overlay Coherence** | Verify each enabled pack is consistently woven | Pack instruction file exists, foundation docs reference the pack, pipeline agents declare pack tools, skills reference pack instruction file, overlay targets contain pack behavior keywords |
-| **Cross-Reference Integrity** | Verify all discovery tables, policy references, and agent→skill→reviewer chains resolve | Skills table complete vs actual skills, reviewer table complete vs actual reviewers, policy agents are installed agents (not skills), profile detection flags match installed packs, deprecated agent references cleaned up, local review readiness references agree across policy / skill / instruction surfaces |
+| **Cross-Reference Integrity** | Verify all discovery tables, policy references, and agent→skill→reviewer chains resolve | Skills table complete vs actual skills, reviewer table complete vs actual reviewers, policy agents are installed agents (not skills), profile detection flags match installed packs, deprecated agent references cleaned up, local review readiness references agree across policy / skill / instruction surfaces, P-017 dark factory references agree across policy / Orchestrator / Ship / pr-lifecycle / intercom / prompt surfaces |
 
 ### Phase 3: Dispatch Parallel Reviewers
 

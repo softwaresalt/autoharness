@@ -1,6 +1,8 @@
 ---
 title: Getting Started
 description: Install autoharness globally, configure your workspace, install a harness, and verify the results
+doc_type: guide
+source: docs/getting-started.md
 ---
 
 > **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
@@ -372,6 +374,7 @@ target-workspace/
       ping-loop.prompt.md
       feature-flow.prompt.md
       feature-flow-parallel.prompt.md
+      feature-flow-dark.prompt.md
   .backlog/
     config.yml
     queue/
@@ -447,14 +450,15 @@ The installer runs automatic verification. You can also manually check:
 
 #### Workflow Entry Points
 
-Use one of these two prompts as the normal front door after installation:
+Use one of these prompts as the normal front door after installation:
 
 | Prompt | Use When | Routing Behavior |
 |---|---|---|
 | `/feature-flow` | You want the standard full lifecycle for the next feature or chore | Invokes the Orchestrator, which runs the sequential Stage -> Ship path |
 | `/feature-flow-parallel` | You want the same lifecycle but prefer P-016-compliant planning overlap | Invokes the Orchestrator, which lets Stage plan ahead only when doing so does not create parallel implementation branches/worktrees; otherwise it degrades to sequential mode |
+| `/feature-flow-dark` | You want bounded P-017 dark factory mode for an explicit scope | Invokes the Orchestrator using the exact `Run pipeline in dark mode` trigger, records `DARK_MODE_ACTIVE`, and keeps local review, merge, telemetry, and closure gates mandatory |
 
-Both prompts are aliases over the existing Orchestrator workflow. They do not create a second lifecycle and they do not bypass Stage, Ship, the backlog model, or shipment policy gates. `feature-flow-parallel` does not authorize parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
+These prompts are aliases over the existing Orchestrator workflow. They do not create a second lifecycle and they do not bypass Stage, Ship, the backlog model, or shipment policy gates. `feature-flow-parallel` does not authorize parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution. `feature-flow-dark` is not a safety bypass: P-001, P-009, P-014, P-016, P-017, required checks, telemetry, and closure still apply.
 
 #### What the Orchestrator Does
 

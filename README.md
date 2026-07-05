@@ -1,6 +1,8 @@
 ---
 title: autoharness
 description: Globally-installed agent harness framework that generates AI coding assistant primitives into any target workspace
+doc_type: guide
+source: README.md
 ---
 
 # autoharness
@@ -102,6 +104,9 @@ autoharness setup-codex         # Codex
 # Prefer P-016 planning overlap when it will not create parallel implementation branches/worktrees
 /feature-flow-parallel
 
+# Run bounded P-017 dark factory mode through the Orchestrator
+/feature-flow-dark
+
 # Run deterministic verification against an installed workspace
 autoharness verify-workspace --workspace .
 ```
@@ -140,8 +145,9 @@ After a harness is installed, the primary user-facing lifecycle entrypoints are:
 |---|---|---|
 | `/feature-flow` | You want the normal full lifecycle for the next feature or chore | Routes through the Orchestrator, which runs the standard sequential Stage -> Ship workflow |
 | `/feature-flow-parallel` | You want the same lifecycle but prefer P-016-compliant planning overlap when safe | Routes through the Orchestrator, which lets Stage plan ahead only when doing so does not create parallel implementation branches/worktrees; otherwise it falls back to sequential mode |
+| `/feature-flow-dark` | You want the same lifecycle in bounded P-017 dark factory mode | Routes through the Orchestrator using the exact `Run pipeline in dark mode` trigger, records `DARK_MODE_ACTIVE`, and keeps local review, merge, telemetry, and closure gates mandatory |
 
-These are workflow aliases, not separate pipelines, over the existing Orchestrator workflow. They do not bypass Stage, Ship, the backlog model, or shipment policies. `feature-flow-parallel` does not authorize parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
+These are workflow aliases, not separate pipelines, over the existing Orchestrator workflow. They do not bypass Stage, Ship, the backlog model, or shipment policies. `feature-flow-parallel` does not authorize parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution. `feature-flow-dark` is not a safety bypass: P-001, P-009, P-014, P-016, P-017, required checks, telemetry, and closure still apply.
 
 ## Documentation
 

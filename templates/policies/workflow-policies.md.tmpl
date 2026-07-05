@@ -447,7 +447,8 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 
 Do not infer dark factory mode from vague autonomy language such as `run everything`, `go autonomous`, `handle it all`, or `go fast`. If the trigger is ambiguous, proceed in the normal non-dark pipeline or ask for clarification.
 
-**Activation contract**: On activation, Orchestrator MUST record and surface:
+**Activation contract**: On activation, Orchestrator MUST record `DARK_MODE_ACTIVE`
+and surface:
 
 1. the bounded scope (stash IDs, feature ID, shipment ID, or explicit backlog selection);
 2. whether PR merge approval is pre-authorized for that scope;

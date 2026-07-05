@@ -55,6 +55,13 @@ This is why `agent-intercom` must be woven through the harness rather than insta
   `ProposedAction` / `ActionRisk` / `ActionResult` guidance through safety,
   planning, review, and closure workflows
 
+Dark factory mode (P-017) is a workflow-policy weave rather than a capability
+pack. It crosses multiple primitives and must stay visible across Orchestrator,
+Ship, PR automation, review readiness, intercom/telemetry, foundation docs,
+prompt shims, and verification surfaces. It is always bounded, local-review-first,
+merge-commit-only, single-worktree, and closure-complete; it is never a blanket
+permission to bypass the harness.
+
 ## Primitive 1: State, Context, and Knowledge Retrieval
 
 **Purpose**: Maintain durable state across sessions, retrieve relevant prior learnings at the point of work, manage the context window, and prevent token overflow.
@@ -148,7 +155,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 **Key Artifacts**:
 
 * `constitution.instructions.md` — Principles III-V (workspace isolation, containment, destructive approval)
-* `workflow-policies.md` — P-001 through P-016
+* `workflow-policies.md` — P-001 through P-017
 * `safety-modes/SKILL.md` — Interactive careful / freeze-scope / investigate-first workflows
 * `strict-safety.instructions.md` — Optional overlay instructions that make risky actions explicit and reviewable
 * `role-enforcement.instructions.md` — Pre-mutation role boundary check protocol for the two-agent model (conditional — installed when both stage and ship agents are present)
@@ -167,6 +174,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Lint error messages include remediation instructions so agents can self-correct
 * In the two-agent model (Stage + Ship), each agent declares a `## Role Boundary (NON-NEGOTIABLE)` table with Allowed/Forbidden operations. The `role-enforcement.instructions.md` instruction teaches agents to self-check against their declared boundary before any mutation (P-010)
 * P-016 forbids parallel implementation branches/worktrees. Agents fail closed on ambiguous extra worktrees; Stage's only extra-worktree allowance is explicit, time-boxed spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
+* P-017 dark factory mode must preserve P-001, P-009, P-014, P-016, local review readiness, required check handling, visibility telemetry, and closure. It can pre-authorize bounded merge approval only through the recorded activation contract.
 
 ## Primitive 6: Injection Points and Dynamic Reminders
 
@@ -218,7 +226,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 **Key Artifacts**:
 
-* `workflow-policies.md` — Policy registry with P-001 through P-016
+* `workflow-policies.md` — Policy registry with P-001 through P-017
 * Agent definitions (each references applicable policies at gate points)
 
 **Design Rules**:
@@ -231,6 +239,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * P-005: Policy violation telemetry (all violations recorded and broadcast)
 * P-006: Plan hardening gate (risky plans must be hardened before review)
 * P-016: No parallel branch/worktree execution (single active implementation worktree; narrow Stage spike/research exception only)
+* P-017: Dark factory autonomy contract (exact trigger, bounded scope, local-review-first readiness, merge/admin fallback rules, telemetry, and stop conditions)
 * Policy violations are first-class observability signals
 
 ## Primitive 9: Repository Knowledge and Agent Legibility
@@ -275,6 +284,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Operational closure converts validator evidence plus monitoring/rollback requirements into explicit releasability evidence (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`)
 * Closure artifacts record healthy signals, failure signals, validation windows, rollback triggers, and owner
 * Runtime findings feed back into compound learnings, documentation updates, and tuning proposals
+* In dark factory mode, closure summaries must list decisions, gate outcomes, reviewed HEADs, merge/fallback status, admin fallback result if any, closure status, and follow-up items before `DARK_MODE_COMPLETE` is emitted
 * Primitive 10 is the formal handoff from “implemented” to “safely absorbed by the running system”
 
 ## Primitive Interaction Map

@@ -783,8 +783,8 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh`, `skills/harness-doctor` (install health baseline and pre-flight context), `instructions/context-efficiency` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true), `prompts/feature-flow`, `prompts/feature-flow-parallel` (P-016 planning-overlap alias, not parallel implementation) |
-| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight, tool availability gate, and P-016 topology awareness), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
+| 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true), `prompts/feature-flow`, `prompts/feature-flow-parallel` (P-016 planning-overlap alias, not parallel implementation), `prompts/feature-flow-dark` (P-017 exact-trigger shim) |
+| 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight, tool availability gate, P-016 topology awareness, and P-017 dark-mode gate awareness), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
 | 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions`, `skills/skill-search` |
 | 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
@@ -922,7 +922,7 @@ merge install), flag them for removal.
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
     * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
-    * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits
+    * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits. If P-017 dark factory guidance is present, ensure dark-mode events (`DARK_MODE_START`, `DARK_MODE_SCOPE`, `BRAINSTORM_HANDOFF_READY`, `LOCAL_REVIEW_READY`, `DARK_MODE_MERGE_AUTHORIZED`, `ADMIN_FALLBACK_ATTEMPTED`, `DARK_MODE_HALTED`, `DARK_MODE_COMPLETE`) are self-contained and include scope, decisions, brainstorm/requirements handoff state, gates, reviewed HEADs, outcomes, and next actions.
     * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
     * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
     * When `strict-safety` is enabled, keep risky planning and approval vocabulary visible through stage, review, verification, and closure handoffs
@@ -1025,6 +1025,7 @@ Generate the workflow policy registry from `workflow-policies.md.tmpl`:
 * P-006 (Plan Hardening Gate) — Universal
 * P-007 through P-015 — Universal backlog, markdown, merge, role, branch, tool, tier, review-readiness, and shipment-closure policies
 * P-016 (No Parallel Branch/Worktree Execution) — Universal. Preserve the Stage spike/research worktree exception and ensure generated Stage, Ship, Orchestrator, AGENTS.md, and concurrency guidance do not endorse parallel implementation branches/worktrees.
+* P-017 (Dark Factory Autonomy Contract) — Universal when dark-mode prompts or guidance are installed. Preserve the exact trigger, bounded scope, local-review-first readiness, merge/admin fallback fail-closed behavior, telemetry events, and closure evidence requirements.
 
 #### Step 2.7: Prompt Layer
 
@@ -1033,6 +1034,7 @@ Generate prompt files:
 * `ping-loop.prompt.md` — Universal
 * `feature-flow.prompt.md` — Install when Primitive 4 is selected. User-facing alias to the Orchestrator's standard sequential full-cycle routing.
 * `feature-flow-parallel.prompt.md` — Install when Primitive 4 is selected. User-facing alias to the Orchestrator's pipelined full-cycle routing preference, now constrained to P-016-compliant planning overlap; it must degrade to sequential execution when overlap would create parallel implementation branches/worktrees.
+* `feature-flow-dark.prompt.md` — Install when Primitive 4 and P-017 are selected. User-facing shim for the exact `Run pipeline in dark mode` trigger; it must route through Orchestrator, record `DARK_MODE_ACTIVE`, preserve P-001/P-009/P-014/P-016/P-017, and never bypass local readiness, required checks, telemetry, or closure gates.
 
 #### Step 2.8: Backlog Structure
 
@@ -1349,6 +1351,13 @@ For each enabled capability pack:
    d. Confirm `.stage.agent.md` limits extra worktrees to explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
    e. Confirm `_orchestrator.agent.md` describes planning overlap without requiring different implementation branches
    f. Report FAIL for stale guidance that endorses parallel implementation branches/worktrees outside the Stage spike/research exception
+8. **Dark factory verification** (when P-017 or `feature-flow-dark` is installed):
+   a. Confirm `workflow-policies` contains `P-017`, exact trigger `Run pipeline in dark mode`, and `DARK_MODE_ACTIVE`
+   b. Confirm `_orchestrator.agent.md` records bounded scope, merge approval authority, admin fallback authority, stop conditions, and `DARK_MODE_START` / `DARK_MODE_COMPLETE`
+   c. Confirm `.ship.agent.md` or `pr-lifecycle` requires current-HEAD local readiness, P-009 merge commit strategy, required checks, P-016 topology, and immediate `headRefOid` re-check before merge/admin fallback
+   d. Confirm `agent-intercom.instructions.md` contains dark-mode visibility events, including `BRAINSTORM_HANDOFF_READY`, and degraded-visibility halt behavior
+   e. Confirm `feature-flow-dark.prompt.md` routes through Orchestrator and does not bypass Stage, Ship, backlog/shipment policy, local readiness, telemetry, or closure
+   f. Report FAIL for missing or stale guidance that treats dark mode as a safety bypass, allows vague trigger phrases, or omits closure evidence (decisions, gates, reviewed HEADs, merge/fallback status, closure status, follow-ups)
 
 #### Step 4.5: Adversarial Verification
 

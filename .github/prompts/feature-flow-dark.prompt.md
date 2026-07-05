@@ -1,0 +1,22 @@
+---
+description: "Developer-friendly entrypoint for bounded P-017 dark factory Stage -> Ship execution"
+agent: Orchestrator
+argument-hint: "[bounded stash IDs, shipment IDs, feature/task IDs, or explicit backlog scope]"
+---
+
+# Feature Flow Dark
+
+Use the existing Orchestrator pipeline in bounded dark factory mode.
+
+## Intent
+
+This prompt is a user-friendly shim for the exact P-017 trigger `Run pipeline in dark mode`. It does not define a second pipeline and it does not bypass the backlog / shipment lifecycle.
+
+## Requirements
+
+1. Activate dark factory mode only through the Orchestrator and record `DARK_MODE_ACTIVE`.
+2. Resolve the bounded scope before routing Stage or Ship: stash IDs, shipment IDs, feature/task IDs, or explicit backlog selection.
+3. Preserve P-001, P-009, P-014, P-016, P-017, Stage/Ship role boundaries, local review readiness, required CI/check handling, and post-merge closure.
+4. Treat Copilot/GitHub hosted review as optional advisory shadow review unless explicitly elevated.
+5. Emit the required dark-mode visibility events, including `BRAINSTORM_HANDOFF_READY` when a brainstorm or requirements artifact is part of the handoff, and halt on degraded visibility, scope expansion, destructive approval needs, secrets risk, failed local readiness, ambiguous branch protection/admin state, or any policy violation.
+6. Continue only until the declared scope is complete or a dark-mode stop condition triggers.

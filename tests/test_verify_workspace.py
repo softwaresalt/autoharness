@@ -422,6 +422,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "pipelined execution mode",
                 "degrade to the standard sequential `feature-flow` path",
             ],
+            repo_root / "templates" / "prompts" / "feature-flow-dark.prompt.md.tmpl": [
+                "agent: Orchestrator",
+                "Run pipeline in dark mode",
+                "DARK_MODE_ACTIVE",
+                "BRAINSTORM_HANDOFF_READY",
+            ],
             repo_root / ".github" / "prompts" / "feature-flow.prompt.md": [
                 "agent: Orchestrator",
                 "standard `run pipeline` behavior",
@@ -430,19 +436,28 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "agent: Orchestrator",
                 "pipelined execution mode",
             ],
+            repo_root / ".github" / "prompts" / "feature-flow-dark.prompt.md": [
+                "agent: Orchestrator",
+                "Run pipeline in dark mode",
+                "DARK_MODE_ACTIVE",
+                "BRAINSTORM_HANDOFF_READY",
+            ],
             repo_root / "templates" / "agents" / "_orchestrator.agent.md.tmpl": [
                 "`feature-flow`",
                 "`feature-flow-parallel`",
+                "`feature-flow-dark`",
                 "workflow aliases, not alternate lifecycle implementations",
             ],
             repo_root / ".github" / "agents" / "_orchestrator.agent.md": [
                 "feature-flow",
                 "feature-flow-parallel",
+                "feature-flow-dark",
                 "must not bypass Stage, Ship, or the backlog / shipment model",
             ],
             repo_root / ".github" / "skills" / "install-harness" / "SKILL.md": [
                 "feature-flow.prompt.md",
                 "feature-flow-parallel.prompt.md",
+                "feature-flow-dark.prompt.md",
                 "Orchestrator's pipelined full-cycle routing preference",
             ],
         }
@@ -459,6 +474,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             repo_root / "README.md": [
                 "/feature-flow",
                 "/feature-flow-parallel",
+                "/feature-flow-dark",
                 "workflow aliases, not separate pipelines",
                 "existing Orchestrator workflow",
             ],
@@ -466,6 +482,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "Workflow Entry Points",
                 "Invokes the Orchestrator",
                 "degrades to sequential mode",
+                "Run pipeline in dark mode",
                 "Manual Agent-by-Agent Path",
             ],
         }
@@ -475,6 +492,110 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 content = file_path.read_text(encoding="utf-8")
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
+
+    def test_dark_factory_docs_and_verification_surfaces_are_woven(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        expected_phrases_by_file = {
+            repo_root / "AGENTS.md": [
+                "P-017",
+                "Run pipeline in dark mode",
+                "local review readiness",
+            ],
+            repo_root / "templates" / "foundation" / "AGENTS.md.tmpl": [
+                "Dark factory mode (P-017)",
+                "Run pipeline in dark mode",
+                "DARK_MODE_ACTIVE",
+            ],
+            repo_root / ".github" / "instructions" / "harness-architecture.instructions.md": [
+                "P-017",
+                "dark factory mode",
+                "DARK_MODE_COMPLETE",
+            ],
+            repo_root / ".github" / "skills" / "install-harness" / "SKILL.md": [
+                "Dark factory verification",
+                "feature-flow-dark.prompt.md",
+                "BRAINSTORM_HANDOFF_READY",
+                "headRefOid",
+            ],
+            repo_root / ".github" / "skills" / "verify-harness" / "SKILL.md": [
+                "dark factory mode surfaces",
+                "feature-flow-dark",
+                "P-017 dark factory references agree",
+            ],
+        }
+
+        for file_path, expected_phrases in expected_phrases_by_file.items():
+            with self.subTest(file=str(file_path.relative_to(repo_root))):
+                content = file_path.read_text(encoding="utf-8")
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, content)
+
+    def test_verify_workspace_flags_missing_dark_factory_surfaces(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            staging = workspace / ".autoharness" / "staging"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "policies").mkdir(parents=True, exist_ok=True)
+
+            schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-24T00:00:00Z",
+                    "autoharness_version": "1.3.2",
+                    "profile_hash": "abc",
+                    "primitives_installed": [4, 5, 8],
+                    "capability_packs": ["agent-intercom"],
+                    "artifacts": [
+                        {
+                            "path": ".github/prompts/feature-flow-dark.prompt.md",
+                            "primitive": 4,
+                            "template": "templates/prompts/feature-flow-dark.prompt.md.tmpl",
+                            "checksum": "stale-checksum",
+                        }
+                    ],
+                    "variables_used": {"PROJECT_NAME": "demo-workspace"},
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "policies" / "workflow-policies.md").write_text(
+                "P-017\nRun pipeline in dark mode\nDARK_MODE_ACTIVE\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home, staging)
+
+            checks = report["targeted_checks"]
+            self.assertIn("dark_factory_policy_contract", checks)
+            self.assertFalse(checks["dark_factory_policy_contract"]["ok"])
+            self.assertIn(
+                "BRAINSTORM_HANDOFF_READY",
+                checks["dark_factory_policy_contract"]["missing"],
+            )
+            self.assertIn("dark_factory_prompt_contract", checks)
+            self.assertFalse(checks["dark_factory_prompt_contract"]["ok"])
+            self.assertEqual(checks["dark_factory_prompt_contract"]["reason"], "missing file")
+            self.assertTrue(_report_has_failures(report))
 
     def test_unresolved_placeholders_ignore_code_fences(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

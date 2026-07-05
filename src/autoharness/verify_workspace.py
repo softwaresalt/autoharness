@@ -604,6 +604,99 @@ FOUNDATION_ASSERTIONS = [
     },
 ]
 
+DARK_FACTORY_ASSERTIONS = [
+    {
+        "key": "dark_factory_policy_contract",
+        "path": ".github/policies/workflow-policies.md",
+        "required": True,
+        "must_contain": [
+            "P-017",
+            "Run pipeline in dark mode",
+            "DARK_MODE_ACTIVE",
+            "BRAINSTORM_HANDOFF_READY",
+            "DARK_MODE_COMPLETE",
+        ],
+    },
+    {
+        "key": "dark_factory_orchestrator_contract",
+        "path": ".github/agents/_orchestrator.agent.md",
+        "required": True,
+        "must_contain": [
+            "Run pipeline in dark mode",
+            "DARK_MODE_ACTIVE",
+            "merge_approval_pre_authorized",
+            "DARK_MODE_START",
+            "DARK_MODE_COMPLETE",
+            "reviewed HEADs",
+        ],
+    },
+    {
+        "key": "dark_factory_ship_contract",
+        "path": ".github/agents/.ship.agent.md",
+        "must_contain": [
+            "LOCAL_REVIEW_READY",
+            "DARK_MODE_MERGE_AUTHORIZED",
+            "ADMIN_FALLBACK_ATTEMPTED",
+            "headRefOid",
+            "P-009",
+            "P-016",
+        ],
+    },
+    {
+        "key": "dark_factory_pr_lifecycle_contract",
+        "path": ".github/skills/pr-lifecycle/SKILL.md",
+        "must_contain": [
+            "headRefOid",
+            "NORMAL_MERGE_READY",
+            "MERGE_SUCCEEDED",
+            "admin_fallback_pre_authorized",
+        ],
+    },
+    {
+        "key": "dark_factory_intercom_contract",
+        "path": ".github/instructions/agent-intercom.instructions.md",
+        "requires_pack": "agent-intercom",
+        "must_contain": [
+            "Dark Factory Visibility Protocol",
+            "BRAINSTORM_HANDOFF_READY",
+            "DARK_MODE_COMPLETE",
+            "degraded-visibility",
+        ],
+    },
+    {
+        "key": "dark_factory_prompt_contract",
+        "path": ".github/prompts/feature-flow-dark.prompt.md",
+        "required": True,
+        "must_contain": [
+            "agent: Orchestrator",
+            "Run pipeline in dark mode",
+            "DARK_MODE_ACTIVE",
+            "BRAINSTORM_HANDOFF_READY",
+            "does not bypass",
+        ],
+    },
+    {
+        "key": "dark_factory_github_pr_automation_contract",
+        "path": ".github/instructions/github-pr-automation.instructions.md",
+        "must_contain": [
+            "Dark-Mode Merge Authorization",
+            "headRefOid",
+            "admin_fallback_pre_authorized",
+            "P-009",
+            "P-016",
+        ],
+    },
+    {
+        "key": "dark_factory_foundation_contract",
+        "path": "AGENTS.md",
+        "must_contain": [
+            "P-017",
+            "Run pipeline in dark mode",
+            "local review readiness",
+        ],
+    },
+]
+
 
 PORTABILITY_RULES = [
     {
@@ -2413,6 +2506,39 @@ def verify_workspace(
             assertion["must_contain"],
             [tuple(pair) for pair in assertion.get("must_precede") or []],
         )
+
+    artifact_paths = {
+        str(artifact.get("path") or "").replace("\\", "/")
+        for artifact in (manifest.get("artifacts") or [])
+        if isinstance(artifact, dict)
+    }
+    dark_factory_installed = bool(
+        {
+            ".github/prompts/feature-flow-dark.prompt.md",
+            ".github/policies/workflow-policies.md",
+        }
+        & artifact_paths
+    )
+    if dark_factory_installed:
+        for assertion in DARK_FACTORY_ASSERTIONS:
+            assertion_path = str(assertion["path"]).replace("\\", "/")
+            assertion_file = workspace_path / assertion["path"]
+            requires_pack = assertion.get("requires_pack")
+            if requires_pack and requires_pack not in installed_packs:
+                continue
+            if (
+                not assertion.get("required")
+                and assertion_path not in artifact_paths
+                and not assertion_file.exists()
+            ):
+                continue
+            _add_text_check(
+                report,
+                assertion["key"],
+                assertion_file,
+                assertion["must_contain"],
+                [tuple(pair) for pair in assertion.get("must_precede") or []],
+            )
 
     # Conditional: when both stage and ship agents are installed (two-agent
     # model) AND the workspace is a harness-installed workspace (manifest
