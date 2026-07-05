@@ -343,22 +343,29 @@ After all tasks in the queue are complete:
 
 1. Run the full quality gate sequence one final time
 2. Write a session memory summary to `{{DOCS_MEMORY}}/` capturing: items completed, items blocked, branch state, decisions with rationale, and next steps
-3. Confirm the most recent local review readiness result covers the current HEAD and records any residual follow-up handling
-4. Prepare the PR body so it includes the `## Local Review Readiness` block required by `.github/instructions/github-pr-automation.instructions.md` §1.9 (reviewed HEAD SHA, outcome, blocking-finding summary, and follow-up handling)
-5. Invoke the **pr-lifecycle** skill to create or update the pull request
-6. If CI or optional shadow-review comments fail:
+3. Before creating or updating any PR that adds, removes, or changes source code,
+   run the full local build command for the codebase in addition to targeted checks.
+   Documentation-only and backlog-only PRs may record full-build non-applicability
+   instead. Capture the command and successful result, or non-applicability rationale, in PR
+   readiness evidence.
+4. Confirm the most recent local review readiness result covers the current HEAD and records any residual follow-up handling
+5. Prepare the PR body so it includes the `## Local Review Readiness` block required by `.github/instructions/github-pr-automation.instructions.md` §1.9 (reviewed HEAD SHA, outcome, blocking-finding summary, full-build evidence or non-applicability, and follow-up handling)
+6. Invoke the **pr-lifecycle** skill to create or update the pull request
+7. If CI or optional shadow-review comments fail:
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoking fix-ci for shipment PR` before invoking the skill.
    * Invoke the **fix-ci** skill before proceeding.
-6a. **Optional Shadow Review Loop**: If GitHub-hosted automated review is enabled in advisory shadow mode, address actionable bot comments with bounded fix cycles. Treat unresolved shadow-review comments as advisory follow-up items by default unless the operator explicitly elevates them to blocking status for the current PR.
+7a. **Optional Shadow Review Loop**: If GitHub-hosted automated review is enabled in advisory shadow mode, address actionable bot comments with bounded fix cycles. Treat unresolved shadow-review comments as advisory follow-up items by default unless the operator explicitly elevates them to blocking status for the current PR.
     In dark mode, wait patiently for requested hosted review to complete or time
     out per the GitHub automation instructions. For each actionable bot comment,
     apply the fix, commit and push it, reply to the comment with the fixing commit,
     resolve the bot-authored thread via GraphQL, and continue bounded iterations
     until clean, follow-up-only, or unsafe.
-6b. **P-014 Local Review Readiness Gate (NON-NEGOTIABLE)**: Before presenting the PR as merge-ready, run the defense-in-depth verification from `.github/instructions/github-pr-automation.instructions.md` §1.9 as an independent re-check. This gate verifies that:
+7b. **P-014 Local Review Readiness Gate (NON-NEGOTIABLE)**: Before presenting the PR as merge-ready, run the defense-in-depth verification from `.github/instructions/github-pr-automation.instructions.md` §1.9 as an independent re-check. This gate verifies that:
 
     * the local review readiness record exists for the current `headRefOid`
     * the recorded outcome is `READY` or `READY_WITH_FOLLOWUPS`
+    * code-changing PRs include full local build evidence, or documentation-only /
+      backlog-only PRs explicitly mark full-build non-applicability
     * any residual P2/P3 findings have explicit follow-up handling
 
     If the branch HEAD changed after local review, re-run the local review before proceeding. If any check fails, halt and record a P-014 violation via P-005 telemetry. Optional shadow-review comments are surfaced in the readiness summary but are not merge-blocking by default.

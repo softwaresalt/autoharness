@@ -309,9 +309,15 @@ local review block for the current HEAD:
 - Reviewed HEAD: `<sha>`
 - Outcome: `READY` | `READY_WITH_FOLLOWUPS` | `BLOCKED`
 - Blocking findings: `P0=0, P1=0`
+- Full local build: `<command and successful result>` | `not applicable — <docs/backlog-only rationale>`
 - Follow-ups: `none` | `<item ids or residual-risk notes>`
 - Shadow review: `not requested` | `requested` | `clean` | `comments pending`
 ```
+
+If the workspace uses a different readiness artifact, the PR body must still
+contain the reviewed HEAD SHA, the outcome, successful full local build evidence
+(or explicit non-applicability), and the follow-up handling summary so the merge
+gate can confirm the current PR state without relying on hidden local state.
 
 #### 1.9.3 Advisory Bot Identity
 
@@ -331,7 +337,7 @@ returned via GraphQL, the `author.login` field uses the no-suffix form.
 
 #### 1.9.4 Gate Checks
 
-Evaluate three checks in order. All three must pass for merge readiness.
+Evaluate four checks in order. All four must pass for merge readiness.
 
 **Check 1 — Local review coverage (record covers current HEAD)**:
 
@@ -356,6 +362,16 @@ Evaluate three checks in order. All three must pass for merge readiness.
 2. If `Outcome` is `READY_WITH_FOLLOWUPS`, the `Follow-ups` field must list
    follow-up item IDs, queued backlog work, or explicit residual-risk notes.
 3. If the field is missing or empty for `READY_WITH_FOLLOWUPS`, halt.
+4. Otherwise, proceed to Check 4.
+
+**Check 4 — Full local build evidence for code-changing PRs**:
+
+1. If the PR adds, removes, or changes source code, the readiness block must list
+   the full local build command and a successful result.
+2. If the PR is documentation-only or backlog-only, the readiness block may state
+   `Full local build: not applicable` with a short rationale.
+3. If build applicability is ambiguous, required evidence is missing, or the
+   recorded full local build result failed, halt.
 4. Otherwise, **GATE PASSES**.
 
 **Human and shadow-review threads**: Human review threads and advisory Copilot
@@ -376,8 +392,9 @@ and should be reported in the merge-readiness summary.
 | Local review block references the wrong HEAD SHA | **Halt.** Report stale review and current HEAD SHA to operator. |
 | Local readiness outcome is `BLOCKED` or blocking findings remain | **Halt.** List blocking findings. Do not proceed to merge. |
 | `READY_WITH_FOLLOWUPS` omits follow-up handling | **Halt.** Report missing follow-up IDs or residual-risk notes. |
+| Code-changing PR omits successful full local build evidence | **Halt.** Run the full local build successfully or explain non-applicability only for documentation-only/backlog-only work. |
 | Shadow review unavailable or still pending | **Warning.** Note in PR summary. Shadow review remains advisory unless operator elevated it. |
-| All 3 checks pass | **Ready.** Present PR for merge approval. |
+| All 4 checks pass | **Ready.** Present PR for merge approval. |
 
 Shadow-review timeout does not fail this gate by itself. The required dependency
 is local review coverage for the current HEAD.
