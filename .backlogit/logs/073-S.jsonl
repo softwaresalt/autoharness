@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-05T13:59:55.915913-07:00","actor":"backlogit","item_id":"073-S","event_type":"shipment_created","delta":{"items":["063.001-T"],"title":"CI build skip rules"}}
+{"timestamp":"2026-07-05T13:59:56.3979219-07:00","actor":"backlogit","item_id":"073-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
