@@ -785,8 +785,8 @@ Map primitives to template groups:
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
 | 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true), `prompts/feature-flow`, `prompts/feature-flow-parallel` (P-016 planning-overlap alias, not parallel implementation), `prompts/feature-flow-dark` (P-017 exact-trigger shim) |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight, tool availability gate, P-016 topology awareness, and P-017 dark-mode gate awareness), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
-| 6 - Injection Points | `instructions/*`, `foundation/copilot-instructions`, `skills/skill-search` |
-| 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review` |
+| 6 - Injection Points | `instructions/*`, including `instructions/output-timestamps`, `foundation/copilot-instructions`, `skills/skill-search` |
+| 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review`, `instructions/output-timestamps` |
 | 8 - Workflow Policy | `policies/workflow-policies` |
 | 9 - Repo Knowledge | `foundation/AGENTS.md` (progressive disclosure), `instructions/architecture-doc` |
 | 10 - Operational Closure | `skills/runtime-verification`, `skills/operational-closure`, PR and CI handoff sections in pipeline templates |
@@ -862,6 +862,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `concurrency.instructions.md` — File operation locking protocol for multi-agent and human+agent concurrency control. Universal (install as-is). Requires the `file-lock` skill scripts to be installed alongside.
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
    * `context-efficiency.instructions.md` — Context window hygiene: tool result offloading, committed change eviction, and proactive compaction triggers (Primitive 1). Universal (install as-is).
+   * `output-timestamps.instructions.md` — Operator-visible timestamp discipline for phase transitions and long-running operations (Primitive 6 / Primitive 7). Universal (install as-is). Uses a fixed ISO-8601 UTC + delta format, so no variable-resolution-table entry is required.
    * `ci-security.instructions.md` — CI/CD security and hygiene conventions. Adapt `{{CI_WORKFLOW_GLOB}}` to match the workspace CI platform (e.g., `**/.github/workflows/*.yml` for GitHub Actions). Install when the workspace uses a CI system detected during discovery.
    * `workflows.instructions.md` — CI/CD workflow structural conventions (job naming, artifacts, caching, matrix, reusable workflows). Install alongside `ci-security.instructions.md` when a CI system is detected.
    * `github-pr-automation.instructions.md` — GitHub-specific PR automation: local-review readiness verification, optional Copilot shadow-review lifecycle during migration, and CI check monitoring with back-off polling. Install when the workspace is hosted on GitHub (git remote contains `github.com` or `{{CI_PLATFORM}}` is `GitHub Actions`). Resolves `{{REPO_OWNER}}` and `{{REPO_NAME}}` from the git remote URL.
