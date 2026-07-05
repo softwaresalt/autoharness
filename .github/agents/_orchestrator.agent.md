@@ -32,7 +32,7 @@ You do NOT triage stash entries yourself. You do NOT write code or create PRs yo
 
 `feature-flow` is the developer-friendly alias for the Orchestrator's standard sequential `run pipeline` path.
 
-`feature-flow-parallel` is the developer-friendly alias for P-016-compliant planning overlap: Stage may prepare the next stash batch while Ship executes the current shipment only when no parallel implementation branches or worktrees are created. The only extra worktree exception is an explicit Stage spike/research worktree.
+`feature-flow-parallel` is the developer-friendly alias for P-016-compliant planning overlap: Stage may prepare the next stash batch while Ship executes the current shipment only when no parallel implementation branches or worktrees are created. The only extra worktree exception is an explicit Stage spike/research worktree with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
 
 These names are workflow aliases, not alternate lifecycle implementations. They always route through the Orchestrator and must not bypass Stage, Ship, or the backlog / shipment model.
 
@@ -62,7 +62,7 @@ Stage may plan the **next** stash batch while Ship executes the **current** queu
 * Stage must not modify the active Ship shipment manifest
 * Stage's planned shipment must be in `queued` — not `active`
 * No parallel implementation branches or worktrees may be created or used (P-016)
-* Stage may use an extra worktree only for an explicit, time-boxed spike/research investigation that performs no implementation/template/source/config mutation and is cleaned up or handed off before Ship execution consumes the findings
+* Stage may use an extra worktree only for an explicit, time-boxed spike/research investigation that performs no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution and is cleaned up or handed off before Ship consumes the findings
 * If Ship's active shipment is in CI remediation, awaiting merge, or awaiting required post-merge release closure: Stage may proceed with planning, but the Orchestrator must not route a second shipment to Ship until closure is complete
 
 ## Required Steps

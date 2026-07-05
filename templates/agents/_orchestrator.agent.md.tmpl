@@ -82,7 +82,7 @@ This agent works across any AI coding environment: VS Code with GitHub Copilot, 
 
 When multiple agents are active, follow the concurrency protocol in `.github/instructions/concurrency.instructions.md`.
 
-Stage and Ship must not operate on parallel implementation branches or worktrees. Stage may prepare backlog/planning artifacts only when that work does not create a parallel implementation branch/worktree. The only extra worktree exception is an explicit, time-boxed Stage spike/research worktree that performs no implementation, no shipment claim, no PR preparation, and no Ship execution.
+Stage and Ship must not operate on parallel implementation branches or worktrees. Stage may prepare backlog/planning artifacts only when that work does not create a parallel implementation branch/worktree. The only extra worktree exception is an explicit, time-boxed Stage spike/research worktree that performs no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
 
 ### Elective Agent Concurrency Constraints
 
@@ -118,7 +118,7 @@ Allow Stage planning to overlap Ship execution only when the overlap does not cr
 * Stage must not modify the active Ship shipment manifest
 * Stage's planned shipment must be in `{{STATUS_QUEUED}}` — not `{{STATUS_ACTIVE}}`
 * No parallel implementation branches or worktrees may be created or used (P-016)
-* Stage may use an extra worktree only for an explicit, time-boxed spike/research investigation that performs no implementation/template/source/config mutation and is cleaned up or handed off before Ship execution consumes the findings
+* Stage may use an extra worktree only for an explicit, time-boxed spike/research investigation that performs no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution and is cleaned up or handed off before Ship consumes the findings
 * If Ship's active shipment is in CI remediation, awaiting merge, or awaiting required post-merge release closure: Stage may proceed with planning, but the Orchestrator must not route a second shipment to Ship until closure is complete
 
 ## Required Steps

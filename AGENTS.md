@@ -41,7 +41,7 @@ This file defines the authoritative rules for working in the autoharness reposit
 2. Ensure the template works for at least 3 different technology profiles
 3. Update the variable resolution table in install-harness SKILL.md
 4. Test the template produces valid output when all variables are resolved
-5. Keep one active implementation branch/worktree; only explicit Stage spike/research worktrees are exempt (P-016)
+5. Keep one active implementation branch/worktree; only explicit Stage spike/research worktrees are exempt, and they cannot perform implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution (P-016)
 
 ## Available Agents
 

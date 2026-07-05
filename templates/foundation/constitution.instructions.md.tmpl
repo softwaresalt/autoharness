@@ -213,7 +213,8 @@ Run in order. Do not skip any gate.
    MUST NOT split implementation, backlog execution, PR preparation, or closure
    across parallel branches or worktrees. The only exception is an explicit
    Stage-owned, time-boxed spike/research worktree used for staging investigation;
-   that worktree MUST NOT perform implementation or Ship execution.
+   that worktree MUST NOT perform implementation, template/source/config mutation,
+   shipment claim, PR preparation, or Ship execution.
 4. **Commit discipline**: Each commit MUST be coherent and buildable. Commit
    messages follow conventional commits format (`feat:`, `fix:`, `docs:`, `test:`).
 5. **No dead code**: Placeholder modules MUST be replaced or removed before a

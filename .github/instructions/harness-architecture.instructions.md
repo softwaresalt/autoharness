@@ -139,7 +139,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Handoff contracts preserve verification and closure expectations from planning through release
 * Stop conditions prevent infinite loops (circuit breakers on task count, failure count, cycle count)
 * Stall detection enforces timeouts on long-running commands
-* Planning overlap must comply with P-016: Stage may plan ahead only when it does not create parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation or Ship execution
+* Planning overlap must comply with P-016: Stage may plan ahead only when it does not create parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
 
 ## Primitive 5: Tool Execution, Safety Modes, and Guardrails
 
@@ -166,7 +166,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 * Architectural linters enforce structural boundaries with agent-readable error messages
 * Lint error messages include remediation instructions so agents can self-correct
 * In the two-agent model (Stage + Ship), each agent declares a `## Role Boundary (NON-NEGOTIABLE)` table with Allowed/Forbidden operations. The `role-enforcement.instructions.md` instruction teaches agents to self-check against their declared boundary before any mutation (P-010)
-* P-016 forbids parallel implementation branches/worktrees. Agents fail closed on ambiguous extra worktrees; Stage's only extra-worktree allowance is explicit, time-boxed spike/research investigation with no implementation, shipment claim, PR preparation, or Ship execution
+* P-016 forbids parallel implementation branches/worktrees. Agents fail closed on ambiguous extra worktrees; Stage's only extra-worktree allowance is explicit, time-boxed spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
 
 ## Primitive 6: Injection Points and Dynamic Reminders
 

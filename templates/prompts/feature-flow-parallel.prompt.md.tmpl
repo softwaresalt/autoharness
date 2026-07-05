@@ -15,7 +15,7 @@ This prompt is a user-friendly alias for the Orchestrator's pipelined execution 
 ## Requirements
 
 1. Follow the Orchestrator's Step 0.0 tool-availability gate and Step 0 state assessment before doing any routing.
-2. Prefer **P-016 planning-overlap mode**: while Ship executes the current queued shipment, Stage may prepare the next stash batch only when doing so does not create a parallel implementation branch or worktree. The only extra worktree exception is an explicit, time-boxed Stage spike/research worktree with no implementation, shipment claim, PR preparation, or Ship execution.
+2. Prefer **P-016 planning-overlap mode**: while Ship executes the current queued shipment, Stage may prepare the next stash batch only when doing so does not create a parallel implementation branch or worktree. The only extra worktree exception is an explicit, time-boxed Stage spike/research worktree with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
 3. Never bypass Orchestrator routing and never allow more than one active Ship shipment. A second shipment must not route to Ship until the current shipment's required release closure is complete.
 4. If planning-overlap mode is unsafe, unavailable, or unnecessary for the current backlog state, degrade to the standard sequential `feature-flow` path.
 5. If the requested work exists only in chat and is not yet captured in the configured stash / backlog workflow, stop and ask the operator to capture it through the normal intake path before continuing.

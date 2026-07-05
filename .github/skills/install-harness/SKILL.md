@@ -1346,7 +1346,7 @@ For each enabled capability pack:
    a. Confirm `workflow-policies` contains `P-016` and "No Parallel Branch/Worktree Execution"
    b. Confirm `constitution.instructions.md` or root `AGENTS.md` states single active implementation branch/worktree behavior
    c. Confirm `.ship.agent.md` contains a P-016 worktree topology gate before shipment claim or mutation
-   d. Confirm `.stage.agent.md` limits extra worktrees to explicit Stage spike/research investigation with no implementation or Ship execution
+   d. Confirm `.stage.agent.md` limits extra worktrees to explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
    e. Confirm `_orchestrator.agent.md` describes planning overlap without requiring different implementation branches
    f. Report FAIL for stale guidance that endorses parallel implementation branches/worktrees outside the Stage spike/research exception
 

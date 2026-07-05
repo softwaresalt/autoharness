@@ -99,7 +99,7 @@ autoharness setup-codex         # Codex
 # Run the full Stage -> Ship lifecycle through the Orchestrator
 /feature-flow
 
-# Prefer pipelined Stage + Ship execution when policy and branch safety allow it
+# Prefer P-016 planning overlap when it will not create parallel implementation branches/worktrees
 /feature-flow-parallel
 
 # Run deterministic verification against an installed workspace
@@ -139,9 +139,9 @@ After a harness is installed, the primary user-facing lifecycle entrypoints are:
 | Prompt | Use When | What It Does |
 |---|---|---|
 | `/feature-flow` | You want the normal full lifecycle for the next feature or chore | Routes through the Orchestrator, which runs the standard sequential Stage -> Ship workflow |
-| `/feature-flow-parallel` | You want the same lifecycle but want parallel planning/shipping when safe | Routes through the Orchestrator, which prefers pipelined execution and falls back to sequential mode when policy or branch-safety constraints block pipelining |
+| `/feature-flow-parallel` | You want the same lifecycle but prefer P-016-compliant planning overlap when safe | Routes through the Orchestrator, which lets Stage plan ahead only when doing so does not create parallel implementation branches/worktrees; otherwise it falls back to sequential mode |
 
-These are workflow aliases, not separate pipelines. They do not bypass Stage, Ship, the backlog model, or shipment policies. They are simply the polished front door to the existing Orchestrator workflow.
+These are workflow aliases, not separate pipelines, over the existing Orchestrator workflow. They do not bypass Stage, Ship, the backlog model, or shipment policies. `feature-flow-parallel` does not authorize parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
 
 ## Documentation
 

@@ -31,7 +31,8 @@ lock availability, concurrent-access mode, or multi-agent coordination as
 permission to work across parallel implementation branches or worktrees. The
 only allowed extra worktree is an explicit Stage-owned, time-boxed
 spike/research worktree used for staging investigation and not for
-implementation, shipment claim, PR preparation, or Ship execution.
+implementation, template/source/config mutation, shipment claim, PR preparation,
+or Ship execution.
 
 If an agent detects a prohibited or ambiguous parallel implementation worktree,
 it MUST halt under P-016 before acquiring file locks or modifying files.
