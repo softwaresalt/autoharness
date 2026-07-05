@@ -200,9 +200,12 @@ branch has not changed.
 
 #### Step 5d: Merge Execution and Admin Fallback State Machine
 
-1. Attempt the normal merge path first using merge-commit strategy.
-2. If normal merge succeeds, record `NORMAL_MERGE_READY` / merged and finish.
-3. If normal merge is rejected, classify the blocking state before taking any
+1. Classify the pre-merge normal path. If a merge commit can proceed, record
+   `NORMAL_MERGE_READY` before executing the merge command.
+2. Attempt the normal merge path first using merge-commit strategy.
+3. If normal merge succeeds, record a distinct `MERGE_SUCCEEDED` result with the
+   merge SHA and finish.
+4. If normal merge is rejected, classify the blocking state before taking any
    fallback action:
    * `REVIEW_REQUIRED_BLOCK`
    * `CONVERSATION_RESOLUTION_BLOCK`
@@ -210,15 +213,15 @@ branch has not changed.
    * `MERGE_STRATEGY_BLOCK`
    * `MISSING_ADMIN_RIGHTS`
    * `UNKNOWN_MERGE_BLOCK`
-4. In dark mode, admin fallback may be attempted only for branch-protection
+5. In dark mode, admin fallback may be attempted only for branch-protection
    review/conversation blocks explicitly covered by `admin_fallback_pre_authorized`.
    Before fallback, run Step 5c's immediate `headRefOid` re-query/comparison and
    re-confirm required checks, P-009 merge-commit strategy, P-016 topology, and
    scope match.
-5. Never use admin fallback for failed/pending/missing required checks, stale
+6. Never use admin fallback for failed/pending/missing required checks, stale
    local review readiness, unresolved local P0/P1 findings, squash/rebase-only
    merge strategy, secrets-safety risk, scope mismatch, or unknown merge blocks.
-6. Record every normal merge and admin fallback attempt in the PR summary or
+7. Record every normal merge and admin fallback attempt in the PR summary or
    merge evidence with state, reason, command/API used, and result. If fallback
    fails because credentials lack bypass rights, halt with `MISSING_ADMIN_RIGHTS`.
 

@@ -405,17 +405,17 @@ After all tasks in the queue are complete:
       `action: halted`). Instruct the operator to update repository settings (GitHub Settings
       → General → Pull Requests → uncheck "Allow squash merging" and "Allow rebase merging")
       before proceeding.
- 17. **Dark-mode merge/admin fallback state machine (P-017)**: When `DARK_MODE_ACTIVE`
-     is present, attempt the normal merge path first. If it is rejected, classify the
-     result as `REVIEW_REQUIRED_BLOCK`, `CONVERSATION_RESOLUTION_BLOCK`, `CHECKS_BLOCK`,
-     `MERGE_STRATEGY_BLOCK`, `MISSING_ADMIN_RIGHTS`, or `UNKNOWN_MERGE_BLOCK`.
-     Admin fallback may be attempted only when `admin_fallback_pre_authorized` is true
-     and the block is an explicitly covered branch-protection review/conversation block.
-     Never use admin fallback for failed/pending/missing required checks, stale local
-     readiness, unresolved local P0/P1 findings, P-009 violations, P-016 violations,
-     secrets-safety risk, scope mismatch, or unknown merge blocks. Record every normal
-     merge and admin fallback attempt as operator-visible audit evidence, including the
-     state, decision, command/API used, and result.
+17. **Dark-mode merge/admin fallback state machine (P-017)**: When `DARK_MODE_ACTIVE`
+    is present, attempt the normal merge path first. If it is rejected, classify the
+    result as `REVIEW_REQUIRED_BLOCK`, `CONVERSATION_RESOLUTION_BLOCK`, `CHECKS_BLOCK`,
+    `MERGE_STRATEGY_BLOCK`, `MISSING_ADMIN_RIGHTS`, or `UNKNOWN_MERGE_BLOCK`.
+    Admin fallback may be attempted only when `admin_fallback_pre_authorized` is true
+    and the block is an explicitly covered branch-protection review/conversation block.
+    Never use admin fallback for failed/pending/missing required checks, stale local
+    readiness, unresolved local P0/P1 findings, P-009 violations, P-016 violations,
+    secrets-safety risk, scope mismatch, or unknown merge blocks. Record every normal
+    merge and admin fallback attempt as operator-visible audit evidence, including the
+    state, decision, command/API used, and result.
 
 ### Step 6: Post-Merge Closure (mandatory after user-approved merge)
 
