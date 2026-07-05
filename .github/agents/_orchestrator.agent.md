@@ -34,7 +34,9 @@ You do NOT triage stash entries yourself. You do NOT write code or create PRs yo
 
 `feature-flow-parallel` is the developer-friendly alias for P-016-compliant planning overlap: Stage may prepare the next stash batch while Ship executes the current shipment only when no parallel implementation branches or worktrees are created. The only extra worktree exception is an explicit Stage spike/research worktree with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution.
 
-These names are workflow aliases, not alternate lifecycle implementations. They always route through the Orchestrator and must not bypass Stage, Ship, or the backlog / shipment model.
+`feature-flow-dark` is the developer-friendly prompt shim for the exact P-017 trigger `Run pipeline in dark mode`.
+
+These names are workflow aliases, not alternate lifecycle implementations. They always route through the Orchestrator and must not bypass Stage, Ship, or the backlog / shipment model. `feature-flow-dark` activates bounded dark factory mode only through the Orchestrator; it is not a waiver of local readiness, merge, telemetry, or closure gates.
 
 ### Dark Factory Mode Trigger Semantics (P-017)
 
