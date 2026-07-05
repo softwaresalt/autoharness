@@ -34,15 +34,23 @@ Tool: mcp_github_request_copilot_review
   pullNumber: <pr_number>
 ```
 
-If the MCP tool is unavailable, fall back to the CLI:
-
-```bash
-gh pr edit <pr_number> --add-reviewer "copilot"
-```
+If the MCP tool is unavailable, use a repository-approved GitHub API or CLI
+wrapper only when one is explicitly configured for Copilot review requests. Do
+not treat `gh pr edit --add-reviewer` as a required fallback for Copilot review:
+GitHub CLI reviewer flags do not reliably support Copilot's special reviewer
+identity across versions. When no supported fallback is configured, record
+shadow review as unavailable/advisory and continue to the local readiness gate.
 
 Shadow review is advisory by default. It can help catch residual issues after the
 local review gate, but it is not a required dependency for merge readiness unless
 the operator explicitly elevates it for the current PR.
+
+When `DARK_MODE_ACTIVE` is present under P-017, keep the workflow local-review-first:
+the current-HEAD local review readiness record is the authoritative merge gate,
+and Copilot/GitHub-hosted review remains optional advisory shadow review unless
+the dark-mode activation contract or operator explicitly elevates it. A clean
+shadow review cannot compensate for stale or missing local readiness, and shadow
+review timeout or unavailability does not block by default.
 
 ### 1.2 Poll for Review Completion
 
@@ -222,6 +230,11 @@ This gate applies to **all pull requests** created or merged by the Ship agent:
 feature PRs, chore PRs, and post-merge closure PRs. There is no exception for
 "small" or "hygiene" PRs. Every merge requires a fresh local review readiness
 record covering the current HEAD. Shadow review is optional and advisory by default.
+
+In dark mode, this gate is still local-review-first: unresolved local P0/P1
+findings block merge, `READY_WITH_FOLLOWUPS` is allowed only when follow-up item
+IDs or explicit residual-risk notes are recorded, and advisory shadow-review
+comments are surfaced as follow-ups unless elevated by policy or operator.
 
 #### 1.9.1 Readiness Query
 
