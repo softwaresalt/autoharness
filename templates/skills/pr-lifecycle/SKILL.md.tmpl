@@ -91,6 +91,9 @@ advisory shadow mode immediately after PR creation or after pushing new commits:
 1. Request shadow review per `.github/instructions/github-pr-automation.instructions.md` §1.1 when the operator or workflow enables migration shadow mode.
 2. Poll for completion using the back-off cadence in §1.2.
 3. Do not treat shadow review as a required dependency for merge readiness unless the operator explicitly elevates it for the current PR.
+4. When `DARK_MODE_ACTIVE` is present, keep shadow review advisory by default:
+   local review readiness remains authoritative, and timeout/unavailability is
+   recorded in the PR readiness summary instead of blocking merge readiness.
 
 ### Step 3: Handle review feedback
 
@@ -148,6 +151,10 @@ local review readiness verification defined in
 5. Surface human review threads, `reviewDecision`, and any
    `CHANGES_REQUESTED` reviews in the merge-readiness summary — these
    may independently block merge at the GitHub level.
+6. In dark mode, this local readiness gate is the authoritative merge-readiness
+   gate: unresolved local P0/P1 findings block, `READY_WITH_FOLLOWUPS` requires
+   explicit follow-up handling, and shadow-review unavailability does not block
+   unless elevated by the activation contract or operator.
 
 #### Step 5b: Present merge readiness
 

@@ -312,6 +312,12 @@ Invoke the **review** skill in `mode:report-only` against the changed files. The
 * `READY_WITH_FOLLOWUPS` — proceed only after recording explicit follow-up handling for the residual P2/P3 findings
 * `BLOCKED` — halt; fix the P0/P1 findings before proceeding
 
+When `DARK_MODE_ACTIVE` is present under P-017, this review gate is the
+authoritative local readiness gate for PR preparation. Hosted Copilot/GitHub
+review is optional advisory shadow review by default; it cannot replace local
+review, cannot override unresolved P0/P1 findings, and does not block on timeout
+or unavailability unless the operator explicitly elevated it for the shipment.
+
 When the `adversarial-review` capability pack is installed, Ship invokes the **adversarial-review** agent in place of the standard review skill, with `mode: report-only` and `reviewers: 3`. HIGH-confidence consensus findings block the gate identically to standard review P0/P1 findings. MEDIUM-confidence findings are advisory but must be acknowledged in the task completion note.
 
 #### Step 4.5: Complete Task
@@ -348,6 +354,12 @@ After all tasks in the queue are complete:
     * any residual P2/P3 findings have explicit follow-up handling
 
     If the branch HEAD changed after local review, re-run the local review before proceeding. If any check fails, halt and record a P-014 violation via P-005 telemetry. Optional shadow-review comments are surfaced in the readiness summary but are not merge-blocking by default.
+
+    In dark mode, this local readiness result is authoritative: unresolved local
+    P0/P1 findings block merge, `READY_WITH_FOLLOWUPS` requires explicit
+    follow-up item IDs or residual-risk notes, and shadow-review timeout or
+    unavailability is advisory unless elevated by the P-017 activation contract
+    or operator.
 
     When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Pre-merge review gate: {PASS|HALT} — {detail}` with the gate outcome.
 7. If the changed work touches runtime surfaces, load `.autoharness/workspace-profile.yaml` and invoke **runtime-verification** with `runtime_validation.validator_manifest` plus `runtime_validation.validation_expectations` so the skill produces validator evidence for surface adapters, probe outcomes, manual checkpoint evidence, and blocked prerequisites. Do not fake unsupported automation.
