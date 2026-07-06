@@ -1,6 +1,8 @@
 ---
 title: Validation Gates Reference
 description: Deterministic pre-task-completion validation gates — configuration schema, gate policy, the autoharness gate check CLI contract, and the kill-switch rollback
+doc_type: reference
+source: docs/gates-reference.md
 ---
 
 > **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md)
@@ -124,6 +126,26 @@ telemetry:
 * **Correction report.** Every run emits a per-file pass/fail report enumerating
   each file's exit code and stderr, so an agent can self-heal deterministically.
   `--json` emits the same data as a machine-readable object.
+  When gates run, JSON reports also include a top-level `repeated_failure`
+  object so callers can consume the circuit-breaker state without parsing the
+  human checkpoint file:
+
+  ```json
+  {
+    "repeated_failure": {
+      "count": 2,
+      "threshold": 3,
+      "reached": false,
+      "action": "block"
+    }
+  }
+  ```
+
+  `count` is the consecutive blocking-failure count for the task after this run,
+  `threshold` is `max_gate_failures`, `reached` is true when `count >= threshold`,
+  and `action` is the configured `on_repeated_failure` value (`block` or
+  `escalate`). Passing gate runs reset `count` to `0` and report
+  `reached: false`. The field is additive metadata; exit codes remain unchanged.
 
 The distinction between a **missing gate binary** (a configuration error — clear,
 actionable message) and a **content failure** (the gate ran and returned non-zero)
