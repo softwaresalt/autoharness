@@ -196,6 +196,8 @@ def enforce(
     key = _consecutive_key(task_id)
     limit = max(1, int(policy.max_gate_failures))
     repeated_action = policy.on_repeated_failure
+    if repeated_action not in {BLOCK, ESCALATE}:
+        repeated_action = BLOCK
 
     # No failures: success. Reset the consecutive counter for this task.
     if not report.failures:
@@ -255,7 +257,7 @@ def enforce(
 
     if attempts >= limit:
         checkpoint_path = _write_checkpoint(workspace_path, task_id, report, attempts, when)
-        if policy.on_repeated_failure == ESCALATE:
+        if repeated_action == ESCALATE:
             return GateOutcome(
                 status=STATUS_ESCALATE,
                 exit_code=1,

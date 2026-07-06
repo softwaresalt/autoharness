@@ -228,6 +228,24 @@ class CorrectionReportTests(unittest.TestCase):
                 },
             )
 
+    def test_invalid_repeated_failure_action_defaults_to_block(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            report = _report(_result("docs/b.md", 2, stderr="boom"))
+            outcome = enforce(
+                report,
+                GatePolicy(on_repeated_failure="invalid", max_gate_failures=1),
+                task_id="t",
+                workspace=tmp,
+                clock=_clock,
+            )
+
+            import json
+
+            payload = json.loads(build_correction_report(report, outcome, emit_json=True))
+            self.assertTrue(outcome.requeue)
+            self.assertFalse(outcome.escalate)
+            self.assertEqual(payload["repeated_failure"]["action"], "block")
+
     def test_json_report_pass_reset_exposes_zero_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             policy = GatePolicy(max_gate_failures=3)
