@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from autoharness.gates.config import GatePolicy
+from autoharness.cli import _parse_gate_check_args
 from autoharness.gates.feedback import build_correction_report, enforce
 from autoharness.gates.gate import GateCheckReport
 from autoharness.gates.runner import GateResult
@@ -180,6 +181,12 @@ class ForceBypassTests(unittest.TestCase):
             text = audit.read_text(encoding="utf-8")
             self.assertIn("FORCE_BYPASS", text)
             self.assertIn("050.008", text)
+
+
+class GateCliArgumentTests(unittest.TestCase):
+    def test_force_and_no_count_are_mutually_exclusive(self) -> None:
+        with self.assertRaisesRegex(ValueError, "--force and --no-count cannot be combined"):
+            _parse_gate_check_args(["--base", "main", "--force", "--no-count"])
 
 
 class CorrectionReportTests(unittest.TestCase):

@@ -167,8 +167,8 @@ autoharness gate check --base <ref> [--task <id>] [--head <ref>] \
 | `--head <ref>` | `HEAD` | Git ref for the modified side of the diff. |
 | `--workspace`, `-w` | `.` | Workspace root containing `.autoharness/config.yaml`. |
 | `--json` | off | Emit the correction report as JSON. |
-| `--force` | off | Operator-only bypass of a failing gate. Audited. |
-| `--no-count` | off | Advisory/manual pre-check mode. Do not increment or reset the repeated-failure counter. |
+| `--force` | off | Operator-only bypass of a failing gate. Audited. Cannot be combined with `--no-count`. |
+| `--no-count` | off | Advisory/manual pre-check mode. Do not increment or reset the repeated-failure counter. Cannot be combined with `--force`. |
 
 Modified files are discovered with `git diff --name-only <base>...<head>`, returned
 as forward-slash, repo-relative paths. If git is unavailable or the workspace is not

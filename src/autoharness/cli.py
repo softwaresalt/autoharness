@@ -170,9 +170,11 @@ Options:
   --workspace, -w     Workspace root containing .autoharness/config.yaml. Default: .
   --json              Emit the correction report as JSON.
   --force             Operator-only bypass of a failing gate. Audited. Never
-                      reachable from an agent surface.
+                      reachable from an agent surface. Cannot be combined with
+                      --no-count.
   --no-count          Advisory/manual pre-check mode. Do not increment or reset
-                      the repeated-failure counter.
+                      the repeated-failure counter. Cannot be combined with
+                      --force.
 
 Exit codes:
   0  all matched gates passed, or no gates configured, or no files matched.
@@ -226,6 +228,8 @@ def _parse_gate_check_args(args: list[str]) -> dict:
 
     if parsed["base"] is None:
         raise ValueError("gate check requires --base <ref>")
+    if parsed["force"] and parsed["no_count"]:
+        raise ValueError("--force and --no-count cannot be combined")
     return parsed
 
 
