@@ -1,5 +1,65 @@
 # Changelog
 
+## 1.4.7 - 2026-07-06
+
+### Added
+
+- Added deterministic validation gates for the autoharness CLI, including the
+  `lifecycle_hooks` configuration schema, gate diff discovery, glob matching,
+  injection-safe subprocess execution, `autoharness gate check`, correction
+  reports, force-audit behavior, and gate policy tests.
+- Added install-manifest autoharness version recording and placeholder
+  verification so installed workspaces can compare against the current
+  autoharness version.
+- Added telemetry capture foundations with execution epochs, JSONL/SQLite sinks,
+  capture CLI support, and documentation for the telemetry contract.
+- Added evaluation-runner foundations, including model-matrix loading,
+  frozen-state execution, deterministic reviewer-matrix diff grading,
+  comparative baseline summaries, and `eval run` CLI wiring.
+- Added shipment-closure safety hardening: P-015 single-artifact safe-close
+  policy, shipment reconciliation updates, and Ship closure guidance to avoid
+  backlogit shipment cascade side effects.
+- Added manifest placeholder scan coverage for scalar fields such as
+  `.autoharness/harness-manifest.yaml` `autoharness_version`.
+- Added P-016 single-implementation-branch/worktree policy coverage across the
+  foundation, Orchestrator, Stage, Ship, entrypoint prompts, verification, and
+  closure surfaces.
+- Added P-017 dark factory mode semantics, including explicit trigger phrases,
+  bounded scope, local-review-first merge readiness, admin fallback rules,
+  operator-visible telemetry, `/feature-flow-dark`, and verification coverage.
+- Added output timestamp instructions and intercom progress timestamp weaving for
+  long-running agent phases.
+- Added `autoharness gate check --json` `repeated_failure` metadata and
+  `--no-count` advisory/manual gate-check mode for backlogit gate-broker
+  integration.
+
+### Changed
+
+- Kept workspace MCP and local environment configuration out of tracked release
+  artifacts, and updated startup behavior to preserve local environment values.
+- Made the sequential single-PR-at-a-time workflow the explicit default.
+- Removed deprecated per-agent `model_routing` frontmatter in favor of
+  `model_tier` / `max_subagent_tier`, while preserving config-level
+  `model_routing` tier bindings.
+- Required a successful full local build before code-changing PRs are submitted
+  or updated, and documented the non-applicability path for docs/backlog-only
+  PRs.
+- Documented the CI build-action scope decision for reducing unnecessary build
+  runs on non-code changes.
+- Recorded the reference-adoption evaluation spike and its follow-on guidance
+  for future template curation work.
+
+### Fixed
+
+- Fixed eval CLI help-token handling so only a leading help token triggers usage
+  output.
+- Fixed unified-diff parsing for added lines whose content begins with `+++ `.
+- Fixed dark-factory verification so policy-only installs do not trigger
+  dark-mode checks unless the dark prompt artifact is installed.
+- Normalized invalid `repeated_failure.action` values to `block` and made
+  `--force` mutually exclusive with `--no-count` to avoid ambiguous gate
+  counter behavior.
+
 ## 1.4.6 - 2026-06-24
 
 ### Changed
