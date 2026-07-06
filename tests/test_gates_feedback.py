@@ -173,6 +173,80 @@ class CorrectionReportTests(unittest.TestCase):
             self.assertEqual(payload["status"], outcome.status)
             self.assertEqual(payload["results"][0]["exit_code"], 2)
             self.assertEqual(payload["results"][0]["stderr"], "boom")
+            self.assertEqual(
+                payload["repeated_failure"],
+                {
+                    "count": 1,
+                    "threshold": 3,
+                    "reached": False,
+                    "action": "block",
+                },
+            )
+
+    def test_json_report_marks_repeated_failure_reached(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            report = _report(_result("docs/b.md", 2, stderr="boom"))
+            policy = GatePolicy(max_gate_failures=2)
+
+            enforce(report, policy, task_id="t", workspace=tmp, clock=_clock)
+            outcome = enforce(report, policy, task_id="t", workspace=tmp, clock=_clock)
+
+            import json
+
+            payload = json.loads(build_correction_report(report, outcome, emit_json=True))
+            self.assertEqual(
+                payload["repeated_failure"],
+                {
+                    "count": 2,
+                    "threshold": 2,
+                    "reached": True,
+                    "action": "block",
+                },
+            )
+
+    def test_json_report_exposes_escalate_action(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            report = _report(_result("docs/b.md", 2, stderr="boom"))
+            outcome = enforce(
+                report,
+                GatePolicy(on_repeated_failure="escalate", max_gate_failures=1),
+                task_id="t",
+                workspace=tmp,
+                clock=_clock,
+            )
+
+            import json
+
+            payload = json.loads(build_correction_report(report, outcome, emit_json=True))
+            self.assertEqual(
+                payload["repeated_failure"],
+                {
+                    "count": 1,
+                    "threshold": 1,
+                    "reached": True,
+                    "action": "escalate",
+                },
+            )
+
+    def test_json_report_pass_reset_exposes_zero_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            policy = GatePolicy(max_gate_failures=3)
+            enforce(_report(_result("docs/b.md", 2)), policy, task_id="t", workspace=tmp, clock=_clock)
+            report = _report(_result("docs/b.md", 0))
+            outcome = enforce(report, policy, task_id="t", workspace=tmp, clock=_clock)
+
+            import json
+
+            payload = json.loads(build_correction_report(report, outcome, emit_json=True))
+            self.assertEqual(
+                payload["repeated_failure"],
+                {
+                    "count": 0,
+                    "threshold": 3,
+                    "reached": False,
+                    "action": "block",
+                },
+            )
 
 
 if __name__ == "__main__":

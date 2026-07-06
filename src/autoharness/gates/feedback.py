@@ -55,6 +55,8 @@ class GateOutcome:
     exit_code: int
     blocked: bool
     consecutive_failures: int = 0
+    repeated_failure_threshold: int = 0
+    repeated_failure_action: str = BLOCK
     requeue: bool = False
     escalate: bool = False
     forced: bool = False
@@ -192,6 +194,8 @@ def enforce(
     workspace_path = Path(workspace)
     when = _now(clock)
     key = _consecutive_key(task_id)
+    limit = max(1, int(policy.max_gate_failures))
+    repeated_action = policy.on_repeated_failure
 
     # No failures: success. Reset the consecutive counter for this task.
     if not report.failures:
@@ -199,7 +203,13 @@ def enforce(
         if state.get(key):
             state[key] = 0
             _write_state(workspace_path, state)
-        return GateOutcome(status=STATUS_PASSED, exit_code=0, blocked=False)
+        return GateOutcome(
+            status=STATUS_PASSED,
+            exit_code=0,
+            blocked=False,
+            repeated_failure_threshold=limit,
+            repeated_failure_action=repeated_action,
+        )
 
     blocking = [r for r in report.failures if _effective_enforcement(r, policy) == ABSOLUTE]
 
@@ -213,6 +223,8 @@ def enforce(
             status=STATUS_ADVISORY,
             exit_code=0,
             blocked=False,
+            repeated_failure_threshold=limit,
+            repeated_failure_action=repeated_action,
             messages=messages,
         )
 
@@ -227,6 +239,8 @@ def enforce(
             exit_code=0,
             blocked=False,
             forced=True,
+            repeated_failure_threshold=limit,
+            repeated_failure_action=repeated_action,
             messages=(
                 f"OPERATOR FORCE BYPASS applied to {len(blocking)} blocking "
                 f"gate failure(s). Audited to {audit_path}.",
@@ -239,7 +253,6 @@ def enforce(
     state[key] = attempts
     _write_state(workspace_path, state)
 
-    limit = max(1, int(policy.max_gate_failures))
     if attempts >= limit:
         checkpoint_path = _write_checkpoint(workspace_path, task_id, report, attempts, when)
         if policy.on_repeated_failure == ESCALATE:
@@ -248,6 +261,8 @@ def enforce(
                 exit_code=1,
                 blocked=True,
                 consecutive_failures=attempts,
+                repeated_failure_threshold=limit,
+                repeated_failure_action=repeated_action,
                 escalate=True,
                 checkpoint_path=checkpoint_path,
                 messages=(
@@ -261,6 +276,8 @@ def enforce(
             exit_code=1,
             blocked=True,
             consecutive_failures=attempts,
+            repeated_failure_threshold=limit,
+            repeated_failure_action=repeated_action,
             requeue=True,
             checkpoint_path=checkpoint_path,
             messages=(
@@ -275,6 +292,8 @@ def enforce(
         exit_code=1,
         blocked=True,
         consecutive_failures=attempts,
+        repeated_failure_threshold=limit,
+        repeated_failure_action=repeated_action,
         messages=(
             f"{len(blocking)} gate failure(s) blocked task completion "
             f"(attempt {attempts}/{limit}).",
@@ -293,6 +312,17 @@ def _result_dict(result: GateResult) -> dict:
         "passed": result.passed,
         "failure_reason": result.failure_reason,
         "enforcement": result.enforcement,
+    }
+
+
+def _repeated_failure_dict(outcome: GateOutcome) -> dict:
+    count = max(0, int(outcome.consecutive_failures))
+    threshold = max(1, int(outcome.repeated_failure_threshold or 1))
+    return {
+        "count": count,
+        "threshold": threshold,
+        "reached": count >= threshold,
+        "action": outcome.repeated_failure_action,
     }
 
 
@@ -319,6 +349,7 @@ def build_correction_report(
             "checkpoint_path": outcome.checkpoint_path,
             "messages": list(outcome.messages),
             "matched_files": list(report.matched_files),
+            "repeated_failure": _repeated_failure_dict(outcome),
             "results": [_result_dict(r) for r in report.results],
         }
         return json.dumps(payload, indent=2, sort_keys=True)
