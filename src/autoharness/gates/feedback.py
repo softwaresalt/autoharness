@@ -180,6 +180,7 @@ def enforce(
     task_id: str | None = None,
     workspace: Path | str = ".",
     force: bool = False,
+    count_failures: bool = True,
     clock: Callable[[], datetime] | None = None,
 ) -> GateOutcome:
     """Apply gate policy to a report and return the enforcement outcome.
@@ -198,17 +199,22 @@ def enforce(
     repeated_action = policy.on_repeated_failure
     if repeated_action not in {BLOCK, ESCALATE}:
         repeated_action = BLOCK
+    state = _read_state(workspace_path)
+    current_count = int(state.get(key, 0))
 
     # No failures: success. Reset the consecutive counter for this task.
     if not report.failures:
-        state = _read_state(workspace_path)
-        if state.get(key):
+        consecutive_failures = 0
+        if count_failures and state.get(key):
             state[key] = 0
             _write_state(workspace_path, state)
+        elif not count_failures:
+            consecutive_failures = current_count
         return GateOutcome(
             status=STATUS_PASSED,
             exit_code=0,
             blocked=False,
+            consecutive_failures=consecutive_failures,
             repeated_failure_threshold=limit,
             repeated_failure_action=repeated_action,
         )
@@ -225,6 +231,7 @@ def enforce(
             status=STATUS_ADVISORY,
             exit_code=0,
             blocked=False,
+            consecutive_failures=current_count if not count_failures else 0,
             repeated_failure_threshold=limit,
             repeated_failure_action=repeated_action,
             messages=messages,
@@ -233,14 +240,18 @@ def enforce(
     # Operator force bypass. Reset the counter and audit the bypass.
     if force:
         audit_path = _audit_force(workspace_path, task_id, report, when)
-        state = _read_state(workspace_path)
-        state[key] = 0
-        _write_state(workspace_path, state)
+        consecutive_failures = 0
+        if count_failures:
+            state[key] = 0
+            _write_state(workspace_path, state)
+        else:
+            consecutive_failures = current_count
         return GateOutcome(
             status=STATUS_FORCED,
             exit_code=0,
             blocked=False,
             forced=True,
+            consecutive_failures=consecutive_failures,
             repeated_failure_threshold=limit,
             repeated_failure_action=repeated_action,
             messages=(
@@ -250,8 +261,21 @@ def enforce(
         )
 
     # Blocking failure. Increment the consecutive counter for this task.
-    state = _read_state(workspace_path)
-    attempts = int(state.get(key, 0)) + 1
+    if not count_failures:
+        return GateOutcome(
+            status=STATUS_BLOCKED,
+            exit_code=1,
+            blocked=True,
+            consecutive_failures=current_count,
+            repeated_failure_threshold=limit,
+            repeated_failure_action=repeated_action,
+            messages=(
+                f"{len(blocking)} gate failure(s) blocked this advisory check; "
+                "repeated-failure counter was not mutated.",
+            ),
+        )
+
+    attempts = current_count + 1
     state[key] = attempts
     _write_state(workspace_path, state)
 

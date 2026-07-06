@@ -145,7 +145,9 @@ telemetry:
   `threshold` is `max_gate_failures`, `reached` is true when `count >= threshold`,
   and `action` is the configured `on_repeated_failure` value (`block` or
   `escalate`). Passing gate runs reset `count` to `0` and report
-  `reached: false`. The field is additive metadata; exit codes remain unchanged.
+  `reached: false`. When `--no-count` is used, the field reports the current
+  stored counter without incrementing or resetting it. The field is additive
+  metadata; exit codes remain unchanged.
 
 The distinction between a **missing gate binary** (a configuration error — clear,
 actionable message) and a **content failure** (the gate ran and returned non-zero)
@@ -155,7 +157,7 @@ is preserved in the result and the report.
 
 ```bash
 autoharness gate check --base <ref> [--task <id>] [--head <ref>] \
-                       [--workspace <path>] [--json] [--force]
+                       [--workspace <path>] [--json] [--force] [--no-count]
 ```
 
 | Flag | Default | Description |
@@ -166,6 +168,7 @@ autoharness gate check --base <ref> [--task <id>] [--head <ref>] \
 | `--workspace`, `-w` | `.` | Workspace root containing `.autoharness/config.yaml`. |
 | `--json` | off | Emit the correction report as JSON. |
 | `--force` | off | Operator-only bypass of a failing gate. Audited. |
+| `--no-count` | off | Advisory/manual pre-check mode. Do not increment or reset the repeated-failure counter. |
 
 Modified files are discovered with `git diff --name-only <base>...<head>`, returned
 as forward-slash, repo-relative paths. If git is unavailable or the workspace is not

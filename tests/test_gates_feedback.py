@@ -123,6 +123,41 @@ class CircuitBreakerTests(unittest.TestCase):
             self.assertTrue(outcome.escalate)
             self.assertEqual(outcome.exit_code, 1)
 
+    def test_no_count_blocking_failure_does_not_mutate_counter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            report = _report(_result("docs/a.md", 1))
+            policy = GatePolicy(max_gate_failures=1)
+
+            first = enforce(report, policy, task_id="t", workspace=tmp, count_failures=False, clock=_clock)
+            second = enforce(report, policy, task_id="t", workspace=tmp, count_failures=False, clock=_clock)
+
+            self.assertEqual(first.status, "blocked")
+            self.assertEqual(second.status, "blocked")
+            self.assertFalse(first.requeue)
+            self.assertFalse(second.requeue)
+            self.assertEqual(second.consecutive_failures, 0)
+            self.assertFalse((Path(tmp) / ".autoharness" / "gates" / "gate-state.json").exists())
+
+    def test_no_count_pass_does_not_reset_existing_counter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            policy = GatePolicy(max_gate_failures=3)
+            fail = _report(_result("docs/a.md", 1))
+            enforce(fail, policy, task_id="t", workspace=tmp, clock=_clock)
+            enforce(fail, policy, task_id="t", workspace=tmp, clock=_clock)
+
+            no_count_pass = enforce(
+                _report(_result("docs/a.md", 0)),
+                policy,
+                task_id="t",
+                workspace=tmp,
+                count_failures=False,
+                clock=_clock,
+            )
+            after = enforce(fail, policy, task_id="t", workspace=tmp, clock=_clock)
+
+            self.assertEqual(no_count_pass.consecutive_failures, 2)
+            self.assertTrue(after.requeue)
+
 
 class ForceBypassTests(unittest.TestCase):
     def test_force_bypasses_and_audits(self) -> None:
@@ -260,6 +295,48 @@ class CorrectionReportTests(unittest.TestCase):
                 payload["repeated_failure"],
                 {
                     "count": 0,
+                    "threshold": 3,
+                    "reached": False,
+                    "action": "block",
+                },
+            )
+
+    def test_json_report_no_count_exposes_current_counter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            policy = GatePolicy(max_gate_failures=3)
+            enforce(_report(_result("docs/b.md", 2)), policy, task_id="t", workspace=tmp, clock=_clock)
+            report = _report(_result("docs/b.md", 2))
+            outcome = enforce(report, policy, task_id="t", workspace=tmp, count_failures=False, clock=_clock)
+
+            import json
+
+            payload = json.loads(build_correction_report(report, outcome, emit_json=True))
+            self.assertEqual(
+                payload["repeated_failure"],
+                {
+                    "count": 1,
+                    "threshold": 3,
+                    "reached": False,
+                    "action": "block",
+                },
+            )
+
+    def test_json_report_no_count_advisory_exposes_current_counter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            policy = GatePolicy(max_gate_failures=3)
+            enforce(_report(_result("docs/b.md", 2)), policy, task_id="t", workspace=tmp, clock=_clock)
+            enforce(_report(_result("docs/b.md", 2)), policy, task_id="t", workspace=tmp, clock=_clock)
+            report = _report(_result("docs/b.md", 2, enforcement="advisory"))
+            outcome = enforce(report, policy, task_id="t", workspace=tmp, count_failures=False, clock=_clock)
+
+            import json
+
+            payload = json.loads(build_correction_report(report, outcome, emit_json=True))
+            self.assertEqual(outcome.status, "advisory")
+            self.assertEqual(
+                payload["repeated_failure"],
+                {
+                    "count": 2,
                     "threshold": 3,
                     "reached": False,
                     "action": "block",

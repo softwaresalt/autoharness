@@ -161,7 +161,7 @@ autoharness gate check — run deterministic validation gates on modified files
 
 Usage:
   autoharness gate check --base <ref> [--task <id>] [--head <ref>]
-                         [--workspace <path>] [--json] [--force]
+                         [--workspace <path>] [--json] [--force] [--no-count]
 
 Options:
   --base <ref>        Git ref to diff against (the task branch base). Required.
@@ -171,6 +171,8 @@ Options:
   --json              Emit the correction report as JSON.
   --force             Operator-only bypass of a failing gate. Audited. Never
                       reachable from an agent surface.
+  --no-count          Advisory/manual pre-check mode. Do not increment or reset
+                      the repeated-failure counter.
 
 Exit codes:
   0  all matched gates passed, or no gates configured, or no files matched.
@@ -187,6 +189,7 @@ def _parse_gate_check_args(args: list[str]) -> dict:
         "workspace": Path("."),
         "emit_json": False,
         "force": False,
+        "no_count": False,
     }
     index = 0
     while index < len(args):
@@ -215,6 +218,8 @@ def _parse_gate_check_args(args: list[str]) -> dict:
             parsed["emit_json"] = True
         elif arg == "--force":
             parsed["force"] = True
+        elif arg == "--no-count":
+            parsed["no_count"] = True
         else:
             raise ValueError(f"Unknown gate check argument: {arg}")
         index += 1
@@ -291,6 +296,7 @@ def _gate_command(args: list[str]) -> None:
         task_id=parsed["task"],
         workspace=parsed["workspace"],
         force=parsed["force"],
+        count_failures=not parsed["no_count"],
     )
     print(build_correction_report(report, outcome, emit_json=parsed["emit_json"]))
 
