@@ -58,7 +58,9 @@ The plugin is discovered from the repository-root `plugin.json` manifest.
 
 VS Code integrates with the Copilot CLI as **background agent sessions** that run autonomously while you continue other work. VS Code installs and configures the Copilot CLI agent runtime automatically.
 
-For the **Auto-MergeInstall** and **Auto-Tune** agents to appear in Copilot CLI sessions, install the plugin (see above) or run this legacy command once after installing the Python package:
+For the **Auto-MergeInstall** and **Auto-Tune** agents to appear in Copilot CLI sessions, install the plugin (see above). The marketplace plugin is the supported distribution path for these two global agents.
+
+The legacy `setup-copilot-cli` command remains available but no longer copies `Auto-MergeInstall` / `Auto-Tune` — those are provided by the plugin and upgraded globally. It only syncs the local pipeline agents and skills:
 
 ```bash
 autoharness setup-copilot-cli
@@ -67,7 +69,7 @@ autoharness setup-copilot-cli
 > **Deprecation notice:** `setup-copilot-cli` is superseded by registering the autoharness marketplace and installing `autoharness@autoharness`. The plugin provides the same agents and skills with built-in versioning and no Python dependency. The CLI command will be removed in a future release.
 > Direct `owner/repo` plugin installs currently work, but Copilot CLI warns that they are deprecated in favor of marketplace-based installs.
 
-This copies the agent `.md` files and skill `SKILL.md` files from the autoharness installation into your Copilot CLI global config directory (`~/.copilot/agents/` and `~/.copilot/skills/`). This is the standard registration path for external workspaces; autoharness does not install these global agents into the target workspace. Re-run it after upgrading autoharness to pick up updated files.
+This copies the local pipeline agent `.md` files (orchestrator, stage, ship) and skill `SKILL.md` files from the autoharness installation into your Copilot CLI global config directory (`~/.copilot/agents/` and `~/.copilot/skills/`). The global `Auto-MergeInstall` / `Auto-Tune` agents are intentionally excluded — install or upgrade the plugin to refresh those. Re-run this command after upgrading autoharness to pick up updated pipeline agents and skill files.
 
 To run the Auto-MergeInstall agent as a background session:
 
@@ -90,7 +92,7 @@ VS Code registers a **GitHub Copilot CLI** terminal profile. To open a session:
 
 VS Code handles authentication automatically. Once the session is open, type `/install-harness` to run the install prompt, or describe the task naturally.
 
-For standalone Copilot CLI sessions outside VS Code, run `autoharness setup-copilot-cli` first so agents and skills are registered globally, then use the generated `start.ps1` (or `start.sh`) at the workspace root to set workspace-local state before launching. The startup scripts do not copy or refresh agent files.
+For standalone Copilot CLI sessions outside VS Code, install the marketplace plugin so the global `Auto-MergeInstall` / `Auto-Tune` agents are available, then use the generated `start.ps1` (or `start.sh`) at the workspace root to set workspace-local state before launching. The startup scripts do not copy or refresh agent files.
 
 > **First install (before `start.ps1` exists):** The startup scripts are generated *by* the installer, so they do not exist yet. Use the VS Code terminal approach above — VS Code handles auth. The `start.ps1` / `start.sh` scripts are for subsequent sessions outside VS Code.
 
@@ -138,7 +140,7 @@ export GITHUB_TOKEN="$(gh auth token)"
 
 By redirecting `COPILOT_HOME` (and optionally `ENGRAM_DATA_DIR` for agent-engram) to a workspace-local directory, the agent's memories, checkpoints, and database are stored inside the project and become visible to git. This keeps agent state isolated per project rather than shared across all workspaces.
 
-The startup scripts are runtime launchers only. They do not install `Auto-MergeInstall` or `Auto-Tune` into the workspace. For Copilot CLI, refresh those global agent and skill files with `autoharness setup-copilot-cli` after each autoharness upgrade. For VS Code, the user-settings registration normally survives upgrades and only needs to be rerun if the resolved install path changes.
+The startup scripts are runtime launchers only. They do not install `Auto-MergeInstall` or `Auto-Tune` into the workspace, and they intentionally never copy those two global agents into the workspace-local `.copilot` — a stale local copy would shadow the global agent during an upgrade. For Copilot CLI, refresh those global agents by upgrading the marketplace plugin (`copilot plugin install autoharness@autoharness`). For VS Code, the user-settings registration normally survives upgrades and only needs to be rerun if the resolved install path changes.
 
 Sections for Claude Code and OpenAI Codex are included in each script as commented-out blocks; activate the one you need.
 

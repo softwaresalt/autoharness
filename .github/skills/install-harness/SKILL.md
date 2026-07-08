@@ -357,17 +357,17 @@ Resolution notes for health-check variables:
 | `{{CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER}}` | `config.continuous_learning.environment_adapter` | `none` | Optional hook-capture adapter name |
 | `{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}` | `config.continuous_learning.promotion_threshold` | `3` | Minimum corroborating observations before promotion to a learned artifact |
 | `{{MODEL_ROUTING_TIER1}}` | `config.model_routing.tier1.model` (object form) or `config.model_routing.tier1` (legacy string) | `gpt-5.4-mini` | Fast/cheap model identifier for memory, docs, compaction tasks. When `tier1` is a plain string, that string is used as the model value and all other tier sub-fields default to empty. |
-| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2.model` (object form) or `config.model_routing.tier2` (legacy string) | `claude-sonnet-4.6` | Standard model identifier for orchestration, code writing, review. Same string-fallback rule as TIER1. |
-| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3.model` (object form) or `config.model_routing.tier3` (legacy string) | `claude-opus-4.6` | Frontier model identifier for planning, architecture, analysis. Same string-fallback rule as TIER1. |
+| `{{MODEL_ROUTING_TIER2}}` | `config.model_routing.tier2.model` (object form) or `config.model_routing.tier2` (legacy string) | `claude-sonnet-5` | Standard model identifier for orchestration, code writing, review. Same string-fallback rule as TIER1. |
+| `{{MODEL_ROUTING_TIER3}}` | `config.model_routing.tier3.model` (object form) or `config.model_routing.tier3` (legacy string) | `claude-opus-4.8` | Frontier model identifier for planning, architecture, analysis. Same string-fallback rule as TIER1. |
 | `{{TIER_1_REASONING_EFFORT}}` | `config.model_routing.tier1.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 1 agents; leave empty to use model default |
 | `{{TIER_1_PROVIDER}}` | `config.model_routing.tier1.model_provider` | _(empty)_ | Model provider for Tier 1 agents (e.g., `openai`, `anthropic`) |
 | `{{TIER_1_FAMILY}}` | `config.model_routing.tier1.model_family` | `gpt-5.4-mini` | Model family shorthand resolved into Tier 1 agent frontmatter |
 | `{{TIER_2_REASONING_EFFORT}}` | `config.model_routing.tier2.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 2 agents; leave empty to use model default |
 | `{{TIER_2_PROVIDER}}` | `config.model_routing.tier2.model_provider` | _(empty)_ | Model provider for Tier 2 agents (e.g., `openai`, `anthropic`) |
-| `{{TIER_2_FAMILY}}` | `config.model_routing.tier2.model_family` | `claude-sonnet-4.6` | Model family shorthand resolved into Tier 2 agent frontmatter |
+| `{{TIER_2_FAMILY}}` | `config.model_routing.tier2.model_family` | `claude-sonnet-5` | Model family shorthand resolved into Tier 2 agent frontmatter |
 | `{{TIER_3_REASONING_EFFORT}}` | `config.model_routing.tier3.reasoning_effort` | _(empty)_ | Reasoning effort for Tier 3 agents; leave empty to use model default |
 | `{{TIER_3_PROVIDER}}` | `config.model_routing.tier3.model_provider` | _(empty)_ | Model provider for Tier 3 agents (e.g., `openai`, `anthropic`) |
-| `{{TIER_3_FAMILY}}` | `config.model_routing.tier3.model_family` | `claude-opus-4.6` | Model family shorthand resolved into Tier 3 agent frontmatter |
+| `{{TIER_3_FAMILY}}` | `config.model_routing.tier3.model_family` | `claude-opus-4.8` | Model family shorthand resolved into Tier 3 agent frontmatter |
 | `{{ORCHESTRATOR_REASONING_EFFORT}}` | `config.model_routing.orchestrator.reasoning_effort` (object form), fallback `{{TIER_2_REASONING_EFFORT}}` | _(empty)_ | Reasoning effort for the Orchestrator; falls back to Tier 2 default |
 | `{{ORCHESTRATOR_PROVIDER}}` | `config.model_routing.orchestrator.model_provider` (object form), fallback `{{TIER_2_PROVIDER}}` | _(empty)_ | Model provider for the Orchestrator; falls back to Tier 2 default |
 | `{{ORCHESTRATOR_FAMILY}}` | `config.model_routing.orchestrator.model_family` (object form) or `config.model_routing.orchestrator` (string form), fallback `gpt-5.4` | `gpt-5.4` | Model family for the Orchestrator; defaults to `gpt-5.4` when unset (does NOT fall back to tier2 — the orchestrator has its own default) |
@@ -921,6 +921,34 @@ Generate agent definitions. Each agent template has technology-specific sections
 `{autoharness_home}/templates/agents/deprecated/`. If an existing workspace
 contains deprecated agent files listed in AGENTS.md's deprecation table (during
 merge install), flag them for removal.
+
+**Legacy pipeline-agent standardization** (merge install): Before writing the
+canonical pipeline agents, detect existing agent files that drifted from the
+canonical identity (legacy filename, legacy `name:`, or an arbitrary rename that
+retains the stable `id:`) and standardize them onto the canonical version to be
+installed. The canonical identities are:
+
+| Canonical `id:` | Canonical filename | Canonical `name:` | Legacy filenames | Legacy `name:` |
+|---|---|---|---|---|
+| `autoharness/pipeline/orchestrator` | `_orchestrator.agent.md` | `_Orchestrator` | `orchestrator.agent.md`, `dispatch.agent.md` | `Orchestrator`, `Dispatch` |
+| `autoharness/pipeline/stage` | `.stage.agent.md` | `.Stage` | `stage.agent.md` | `Stage` |
+| `autoharness/pipeline/ship` | `.ship.agent.md` | `.Ship` | `ship.agent.md` | `Ship` |
+
+`verify-workspace` emits these as `contract: agent-identity` migration proposals.
+Detection prefers the stable `id:` field: any agent file whose `id:` matches a
+canonical identity is standardized regardless of its current filename, so an
+arbitrarily renamed pipeline agent is still detected. Files without a matching
+`id:` fall back to the legacy filename/`name:` registry above. Every canonical
+pipeline agent installed carries its `id:` so future renames stay detectable.
+
+For each drifted pipeline agent found: back up the original, rename it to the
+canonical filename, set the canonical `name:` and `id:`, and update
+cross-references (AGENTS.md, other agents, skills, prompts, instructions,
+policies) plus the manifest artifact path — rather than leaving a stale file
+alongside the newly written canonical one. If both a canonical and a drifted file
+already exist, keep the canonical file and back up/remove the duplicate. Elective
+agents (`auto-mergeinstall`, `auto-tune`) and review/research agents are out of
+scope.
 
 1. **Pipeline agents**: stage, ship, orchestrator
    * Adapt build/test/lint commands throughout

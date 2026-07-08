@@ -40,10 +40,12 @@ fi
 # local directory. This keeps agent state visible in git and isolated per
 # project rather than shared across all workspaces.
 #
-# This script does NOT install or refresh Auto-MergeInstall / Auto-Tune.
-# Register those globally with `autoharness setup-copilot-cli`.
-# Re-run that setup command after upgrading autoharness so updated agent and
-# skill files are recopied into the standard Copilot CLI config directory.
+# Auto-MergeInstall / Auto-Tune are GLOBAL agents provided by the autoharness
+# marketplace plugin. They are the versions used when upgrading autoharness and
+# are intentionally NOT copied into this workspace's local .copilot — a stale
+# local copy would shadow the global agent during an upgrade. Upgrade them
+# globally with `copilot plugin install autoharness@autoharness`; do not run
+# `setup-copilot-cli` here (COPILOT_HOME is redirected to a workspace-local dir).
 #
 # COPILOT_EXE_PATH must be an executable path only (no arguments).
 # Set ai_tools.copilot_cli.exe_path in .autoharness/config.yaml if copilot

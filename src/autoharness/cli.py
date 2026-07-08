@@ -906,6 +906,18 @@ def _setup_vscode() -> None:
         print("Auto-MergeInstall agent to appear in the agents dropdown.")
 
 
+# Agents distributed globally by the autoharness marketplace plugin (see the
+# "agents" list in plugin.json). The plugin install makes these available to
+# every workspace, and they are the versions used when upgrading autoharness.
+# The setup commands therefore never copy them into a (possibly workspace-local)
+# config dir, where they would shadow the global versions and go stale on
+# upgrade. Local pipeline agents (orchestrator, stage, ship) are installed into
+# a workspace's own .github/agents/ and are not global agents.
+GLOBAL_PLUGIN_AGENTS: frozenset[str] = frozenset(
+    {"auto-mergeinstall.agent.md", "auto-tune.agent.md"}
+)
+
+
 def _copilot_cli_config_dir() -> Path:
     """Return the Copilot CLI global config directory.
 
@@ -920,23 +932,30 @@ def _copilot_cli_config_dir() -> Path:
 
 
 def _setup_copilot_cli() -> None:
-    """Copy autoharness agents and skills into the Copilot CLI global config dir.
+    """Copy autoharness pipeline agents and skills into the Copilot CLI config dir.
 
     Copilot CLI discovers agents from {config_dir}/agents/ and skills from
     {config_dir}/skills/ at session start.  This command copies the autoharness
-    .github/agents/ and .github/skills/ trees into those directories so the
-    Auto-MergeInstall and Auto-Tune agents are available in every session.
+    .github/skills/ tree and the local pipeline agents (orchestrator, stage,
+    ship) into those directories.
 
-    Re-run this command after upgrading autoharness to pick up new agents or
-    updated skill files.
+    The global elective agents (Auto-MergeInstall, Auto-Tune) are intentionally
+    NOT copied: they are distributed by the autoharness marketplace plugin (see
+    plugin.json) and are the versions used when upgrading autoharness.  Copying
+    them into a (possibly workspace-local) config dir would shadow the global
+    versions and go stale on upgrade.
+
+    Re-run this command after upgrading autoharness to pick up new pipeline
+    agents or updated skill files.
 
     DEPRECATED: Use the marketplace install flow instead.
     """
     print("NOTE: setup-copilot-cli is deprecated.")
     print("      Prefer: copilot plugin marketplace add softwaresalt/autoharness")
     print("              copilot plugin install autoharness@autoharness")
-    print("      The plugin provides the same agents and skills with built-in")
-    print("      versioning and no Python dependency.")
+    print("      The plugin provides Auto-MergeInstall / Auto-Tune globally with")
+    print("      built-in versioning and no Python dependency.")
+    print("      Those global agents are NOT copied locally by this command.")
     print()
 
     home = _home()
@@ -949,7 +968,7 @@ def _setup_copilot_cli() -> None:
     print(f"Copilot CLI config dir: {config_dir}")
     print()
 
-    a, u = _copy_tree(src_agents, dst_agents, "*.md")
+    a, u = _copy_tree(src_agents, dst_agents, "*.md", exclude=GLOBAL_PLUGIN_AGENTS)
     _report_copy("Agents", a, u)
 
     a, u = _copy_tree(src_skills, dst_skills, "SKILL.md")
@@ -960,14 +979,20 @@ def _setup_copilot_cli() -> None:
 
 
 
-def _copy_tree(src_dir: Path, dst_dir: Path, glob: str) -> tuple[list[str], list[str]]:
+def _copy_tree(
+    src_dir: Path, dst_dir: Path, glob: str, exclude: set[str] | frozenset[str] | None = None
+) -> tuple[list[str], list[str]]:
     """Copy files matching glob from src_dir into dst_dir, preserving structure.
+
+    Files whose basename is listed in ``exclude`` are skipped.
 
     Returns (added, updated) lists of relative paths.
     """
     added: list[str] = []
     updated: list[str] = []
     for src_file in sorted(src_dir.rglob(glob)):
+        if exclude and src_file.name in exclude:
+            continue
         rel = src_file.relative_to(src_dir)
         dst_file = dst_dir / rel
         dst_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1003,17 +1028,26 @@ def _claude_config_dir() -> Path:
 
 
 def _setup_claude() -> None:
-    """Copy autoharness agents and skills into the Claude Code global config dir.
+    """Copy autoharness pipeline agents and skills into the Claude Code config dir.
 
     Claude Code discovers agents from {config_dir}/agents/ and skills from
     {config_dir}/skills/ at session start.
+
+    The global elective agents (Auto-MergeInstall, Auto-Tune) are intentionally
+    NOT copied: they are distributed by the autoharness marketplace plugin and
+    are upgraded globally. Only the local pipeline agents and skills are synced.
     """
     home = _home()
     config_dir = _claude_config_dir()
     print(f"Claude Code config dir: {config_dir}")
     print()
 
-    a, u = _copy_tree(home / ".github" / "agents", config_dir / "agents", "*.md")
+    a, u = _copy_tree(
+        home / ".github" / "agents",
+        config_dir / "agents",
+        "*.md",
+        exclude=GLOBAL_PLUGIN_AGENTS,
+    )
     _report_copy("Agents", a, u)
 
     a, u = _copy_tree(home / ".github" / "skills", config_dir / "skills", "SKILL.md")
