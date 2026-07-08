@@ -1065,8 +1065,16 @@ def _resolve_agent_scan_dirs(workspace_path: Path, profile: Any) -> list[Path]:
     dirs = [workspace_path / ".github" / "agents"]
     distribution = profile.get("distribution") if isinstance(profile, dict) else None
     if isinstance(distribution, dict) and distribution.get("is_global_tool"):
-        local_dir = distribution.get("local_agents_dir") or ".github/local-agents"
-        candidate = workspace_path / Path(str(local_dir))
+        default_local = ".github/local-agents"
+        local_rel = Path(str(distribution.get("local_agents_dir") or default_local))
+        # Treat local_agents_dir as workspace-relative only. A rooted/absolute
+        # path (anchor) or a parent-traversal segment could push scanning
+        # outside the workspace, so fall back to the safe default in that case.
+        # `.anchor` (not `.is_absolute()`) is used so root-anchored but
+        # driveless paths (e.g. "/abs" on Windows) are also rejected.
+        if local_rel.anchor or ".." in local_rel.parts:
+            local_rel = Path(default_local)
+        candidate = workspace_path / local_rel
         if candidate not in dirs:
             dirs.append(candidate)
     return dirs
@@ -1171,7 +1179,8 @@ def _scan_agent_identity_migrations(
                 continue  # already fully canonical
 
             needs_rename = filename != canonical_file
-            duplicate = needs_rename and canonical_file in present
+            canonical_present = canonical_file in present
+            duplicate = needs_rename and canonical_present
             changed_fields: list[str] = []
             if needs_rename:
                 changed_fields.append("path")
@@ -1215,7 +1224,7 @@ def _scan_agent_identity_migrations(
                     changed_fields=changed_fields,
                     severity="P1",
                     action=action,
-                    canonical_exists=duplicate,
+                    canonical_exists=canonical_present,
                     status=status,
                     matched_by="id",
                     agent_id=agent_id,

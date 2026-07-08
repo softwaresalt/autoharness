@@ -18,7 +18,7 @@ from autoharness.schema_contracts import (
     summarize_schema_contract,
 )
 from autoharness.cli import _report_has_failures
-from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _run_portability_scan, _scan_agent_identity_migrations, verify_workspace
+from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _resolve_agent_scan_dirs, _run_portability_scan, _scan_agent_identity_migrations, verify_workspace
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -4078,6 +4078,28 @@ class AgentIdentityMigrationTests(unittest.TestCase):
                 proposals[0]["to_path"], ".github/local-agents/.stage.agent.md"
             )
 
+    def test_self_install_mode_rejects_unsafe_local_agents_dir(self) -> None:
+        # An absolute or parent-traversal local_agents_dir must not push
+        # scanning outside the workspace; it falls back to the safe default.
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            default_dir = (workspace / ".github" / "local-agents").resolve()
+            for unsafe in ("../escape", "/abs/escape", "..\\escape"):
+                profile = {
+                    "distribution": {
+                        "is_global_tool": True,
+                        "local_agents_dir": unsafe,
+                    }
+                }
+                dirs = [d.resolve() for d in _resolve_agent_scan_dirs(workspace, profile)]
+                for scan_dir in dirs:
+                    self.assertTrue(
+                        workspace.resolve() in scan_dir.parents
+                        or scan_dir == workspace.resolve(),
+                        f"scan dir escaped workspace for {unsafe!r}: {scan_dir}",
+                    )
+                self.assertIn(default_dir, dirs)
+
     def test_end_to_end_report_surfaces_agent_identity_proposal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
@@ -4190,6 +4212,8 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             self.assertEqual(proposal["changed_fields"], ["name"])
             self.assertEqual(proposal["from_path"], proposal["to_path"])
             self.assertEqual(proposal["to_name"], ".Ship")
+            # Filename is already canonical, so the canonical file is present.
+            self.assertTrue(proposal["canonical_exists"])
 
     def test_stable_id_flags_duplicate_when_canonical_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
