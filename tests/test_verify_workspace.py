@@ -4365,6 +4365,25 @@ class NewArtifactDetectionTests(unittest.TestCase):
             )[".github/prompts/feature-flow.prompt.md"]
             self.assertIsNone(unknown["applicable"])
 
+    def test_policy_opt_in_prompt_is_operator_decides(self) -> None:
+        # feature-flow-dark is the P-017 dark-mode trigger shim. Even when its
+        # required primitive (4) is installed, it must never be auto-applicable
+        # because P-017 opt-in cannot be confirmed from primitives alone.
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "ws"
+            home = Path(tmp) / "home"
+            _write_prompt_template(home, "feature-flow-dark")
+
+            index = self._by_expected(
+                _scan_uninstalled_templates(
+                    workspace, home, {"artifacts": [], "primitives_installed": [4]}
+                )
+            )
+            finding = index[".github/prompts/feature-flow-dark.prompt.md"]
+            self.assertEqual(finding["install_rule"], "primitive-4 + P-017")
+            self.assertIsNone(finding["applicable"])
+            self.assertEqual(finding["requires_opt_in"], "P-017")
+
     def test_no_templates_dir_yields_no_findings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp) / "ws"

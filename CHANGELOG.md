@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.4.11 - 2026-07-08
+
+### Fixed
+
+- Fixed new-artifact detection so the P-017 dark-factory trigger shim
+  (`feature-flow-dark.prompt.md`) is never annotated `applicable: true` on
+  primitive membership alone. Its documented install rule requires both
+  Primitive 4 **and** P-017 opt-in, but applicability was derived solely from
+  `primitives_installed`, so a workspace with Primitive 4 but no P-017 opt-in
+  would have been offered the dark-mode shim as an auto-installable Growth
+  artifact (a scope/policy over-reach given tune Step 4.2 installs
+  `applicable: true` entries by default). Policy-gated prompts now carry a
+  `requires_opt_in` annotation that forces `applicable: null` (operator-decides),
+  and the tune-harness skill was updated to never auto-install an entry carrying
+  `requires_opt_in` without explicit operator opt-in.
+
 ## 1.4.10 - 2026-07-08
 
 ### Added
