@@ -152,9 +152,18 @@ quotes is stripped from the value):
 
 ```ini
 # .env.local — gitignored per-developer overrides and secrets
-workspaceFolder=C:\Source\GitHub\my-app   # absolute workspace root, seeded at install
-# GITHUB_TOKEN=...                          # optional per-developer secrets
+
+# absolute workspace root, seeded at install
+workspaceFolder=C:\Source\GitHub\my-app
+
+# optional per-developer secrets
+# GITHUB_TOKEN=...
 ```
+
+The loaders skip full-line comments (lines beginning with `#`) and blank lines,
+but they do **not** strip inline trailing comments — a `KEY=value  # note` line
+would export the literal `value  # note`. Keep annotations on their own comment
+lines as shown above.
 
 `.env.local` is generated **only if it does not already exist**, so re-running
 install or tune never overwrites developer secrets. It matches the `.env.*`
