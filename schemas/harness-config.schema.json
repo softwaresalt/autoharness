@@ -257,8 +257,8 @@
           "oneOf": [
             {
               "type": "string",
-              "description": "Legacy: plain model identifier string. E.g., 'claude-opus-4.6'",
-              "examples": ["claude-opus-4.6", "gpt-5.4"]
+              "description": "Legacy: plain model identifier string. E.g., 'claude-opus-4.8'",
+              "examples": ["claude-opus-4.8", "gpt-5.4"]
             },
             {
               "type": "object",
@@ -267,8 +267,8 @@
               "properties": {
                 "model": {
                   "type": "string",
-                  "description": "Model identifier for Tier 3. E.g., 'claude-opus-4.6', 'gpt-5.4'",
-                  "examples": ["claude-opus-4.6", "gpt-5.4"]
+                  "description": "Model identifier for Tier 3. E.g., 'claude-opus-4.8', 'gpt-5.4'",
+                  "examples": ["claude-opus-4.8", "gpt-5.4"]
                 },
                 "reasoning_effort": {
                   "type": "string",
@@ -282,8 +282,8 @@
                 },
                 "model_family": {
                   "type": "string",
-                  "description": "Model family shorthand for Tier 3 (e.g., 'gpt-5.4', 'claude-opus-4.6').",
-                  "examples": ["gpt-5.4", "claude-opus-4.6"]
+                  "description": "Model family shorthand for Tier 3 (e.g., 'gpt-5.4', 'claude-opus-4.8').",
+                  "examples": ["gpt-5.4", "claude-opus-4.8"]
                 }
               }
             }
@@ -295,7 +295,7 @@
             {
               "type": "string",
               "description": "Plain model identifier string. E.g., 'gpt-5.4'",
-              "examples": ["gpt-5.4", "claude-sonnet-4.6"]
+              "examples": ["gpt-5.4", "claude-sonnet-5"]
             },
             {
               "type": "object",
@@ -304,7 +304,7 @@
                 "model": {
                   "type": "string",
                   "description": "Model identifier for the Orchestrator. Optional — not consumed by agent frontmatter directly but recorded for documentation and tooling.",
-                  "examples": ["gpt-5.4", "claude-sonnet-4.6"]
+                  "examples": ["gpt-5.4", "claude-sonnet-5"]
                 },
                 "reasoning_effort": {
                   "type": "string",
@@ -318,9 +318,9 @@
                 },
                 "model_family": {
                   "type": "string",
-                  "description": "Model family shorthand for the Orchestrator (e.g., 'gpt-5.4', 'claude-sonnet-4.6'). Default: gpt-5.4.",
+                  "description": "Model family shorthand for the Orchestrator (e.g., 'gpt-5.4', 'claude-sonnet-5'). Default: gpt-5.4.",
                   "default": "gpt-5.4",
-                  "examples": ["gpt-5.4", "claude-sonnet-4.6"]
+                  "examples": ["gpt-5.4", "claude-sonnet-5"]
                 }
               }
             }

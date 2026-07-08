@@ -87,7 +87,7 @@ the external ingestion boundary.
   "schema_version": "1.0.0",
   "task_id": "051.001-T",
   "timestamp": "2026-07-01T08:53:00+00:00",
-  "route":      { "models": ["claude-opus-4.6", "gpt-5.4-mini"] },
+  "route":      { "models": ["claude-opus-4.8", "gpt-5.4-mini"] },
   "economics":  { "input_tokens": 1200, "output_tokens": 800, "cogs_usd": 0.042, "duration_seconds": 93.5 },
   "operations": { "cli_tools": ["git", "pytest", "backlogit"] },
   "outcome":    { "gate_exit_codes": [0, 0, 1] }

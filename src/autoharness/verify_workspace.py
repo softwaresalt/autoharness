@@ -40,6 +40,36 @@ WORKSPACE_SOURCE_TEMPLATES = {
     "workspace merge install",
     "workspace deliberation template",
 }
+# Canonical pipeline agent identities and their known legacy aliases. Older
+# harness installs used unprefixed filenames/names (and, earlier still,
+# `dispatch` for the orchestrator). Harness upgrades (auto-tune) and merge
+# installs standardize any legacy pipeline agent onto its canonical filename and
+# `name:` frontmatter so downstream cross-references stay coherent. Only these
+# three pipeline agents are in scope; elective agents (auto-mergeinstall,
+# auto-tune) and review/research agents are never migrated by this scan.
+PIPELINE_AGENT_IDENTITIES = (
+    {
+        "canonical_id": "autoharness/pipeline/orchestrator",
+        "canonical_file": "_orchestrator.agent.md",
+        "canonical_name": "_Orchestrator",
+        "legacy_files": ("orchestrator.agent.md", "dispatch.agent.md"),
+        "legacy_names": ("Orchestrator", "Dispatch"),
+    },
+    {
+        "canonical_id": "autoharness/pipeline/stage",
+        "canonical_file": ".stage.agent.md",
+        "canonical_name": ".Stage",
+        "legacy_files": ("stage.agent.md",),
+        "legacy_names": ("Stage",),
+    },
+    {
+        "canonical_id": "autoharness/pipeline/ship",
+        "canonical_file": ".ship.agent.md",
+        "canonical_name": ".Ship",
+        "legacy_files": ("ship.agent.md",),
+        "legacy_names": ("Ship",),
+    },
+)
 DEFAULT_SUFFIXES = {
     "feature": "F",
     "chore": "C",
@@ -992,6 +1022,288 @@ def _relative_workspace_path(workspace_path: Path, file_path: Path) -> str:
         return file_path.relative_to(workspace_path).as_posix()
     except ValueError:
         return file_path.as_posix()
+
+
+def _agent_frontmatter_name(file_path: Path) -> str | None:
+    """Return the trimmed `name:` frontmatter value, or None when absent."""
+    try:
+        frontmatter = _extract_markdown_frontmatter(file_path)
+    except OSError:
+        return None
+    name = frontmatter.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return None
+
+
+def _agent_frontmatter_id(file_path: Path) -> str | None:
+    """Return the trimmed `id:` frontmatter value, or None when absent.
+
+    The stable `id:` is the filename-independent identity signal for pipeline
+    agents. When present it is preferred over filename/`name:` alias matching,
+    so an agent that was renamed to an arbitrary filename can still be recognized
+    and standardized onto its canonical identity.
+    """
+    try:
+        frontmatter = _extract_markdown_frontmatter(file_path)
+    except OSError:
+        return None
+    agent_id = frontmatter.get("id")
+    if isinstance(agent_id, str) and agent_id.strip():
+        return agent_id.strip()
+    return None
+
+
+def _resolve_agent_scan_dirs(workspace_path: Path, profile: Any) -> list[Path]:
+    """Return directories that may hold installed pipeline agent files.
+
+    Always includes ``.github/agents/``. In self-install mode (a globally
+    distributed tool with a configured local agents dir) the local agents
+    directory is also scanned, since workflow agents live there instead of
+    ``.github/agents/``.
+    """
+    dirs = [workspace_path / ".github" / "agents"]
+    distribution = profile.get("distribution") if isinstance(profile, dict) else None
+    if isinstance(distribution, dict) and distribution.get("is_global_tool"):
+        default_local = ".github/local-agents"
+        local_rel = Path(str(distribution.get("local_agents_dir") or default_local))
+        # Treat local_agents_dir as workspace-relative only. A rooted/absolute
+        # path (anchor) or a parent-traversal segment could push scanning
+        # outside the workspace, so fall back to the safe default in that case.
+        # `.anchor` (not `.is_absolute()`) is used so root-anchored but
+        # driveless paths (e.g. "/abs" on Windows) are also rejected.
+        if local_rel.anchor or ".." in local_rel.parts:
+            local_rel = Path(default_local)
+        candidate = workspace_path / local_rel
+        if candidate not in dirs:
+            dirs.append(candidate)
+    return dirs
+
+
+def _agent_identity_proposal(
+    *,
+    rel_from: str,
+    rel_to: str,
+    from_name: str | None,
+    to_name: str,
+    changed_fields: list[str],
+    severity: str,
+    action: str,
+    canonical_exists: bool,
+    status: str = "known-legacy",
+    matched_by: str = "legacy-name",
+    agent_id: str | None = None,
+) -> dict[str, Any]:
+    from_label = rel_from + (f" / {from_name}" if from_name else "")
+    to_label = f"{rel_to} / {to_name}"
+    if matched_by == "id":
+        evidence = (
+            f"Pipeline agent matched by stable id `{agent_id}` uses a "
+            f"non-canonical identity ({from_label}); the canonical identity "
+            f"is ({to_label})."
+        )
+    else:
+        evidence = (
+            f"Installed pipeline agent uses a legacy identity ({from_label}); "
+            f"the canonical identity is ({to_label})."
+        )
+    return {
+        "contract": "agent-identity",
+        "path": rel_from,
+        "from_path": rel_from,
+        "to_path": rel_to,
+        "from_name": from_name,
+        "to_name": to_name,
+        "from_version": from_label,
+        "to_version": to_label,
+        "status": status,
+        "severity": severity,
+        "summary": "standardize legacy pipeline agent to canonical identity",
+        "changed_fields": list(changed_fields),
+        "action": action,
+        "manual_review": False,
+        "canonical_exists": canonical_exists,
+        "matched_by": matched_by,
+        "agent_id": agent_id,
+        "evidence": evidence,
+    }
+
+
+def _scan_agent_identity_migrations(
+    workspace_path: Path, profile: Any
+) -> list[dict[str, Any]]:
+    """Detect installed pipeline agents that drifted from their canonical identity.
+
+    Emits ``agent-identity`` migration proposals so upgrades (auto-tune) and
+    merge installs can standardize pipeline agents onto their canonical
+    filename and ``name:`` frontmatter. Only the three pipeline agents are in
+    scope; elective and review/research agents are never proposed for renaming.
+
+    Detection prefers the stable ``id:`` frontmatter field: any agent file whose
+    ``id:`` matches a canonical identity is standardized regardless of its current
+    filename, so arbitrary renames are still recognized. Files without a matching
+    ``id:`` (legacy agents authored before the field existed) fall back to the
+    filename/``name:`` alias registry.
+    """
+    proposals: list[dict[str, Any]] = []
+    id_to_identity = {
+        identity["canonical_id"]: identity for identity in PIPELINE_AGENT_IDENTITIES
+    }
+    for agent_dir in _resolve_agent_scan_dirs(workspace_path, profile):
+        if not agent_dir.is_dir():
+            continue
+        present = {
+            entry.name: entry
+            for entry in sorted(agent_dir.iterdir())
+            if entry.is_file() and entry.name.endswith(".agent.md")
+        }
+        # Files resolved by stable-id matching are skipped by the fallback
+        # alias branches below to avoid duplicate proposals for one file.
+        handled: set[str] = set()
+
+        # 0) Stable-id matching (preferred). Survives arbitrary renames: a file
+        # whose `id:` matches a canonical identity is standardized onto the
+        # canonical filename/name regardless of its current filename.
+        for filename, entry in present.items():
+            agent_id = _agent_frontmatter_id(entry)
+            if agent_id is None:
+                continue
+            identity = id_to_identity.get(agent_id)
+            if identity is None:
+                continue
+            handled.add(filename)
+            canonical_file = identity["canonical_file"]
+            canonical_name = identity["canonical_name"]
+            current_name = _agent_frontmatter_name(entry)
+            if filename == canonical_file and current_name == canonical_name:
+                continue  # already fully canonical
+
+            needs_rename = filename != canonical_file
+            canonical_present = canonical_file in present
+            duplicate = needs_rename and canonical_present
+            changed_fields: list[str] = []
+            if needs_rename:
+                changed_fields.append("path")
+            if current_name != canonical_name:
+                changed_fields.append("name")
+            status = (
+                "known-legacy"
+                if filename in identity["legacy_files"] or filename == canonical_file
+                else "id-mismatch"
+            )
+            if duplicate:
+                action = (
+                    f"Canonical `{canonical_file}` already exists. Back up and "
+                    f"remove the non-canonical duplicate `{filename}` (matched by "
+                    f"stable id `{agent_id}`), then reconcile cross-references and "
+                    "the manifest artifact path onto the canonical file."
+                )
+            elif needs_rename:
+                action = (
+                    f"Rename `{filename}` to `{canonical_file}` (matched by stable "
+                    f"id `{agent_id}`), set `name: {canonical_name}`, update all "
+                    "cross-references (AGENTS.md, agents, skills, prompts, "
+                    "instructions, policies), and update the manifest artifact path."
+                )
+            else:
+                action = (
+                    f"Update `{canonical_file}` frontmatter to "
+                    f"`name: {canonical_name}` and update any cross-references "
+                    "that use the non-canonical name."
+                )
+            rel_from = _relative_workspace_path(workspace_path, entry)
+            rel_to = _relative_workspace_path(
+                workspace_path, agent_dir / canonical_file
+            )
+            proposals.append(
+                _agent_identity_proposal(
+                    rel_from=rel_from,
+                    rel_to=rel_to,
+                    from_name=current_name,
+                    to_name=canonical_name,
+                    changed_fields=changed_fields,
+                    severity="P1",
+                    action=action,
+                    canonical_exists=canonical_present,
+                    status=status,
+                    matched_by="id",
+                    agent_id=agent_id,
+                )
+            )
+
+        # Filename/`name:` alias fallback for files without a matching `id:`.
+        for identity in PIPELINE_AGENT_IDENTITIES:
+            canonical_file = identity["canonical_file"]
+            canonical_name = identity["canonical_name"]
+            canonical_present = canonical_file in present
+
+            # 1) Legacy-named files -> rename (and normalize name) to canonical.
+            for legacy_file in identity["legacy_files"]:
+                if legacy_file in handled:
+                    continue
+                entry = present.get(legacy_file)
+                if entry is None:
+                    continue
+                current_name = _agent_frontmatter_name(entry)
+                rel_from = _relative_workspace_path(workspace_path, entry)
+                rel_to = _relative_workspace_path(
+                    workspace_path, agent_dir / canonical_file
+                )
+                changed_fields = ["path"]
+                if current_name != canonical_name:
+                    changed_fields.append("name")
+                if canonical_present:
+                    action = (
+                        f"Canonical `{canonical_file}` already exists. Back up and "
+                        f"remove the legacy duplicate `{legacy_file}`, then reconcile "
+                        "cross-references and the manifest artifact path onto the "
+                        "canonical file."
+                    )
+                else:
+                    action = (
+                        f"Rename `{legacy_file}` to `{canonical_file}`, set "
+                        f"`name: {canonical_name}`, update all cross-references "
+                        "(AGENTS.md, agents, skills, prompts, instructions, policies), "
+                        "and update the manifest artifact path."
+                    )
+                proposals.append(
+                    _agent_identity_proposal(
+                        rel_from=rel_from,
+                        rel_to=rel_to,
+                        from_name=current_name,
+                        to_name=canonical_name,
+                        changed_fields=changed_fields,
+                        severity="P1",
+                        action=action,
+                        canonical_exists=canonical_present,
+                    )
+                )
+
+            # 2) Canonical file carrying a non-canonical name -> normalize name.
+            if canonical_file in handled:
+                continue
+            entry = present.get(canonical_file)
+            if entry is not None:
+                current_name = _agent_frontmatter_name(entry)
+                if current_name is not None and current_name != canonical_name:
+                    rel = _relative_workspace_path(workspace_path, entry)
+                    proposals.append(
+                        _agent_identity_proposal(
+                            rel_from=rel,
+                            rel_to=rel,
+                            from_name=current_name,
+                            to_name=canonical_name,
+                            changed_fields=["name"],
+                            severity="P1",
+                            action=(
+                                f"Update `{canonical_file}` frontmatter to "
+                                f"`name: {canonical_name}` and update any "
+                                "cross-references that use the legacy name."
+                            ),
+                            canonical_exists=True,
+                        )
+                    )
+    return proposals
 
 
 def _empty_learning_signals() -> dict[str, list[dict[str, Any]]]:
@@ -2088,10 +2400,16 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
     lines.extend(["", "## Migration Proposals", ""])
     if report["migration_proposals"]:
         for proposal in report["migration_proposals"]:
-            from_version = proposal["from_version"] or "(missing)"
+            from_version = proposal.get("from_version") or "(missing)"
+            to_version = proposal.get("to_version") or "(current)"
+            summary = (
+                proposal.get("summary")
+                or proposal.get("action")
+                or proposal.get("contract", "migration")
+            )
             lines.append(
-                f"- {proposal['contract']}: {proposal['summary']} "
-                f"({from_version} -> {proposal['to_version']})"
+                f"- {proposal.get('contract', 'migration')}: {summary} "
+                f"({from_version} -> {to_version})"
             )
     else:
         lines.append("none")
@@ -2276,6 +2594,10 @@ def verify_workspace(
         report["migration_proposals"].extend(
             plan_schema_contract_migrations(kind, path, data, contract_warnings)
         )
+
+    report["migration_proposals"].extend(
+        _scan_agent_identity_migrations(workspace_path, profile)
+    )
 
     installed_packs = [
         str(pack)

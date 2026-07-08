@@ -1,7 +1,7 @@
 {
   "name": "autoharness",
   "description": "Agent harness framework — compose 10 irreducible AI coding assistant primitives into any workspace",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "author": {
     "name": "softwaresalt"
   },
@@ -14,7 +14,10 @@
     "copilot",
     "workspace-discovery"
   ],
-  "agents": ".github/agents/",
+  "agents": [
+    ".github/agents/auto-mergeinstall.agent.md",
+    ".github/agents/auto-tune.agent.md"
+  ],
   "skills": [
     ".github/skills/"
   ]

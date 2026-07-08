@@ -284,7 +284,55 @@ Compare the currently registered backlog tool (from `.autoharness/backlog-regist
 6. Map the directory structure if different (e.g., `.backlogit/` → `backlog/`)
 7. Do NOT migrate task data — that is the backlog tool's responsibility
 
-#### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
+#### Step 1.5b: Agent Identity Migration Detection
+
+Older harness installs used legacy pipeline-agent filenames and `name:` values.
+`verify-workspace` scans the agent directories (`.github/agents/` and, in
+self-install mode, `distribution.local_agents_dir`) and emits
+`contract: agent-identity` migration proposals when an installed pipeline agent
+does not match the canonical identity:
+
+| Canonical `id:` | Canonical filename | Canonical `name:` | Legacy filenames | Legacy `name:` |
+|---|---|---|---|---|
+| `autoharness/pipeline/orchestrator` | `_orchestrator.agent.md` | `_Orchestrator` | `orchestrator.agent.md`, `dispatch.agent.md` | `Orchestrator`, `Dispatch` |
+| `autoharness/pipeline/stage` | `.stage.agent.md` | `.Stage` | `stage.agent.md` | `Stage` |
+| `autoharness/pipeline/ship` | `.ship.agent.md` | `.Ship` | `ship.agent.md` | `Ship` |
+
+Detection prefers the stable `id:` frontmatter field. Any agent file whose `id:`
+matches a canonical identity is standardized onto the canonical filename and
+`name:` **regardless of its current filename** — so an agent renamed to an
+arbitrary name (not just the known legacy aliases) is still detected. The
+proposal records `matched_by: id` and the matched `agent_id`, and uses
+`status: id-mismatch` when the drifted filename is not one of the known legacy
+aliases. Files without a matching `id:` (legacy agents authored before the field
+existed) fall back to the filename/`name:` alias registry above and record
+`matched_by: legacy-name`, `status: known-legacy`.
+
+Only these three pipeline agents are in scope. Elective agents
+(`auto-mergeinstall.agent.md`, `auto-tune.agent.md`) and review/research agents
+are never migrated by this scan.
+
+Promote each `agent-identity` proposal into the tuning proposal set as **Breaking**
+drift (agent name/filename references are load-bearing) and standardize onto the
+canonical version to be installed:
+
+1. Back up the existing agent file before any change.
+2. If the proposal's `changed_fields` includes `path`, rename the file from
+   `from_path` to `to_path` (the canonical filename). When
+   `canonical_exists: true`, the canonical file is already present — back up and
+   remove the drifted duplicate instead of overwriting the canonical file.
+3. Set the agent's `name:` frontmatter to `to_name` (the canonical name) and
+   ensure the canonical `id:` is present so future renames stay detectable.
+4. Update every cross-reference to the old name or filename: `AGENTS.md`,
+   `copilot-instructions`, other agents, skills, prompts, instructions, and
+   policies (workflow-policies references pipeline agents at gate points).
+5. Update the manifest artifact entry so `path` (and any `template`) point at the
+   canonical file, and refresh its checksum after the rewrite.
+6. Preserve the proposal's `from_path`, `to_path`, `from_name`, `to_name`,
+   `changed_fields`, `matched_by`, `agent_id`, and `evidence` in the tuning
+   report so the migration is auditable.
+
+
 
 Compare the installed preset, primary stack pack, additive stack packs, install
 layers, and capability packs in `.autoharness/harness-manifest.yaml` against the
@@ -593,6 +641,11 @@ For deterministic schema-contract work, map `verify-workspace` migration proposa
 * `status: known-legacy` -> preserve the observed `from_version` and target `to_version` in the proposal body
 
 Mark these proposals with `source: schema-contract` so they remain distinct from both structural drift and learning-driven proposals.
+
+Map `verify-workspace` `contract: agent-identity` proposals the same way (per
+Step 1.5b): promote them directly rather than re-deriving, mark them with
+`source: agent-identity`, and preserve their `from_path`, `to_path`, `from_name`,
+`to_name`, and `changed_fields` so pipeline-agent renames stay auditable.
 
 When discovery produced recommendation reasons, include the relevant preset,
 install-layer, or capability-pack rationale in the proposal body so operators can

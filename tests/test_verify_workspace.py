@@ -18,7 +18,7 @@ from autoharness.schema_contracts import (
     summarize_schema_contract,
 )
 from autoharness.cli import _report_has_failures
-from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _run_portability_scan, verify_workspace
+from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _resolve_agent_scan_dirs, _run_portability_scan, _scan_agent_identity_migrations, verify_workspace
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -3935,3 +3935,328 @@ class PortabilityTests(unittest.TestCase):
             for rel in degenerate_cases:
                 with self.assertRaises(ValueError, msg=f"Degenerate path must raise: {rel!r}"):
                     _normalize_stage_path(staging, rel)
+
+
+def _write_agent_file(directory: Path, filename: str, name: str) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / filename).write_text(
+        f"---\nname: {name}\nmodel_tier: 2\n---\n\n# {name}\n",
+        encoding="utf-8",
+    )
+
+
+def _write_agent_file_with_id(
+    directory: Path, filename: str, name: str, agent_id: str
+) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / filename).write_text(
+        f"---\nname: {name}\nid: {agent_id}\nmodel_tier: 2\n---\n\n# {name}\n",
+        encoding="utf-8",
+    )
+
+
+class AgentIdentityMigrationTests(unittest.TestCase):
+    def _index(self, proposals: list[dict]) -> dict[str, dict]:
+        return {p["from_path"]: p for p in proposals}
+
+    def test_detects_legacy_filenames_and_ignores_elective_and_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file(agents, "stage.agent.md", "Stage")
+            _write_agent_file(agents, "ship.agent.md", "Ship")
+            _write_agent_file(agents, "orchestrator.agent.md", "Orchestrator")
+            # Elective and review agents must never be proposed for migration.
+            _write_agent_file(agents, "auto-mergeinstall.agent.md", "Auto-MergeInstall")
+            _write_agent_file(agents, "auto-tune.agent.md", "Auto-Tune")
+            _write_agent_file(agents, "adversarial-review.agent.md", "Adversarial Reviewer")
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+            by_from = self._index(proposals)
+
+            self.assertEqual(len(proposals), 3)
+            self.assertEqual(
+                by_from[".github/agents/stage.agent.md"]["to_path"],
+                ".github/agents/.stage.agent.md",
+            )
+            self.assertEqual(
+                by_from[".github/agents/stage.agent.md"]["to_name"], ".Stage"
+            )
+            self.assertEqual(
+                by_from[".github/agents/ship.agent.md"]["to_path"],
+                ".github/agents/.ship.agent.md",
+            )
+            self.assertEqual(
+                by_from[".github/agents/orchestrator.agent.md"]["to_path"],
+                ".github/agents/_orchestrator.agent.md",
+            )
+            for proposal in proposals:
+                self.assertEqual(proposal["contract"], "agent-identity")
+                self.assertEqual(proposal["status"], "known-legacy")
+                self.assertIn("path", proposal["changed_fields"])
+                self.assertIn("name", proposal["changed_fields"])
+                self.assertFalse(proposal["canonical_exists"])
+            # No proposal targets an elective or review agent.
+            self.assertNotIn(".github/agents/auto-mergeinstall.agent.md", by_from)
+            self.assertNotIn(".github/agents/adversarial-review.agent.md", by_from)
+
+    def test_dispatch_maps_to_orchestrator(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file(agents, "dispatch.agent.md", "Dispatch")
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            self.assertEqual(
+                proposals[0]["to_path"], ".github/agents/_orchestrator.agent.md"
+            )
+            self.assertEqual(proposals[0]["from_name"], "Dispatch")
+            self.assertEqual(proposals[0]["to_name"], "_Orchestrator")
+
+    def test_canonical_file_with_legacy_name_is_name_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file(agents, ".stage.agent.md", "Stage")
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            proposal = proposals[0]
+            self.assertEqual(proposal["changed_fields"], ["name"])
+            self.assertEqual(proposal["from_path"], proposal["to_path"])
+            self.assertEqual(proposal["to_name"], ".Stage")
+
+    def test_fully_canonical_agents_produce_no_proposals(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file(agents, ".stage.agent.md", ".Stage")
+            _write_agent_file(agents, ".ship.agent.md", ".Ship")
+            _write_agent_file(agents, "_orchestrator.agent.md", "_Orchestrator")
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(proposals, [])
+
+    def test_duplicate_canonical_and_legacy_flags_removal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file(agents, ".stage.agent.md", ".Stage")
+            _write_agent_file(agents, "stage.agent.md", "Stage")
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            proposal = proposals[0]
+            self.assertEqual(proposal["from_path"], ".github/agents/stage.agent.md")
+            self.assertTrue(proposal["canonical_exists"])
+            self.assertIn("remove the legacy duplicate", proposal["action"])
+
+    def test_self_install_mode_scans_local_agents_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            local_agents = workspace / ".github" / "local-agents"
+            _write_agent_file(local_agents, "stage.agent.md", "Stage")
+            profile = {
+                "distribution": {
+                    "is_global_tool": True,
+                    "local_agents_dir": ".github/local-agents",
+                }
+            }
+
+            proposals = _scan_agent_identity_migrations(workspace, profile)
+
+            self.assertEqual(len(proposals), 1)
+            self.assertEqual(
+                proposals[0]["from_path"], ".github/local-agents/stage.agent.md"
+            )
+            self.assertEqual(
+                proposals[0]["to_path"], ".github/local-agents/.stage.agent.md"
+            )
+
+    def test_self_install_mode_rejects_unsafe_local_agents_dir(self) -> None:
+        # An absolute or parent-traversal local_agents_dir must not push
+        # scanning outside the workspace; it falls back to the safe default.
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            default_dir = (workspace / ".github" / "local-agents").resolve()
+            # `..\escape` is a literal single filename on POSIX (backslash is not
+            # a separator) but a traversal on Windows, so only the platform-
+            # independent no-escape invariant is asserted for it.
+            always_fallback = ("../escape", "/abs/escape")
+            no_escape_only = ("..\\escape",)
+            for unsafe in always_fallback + no_escape_only:
+                profile = {
+                    "distribution": {
+                        "is_global_tool": True,
+                        "local_agents_dir": unsafe,
+                    }
+                }
+                dirs = [d.resolve() for d in _resolve_agent_scan_dirs(workspace, profile)]
+                for scan_dir in dirs:
+                    self.assertTrue(
+                        workspace.resolve() in scan_dir.parents
+                        or scan_dir == workspace.resolve(),
+                        f"scan dir escaped workspace for {unsafe!r}: {scan_dir}",
+                    )
+                if unsafe in always_fallback:
+                    self.assertIn(default_dir, dirs)
+
+    def test_end_to_end_report_surfaces_agent_identity_proposal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            autoharness_home = Path(tmp) / "home"
+            staging = workspace / ".autoharness" / "staging"
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+
+            schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(schema), encoding="utf-8"
+                )
+
+            _write_agent_file(
+                workspace / ".github" / "agents", "stage.agent.md", "Stage"
+            )
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-24T00:00:00Z",
+                    "autoharness_version": "1.3.2",
+                    "profile_hash": "abc",
+                    "primitives_installed": [4],
+                    "artifacts": [],
+                    "variables_used": {"PROJECT_NAME": "demo"},
+                },
+            )
+            _write_yaml(
+                workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"}
+            )
+            _write_yaml(
+                workspace / ".autoharness" / "workspace-profile.yaml",
+                {"schema_version": "1.0.0"},
+            )
+
+            report = verify_workspace(workspace, autoharness_home, staging)
+
+            agent_proposals = [
+                proposal
+                for proposal in report["migration_proposals"]
+                if proposal.get("contract") == "agent-identity"
+            ]
+            self.assertEqual(len(agent_proposals), 1)
+            self.assertEqual(
+                agent_proposals[0]["to_path"], ".github/agents/.stage.agent.md"
+            )
+
+            markdown_path = Path(report["report_paths"]["markdown"])
+            markdown = markdown_path.read_text(encoding="utf-8")
+            self.assertIn("agent-identity", markdown)
+
+    def test_stable_id_detects_arbitrary_rename(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            # Arbitrary filename + name, not a known legacy alias, but the
+            # stable id identifies it as the ship pipeline agent.
+            _write_agent_file_with_id(
+                agents, "deployer.agent.md", "Deployer", "autoharness/pipeline/ship"
+            )
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            proposal = proposals[0]
+            self.assertEqual(proposal["matched_by"], "id")
+            self.assertEqual(proposal["agent_id"], "autoharness/pipeline/ship")
+            self.assertEqual(proposal["status"], "id-mismatch")
+            self.assertEqual(
+                proposal["from_path"], ".github/agents/deployer.agent.md"
+            )
+            self.assertEqual(proposal["to_path"], ".github/agents/.ship.agent.md")
+            self.assertEqual(proposal["to_name"], ".Ship")
+            self.assertIn("path", proposal["changed_fields"])
+            self.assertIn("name", proposal["changed_fields"])
+
+    def test_stable_id_on_canonical_file_produces_no_proposal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file_with_id(
+                agents, ".ship.agent.md", ".Ship", "autoharness/pipeline/ship"
+            )
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(proposals, [])
+
+    def test_stable_id_name_only_when_filename_canonical(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file_with_id(
+                agents, ".ship.agent.md", "Renamed", "autoharness/pipeline/ship"
+            )
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            proposal = proposals[0]
+            self.assertEqual(proposal["matched_by"], "id")
+            self.assertEqual(proposal["changed_fields"], ["name"])
+            self.assertEqual(proposal["from_path"], proposal["to_path"])
+            self.assertEqual(proposal["to_name"], ".Ship")
+            # Filename is already canonical, so the canonical file is present.
+            self.assertTrue(proposal["canonical_exists"])
+
+    def test_stable_id_flags_duplicate_when_canonical_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file_with_id(
+                agents, ".ship.agent.md", ".Ship", "autoharness/pipeline/ship"
+            )
+            _write_agent_file_with_id(
+                agents, "deployer.agent.md", "Deployer", "autoharness/pipeline/ship"
+            )
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            proposal = proposals[0]
+            self.assertEqual(
+                proposal["from_path"], ".github/agents/deployer.agent.md"
+            )
+            self.assertTrue(proposal["canonical_exists"])
+            self.assertIn("remove the non-canonical duplicate", proposal["action"])
+
+    def test_stable_id_takes_precedence_over_legacy_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            # A legacy-named file that also carries the stable id: it must be
+            # matched exactly once (by id), not double-counted by the alias branch.
+            _write_agent_file_with_id(
+                agents, "ship.agent.md", "Ship", "autoharness/pipeline/ship"
+            )
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            proposal = proposals[0]
+            self.assertEqual(proposal["matched_by"], "id")
+            # Filename is a known legacy alias, so status stays known-legacy.
+            self.assertEqual(proposal["status"], "known-legacy")
+            self.assertEqual(proposal["to_path"], ".github/agents/.ship.agent.md")

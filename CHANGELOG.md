@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.4.9 - 2026-07-08
+
+### Added
+
+- Added a stable, filename-independent `id:` frontmatter field to the three
+  pipeline agents (`_orchestrator`/`autoharness/pipeline/orchestrator`,
+  `.stage`/`autoharness/pipeline/stage`, `.ship`/`autoharness/pipeline/ship`) in
+  both the templates and the installed mirrors, so an agent can be recognized as
+  a pipeline agent even after an arbitrary rename.
+- Added agent-identity migration detection to `verify-workspace`: it scans the
+  agent directories and emits `contract: agent-identity` migration proposals when
+  an installed pipeline agent drifted from its canonical filename or `name:`.
+  Detection prefers the stable `id:` (survives arbitrary renames) and falls back
+  to a legacy filename/`name:` alias registry (`orchestrator`/`dispatch`,
+  `stage`, `ship`) for agents authored before the `id:` field existed. Elective
+  and review/research agents are never proposed for renaming.
+- Documented the agent-identity standardization workflow in the install-harness
+  (Step 2.4) and tune-harness (Step 1.5b) skills, including the `id:`-preferred
+  detection rules and the back-up / rename / cross-reference / manifest
+  reconciliation procedure.
+
+### Changed
+
+- Restricted the globally distributed plugin agents to `auto-mergeinstall` and
+  `auto-tune` only (explicit `plugin.json` `agents` array). The pipeline agents
+  (`_orchestrator`, `.stage`, `.ship`) are local-only and are no longer eligible
+  for global distribution.
+- Stopped the startup scripts and the `setup-copilot-cli` / `setup-claude`
+  helpers from copying the two global plugin agents into a workspace-local
+  `.copilot`. Those agents are upgraded globally and must remain the versions
+  used during an upgrade, not local installs. The startup script headers and the
+  environment-setup guide were corrected accordingly.
+- Updated the default model routing for new installs (tier2 →
+  `claude-sonnet-5`, tier3 → `claude-opus-4.8`) and refreshed the illustrative
+  model examples across the orchestrator agent template, harness-config
+  template, harness-config schemas, and telemetry reference.
+
 ## 1.4.8 - 2026-07-08
 
 ### Added

@@ -1,8 +1,12 @@
 # Runtime registration is handled by the setup commands.
 # This script only launches Copilot CLI with workspace-local state.
-# Re-run `autoharness setup-copilot-cli` after upgrading autoharness so
-# updated Auto-MergeInstall / Auto-Tune agent files are recopied into the
-# standard Copilot CLI global config directory.
+#
+# Auto-MergeInstall / Auto-Tune are GLOBAL agents provided by the autoharness
+# marketplace plugin. They are the versions used when upgrading autoharness and
+# are intentionally NOT copied into this workspace's local .copilot — a stale
+# local copy would shadow the global agent during an upgrade. Upgrade them
+# globally with `copilot plugin install autoharness@autoharness`; do not run
+# `setup-copilot-cli` here (COPILOT_HOME is redirected to a workspace-local dir).
 
 function Invoke-EngramCommandWithProgress {
     param(
