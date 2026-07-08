@@ -24,10 +24,11 @@ if [[ -f "$env_local" ]]; then
 			env_name="${BASH_REMATCH[1]}"
 			env_value="${BASH_REMATCH[2]}"
 			env_value="${env_value%$'\r'}"
+			env_value="${env_value%"${env_value##*[![:space:]]}"}"
 			if [[ ${#env_value} -ge 2 && "${env_value:0:1}" == "${env_value: -1}" && ( "${env_value:0:1}" == '"' || "${env_value:0:1}" == "'" ) ]]; then
 				env_value="${env_value:1:${#env_value}-2}"
 			fi
-			if [[ -z "${!env_name:-}" ]]; then
+			if [[ -z "${!env_name+x}" ]]; then
 				export "$env_name=$env_value"
 			fi
 		fi
