@@ -4084,7 +4084,12 @@ class AgentIdentityMigrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             default_dir = (workspace / ".github" / "local-agents").resolve()
-            for unsafe in ("../escape", "/abs/escape", "..\\escape"):
+            # `..\escape` is a literal single filename on POSIX (backslash is not
+            # a separator) but a traversal on Windows, so only the platform-
+            # independent no-escape invariant is asserted for it.
+            always_fallback = ("../escape", "/abs/escape")
+            no_escape_only = ("..\\escape",)
+            for unsafe in always_fallback + no_escape_only:
                 profile = {
                     "distribution": {
                         "is_global_tool": True,
@@ -4098,7 +4103,8 @@ class AgentIdentityMigrationTests(unittest.TestCase):
                         or scan_dir == workspace.resolve(),
                         f"scan dir escaped workspace for {unsafe!r}: {scan_dir}",
                     )
-                self.assertIn(default_dir, dirs)
+                if unsafe in always_fallback:
+                    self.assertIn(default_dir, dirs)
 
     def test_end_to_end_report_surfaces_agent_identity_proposal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
