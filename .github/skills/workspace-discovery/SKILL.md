@@ -230,6 +230,7 @@ graphtor_docs:
   config_paths: []          # paths to MCP and other non-sources config files found (normally .mcp.json)
   sources_path: ""          # path to sources.yaml (the graphtor-docs source-index config); empty string if not found
   binary_path: ""           # path to graphtor-docs binary; empty string if not found (e.g. .graphtor/bin/graphtor-docs.exe or absolute PATH entry)
+  embed_model_dir: ""       # path to local embedding model dir (e.g. .graphtor/models/all-MiniLM-L6-v2); empty string if not found
   instruction_markers: []   # matched phrases from AGENTS.md / copilot-instructions.md
   recommended: true|false
 ```

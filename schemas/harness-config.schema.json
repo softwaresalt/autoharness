@@ -166,6 +166,11 @@
           "type": ["string", "null"],
           "default": null,
           "description": "Explicit path to the graphtor-docs binary. When null, the binary is resolved from PATH or the default '.graphtor/bin/' location."
+        },
+        "embed_model_dir": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Explicit path to the local sentence-transformer embedding model directory used for offline vector search (written to .env.local as GRAPHTOR_EMBED_MODEL_DIR). When null, defaults to '<workspace_root>/.graphtor/models/all-MiniLM-L6-v2'."
         }
       }
     },

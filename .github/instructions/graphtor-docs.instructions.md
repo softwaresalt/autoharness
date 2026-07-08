@@ -80,6 +80,10 @@ unless the task is specifically to manage doc sources.
 
 When the binary is not on PATH, it may be found at `.graphtor/bin/graphtor-docs.exe`.
 
+The local sentence-transformer embedding model used for offline vector search is
+configured via the `GRAPHTOR_EMBED_MODEL_DIR` environment variable, set in the
+workspace-root `.env.local` and defaulting to `.graphtor/models/all-MiniLM-L6-v2`.
+
 ## Data Ownership Rule
 
 Treat `.graphtor/` artifacts as tool-managed state. Do not hand-edit index databases, cached
