@@ -41,3 +41,6 @@ references/
 .env
 .env.*
 !.env.example
+# The .env.local template ships as a tracked harness artifact (it is rendered
+# into a gitignored .env.local at install time, so the output stays ignored).
+!templates/scripts/.env.local.tmpl

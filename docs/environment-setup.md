@@ -142,6 +142,35 @@ The startup scripts are runtime launchers only. They do not install `Auto-MergeI
 
 Sections for Claude Code and OpenAI Codex are included in each script as commented-out blocks; activate the one you need.
 
+### Local environment file (`.env.local`)
+
+The installer also generates a gitignored `.env.local` at the workspace root. The
+startup scripts load it before launching your AI CLI tool and export each
+`KEY=VALUE` line as a process environment variable — but only when that variable
+is not already set in the environment (a single pair of matching surrounding
+quotes is stripped from the value):
+
+```ini
+# .env.local — gitignored per-developer overrides and secrets
+
+# absolute workspace root, seeded at install
+workspaceFolder=C:\Source\GitHub\my-app
+
+# optional per-developer secrets
+# GITHUB_TOKEN=...
+```
+
+The loaders skip full-line comments (lines beginning with `#`) and blank lines,
+but they do **not** strip inline trailing comments — a `KEY=value  # note` line
+would export the literal `value  # note`. Keep annotations on their own comment
+lines as shown above.
+
+`.env.local` is generated **only if it does not already exist**, so re-running
+install or tune never overwrites developer secrets. It matches the `.env.*`
+gitignore pattern (excluding `.env.example`), so it is never committed. Use it
+for machine-specific values such as `workspaceFolder` and for local secrets
+(API keys, tokens) that should stay off the shared configuration surface.
+
 To configure the Copilot CLI path (when it is not on PATH), set it in `.autoharness/config.yaml` before running install or tune:
 
 ```yaml

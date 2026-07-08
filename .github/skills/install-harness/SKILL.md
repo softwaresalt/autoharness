@@ -100,6 +100,7 @@ Derive all template variables from the profile. The variable resolution table de
 | Template Variable | Source | Example (Rust) | Example (TypeScript) | Example (Python) |
 |---|---|---|---|---|
 | `{{PROJECT_NAME}}` | Directory name of workspace | `my-service` | `my-app` | `my-api` |
+| `{{WORKSPACE_ROOT}}` | `profile.workspace_path` (absolute path to workspace root) | `/home/me/my-service` | `C:\Source\my-app` | `/srv/my-api` |
 | `{{PRIMARY_LANGUAGE}}` | `languages.primary` | `Rust` | `TypeScript` | `Python` |
 | `{{PRIMARY_LANGUAGE_LOWER}}` | `lowercase(languages.primary)` | `rust` | `typescript` | `python` |
 | `{{LANGUAGE_VERSION}}` | `languages.version` (detected from toolchain config) | `2024` | `ES2022` | `3.12` |
@@ -405,6 +406,8 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 | `{{GRAPHTOR_DOCS_DETECTED}}` | `graphtor_docs.detected` | `true` | `false` |
 | `{{GRAPHTOR_SOURCES_PATH}}` | `graphtor_docs.sources_path` or operator `graphtor_docs.sources_path` | `.graphtor/config/sources.yaml` | `.graphtor/config/sources.yaml` |
 | `{{GRAPHTOR_BINARY_PATH}}` | binary path from `graphtor_docs` detection or operator `graphtor_docs.binary_path` | `.graphtor/bin/graphtor-docs` | `.graphtor/bin/graphtor-docs` |
+| `{{GRAPHTOR_EMBED_MODEL_DIR}}` | operator `graphtor_docs.embed_model_dir` or profile `graphtor_docs.embed_model_dir`, else default `{{WORKSPACE_ROOT}}` joined with `.graphtor/models/all-MiniLM-L6-v2` using the workspace-native path separator | `C:\Source\my-app\.graphtor\models\all-MiniLM-L6-v2` | `/srv/my-api/.graphtor/models/all-MiniLM-L6-v2` |
+| `{{GRAPHTOR_ENV_BLOCK}}` | `.env.local` graphtor block — when `{{GRAPHTOR_DOCS_ENABLED}}` is `true`, resolves to a leading blank line, a short comment, and `GRAPHTOR_EMBED_MODEL_DIR={{GRAPHTOR_EMBED_MODEL_DIR}}`; otherwise resolves to an empty string | `\n# graphtor-docs: ...\nGRAPHTOR_EMBED_MODEL_DIR=...` | `` (empty) |
 
 Note: These capability-pack and reviewer-selection variables are used internally by the installer during overlay composition. They drive conditional template selection and pack weaving logic. They are not emitted into installed artifact text — a capability pack's effects appear through the overlay content woven into templates, not through literal variable substitution.
 
@@ -525,7 +528,7 @@ Capability-pack overlays:
 | `strict-safety` | Installs `strict-safety.instructions.md` and threads explicit `ProposedAction` / `ActionRisk` / `ActionResult` guidance through risky planning, safety, review, and closure workflows |
 | `release-observability` | Installs `release-observability.instructions.md` and threads monitoring plan, pre-deploy audit, observation window, and rollback trigger expectations through operational closure and runtime verification workflows |
 | `adversarial-review` | Enables the standalone multi-model adversarial-review agent and review escalation path for higher-confidence consensus findings |
-| `graphtor-docs` | Installs `graphtor-docs.instructions.md` and threads indexed local documentation retrieval — keyword search, semantic search, topic research, doc-graph traversal — through research, planning, and knowledge-retrieval workflows so agents resolve domain concepts and APIs from indexed sources before falling back to broad web or filesystem search |
+| `graphtor-docs` | Installs `graphtor-docs.instructions.md` and threads indexed local documentation retrieval — keyword search, semantic search, topic research, doc-graph traversal — through research, planning, and knowledge-retrieval workflows so agents resolve domain concepts and APIs from indexed sources before falling back to broad web or filesystem search. Also weaves a `GRAPHTOR_EMBED_MODEL_DIR` entry into the workspace-root `.env.local` (via `{{GRAPHTOR_ENV_BLOCK}}`) so the local embedding model directory is available for offline vector search |
 
 #### Step 1.3a: Community Template Selection
 
@@ -1104,6 +1107,33 @@ Resolve `{{COPILOT_EXE_PATH}}`:
 - From `config.ai_tools.copilot_cli.exe_path` if present in `.autoharness/config.yaml`
 - Otherwise default to `copilot` (expects the executable on PATH)
 
+Also generate the workspace-local environment file:
+
+3. **`.env.local`** (from `.env.local.tmpl`) — gitignored per-developer environment
+   file. Resolve `{{WORKSPACE_ROOT}}` to the absolute workspace root path
+   (`profile.workspace_path`) and `{{PROJECT_NAME}}` as usual. It seeds
+   `workspaceFolder={{WORKSPACE_ROOT}}` plus space for secrets and per-developer
+   overrides. The `start.ps1` / `start.sh` scripts load this file at launch and
+   export each `KEY=VALUE` line as a process environment variable, but only when
+   that variable is not already set.
+
+   **Preserve existing secrets:** write `.env.local` only when it does not already
+   exist at the workspace root. If it exists, leave it untouched (it may hold
+   developer secrets). Confirm the workspace `.gitignore` ignores `.env.local`
+   (the `.env.*` pattern, excluding `.env.example`) so it is never committed.
+
+   **Graphtor-docs block (`{{GRAPHTOR_ENV_BLOCK}}`):** when the `graphtor-docs`
+   capability pack is selected (`{{GRAPHTOR_DOCS_ENABLED}}` is `true`), resolve
+   `{{GRAPHTOR_ENV_BLOCK}}` to a `GRAPHTOR_EMBED_MODEL_DIR={{GRAPHTOR_EMBED_MODEL_DIR}}`
+   entry (preceded by a blank line and a short comment). Resolve
+   `{{GRAPHTOR_EMBED_MODEL_DIR}}` from operator/profile `graphtor_docs.embed_model_dir`
+   when set, otherwise default to `{{WORKSPACE_ROOT}}` joined with
+   `.graphtor/models/all-MiniLM-L6-v2` using the workspace-native path separator.
+   When the pack is not selected, resolve `{{GRAPHTOR_ENV_BLOCK}}` to an empty
+   string. If graphtor-docs is added to an existing workspace during a later tune
+   and `.env.local` already exists without a `GRAPHTOR_EMBED_MODEL_DIR` line, append
+   the entry rather than overwriting the file.
+
 ### Phase 3: Installation
 
 #### Step 3.1: Staging
@@ -1131,6 +1161,7 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Scripts (when Primitive 5 or 6 selected) | `{workspace}/scripts/` — copy all `.ps1` and `.sh` files from `{autoharness_home}/templates/skills/{skill-name}/scripts/` for each skill that includes scripts (file-lock, skill-search) |
 | Startup scripts | `{workspace}/start.ps1`, `{workspace}/start.sh` — generated from `{autoharness_home}/templates/scripts/start.ps1.tmpl` and `start.sh.tmpl`; always installed at workspace root regardless of preset |
+| Local environment file | `{workspace}/.env.local` — generated from `{autoharness_home}/templates/scripts/.env.local.tmpl`; seeds `workspaceFolder={{WORKSPACE_ROOT}}`. Gitignored per-developer secrets file — **write only if it does not already exist**; never overwrite an existing `.env.local` |
 | Markdownlint config (when `tools.markdownlint` detected or operator opt-in) | `{workspace}/.markdownlint.json` — resolved from `{autoharness_home}/templates/scripts/.markdownlint.json.tmpl` (no variables to resolve; copy as-is) |
 | Markdownlint pre-commit hooks (when markdownlint config installed) | `{workspace}/scripts/pre-commit-markdownlint.sh`, `{workspace}/scripts/pre-commit-markdownlint.ps1` — copied from `{autoharness_home}/templates/scripts/pre-commit-markdownlint.sh.tmpl` and `pre-commit-markdownlint.ps1.tmpl`; set execute permission on `.sh` after copy: `chmod +x scripts/pre-commit-markdownlint.sh` |
 | Policies | `{workspace}/.github/policies/` |
@@ -1140,8 +1171,20 @@ Write generated artifacts to the target workspace. Use the following directory m
 
 #### Step 3.2b: Update .gitignore
 
-If the `file-lock` skill is being installed (Primitive 5 selected), ensure the
-workspace `.gitignore` contains entries for agent lock files:
+Always ensure the workspace `.gitignore` ignores the generated `.env.local`
+environment file (it holds per-developer secrets and machine-specific values and
+must never be committed):
+
+1. If `.gitignore` does not exist, create it.
+2. If it exists but does not already ignore `.env.local` (directly or via a
+   `.env.*` pattern), append:
+   * `.env`
+   * `.env.*`
+   * `!.env.example`
+3. Record this action in the manifest so the tuner can detect if it was removed.
+
+Additionally, if the `file-lock` skill is being installed (Primitive 5 selected),
+ensure the workspace `.gitignore` contains entries for agent lock files:
 
 1. If `.gitignore` does not exist, create it with:
    * `.*.lock`

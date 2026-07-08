@@ -14,6 +14,27 @@
 
 set -euo pipefail
 
+# Load .env.local (gitignored per-developer overrides) if present. Each
+# KEY=VALUE line is exported only when that variable is not already set. A
+# single pair of matching surrounding quotes is stripped from the value.
+env_local="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.env.local"
+if [[ -f "$env_local" ]]; then
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+			env_name="${BASH_REMATCH[1]}"
+			env_value="${BASH_REMATCH[2]}"
+			env_value="${env_value%$'\r'}"
+			env_value="${env_value%"${env_value##*[![:space:]]}"}"
+			if [[ ${#env_value} -ge 2 && "${env_value:0:1}" == "${env_value: -1}" && ( "${env_value:0:1}" == '"' || "${env_value:0:1}" == "'" ) ]]; then
+				env_value="${env_value:1:${#env_value}-2}"
+			fi
+			if [[ -z "${!env_name+x}" ]]; then
+				export "$env_name=$env_value"
+			fi
+		fi
+	done < "$env_local"
+fi
+
 # ── GitHub Copilot CLI ──────────────────────────────────────────────────────
 # COPILOT_HOME redirects the Copilot CLI database and memory to a workspace-
 # local directory. This keeps agent state visible in git and isolated per
