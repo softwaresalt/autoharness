@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.4.10 - 2026-07-08
+
+### Added
+
+- Added new-artifact (uninstalled template) detection to `verify-workspace`. The
+  deterministic drift scan only re-hashed artifacts already recorded in the
+  manifest, so templates newly added by a harness upgrade (for example new prompt
+  variants) had no manifest entry and were invisible to tune's drift detection.
+  The new `_scan_uninstalled_templates` scan diffs the `autoharness_home`
+  template catalog against installed artifacts — matching by manifest artifact
+  path, manifest template source, community-template install path, and file
+  presence on disk — and surfaces uninstalled templates as advisory
+  `new-artifact` findings in `new_artifacts[]`. The scan is scoped conservatively
+  to the prompt class (extensible) and annotates each prompt finding with its
+  documented install rule and applicability against the installed primitive set.
+  Findings are advisory and never fail verification.
+- Documented the new-artifact flow in the tune-harness skill: `verify-workspace`
+  now feeds `new_artifacts[]` into a new Step 1.3b (New Artifact Detection),
+  categorizes them as Growth drift, and installs accepted, applicable entries in
+  Step 4.2 (Generate New Artifacts).
+
 ## 1.4.9 - 2026-07-08
 
 ### Added

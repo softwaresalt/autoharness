@@ -40,6 +40,34 @@ WORKSPACE_SOURCE_TEMPLATES = {
     "workspace merge install",
     "workspace deliberation template",
 }
+# Artifact classes eligible for new-template (uninstalled) detection during
+# tune. The manifest-scoped drift scan only re-hashes artifacts already recorded
+# in the manifest, so templates newly added by a harness upgrade are invisible
+# to drift detection. Each entry maps a template subdirectory to the workspace
+# install directory plus the template/install suffixes so the catalog can be
+# diffed against installed artifacts. The set is intentionally conservative:
+# prompts are small and broadly installed, whereas instructions/skills/agents
+# are heavily capability-pack and stack gated and would need a pack-gate map to
+# scan without false positives. Add classes here as gating support grows.
+NEW_ARTIFACT_SCAN_CLASSES = (
+    {
+        "artifact_class": "prompt",
+        "template_subdir": "prompts",
+        "install_subdir": ".github/prompts",
+        "template_suffix": ".prompt.md.tmpl",
+        "install_suffix": ".prompt.md",
+    },
+)
+# Documented install rules for prompt templates (install-harness Step 2.7). Used
+# only to annotate new-artifact findings with applicability guidance; the tuner
+# and operator make the final install decision. `requires_primitive` of None
+# means the prompt is universal (always applicable when prompts are used).
+PROMPT_INSTALL_RULES = {
+    "ping-loop.prompt.md": {"rule": "universal", "requires_primitive": None},
+    "feature-flow.prompt.md": {"rule": "primitive-4", "requires_primitive": 4},
+    "feature-flow-parallel.prompt.md": {"rule": "primitive-4", "requires_primitive": 4},
+    "feature-flow-dark.prompt.md": {"rule": "primitive-4 + P-017", "requires_primitive": 4},
+}
 # Canonical pipeline agent identities and their known legacy aliases. Older
 # harness installs used unprefixed filenames/names (and, earlier still,
 # `dispatch` for the orchestrator). Harness upgrades (auto-tune) and merge
@@ -1779,6 +1807,122 @@ def _resolve_source_template(
     return None, None
 
 
+def _scan_uninstalled_templates(
+    workspace_path: Path,
+    autoharness_home: Path,
+    manifest: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Detect templates in autoharness_home with no installed workspace artifact.
+
+    The deterministic checksum scan only re-hashes artifacts already recorded in
+    the manifest, so templates newly added by a harness upgrade (for example new
+    prompt variants) are invisible to drift detection. This scan diffs the
+    autoharness_home template catalog against installed artifacts — matching by
+    manifest artifact path, manifest template source, community-template install
+    path, and file presence on disk — and surfaces uninstalled templates as
+    advisory ``new-artifact`` findings so the tuner can propose installing them.
+
+    Findings are advisory: for prompts the documented install rules annotate
+    each finding with applicability, but the tuner and operator make the final
+    install decision. The scan never fails verification.
+    """
+    findings: list[dict[str, Any]] = []
+
+    autoharness_home = autoharness_home.resolve()
+    workspace_path = workspace_path.resolve()
+
+    artifacts = [
+        artifact
+        for artifact in (manifest.get("artifacts") or [])
+        if isinstance(artifact, dict)
+    ]
+
+    installed_paths: set[str] = set()
+    for artifact in artifacts:
+        raw_path = artifact.get("path")
+        if raw_path:
+            installed_paths.add(Path(str(raw_path)).as_posix())
+    for community in manifest.get("community_templates") or []:
+        if isinstance(community, dict) and community.get("installed_path"):
+            installed_paths.add(Path(str(community["installed_path"])).as_posix())
+
+    installed_template_sources: set[str] = set()
+    for artifact in artifacts:
+        source_path, _mode = _resolve_source_template(
+            autoharness_home, workspace_path, artifact
+        )
+        if source_path is None:
+            continue
+        try:
+            installed_template_sources.add(
+                source_path.resolve().relative_to(autoharness_home).as_posix()
+            )
+        except ValueError:
+            installed_template_sources.add(source_path.resolve().as_posix())
+
+    primitives_installed = {
+        value
+        for value in (manifest.get("primitives_installed") or [])
+        if isinstance(value, int)
+    }
+
+    for spec in NEW_ARTIFACT_SCAN_CLASSES:
+        template_dir = autoharness_home / "templates" / spec["template_subdir"]
+        if not template_dir.is_dir():
+            continue
+        template_suffix = spec["template_suffix"]
+        for template_file in sorted(template_dir.glob(f"*{template_suffix}")):
+            install_name = (
+                template_file.name[: -len(template_suffix)] + spec["install_suffix"]
+            )
+            expected_rel = f"{spec['install_subdir']}/{install_name}"
+            try:
+                template_rel = template_file.resolve().relative_to(
+                    autoharness_home
+                ).as_posix()
+            except ValueError:
+                template_rel = template_file.resolve().as_posix()
+
+            if expected_rel in installed_paths:
+                continue
+            if template_rel in installed_template_sources:
+                continue
+            if (workspace_path / Path(expected_rel)).exists():
+                continue
+
+            finding: dict[str, Any] = {
+                "kind": "new-artifact",
+                "artifact_class": spec["artifact_class"],
+                "template": template_rel,
+                "expected_path": expected_rel,
+                "severity": "advisory",
+                "reason": (
+                    "Template exists in autoharness_home but has no installed "
+                    "artifact or manifest entry; it may be newly added by a "
+                    "harness upgrade. Review install applicability before adding."
+                ),
+            }
+
+            rule = (
+                PROMPT_INSTALL_RULES.get(install_name)
+                if spec["artifact_class"] == "prompt"
+                else None
+            )
+            if rule is not None:
+                finding["install_rule"] = rule["rule"]
+                required = rule["requires_primitive"]
+                if required is None:
+                    finding["applicable"] = True
+                elif primitives_installed:
+                    finding["applicable"] = required in primitives_installed
+                else:
+                    finding["applicable"] = None
+
+            findings.append(finding)
+
+    return findings
+
+
 def _build_extended_operations_table(registry: dict[str, Any]) -> str:
     operations = registry.get("operations") or {}
     rows = []
@@ -2414,6 +2558,29 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
     else:
         lines.append("none")
 
+    lines.extend(["", "## New Artifacts (Uninstalled Templates)", ""])
+    if report.get("new_artifacts"):
+        for finding in report["new_artifacts"]:
+            applicable = finding.get("applicable")
+            if applicable is True:
+                applicability = "applicable"
+            elif applicable is False:
+                applicability = "not applicable"
+            elif "applicable" in finding:
+                applicability = "applicability unknown"
+            else:
+                applicability = "review applicability"
+            rule = finding.get("install_rule")
+            rule_note = f", rule: {rule}" if rule else ""
+            lines.append(
+                f"- {finding.get('artifact_class', 'artifact')}: "
+                f"`{finding.get('template', '')}` -> "
+                f"`{finding.get('expected_path', '')}` "
+                f"({applicability}{rule_note})"
+            )
+    else:
+        lines.append("none")
+
     lines.extend(["", "## Unresolved Placeholders", ""])
     if report["unresolved"]:
         for unresolved in report["unresolved"]:
@@ -2491,6 +2658,7 @@ def verify_workspace(
         "checksum_scan": [],
         "schema_contracts": {},
         "migration_proposals": [],
+        "new_artifacts": [],
         "targeted_checks": {},
         "learning_signals": _empty_learning_signals(),
         "portability_findings": [],
@@ -2597,6 +2765,10 @@ def verify_workspace(
 
     report["migration_proposals"].extend(
         _scan_agent_identity_migrations(workspace_path, profile)
+    )
+
+    report["new_artifacts"] = _scan_uninstalled_templates(
+        workspace_path, autoharness_home, manifest
     )
 
     installed_packs = [

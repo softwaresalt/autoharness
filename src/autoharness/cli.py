@@ -148,6 +148,7 @@ def _verify_workspace_command(args: list[str]) -> None:
         else:
             print(f"Warnings: {warning_count}")
         print(f"Migration proposals: {len(report['migration_proposals'])}")
+        print(f"New artifacts (uninstalled templates): {len(report.get('new_artifacts', []))}")
         print(f"Unresolved placeholders: {len(report['unresolved'])}")
         print(f"Rendered artifacts: {len(report['rendered'])}")
         print(f"Skipped artifacts: {len(report['skipped'])}")
