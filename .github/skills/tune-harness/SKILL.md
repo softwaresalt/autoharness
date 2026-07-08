@@ -224,13 +224,19 @@ close this gap:
   community-template install paths, and file presence on disk
 * each entry carries `artifact_class`, `template`, `expected_path`, `severity`
   (`advisory`), and — for prompts — an `install_rule` plus an `applicable`
-  annotation (`true`, `false`, or `null` when installed primitives are unknown)
+  annotation (`true`, `false`, or `null` when installed primitives are unknown or
+  when the template is gated on a workflow-policy opt-in). Policy-gated prompts
+  also carry `requires_opt_in` (for example `P-017` for the dark-mode trigger
+  shim `feature-flow-dark.prompt.md`), which forces `applicable: null`.
 
 Record these under `drift_report.new_artifacts[]` and categorize them as
 **Growth** drift (Step 1.2). Findings are advisory: the operator and Step 4.2
 make the final install decision. Prefer installing entries whose `applicable` is
 `true`; treat `false` as out-of-scope for the current primitive set and `null`
-as operator-decides. New-artifact findings never fail verification.
+as operator-decides. Never auto-install an entry that carries `requires_opt_in`
+unless the operator has explicitly opted into that policy — a workspace with the
+required primitive but no policy opt-in must not receive a policy-gated shim by
+default. New-artifact findings never fail verification.
 
 #### Step 1.4: Scan Harness Artifact Health
 
@@ -854,8 +860,11 @@ If growth opportunities were accepted (new review personas, new instructions, ne
    profile, and record the new artifact in the manifest with its checksum,
    `primitive`, and `template` source. Install entries whose `applicable` is
    `true` by default; install `null`/`false` entries only when the operator
-   accepts them. Prompts follow the install-harness prompt install rules
-   (universal vs. primitive-gated).
+   accepts them. Never auto-install an entry that carries `requires_opt_in`
+   (for example the `P-017` dark-mode trigger shim `feature-flow-dark.prompt.md`)
+   unless the operator has explicitly opted into that policy. Prompts follow the
+   install-harness prompt install rules (universal vs. primitive-gated vs.
+   policy-gated).
 
 #### Step 4.3: Update Manifest
 

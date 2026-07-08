@@ -62,11 +62,19 @@ NEW_ARTIFACT_SCAN_CLASSES = (
 # only to annotate new-artifact findings with applicability guidance; the tuner
 # and operator make the final install decision. `requires_primitive` of None
 # means the prompt is universal (always applicable when prompts are used).
+# `requires_opt_in` names a workflow-policy opt-in (for example P-017 dark
+# factory mode) that cannot be confirmed from `primitives_installed` alone; such
+# prompts are always annotated operator-decides so the tuner never auto-installs
+# a policy-gated shim into a workspace that did not opt into that policy.
 PROMPT_INSTALL_RULES = {
     "ping-loop.prompt.md": {"rule": "universal", "requires_primitive": None},
     "feature-flow.prompt.md": {"rule": "primitive-4", "requires_primitive": 4},
     "feature-flow-parallel.prompt.md": {"rule": "primitive-4", "requires_primitive": 4},
-    "feature-flow-dark.prompt.md": {"rule": "primitive-4 + P-017", "requires_primitive": 4},
+    "feature-flow-dark.prompt.md": {
+        "rule": "primitive-4 + P-017",
+        "requires_primitive": 4,
+        "requires_opt_in": "P-017",
+    },
 }
 # Canonical pipeline agent identities and their known legacy aliases. Older
 # harness installs used unprefixed filenames/names (and, earlier still,
@@ -1911,7 +1919,16 @@ def _scan_uninstalled_templates(
             if rule is not None:
                 finding["install_rule"] = rule["rule"]
                 required = rule["requires_primitive"]
-                if required is None:
+                opt_in = rule.get("requires_opt_in")
+                if opt_in:
+                    # A workflow-policy opt-in (for example P-017 dark factory
+                    # mode) cannot be confirmed from primitives_installed alone,
+                    # so leave applicability to the operator. This prevents the
+                    # tuner from auto-installing a policy-gated shim (such as the
+                    # dark-mode trigger) into a workspace that never opted in.
+                    finding["applicable"] = None
+                    finding["requires_opt_in"] = opt_in
+                elif required is None:
                     finding["applicable"] = True
                 elif primitives_installed:
                     finding["applicable"] = required in primitives_installed
@@ -2562,10 +2579,13 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
     if report.get("new_artifacts"):
         for finding in report["new_artifacts"]:
             applicable = finding.get("applicable")
+            opt_in = finding.get("requires_opt_in")
             if applicable is True:
                 applicability = "applicable"
             elif applicable is False:
                 applicability = "not applicable"
+            elif opt_in:
+                applicability = f"operator-decides (requires {opt_in} opt-in)"
             elif "applicable" in finding:
                 applicability = "applicability unknown"
             else:
