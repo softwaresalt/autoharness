@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.4.8 - 2026-07-08
+
+### Added
+
+- Added a tracked `templates/scripts/.env.local.tmpl` template that seeds a
+  gitignored `.env.local` at the workspace root with a `workspaceFolder` anchor.
+  It is generated only when absent, so per-developer secrets and machine-specific
+  values survive re-installs and tunes.
+- Added a parity `.env.local` loader to the bash startup script (`start.sh` and
+  `start.sh.tmpl`) matching the PowerShell loader: each `KEY=VALUE` line is
+  exported only when the variable is unset, one matching pair of surrounding
+  quotes is stripped, and trailing whitespace is trimmed.
+- Added a graphtor-docs-conditional `GRAPHTOR_EMBED_MODEL_DIR` entry to
+  `.env.local` (via the `{{GRAPHTOR_ENV_BLOCK}}` variable), defaulting to
+  `<workspace_root>/.graphtor/models/all-MiniLM-L6-v2` and overridable through the
+  new `graphtor_docs.embed_model_dir` field in the harness-config and
+  workspace-profile schemas.
+
+### Changed
+
+- Wired `.env.local` generation through the install-harness skill (new
+  `{{WORKSPACE_ROOT}}` variable, only-if-absent generation, and gitignore
+  negation that keeps the tracked `.tmpl` while ignoring the rendered file) and
+  documented the workflow in the environment-setup guide.
+
 ## 1.4.7 - 2026-07-06
 
 ### Added
