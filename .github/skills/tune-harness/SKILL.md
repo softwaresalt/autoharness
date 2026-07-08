@@ -114,6 +114,7 @@ Treat the verifier's JSON report as the authoritative structured input for this 
 
 * `schema_contracts{}` for observed version and contract status
 * `migration_proposals[]` for contract upgrade, backfill, and normalization work
+* `new_artifacts[]` for uninstalled `autoharness_home` templates that have no installed workspace artifact (advisory net-new install candidates)
 * `learning_signals{}` for recurring compound, continuous-learning, and closure patterns already mined from workspace evidence
 * `warnings[]` for compatibility drift evidence
 
@@ -188,7 +189,7 @@ Classify each detected change by impact and urgency:
 | **Breaking** | Harness references are invalid | Removed build tool, renamed source directory, deleted CI pipeline |
 | **Degrading** | Harness works but is suboptimal | New framework added without instructions, new test patterns without review persona, config key renamed but old key still present, suffix_map missing entries that schema defines |
 | **Cosmetic** | Function unaffected | Minor version bumps, additional config files |
-| **Growth** | New capabilities to harness | New languages in project, new documentation patterns |
+| **Growth** | New capabilities to harness | New languages in project, new documentation patterns, uninstalled `autoharness_home` templates surfaced in `new_artifacts[]` |
 
 Include any config-key migration and config-entry backfill proposals from Step 0b.1 as **Degrading** drift entries. Config migrations and backfills are applied in Phase 4 alongside other accepted proposals.
 
@@ -209,6 +210,27 @@ generated artifacts:
 
 Record the result under `drift_report.checksum_scan{}` so later proposals can
 distinguish broken installs from intentional local customization.
+
+#### Step 1.3b: New Artifact Detection (Uninstalled Templates)
+
+The checksum scan in Step 1.3 only re-hashes artifacts already recorded in the
+manifest, so templates newly added by a harness upgrade (for example new prompt
+variants shipped in a later autoharness release) are invisible to it — they have
+no manifest entry to re-hash. Consume the verifier's `new_artifacts[]` array to
+close this gap:
+
+* each entry names an `autoharness_home` template with no installed workspace
+  artifact, matched against manifest artifact paths, manifest template sources,
+  community-template install paths, and file presence on disk
+* each entry carries `artifact_class`, `template`, `expected_path`, `severity`
+  (`advisory`), and — for prompts — an `install_rule` plus an `applicable`
+  annotation (`true`, `false`, or `null` when installed primitives are unknown)
+
+Record these under `drift_report.new_artifacts[]` and categorize them as
+**Growth** drift (Step 1.2). Findings are advisory: the operator and Step 4.2
+make the final install decision. Prefer installing entries whose `applicable` is
+`true`; treat `false` as out-of-scope for the current primitive set and `null`
+as operator-decides. New-artifact findings never fail verification.
 
 #### Step 1.4: Scan Harness Artifact Health
 
@@ -827,6 +849,13 @@ If growth opportunities were accepted (new review personas, new instructions, ne
 7. If risky-plan hardening or strict-safety expectations changed, update
    `plan-harden`, safety-mode, review, and closure artifacts together rather
    than patching only one surface
+8. For each accepted `drift_report.new_artifacts[]` entry (Step 1.3b), install
+   the template to its `expected_path`, resolving variables from the current
+   profile, and record the new artifact in the manifest with its checksum,
+   `primitive`, and `template` source. Install entries whose `applicable` is
+   `true` by default; install `null`/`false` entries only when the operator
+   accepts them. Prompts follow the install-harness prompt install rules
+   (universal vs. primitive-gated).
 
 #### Step 4.3: Update Manifest
 

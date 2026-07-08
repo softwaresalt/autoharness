@@ -18,7 +18,7 @@ from autoharness.schema_contracts import (
     summarize_schema_contract,
 )
 from autoharness.cli import _report_has_failures
-from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _resolve_agent_scan_dirs, _run_portability_scan, _scan_agent_identity_migrations, verify_workspace
+from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _resolve_agent_scan_dirs, _run_portability_scan, _scan_agent_identity_migrations, _scan_uninstalled_templates, verify_workspace
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -4260,3 +4260,161 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             # Filename is a known legacy alias, so status stays known-legacy.
             self.assertEqual(proposal["status"], "known-legacy")
             self.assertEqual(proposal["to_path"], ".github/agents/.ship.agent.md")
+
+
+def _write_prompt_template(home: Path, name: str) -> None:
+    prompts_dir = home / "templates" / "prompts"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    (prompts_dir / f"{name}.prompt.md.tmpl").write_text(
+        f"---\ndescription: {name}\n---\n\n# {name}\n", encoding="utf-8"
+    )
+
+
+class NewArtifactDetectionTests(unittest.TestCase):
+    def _by_expected(self, findings: list[dict]) -> dict[str, dict]:
+        return {f["expected_path"]: f for f in findings}
+
+    def test_flags_uninstalled_prompt_template(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "ws"
+            home = Path(tmp) / "home"
+            _write_prompt_template(home, "ping-loop")
+
+            findings = _scan_uninstalled_templates(
+                workspace, home, {"artifacts": [], "primitives_installed": [4]}
+            )
+
+            index = self._by_expected(findings)
+            self.assertIn(".github/prompts/ping-loop.prompt.md", index)
+            finding = index[".github/prompts/ping-loop.prompt.md"]
+            self.assertEqual(finding["kind"], "new-artifact")
+            self.assertEqual(finding["artifact_class"], "prompt")
+            self.assertEqual(finding["severity"], "advisory")
+            self.assertEqual(
+                finding["template"], "templates/prompts/ping-loop.prompt.md.tmpl"
+            )
+            # ping-loop is universal -> applicable regardless of primitives.
+            self.assertEqual(finding["install_rule"], "universal")
+            self.assertTrue(finding["applicable"])
+
+    def test_skips_prompt_present_on_disk(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "ws"
+            home = Path(tmp) / "home"
+            _write_prompt_template(home, "feature-flow")
+            installed = workspace / ".github" / "prompts"
+            installed.mkdir(parents=True, exist_ok=True)
+            (installed / "feature-flow.prompt.md").write_text("# ff", encoding="utf-8")
+
+            findings = _scan_uninstalled_templates(
+                workspace, home, {"artifacts": [], "primitives_installed": [4]}
+            )
+
+            self.assertNotIn(
+                ".github/prompts/feature-flow.prompt.md", self._by_expected(findings)
+            )
+
+    def test_skips_prompt_tracked_in_manifest_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "ws"
+            home = Path(tmp) / "home"
+            _write_prompt_template(home, "feature-flow")
+            manifest = {
+                "artifacts": [
+                    {
+                        "path": ".github/prompts/feature-flow.prompt.md",
+                        "template": "global prompt definition",
+                        "primitive": 4,
+                        "checksum": "x",
+                    }
+                ],
+                "primitives_installed": [4],
+            }
+
+            findings = _scan_uninstalled_templates(workspace, home, manifest)
+
+            self.assertNotIn(
+                ".github/prompts/feature-flow.prompt.md", self._by_expected(findings)
+            )
+
+    def test_prompt_applicability_tracks_primitive_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "ws"
+            home = Path(tmp) / "home"
+            _write_prompt_template(home, "feature-flow")
+
+            # Primitive 4 installed -> applicable.
+            applicable = self._by_expected(
+                _scan_uninstalled_templates(
+                    workspace, home, {"artifacts": [], "primitives_installed": [4]}
+                )
+            )[".github/prompts/feature-flow.prompt.md"]
+            self.assertTrue(applicable["applicable"])
+
+            # Primitive 4 absent (but primitives known) -> not applicable.
+            not_applicable = self._by_expected(
+                _scan_uninstalled_templates(
+                    workspace, home, {"artifacts": [], "primitives_installed": [1, 2]}
+                )
+            )[".github/prompts/feature-flow.prompt.md"]
+            self.assertFalse(not_applicable["applicable"])
+
+            # Primitives unknown (empty) -> applicability None (operator decides).
+            unknown = self._by_expected(
+                _scan_uninstalled_templates(workspace, home, {"artifacts": []})
+            )[".github/prompts/feature-flow.prompt.md"]
+            self.assertIsNone(unknown["applicable"])
+
+    def test_no_templates_dir_yields_no_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "ws"
+            home = Path(tmp) / "home"
+            home.mkdir(parents=True, exist_ok=True)
+
+            findings = _scan_uninstalled_templates(workspace, home, {"artifacts": []})
+
+            self.assertEqual(findings, [])
+
+    def test_verify_workspace_populates_new_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "ws"
+            home = Path(tmp) / "home"
+            staging = workspace / ".autoharness" / "staging"
+            (home / "schemas").mkdir(parents=True, exist_ok=True)
+            schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (home / "schemas" / schema_name).write_text(
+                    json.dumps(schema), encoding="utf-8"
+                )
+            _write_prompt_template(home, "stage-grouping-analysis")
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-24T00:00:00Z",
+                    "autoharness_version": "1.4.9",
+                    "profile_hash": "abc",
+                    "primitives_installed": [4],
+                    "artifacts": [],
+                    "variables_used": {"PROJECT_NAME": "demo"},
+                },
+            )
+
+            report = verify_workspace(workspace, home, staging)
+
+            expected = {f["expected_path"] for f in report["new_artifacts"]}
+            self.assertIn(
+                ".github/prompts/stage-grouping-analysis.prompt.md", expected
+            )
+            markdown = Path(report["report_paths"]["markdown"]).read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("New Artifacts (Uninstalled Templates)", markdown)
+            self.assertIn("stage-grouping-analysis.prompt.md", markdown)
