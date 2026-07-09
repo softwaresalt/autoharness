@@ -39,6 +39,7 @@ Usage:
   autoharness version           Print the installed version
   autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness gate check        Run deterministic validation gates on modified files
+  autoharness gate size         Estimate a task's T-shirt size and write it back
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
@@ -158,13 +159,19 @@ def _verify_workspace_command(args: list[str]) -> None:
 
 
 GATE_USAGE = """\
-autoharness gate check — run deterministic validation gates on modified files
+autoharness gate — deterministic lifecycle gates
+
+Subcommands:
+  check   Run deterministic validation gates on modified files (pre_task_completion).
+  size    Estimate a task's T-shirt size and write it back (pre_execution).
 
 Usage:
   autoharness gate check --base <ref> [--task <id>] [--head <ref>]
                          [--workspace <path>] [--json] [--force] [--no-count]
+  autoharness gate size <task_id> [--dry-run] [--strict] [--workspace <path>]
+                        [--json] [--backlogit <path>]
 
-Options:
+check options:
   --base <ref>        Git ref to diff against (the task branch base). Required.
   --task <id>         Active backlog task ID (interpolated as {task_id}).
   --head <ref>        Git ref for the modified side of the diff. Default: HEAD.
@@ -177,10 +184,27 @@ Options:
                       the repeated-failure counter. Cannot be combined with
                       --force.
 
+size options:
+  <task_id>           Backlog task ID to size. Required.
+  --dry-run           Estimate and print the write-back command without running it.
+  --strict            Exit 3 on a write-back configuration failure. Default is
+                      fail-open (exit 0) because the sizing gate is advisory and
+                      must never block task execution.
+  --workspace, -w     Workspace root (passed as cwd to backlogit). Default: .
+  --json              Emit the sizing result as JSON.
+  --backlogit <path>  Path to the backlogit executable. Default: backlogit.
+
+An existing size is never overwritten. A missing backlogit binary, a timeout, or
+a backlogit rejection is a configuration failure, not a task failure — it never
+blocks task execution and exits 0 unless --strict is given.
+
 Exit codes:
-  0  all matched gates passed, or no gates configured, or no files matched.
+  0  gates passed / no gates configured / no files matched; or size written,
+     skipped (existing size), dry-run, or (without --strict) a non-blocking
+     sizing configuration failure.
   1  at least one matched file failed its gate (blocked), unless advisory.
   2  invalid arguments or invalid gate configuration.
+  3  sizing write-back configuration failure, only when --strict is given.
 """
 
 
@@ -256,17 +280,24 @@ def _gate_command(args: list[str]) -> None:
         return
 
     subcommand = args[0]
-    if subcommand != "check":
+    if subcommand == "check":
+        _gate_check_command(args[1:])
+    elif subcommand == "size":
+        _gate_size_command(args[1:])
+    else:
         print(f"Unknown gate subcommand: {subcommand}", file=sys.stderr)
         print(GATE_USAGE, file=sys.stderr)
         sys.exit(2)
 
-    if any(flag in ("help", "--help", "-h") for flag in args[1:]):
+
+def _gate_check_command(rest: list[str]) -> None:
+    """Run deterministic validation gates on modified files."""
+    if any(flag in ("help", "--help", "-h") for flag in rest):
         print(GATE_USAGE)
         return
 
     try:
-        parsed = _parse_gate_check_args(args[1:])
+        parsed = _parse_gate_check_args(rest)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         print(GATE_USAGE, file=sys.stderr)
@@ -307,6 +338,103 @@ def _gate_command(args: list[str]) -> None:
 
     if outcome.exit_code != 0:
         sys.exit(outcome.exit_code)
+
+
+def _parse_gate_size_args(args: list[str]) -> dict:
+    """Parse `autoharness gate size` arguments."""
+    parsed: dict = {
+        "task": None,
+        "workspace": Path("."),
+        "emit_json": False,
+        "dry_run": False,
+        "strict": False,
+        "backlogit": "backlogit",
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--backlogit":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --backlogit")
+            parsed["backlogit"] = args[index]
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        elif arg == "--dry-run":
+            parsed["dry_run"] = True
+        elif arg == "--strict":
+            parsed["strict"] = True
+        elif not arg.startswith("-") and parsed["task"] is None:
+            parsed["task"] = arg
+        else:
+            raise ValueError(f"Unknown gate size argument: {arg}")
+        index += 1
+    if parsed["task"] is None:
+        raise ValueError("gate size requires a <task_id>")
+    return parsed
+
+
+def _format_sizing_result(result) -> str:
+    """Render a human-readable summary of a sizing result."""
+    lines = [f"Sizing gate — task {result.task_id}: {result.action}"]
+    if result.action == "skipped-existing":
+        lines.append(f"  existing size: {result.existing_size} (not overwritten)")
+    elif result.estimated_size:
+        verb = {
+            "dry-run": "would write",
+            "written": "wrote",
+        }.get(result.action, "estimated")
+        lines.append(f"  {verb} size: {result.estimated_size}")
+    if result.argv:
+        lines.append(f"  command: {' '.join(result.argv)}")
+    if result.action == "error":
+        lines.append(f"  error: {result.stderr}")
+        lines.append("  (configuration failure — task execution is NOT blocked)")
+    return "\n".join(lines)
+
+
+def _gate_size_command(rest: list[str]) -> None:
+    """Estimate and write back a task's T-shirt size (pre_execution gate)."""
+    if any(flag in ("help", "--help", "-h") for flag in rest):
+        print(GATE_USAGE)
+        return
+
+    try:
+        parsed = _parse_gate_size_args(rest)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(GATE_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.gates import sizing
+
+    def _fetch(task_id: str, cwd):
+        return sizing.fetch_task(task_id, cwd, backlogit_bin=parsed["backlogit"])
+
+    result = sizing.size_task(
+        parsed["task"],
+        fetch_fn=_fetch,
+        cwd=parsed["workspace"],
+        dry_run=parsed["dry_run"],
+        backlogit_bin=parsed["backlogit"],
+    )
+
+    if parsed["emit_json"]:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(_format_sizing_result(result))
+
+    # Fail open by default: the sizing gate is advisory and must never block task
+    # execution, so a write-back configuration failure still exits 0. Operators or
+    # CI that want a broken configuration surfaced as a non-zero status can opt in
+    # with --strict.
+    if not result.ok and parsed["strict"]:
+        sys.exit(3)
 
 
 TELEMETRY_USAGE = """\
