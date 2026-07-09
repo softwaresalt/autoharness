@@ -1,2 +1,4 @@
 {"timestamp":"2026-07-09T10:56:30.1311657-07:00","actor":"backlogit","item_id":"079-S","event_type":"shipment_created","delta":{"items":["067.001-T","067.002-T","067.003-T","067.004-T","067.005-T","067.006-T","067.007-T","067.008-T","067.009-T","067.010-T"],"title":"Full-preset harness sync remediation (067-F)"}}
 {"timestamp":"2026-07-09T11:36:52.2975784-07:00","actor":"backlogit","item_id":"079-S","event_type":"shipment_item_returned_blocked","delta":{"item_id":"067.001-T","reason":"Superseded by ACP consolidation (stash 3459B819): agent-intercom MCP mode / ping-loop being removed, not installed"}}
+{"timestamp":"2026-07-09T13:05:40.2462012-07:00","actor":"backlogit","item_id":"079-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-09T15:01:24.4425256-07:00","actor":"backlogit","item_id":"079-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/079-S.md"}}
