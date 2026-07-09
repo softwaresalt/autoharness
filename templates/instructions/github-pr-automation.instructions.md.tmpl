@@ -143,6 +143,68 @@ body: "Partially addressed in <commit_sha>. Applied: <what was fixed>.
 Not applied: <what was declined and why>."
 ```
 
+#### Shell-Safe Comment Body Construction
+
+Reply and resolution bodies frequently contain markdown code spans and shell
+metacharacters. On PowerShell, inlining such a body in a **double-quoted**
+`gh api ... -f body="..."` argument corrupts the posted text — this is the root
+cause of the "escape-character typos" seen in resolution comments. (PowerShell is
+the observed root cause here; Bash/Zsh have the equivalent hazard — backticks
+perform command substitution and `$` expands variables inside double quotes.)
+
+**Why it corrupts** (the shell pre-processes the string before `gh` sees it):
+
+* The backtick (`` ` ``) is PowerShell's escape character. Review replies almost
+  always contain code spans such as `` `types` `` or `` `--strict` ``; PowerShell
+  consumes the backticks and may escape the following character, dropping or
+  mangling the code-span text.
+* `$` triggers variable expansion, so `$result` or `$PATH` in a body expands to
+  an empty or unexpected value.
+* An embedded double quote terminates the argument early.
+
+The corruption happens the moment the body is placed in a double-quoted string,
+so do not even *construct* it that way. Author the body with a single-quoted
+here-string, a structured tool argument, or a pre-written file.
+
+**Required practice:**
+
+1. **Prefer the structured tool.** `mcp_github_add_reply_to_pull_request_comment`
+   passes `body` as a structured argument with no shell parsing, so markdown is
+   preserved verbatim. Use it whenever available.
+2. **File-backed body (safe `gh api` fallback).** Write the exact body to a
+   **BOM-less** UTF-8 file, then pass it by reference with `--field`/`-F`, whose
+   `@file` value is read as a raw string (no `$`/backtick interpolation and no
+   `true`/`false`/`null`/number type coercion):
+
+   ```powershell
+   # PS7+ accepts -Encoding utf8NoBOM; Windows PowerShell 5.1 -Encoding utf8
+   # writes a BOM (a stray U+FEFF at the start of the comment), so use the .NET
+   # writer for a BOM-less file that works on both:
+   [System.IO.File]::WriteAllText((Join-Path $PWD 'reply-body.md'), $bodyText, (New-Object System.Text.UTF8Encoding $false))
+   gh api repos/{{REPO_OWNER}}/{{REPO_NAME}}/pulls/<pr>/comments/<id>/replies `
+     -X POST --field body=@reply-body.md
+   Remove-Item reply-body.md
+   ```
+
+   Use `--field`/`-F`, not `-f`/`--raw-field`: `-f body=@file` sends the literal
+   text `@file`. The same `--field body=@file` reference works for any
+   `gh api graphql` mutation that carries a markdown body.
+3. **Single-quoted here-string** (when authoring inline). Single-quoted
+   PowerShell strings are literal — no backtick escaping and no `$` expansion:
+
+   ```powershell
+   $bodyText = @'
+   Fixed in <commit_sha>. Removed the unused `types` import.
+   '@
+   ```
+
+   The one caveat is a body line that is exactly `'@` at column 0, which closes
+   the here-string early; for arbitrary markdown, write it to a file (pattern 2).
+
+**Never** hand-escape or strip markdown backticks to make a command run — that
+corrupts the very text being posted. Change the *transport*, not the *content*,
+and keep review-reply bodies verbatim.
+
 ### 1.6 Resolve Review Threads
 
 After the fixing commit has been pushed and the explanatory reply has been
