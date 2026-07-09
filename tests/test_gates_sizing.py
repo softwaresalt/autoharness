@@ -13,14 +13,18 @@ injected so every test is fully hermetic.
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from autoharness.gates.sizing import (
+    DEFAULT_BACKLOGIT,
     SIZES,
     SIZING_RULESET_VERSION,
     SizeEstimate,
     SizingResult,
     estimate_size,
     extract_signals,
+    fetch_task,
     size_task,
 )
 
@@ -328,6 +332,47 @@ class SizeTaskWriteBackTests(unittest.TestCase):
         self.assertEqual(payload["task_id"], "001.001-T")
         self.assertEqual(payload["action"], "written")
         self.assertIn("estimated_size", payload)
+
+
+class FetchTaskDefaultFetcherTests(unittest.TestCase):
+    """Directly exercise the default ``fetch_task`` subprocess fetcher.
+
+    Every other test injects ``fetch_fn`` or patches ``sizing.fetch_task``, so
+    the default fetcher's argv construction, non-zero-return ``RuntimeError``
+    branch, and ``json.loads(stdout)`` success path are otherwise uncovered.
+    These patch ``subprocess.run`` to keep the tests hermetic (no real backlogit).
+    """
+
+    def test_parses_json_on_success(self) -> None:
+        proc = _FakeProc(returncode=0, stdout='{"id": "001.001-T", "artifact_type": "task"}')
+        with mock.patch("autoharness.gates.sizing.subprocess.run", return_value=proc) as run_mock:
+            result = fetch_task("001.001-T")
+        self.assertEqual(result, {"id": "001.001-T", "artifact_type": "task"})
+        argv = run_mock.call_args.args[0]
+        self.assertEqual(argv, [DEFAULT_BACKLOGIT, "get", "001.001-T", "--format", "json"])
+        self.assertFalse(run_mock.call_args.kwargs["shell"])
+
+    def test_raises_runtimeerror_with_stderr_on_nonzero_return(self) -> None:
+        proc = _FakeProc(returncode=1, stdout="", stderr="  task not found  ")
+        with mock.patch("autoharness.gates.sizing.subprocess.run", return_value=proc):
+            with self.assertRaises(RuntimeError) as ctx:
+                fetch_task("404.404-T")
+        self.assertEqual(str(ctx.exception), "task not found")
+
+    def test_runtimeerror_fallback_message_when_stderr_empty(self) -> None:
+        proc = _FakeProc(returncode=2, stdout="", stderr="")
+        with mock.patch("autoharness.gates.sizing.subprocess.run", return_value=proc):
+            with self.assertRaises(RuntimeError) as ctx:
+                fetch_task("404.404-T")
+        self.assertEqual(str(ctx.exception), "backlogit get 404.404-T failed")
+
+    def test_passes_cwd_and_backlogit_bin_through(self) -> None:
+        proc = _FakeProc(returncode=0, stdout="{}")
+        with mock.patch("autoharness.gates.sizing.subprocess.run", return_value=proc) as run_mock:
+            fetch_task("001.001-T", cwd=Path("workspace"), backlogit_bin="C:/Tools/backlogit.exe")
+        argv = run_mock.call_args.args[0]
+        self.assertEqual(argv[0], "C:/Tools/backlogit.exe")
+        self.assertEqual(run_mock.call_args.kwargs["cwd"], str(Path("workspace")))
 
 
 class SizingBoundaryTests(unittest.TestCase):
