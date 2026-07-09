@@ -9,7 +9,7 @@ Condensed self-install constitution for the autoharness dogfood harness. This is
 the authoritative principle set referenced by `harness-architecture.instructions.md`
 (Primitive 5). The full generative template lives at
 `templates/foundation/constitution.instructions.md.tmpl`; policy sequencing detail
-lives in `templates/policies/workflow-policies.md`.
+lives in `templates/policies/workflow-policies.md.tmpl`.
 
 ## Core Principles
 

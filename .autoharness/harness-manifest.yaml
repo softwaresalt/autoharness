@@ -256,7 +256,7 @@ artifacts:
   - path: ".github/instructions/constitution.instructions.md"
     primitive: 5
     template: "foundation/constitution.instructions.md.tmpl"
-    checksum: "15c8aa51712d6cea2b947b91fe94029f1f477d297417ef6d4d212dc9a42a836e"
+    checksum: "28f40c571a4c6e89e99ea4c938018e7909c0cfa7bf4b2cb141db937b15df2248"
     note: "condensed constitution self-install variant (installed 067.006-T)"
 variables_used:
   PROJECT_NAME: "autoharness"
