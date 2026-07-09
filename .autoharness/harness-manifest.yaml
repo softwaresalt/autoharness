@@ -105,7 +105,7 @@ artifacts:
   - path: ".github/agents/.stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "5c8e90558447df60b1f44dfff54fa22ebd9b2ffa4e9254587118e02d101b6b79"
+    checksum: "c3b834366d51b54f1c1dceea3248c6a22c47721b33720983ce8ee944022159c4"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/.ship.agent.md"
     primitive: 4
