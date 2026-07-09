@@ -31,11 +31,9 @@ capability_pack_overlays:
       - "instructions"
       - "pipeline-agents"
       - "long-running-skills"
-      - "ping-loop-prompt"
     verification_checks:
       - "agent-intercom MCP configured in .vscode/mcp.json (or .cursor/mcp.json / .mcp.json)"
       - "agent-intercom.instructions.md installed at .github/instructions/"
-      - "ping-loop prompt references intercom heartbeat"
   - pack: "backlogit"
     overlay_targets:
       - "foundation-docs"
@@ -112,12 +110,12 @@ artifacts:
   - path: ".github/agents/.ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "f20e682026df35a8ea764a252bd155f7655bd6b7ec55147389e5f81c6c9c8141"
+    checksum: "589660a903ddc1a3d007a64c0953d38f139f75662342008f8e11b0a86fb66530"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "1f30e2a84bc80cbff0efdb9d03687c3b6d204abe83096c0debc11d4441383c06"
+    checksum: "b421924a06b60ffbca4bb2990082781835767a1b5cc300b56ede1e392d53b008"
     note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1

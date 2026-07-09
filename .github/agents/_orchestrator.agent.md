@@ -182,9 +182,12 @@ Before any pipeline work begins, verify tool availability per P-012. Probe requi
 
 After Stage completes and before routing to Ship, verify that all staging artifacts (backlog items, shipment manifests) are committed to `main` **and present on the remote**. Ship's Branch Creation Gate (P-011) requires a clean `main` but does not verify that the shipment manifest being claimed exists on `main`.
 
-1. Check `git status --short -- .backlogit/` for uncommitted backlog files. If dirty, staging artifacts need committing (step 3); if clean, proceed to step 2.
-2. Check for unpushed local commits: `git fetch origin main` then `git log origin/main..main --oneline`. If empty, local and remote are in sync (step 4); if non-empty, proceed to step 3.
-3. When staging artifacts are uncommitted or unpushed: attempt a direct push to `main` first; if rejected (branch protection), commit backlog files to a `chore/stage-{shipment_id}` branch, push, open a PR to `main`, wait for operator-approved merge, then pull `main`. This attempt-and-handle-failure approach is deterministic regardless of branch protection state.
+1. Check `git status --short -- .backlogit/` for uncommitted backlog files. If dirty, proceed to step 3 to commit them first; if clean, proceed to step 2.
+2. Check for unpushed local commits: `git fetch origin main` then `git log origin/main..main --oneline`. If empty, local and remote are in sync (step 4); if non-empty, proceed to step 3 (push-only path).
+3. Publish staging artifacts to `main` — commit before pushing so dirty files are not silently skipped:
+   a. **Uncommitted backlog files**: commit them first. Attempt a direct commit + push to `main`; if the push is rejected (branch protection), commit them to a `chore/stage-{shipment_id}` branch, push, open a PR to `main`, wait for operator-approved merge, then pull `main`.
+   b. **Already-committed local `main` commits that merely need pushing**: attempt a direct push; if rejected, open a `chore/stage-{shipment_id}` PR from those commits, wait for operator-approved merge, then pull `main`.
+   This attempt-and-handle-failure approach is deterministic regardless of branch protection state.
 4. Verify the shipment manifest exists on the remote: `git show origin/main:.backlogit/queue/{shipment_id}.md`. If present, proceed to Step 2; if not, halt with `STAGING_GATE_FAIL: shipment manifest {shipment_id} not found on origin/main`.
 
 ### Step 2: Route to Ship (when a queued shipment is ready)
