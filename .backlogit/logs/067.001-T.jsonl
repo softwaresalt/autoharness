@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-09T11:36:52.3065834-07:00","actor":"backlogit","item_id":"067.001-T","event_type":"item_blocked","delta":{"blocked_reason":"Superseded by ACP consolidation (stash 3459B819): agent-intercom MCP mode / ping-loop being removed, not installed","shipment_id":"079-S"}}
+{"timestamp":"2026-07-09T11:37:09.864788-07:00","actor":"backlogit","item_id":"067.001-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/067.001-T.md"}}
