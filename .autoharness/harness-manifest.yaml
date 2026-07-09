@@ -244,7 +244,7 @@ artifacts:
   - path: ".github/instructions/workflows.instructions.md"
     primitive: 10
     template: "instructions/workflows.instructions.md.tmpl"
-    checksum: "d70a77241b1591c9238eabe353119482fca8e9a51356aa4ff159aa1fe96cc704"
+    checksum: "49e094d7fe7b05d2b06b5f84aabd64a38a5f44a091a2cf67547ff06629229b49"
     note: "CI/CD workflow structural conventions; SKILL-mandated companion to ci-security.instructions.md (installed 079-S)"
   - path: ".github/instructions/role-enforcement.instructions.md"
     primitive: 5
