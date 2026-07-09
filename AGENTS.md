@@ -63,3 +63,14 @@ This file defines the authoritative rules for working in the autoharness reposit
 | `tune-harness` | Detect drift and propose updates |
 | `verify-harness` | Multi-model adversarial verification of installed artifacts |
 | `doc-review` | Documentation quality review: cross-reference integrity, frontmatter, markdown structure, template variable drift; supports alternate model provider |
+
+## Enabled Capability Packs
+
+This dogfood harness has the following capability packs enabled. Each is woven through the workflow per its overlay instruction — see the linked file and the overlay blocks in `.github/copilot-instructions.md`. This is a pointer, not a manual.
+
+| Pack | Overlay Reference |
+|---|---|
+| `agent-intercom` | `.github/instructions/agent-intercom.instructions.md` |
+| `backlogit` | `.autoharness/backlog-registry.yaml` |
+| `agent-engram` | `.github/instructions/agent-engram.instructions.md` |
+| `graphtor-docs` | `.github/instructions/graphtor-docs.instructions.md` |

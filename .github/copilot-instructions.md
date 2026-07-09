@@ -143,3 +143,45 @@ The active environment should expose an Engram-style tool surface covering these
 
 Use the workspace's registered Engram tool names or aliases rather than assuming one specific client or transport.
 <!-- engram:end -->
+
+<!-- backlogit:start -->
+## Backlogit Backlog Management — Capability Pack Overlay
+
+Backlogit is expected to be registered through the workspace-root `.mcp.json`, the canonical shared MCP configuration surface across agent IDEs. Editor-local MCP files or settings may still exist as compatibility fallbacks, but they are not the preferred committed integration path. A `backlogit` CLI fallback is available when the MCP surface is unavailable.
+
+### Canonical Guidance
+
+Backlogit is the structured backlog tool for this workspace. The abstraction layer is `.autoharness/backlog-registry.yaml`, which maps abstract operations (create/list/move task, claim shipment, track commit) to backlogit MCP tool names and CLI commands. Prefer queue-aware and dependency-aware backlogit operations over reading many backlog markdown files into context, and refresh the index after out-of-band edits before trusting query results.
+
+### Common Tool Families
+
+| Tool Family | Common Operations |
+|------|---------|
+| `queue / lookup` | `get_queue`, `list_items`, `get_item`, `search_items` |
+| `state / lifecycle` | `move_item`, `claim_shipment`, `add_to_shipment`, `archive_item` |
+| `dependencies` | `add_dependency`, `get_dependencies`, `remove_dependency` |
+| `traceability` | `track_commit`, `append_comment`, `save_memory` |
+| `index / freshness` | `sync_index` |
+
+Use the workspace's registered backlogit tool names or the `backlogit` CLI fallback rather than inventing parallel markdown trackers.
+<!-- backlogit:end -->
+
+<!-- graphtor-docs:start -->
+## Graphtor-Docs Documentation Retrieval — Capability Pack Overlay
+
+Graphtor-docs is expected to be registered through the workspace-root `.mcp.json`, the canonical shared MCP configuration surface across agent IDEs. Editor-local MCP files or settings may still exist as compatibility fallbacks, but they are not the preferred committed integration path.
+
+### Canonical Guidance
+
+Follow `.github/instructions/graphtor-docs.instructions.md` for the authoritative graphtor-docs workflow: server lifecycle checks, indexed search routing, doc-link traversal, source configuration, and fallback behavior. Prefer indexed documentation retrieval over broad web search or raw filesystem scan when the server is reachable and sources are indexed.
+
+### Common Tool Families
+
+| Tool Family | Common Operations |
+|------|---------|
+| `keyword / semantic search` | `search_local_docs`, `search_semantic`, `research_topic` |
+| `doc navigation` | `traverse_doc_links`, `get_document`, `get_chunk_by_id` |
+| `sources / status` | `list_sources`, `get_status` |
+
+Use the workspace's registered graphtor-docs tool names rather than assuming one specific client or transport.
+<!-- graphtor-docs:end -->

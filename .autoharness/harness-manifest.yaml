@@ -1,10 +1,10 @@
 schema_version: "1.0.0"
 installed_at: "2026-04-26T21:16:00-07:00"
-tuned_at: "2026-05-08T09:42:00-07:00"
-autoharness_version: "1.3.4"
+tuned_at: "2026-07-09T20:21:26+00:00"
+autoharness_version: "1.4.11"
 autoharness_home: null
-profile_hash: "e82ebce62e9a8152aa89d4036d2ba148d0b28c56c16fa67613c6d3c91b91bfb2"
-config_hash: "748a71b3d966bdfe31e24465c880924eba8163d4f47ef28f820c663eef785861"
+profile_hash: "446b4fb2fbab1b350bfd3dbce818600b503f6ef3c2a51c5141b6032c5c0bd6b1"
+config_hash: "f0de8d5e21eeeee1e7866b0ecc5c420c2a72a5065fa386b7e4983a3b6ca5d590"
 install_preset: "full"
 install_mode: "self-install"
 primary_stack_pack: "cli-tool"
@@ -31,11 +31,9 @@ capability_pack_overlays:
       - "instructions"
       - "pipeline-agents"
       - "long-running-skills"
-      - "ping-loop-prompt"
     verification_checks:
       - "agent-intercom MCP configured in .vscode/mcp.json (or .cursor/mcp.json / .mcp.json)"
       - "agent-intercom.instructions.md installed at .github/instructions/"
-      - "ping-loop prompt references intercom heartbeat"
   - pack: "backlogit"
     overlay_targets:
       - "foundation-docs"
@@ -95,11 +93,11 @@ artifacts:
   - path: ".autoharness/workspace-profile.yaml"
     primitive: 1
     template: "workspace-discovery output"
-    checksum: "e82ebce62e9a8152aa89d4036d2ba148d0b28c56c16fa67613c6d3c91b91bfb2"
+    checksum: "446b4fb2fbab1b350bfd3dbce818600b503f6ef3c2a51c5141b6032c5c0bd6b1"
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
-    checksum: "748a71b3d966bdfe31e24465c880924eba8163d4f47ef28f820c663eef785861"
+    checksum: "f0de8d5e21eeeee1e7866b0ecc5c420c2a72a5065fa386b7e4983a3b6ca5d590"
   - path: ".autoharness/backlog-registry.yaml"
     primitive: 4
     template: "backlog/registries/backlogit.registry.yaml"
@@ -107,71 +105,71 @@ artifacts:
   - path: ".github/agents/.stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "dc74059d438f79dd1e22951cb1a370987937f5711574eede053cf2cc1475bcb5"
+    checksum: "c4d3851420b4ee8d8a05dd6ba3df59a64f9a9453b30a9e42c077cb62b627f4ae"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/.ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "c863b2c13d2ef4ec1d4814bd50f76a17e417791f9d281c7d61c8f737ffe45579"
+    checksum: "970b396cc0b65dec9dd13f2c0344598a1f83de7c65953d2b545f3a221701f9e4"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "61ade75402a74709127787bd7d45cb9c43474df4da340d7275c05027ec4e4642"
+    checksum: "909d367ce6b2d3a1d6cf1992598548014cbfe0f4674c75f0b05e650af4aef77b"
     note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1
     template: "scripts/start.sh.tmpl"
-    checksum: "b52b1de887161b432973486b157219d372ab1cfae90d26e274f1a05b77ebda75"
+    checksum: "84bf93bc2674489b4f8d289e3e8004f4e0c962e8f5795d0b843883f98d595a08"
   - path: "start.ps1"
     primitive: 1
     template: "scripts/start.ps1.tmpl"
-    checksum: "440714633f06217ff17bbe7ce099dcb7ef905f6b786dc0ea372f3224aafc14cc"
+    checksum: "3528f7d51afdf65350b012db0ce312aa88b38d02cd7b1ecaa00fdddd4bbe369b"
     note: "pre-existing, custom self-install version with agent injection"
   - path: "AGENTS.md"
     primitive: 9
     template: "foundation/AGENTS.md.tmpl"
-    checksum: "496fe59c2831281fb8d5df2b389e6fd4b9e1b9b969568e620ce23eb9aa342a31"
+    checksum: "c90ccbbf195e2ad30ac5218f2ff61b793d66742f7e1994044ef7c280bd6d79c8"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/copilot-instructions.md"
     primitive: 6
     template: "foundation/copilot-instructions.md.tmpl"
-    checksum: "e7fa96a4b00c5b835c8172027da50a42be5e2a32af021a3d061808f733d20d31"
+    checksum: "e998ee2dbc89da104c72d4229c60552f8566ea3cda087f77ab9f71fd8eb13379"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/instructions/harness-architecture.instructions.md"
     primitive: 9
     template: "global instruction definition"
-    checksum: "a85e0b16a2461987116af862ea287e63af9cfcf62650e6fc66db23de0fb419b9"
+    checksum: "4ce57f3d976c3aa4804bb93f9b7c3d11fc6430effebfcc69595be60dd0871cb1"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/agents/auto-mergeinstall.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "72f4b8845c5e119609bea42850dff8ce265fd607a85c1489eb1c0d0ec7608e8c"
+    checksum: "e0cb9a2a29d6d773811b411ef1b33aef91e3f4b9d475bfa09915682babcc1e82"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/agents/auto-tune.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "cccbe60b39559e7dadebb6b7a40696579640df471d543c3fc3ad7bb55b53ee97"
+    checksum: "ea4089e812743b400005cb9fab16c3561d399fd3395ca58b640ec4d904a1a8b5"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "acf351a731c09baf2349b6e6cfa643a7189333dbf060a75eced2e8471e4f4c7b"
+    checksum: "0aed75b2b6fa5b36a4ff833f9cf304be8abc6fb6d76bfef6f5dd8e4730f5476a"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "7a5228dc37ee9e055994644a21a5fbd08e7c067909763423541286df6eb99331"
+    checksum: "1e7d4ad6f804886b7e40400f47b094a0225caef6d97924e3f5e9eb0310f75e60"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
     template: "global skill definition"
-    checksum: "ddddba2bd470629f5645da0b811b63c7e04f62d515c7562c62ab1be23be93ae0"
+    checksum: "3a5d46adb78c831dd30c40eeb3251c2706a7858b715b67e8032c1e4e138659e4"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
     template: "global skill definition"
-    checksum: "5342de6fac7248cd2f00c9479f69de52f44e9fe581568963a3eb9f203b2e08f6"
+    checksum: "d5bb1a4e75b7ec71a4810ee3a1d17ba2ed28e35aacaf864ca030ac34a0b75c99"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/prompts/install-harness.prompt.md"
     primitive: 6
@@ -186,18 +184,83 @@ artifacts:
   - path: ".github/instructions/agent-engram.instructions.md"
     primitive: 1
     template: "instructions/agent-engram.instructions.md.tmpl"
-    checksum: "4e77366ee9f33650b4f9c0ebecda70f0be2f917023053d7ca4a3981ff78459f2"
+    checksum: "194ab53bb81880b752f34e5a7edbdb90d7b734d1f19ab7595b54739ee9955dbe"
     note: "agent-engram capability pack overlay instruction"
   - path: ".github/instructions/agent-intercom.instructions.md"
     primitive: 4
     template: "instructions/agent-intercom.instructions.md.tmpl"
-    checksum: "4cd9147cf25345fe1c4de46e7bc26251716a4d5b7494e84a2f5e6a2e31375f0c"
+    checksum: "82e319dd0bb4fd38a16ffd2535601da3d64558626c5853d703b38b436b1a113a"
     note: "agent-intercom capability pack overlay instruction"
   - path: ".github/instructions/graphtor-docs.instructions.md"
     primitive: 1
     template: "instructions/graphtor-docs.instructions.md.tmpl"
-    checksum: "0519312293272c6c052fea4d96e0ea81649c39db12817a1b518ce7e4e85aa3c1"
+    checksum: "00a5093c9db3aeebb41e6ceea29e095062b1a451007daa8b9229f8fcb0eac3eb"
     note: "graphtor-docs capability pack overlay instruction (vars resolved: GRAPHTOR_SOURCES_PATH=.graphtor/config/sources.yaml, GRAPHTOR_BINARY_PATH=.graphtor/bin/graphtor-docs.exe)"
+  - path: ".github/instructions/circuit-breaker.instructions.md"
+    primitive: 5
+    template: "instructions/circuit-breaker.instructions.md.tmpl"
+    checksum: "2f51f8b8bebcf830d68d1910d24c396f924fb7e0acbf6e00ea0b50c0dc2371de"
+    note: "circuit breaker guardrail instruction (previously unrecorded)"
+  - path: ".github/instructions/coding-discipline.instructions.md"
+    primitive: 6
+    template: "instructions/coding-discipline.instructions.md.tmpl"
+    checksum: "6289c00134115f0072b45fa519040b30f3dbe4583b18838964013d2decbe1f0c"
+    note: "coding discipline injection instruction (previously unrecorded)"
+  - path: ".github/instructions/github-pr-automation.instructions.md"
+    primitive: 10
+    template: "instructions/github-pr-automation.instructions.md.tmpl"
+    checksum: "c79614febcde19ae55c3c05cac718586c9f1075692d1553f6b4a5c3c82a58e63"
+    note: "GitHub PR/CI automation instruction (previously unrecorded)"
+  - path: ".github/instructions/output-timestamps.instructions.md"
+    primitive: 7
+    template: "instructions/output-timestamps.instructions.md.tmpl"
+    checksum: "4d7d0ee274b24acc714e1c29dc0fa90d63aa94a8f6cdba6be3f2cf51be903057"
+    note: "output timestamp observability instruction (previously unrecorded)"
+  - path: ".github/prompts/feature-flow-dark.prompt.md"
+    primitive: 6
+    template: "prompts/feature-flow-dark.prompt.md.tmpl"
+    checksum: "93a3aa8e9fe56182dcb73290ec90c89debddf1965e82fd7df0938fdf38baeef7"
+    note: "dark-mode feature-flow prompt shim (previously unrecorded)"
+  - path: ".github/prompts/feature-flow-parallel.prompt.md"
+    primitive: 6
+    template: "prompts/feature-flow-parallel.prompt.md.tmpl"
+    checksum: "cfb50211c39f1c1cbc82798f526306d3325cbc78d5ad9ac880562ad9553e061c"
+    note: "planning-overlap feature-flow prompt alias (previously unrecorded)"
+  - path: ".github/prompts/feature-flow.prompt.md"
+    primitive: 6
+    template: "prompts/feature-flow.prompt.md.tmpl"
+    checksum: "7bdbcc4c26feec4196b87bdc0749e07cd18694ca6a4a6bc86008c42136887f4a"
+    note: "standard feature-flow prompt alias (previously unrecorded)"
+  - path: ".github/instructions/pull-request.instructions.md"
+    primitive: 10
+    template: "instructions/pull-request.instructions.md.tmpl"
+    checksum: "cbaaabb2a07bfb0b5c872773e661c3130880ad8759c8d9507997def9bca40595"
+    note: "pull-request lifecycle instruction (installed 067.004-T)"
+  - path: ".github/instructions/ci-security.instructions.md"
+    primitive: 10
+    template: "instructions/ci-security.instructions.md.tmpl"
+    checksum: "a064c5fd21943688d590d385d883f8611585ec9e19aa4fd5a59b3e8f643c6f33"
+    note: "CI + security instruction (installed 067.004-T)"
+  - path: ".github/instructions/workflows.instructions.md"
+    primitive: 10
+    template: "instructions/workflows.instructions.md.tmpl"
+    checksum: "49e094d7fe7b05d2b06b5f84aabd64a38a5f44a091a2cf67547ff06629229b49"
+    note: "CI/CD workflow structural conventions; SKILL-mandated companion to ci-security.instructions.md (installed 079-S)"
+  - path: ".github/instructions/role-enforcement.instructions.md"
+    primitive: 5
+    template: "instructions/role-enforcement.instructions.md.tmpl"
+    checksum: "31a4adc960da3ccaa202e894a9f1259ce341c71da18d1afbdd3e7e57c56028d6"
+    note: "role boundary self-check instruction (installed 067.005-T)"
+  - path: ".github/instructions/concurrency.instructions.md"
+    primitive: 5
+    template: "instructions/concurrency.instructions.md.tmpl"
+    checksum: "25ec9c915b64e654b88ab06046f7bf73709229542aa58c1829fa03b040be33fa"
+    note: "concurrency guardrail instruction (installed 067.005-T)"
+  - path: ".github/instructions/constitution.instructions.md"
+    primitive: 5
+    template: "foundation/constitution.instructions.md.tmpl"
+    checksum: "28f40c571a4c6e89e99ea4c938018e7909c0cfa7bf4b2cb141db937b15df2248"
+    note: "condensed constitution self-install variant (installed 067.006-T)"
 variables_used:
   PROJECT_NAME: "autoharness"
   PRIMARY_LANGUAGE: "Python"
