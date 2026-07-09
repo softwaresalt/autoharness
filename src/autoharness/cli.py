@@ -40,6 +40,7 @@ Usage:
   autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness gate check        Run deterministic validation gates on modified files
   autoharness gate size         Estimate a task's T-shirt size and write it back
+  autoharness gate copilot-review  Fail-closed pre-merge gate: Copilot review complete + threads resolved
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
@@ -164,12 +165,16 @@ autoharness gate — deterministic lifecycle gates
 Subcommands:
   check   Run deterministic validation gates on modified files (pre_task_completion).
   size    Estimate a task's T-shirt size and write it back (pre_execution).
+  copilot-review  Fail-closed pre-merge gate: Copilot review complete for HEAD + threads resolved.
 
 Usage:
   autoharness gate check --base <ref> [--task <id>] [--head <ref>]
                          [--workspace <path>] [--json] [--force] [--no-count]
   autoharness gate size <task_id> [--dry-run] [--strict] [--workspace <path>]
                         [--json] [--backlogit <path>]
+  autoharness gate copilot-review <pr> --repo <owner/name>
+                        [--enforcement auto|required|disabled] [--max-wait <seconds>]
+                        [--json] [--force] [--workspace <path>] [--gh <path>]
 
 check options:
   --base <ref>        Git ref to diff against (the task branch base). Required.
@@ -194,6 +199,24 @@ size options:
   --json              Emit the sizing result as JSON.
   --backlogit <path>  Path to the backlogit executable. Default: backlogit.
 
+copilot-review options:
+  <pr>                Pull request number. Required.
+  --repo <owner/name> GitHub repository slug. Required.
+  --enforcement <m>   auto (detect from PR signals; default) | required (fail-closed
+                      even before Copilot is requested) | disabled (gate off).
+  --max-wait <secs>   Bounded window to wait for an engaged reviewer to complete for
+                      HEAD. On expiry: REVIEW_TIMEOUT (still BLOCKS). Default: 0.
+  --json              Emit the gate result as JSON.
+  --force             Audited operator override of a BLOCK verdict. Exits 0 and logs
+                      to .autoharness/gates/copilot-review-force-audit.log.
+  --workspace, -w     Workspace root (for the --force audit log). Default: .
+  --gh <path>         Path to the gh executable. Default: gh.
+
+This gate is FAIL-CLOSED: when Copilot review is enabled and its completion or
+thread resolution is incomplete or unverifiable, it BLOCKS (non-zero). --admin does
+not bypass it. It PASSES only when review is satisfied for the current HEAD or is
+not-applicable for the PR.
+
 An existing size is never overwritten. A missing backlogit binary, a timeout, or
 a backlogit rejection is a configuration failure, not a task failure — it never
 blocks task execution and exits 0 unless --strict is given.
@@ -201,8 +224,9 @@ blocks task execution and exits 0 unless --strict is given.
 Exit codes:
   0  gates passed / no gates configured / no files matched; or size written,
      skipped (existing size), dry-run, or (without --strict) a non-blocking
-     sizing configuration failure.
-  1  at least one matched file failed its gate (blocked), unless advisory.
+     sizing configuration failure; or copilot-review PASS/not-applicable/forced.
+  1  at least one matched file failed its gate (blocked), unless advisory; or
+     copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout).
   2  invalid arguments or invalid gate configuration.
   3  sizing write-back configuration failure, only when --strict is given.
 """
@@ -284,6 +308,8 @@ def _gate_command(args: list[str]) -> None:
         _gate_check_command(args[1:])
     elif subcommand == "size":
         _gate_size_command(args[1:])
+    elif subcommand == "copilot-review":
+        _gate_copilot_review_command(args[1:])
     else:
         print(f"Unknown gate subcommand: {subcommand}", file=sys.stderr)
         print(GATE_USAGE, file=sys.stderr)
@@ -435,6 +461,143 @@ def _gate_size_command(rest: list[str]) -> None:
     # with --strict.
     if not result.ok and parsed["strict"]:
         sys.exit(3)
+
+
+def _parse_gate_copilot_review_args(args: list[str]) -> dict:
+    """Parse `autoharness gate copilot-review` arguments."""
+    parsed: dict = {
+        "pr": None,
+        "repo": None,
+        "enforcement": "auto",
+        "max_wait": 0.0,
+        "emit_json": False,
+        "force": False,
+        "workspace": Path("."),
+        "gh": "gh",
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--repo":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --repo")
+            parsed["repo"] = args[index]
+        elif arg == "--enforcement":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --enforcement")
+            parsed["enforcement"] = args[index]
+        elif arg == "--max-wait":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --max-wait")
+            try:
+                parsed["max_wait"] = float(args[index])
+            except ValueError:
+                raise ValueError("--max-wait must be a number of seconds") from None
+        elif arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--gh":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --gh")
+            parsed["gh"] = args[index]
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        elif arg == "--force":
+            parsed["force"] = True
+        elif not arg.startswith("-") and parsed["pr"] is None:
+            parsed["pr"] = arg
+        else:
+            raise ValueError(f"Unknown gate copilot-review argument: {arg}")
+        index += 1
+
+    if parsed["pr"] is None:
+        raise ValueError("gate copilot-review requires a <pr> number")
+    if parsed["repo"] is None:
+        raise ValueError("gate copilot-review requires --repo <owner/name>")
+    from autoharness.gates.copilot_review import ENFORCEMENT_MODES
+
+    if parsed["enforcement"] not in ENFORCEMENT_MODES:
+        raise ValueError(
+            f"--enforcement must be one of {ENFORCEMENT_MODES}, "
+            f"got {parsed['enforcement']!r}"
+        )
+    return parsed
+
+
+def _audit_copilot_review_force(workspace: Path, result, pr: str, repo: str) -> str:
+    """Append an audit line for an operator --force bypass of a BLOCK verdict."""
+    from datetime import datetime, timezone
+
+    audit_path = Path(workspace) / ".autoharness" / "gates" / "copilot-review-force-audit.log"
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    line = (
+        f"{datetime.now(timezone.utc).isoformat()} FORCE_BYPASS "
+        f"repo={repo} pr={pr} verdict={result.verdict.value} "
+        f"head={result.head_ref_oid} rounds={result.rounds}\n"
+    )
+    with audit_path.open("a", encoding="utf-8") as handle:
+        handle.write(line)
+    return str(audit_path)
+
+
+def _gate_copilot_review_command(rest: list[str]) -> None:
+    """Fail-closed pre-merge gate: Copilot review complete for HEAD + threads resolved."""
+    if any(flag in ("help", "--help", "-h") for flag in rest):
+        print(GATE_USAGE)
+        return
+
+    try:
+        parsed = _parse_gate_copilot_review_args(rest)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(GATE_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.gates import copilot_review
+
+    try:
+        result = copilot_review.evaluate(
+            pr=int(parsed["pr"]),
+            repo=parsed["repo"],
+            enforcement=parsed["enforcement"],
+            max_wait=parsed["max_wait"],
+            gh_bin=parsed["gh"],
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(2)
+
+    audit_path = None
+    if result.blocked and parsed["force"]:
+        audit_path = _audit_copilot_review_force(
+            parsed["workspace"], result, parsed["pr"], parsed["repo"]
+        )
+        from dataclasses import replace
+
+        result = replace(result, forced=True)
+
+    if parsed["emit_json"]:
+        payload = result.to_dict()
+        if audit_path:
+            payload["force_audit_log"] = audit_path
+        print(json.dumps(payload, indent=2))
+    else:
+        status = "PASS" if not result.blocked else "BLOCK"
+        print(f"Copilot-review gate — {result.verdict.value}: {status}")
+        print(f"  {result.message}")
+        if result.unresolved_thread_ids:
+            print(f"  unresolved Copilot threads: {len(result.unresolved_thread_ids)}")
+        if audit_path:
+            print(f"  --force override recorded: {audit_path}")
+
+    if result.exit_code != 0:
+        sys.exit(result.exit_code)
 
 
 TELEMETRY_USAGE = """\
