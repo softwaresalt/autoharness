@@ -12,7 +12,6 @@ injected so every test is fully hermetic.
 
 from __future__ import annotations
 
-import types
 import unittest
 
 from autoharness.gates.sizing import (
