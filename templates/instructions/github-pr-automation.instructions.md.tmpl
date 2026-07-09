@@ -45,12 +45,29 @@ Shadow review is advisory by default. It can help catch residual issues after th
 local review gate, but it is not a required dependency for merge readiness unless
 the operator explicitly elevates it for the current PR.
 
+**Conditional hard gate when Copilot review is enabled (P-018).** When Copilot
+review IS enabled for this PR — Copilot is a requested reviewer, a Copilot review
+already exists on the PR, or the workspace sets `copilot_review.enforcement:
+required` — shadow review stops being advisory and becomes a **fail-closed
+pre-merge gate**. Merge (including `--admin`) is held until Copilot has completed a
+review for the current `headRefOid` AND every Copilot-authored review thread is
+resolved. This is enforced deterministically by
+`autoharness gate copilot-review <pr> --repo <owner/name>` (§1.9.4, Check 5), not by
+prose: a BLOCK verdict is a hard stop that `--admin` does not bypass. The gate is
+not-applicable (PASS) only when `enforcement` is `auto` and Copilot never engaged
+on the PR, or when `enforcement` is `disabled` — this is how "advisory by default"
+is preserved for repositories where Copilot review is not in play.
+
 When `DARK_MODE_ACTIVE` is present under P-017, keep the workflow local-review-first:
 the current-HEAD local review readiness record is the authoritative merge gate,
 and Copilot/GitHub-hosted review remains optional advisory shadow review unless
 the dark-mode activation contract or operator explicitly elevates it. A clean
 shadow review cannot compensate for stale or missing local readiness, and shadow
-review timeout or unavailability does not block by default.
+review timeout or unavailability does not block by default. However, once Copilot
+review is actually engaged on the PR (or `copilot_review.enforcement: required`),
+the P-018 copilot-review gate still applies in dark mode: an incomplete review for
+the current HEAD or unresolved Copilot threads is a `COPILOT_REVIEW_BLOCK` that
+admin fallback may never bypass (§1.9.4, §1.9.6).
 
 ### 1.2 Poll for Review Completion
 
@@ -289,11 +306,18 @@ GraphQL before merge readiness is presented.
 | Review-fix-push cycles | 3 | Accept remaining comments as backlog follow-ups |
 | Same comment re-raised after fix | 2 | Escalate to operator — likely a fundamental disagreement |
 
-**Cycle limits do not make shadow review merge-blocking by default.** When the
-review-fix cycle limit is reached, unresolved Copilot shadow-review comments
+**Cycle limits do not make shadow review merge-blocking by default** — except when
+Copilot review is enabled (P-018). When the review-fix cycle limit is reached and
+Copilot review is NOT enabled for the PR, unresolved Copilot shadow-review comments
 must be surfaced explicitly in the readiness summary and converted into follow-up
 items or operator-visible residual-risk notes. They only remain merge-blocking if
 the operator explicitly elevated shadow review to blocking status for the current PR.
+
+When Copilot review **is** enabled (P-018), exhausting the cycle limit with
+unresolved Copilot-authored threads is a **BLOCK**, not an "accept as follow-up":
+`autoharness gate copilot-review` returns `UNRESOLVED_THREADS` and the merge is
+held. Escalate to the operator rather than merging. The bounded `--max-wait`
+`REVIEW_TIMEOUT` outcome is likewise a BLOCK; only an audited `--force` overrides it.
 
 ### 1.9 Pre-Merge Review Readiness Verification (Defense in Depth)
 
@@ -407,7 +431,7 @@ returned via GraphQL, the `author.login` field uses the no-suffix form.
 
 #### 1.9.4 Gate Checks
 
-Evaluate four checks in order. All four must pass for merge readiness.
+Evaluate five checks in order. All five must pass for merge readiness.
 
 **Check 1 — Local review coverage (record covers current HEAD)**:
 
@@ -444,7 +468,25 @@ Evaluate four checks in order. All four must pass for merge readiness.
    `Full local build: not applicable` with a short rationale.
 3. If build applicability is ambiguous, required evidence is missing, or the
    recorded full local build result failed, **GATE FAILS**.
-4. Otherwise, **GATE PASSES**. The PR is ready for merge presentation.
+4. Otherwise, proceed to Check 5.
+
+**Check 5 — Copilot-review completion & thread resolution (P-018, fail-closed)**:
+
+1. Determine `copilot_review.enforcement` from `.autoharness/workspace-profile.yaml`
+   (`auto` | `required` | `disabled`, default `auto`).
+2. Run the deterministic gate:
+   `autoharness gate copilot-review <pr_number> --repo {{REPO_OWNER}}/{{REPO_NAME}} --enforcement <mode> [--max-wait <seconds>]`.
+3. Interpret the verdict / exit code:
+   * `SATISFIED` or `NOT_APPLICABLE` (exit 0) — Copilot review is complete for the
+     current HEAD with no open Copilot threads, or Copilot is not in play. Proceed.
+   * `WAITING_FOR_REVIEW`, `UNRESOLVED_THREADS`, `REVIEW_TIMEOUT`,
+     `DETECTION_AMBIGUOUS`, or `VERIFY_FAILED` (non-zero) — **GATE FAILS.** Halt.
+     `--admin` does not bypass this. Wait for review completion, resolve every
+     Copilot thread, then re-run. `REVIEW_TIMEOUT` still blocks; only an explicit,
+     audited `autoharness gate copilot-review ... --force` (logged under
+     `.autoharness/gates/`) may override, and only with operator authority.
+4. Only when the gate returns a PASS verdict (or an audited `--force` is recorded)
+   does the readiness gate reach **GATE PASSES**. The PR is ready for merge presentation.
 
 **Human and shadow-review threads**: Human review threads and non-blocking
 Copilot shadow-review threads are surfaced in the merge-readiness summary but do not
@@ -465,12 +507,15 @@ and should be reported in the merge-readiness summary.
 | Local readiness outcome is `BLOCKED` or blocking findings remain | **Halt.** List blocking findings. Do not proceed to merge. |
 | `READY_WITH_FOLLOWUPS` omits follow-up handling | **Halt.** Report missing follow-up IDs or residual-risk notes. |
 | Code-changing PR omits successful full local build evidence | **Halt.** Run the full local build successfully or explain non-applicability only for documentation-only/backlog-only work. |
-| Shadow review unavailable or still pending | **Warning.** Note in PR summary. Shadow review remains advisory unless operator elevated it. |
-| All 4 checks pass | **Ready.** Present PR for merge approval. |
+| Copilot review enabled but incomplete for HEAD, or Copilot threads unresolved (`autoharness gate copilot-review` returns non-zero) | **Halt (P-018).** Wait for Copilot review completion and resolve every Copilot thread. `--admin` does not bypass. `REVIEW_TIMEOUT` blocks; only an audited `--force` overrides. |
+| Shadow review unavailable or still pending, Copilot not engaged (gate returns `NOT_APPLICABLE`) | **Warning.** Note in PR summary. Shadow review remains advisory when Copilot is not in play. |
+| All 5 checks pass | **Ready.** Present PR for merge approval. |
 
-Shadow-review timeout does not fail this gate by itself. The required dependency
-is local review coverage for the current HEAD. If the operator wants shadow review
-to become merge-blocking for a specific PR, that escalation must be explicit.
+Shadow-review timeout does not fail this gate when Copilot is not engaged; the
+required dependency is local review coverage for the current HEAD. If the operator
+wants shadow review to become merge-blocking for a specific PR, that escalation
+must be explicit. When Copilot review IS engaged, the §1.9.4 Check 5 copilot-review
+gate is an additional fail-closed dependency (P-018).
 
 #### 1.9.6 Dark-Mode Merge Authorization and Admin Fallback
 
@@ -482,6 +527,9 @@ the P-014 operator approval signal only when all of these are true:
 3. The §1.9 local readiness gate passed for the current `headRefOid`.
 4. Required CI/checks are green or explicitly marked non-applicable.
 5. P-009 merge-commit-only and P-016 worktree topology checks passed.
+6. The §1.9.4 Check 5 copilot-review gate returned a PASS verdict for the current
+   `headRefOid` (or an audited `--force` override is recorded). A
+   `COPILOT_REVIEW_BLOCK` is never satisfied by the activation record.
 
 If any condition is false or ambiguous, fail closed and wait for an explicit
 operator approval signal.
@@ -498,12 +546,13 @@ result:
 | `MERGE_STRATEGY_BLOCK` | Merge commit strategy is unavailable or squash/rebase is selected | Halt under P-009; admin fallback is forbidden |
 | `MISSING_ADMIN_RIGHTS` | Admin fallback was authorized but credentials lack bypass rights | Halt with an operator-visible reason |
 | `UNKNOWN_MERGE_BLOCK` | The merge rejection cannot be classified confidently | Halt; do not guess or bypass |
+| `COPILOT_REVIEW_BLOCK` | The P-018 copilot-review gate returned a BLOCK verdict (review incomplete for HEAD, unresolved Copilot threads, timeout, or unverifiable) | Halt; admin fallback may **never** bypass this. Resolve via review completion + thread resolution, not `--admin`. |
 
 Admin fallback cannot bypass stale local readiness, unresolved local P0/P1
-findings, failed required CI/checks, P-009, P-016, secrets-safety concerns, or
-scope mismatch. Every normal merge attempt and admin fallback attempt must be
-recorded in the PR readiness/merge summary with the state, decision, command/API
-used, and result.
+findings, failed required CI/checks, a P-018 `COPILOT_REVIEW_BLOCK`, P-009, P-016,
+secrets-safety concerns, or scope mismatch. Every normal merge attempt and admin
+fallback attempt must be recorded in the PR readiness/merge summary with the state,
+decision, command/API used, and result.
 
 ### 1.10 Post-Merge Closure PR Shadow Review Surveillance
 
