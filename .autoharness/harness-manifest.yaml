@@ -105,7 +105,7 @@ artifacts:
   - path: ".github/agents/.stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "c3b834366d51b54f1c1dceea3248c6a22c47721b33720983ce8ee944022159c4"
+    checksum: "c4d3851420b4ee8d8a05dd6ba3df59a64f9a9453b30a9e42c077cb62b627f4ae"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/.ship.agent.md"
     primitive: 4
@@ -115,7 +115,7 @@ artifacts:
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "6e42a4b084310b96f8efc25b8b14aa4afcab5a6886d68526d743b096bd6124b4"
+    checksum: "909d367ce6b2d3a1d6cf1992598548014cbfe0f4674c75f0b05e650af4aef77b"
     note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1
@@ -241,6 +241,11 @@ artifacts:
     template: "instructions/ci-security.instructions.md.tmpl"
     checksum: "a064c5fd21943688d590d385d883f8611585ec9e19aa4fd5a59b3e8f643c6f33"
     note: "CI + security instruction (installed 067.004-T)"
+  - path: ".github/instructions/workflows.instructions.md"
+    primitive: 10
+    template: "instructions/workflows.instructions.md.tmpl"
+    checksum: "d70a77241b1591c9238eabe353119482fca8e9a51356aa4ff159aa1fe96cc704"
+    note: "CI/CD workflow structural conventions; SKILL-mandated companion to ci-security.instructions.md (installed 079-S)"
   - path: ".github/instructions/role-enforcement.instructions.md"
     primitive: 5
     template: "instructions/role-enforcement.instructions.md.tmpl"
