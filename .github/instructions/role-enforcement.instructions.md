@@ -25,8 +25,7 @@ operations, git commands, build invocations, PR actions), the agent MUST:
 3. **Check the Forbidden column.** If the operation appears in the Forbidden
    column for its category, the agent MUST:
    - **Halt** the operation immediately — do not execute the tool call.
-   - **Log** a P-010 policy violation: `P-010 VIOLATION: {agent_name} attempted
-     forbidden operation [{operation}] in category [{category}].`
+   - **Log** a P-010 policy violation: `P-010 VIOLATION: {agent_name} attempted forbidden operation [{operation}] in category [{category}].`
    - **Redirect** to the correct agent: if the operation belongs to Ship,
      instruct the operator to invoke Ship. If it belongs to Stage, instruct
      the operator to invoke Stage.

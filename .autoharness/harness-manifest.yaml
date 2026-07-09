@@ -244,7 +244,7 @@ artifacts:
   - path: ".github/instructions/role-enforcement.instructions.md"
     primitive: 5
     template: "instructions/role-enforcement.instructions.md.tmpl"
-    checksum: "5f88767fc559f2675368075bd27e47ede3fdf22a6d45ce878c17b7615f17de4b"
+    checksum: "31a4adc960da3ccaa202e894a9f1259ce341c71da18d1afbdd3e7e57c56028d6"
     note: "role boundary self-check instruction (installed 067.005-T)"
   - path: ".github/instructions/concurrency.instructions.md"
     primitive: 5
