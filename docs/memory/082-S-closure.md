@@ -36,7 +36,7 @@ All six manifest tasks under 070-F (respecting the dependency graph):
 ## Releasability: READY
 
 - Green tests + successful script dry-run + schema validation satisfy the release gate for a docs/scripts/schema change.
-- No runtime service, database, or rollout-sensitive surface is introduced; scripts are opt-in, idempotent, and non-destructive by default (dry-run = 0 mutations).
+- No runtime service, database, or rollout-sensitive surface is introduced; scripts are opt-in and non-destructive by default (dry-run = 0 mutations; an existing `config.yaml` is preserved unless `-Force`/`--force` is passed, in which case it is timestamp-backed-up before overwrite; `.env.local` is never clobbered). Note: repeated forced runs accumulate timestamped backups, so the forced-overwrite path is not strictly byte-idempotent.
 - **Monitoring**: none required — no long-running runtime surface. Operators observe script exit codes (0 success; 1 preflight; 2 bootstrap; 3 register; 4 scaffold; 5 verify).
 - **Rollback**: revert merge commit `7839eb9`; scripts are additive files with no migration/state.
 - **Owner**: Ship agent (softwaresalt/autoharness).
