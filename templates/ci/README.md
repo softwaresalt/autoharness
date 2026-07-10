@@ -13,11 +13,17 @@ local-gating harness primitive (the local half is
 
 ## Three-job shape
 
-| Job | Runs | Purpose |
-|---|---|---|
-| `detect code changes` | always | Fail-closed `dorny/paths-filter` (`predicate-quantifier: every`) over a denylist. Outputs `code` = `true` unless the change touches only docs/backlog paths. |
-| `{{CI_EXPENSIVE_JOB_NAME}}` | when `code == 'true'` and not a `chore:`/`docs:` PR | The expensive lint/format/typecheck/test/build gate. Never the required check. |
-| `{{CI_REQUIRED_CHECK_NAME}}` | always (`if: always()`) | Aggregation gate. **This is the only job a branch ruleset should require.** Treats a skipped expensive job as OK; fails only when a needed job is `failure`/`cancelled`. |
+Each variable below is the human-facing **check context** (`name:`), which may
+contain spaces or slashes. The underlying GitHub Actions **job IDs are fixed,
+valid slugs** — `changes`, `expensive`, and `ci-gate` — because job IDs may not
+contain spaces. Branch rulesets match on the check context (`name:`), not the
+job ID.
+
+| Job (`name:`) | Job ID | Runs | Purpose |
+|---|---|---|---|
+| `detect code changes` | `changes` | always | Fail-closed `dorny/paths-filter` (`predicate-quantifier: every`) over a denylist. Outputs `code` = `true` unless the change touches only docs/backlog paths. |
+| `{{CI_EXPENSIVE_JOB_NAME}}` | `expensive` | when `code == 'true'` and not a `chore:`/`docs:` PR | The expensive lint/format/typecheck/test/build gate. Never the required check. |
+| `{{CI_REQUIRED_CHECK_NAME}}` | `ci-gate` | always (`if: always()`) | Aggregation gate. **This is the only check a branch ruleset should require.** Treats a skipped expensive job as OK; fails only when a needed job is `failure`/`cancelled`. |
 
 ### Why the aggregation gate is the required check
 
@@ -38,8 +44,8 @@ any code/config/unknown-type change falls through into the gate (fail-closed).
 
 | Variable | Resolved from | Notes |
 |---|---|---|
-| `{{CI_REQUIRED_CHECK_NAME}}` | `ci.required_check_name` (default `ci gate`) | Set to an already-required ruleset check name (e.g. `build`) so no ruleset edit is needed. |
-| `{{CI_EXPENSIVE_JOB_NAME}}` | synthesized from the primary ecosystem (e.g. `test`, `build`) | Must differ from the required-check name. |
+| `{{CI_REQUIRED_CHECK_NAME}}` | `ci.required_check_name` (default `ci gate`) | The aggregation gate's check context (`name:`). May contain spaces/slashes. Set to an already-required ruleset check name (e.g. `build`) so no ruleset edit is needed. The job ID is always the fixed slug `ci-gate`. |
+| `{{CI_EXPENSIVE_JOB_NAME}}` | synthesized from the primary ecosystem (e.g. `test`, `build`) | The expensive job's check context (`name:`). Should differ from the required-check name. The job ID is always the fixed slug `expensive`. |
 | `{{CI_RUNNER_OS}}` | `ubuntu-latest` when `ci.linux_only` (default) | Regular CI is Linux-only; cross-OS stays in release-tag workflows. |
 | `{{CI_ENABLE_OS_MATRIX}}` | inverse of `ci.linux_only` | When true, replace `runs-on: {{CI_RUNNER_OS}}` with a matrix. |
 | `{{CI_DOCS_ONLY_PATHS}}` | `ci.docs_only_paths` | Rendered as indented denylist negations, e.g. `- '!**/*.md'` / `- '!docs/**'`. |

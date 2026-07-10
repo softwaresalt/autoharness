@@ -18,11 +18,18 @@ The hook is **committed but inactive by default** — nothing sets `core.hooksPa
 for you, so normal pushes are never intercepted until you opt in. To activate:
 
 ```sh
-git config core.hooksPath .githooks       # POSIX shells use pre-push.sh
+git config core.hooksPath .githooks
 ```
 
-On Windows, point the hook at the PowerShell script (git runs `.githooks/pre-push`;
-add a one-line shim or invoke `pwsh -NoProfile -File .githooks/pre-push.ps1`).
+Git invokes the hook by the exact name `.githooks/pre-push` (no extension) on
+every platform, including Git for Windows, using its bundled POSIX shell. That
+extensionless `pre-push` file is a small dispatcher that execs `pre-push.sh`, so
+the single `core.hooksPath` command above is all that is needed — on Linux,
+macOS, and Windows alike.
+
+The `pre-push.ps1` script is provided for manual invocation or PowerShell-based
+wiring (`pwsh -NoProfile -File .githooks/pre-push.ps1`); git itself always runs
+the POSIX dispatcher.
 
 Bypass once (e.g. an emergency push): `git push --no-verify`.
 

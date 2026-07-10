@@ -15,11 +15,17 @@
 #     (circuit-breaker compatible). A failing gate surfaces immediately.
 #
 # Install (opt-in — the harness never silently overwrites your .git/hooks):
-#   1. Register this script as .git/hooks/pre-push (a POSIX-sh shim can call
-#      `pwsh -NoProfile -File <this>`), or point core.hooksPath at the
-#      directory holding both the .ps1 and .sh variants:
-#        git config core.hooksPath <dir>
-#   2. To bypass once (e.g. an emergency push): git push --no-verify
+#   Git invokes the hook by the exact name `pre-push` (no extension) under the
+#   active hooks path, and runs it with a POSIX shell — not PowerShell. So this
+#   .ps1 cannot be git's hook directly; register a POSIX `pre-push` that execs it:
+#     * .git/hooks/pre-push (or <hooks-dir>/pre-push) containing:
+#         #!/bin/sh
+#         exec pwsh -NoProfile -File "$(dirname "$0")/pre-push-quality-gates.ps1" "$@"
+#       then, for a dedicated directory:
+#         git config core.hooksPath <hooks-dir>
+#   Pointing core.hooksPath at a directory that only contains the .ps1/.sh
+#   variants will NOT work — git looks specifically for `<dir>/pre-push`.
+#   To bypass once (e.g. an emergency push): git push --no-verify
 #
 # NOTE: gate commands must use PowerShell-appropriate syntax on Windows. Express
 # environment prefixes with `$env:VAR = '...'` rather than the POSIX

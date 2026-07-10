@@ -73,7 +73,11 @@ jobs:
   # the PR is not a chore:/docs: PR. The title guard is ADVISORY convenience
   # only (inert on non-PR events where the PR title is empty); the fail-closed
   # `changes` job is the authoritative source of truth.
-  {{CI_EXPENSIVE_JOB_NAME}}:
+  #
+  # The job ID (`expensive`) is a fixed, valid GitHub Actions identifier; the
+  # human-facing check context is `name: {{CI_EXPENSIVE_JOB_NAME}}`, which may
+  # contain spaces/slashes. Job IDs may not, so the two are decoupled.
+  expensive:
     name: {{CI_EXPENSIVE_JOB_NAME}}
     needs: changes
     if: >-
@@ -100,15 +104,21 @@ jobs:
   # docs-only or chore:/docs: PR, GitHub reports it "skipped" — which a required
   # check treats as not-successful and would block the merge. This gate always
   # runs and passes unless a needed job actually failed or was cancelled.
-  {{CI_REQUIRED_CHECK_NAME}}:
+  #
+  # The job ID (`ci-gate`) is a fixed, valid GitHub Actions identifier. The
+  # required-check context that a branch ruleset matches on is the reported
+  # `name: {{CI_REQUIRED_CHECK_NAME}}`, which may contain spaces (e.g. `ci gate`)
+  # — set {{CI_REQUIRED_CHECK_NAME}} to the exact name the ruleset already
+  # requires so no ruleset edit is needed.
+  ci-gate:
     name: {{CI_REQUIRED_CHECK_NAME}}
     if: always()
-    needs: [changes, {{CI_EXPENSIVE_JOB_NAME}}]
+    needs: [changes, expensive]
     runs-on: {{CI_RUNNER_OS}}
     steps:
       - name: Verify no required job failed
         run: |
-          results="${{ needs.changes.result }} ${{ needs.{{CI_EXPENSIVE_JOB_NAME}}.result }}"
+          results="${{ needs.changes.result }} ${{ needs.expensive.result }}"
           echo "job results: $results"
           for r in $results; do
             if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
