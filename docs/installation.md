@@ -76,7 +76,7 @@ The PowerShell and shell scripts mirror the same flags and semantics:
 | `-Preset` | `--preset` | `full` | Install shape: `starter`, `standard`, `full` |
 | `-Packs` | `--packs` | `all` | `all` (resolved from the registry) or a comma-separated subset |
 | `-Register` | `--register` | `copilot-cli` | AI environment: `vscode`, `copilot-cli`, `claude`, `codex`, `none` |
-| `-InstallMethod` | `--install-method` | `pip` | Global install method: `pip`, `clone`, `plugin` |
+| `-InstallMethod` | `--install-method` | `pip` | Global install method for bootstrap: `pip`, `clone` |
 | `-Home` | `--home` | *(auto)* | Explicit `autoharness_home` override |
 | `-Bootstrap` | `--bootstrap` | off | Opt in to the out-of-cwd **global** install |
 | `-DryRun` | `--dry-run` | off | Print the plan without mutating anything |

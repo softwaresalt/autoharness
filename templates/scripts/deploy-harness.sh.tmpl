@@ -25,7 +25,7 @@
 # overwritten with --force; an existing .env.local is never clobbered.
 #
 # Usage: ./deploy-harness.sh [--preset P] [--packs all|a,b] [--register ENV]
-#          [--install-method pip|clone|plugin] [--home PATH] [--bootstrap]
+#          [--install-method pip|clone] [--home PATH] [--bootstrap]
 #          [--dry-run] [--force]
 #   Requires execute permission on first use: chmod +x deploy-harness.sh
 #
@@ -78,7 +78,7 @@ done
 
 case "$PRESET" in starter|standard|full) ;; *) fail "invalid --preset: $PRESET"; exit 1 ;; esac
 case "$REGISTER" in vscode|copilot-cli|claude|codex|none) ;; *) fail "invalid --register: $REGISTER"; exit 1 ;; esac
-case "$INSTALL_METHOD" in pip|clone|plugin) ;; *) fail "invalid --install-method: $INSTALL_METHOD"; exit 1 ;; esac
+case "$INSTALL_METHOD" in pip|clone) ;; *) fail "invalid --install-method: $INSTALL_METHOD"; exit 1 ;; esac
 
 # Load .env.local (gitignored per-developer overrides) if present, mirroring the
 # start.sh loader: export each KEY=VALUE only when not already set; strip a
@@ -162,20 +162,18 @@ invoke_bootstrap() {
 	fi
 
 	info "autoharness_home not found."
+	if [[ "$DRY_RUN" -eq 1 ]]; then
+		info "[dry-run] would install autoharness globally via '$INSTALL_METHOD' (out-of-cwd; a real run also requires the --bootstrap opt-in)."
+		RESOLVED_HOME="$AUTOHARNESS_HOME_DEFAULT"; return 0
+	fi
 	if [[ "$BOOTSTRAP" -ne 1 ]]; then
 		warn "Global install is out-of-cwd and requires the explicit --bootstrap opt-in. Re-run with --bootstrap to install via '$INSTALL_METHOD', or set --home / AUTOHARNESS_HOME to an existing install."
 		return 1
 	fi
 
-	if [[ "$DRY_RUN" -eq 1 ]]; then
-		info "[dry-run] would install autoharness globally via '$INSTALL_METHOD' (out-of-cwd)."
-		RESOLVED_HOME="$AUTOHARNESS_HOME_DEFAULT"; return 0
-	fi
-
 	case "$INSTALL_METHOD" in
 		pip) info "Installing autoharness via pip (global tool)..."; "${PYTHON_BIN:-python}" -m pip install --upgrade autoharness ;;
 		clone) info "Cloning autoharness to $AUTOHARNESS_HOME_DEFAULT ..."; git clone https://github.com/softwaresalt/autoharness "$AUTOHARNESS_HOME_DEFAULT" ;;
-		plugin) info "Installing autoharness Copilot plugin..."; copilot plugin install autoharness@autoharness ;;
 	esac
 	resolved="$(resolve_home)"
 	if [[ -n "$resolved" ]]; then ok "autoharness_home installed: $resolved"; RESOLVED_HOME="$resolved"; return 0; fi
@@ -295,6 +293,7 @@ invoke_compose() {
 invoke_verify() {
 	phase "verify"
 	if ! command -v autoharness >/dev/null 2>&1; then info "autoharness CLI not on PATH; skipping deterministic verify."; return 0; fi
+	if [[ ! -f "${WORKSPACE_ROOT}/.autoharness/harness-manifest.yaml" ]]; then info "no harness manifest yet (composition not run); skipping deterministic verify."; return 0; fi
 	if [[ "$DRY_RUN" -eq 1 ]]; then info "[dry-run] would run: autoharness verify-workspace --workspace $WORKSPACE_ROOT"; return 0; fi
 	if autoharness verify-workspace --workspace "$WORKSPACE_ROOT"; then ok "verify-workspace completed (see .autoharness reports)"; return 0; else fail "verify failed"; return 1; fi
 }

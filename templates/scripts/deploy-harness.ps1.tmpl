@@ -44,7 +44,7 @@ param(
     [ValidateSet("vscode", "copilot-cli", "claude", "codex", "none")]
     [string]$Register = "{{DEFAULT_REGISTER_ENV}}",
 
-    [ValidateSet("pip", "clone", "plugin")]
+    [ValidateSet("pip", "clone")]
     [string]$InstallMethod = "{{DEFAULT_INSTALL_METHOD}}",
 
     [Alias("Home")]
@@ -175,14 +175,13 @@ function Invoke-Bootstrap {
     }
 
     Write-Info "autoharness_home not found."
+    if ($DryRun) {
+        Write-Info "[dry-run] would install autoharness globally via '$InstallMethod' (out-of-cwd; a real run also requires the -Bootstrap opt-in)."
+        return $AutoharnessHomeDefault
+    }
     if (-not $Bootstrap) {
         Write-Warn2 "Global install is out-of-cwd and requires the explicit -Bootstrap opt-in. Re-run with -Bootstrap to install via '$InstallMethod', or set -Home / AUTOHARNESS_HOME to an existing install."
         return $null
-    }
-
-    if ($DryRun) {
-        Write-Info "[dry-run] would install autoharness globally via '$InstallMethod' (out-of-cwd)."
-        return $AutoharnessHomeDefault
     }
 
     switch ($InstallMethod) {
@@ -193,10 +192,6 @@ function Invoke-Bootstrap {
         "clone" {
             Write-Info "Cloning autoharness to $AutoharnessHomeDefault ..."
             & git clone https://github.com/softwaresalt/autoharness $AutoharnessHomeDefault
-        }
-        "plugin" {
-            Write-Info "Installing autoharness Copilot plugin..."
-            & copilot plugin install autoharness@autoharness
         }
     }
     $resolved = Resolve-AutoharnessHome
@@ -334,6 +329,11 @@ function Invoke-Verify {
     $cli = Get-Command autoharness -ErrorAction SilentlyContinue
     if (-not $cli) {
         Write-Info "autoharness CLI not on PATH; skipping deterministic verify."
+        return $true
+    }
+    $manifest = Join-Path $WorkspaceRoot ".autoharness/harness-manifest.yaml"
+    if (-not (Test-Path -LiteralPath $manifest)) {
+        Write-Info "no harness manifest yet (composition not run); skipping deterministic verify."
         return $true
     }
     if ($DryRun) {
