@@ -82,20 +82,24 @@ See [Capability Packs](docs/capability-packs.md) for the full overlay contract a
 
 ## Quick Start
 
+Install autoharness globally, then compose a harness into your workspace. Full
+install instructions — the scripted one-command deploy and the manual
+pip/clone/plugin paths — live in the **[Installation](docs/installation.md)**
+guide.
+
 ```bash
-# Option A: Copilot CLI plugin (recommended — no Python needed)
-copilot plugin marketplace add softwaresalt/autoharness
-copilot plugin install autoharness@autoharness
+# Fastest manual install (pick one)
+python -m pip install autoharness                         # Python CLI
+copilot plugin install autoharness@autoharness            # Copilot CLI plugin
 
-# Option B: Python CLI (for setup-vscode and verify-workspace)
-python -m pip install autoharness
-autoharness setup-vscode        # VS Code with GitHub Copilot
+# Upgrade an existing Python CLI install
+python -m pip install --upgrade autoharness
 
-# Register with other AI environments (requires Python CLI)
-autoharness setup-claude        # Claude Code
-autoharness setup-codex         # Codex
+# Or use the scripted one-command deploy (bootstraps + registers + scaffolds)
+./scripts/deploy-harness.sh --bootstrap --preset full     # POSIX sh
+./scripts/deploy-harness.ps1 -Bootstrap -Preset full      # PowerShell
 
-# Install a harness (from the target workspace)
+# Compose a harness (from the target workspace)
 /install-harness preset=standard
 
 # Run the full Stage -> Ship lifecycle through the Orchestrator
@@ -111,29 +115,13 @@ autoharness setup-codex         # Codex
 autoharness verify-workspace --workspace .
 ```
 
-If you previously installed the Python CLI from the Git URL or `uv tool`,
-switch once to the PyPI wheel before relying on upgrades:
-
-```bash
-python -m pip uninstall autoharness   # if installed from a pip Git URL
-uv tool uninstall autoharness         # if installed with uv tool
-python -m pip install autoharness
-```
-
-That ensures future `python -m pip install --upgrade autoharness` updates use
-the published wheel instead of leaving a Git-based install in place or
-recloning the repository.
+See [Installation](docs/installation.md) for environment registration, install
+methods, upgrade/migration steps, and the `autoharness_home` resolution order.
 
 If the target workspace is Git-backed, treat install and tune output as
 feature-branch work. autoharness may still generate local uncommitted changes
 while you are on the default branch, but the intended review path is feature
 branch plus pull request, not a direct commit or push to the default branch.
-
-The marketplace-based plugin install path gives Copilot CLI users built-in versioning and update management with no Python dependency. The Python CLI is still needed for `setup-vscode` (writing VS Code user settings), `verify-workspace` (CI-friendly JSON Schema validation), and registering with Claude Code or Codex.
-
-The PyPI package is the stable Python CLI distribution path. Use the Git URL only when you explicitly want an unreleased snapshot from the repository tip.
-
-The `setup-claude` and `setup-codex` commands copy agent or skill files into each tool's standard global config directory, so rerun them after upgrading autoharness to refresh those files. `setup-vscode` writes user-settings pointers to `autoharness home`; rerun it only if that resolved install path changes.
 
 See [Getting Started](docs/getting-started.md) for the full walkthrough, including workspace configuration, install layers, selective installation, and post-install verification.
 
@@ -154,6 +142,7 @@ These are workflow aliases, not separate pipelines, over the existing Orchestrat
 | Document | Description |
 |---|---|
 | [Getting Started](docs/getting-started.md) | Install autoharness, configure your workspace, compose a harness |
+| [Installation](docs/installation.md) | Authoritative install path: scripted one-command deploy and manual pip/clone/plugin |
 | [Environment Setup](docs/environment-setup.md) | Per-environment registration (VS Code, Copilot CLI, Claude Code, Codex, Cursor) |
 | [Primitives](docs/primitives.md) | Deep reference for the 10 irreducible harness primitives |
 | [Capability Packs](docs/capability-packs.md) | Overlay pattern, pack catalog, and composition rules |
