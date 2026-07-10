@@ -1,6 +1,6 @@
 ---
 title: "Scripted Install/Deploy Automation + Consolidated Installation Guide"
-description: "Deliberated design for a cross-platform (PowerShell + POSIX sh) scripted bootstrap-and-deploy path that installs autoharness and enables all capability packs in a new development environment or workspace, a machine-readable capability-pack registry that makes 'all packs' enumerable, and a single authoritative installation guide that supersedes the scattered install/setup docs."
+description: "Deliberated design for a cross-platform (PowerShell + Bash) scripted bootstrap-and-deploy path that installs autoharness and enables all capability packs in a new development environment or workspace, a machine-readable capability-pack registry that makes 'all packs' enumerable, and a single authoritative installation guide that supersedes the scattered install/setup docs."
 topic: "How should autoharness offer a deterministic, scripted install-and-deploy path (autoharness + all capability packs) alongside the existing AI-agent-driven install, where is the scripted/agent boundary, does a capability-pack registry exist, and how should the poor, scattered install docs be consolidated?"
 depth: "hardened"
 decision_status: "accepted"
@@ -178,7 +178,7 @@ balloon this shipment. The registry is additive; the existing enums remain the
 validation authority. A drift check (registry vs schema enums vs docs pack table) is
 noted as a tuning follow-up, not built here.
 
-### D4 — Cross-platform: ship PowerShell AND POSIX sh (069-F precedent)
+### D4 — Cross-platform: ship PowerShell AND Bash (069-F precedent)
 
 The operator asked for PowerShell, but Core Rule 3 (environment-agnostic) and the
 just-shipped **069-F precedent** (which shipped `pre-push-quality-gates.ps1.tmpl` +

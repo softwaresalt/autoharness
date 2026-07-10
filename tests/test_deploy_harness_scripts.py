@@ -157,6 +157,29 @@ class DeployHarnessBehaviorTests(unittest.TestCase):
                 self.assertNotIn("pip|clone|plugin", text)
                 self.assertNotIn('"pip", "clone", "plugin"', text)
 
+    def test_register_adds_marketplace_before_install(self) -> None:
+        # The copilot-cli register path must add the marketplace before installing
+        # the plugin, matching the documented install sequence.
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                mk = text.find("copilot plugin marketplace add softwaresalt/autoharness")
+                inst = text.find("copilot plugin install autoharness@autoharness")
+                self.assertNotEqual(mk, -1, f"{name}: marketplace add missing")
+                self.assertNotEqual(inst, -1, f"{name}: plugin install missing")
+                self.assertLess(
+                    mk, inst, f"{name}: marketplace add must precede plugin install"
+                )
+
+    def test_scaffold_enforces_symlink_containment(self) -> None:
+        markers = {
+            "ps1": "reparse point/symlink (cwd containment)",
+            "sh": "is a symlink (cwd containment)",
+        }
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                self.assertIn(markers[name], _read(instance))
+
 
 if __name__ == "__main__":
     unittest.main()

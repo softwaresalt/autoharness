@@ -190,10 +190,12 @@ function Invoke-Bootstrap {
         "pip" {
             Write-Info "Installing autoharness via pip (global tool)..."
             & $PythonBin -m pip install --upgrade autoharness
+            if ($LASTEXITCODE -ne 0) { Write-Fail "pip install exited $LASTEXITCODE"; return $null }
         }
         "clone" {
             Write-Info "Cloning autoharness to $AutoharnessHomeDefault ..."
             & git clone https://github.com/softwaresalt/autoharness $AutoharnessHomeDefault
+            if ($LASTEXITCODE -ne 0) { Write-Fail "git clone exited $LASTEXITCODE"; return $null }
         }
     }
     $resolved = Resolve-AutoharnessHome
@@ -216,13 +218,15 @@ function Invoke-Register {
     }
 
     if ($DryRun) {
-        if ($Register -eq "copilot-cli") { Write-Info "[dry-run] would run: copilot plugin install autoharness@autoharness" }
+        if ($Register -eq "copilot-cli") { Write-Info "[dry-run] would run: copilot plugin marketplace add softwaresalt/autoharness && copilot plugin install autoharness@autoharness" }
         else { Write-Info "[dry-run] would run: autoharness $cmd" }
         return $true
     }
 
     try {
         if ($Register -eq "copilot-cli") {
+            & copilot plugin marketplace add softwaresalt/autoharness
+            if ($LASTEXITCODE -ne 0) { throw "copilot plugin marketplace add exited $LASTEXITCODE" }
             & copilot plugin install autoharness@autoharness
             if ($LASTEXITCODE -ne 0) { throw "copilot plugin install exited $LASTEXITCODE" }
         }
@@ -260,6 +264,7 @@ function Invoke-Scaffold([string]$HomePath) {
     }
     else {
         $registryPacks = @(Get-RegistryPacks $HomePath)
+        if ($registryPacks.Count -eq 0) { Write-Warn2 "registry unavailable; cannot validate -Packs entries against it." }
         foreach ($p in ($Packs -split ",")) {
             $p = $p.Trim()
             if (-not $p) { continue }
@@ -286,6 +291,16 @@ function Invoke-Scaffold([string]$HomePath) {
     if ($DryRun) {
         Write-Info "[dry-run] would write $configPath with preset '$Preset' and $($selectedPacks.Count) packs."
         return $true
+    }
+
+    foreach ($guard in @($autoharnessDir, $configPath)) {
+        if (Test-Path -LiteralPath $guard) {
+            $existing = Get-Item -LiteralPath $guard -Force
+            if ($existing.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                Write-Fail "refusing to write: $guard is a reparse point/symlink (cwd containment)."
+                return $false
+            }
+        }
     }
 
     if (-not (Test-Path -LiteralPath $autoharnessDir)) {

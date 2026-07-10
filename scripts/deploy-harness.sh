@@ -195,12 +195,12 @@ invoke_register() {
 	esac
 
 	if [[ "$DRY_RUN" -eq 1 ]]; then
-		if [[ "$REGISTER" == "copilot-cli" ]]; then info "[dry-run] would run: copilot plugin install autoharness@autoharness"; else info "[dry-run] would run: autoharness $cmd"; fi
+		if [[ "$REGISTER" == "copilot-cli" ]]; then info "[dry-run] would run: copilot plugin marketplace add softwaresalt/autoharness && copilot plugin install autoharness@autoharness"; else info "[dry-run] would run: autoharness $cmd"; fi
 		return 0
 	fi
 
 	if [[ "$REGISTER" == "copilot-cli" ]]; then
-		copilot plugin install autoharness@autoharness && { ok "registered $REGISTER environment"; return 0; } || { fail "register failed"; return 1; }
+		if copilot plugin marketplace add softwaresalt/autoharness && copilot plugin install autoharness@autoharness; then ok "registered $REGISTER environment"; return 0; else fail "register failed"; return 1; fi
 	elif command -v autoharness >/dev/null 2>&1; then
 		autoharness "$cmd" && { ok "registered $REGISTER environment"; return 0; } || { fail "register failed"; return 1; }
 	else
@@ -223,6 +223,7 @@ invoke_scaffold() {
 	else
 		local registry_list
 		registry_list="$(registry_packs "$home_path")"
+		if [[ -z "$registry_list" ]]; then warn "registry unavailable; cannot validate --packs entries against it."; fi
 		local p
 		IFS=',' read -ra requested <<< "$PACKS"
 		for p in "${requested[@]}"; do
@@ -257,6 +258,8 @@ capability_packs: []"
 		info "[dry-run] would write $config_path with preset '$PRESET' and ${#selected[@]} packs."
 		return 0
 	fi
+
+	if [[ -L "$autoharness_dir" || -L "$config_path" ]]; then fail "refusing to write: .autoharness or config.yaml is a symlink (cwd containment)."; return 1; fi
 
 	mkdir -p "$autoharness_dir"
 

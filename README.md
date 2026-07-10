@@ -90,7 +90,8 @@ guide.
 ```bash
 # Fastest manual install (pick one)
 python -m pip install autoharness                         # Python CLI
-copilot plugin install autoharness@autoharness            # Copilot CLI plugin
+copilot plugin marketplace add softwaresalt/autoharness   # Copilot CLI: add marketplace
+copilot plugin install autoharness@autoharness            # Copilot CLI: install plugin
 
 # Upgrade an existing Python CLI install
 python -m pip install --upgrade autoharness
