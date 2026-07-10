@@ -141,6 +141,58 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{QUALITY_GATE_4}}` | `ci.quality_gates[3]` (command, optional) | `cargo test` | _(empty)_ | _(empty)_ |
 | `{{POLL_INTERVAL}}` | `ci.poll_interval` (seconds, optional) | `30` | `30` | `30` |
 | `{{MAX_WAIT}}` | `ci.max_wait` (seconds, optional) | `600` | `600` | `600` |
+| `{{TYPECHECK_COMMAND}}` | `typecheck.command` (read-only type gate; empty when none configured) | _(empty)_ | `tsc --noEmit` | `mypy src/` |
+| `{{LINT_TOOL}}` | `lint.tool` (binary the pre-push hook probes for the Lint gate; empty falls back to the command's leading token) | `cargo` | `npm` | `ruff` |
+| `{{FORMAT_TOOL}}` | `format.tool` (probe binary for the Format gate) | `cargo` | `npx` | `ruff` |
+| `{{TYPECHECK_TOOL}}` | `typecheck.tool` (probe binary for the Typecheck gate; e.g. the real tool behind a `python -m` wrapper) | _(empty)_ | `tsc` | `mypy` |
+| `{{TEST_TOOL}}` | `test.runner` (probe binary for the Test gate) | `cargo` | `npm` | `pytest` |
+| `{{BUILD_TOOL}}` | `build.tool` (probe binary for the Build gate) | `cargo` | `tsc` | `python` |
+| `{{CI_REQUIRED_CHECK_NAME}}` | `ci.required_check_name` (the aggregation-gate check context `name:`; may contain spaces. The job ID is always the fixed slug `ci-gate`) | `ci gate` | `ci gate` | `build` |
+| `{{CI_EXPENSIVE_JOB_NAME}}` | Synthesized from the primary ecosystem's heavy job (the expensive job's check context `name:`; job ID is always the fixed slug `expensive`) | `build` | `test` | `test` |
+| `{{CI_PATH_FILTER_MODE}}` | `ci.path_filter_mode` (only `fail_closed_changes_job` is supported; the always-running `changes` job is fail-closed) | `fail_closed_changes_job` | `fail_closed_changes_job` | `fail_closed_changes_job` |
+| `{{CI_DOCS_ONLY_PATHS}}` | `ci.docs_only_paths` (directory-scoped denylist negations for the fail-closed changes job; avoid an extension-wide `!**/*.md` when Markdown is executable product) | `'!docs/**'` | `'!docs/**'` | `'!docs/**', '!.backlogit/**', '!.autoharness/**'` |
+| `{{CI_RUNNER_OS}}` | `ubuntu-latest` (regular CI is Linux-only per `ci.linux_only`; cross-OS lives in release-tag workflows) | `ubuntu-latest` | `ubuntu-latest` | `ubuntu-latest` |
+| `{{CI_SETUP_STEPS}}` | Per-ecosystem toolchain setup steps (checkout + SDK + dependency install) | _(cargo/rust setup)_ | _(node setup)_ | _(python + uv setup)_ |
+| `{{PRE_PUSH_ENABLED}}` | `local_gating.pre_push_enabled` (whether the pre-push hook artifact is generated; hook stays opt-in) | `true` | `true` | `true` |
+| `{{PRE_PUSH_GATES}}` | `local_gating.pre_push_gates` (ordered gate list the hook runs) | `test, lint, format, build` | `test, lint, format, typecheck` | `test` |
+
+> **Probe-tool resolution (`{{*_TOOL}}`).** Set each `{{*_TOOL}}` to the binary
+> whose **absence should skip** the gate (warn-and-skip, P-019) — not necessarily
+> the first token of the command. For commands that invoke a **project-local** tool
+> through a wrapper (`npm run lint`, `npx prettier`, `npx tsc`), use the wrapper
+> entry point (`npm` / `npx`): the underlying tool resolves from
+> `node_modules/.bin` and is **not** on `PATH`, so probing it directly via
+> `command -v` / `Get-Command` would wrongly skip a working gate. For
+> `python -m <tool>` use the underlying tool when it installs a `PATH` console
+> script (e.g. `mypy`, `ruff`), otherwise `python`. Keep the example values above
+> consistent with each gate's command column. When `{{*_TOOL}}` is empty the hook
+> falls back to the command's leading real token (env prefixes skipped).
+
+> **Hook gate composition (`{{PRE_PUSH_GATES}}`).** The pre-push hook templates
+> ship the full gate menu (Lint / Format / Typecheck / Test / Build call sites).
+> During resolution, emit **only** the `run_gate` / `Invoke-Gate` calls named in
+> `local_gating.pre_push_gates`, in that list's order, and drop the rest — do not
+> emit a fixed five-gate order. A profile such as `pre_push_gates: [test]` must
+> produce a hook that runs the Test gate only. (A call whose command variable also
+> resolves empty is likewise omitted.)
+
+> **CI gates are independent of the local hook.** The remote expensive-job steps
+> are composed from the discovered CI gate command fields
+> (`{{LINT_COMMAND}}` / `{{FORMAT_CHECK_COMMAND}}` / `{{TYPECHECK_COMMAND}}` /
+> `{{TEST_COMMAND}}` / `{{BUILD_CHECK_COMMAND}}`), **not** from
+> `local_gating.pre_push_gates`. `pre_push_gates` governs the opt-in local hook
+> only; narrowing local gates (e.g. skipping a slow gate locally) must never remove
+> that gate from the remote CI job. Resolve the two independently.
+
+> **Shell-safe command rendering.** Gate command values are interpolated into
+> double-quoted arguments in the generated hooks (`run_gate "…" "…" "<command>"`
+> passed to `sh -c`; `Invoke-Gate … "<command>"` passed to `Invoke-Expression`). A
+> discovered command that itself contains double quotes (e.g.
+> `python -c "import sys"`) would close the argument early and corrupt the script.
+> When resolving `{{*_COMMAND}}` values that contain quotes or shell metacharacters,
+> the installer MUST shell-escape them for the target shell (POSIX form in `.sh`,
+> PowerShell form in `.ps1`), or wrap the logic in a committed script the gate
+> invokes by path. Prefer simple, quote-free gate commands where possible.
 
 **Backlog Tool Variables** (derived from `backlog_tool` profile section):
 
@@ -1192,6 +1244,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Local environment file | `{workspace}/.env.local` — generated from `{autoharness_home}/templates/scripts/.env.local.tmpl`; seeds `workspaceFolder={{WORKSPACE_ROOT}}`. Gitignored per-developer secrets file — **write only if it does not already exist**; never overwrite an existing `.env.local` |
 | Markdownlint config (when `tools.markdownlint` detected or operator opt-in) | `{workspace}/.markdownlint.json` — resolved from `{autoharness_home}/templates/scripts/.markdownlint.json.tmpl` (no variables to resolve; copy as-is) |
 | Markdownlint pre-commit hooks (when markdownlint config installed) | `{workspace}/scripts/pre-commit-markdownlint.sh`, `{workspace}/scripts/pre-commit-markdownlint.ps1` — copied from `{autoharness_home}/templates/scripts/pre-commit-markdownlint.sh.tmpl` and `pre-commit-markdownlint.ps1.tmpl`; set execute permission on `.sh` after copy: `chmod +x scripts/pre-commit-markdownlint.sh` |
+| CI workflow (when `ci.platform` is GitHub Actions and a toolchain is detected) | `{workspace}/.github/workflows/ci.yml` — resolved from `{autoharness_home}/templates/ci/ci.yml.tmpl`; drop any expensive-job gate step whose command variable has no discovered value (keep only the gates in `local_gating.pre_push_gates`). See `templates/ci/README.md` and P-019 |
+| Pre-push quality-gate hooks (when `local_gating.pre_push_enabled`) | `{workspace}/scripts/pre-push-quality-gates.sh`, `{workspace}/scripts/pre-push-quality-gates.ps1` — resolved from `{autoharness_home}/templates/scripts/pre-push-quality-gates.sh.tmpl` and `pre-push-quality-gates.ps1.tmpl`; drop any gate line whose command variable has no discovered value; set execute permission on `.sh` after copy: `chmod +x scripts/pre-push-quality-gates.sh`. **Opt-in**: write the scripts and install guidance only — never overwrite the developer's `.git/hooks/pre-push` or set `core.hooksPath` automatically (P-019) |
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
 | Backlog config + stash | `{workspace}/{{BACKLOG_DIRECTORY}}/` (queue/, archive/, config.yml, queue/.stash.md) |

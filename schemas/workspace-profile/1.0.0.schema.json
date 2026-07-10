@@ -146,6 +146,21 @@
         }
       }
     },
+    "typecheck": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "command": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Read-only static type-check command (exits non-zero on type errors), e.g. tsc --noEmit or mypy src/. Null when the workspace has no typecheck gate."
+        }
+      }
+    },
     "format": {
       "type": "object",
       "properties": {
@@ -183,6 +198,57 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "required_check_name": {
+          "type": "string",
+          "description": "Name of the always-running aggregation-gate check (the reported check context, which may contain spaces) that a branch ruleset should require. This is the single required status check; guarded expensive jobs are never the required check so they may be skipped on docs-only PRs without blocking merge. The underlying job ID is always a fixed slug (ci-gate). Default 'ci gate'. Set to match an existing required-check name (e.g. 'build') when one is already configured, so no ruleset edit is needed.",
+          "default": "ci gate"
+        },
+        "linux_only": {
+          "type": "boolean",
+          "const": true,
+          "description": "Always true: regular PR/push CI runs on Linux only (ubuntu-latest). Cross-OS verification is delegated to release-tag workflows; this template does not auto-generate a multi-OS matrix, so the field is constrained to true. Reserved for a future matrix implementation.",
+          "default": true
+        },
+        "path_filter_mode": {
+          "type": "string",
+          "description": "How CI decides whether the expensive gate runs. Only 'fail_closed_changes_job' is supported: a lightweight always-running detection job using dorny/paths-filter with predicate-quantifier 'every' over a denylist, so any code/config/unknown-type change fails closed into the gate while the always-running aggregation gate still reports a status.",
+          "enum": [
+            "fail_closed_changes_job"
+          ],
+          "default": "fail_closed_changes_job"
+        },
+        "docs_only_paths": {
+          "type": "array",
+          "description": "Directory/path patterns positively identified as documentation or state that are safe to exclude from the expensive gate (used as denylist negations for the fail-closed changes job). Prefer specific directories (e.g. 'docs/**', '.backlogit/**'). Do NOT use an extension-wide glob such as '**/*.md' when Markdown is executable product in the workspace (e.g. agent/skill/instruction files under '.github/'), since that would let harness changes skip the gate while the aggregation check still reports success. Example: ['docs/**', '.backlogit/**', '.autoharness/**'].",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "local_gating": {
+      "type": "object",
+      "description": "Configuration for the cross-platform local pre-push quality-gate hook (P-019). The hook runs the discovered build/test/lint/format/typecheck gates before push and blocks the push on failure; it is opt-in and installable.",
+      "properties": {
+        "pre_push_enabled": {
+          "type": "boolean",
+          "description": "Whether the pre-push quality-gate hook should be composed for this workspace. The installed hook remains opt-in (activated by an explicit operator step); this flag only controls whether the artifact is generated.",
+          "default": true
+        },
+        "pre_push_gates": {
+          "type": "array",
+          "description": "Ordered list of quality gates the pre-push hook runs. Each gate names a discovered command (resolved from build/test/lint/format/typecheck profile fields). Absent gates are skipped (tool-not-found -> warn and skip), not failed.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "test",
+              "lint",
+              "format",
+              "typecheck",
+              "build"
+            ]
           }
         }
       }

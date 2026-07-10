@@ -1,0 +1,12 @@
+#!/bin/sh
+# .githooks/pre-push
+# Extensionless dispatcher. Git invokes the hook by the exact name `pre-push`
+# (no extension) under core.hooksPath, using its bundled POSIX shell on every
+# platform — including Git for Windows. Delegate to the POSIX gate script so a
+# single `git config core.hooksPath .githooks` activates the quality gates.
+#
+# The PowerShell variant (pre-push.ps1) is provided for manual invocation or for
+# wiring into environments that prefer PowerShell; git itself always runs this
+# POSIX dispatcher.
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$dir/pre-push.sh" "$@"

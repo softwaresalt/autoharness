@@ -108,6 +108,47 @@ Record: `build_tool`, `test_runner`, `linter`, `formatter`, `package_manager`.
 
 Record: `ci_platform`, `ci_pipeline_steps[]`, `ci_quality_gates[]`.
 
+**CI gating strategy detection** (drives the unified CI + local-gating primitive):
+
+* **Required check name** — inspect any existing branch ruleset / branch protection
+  for an already-required status-check name. If one exists (e.g. `build`), record it
+  as `ci.required_check_name` so the generated aggregation gate adopts that exact
+  name and no ruleset edit is needed. Otherwise default to `ci gate`.
+* **Path filter mode** — record `ci.path_filter_mode: fail_closed_changes_job`
+  (the only supported value): a lightweight always-running detection job using
+  `dorny/paths-filter` with `predicate-quantifier: every` over a denylist. Do not
+  emit `paths_ignore` — trigger-level `paths-ignore` skips the whole run
+  (including the aggregation gate), recreating the pending-required-check problem
+  this primitive solves, so it is not a valid profile value.
+* **Docs-only paths** — record `ci.docs_only_paths` as positively-identified
+  documentation/state **directories** (e.g. `['docs/**']` plus any backlog
+  directory such as `.backlogit/**` and harness metadata `.autoharness/**`).
+  These become the fail-closed denylist negations. Do **not** emit an
+  extension-wide glob such as `**/*.md` when Markdown is executable product in the
+  workspace (e.g. agent/skill/instruction files under `.github/`): that would let
+  harness changes skip the expensive gate while the aggregation check still
+  reports success. Only add `**/*.md` when discovery confirms Markdown is purely
+  non-executable documentation everywhere.
+* **Linux-only** — record `ci.linux_only: true` (regular PR/push CI is
+  Linux-only; cross-OS verification is deferred to release-tag workflows). This
+  field is constrained to `true` in the profile schema; the template renders a
+  scalar `runs-on` and does not auto-generate a multi-OS matrix.
+
+**Local pre-push gating detection** (drives the pre-push quality-gate hook):
+
+* Determine which quality gates the workspace actually has by reusing the
+  build/test/lint/format/typecheck detection above. Record the ordered list in
+  `local_gating.pre_push_gates` (subset of `test`, `lint`, `format`, `typecheck`,
+  `build`) — include only gates with a real discovered command.
+* Record `local_gating.pre_push_enabled: true` by default. The generated hook is
+  always opt-in (activated by an explicit operator step), so this flag only controls
+  whether the artifact is composed.
+
+Record: `ci.required_check_name`, `ci.linux_only`, `ci.path_filter_mode`,
+`ci.docs_only_paths[]`, `local_gating.pre_push_enabled`,
+`local_gating.pre_push_gates[]`.
+
+
 #### Step 1.5: Project Structure Analysis
 
 Identify the project's organizational patterns:
@@ -533,6 +574,14 @@ ci:
   platform: "{{CI_PLATFORM}}"
   pipeline_steps: []
   quality_gates: []
+  required_check_name: "{{CI_REQUIRED_CHECK_NAME}}"
+  linux_only: true
+  path_filter_mode: "{{CI_PATH_FILTER_MODE}}"
+  docs_only_paths: []
+
+local_gating:
+  pre_push_enabled: {{PRE_PUSH_ENABLED}}
+  pre_push_gates: []
 
 structure:
   source_layout: "{{SOURCE_LAYOUT}}"
