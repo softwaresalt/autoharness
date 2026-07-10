@@ -1,3 +1,14 @@
+---
+type: post-merge-closure
+shipment: 082-S
+feature: 070-F
+date: 2026-07-10
+merge_sha: 7839eb9721281ba66909c5655ead0a2271dd5c8d
+pr: 189
+category: release-closure
+tags: [closure, install-automation, deploy-harness, capability-pack-registry, installation-guide]
+---
+
 # 082-S Post-Merge Closure Memory
 
 **Date**: 2026-07-10
