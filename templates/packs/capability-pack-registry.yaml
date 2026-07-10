@@ -1,0 +1,132 @@
+# Capability Pack Registry
+#
+# Machine-readable catalog of every autoharness capability pack. This is the
+# single enumerable source that makes "all capability packs" concrete for the
+# scripted deploy path (templates/scripts/deploy-harness.{ps1,sh}.tmpl) and the
+# consolidated installation guide (docs/installation.md).
+#
+# This registry is ADDITIVE. The closed pack enums in
+# schemas/harness-config.schema.json, schemas/harness-manifest.schema.json, and
+# schemas/workspace-profile.schema.json remain the validation authority; this
+# file does not replace them. A registry-vs-enums drift check is a tuning
+# follow-up, not built here (see the decision doc, D3).
+#
+# Validated against schemas/capability-pack-registry.schema.json.
+# Plain .yaml (no {{VARIABLE}} customization points), following the
+# templates/backlog/registries/*.registry.yaml precedent.
+#
+# Sources: docs/capability-packs.md (purpose + primitive impact),
+# .github/skills/workspace-discovery/SKILL.md (eligibility signals),
+# .github/skills/install-harness/SKILL.md Step 1.3 (overlay instruction paths +
+# preset defaults).
+
+schema_version: "1.0.0"
+
+packs:
+  - id: "agent-intercom"
+    title: "Agent Intercom"
+    purpose: "Remote operator visibility, approval routing, and standby handoffs"
+    primitive_impact: [4, 5, 6, 7, 10]
+    eligibility_signals:
+      - ".mcp.json (workspace root) or legacy editor settings reference agent-intercom or a remote-operator intercom tool surface"
+      - "existing AGENTS.md / copilot-instructions.md describe heartbeat, broadcast, approval routing, or operator standby flows"
+      - "operator works AFK and needs remote milestone visibility and approval routing"
+    overlay_instruction: "templates/instructions/agent-intercom.instructions.md.tmpl"
+    mcp_requirements: ["agent-intercom"]
+    default_in_preset: ["full"]
+
+  - id: "agent-engram"
+    title: "Agent Engram"
+    purpose: "Engram-first indexed search, code graph lookup, and workspace context retrieval"
+    primitive_impact: [1, 4, 6, 9]
+    eligibility_signals:
+      - ".engram/config.toml, .engram/registry.yaml, or .engram/code-graph/ exists"
+      - ".mcp.json (workspace root) or legacy editor settings reference agent-engram, engram, or engram tool names"
+      - "existing docs describe Engram-first search, workspace binding, or .engram/ persistence"
+    overlay_instruction: "templates/instructions/agent-engram.instructions.md.tmpl"
+    mcp_requirements: ["engram"]
+    default_in_preset: ["full"]
+
+  - id: "backlogit"
+    title: "Backlogit"
+    purpose: "backlogit-native query, queue, dependencies, memory, checkpoints, traceability, and source-artifact lifecycle guidance"
+    primitive_impact: [1, 2, 4, 7, 8, 9]
+    eligibility_signals:
+      - ".backlogit/ directory with config.yaml exists at the workspace root"
+      - "backlogit binary is present on PATH"
+      - "go.mod or existing docs reference backlogit-native backlog workflows"
+    overlay_instruction: "templates/instructions/backlogit.instructions.md.tmpl"
+    mcp_requirements: ["backlogit"]
+    default_in_preset: ["full"]
+
+  - id: "browser-verification"
+    title: "Browser Verification"
+    purpose: "Browser-backed runtime confidence for web-facing work"
+    primitive_impact: [4, 7, 10]
+    eligibility_signals:
+      - "runtime_surfaces.web_ui is true (a web UI surface is present)"
+      - "browser tooling detected in dependencies or config (Playwright, Cypress, Puppeteer, Selenium, or equivalent)"
+    overlay_instruction: "templates/instructions/browser-verification.instructions.md.tmpl"
+    mcp_requirements: []
+    default_in_preset: ["full"]
+
+  - id: "continuous-learning"
+    title: "Continuous Learning"
+    purpose: "Observation capture, instinct formation, and promotion into explicit learned artifacts"
+    primitive_impact: [1, 6, 7, 9, 10]
+    eligibility_signals:
+      - "workspace benefits from capturing recurring practice as observations and promoting mature patterns into learned artifacts"
+      - "existing docs/compound or institutional-knowledge conventions are present"
+    overlay_instruction: "templates/instructions/continuous-learning.instructions.md.tmpl"
+    mcp_requirements: []
+    default_in_preset: ["standard", "full"]
+
+  - id: "strict-safety"
+    title: "Strict Safety"
+    purpose: "Stronger default safety posture for risky work with explicit action classification"
+    primitive_impact: [5, 6, 8, 10]
+    eligibility_signals:
+      - "public API surface present (runtime_surfaces.public_api is true)"
+      - "migration or schema management files detected (Alembic, Flyway, Prisma, ActiveRecord migrations, etc.)"
+      - "security-sensitive patterns present (auth modules, crypto usage, PII handling, payment integration)"
+      - "deployment infrastructure suggests rollout-critical surfaces (Kubernetes manifests, Helm charts, production Docker Compose profiles)"
+    overlay_instruction: "templates/instructions/strict-safety.instructions.md.tmpl"
+    mcp_requirements: []
+    default_in_preset: ["standard", "full"]
+
+  - id: "release-observability"
+    title: "Release Observability"
+    purpose: "Richer monitoring and closure expectations"
+    primitive_impact: [7, 10]
+    eligibility_signals:
+      - "deployment manifests detected (Dockerfiles, Helm charts, Terraform, CloudFormation, Kubernetes YAML)"
+      - "runtime surfaces exist (public_api, web_ui, or background_jobs)"
+      - "monitoring or alerting configuration present (Prometheus rules, Grafana dashboards, Datadog config, PagerDuty integration)"
+      - "CI/CD pipelines include deployment steps (deploy jobs, release workflows, canary configurations)"
+    overlay_instruction: "templates/instructions/release-observability.instructions.md.tmpl"
+    mcp_requirements: []
+    default_in_preset: ["standard", "full"]
+
+  - id: "adversarial-review"
+    title: "Adversarial Review"
+    purpose: "Multi-model parallel review with consensus-weighted findings and remediation queue"
+    primitive_impact: [7, 10]
+    eligibility_signals:
+      - "high-assurance or safety-critical work benefits from multi-model consensus review"
+      - "agent-facing product surfaces or MCP tooling warrant higher-confidence review escalation"
+    overlay_instruction: ""
+    mcp_requirements: []
+    default_in_preset: ["standard", "full"]
+
+  - id: "graphtor-docs"
+    title: "Graphtor Docs"
+    purpose: "Indexed local documentation search and semantic retrieval via graphtor-docs MCP server"
+    primitive_impact: [1, 6, 9]
+    eligibility_signals:
+      - ".graphtor/ directory exists at the workspace root"
+      - ".graphtor/config/sources.yaml or .graphtor/config/ directory exists"
+      - ".mcp.json (workspace root) or legacy editor settings reference graphtor-docs or graphtor MCP tool names"
+      - "graphtor-docs binary is present on PATH or at .graphtor/bin/"
+    overlay_instruction: "templates/instructions/graphtor-docs.instructions.md.tmpl"
+    mcp_requirements: ["graphtor-docs"]
+    default_in_preset: []

@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://autoharness.dev/schemas/capability-pack-registry.schema.json",
+  "title": "Capability Pack Registry",
+  "description": "Machine-readable catalog of every autoharness capability pack. Enumerates each pack with metadata so tooling (the scripted deploy path and the installation guide) can resolve 'all packs' deterministically. This registry is additive: the closed pack enums in harness-config.schema.json, harness-manifest.schema.json, and workspace-profile.schema.json remain the validation authority. Data file: templates/packs/capability-pack-registry.yaml.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "packs"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version for forward compatibility"
+    },
+    "packs": {
+      "type": "array",
+      "description": "The enumerable catalog of capability packs. Each entry describes one pack.",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/pack" }
+    }
+  },
+  "definitions": {
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "purpose",
+        "primitive_impact",
+        "eligibility_signals",
+        "overlay_instruction",
+        "mcp_requirements",
+        "default_in_preset"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable pack identifier. Enum-aligned with the capability_packs enum in harness-config.schema.json.",
+          "enum": [
+            "agent-intercom",
+            "agent-engram",
+            "backlogit",
+            "browser-verification",
+            "continuous-learning",
+            "strict-safety",
+            "release-observability",
+            "adversarial-review",
+            "graphtor-docs"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "description": "Short human-readable pack name.",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "description": "One-line description of what the pack deepens across the harness.",
+          "minLength": 1
+        },
+        "primitive_impact": {
+          "type": "array",
+          "description": "Harness primitives (1-10) this pack deepens, sourced from docs/capability-packs.md.",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "eligibility_signals": {
+          "type": "array",
+          "description": "Workspace markers that justify recommending the pack during discovery. May be empty for preset-default packs with no strong workspace marker.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "overlay_instruction": {
+          "type": "string",
+          "description": "Path (relative to autoharness_home) to the pack's overlay instruction template under templates/instructions/. Empty string for agent-only packs that install no overlay instruction file (e.g. adversarial-review)."
+        },
+        "mcp_requirements": {
+          "type": "array",
+          "description": "MCP server or tool-surface identifiers the pack requires. Empty when the pack has no MCP dependency.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "default_in_preset": {
+          "type": "array",
+          "description": "Installation presets in which this pack is enabled by default. Empty when the pack is only enabled via explicit selection or profile recommendation.",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["starter", "standard", "full"]
+          }
+        }
+      }
+    }
+  }
+}
