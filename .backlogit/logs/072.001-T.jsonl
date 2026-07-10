@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-10T14:50:29.1530607-07:00","actor":"backlogit","item_id":"072.001-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-07-10T15:01:00.9136043-07:00","actor":"ship","item_id":"072.001-T","event_type":"comment","delta":{"comment":"source_stash_id 74ECF8EB — staged fresh (not stash-promoted) to avoid mutating foreign-modified .backlogit/stash.jsonl during dark-mode run. Operator: drop stash 74ECF8EB after merge; stash D6A56A48 is already implemented (GRAPHTOR_ENV_BLOCK committed)."}}
