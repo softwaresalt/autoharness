@@ -29,7 +29,10 @@
 #
 # NOTE: gate commands must use PowerShell-appropriate syntax on Windows. Express
 # environment prefixes with `$env:VAR = '...'` rather than the POSIX
-# `VAR=value command` form (which PowerShell does not parse).
+# `VAR=value command` form (which PowerShell does not parse). When a gate command
+# needs shell-specific syntax, the installer renders the PowerShell form here and
+# the POSIX form in the .sh variant; portable commands (e.g. `mypy src/`,
+# `npm test`) are rendered identically in both.
 
 $ErrorActionPreference = 'Continue'
 
@@ -39,12 +42,18 @@ Set-Location $RepoRoot
 
 $script:Failed = $false
 
-# Invoke-Gate <label> <command>
-# Probes the command's leading token; warns and skips when the tool is absent,
-# otherwise runs the command and records a failure without aborting the rest.
+# Invoke-Gate <label> <tool> <command>
+# Probes <tool> — the discovered gate binary whose absence means "skip". When
+# <tool> is empty, falls back to the command's leading real token (skipping
+# leading `$env:VAR = '...'` / `VAR=value` env prefixes). Explicit tool metadata
+# makes wrapper commands such as `python -m mypy` skip correctly when the REAL
+# tool is absent, instead of running the wrapper and blocking the push. Warns and
+# skips when the tool is absent; otherwise runs the command once and records a
+# failure without aborting the rest.
 function Invoke-Gate {
     param(
         [string]$Label,
+        [string]$Tool,
         [string]$Command
     )
 
@@ -52,12 +61,13 @@ function Invoke-Gate {
         return
     }
 
-    # Derive the probe binary: skip leading `VAR=value` env assignments.
-    $probe = $null
-    foreach ($tok in ($Command -split '\s+')) {
-        if ($tok -match '=') { continue }
-        $probe = $tok
-        break
+    $probe = $Tool
+    if ([string]::IsNullOrWhiteSpace($probe)) {
+        foreach ($tok in ($Command -split '\s+')) {
+            if ($tok -match '=' -or $tok -like '$env:*') { continue }
+            $probe = $tok
+            break
+        }
     }
 
     if ($probe -and -not (Get-Command $probe -ErrorAction SilentlyContinue)) {
@@ -75,11 +85,11 @@ function Invoke-Gate {
 
 Write-Host "Running local pre-push quality gates..."
 
-Invoke-Gate "Lint" "{{LINT_COMMAND}}"
-Invoke-Gate "Format" "{{FORMAT_CHECK_COMMAND}}"
-Invoke-Gate "Typecheck" "{{TYPECHECK_COMMAND}}"
-Invoke-Gate "Test" "{{TEST_COMMAND}}"
-Invoke-Gate "Build" "{{BUILD_CHECK_COMMAND}}"
+Invoke-Gate "Lint" "{{LINT_TOOL}}" "{{LINT_COMMAND}}"
+Invoke-Gate "Format" "{{FORMAT_TOOL}}" "{{FORMAT_CHECK_COMMAND}}"
+Invoke-Gate "Typecheck" "{{TYPECHECK_TOOL}}" "{{TYPECHECK_COMMAND}}"
+Invoke-Gate "Test" "{{TEST_TOOL}}" "{{TEST_COMMAND}}"
+Invoke-Gate "Build" "{{BUILD_TOOL}}" "{{BUILD_CHECK_COMMAND}}"
 
 if ($script:Failed) {
     Write-Error "One or more quality gates failed. Fix them, or push with --no-verify to bypass."

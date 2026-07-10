@@ -142,12 +142,16 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{POLL_INTERVAL}}` | `ci.poll_interval` (seconds, optional) | `30` | `30` | `30` |
 | `{{MAX_WAIT}}` | `ci.max_wait` (seconds, optional) | `600` | `600` | `600` |
 | `{{TYPECHECK_COMMAND}}` | `typecheck.command` (read-only type gate; empty when none configured) | _(empty)_ | `tsc --noEmit` | `mypy src/` |
-| `{{CI_REQUIRED_CHECK_NAME}}` | `ci.required_check_name` (name of the single always-running aggregation gate to require in branch rules) | `ci gate` | `ci gate` | `build` |
-| `{{CI_EXPENSIVE_JOB_NAME}}` | Synthesized from the primary ecosystem's heavy job | `build` | `test` | `test` |
-| `{{CI_PATH_FILTER_MODE}}` | `ci.path_filter_mode` (`fail_closed_changes_job` default, or `paths_ignore`) | `fail_closed_changes_job` | `fail_closed_changes_job` | `fail_closed_changes_job` |
-| `{{CI_DOCS_ONLY_PATHS}}` | `ci.docs_only_paths` (denylist negations / paths-ignore list) | `'!**/*.md', '!docs/**'` | `'!**/*.md', '!docs/**'` | `'!**/*.md', '!docs/**', '!.backlogit/**', '!.autoharness/**'` |
-| `{{CI_RUNNER_OS}}` | `ubuntu-latest` when `ci.linux_only` (default), else the OS matrix | `ubuntu-latest` | `ubuntu-latest` | `ubuntu-latest` |
-| `{{CI_ENABLE_OS_MATRIX}}` | Inverse of `ci.linux_only` (true adds macOS/Windows to regular CI) | `false` | `false` | `false` |
+| `{{LINT_TOOL}}` | `lint.tool` (binary the pre-push hook probes for the Lint gate; empty falls back to the command's leading token) | `cargo` | `eslint` | `ruff` |
+| `{{FORMAT_TOOL}}` | `format.tool` (probe binary for the Format gate) | `cargo` | `prettier` | `black` |
+| `{{TYPECHECK_TOOL}}` | `typecheck.tool` (probe binary for the Typecheck gate; e.g. the real tool behind a `python -m` / `npm run` wrapper) | _(empty)_ | `tsc` | `mypy` |
+| `{{TEST_TOOL}}` | `test.runner` (probe binary for the Test gate) | `cargo` | `npm` | `python` |
+| `{{BUILD_TOOL}}` | `build.tool` (probe binary for the Build gate) | `cargo` | `npm` | _(empty)_ |
+| `{{CI_REQUIRED_CHECK_NAME}}` | `ci.required_check_name` (the aggregation-gate check context `name:`; may contain spaces. The job ID is always the fixed slug `ci-gate`) | `ci gate` | `ci gate` | `build` |
+| `{{CI_EXPENSIVE_JOB_NAME}}` | Synthesized from the primary ecosystem's heavy job (the expensive job's check context `name:`; job ID is always the fixed slug `expensive`) | `build` | `test` | `test` |
+| `{{CI_PATH_FILTER_MODE}}` | `ci.path_filter_mode` (only `fail_closed_changes_job` is supported; the always-running `changes` job is fail-closed) | `fail_closed_changes_job` | `fail_closed_changes_job` | `fail_closed_changes_job` |
+| `{{CI_DOCS_ONLY_PATHS}}` | `ci.docs_only_paths` (denylist negations for the fail-closed changes job) | `'!**/*.md', '!docs/**'` | `'!**/*.md', '!docs/**'` | `'!**/*.md', '!docs/**', '!.backlogit/**', '!.autoharness/**'` |
+| `{{CI_RUNNER_OS}}` | `ubuntu-latest` (regular CI is Linux-only per `ci.linux_only`; cross-OS lives in release-tag workflows) | `ubuntu-latest` | `ubuntu-latest` | `ubuntu-latest` |
 | `{{CI_SETUP_STEPS}}` | Per-ecosystem toolchain setup steps (checkout + SDK + dependency install) | _(cargo/rust setup)_ | _(node setup)_ | _(python + uv setup)_ |
 | `{{PRE_PUSH_ENABLED}}` | `local_gating.pre_push_enabled` (whether the pre-push hook artifact is generated; hook stays opt-in) | `true` | `true` | `true` |
 | `{{PRE_PUSH_GATES}}` | `local_gating.pre_push_gates` (ordered gate list the hook runs) | `test, lint, format, build` | `test, lint, format, typecheck` | `test` |

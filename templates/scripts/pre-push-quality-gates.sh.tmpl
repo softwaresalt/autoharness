@@ -41,22 +41,31 @@ cat >/dev/null 2>&1 || true
 
 FAILED=0
 
-# run_gate <label> <command>
-# Probes the command's leading tool binary (skipping VAR=value env prefixes);
-# warns and skips when the tool is absent, otherwise runs the command and
-# records a failure without aborting the remaining gates.
+# run_gate <label> <probe_tool> <command>
+# Probes <probe_tool> — the discovered gate binary whose absence means "skip".
+# When <probe_tool> is empty, falls back to the command's leading real token
+# (skipping leading VAR=value env prefixes). Explicit probe metadata makes
+# wrapper commands such as `python -m mypy` or `npm run lint` skip correctly when
+# the REAL tool (mypy, the lint script) is absent, instead of running the wrapper
+# and blocking the push. Warns and skips when the tool is absent; otherwise runs
+# the command once and records a failure without aborting the remaining gates.
 run_gate() {
   label="$1"
-  cmd="$2"
+  probe="$2"
+  cmd="$3"
 
-  # Derive the probe binary: skip leading `VAR=value` env assignments.
-  probe=""
-  for tok in $cmd; do
-    case "$tok" in
-      *=*) continue ;;
-      *) probe="$tok"; break ;;
-    esac
-  done
+  # Nothing to do when the installer resolved no command for this gate.
+  [ -n "$cmd" ] || return 0
+
+  # Fall back to deriving the probe from the command's leading real token.
+  if [ -z "$probe" ]; then
+    for tok in $cmd; do
+      case "$tok" in
+        *=*) continue ;;
+        *) probe="$tok"; break ;;
+      esac
+    done
+  fi
 
   if [ -n "$probe" ] && ! command -v "$probe" >/dev/null 2>&1; then
     echo "WARNING: '$probe' not found — skipping $label gate." >&2
@@ -72,11 +81,11 @@ run_gate() {
 
 echo "Running local pre-push quality gates..."
 
-run_gate "Lint" "{{LINT_COMMAND}}"
-run_gate "Format" "{{FORMAT_CHECK_COMMAND}}"
-run_gate "Typecheck" "{{TYPECHECK_COMMAND}}"
-run_gate "Test" "{{TEST_COMMAND}}"
-run_gate "Build" "{{BUILD_CHECK_COMMAND}}"
+run_gate "Lint" "{{LINT_TOOL}}" "{{LINT_COMMAND}}"
+run_gate "Format" "{{FORMAT_TOOL}}" "{{FORMAT_CHECK_COMMAND}}"
+run_gate "Typecheck" "{{TYPECHECK_TOOL}}" "{{TYPECHECK_COMMAND}}"
+run_gate "Test" "{{TEST_TOOL}}" "{{TEST_COMMAND}}"
+run_gate "Build" "{{BUILD_TOOL}}" "{{BUILD_CHECK_COMMAND}}"
 
 if [ "$FAILED" -ne 0 ]; then
   echo "One or more quality gates failed. Fix them, or push with --no-verify to bypass." >&2

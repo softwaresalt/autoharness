@@ -59,16 +59,14 @@ jobs:
               - '!.backlogit/**'
               - '!.autoharness/**'
 
-  # Expensive gate: the stdlib unittest suite. Runs only when code changed and
-  # the PR is not a chore:/docs: PR (advisory title guard; inert on non-PR events).
+  # Expensive gate: the stdlib unittest suite. Runs only when the fail-closed
+  # `changes` job detected a code/config change. Execution is gated SOLELY on the
+  # path result, so a code change can never bypass the tests via a `docs:`/`chore:`
+  # PR title; docs/backlog-only PRs skip because `changes` reports code == 'false'.
   test:
     name: test
     needs: changes
-    if: >-
-      needs.changes.outputs.code == 'true' &&
-      (github.event_name != 'pull_request' ||
-      (!startsWith(github.event.pull_request.title, 'chore:') &&
-      !startsWith(github.event.pull_request.title, 'docs:')))
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -4,7 +4,7 @@
 # primitive (P-019). Three-job shape:
 #   1. changes           — lightweight, ALWAYS runs, fail-closed path detection.
 #   2. {{CI_EXPENSIVE_JOB_NAME}} — the expensive test/build gate; runs only when
-#                          code changed and the PR is not a chore:/docs: PR.
+#                          the fail-closed `changes` job detected a code change.
 #   3. {{CI_REQUIRED_CHECK_NAME}} — the always-running aggregation gate. This is
 #                          the ONLY job a branch ruleset should require: it treats
 #                          a skipped expensive job as OK and fails only when a
@@ -69,10 +69,11 @@ jobs:
               - '**'
 {{CI_DOCS_ONLY_PATHS}}
 
-  # Expensive test/build gate. Runs only when the changes job detected code AND
-  # the PR is not a chore:/docs: PR. The title guard is ADVISORY convenience
-  # only (inert on non-PR events where the PR title is empty); the fail-closed
-  # `changes` job is the authoritative source of truth.
+  # Expensive test/build gate. Runs only when the fail-closed `changes` job
+  # detected a code/config change. Execution is gated SOLELY on the path result
+  # so a code change can never bypass validation via the PR title — a `docs:` or
+  # `chore:` title cannot skip the tests when code actually changed. Docs/backlog
+  # -only PRs skip this job because `changes` reports `code == 'false'`.
   #
   # The job ID (`expensive`) is a fixed, valid GitHub Actions identifier; the
   # human-facing check context is `name: {{CI_EXPENSIVE_JOB_NAME}}`, which may
@@ -80,11 +81,7 @@ jobs:
   expensive:
     name: {{CI_EXPENSIVE_JOB_NAME}}
     needs: changes
-    if: >-
-      needs.changes.outputs.code == 'true' &&
-      (github.event_name != 'pull_request' ||
-      (!startsWith(github.event.pull_request.title, 'chore:') &&
-      !startsWith(github.event.pull_request.title, 'docs:')))
+    if: needs.changes.outputs.code == 'true'
     runs-on: {{CI_RUNNER_OS}}
     steps:
 {{CI_SETUP_STEPS}}
@@ -101,7 +98,7 @@ jobs:
 
   # Always-reporting aggregation gate. REQUIRE THIS job in branch protection
   # instead of the guarded expensive job: when the expensive job is skipped for a
-  # docs-only or chore:/docs: PR, GitHub reports it "skipped" — which a required
+  # docs-only PR, GitHub reports it "skipped" — which a required
   # check treats as not-successful and would block the merge. This gate always
   # runs and passes unless a needed job actually failed or was cancelled.
   #

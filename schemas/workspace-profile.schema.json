@@ -146,6 +146,21 @@
         }
       }
     },
+    "typecheck": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "command": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Read-only static type-check command (exits non-zero on type errors), e.g. tsc --noEmit or mypy src/. Null when the workspace has no typecheck gate."
+        }
+      }
+    },
     "format": {
       "type": "object",
       "properties": {
@@ -187,26 +202,25 @@
         },
         "required_check_name": {
           "type": "string",
-          "description": "Name of the always-running aggregation-gate job/check that a branch ruleset should require. This is the single required status check; guarded expensive jobs are never the required check so they may be skipped on docs-only PRs without blocking merge. Default 'ci gate'. Set to match an existing required-check name (e.g. 'build') when one is already configured, so no ruleset edit is needed.",
+          "description": "Name of the always-running aggregation-gate check (the reported check context, which may contain spaces) that a branch ruleset should require. This is the single required status check; guarded expensive jobs are never the required check so they may be skipped on docs-only PRs without blocking merge. The underlying job ID is always a fixed slug (ci-gate). Default 'ci gate'. Set to match an existing required-check name (e.g. 'build') when one is already configured, so no ruleset edit is needed.",
           "default": "ci gate"
         },
         "linux_only": {
           "type": "boolean",
-          "description": "When true, regular PR/push CI runs on Linux only (ubuntu-latest); cross-OS verification is deferred to release-tag workflows. Recommended when local pre-push gating already covers the developer OS.",
+          "description": "When true (the default and only rendered mode), regular PR/push CI runs on Linux only (ubuntu-latest). Cross-OS verification is delegated to release-tag workflows; this template does not auto-generate a multi-OS matrix.",
           "default": true
         },
         "path_filter_mode": {
           "type": "string",
-          "description": "How CI decides whether the expensive gate runs. 'fail_closed_changes_job': a lightweight always-running detection job using dorny/paths-filter with predicate-quantifier 'every' over a denylist, so any code/config/unknown-type change fails closed into the gate (recommended). 'paths_ignore': simpler on-trigger paths-ignore that skips whole runs for listed paths (may silently skip the gate on new file types).",
+          "description": "How CI decides whether the expensive gate runs. Only 'fail_closed_changes_job' is supported: a lightweight always-running detection job using dorny/paths-filter with predicate-quantifier 'every' over a denylist, so any code/config/unknown-type change fails closed into the gate while the always-running aggregation gate still reports a status.",
           "enum": [
-            "fail_closed_changes_job",
-            "paths_ignore"
+            "fail_closed_changes_job"
           ],
           "default": "fail_closed_changes_job"
         },
         "docs_only_paths": {
           "type": "array",
-          "description": "Path patterns treated as documentation/backlog-only (excluded from the expensive gate). Used as the denylist negations for the fail-closed changes job, or the paths-ignore list. Example: ['**/*.md', 'docs/**', '.backlogit/**', '.autoharness/**'].",
+          "description": "Path patterns treated as documentation/backlog-only (excluded from the expensive gate). Used as the denylist negations for the fail-closed changes job. Example: ['**/*.md', 'docs/**', '.backlogit/**', '.autoharness/**'].",
           "items": {
             "type": "string"
           }
@@ -224,7 +238,7 @@
         },
         "pre_push_gates": {
           "type": "array",
-          "description": "Ordered list of quality gates the pre-push hook runs. Each gate names a discovered command (resolved from build/test/lint/format profile fields). Absent gates are skipped (tool-not-found -> warn and skip), not failed.",
+          "description": "Ordered list of quality gates the pre-push hook runs. Each gate names a discovered command (resolved from build/test/lint/format/typecheck profile fields). Absent gates are skipped (tool-not-found -> warn and skip), not failed.",
           "items": {
             "type": "string",
             "enum": [

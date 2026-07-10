@@ -46,8 +46,7 @@ any code/config/unknown-type change falls through into the gate (fail-closed).
 |---|---|---|
 | `{{CI_REQUIRED_CHECK_NAME}}` | `ci.required_check_name` (default `ci gate`) | The aggregation gate's check context (`name:`). May contain spaces/slashes. Set to an already-required ruleset check name (e.g. `build`) so no ruleset edit is needed. The job ID is always the fixed slug `ci-gate`. |
 | `{{CI_EXPENSIVE_JOB_NAME}}` | synthesized from the primary ecosystem (e.g. `test`, `build`) | The expensive job's check context (`name:`). Should differ from the required-check name. The job ID is always the fixed slug `expensive`. |
-| `{{CI_RUNNER_OS}}` | `ubuntu-latest` when `ci.linux_only` (default) | Regular CI is Linux-only; cross-OS stays in release-tag workflows. |
-| `{{CI_ENABLE_OS_MATRIX}}` | inverse of `ci.linux_only` | When true, replace `runs-on: {{CI_RUNNER_OS}}` with a matrix. |
+| `{{CI_RUNNER_OS}}` | `ubuntu-latest` (regular CI is Linux-only per `ci.linux_only`) | Regular CI is Linux-only; cross-OS verification stays in release-tag workflows. This template does not auto-generate a multi-OS matrix. |
 | `{{CI_DOCS_ONLY_PATHS}}` | `ci.docs_only_paths` | Rendered as indented denylist negations, e.g. `- '!**/*.md'` / `- '!docs/**'`. |
 | `{{CI_SETUP_STEPS}}` | per-ecosystem toolchain setup | Checkout + SDK setup + dependency install steps for the expensive job. |
 | `{{LINT_COMMAND}}` | `lint.command` | Omit the step when no lint gate is discovered. |
@@ -64,25 +63,15 @@ discovered value** — leaving an unresolved `{{...}}` in output is an installat
 error. Keep only the gates the workspace actually has (the same set recorded in
 `local_gating.pre_push_gates`).
 
-## Path-filter modes
+## Path-filter mode
 
-`ci.path_filter_mode` selects the strategy:
-
-* `fail_closed_changes_job` (default, rendered above) — the recommended pattern.
-* `paths_ignore` — a simpler alternative that skips whole runs via `paths-ignore`
-  on the `on:` triggers. Only use when the operator explicitly prefers it; it can
-  silently skip the gate on a new file type. To use it, remove the `changes` job
-  and the expensive job's `needs`/`code` guard, and add:
-
-  ```yaml
-  on:
-    push:
-      branches: [main]
-      paths-ignore: [{{CI_DOCS_ONLY_PATHS}}]
-    pull_request:
-      branches: [main]
-      paths-ignore: [{{CI_DOCS_ONLY_PATHS}}]
-  ```
+`ci.path_filter_mode` has a single supported value: `fail_closed_changes_job`
+(rendered above). The always-running `changes` job evaluates a fail-closed
+denylist with `predicate-quantifier: every`, so any path outside the docs/backlog
+denylist sets `code == 'true'` and forces the expensive job to run. A trigger-level
+`paths-ignore` alternative was intentionally **not** adopted: it silently skips the
+whole run (including the aggregation gate) when a new/unlisted file type appears,
+which is unsafe for a required-check contract.
 
 ## Required-check contract (operator action)
 
