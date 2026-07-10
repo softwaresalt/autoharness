@@ -49,6 +49,13 @@ COPILOT_LOGIN = "copilot-pull-request-reviewer"
 # has not actually been submitted yet, so it never counts as "completed".
 _PENDING_STATE = "PENDING"
 
+# States that represent a genuinely completed, submitted review. A DISMISSED review
+# was withdrawn and must NOT satisfy the gate; PENDING was never submitted. Any state
+# outside _KNOWN_STATES on a Copilot review is treated as a malformed response and
+# fails the gate closed (DETECTION_AMBIGUOUS) rather than being guessed as complete.
+_COMPLETED_STATES = frozenset({"APPROVED", "CHANGES_REQUESTED", "COMMENTED"})
+_KNOWN_STATES = _COMPLETED_STATES | {_PENDING_STATE, "DISMISSED"}
+
 ENFORCEMENT_MODES = ("auto", "required", "disabled")
 DEFAULT_ENFORCEMENT = "auto"
 
@@ -66,11 +73,14 @@ query($owner:String!,$repo:String!,$pr:Int!){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$pr){
       headRefOid
-      reviewRequests(first:50){ nodes{ requestedReviewer{
-        __typename ... on Bot{ login } ... on User{ login } } } }
-      reviews(last:50){ nodes{ author{ login } state commit{ oid } } }
+      reviewRequests(first:100){ nodes{ requestedReviewer{
+        __typename ... on Bot{ login } ... on User{ login } } }
+        pageInfo{ hasNextPage } }
+      reviews(last:100){ nodes{ author{ login } state commit{ oid } }
+        pageInfo{ hasPreviousPage } }
       reviewThreads(first:100){ nodes{ id isResolved
-        comments(first:1){ nodes{ author{ login } } } } }
+        comments(first:1){ nodes{ author{ login } } } }
+        pageInfo{ hasNextPage } }
     }
   }
 }"""
@@ -154,11 +164,11 @@ class ReviewState:
         return self.copilot_requested or bool(self.copilot_reviews)
 
     def completed_for_head(self) -> bool:
-        """True when a non-pending Copilot review targets the current HEAD."""
+        """True when a completed (submitted, non-dismissed) Copilot review targets HEAD."""
         if not self.head_ref_oid:
             return False
         return any(
-            r.commit_oid == self.head_ref_oid and r.state != _PENDING_STATE
+            r.commit_oid == self.head_ref_oid and r.state in _COMPLETED_STATES
             for r in self.copilot_reviews
         )
 
@@ -171,58 +181,89 @@ def _login(node: Any) -> str | None:
     return None
 
 
+def _connection(container: Mapping[str, Any], key: str) -> Mapping[str, Any] | None:
+    """Return the connection mapping for ``key``, or None if absent/malformed."""
+    val = container.get(key)
+    return val if isinstance(val, Mapping) else None
+
+
+def _truncated(conn: Mapping[str, Any], field: str) -> bool:
+    """True when a connection's pageInfo reports more pages in ``field``."""
+    page_info = conn.get("pageInfo")
+    return isinstance(page_info, Mapping) and page_info.get(field) is True
+
+
 def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
     """Parse a ``gh api graphql`` response into a :class:`ReviewState`.
 
-    Tolerant of the ``{"data": ...}`` envelope. When the pullRequest object is
-    missing or malformed, returns a state with ``parse_ok=False`` so the classifier
-    fails safe rather than guessing.
+    Tolerant of the ``{"data": ...}`` envelope but strict about structure: this is a
+    fail-closed gate, so any missing HEAD, structurally invalid connection, truncated
+    (paginated) connection, or unknown review state yields ``parse_ok=False`` and the
+    classifier BLOCKS with DETECTION_AMBIGUOUS rather than guessing SATISFIED /
+    NOT_APPLICABLE.
     """
+
+    def _ambiguous() -> ReviewState:
+        return ReviewState(None, False, (), (), parse_ok=False)
+
     data = raw.get("data") if isinstance(raw.get("data"), Mapping) else raw
     repo = data.get("repository") if isinstance(data, Mapping) else None
     pr = repo.get("pullRequest") if isinstance(repo, Mapping) else None
     if not isinstance(pr, Mapping):
-        return ReviewState(None, False, (), (), parse_ok=False)
+        return _ambiguous()
 
     head = pr.get("headRefOid")
     head = head if isinstance(head, str) and head else None
+    if head is None:
+        return _ambiguous()
 
-    copilot_requested = False
-    req = pr.get("reviewRequests")
-    if isinstance(req, Mapping):
-        for node in _nodes(req):
-            if _login(node.get("requestedReviewer")) == COPILOT_LOGIN:
-                copilot_requested = True
-                break
+    # reviewRequests — a structurally invalid or truncated connection means we cannot
+    # prove Copilot's enablement state, so fail closed rather than assume "not asked".
+    req = _connection(pr, "reviewRequests")
+    if req is None or _truncated(req, "hasNextPage"):
+        return _ambiguous()
+    copilot_requested = any(
+        _login(node.get("requestedReviewer")) == COPILOT_LOGIN for node in _nodes(req)
+    )
 
+    # reviews — must be structurally valid and not truncated; every Copilot review must
+    # carry a known state (a missing/unknown state must not be read as "completed").
+    rv = _connection(pr, "reviews")
+    if rv is None or _truncated(rv, "hasPreviousPage"):
+        return _ambiguous()
     reviews: list[ReviewRecord] = []
-    rv = pr.get("reviews")
-    if isinstance(rv, Mapping):
-        for node in _nodes(rv):
-            if _login(node.get("author")) != COPILOT_LOGIN:
-                continue
-            state = node.get("state")
-            commit = node.get("commit")
-            oid = commit.get("oid") if isinstance(commit, Mapping) else None
-            reviews.append(
-                ReviewRecord(
-                    state=state if isinstance(state, str) else "",
-                    commit_oid=oid if isinstance(oid, str) else None,
-                )
-            )
+    for node in _nodes(rv):
+        if _login(node.get("author")) != COPILOT_LOGIN:
+            continue
+        state = node.get("state")
+        if not isinstance(state, str) or state not in _KNOWN_STATES:
+            return _ambiguous()
+        commit = node.get("commit")
+        oid = commit.get("oid") if isinstance(commit, Mapping) else None
+        reviews.append(
+            ReviewRecord(state=state, commit_oid=oid if isinstance(oid, str) else None)
+        )
 
+    # reviewThreads — must be structurally valid and not truncated; a truncated thread
+    # list could hide an unresolved Copilot thread and yield a false SATISFIED.
+    threads = _connection(pr, "reviewThreads")
+    if threads is None or _truncated(threads, "hasNextPage"):
+        return _ambiguous()
     unresolved: list[str] = []
-    threads = pr.get("reviewThreads")
-    if isinstance(threads, Mapping):
-        for node in _nodes(threads):
-            if node.get("isResolved") is True:
-                continue
-            comments = node.get("comments")
-            first = _nodes(comments)[0] if isinstance(comments, Mapping) and _nodes(comments) else None
-            if first is not None and _login(first.get("author")) == COPILOT_LOGIN:
-                tid = node.get("id")
-                if isinstance(tid, str):
-                    unresolved.append(tid)
+    for node in _nodes(threads):
+        resolved = node.get("isResolved")
+        if resolved is True:
+            continue
+        if resolved is not False:
+            # A non-boolean isResolved is a malformed thread; fail closed.
+            return _ambiguous()
+        comments = node.get("comments")
+        comment_nodes = _nodes(comments) if isinstance(comments, Mapping) else []
+        first = comment_nodes[0] if comment_nodes else None
+        if first is not None and _login(first.get("author")) == COPILOT_LOGIN:
+            tid = node.get("id")
+            if isinstance(tid, str):
+                unresolved.append(tid)
 
     return ReviewState(
         head_ref_oid=head,
@@ -418,6 +459,12 @@ def query_pr_review_state(
         raise RuntimeError(f"could not parse gh output: {exc}") from exc
     if not isinstance(raw, Mapping):
         raise RuntimeError("gh output was not a JSON object")
+    # gh api graphql can exit 0 while returning a top-level GraphQL errors array with
+    # only partial data. Passing that to the parser could yield a false SATISFIED, so
+    # treat any non-empty errors array as a verification failure (fail-closed BLOCK).
+    errors = raw.get("errors")
+    if isinstance(errors, Sequence) and not isinstance(errors, (str, bytes)) and errors:
+        raise RuntimeError(f"gh api graphql returned errors for {repo}#{pr}: {errors}")
     return parse_graphql_response(raw)
 
 
@@ -460,7 +507,20 @@ def evaluate(
     if enforcement == "disabled":
         return CopilotReviewResult(Verdict.NOT_APPLICABLE, enforcement, forced=forced)
 
+    import math
     import time as _time
+
+    # Validate inputs BEFORE the poll loop so a malformed repo/PR raises ValueError to
+    # the caller (CLI exit 2) instead of being swallowed as VERIFY_FAILED — and so a
+    # newline-bearing value can never reach the --force audit log. Skipped when a
+    # query_fn is injected (tests supply their own state without touching gh).
+    if query_fn is None:
+        pr = _validate_pr(pr)
+        repo = _validate_repo(repo)
+
+    # A bounded window requires a finite, positive budget. nan/inf are rejected so the
+    # loop can never spin forever; anything else degrades to a single-shot check.
+    has_budget = isinstance(max_wait, (int, float)) and math.isfinite(max_wait) and max_wait > 0
 
     sleep = sleep_fn or _time.sleep
     clock = clock_fn or _time.monotonic
@@ -495,7 +555,7 @@ def evaluate(
         # Review is enabled but not yet complete for HEAD. With no wait budget this
         # is a single-shot check (WAITING); with a budget we poll until the window
         # expires, then escalate to REVIEW_TIMEOUT. Both outcomes BLOCK.
-        if max_wait <= 0:
+        if not has_budget:
             return CopilotReviewResult(
                 Verdict.WAITING_FOR_REVIEW,
                 enforcement,

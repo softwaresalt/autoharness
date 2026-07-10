@@ -64,9 +64,11 @@ PR number are validated to reject shell metacharacters before any process runs.
 | `disabled` | The gate is off and always returns `NOT_APPLICABLE` (PASS). |
 
 The mode is normally sourced from `copilot_review.enforcement` in the workspace
-profile / `.autoharness/config.yaml` (default `auto`). See the
+profile (`.autoharness/workspace-profile.yaml`; default `auto`). The
 [workspace-profile schema](../schemas/workspace-profile.schema.json)
-`copilot_review` object.
+`copilot_review` object defines both `enforcement` and `max_wait_seconds`, and the
+harness agent/instruction wiring reads those values when constructing the gate
+command.
 
 ### Verdict Enum
 

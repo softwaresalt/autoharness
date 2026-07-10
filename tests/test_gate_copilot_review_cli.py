@@ -77,6 +77,34 @@ class CopilotReviewArgErrorTests(unittest.TestCase):
         _, _, code = _run("gate", "copilot-review", "42", "--repo", "o/n", "--bogus")
         self.assertEqual(code, 2)
 
+    def test_malicious_repo_exits_2(self) -> None:
+        _, _, code = _run(
+            "gate", "copilot-review", "42", "--repo", "o/n; rm -rf /"
+        )
+        self.assertEqual(code, 2)
+
+    def test_nonpositive_pr_exits_2(self) -> None:
+        _, _, code = _run("gate", "copilot-review", "0", "--repo", "o/n")
+        self.assertEqual(code, 2)
+
+    def test_nan_max_wait_exits_2(self) -> None:
+        _, _, code = _run(
+            "gate", "copilot-review", "42", "--repo", "o/n", "--max-wait", "nan"
+        )
+        self.assertEqual(code, 2)
+
+    def test_inf_max_wait_exits_2(self) -> None:
+        _, _, code = _run(
+            "gate", "copilot-review", "42", "--repo", "o/n", "--max-wait", "inf"
+        )
+        self.assertEqual(code, 2)
+
+    def test_negative_max_wait_exits_2(self) -> None:
+        _, _, code = _run(
+            "gate", "copilot-review", "42", "--repo", "o/n", "--max-wait", "-5"
+        )
+        self.assertEqual(code, 2)
+
 
 class CopilotReviewVerdictTests(unittest.TestCase):
     def _patch(self, state):

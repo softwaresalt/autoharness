@@ -469,9 +469,10 @@ Evaluate five checks in order. All five must pass for merge readiness.
 **Check 5 — Copilot-review completion & thread resolution (P-018, fail-closed)**:
 
 1. Determine `copilot_review.enforcement` from `.autoharness/workspace-profile.yaml`
-   (`auto` | `required` | `disabled`, default `auto`).
+   (`auto` | `required` | `disabled`, default `auto`) and `copilot_review.max_wait_seconds`
+   (integer ≥ 0, default `0`).
 2. Run the deterministic gate:
-   `autoharness gate copilot-review <pr_number> --repo softwaresalt/autoharness --enforcement <mode> [--max-wait <seconds>]`.
+   `autoharness gate copilot-review <pr_number> --repo softwaresalt/autoharness --enforcement <mode> [--max-wait <max_wait_seconds>]`.
 3. Interpret the verdict / exit code:
    * `SATISFIED` or `NOT_APPLICABLE` (exit 0) — Copilot review is complete for the
      current HEAD with no open Copilot threads, or Copilot is not in play. Proceed.

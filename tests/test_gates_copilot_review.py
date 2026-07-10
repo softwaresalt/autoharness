@@ -399,5 +399,130 @@ class EvaluateTests(unittest.TestCase):
             evaluate(1, "owner/name", enforcement="bogus", query_fn=lambda: _state())
 
 
+# ---------------------------------------------------------------------------
+# Fail-closed hardening (068-F Copilot review findings)
+# ---------------------------------------------------------------------------
+
+
+def _pr(**overrides):
+    """Build a minimal-but-complete pullRequest dict, then apply overrides."""
+    pr = {
+        "headRefOid": _HEAD,
+        "reviewRequests": {"nodes": []},
+        "reviews": {"nodes": []},
+        "reviewThreads": {"nodes": []},
+    }
+    pr.update(overrides)
+    return {"data": {"repository": {"pullRequest": pr}}}
+
+
+class ParseHardeningTests(unittest.TestCase):
+    def test_missing_head_is_ambiguous(self) -> None:
+        self.assertFalse(parse_graphql_response(_pr(headRefOid=None)).parse_ok)
+
+    def test_missing_review_connections_are_ambiguous(self) -> None:
+        for key in ("reviewRequests", "reviews", "reviewThreads"):
+            pr = _pr()["data"]["repository"]["pullRequest"]
+            del pr[key]
+            raw = {"data": {"repository": {"pullRequest": pr}}}
+            self.assertFalse(parse_graphql_response(raw).parse_ok, msg=key)
+
+    def test_truncated_connections_are_ambiguous(self) -> None:
+        # A truncated thread/review/request list could hide the only disqualifying signal.
+        cases = [
+            {"reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": True}}},
+            {"reviews": {"nodes": [], "pageInfo": {"hasPreviousPage": True}}},
+            {"reviewRequests": {"nodes": [], "pageInfo": {"hasNextPage": True}}},
+        ]
+        for override in cases:
+            self.assertFalse(parse_graphql_response(_pr(**override)).parse_ok, msg=override)
+
+    def test_unknown_review_state_is_ambiguous(self) -> None:
+        raw = _pr(reviews={"nodes": [
+            {"author": {"login": COPILOT_LOGIN}, "state": "WAT", "commit": {"oid": _HEAD}}
+        ]})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_missing_review_state_is_ambiguous(self) -> None:
+        raw = _pr(reviews={"nodes": [
+            {"author": {"login": COPILOT_LOGIN}, "commit": {"oid": _HEAD}}
+        ]})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_non_boolean_isresolved_is_ambiguous(self) -> None:
+        raw = _pr(reviewThreads={"nodes": [
+            {"id": "PRRT_x", "isResolved": None,
+             "comments": {"nodes": [{"author": {"login": COPILOT_LOGIN}}]}}
+        ]})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_dismissed_review_does_not_complete_head(self) -> None:
+        raw = _pr(reviews={"nodes": [
+            {"author": {"login": COPILOT_LOGIN}, "state": "DISMISSED", "commit": {"oid": _HEAD}}
+        ]})
+        st = parse_graphql_response(raw)
+        self.assertTrue(st.parse_ok)
+        self.assertFalse(st.completed_for_head())
+
+    def test_pending_review_does_not_complete_head(self) -> None:
+        raw = _pr(reviews={"nodes": [
+            {"author": {"login": COPILOT_LOGIN}, "state": "PENDING", "commit": {"oid": _HEAD}}
+        ]})
+        self.assertFalse(parse_graphql_response(raw).completed_for_head())
+
+
+class QueryHardeningTests(unittest.TestCase):
+    def test_graphql_errors_array_raises(self) -> None:
+        # gh can exit 0 with a partial-data errors payload; must fail closed.
+        def fake_run(argv, **kwargs):
+            body = '{"data": {"repository": null}, "errors": [{"message": "boom"}]}'
+            return type("P", (), {"returncode": 0, "stdout": body, "stderr": ""})()
+
+        with self.assertRaises(RuntimeError):
+            query_pr_review_state(1, "owner/name", run_fn=fake_run)
+
+    def test_evaluate_errors_array_is_verify_failed(self) -> None:
+        def fake_run(argv, **kwargs):
+            body = '{"data": {}, "errors": [{"message": "boom"}]}'
+            return type("P", (), {"returncode": 0, "stdout": body, "stderr": ""})()
+
+        r = evaluate(1, "owner/name", run_fn=fake_run)
+        self.assertEqual(r.verdict, Verdict.VERIFY_FAILED)
+        self.assertTrue(r.blocked)
+
+
+class EvaluateHardeningTests(unittest.TestCase):
+    def test_nan_max_wait_is_single_shot_not_infinite(self) -> None:
+        st = _state(requested=True, reviews=[])
+        r = evaluate(
+            1, "owner/name",
+            max_wait=float("nan"),
+            query_fn=lambda: st,
+            sleep_fn=lambda s: (_ for _ in ()).throw(AssertionError("must not sleep")),
+        )
+        self.assertEqual(r.verdict, Verdict.WAITING_FOR_REVIEW)
+        self.assertTrue(r.blocked)
+
+    def test_inf_max_wait_is_single_shot_not_infinite(self) -> None:
+        st = _state(requested=True, reviews=[])
+        r = evaluate(
+            1, "owner/name",
+            max_wait=float("inf"),
+            query_fn=lambda: st,
+            sleep_fn=lambda s: (_ for _ in ()).throw(AssertionError("must not sleep")),
+        )
+        self.assertEqual(r.verdict, Verdict.WAITING_FOR_REVIEW)
+
+    def test_evaluate_validates_repo_before_querying(self) -> None:
+        # With no injected query_fn, a hostile repo must raise ValueError up front
+        # (CLI exit 2) rather than being swallowed as VERIFY_FAILED.
+        with self.assertRaises(ValueError):
+            evaluate(1, "owner/name; rm -rf /")
+
+    def test_evaluate_validates_pr_before_querying(self) -> None:
+        with self.assertRaises(ValueError):
+            evaluate("1; rm", "owner/name")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -520,7 +520,20 @@ def _parse_gate_copilot_review_args(args: list[str]) -> dict:
         raise ValueError("gate copilot-review requires a <pr> number")
     if parsed["repo"] is None:
         raise ValueError("gate copilot-review requires --repo <owner/name>")
-    from autoharness.gates.copilot_review import ENFORCEMENT_MODES
+    import math
+
+    from autoharness.gates.copilot_review import (
+        ENFORCEMENT_MODES,
+        _validate_pr,
+        _validate_repo,
+    )
+
+    # Validate repo and PR here (fail-closed, exit 2) so a hostile value never reaches
+    # the gate, the subprocess, or the --force audit log.
+    _validate_pr(parsed["pr"])
+    _validate_repo(parsed["repo"])
+    if not math.isfinite(parsed["max_wait"]) or parsed["max_wait"] < 0:
+        raise ValueError("--max-wait must be a finite, non-negative number of seconds")
 
     if parsed["enforcement"] not in ENFORCEMENT_MODES:
         raise ValueError(
