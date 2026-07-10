@@ -519,6 +519,32 @@ follow-up items before `DARK_MODE_COMPLETE` is emitted.
 
 ---
 
+## P-018: Copilot Review Completion & Thread Resolution Merge Gate
+
+| Field      | Value                                             |
+|------------|---------------------------------------------------|
+| Policy ID  | P-018                                             |
+| Applies To | `ship`, `pr-lifecycle`, `fix-ci`                  |
+| Gate Point | Pre-merge (Ship Step 4), including the dark-mode admin fallback path |
+
+**Statement**: When GitHub Copilot review is **enabled** for a pull request, merge — including an `--admin` merge — MUST be held until (1) Copilot has completed a review for the **current** `headRefOid` and (2) every Copilot-authored review thread is resolved. This invariant is enforced deterministically by the `autoharness gate copilot-review <pr>` gate, not by prose alone. The gate is **fail-closed**: when review is enabled and completion or thread resolution is incomplete or unverifiable, it BLOCKS. `--admin` addresses branch-protection blocks; it does **not** satisfy or bypass this gate.
+
+* **Multi-round handling (by construction)**: because the gate requires a completed Copilot review for the *current* HEAD plus zero unresolved Copilot threads, every new push (new HEAD) that re-triggers Copilot naturally re-arms the gate. N rounds are handled without a round counter — the gate passes only when the latest HEAD is reviewed and clean.
+* **Enablement detection**: `auto` (default) treats a Copilot review request or an existing Copilot review as engagement; with no per-PR engagement signal the gate is not-applicable (PASS), so the harness is never wedged waiting for a reviewer that will never come. `required` forces the gate on and holds merge even before Copilot is requested. `disabled` turns the gate off.
+* **Bounded-timeout escape (logged, still fails safe)**: a bounded `--max-wait` window governs how long the harness waits for an engaged reviewer to complete for the current HEAD. On expiry the gate emits a distinct `REVIEW_TIMEOUT` outcome that is logged and **still BLOCKS**. Only an explicit, audited `--force` overrides a BLOCK, recorded to the gitignored `.autoharness/gates/copilot-review-force-audit.log`. Timeout never equals silent merge.
+
+**Precondition**: The PR is being prepared for or presented for merge, the current-HEAD local review readiness gate (P-014) has passed, and `copilot_review.enforcement` is resolved (`auto` | `required` | `disabled`, default `auto`).
+
+**Postcondition**: Either the gate returns a PASS verdict (`SATISFIED` or `NOT_APPLICABLE`) for the current HEAD, or an audited `--force` override has been recorded, before any `gh pr merge` (with or without `--admin`) executes. A BLOCK verdict (`WAITING_FOR_REVIEW`, `UNRESOLVED_THREADS`, `REVIEW_TIMEOUT`, `DETECTION_AMBIGUOUS`, `VERIFY_FAILED`) with no recorded `--force` means no merge.
+
+**Relationship to P-014**: P-014 requires a current-HEAD *local* review readiness record. P-018 adds an independent, conditional dependency on *Copilot* review completion when Copilot review is enabled. Both gates must be satisfied for the same HEAD; neither substitutes for the other.
+
+**Relationship to P-017**: In dark factory mode, P-018 is preserved in full. The dark-mode merge-approval and admin-fallback state machine gains a `COPILOT_REVIEW_BLOCK` classification that admin fallback may **never** bypass. A `DARK_MODE_ACTIVE` activation record does not satisfy P-018; the gate must independently return PASS for the current HEAD (or an audited `--force` must be recorded).
+
+**Violation Action**: If a merge is attempted or presented as merge-ready while the gate returns a BLOCK verdict with no recorded `--force`, record a P-018 violation through P-005 telemetry (`violation_policy: P-018`, `gate: Ship Step 4`, `action: halted`) and halt. Do not merge.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -536,3 +562,4 @@ follow-up items before `DARK_MODE_COMPLETE` is emitted.
 | 1.10.0  | {{DATE}}     | Added P-015      | Single-artifact shipment closure — prohibits cascade shipment-ship, requires verify-after-each invariant + git-revert-on-cascade |
 | 1.11.0  | {{DATE}}     | Added P-016      | No parallel branch/worktree execution, with only explicit Stage spike/research worktrees exempt |
 | 1.12.0  | {{DATE}}     | Added P-017      | Dark factory autonomy contract — bounded autonomous execution, local-review authority, and audited merge approval |
+| 1.13.0  | {{DATE}}     | Added P-018      | Copilot review completion & thread resolution merge gate — deterministic, fail-closed, admin non-bypass, multi-round, bounded-timeout escape |

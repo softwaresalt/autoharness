@@ -382,6 +382,13 @@ After all tasks in the queue are complete:
     failed check and affected shipment/PR.
 
     When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Pre-merge review gate: {PASS|HALT} — {detail}` with the gate outcome.
+7c. **P-018 Copilot-Review Completion Gate (NON-NEGOTIABLE, fail-closed)**: Before presenting the PR as merge-ready and before any `gh pr merge` — including `--admin` — run the deterministic gate `autoharness gate copilot-review <pr> --repo {{REPO_OWNER}}/{{REPO_NAME}} --enforcement <mode> [--max-wait <seconds>]`, where `<mode>` comes from `copilot_review.enforcement` in `.autoharness/workspace-profile.yaml` (`auto` | `required` | `disabled`, default `auto`) and `<seconds>` comes from `copilot_review.max_wait_seconds` (integer ≥ 0, default `0`). See `.github/instructions/github-pr-automation.instructions.md` §1.9.4 Check 5.
+
+    * `SATISFIED` / `NOT_APPLICABLE` (exit 0): Copilot review is complete for the current HEAD with no open Copilot threads, or Copilot is not in play. Proceed.
+    * Any BLOCK verdict — `WAITING_FOR_REVIEW`, `UNRESOLVED_THREADS`, `REVIEW_TIMEOUT`, `DETECTION_AMBIGUOUS`, `VERIFY_FAILED` (non-zero exit): halt, emit `COPILOT_REVIEW_BLOCK` (with PR number, verdict, and current HEAD), and record a P-018 event via P-005 telemetry. **`--admin` does NOT bypass this block.** Wait for review completion, resolve every Copilot-authored thread, then re-run. `REVIEW_TIMEOUT` still blocks; only an explicit, operator-authored, audited `autoharness gate copilot-review ... --force` (logged under `.autoharness/gates/`) may override.
+    * This gate re-runs whenever the branch HEAD advances (each push re-arms Copilot), exactly like the §1.9 readiness gate.
+
+    When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Copilot-review gate: {PASS|BLOCK} — {verdict}` with the gate outcome.
 7. If the changed work touches runtime surfaces, load `.autoharness/workspace-profile.yaml` and invoke **runtime-verification** with `runtime_validation.validator_manifest` plus `runtime_validation.validation_expectations` so the skill produces validator evidence for surface adapters, probe outcomes, manual checkpoint evidence, and blocked prerequisites. Do not fake unsupported automation.
 8. Invoke **operational-closure** with the validator evidence plus `runtime_validation.releasability` so closure produces explicit releasability evidence (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`) covering monitoring, rollback, owner, validation-window, and follow-up requirements.
 9. **Stash follow-up items**: If the closure artifact, runtime-verification report, or local review readiness result identified follow-up tasks, stash every follow-up so it is visible to the Stage agent:
@@ -411,13 +418,15 @@ After all tasks in the queue are complete:
       with PR number, reviewed HEAD, checks state, merge strategy, approval source,
       and scope match.
     * When the `agent-intercom` capability pack is installed, broadcast `[WAIT] Awaiting user merge approval` and use the intercom clarification flow if unresolved operator guidance is needed before merge.
-15. **Last-mile §1.9 re-check**: Immediately before any normal merge or admin
-    fallback, re-query the PR `headRefOid` and confirm it still matches the HEAD
-    covered by the latest passed §1.9 gate. If the branch HEAD advanced at any
-    point after the §1.9 gate, re-run §1.9 in full before executing the merge,
-    regardless of whether approval came from an operator message or a
-    `DARK_MODE_ACTIVE` activation record. The prior gate result is stale if the
-    branch HEAD has advanced.
+15. **Last-mile gate re-check**: Immediately before any normal merge or admin
+    fallback, re-run the P-018 copilot-review gate in full, **unconditionally** — a
+    Copilot review can be dismissed or a Copilot-authored thread reopened without
+    advancing `headRefOid`, so a prior P-018 PASS must never be trusted as still-fresh
+    at the last mile. Additionally re-query the PR `headRefOid`: if the branch HEAD
+    advanced at any point after the latest passed §1.9 gate, re-run §1.9 in full as
+    well (the §1.9 result is stale once HEAD advances). Both re-runs apply regardless
+    of whether approval came from an operator message or a `DARK_MODE_ACTIVE`
+    activation record.
 16. **Pre-merge strategy guardrail (P-009)**: Before executing any merge, verify the PR is
     configured to use a merge commit strategy (not squash or rebase).
     * On GitHub: confirm the active merge button is "Create a merge commit" — not
@@ -431,14 +440,17 @@ After all tasks in the queue are complete:
 17. **Dark-mode merge/admin fallback state machine (P-017)**: When `DARK_MODE_ACTIVE`
     is present, attempt the normal merge path first. If it is rejected, classify the
     result as `REVIEW_REQUIRED_BLOCK`, `CONVERSATION_RESOLUTION_BLOCK`, `CHECKS_BLOCK`,
-    `MERGE_STRATEGY_BLOCK`, `MISSING_ADMIN_RIGHTS`, or `UNKNOWN_MERGE_BLOCK`.
+    `MERGE_STRATEGY_BLOCK`, `MISSING_ADMIN_RIGHTS`, `COPILOT_REVIEW_BLOCK`, or
+    `UNKNOWN_MERGE_BLOCK`.
     Admin fallback may be attempted only when `admin_fallback_pre_authorized` is true
     and the block is an explicitly covered branch-protection review/conversation block.
     Never use admin fallback for failed/pending/missing required checks, stale local
-    readiness, unresolved local P0/P1 findings, P-009 violations, P-016 violations,
-    secrets-safety risk, scope mismatch, or unknown merge blocks. Record every normal
-    merge and admin fallback attempt as operator-visible audit evidence, including the
-    state, decision, command/API used, and result.
+    readiness, unresolved local P0/P1 findings, a P-018 `COPILOT_REVIEW_BLOCK`, P-009
+    violations, P-016 violations, secrets-safety risk, scope mismatch, or unknown merge
+    blocks. A `COPILOT_REVIEW_BLOCK` is resolved only by Copilot review completion for
+    the current HEAD plus resolution of every Copilot-authored thread — never by
+    `--admin`. Record every normal merge and admin fallback attempt as operator-visible
+    audit evidence, including the state, decision, command/API used, and result.
     Emit `ADMIN_FALLBACK_ATTEMPTED` after any authorized fallback command/API returns
     and include the block classification, fallback authority, command/API, and actual
     result. Emit `DARK_MODE_HALTED` instead of fallback when the block is not
@@ -483,6 +495,10 @@ When a post-merge closure branch and PR are created:
 2. Optional Copilot shadow review may run per §1.1–§1.7 of
    `.github/instructions/github-pr-automation.instructions.md`, but it is advisory by default unless the operator explicitly elevates it.
 3. Run §1.9 readiness gate before presenting the post-merge closure PR for merge.
+   The §1.9.4 Check 5 P-018 copilot-review gate applies to the closure PR as well:
+   if Copilot review is engaged on the closure PR, `autoharness gate copilot-review`
+   must return a PASS verdict for the current HEAD before merge, and `--admin` may
+   not bypass a `COPILOT_REVIEW_BLOCK`.
 4. Obtain explicit operator approval — the prior main PR approval does not transfer.
 5. P-014 applies in full. Record a P-014 violation via P-005 telemetry if this gate is skipped.
 

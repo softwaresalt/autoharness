@@ -227,6 +227,7 @@ intentional exception: they are committed session memory under
 
 ## References
 
+* [Copilot-Review Merge Gate Reference](copilot-review-gate.md) — the separate fail-closed `autoharness gate copilot-review` CLI and P-018
 * [Deterministic Gates, Telemetry & Evaluation Engine — design document](design-docs/autoharness-evals-gates-design.md)
 * [Gate policy deliberation](decisions/2026-06-30-gate-policy-deliberation.md)
 * [Validation-gates config schema deliberation](decisions/2026-06-30-validation-gates-config-schema-deliberation.md)

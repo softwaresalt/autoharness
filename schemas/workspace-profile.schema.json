@@ -804,6 +804,28 @@
         }
       }
     },
+    "copilot_review": {
+      "type": "object",
+      "description": "Configuration for the deterministic Copilot-review merge gate (P-018). Controls whether merge is held until Copilot review completes for the current HEAD and all Copilot-authored threads are resolved.",
+      "properties": {
+        "enforcement": {
+          "type": "string",
+          "description": "auto: detect engagement from per-PR Copilot signals (not-applicable when Copilot never engages). required: fail-closed even before Copilot is requested. disabled: gate is off.",
+          "enum": [
+            "auto",
+            "required",
+            "disabled"
+          ],
+          "default": "auto"
+        },
+        "max_wait_seconds": {
+          "type": "integer",
+          "description": "Bounded window the gate waits for an engaged reviewer to complete for the current HEAD before emitting REVIEW_TIMEOUT (still BLOCKS). 0 = single-shot check.",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
     "existing_harness": {
       "type": "object",
       "properties": {
