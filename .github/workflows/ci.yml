@@ -6,9 +6,10 @@ name: CI
 #   2. test    — the expensive gate: runs the 416-test unittest suite. Runs
 #                whenever `changes` reports code == 'true'; skipped only for
 #                docs/backlog-only PRs (path impact is the sole condition).
-#   3. build   — always-runs aggregation gate. Its check name is `build` so it
-#                satisfies the main branch ruleset's required `build` check with
-#                NO ruleset edit; it treats a skipped test job as OK.
+#   3. ci-gate — always-runs aggregation gate (check name `ci gate`). It runs no
+#                build; it simply summarizes the needed jobs, failing only when a
+#                needed job failed or was cancelled and treating a skipped test
+#                job as OK.
 #
 # Regular PR/push CI is Linux-only. Cross-OS (macOS/Windows) verification and
 # publishing live in release.yml (tag-triggered) — this workflow does NOT
@@ -87,11 +88,11 @@ jobs:
       - name: Run unittest suite
         run: PYTHONPATH=src python -m unittest discover -s tests
 
-  # Always-reporting aggregation gate. This is the single required status check:
-  # named `build` to satisfy the main ruleset with no edit. Passes unless a
-  # needed job failed or was cancelled (a skipped test job is OK).
-  build:
-    name: build
+  # Always-reporting aggregation gate. Runs no build — it only summarizes the
+  # needed jobs. Passes unless a needed job failed or was cancelled (a skipped
+  # test job is OK).
+  ci-gate:
+    name: ci gate
     if: always()
     needs: [changes, test]
     runs-on: ubuntu-latest
