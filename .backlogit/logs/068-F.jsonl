@@ -1,1 +1,3 @@
 {"timestamp":"2026-07-09T16:22:03.8160406-07:00","actor":"stage","item_id":"068-F","event_type":"comment","delta":{"comment":"Harvested from stash 0B278CEE (feature). Decision + plan under docs/; assembled into shipment 080-S."}}
+{"timestamp":"2026-07-09T16:32:41.7240213-07:00","actor":"backlogit","item_id":"068-F","event_type":"status_changed","delta":{"from":"queued","reason":"child status rollup","to":"active"}}
+{"timestamp":"2026-07-09T18:08:57.7061556-07:00","actor":"backlogit","item_id":"068-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/068-F.md"}}
