@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-01T23:48:34.3056585-07:00","actor":"backlogit","item_id":"055-F","event_type":"status_changed","delta":{"from":"queued","reason":"child status rollup","to":"blocked"}}
+{"timestamp":"2026-07-09T00:45:34.6133774-07:00","actor":"ship-agent","item_id":"055-F","event_type":"comment","delta":{"comment":"Feature complete. All units delivered: eval runner + reviewer matrix (Shipment B, PR #126) and pre-execution sizing gate (055.003-T, PR #180, merge e659e62). Closing parent."}}
