@@ -160,6 +160,10 @@ workspaceFolder=C:\Source\GitHub\my-app
 
 # optional per-developer secrets
 # GITHUB_TOKEN=...
+
+# Copilot CLI remote mode (opt-in; start.ps1 / PowerShell only). Set to true or
+# 1 to launch Copilot CLI with --remote. Omitted or false leaves remote off.
+COPILOT_USE_REMOTE=false
 ```
 
 The loaders skip full-line comments (lines beginning with `#`) and blank lines,
@@ -172,6 +176,11 @@ install or tune never overwrites developer secrets. It matches the `.env.*`
 gitignore pattern (excluding `.env.example`), so it is never committed. Use it
 for machine-specific values such as `workspaceFolder` and for local secrets
 (API keys, tokens) that should stay off the shared configuration surface.
+
+Because `.env.local` is never regenerated, an existing install will not gain new
+keys automatically. To enable Copilot CLI remote mode after upgrading, add
+`COPILOT_USE_REMOTE=true` to your `.env.local` manually — `start.ps1` treats a
+missing or non-truthy value as remote-off (`--remote` is opt-in).
 
 To configure the Copilot CLI path (when it is not on PATH), set it in `.autoharness/config.yaml` before running install or tune:
 
