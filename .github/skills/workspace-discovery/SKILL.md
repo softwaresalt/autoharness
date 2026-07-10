@@ -114,17 +114,25 @@ Record: `ci_platform`, `ci_pipeline_steps[]`, `ci_quality_gates[]`.
   for an already-required status-check name. If one exists (e.g. `build`), record it
   as `ci.required_check_name` so the generated aggregation gate adopts that exact
   name and no ruleset edit is needed. Otherwise default to `ci gate`.
-* **Path filter mode** — default `ci.path_filter_mode: fail_closed_changes_job`
-  (a lightweight always-running detection job using `dorny/paths-filter` with
-  `predicate-quantifier: every` over a denylist). Only record `paths_ignore` when the
-  operator explicitly prefers on-trigger `paths-ignore`.
-* **Docs-only paths** — record `ci.docs_only_paths` from the docs/backlog layout
-  (e.g. `['**/*.md', 'docs/**']` plus any backlog directory such as `.backlogit/**`
-  and harness metadata `.autoharness/**`). These become the fail-closed denylist
-  negations (or the `paths-ignore` list).
-* **Linux-only** — record `ci.linux_only: true` by default (regular PR/push CI is
-  Linux-only; cross-OS verification is deferred to release-tag workflows) unless the
-  operator needs an OS matrix on every PR.
+* **Path filter mode** — record `ci.path_filter_mode: fail_closed_changes_job`
+  (the only supported value): a lightweight always-running detection job using
+  `dorny/paths-filter` with `predicate-quantifier: every` over a denylist. Do not
+  emit `paths_ignore` — trigger-level `paths-ignore` skips the whole run
+  (including the aggregation gate), recreating the pending-required-check problem
+  this primitive solves, so it is not a valid profile value.
+* **Docs-only paths** — record `ci.docs_only_paths` as positively-identified
+  documentation/state **directories** (e.g. `['docs/**']` plus any backlog
+  directory such as `.backlogit/**` and harness metadata `.autoharness/**`).
+  These become the fail-closed denylist negations. Do **not** emit an
+  extension-wide glob such as `**/*.md` when Markdown is executable product in the
+  workspace (e.g. agent/skill/instruction files under `.github/`): that would let
+  harness changes skip the expensive gate while the aggregation check still
+  reports success. Only add `**/*.md` when discovery confirms Markdown is purely
+  non-executable documentation everywhere.
+* **Linux-only** — record `ci.linux_only: true` (regular PR/push CI is
+  Linux-only; cross-OS verification is deferred to release-tag workflows). This
+  field is constrained to `true` in the profile schema; the template renders a
+  scalar `runs-on` and does not auto-generate a multi-OS matrix.
 
 **Local pre-push gating detection** (drives the pre-push quality-gate hook):
 

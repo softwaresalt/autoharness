@@ -51,10 +51,14 @@ jobs:
         uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
         with:
           predicate-quantifier: 'every'
+          # Fail-closed denylist under predicate-quantifier 'every': a changed
+          # file counts as code unless it lives in a positively-identified
+          # docs/state directory. Markdown is executable product in this repo
+          # (agent/skill/instruction files under .github/), so it is NOT excluded
+          # by extension — only these specific directories are.
           filters: |
             code:
               - '**'
-              - '!**/*.md'
               - '!docs/**'
               - '!.backlogit/**'
               - '!.autoharness/**'

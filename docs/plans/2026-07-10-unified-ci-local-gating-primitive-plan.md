@@ -53,8 +53,10 @@ T6 (policy P-019 + primitive doc + operator docs)   depends on T1, T2
 
 * **Scope**: Create `templates/ci/ci.yml.tmpl`: always-running `changes` job
   (`name: detect code changes`, dorny/paths-filter `every` denylist), guarded
-  expensive job (`name: {{CI_EXPENSIVE_JOB_NAME}}`, `chore:`/`docs:` title guard,
-  `if: changes.outputs.code == 'true'`, swappable per-ecosystem internals via
+  expensive job (`name: {{CI_EXPENSIVE_JOB_NAME}}`,
+  `if: changes.outputs.code == 'true'` — path impact is the SOLE condition; the
+  originally-planned `chore:`/`docs:` title guard was rejected as fail-open during
+  081-S review, see decision D1a — swappable per-ecosystem internals via
   `{{CI_SETUP_STEPS}}` / `{{TEST_COMMAND}}` / `{{LINT_COMMAND}}` etc.), and the
   always-running aggregation gate (`name: {{CI_REQUIRED_CHECK_NAME}}`, `if: always()`,
   `needs` all, skipped-is-OK). SHA-pinned actions, `permissions: contents: read`,
@@ -127,7 +129,7 @@ required. Enumerated risks and mitigations:
 | R5 | **Dogfood-parity drift** — behavioral change to a `templates/*.tmpl` not mirrored into the autoharness `.github/` instance (or vice versa) | Med | Silent divergence | T3/T4 are explicit dogfood mirrors of T1/T2; plan-review and Ship review must diff template intent vs dogfood instance. Note: dogfood CI/hook are *instances* of the template design, not literal `.tmpl` copies. |
 | R6 | **SHA-pin staleness** — pinned action SHAs go stale/insecure over time | Low | Supply-chain drift | T1/T3: pin to the same SHAs the sibling repos use (verified current: checkout v6.0.3 `df4cb1c`, setup-python v6.2.0 `a309ff8`, paths-filter v3.0.3 `d1c1ffe`); document that pin refresh is a periodic maintenance chore, not this feature's concern. |
 | R7 | **Fail-open path filter** — `predicate-quantifier` omitted so `**` marks everything matched and negations never apply | Low | Security gate silently skipped | T1: hard-code `predicate-quantifier: every` and document why (backlogit lesson); default mode is fail-closed `changes` job, not bare `paths-ignore`. |
-| R8 | **Actions-minute cost regression** — reintroducing a PR workflow reverses the cost-saving that the superseded 2026-07-05 decision protected | Low | Billing | Linux-only + fail-closed path filter + title guards keep docs/backlog PRs off the expensive job; only real code changes spend minutes. Documented in decision doc. |
+| R8 | **Actions-minute cost regression** — reintroducing a PR workflow reverses the cost-saving that the superseded 2026-07-05 decision protected | Low | Billing | Linux-only + fail-closed path filter keep docs/backlog PRs off the expensive job (title guards were rejected as fail-open — see D1a); only real code changes spend minutes. Documented in decision doc. |
 | R9 | **Scope creep** — inventing ruff/pyright gates autoharness doesn't actually have | Med | Broken dogfood CI | T3/T6: dogfood reflects only real discoverable tooling (unittest + markdownlint); template keeps ecosystem internals as swappable variables, not hard-coded tools. |
 
 **Hardening conclusion**: risks are bounded and each is owned by a specific task

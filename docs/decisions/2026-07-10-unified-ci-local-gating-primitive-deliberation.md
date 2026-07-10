@@ -94,6 +94,20 @@ required-check × skipped-job gotcha: expensive jobs may be skipped on docs-only
 `chore:`/`docs:` PRs without blocking the merge, because the required check is the
 gate, not the guarded jobs.
 
+### D1a — Implementation amendment: PR-title guards rejected as fail-open (2026-07-10, shipment 081-S)
+
+During adversarial + Copilot review of the implementation (shipment 081-S), the
+advisory `chore:`/`docs:` PR-title guard on the expensive job was **removed
+entirely** as fail-open. The superseded prior-art "Future Rule" had contemplated
+title conditions as *advisory*, but an advisory `if:` that can suppress the
+expensive job still lets a mislabeled `docs:`/`chore:` PR skip the security-
+sensitive gate even when code actually changed. The shipped template and dogfood
+workflow therefore gate the expensive job **solely** on `needs.changes.outputs.code
+== 'true'` (fail-closed path impact). Path filtering is the single condition; PR
+title never influences whether the gate runs. References to advisory title guards
+elsewhere in this document and in the plan describe the pre-amendment design and
+are retained for provenance only.
+
 * **Generic template**: the required-check name is a variable
   `{{CI_REQUIRED_CHECK_NAME}}` (default `ci gate`, matching docline's `name: ci gate`).
 * **autoharness dogfood**: the aggregation job's `name:` is set to **`build`** so it

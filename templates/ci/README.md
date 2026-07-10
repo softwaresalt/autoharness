@@ -22,7 +22,7 @@ job ID.
 | Job (`name:`) | Job ID | Runs | Purpose |
 |---|---|---|---|
 | `detect code changes` | `changes` | always | Fail-closed `dorny/paths-filter` (`predicate-quantifier: every`) over a denylist. Outputs `code` = `true` unless the change touches only docs/backlog paths. |
-| `{{CI_EXPENSIVE_JOB_NAME}}` | `expensive` | when `code == 'true'` and not a `chore:`/`docs:` PR | The expensive lint/format/typecheck/test/build gate. Never the required check. |
+| `{{CI_EXPENSIVE_JOB_NAME}}` | `expensive` | when `code == 'true'` (path impact only) | The expensive lint/format/typecheck/test/build gate. Never the required check. |
 | `{{CI_REQUIRED_CHECK_NAME}}` | `ci-gate` | always (`if: always()`) | Aggregation gate. **This is the only check a branch ruleset should require.** Treats a skipped expensive job as OK; fails only when a needed job is `failure`/`cancelled`. |
 
 ### Why the aggregation gate is the required check
@@ -47,7 +47,7 @@ any code/config/unknown-type change falls through into the gate (fail-closed).
 | `{{CI_REQUIRED_CHECK_NAME}}` | `ci.required_check_name` (default `ci gate`) | The aggregation gate's check context (`name:`). May contain spaces/slashes. Set to an already-required ruleset check name (e.g. `build`) so no ruleset edit is needed. The job ID is always the fixed slug `ci-gate`. |
 | `{{CI_EXPENSIVE_JOB_NAME}}` | synthesized from the primary ecosystem (e.g. `test`, `build`) | The expensive job's check context (`name:`). Should differ from the required-check name. The job ID is always the fixed slug `expensive`. |
 | `{{CI_RUNNER_OS}}` | `ubuntu-latest` (regular CI is Linux-only per `ci.linux_only`) | Regular CI is Linux-only; cross-OS verification stays in release-tag workflows. This template does not auto-generate a multi-OS matrix. |
-| `{{CI_DOCS_ONLY_PATHS}}` | `ci.docs_only_paths` | Rendered as indented denylist negations, e.g. `- '!**/*.md'` / `- '!docs/**'`. |
+| `{{CI_DOCS_ONLY_PATHS}}` | `ci.docs_only_paths` | Rendered as indented denylist negations, e.g. `- '!docs/**'` / `- '!.backlogit/**'`. Prefer positively-identified docs/state **directories**. Avoid an extension-wide glob like `- '!**/*.md'` when Markdown is executable product (agent/skill/instruction files), or those changes skip the gate while the aggregation check still passes. |
 | `{{CI_SETUP_STEPS}}` | per-ecosystem toolchain setup | Checkout + SDK setup + dependency install steps for the expensive job. |
 | `{{LINT_COMMAND}}` | `lint.command` | Omit the step when no lint gate is discovered. |
 | `{{FORMAT_CHECK_COMMAND}}` | `format.check_command` | Omit the step when no format gate is discovered. |

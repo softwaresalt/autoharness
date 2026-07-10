@@ -207,7 +207,8 @@
         },
         "linux_only": {
           "type": "boolean",
-          "description": "When true (the default and only rendered mode), regular PR/push CI runs on Linux only (ubuntu-latest). Cross-OS verification is delegated to release-tag workflows; this template does not auto-generate a multi-OS matrix.",
+          "const": true,
+          "description": "Always true: regular PR/push CI runs on Linux only (ubuntu-latest). Cross-OS verification is delegated to release-tag workflows; this template does not auto-generate a multi-OS matrix, so the field is constrained to true. Reserved for a future matrix implementation.",
           "default": true
         },
         "path_filter_mode": {
@@ -220,7 +221,7 @@
         },
         "docs_only_paths": {
           "type": "array",
-          "description": "Path patterns treated as documentation/backlog-only (excluded from the expensive gate). Used as the denylist negations for the fail-closed changes job. Example: ['**/*.md', 'docs/**', '.backlogit/**', '.autoharness/**'].",
+          "description": "Directory/path patterns positively identified as documentation or state that are safe to exclude from the expensive gate (used as denylist negations for the fail-closed changes job). Prefer specific directories (e.g. 'docs/**', '.backlogit/**'). Do NOT use an extension-wide glob such as '**/*.md' when Markdown is executable product in the workspace (e.g. agent/skill/instruction files under '.github/'), since that would let harness changes skip the gate while the aggregation check still reports success. Example: ['docs/**', '.backlogit/**', '.autoharness/**'].",
           "items": {
             "type": "string"
           }
