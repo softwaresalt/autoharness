@@ -440,6 +440,20 @@ When `config.model_routing.orchestrator` is a plain string (e.g., `orchestrator:
 Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.exe_path` → (2) schema default `copilot` (expects it on PATH).
 `exe_path` must be an executable path only. The generated scripts validate this at runtime.
 
+**Deploy-Harness Script Variables** (used only in `deploy-harness.ps1` / `deploy-harness.sh` generation, on `full` preset):
+
+| Template Variable | Source | Default | Description |
+|---|---|---|---|
+| `{{DEFAULT_PRESET}}` | Selected preset from Step 1.3 | `full` | Default `-Preset`/`--preset` baked into the generated deploy script |
+| `{{DEFAULT_REGISTER_ENV}}` | Operator AI environment recorded by workspace-discovery (`register`-phase default) | `copilot-cli` | Default `-Register`/`--register` environment (`vscode`\|`copilot-cli`\|`claude`\|`codex`\|`none`) |
+| `{{DEFAULT_INSTALL_METHOD}}` | Operator preference / profile | `pip` | Default `-InstallMethod`/`--install-method` (`pip`\|`clone`\|`plugin`) |
+| `{{AUTOHARNESS_HOME_DEFAULT}}` | Conventional global-install fallback path | `$HOME/.autoharness` | Fallback `autoharness_home` used when `AUTOHARNESS_HOME` / `autoharness home` do not resolve |
+| `{{PACK_REGISTRY_PATH}}` | Fixed path under `autoharness_home` | `templates/packs/capability-pack-registry.yaml` | Registry file the deploy script reads to enumerate "all packs" |
+
+`{{PROJECT_NAME}}` (shared) also resolves in these scripts. The deploy scripts
+never resolve `{{VARIABLE}}` templates themselves — composition is handed off to
+the `auto-mergeinstall` agent.
+
 **Capability-Pack Variables** (derived from `capability_packs` and integration signals in the profile):
 
 | Template Variable | Source | Example (enabled) | Example (disabled) |
@@ -1214,6 +1228,21 @@ Also generate the workspace-local environment file:
    and `.env.local` already exists without a `GRAPHTOR_EMBED_MODEL_DIR` line, append
    the entry rather than overwriting the file.
 
+**Deploy-harness scripts (`full` preset, optional):** When the install preset is
+`full`, optionally generate the scripted install/deploy tool at
+`{workspace}/scripts/deploy-harness.ps1` and `{workspace}/scripts/deploy-harness.sh`
+from `{autoharness_home}/templates/scripts/deploy-harness.ps1.tmpl` and
+`deploy-harness.sh.tmpl`. These deterministic scripts run preflight → bootstrap →
+register → scaffold → compose-handoff → verify: they bootstrap autoharness,
+register the operator's AI environment, and scaffold `.autoharness/config.yaml`
+with every pack enumerated from
+`{autoharness_home}/templates/packs/capability-pack-registry.yaml`, then hand off
+template composition to the `auto-mergeinstall` agent (they never resolve
+`{{VARIABLE}}` templates). Resolve `{{DEFAULT_PRESET}}`, `{{DEFAULT_REGISTER_ENV}}`,
+`{{DEFAULT_INSTALL_METHOD}}`, `{{AUTOHARNESS_HOME_DEFAULT}}`, and
+`{{PACK_REGISTRY_PATH}}` per the Deploy-Harness Script Variables table. Set execute
+permission on the `.sh` after install: `chmod +x scripts/deploy-harness.sh`.
+
 ### Phase 3: Installation
 
 #### Step 3.1: Staging
@@ -1241,6 +1270,7 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Skills | `{workspace}/.github/skills/{name}/SKILL.md` |
 | Scripts (when Primitive 5 or 6 selected) | `{workspace}/scripts/` — copy all `.ps1` and `.sh` files from `{autoharness_home}/templates/skills/{skill-name}/scripts/` for each skill that includes scripts (file-lock, skill-search) |
 | Startup scripts | `{workspace}/start.ps1`, `{workspace}/start.sh` — generated from `{autoharness_home}/templates/scripts/start.ps1.tmpl` and `start.sh.tmpl`; always installed at workspace root regardless of preset |
+| Deploy-harness scripts (`full` preset, optional) | `{workspace}/scripts/deploy-harness.ps1`, `{workspace}/scripts/deploy-harness.sh` — generated from `{autoharness_home}/templates/scripts/deploy-harness.ps1.tmpl` and `deploy-harness.sh.tmpl`; enumerate packs from `{autoharness_home}/templates/packs/capability-pack-registry.yaml`; set execute permission on `.sh`: `chmod +x scripts/deploy-harness.sh` |
 | Local environment file | `{workspace}/.env.local` — generated from `{autoharness_home}/templates/scripts/.env.local.tmpl`; seeds `workspaceFolder={{WORKSPACE_ROOT}}`. Gitignored per-developer secrets file — **write only if it does not already exist**; never overwrite an existing `.env.local` |
 | Markdownlint config (when `tools.markdownlint` detected or operator opt-in) | `{workspace}/.markdownlint.json` — resolved from `{autoharness_home}/templates/scripts/.markdownlint.json.tmpl` (no variables to resolve; copy as-is) |
 | Markdownlint pre-commit hooks (when markdownlint config installed) | `{workspace}/scripts/pre-commit-markdownlint.sh`, `{workspace}/scripts/pre-commit-markdownlint.ps1` — copied from `{autoharness_home}/templates/scripts/pre-commit-markdownlint.sh.tmpl` and `pre-commit-markdownlint.ps1.tmpl`; set execute permission on `.sh` after copy: `chmod +x scripts/pre-commit-markdownlint.sh` |
