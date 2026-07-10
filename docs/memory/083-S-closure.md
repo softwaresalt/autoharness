@@ -76,14 +76,37 @@ closure after merge. Thread resolved.
 
 ## Backlog closure (P-015 single-artifact ops)
 
-- `071.001-T` task: queued → active → done → archived.
-- `071-F` feature: queued → active → done → archived.
-- `083-S` shipment: queued → active → done → archived (never `shipment ship`).
-- Cascade guard verified after each op: protected set (024/025/026/027/028/029/
-  030/033-S shipped, 053-F + 053.004-T blocked, 065-F queued) remained intact.
+Performed as **local backlogit single-artifact operations** (`backlogit move`),
+consistent with this repo's established closure pattern: backlog queue→archive
+relocations are kept as local backlog state and are not committed into the PR
+diff (this closure PR commits only the memo). The repository state on `main`
+therefore still shows the queue files until a later backlog-state reconciliation.
+
+- `083-S` manifest `items`: `[071.001-T]` (single-task feature).
+- `071.001-T` task (manifest item): queued → active → done → archived.
+- `083-S` shipment record: queued → active → done → archived (never the cascade
+  `shipment ship`).
+- `071-F` feature: queued → active → done → archived. **Rationale:** 071-F has
+  exactly one task, `071.001-T`, which is the shipment's sole manifest item, so
+  the feature is *fully* shipped with **no unshipped siblings**. P-015's
+  protected set is "the covering feature plus every **unshipped** sibling not in
+  the manifest"; with zero unshipped siblings this is feature-complete closure,
+  not the partial-feature parent-cascade P-015 guards against. The operator
+  explicitly directed archiving the completed parent and defined the protected
+  set to exclude 071-F.
+- Cascade guard verified after each op: the protected set (024/025/026/027/028/
+  029/030/033-S shipped, 053-F + 053.004-T blocked, 065-F queued) remained intact
+  — no unshipped sibling or unrelated artifact was touched.
 - Backlog index resynced.
 
 ## Follow-ups
 
-None. Local `main` remains diverged at `e2f6c2a` (harmless leftover from the
-cherry-pick base, noted for later reconciliation).
+1. **Reconcile local `main`** (owner: next Stage/Ship session on this
+   workstation). Local `main` remains diverged at `e2f6c2a`, a harmless leftover
+   from the cherry-pick base used to bring the 083-S planning commit into the PR.
+   Fast-forward/reset local `main` to `origin/main` at a convenient point; no
+   remote history is affected.
+2. **Backlog-state reconciliation** (owner: next backlog-maintenance pass). The
+   local queue→archive relocations for `071.001-T`/`071-F`/`083-S` live in local
+   backlog state per this repo's closure pattern; a later pass may reconcile the
+   committed `.backlogit/` tree with archived reality.
