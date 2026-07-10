@@ -5,7 +5,7 @@ doc_type: guide
 source: docs/getting-started.md
 ---
 
-> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
+> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Installation](installation.md) · [Environment Setup](environment-setup.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md) · [Backlog Integration](backlog-integration.md) · [Credits](credits.md)
 
 ## Overview
 
@@ -28,63 +28,18 @@ autoharness is installed once to a global location and invoked against target wo
 
 ## Step 1: Install autoharness Globally
 
-### With pip (recommended)
+Install mechanics — the scripted one-command deploy and the manual
+pip/clone/plugin paths — live in the authoritative
+**[Installation](installation.md)** guide. In short:
 
 ```bash
-python -m pip install autoharness
+python -m pip install autoharness   # global CLI; agents resolve it via `autoharness home`
+python -m pip install --upgrade autoharness   # upgrade an existing install
 ```
 
-This installs `autoharness` as a global CLI tool. Agents resolve the installation path by running `autoharness home`.
-
-If you previously installed from the Git URL or `uv tool`, switch once with:
-
-```bash
-python -m pip uninstall autoharness   # if installed from a pip Git URL
-uv tool uninstall autoharness         # if installed with uv tool
-python -m pip install autoharness
-```
-
-Use the Git URL only when you need an unreleased snapshot from the repository tip instead of the stable PyPI release.
-
-Update when improvements are available:
-
-```bash
-python -m pip install --upgrade autoharness
-```
-
-### With git clone (alternative)
-
-Clone the repository to your preferred global location:
-
-```bash
-git clone https://github.com/softwaresalt/autoharness.git ~/.autoharness
-```
-
-Update: `cd ~/.autoharness && git pull`
-
-Or use a custom location and set the environment variable:
-
-```bash
-git clone https://github.com/softwaresalt/autoharness.git ~/tools/autoharness
-export AUTOHARNESS_HOME=~/tools/autoharness   # bash/zsh
-$env:AUTOHARNESS_HOME = "$HOME\tools\autoharness"  # PowerShell
-```
-
-### Verify the installation
-
-```bash
-autoharness home      # prints the installation path
-autoharness version   # prints the version
-```
-
-### How agents find autoharness
-
-The `autoharness_home` path is resolved by agents in this order:
-
-1. `AUTOHARNESS_HOME` environment variable
-2. Output of `autoharness home` CLI command (if on PATH)
-3. Directory traversal from the agent definition file
-4. `~/.autoharness/` default
+Then verify with `autoharness home` and `autoharness version`. For the scripted
+deploy path, cross-platform script details, the `autoharness_home` resolution
+order, and alternative install methods, see [Installation](installation.md).
 
 ## Step 2: Configure Your Workspace (Optional)
 

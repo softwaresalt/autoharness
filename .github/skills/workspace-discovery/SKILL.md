@@ -440,6 +440,19 @@ vscode:
   has_agent_settings: true|false   # true when autoharness agent entries already present in user settings
 ```
 
+Also detect the operator's AI CLI environment(s) so the scripted deploy path
+(`deploy-harness.ps1` / `deploy-harness.sh`) can default its `register` phase.
+Scan for `copilot`, `claude`, and `codex` on `PATH`, and note VS Code from the
+signals above. Record the primary environment as the `register`-phase default
+(`{{DEFAULT_REGISTER_ENV}}` in install-harness), preferring an explicit operator
+choice, then the strongest detected CLI, then `vscode`, then `copilot-cli`:
+
+```yaml
+ai_environments:
+  detected: []                 # subset of ["vscode", "copilot-cli", "claude", "codex"]
+  register_default: "copilot-cli"   # deploy-harness --register default; one of vscode|copilot-cli|claude|codex|none
+```
+
 ### Phase 2: Convention Extraction
 
 #### Step 2.1: Code Style Discovery
