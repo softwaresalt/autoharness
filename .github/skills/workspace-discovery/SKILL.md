@@ -108,6 +108,39 @@ Record: `build_tool`, `test_runner`, `linter`, `formatter`, `package_manager`.
 
 Record: `ci_platform`, `ci_pipeline_steps[]`, `ci_quality_gates[]`.
 
+**CI gating strategy detection** (drives the unified CI + local-gating primitive):
+
+* **Required check name** — inspect any existing branch ruleset / branch protection
+  for an already-required status-check name. If one exists (e.g. `build`), record it
+  as `ci.required_check_name` so the generated aggregation gate adopts that exact
+  name and no ruleset edit is needed. Otherwise default to `ci gate`.
+* **Path filter mode** — default `ci.path_filter_mode: fail_closed_changes_job`
+  (a lightweight always-running detection job using `dorny/paths-filter` with
+  `predicate-quantifier: every` over a denylist). Only record `paths_ignore` when the
+  operator explicitly prefers on-trigger `paths-ignore`.
+* **Docs-only paths** — record `ci.docs_only_paths` from the docs/backlog layout
+  (e.g. `['**/*.md', 'docs/**']` plus any backlog directory such as `.backlogit/**`
+  and harness metadata `.autoharness/**`). These become the fail-closed denylist
+  negations (or the `paths-ignore` list).
+* **Linux-only** — record `ci.linux_only: true` by default (regular PR/push CI is
+  Linux-only; cross-OS verification is deferred to release-tag workflows) unless the
+  operator needs an OS matrix on every PR.
+
+**Local pre-push gating detection** (drives the pre-push quality-gate hook):
+
+* Determine which quality gates the workspace actually has by reusing the
+  build/test/lint/format/typecheck detection above. Record the ordered list in
+  `local_gating.pre_push_gates` (subset of `test`, `lint`, `format`, `typecheck`,
+  `build`) — include only gates with a real discovered command.
+* Record `local_gating.pre_push_enabled: true` by default. The generated hook is
+  always opt-in (activated by an explicit operator step), so this flag only controls
+  whether the artifact is composed.
+
+Record: `ci.required_check_name`, `ci.linux_only`, `ci.path_filter_mode`,
+`ci.docs_only_paths[]`, `local_gating.pre_push_enabled`,
+`local_gating.pre_push_gates[]`.
+
+
 #### Step 1.5: Project Structure Analysis
 
 Identify the project's organizational patterns:
@@ -533,6 +566,14 @@ ci:
   platform: "{{CI_PLATFORM}}"
   pipeline_steps: []
   quality_gates: []
+  required_check_name: "{{CI_REQUIRED_CHECK_NAME}}"
+  linux_only: true
+  path_filter_mode: "{{CI_PATH_FILTER_MODE}}"
+  docs_only_paths: []
+
+local_gating:
+  pre_push_enabled: {{PRE_PUSH_ENABLED}}
+  pre_push_gates: []
 
 structure:
   source_layout: "{{SOURCE_LAYOUT}}"

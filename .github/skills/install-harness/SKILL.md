@@ -141,6 +141,16 @@ Derive all template variables from the profile. The variable resolution table de
 | `{{QUALITY_GATE_4}}` | `ci.quality_gates[3]` (command, optional) | `cargo test` | _(empty)_ | _(empty)_ |
 | `{{POLL_INTERVAL}}` | `ci.poll_interval` (seconds, optional) | `30` | `30` | `30` |
 | `{{MAX_WAIT}}` | `ci.max_wait` (seconds, optional) | `600` | `600` | `600` |
+| `{{TYPECHECK_COMMAND}}` | `typecheck.command` (read-only type gate; empty when none configured) | _(empty)_ | `tsc --noEmit` | `mypy src/` |
+| `{{CI_REQUIRED_CHECK_NAME}}` | `ci.required_check_name` (name of the single always-running aggregation gate to require in branch rules) | `ci gate` | `ci gate` | `build` |
+| `{{CI_EXPENSIVE_JOB_NAME}}` | Synthesized from the primary ecosystem's heavy job | `build` | `test` | `test` |
+| `{{CI_PATH_FILTER_MODE}}` | `ci.path_filter_mode` (`fail_closed_changes_job` default, or `paths_ignore`) | `fail_closed_changes_job` | `fail_closed_changes_job` | `fail_closed_changes_job` |
+| `{{CI_DOCS_ONLY_PATHS}}` | `ci.docs_only_paths` (denylist negations / paths-ignore list) | `'!**/*.md', '!docs/**'` | `'!**/*.md', '!docs/**'` | `'!**/*.md', '!docs/**', '!.backlogit/**', '!.autoharness/**'` |
+| `{{CI_RUNNER_OS}}` | `ubuntu-latest` when `ci.linux_only` (default), else the OS matrix | `ubuntu-latest` | `ubuntu-latest` | `ubuntu-latest` |
+| `{{CI_ENABLE_OS_MATRIX}}` | Inverse of `ci.linux_only` (true adds macOS/Windows to regular CI) | `false` | `false` | `false` |
+| `{{CI_SETUP_STEPS}}` | Per-ecosystem toolchain setup steps (checkout + SDK + dependency install) | _(cargo/rust setup)_ | _(node setup)_ | _(python + uv setup)_ |
+| `{{PRE_PUSH_ENABLED}}` | `local_gating.pre_push_enabled` (whether the pre-push hook artifact is generated; hook stays opt-in) | `true` | `true` | `true` |
+| `{{PRE_PUSH_GATES}}` | `local_gating.pre_push_gates` (ordered gate list the hook runs) | `test, lint, format, build` | `test, lint, format, typecheck` | `test` |
 
 **Backlog Tool Variables** (derived from `backlog_tool` profile section):
 

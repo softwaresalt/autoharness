@@ -184,6 +184,57 @@
           "items": {
             "type": "string"
           }
+        },
+        "required_check_name": {
+          "type": "string",
+          "description": "Name of the always-running aggregation-gate job/check that a branch ruleset should require. This is the single required status check; guarded expensive jobs are never the required check so they may be skipped on docs-only PRs without blocking merge. Default 'ci gate'. Set to match an existing required-check name (e.g. 'build') when one is already configured, so no ruleset edit is needed.",
+          "default": "ci gate"
+        },
+        "linux_only": {
+          "type": "boolean",
+          "description": "When true, regular PR/push CI runs on Linux only (ubuntu-latest); cross-OS verification is deferred to release-tag workflows. Recommended when local pre-push gating already covers the developer OS.",
+          "default": true
+        },
+        "path_filter_mode": {
+          "type": "string",
+          "description": "How CI decides whether the expensive gate runs. 'fail_closed_changes_job': a lightweight always-running detection job using dorny/paths-filter with predicate-quantifier 'every' over a denylist, so any code/config/unknown-type change fails closed into the gate (recommended). 'paths_ignore': simpler on-trigger paths-ignore that skips whole runs for listed paths (may silently skip the gate on new file types).",
+          "enum": [
+            "fail_closed_changes_job",
+            "paths_ignore"
+          ],
+          "default": "fail_closed_changes_job"
+        },
+        "docs_only_paths": {
+          "type": "array",
+          "description": "Path patterns treated as documentation/backlog-only (excluded from the expensive gate). Used as the denylist negations for the fail-closed changes job, or the paths-ignore list. Example: ['**/*.md', 'docs/**', '.backlogit/**', '.autoharness/**'].",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "local_gating": {
+      "type": "object",
+      "description": "Configuration for the cross-platform local pre-push quality-gate hook (P-019). The hook runs the discovered build/test/lint/format/typecheck gates before push and blocks the push on failure; it is opt-in and installable.",
+      "properties": {
+        "pre_push_enabled": {
+          "type": "boolean",
+          "description": "Whether the pre-push quality-gate hook should be composed for this workspace. The installed hook remains opt-in (activated by an explicit operator step); this flag only controls whether the artifact is generated.",
+          "default": true
+        },
+        "pre_push_gates": {
+          "type": "array",
+          "description": "Ordered list of quality gates the pre-push hook runs. Each gate names a discovered command (resolved from build/test/lint/format profile fields). Absent gates are skipped (tool-not-found -> warn and skip), not failed.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "test",
+              "lint",
+              "format",
+              "typecheck",
+              "build"
+            ]
+          }
         }
       }
     },
