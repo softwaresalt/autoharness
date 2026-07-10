@@ -136,14 +136,22 @@ because it never silently skips the security-sensitive gate on a new file type.
 Regular PR/push CI runs `ubuntu-latest` only (graphtor rationale): the operator
 devbox is Windows and already runs the full local gate before push, so redundant
 cross-OS matrix runs waste minutes. macOS/Windows verification stays in
-`release.yml` on `v*` tags. The template exposes `{{CI_RUNNER_OS}}` /
-`{{CI_ENABLE_OS_MATRIX}}` for workspaces that want a matrix.
+`release.yml` on `v*` tags. The template exposes `{{CI_RUNNER_OS}}` (constrained to
+`ubuntu-latest`; `ci.linux_only` is `const: true` in the profile schema). The
+originally-contemplated `{{CI_ENABLE_OS_MATRIX}}` escape hatch was **removed**
+during 081-S review because it was schema-valid but unimplemented (see D1a);
+cross-OS verification is delegated to release workflows, not an auto-generated
+per-PR matrix.
 
-### D4 — Title guards are advisory, path filter is authoritative
+### D4 — Path filter is authoritative; title guards were rejected (see D1a)
 
-Expensive jobs carry a `chore:`/`docs:` PR-title guard (docline pattern), inert on
-non-PR events. Per the superseded doc's Future Rule, title guards are **advisory
-convenience only**; the fail-closed path filter is the safer source of truth.
+The original design carried a `chore:`/`docs:` PR-title guard on expensive jobs
+(docline pattern) as an *advisory convenience*. During 081-S review this guard was
+**removed entirely** as fail-open (see D1a): an advisory `if:` that can suppress
+the expensive job still lets a mislabeled `docs:`/`chore:` PR skip the security-
+sensitive gate when code actually changed. The shipped template and dogfood
+workflow gate the expensive job **solely** on `needs.changes.outputs.code == 'true'`;
+PR title never influences whether the gate runs.
 
 ### D5 — Local pre-push hook enforcement (the critical implication)
 

@@ -3,8 +3,9 @@ name: CI
 # autoharness dogfood instance of the unified CI + local-gating primitive
 # (templates/ci/ci.yml.tmpl). Three jobs:
 #   1. changes — always-runs, fail-closed detection of code vs docs/backlog.
-#   2. test    — the expensive gate: runs the 416-test unittest suite. Skipped
-#                for docs-only and chore:/docs: PRs.
+#   2. test    — the expensive gate: runs the 416-test unittest suite. Runs
+#                whenever `changes` reports code == 'true'; skipped only for
+#                docs/backlog-only PRs (path impact is the sole condition).
 #   3. build   — always-runs aggregation gate. Its check name is `build` so it
 #                satisfies the main branch ruleset's required `build` check with
 #                NO ruleset edit; it treats a skipped test job as OK.

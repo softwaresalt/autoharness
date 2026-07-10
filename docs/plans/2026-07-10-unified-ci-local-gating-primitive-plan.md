@@ -60,7 +60,9 @@ T6 (policy P-019 + primitive doc + operator docs)   depends on T1, T2
   `{{CI_SETUP_STEPS}}` / `{{TEST_COMMAND}}` / `{{LINT_COMMAND}}` etc.), and the
   always-running aggregation gate (`name: {{CI_REQUIRED_CHECK_NAME}}`, `if: always()`,
   `needs` all, skipped-is-OK). SHA-pinned actions, `permissions: contents: read`,
-  concurrency cancellation. Linux-only default with `{{CI_ENABLE_OS_MATRIX}}` escape.
+  concurrency cancellation. Linux-only (`ci.linux_only` is `const: true`; the
+  `{{CI_ENABLE_OS_MATRIX}}` escape was rejected as unimplemented — see decision
+  D1a/D3; cross-OS verification is delegated to release workflows).
 * **Files (≤3)**: `templates/ci/ci.yml.tmpl`, a short `templates/ci/README.md`
   (variable + usage doc), variable-table addition already covered by T5.
 * **Verify**: all `{{VAR}}` documented; template is valid YAML once variables resolve

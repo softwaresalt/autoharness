@@ -168,6 +168,32 @@ Derive all template variables from the profile. The variable resolution table de
 > consistent with each gate's command column. When `{{*_TOOL}}` is empty the hook
 > falls back to the command's leading real token (env prefixes skipped).
 
+> **Hook gate composition (`{{PRE_PUSH_GATES}}`).** The pre-push hook templates
+> ship the full gate menu (Lint / Format / Typecheck / Test / Build call sites).
+> During resolution, emit **only** the `run_gate` / `Invoke-Gate` calls named in
+> `local_gating.pre_push_gates`, in that list's order, and drop the rest — do not
+> emit a fixed five-gate order. A profile such as `pre_push_gates: [test]` must
+> produce a hook that runs the Test gate only. (A call whose command variable also
+> resolves empty is likewise omitted.)
+
+> **CI gates are independent of the local hook.** The remote expensive-job steps
+> are composed from the discovered CI gate command fields
+> (`{{LINT_COMMAND}}` / `{{FORMAT_CHECK_COMMAND}}` / `{{TYPECHECK_COMMAND}}` /
+> `{{TEST_COMMAND}}` / `{{BUILD_CHECK_COMMAND}}`), **not** from
+> `local_gating.pre_push_gates`. `pre_push_gates` governs the opt-in local hook
+> only; narrowing local gates (e.g. skipping a slow gate locally) must never remove
+> that gate from the remote CI job. Resolve the two independently.
+
+> **Shell-safe command rendering.** Gate command values are interpolated into
+> double-quoted arguments in the generated hooks (`run_gate "…" "…" "<command>"`
+> passed to `sh -c`; `Invoke-Gate … "<command>"` passed to `Invoke-Expression`). A
+> discovered command that itself contains double quotes (e.g.
+> `python -c "import sys"`) would close the argument early and corrupt the script.
+> When resolving `{{*_COMMAND}}` values that contain quotes or shell metacharacters,
+> the installer MUST shell-escape them for the target shell (POSIX form in `.sh`,
+> PowerShell form in `.ps1`), or wrap the logic in a committed script the gate
+> invokes by path. Prefer simple, quote-free gate commands where possible.
+
 **Backlog Tool Variables** (derived from `backlog_tool` profile section):
 
 | Template Variable | Source | Example (backlogit) | Example (backlog-md) |
