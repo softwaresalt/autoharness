@@ -172,8 +172,8 @@ invoke_bootstrap() {
 	fi
 
 	case "$INSTALL_METHOD" in
-		pip) info "Installing autoharness via pip (global tool)..."; "${PYTHON_BIN:-python}" -m pip install --upgrade autoharness ;;
-		clone) info "Cloning autoharness to $AUTOHARNESS_HOME_DEFAULT ..."; git clone https://github.com/softwaresalt/autoharness "$AUTOHARNESS_HOME_DEFAULT" ;;
+		pip) info "Installing autoharness via pip (global tool)..."; if ! "${PYTHON_BIN:-python}" -m pip install --upgrade autoharness; then fail "pip install failed"; return 1; fi ;;
+		clone) info "Cloning autoharness to $AUTOHARNESS_HOME_DEFAULT ..."; if ! git clone https://github.com/softwaresalt/autoharness "$AUTOHARNESS_HOME_DEFAULT"; then fail "git clone failed"; return 1; fi ;;
 	esac
 	resolved="$(resolve_home)"
 	if [[ -n "$resolved" ]]; then ok "autoharness_home installed: $resolved"; RESOLVED_HOME="$resolved"; return 0; fi

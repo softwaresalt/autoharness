@@ -951,6 +951,37 @@
         }
       }
     },
+    "ai_environments": {
+      "type": "object",
+      "description": "Detected operator AI CLI/editor environments used by the scripted deploy path (deploy-harness.ps1 / deploy-harness.sh) to default its register phase.",
+      "properties": {
+        "detected": {
+          "type": "array",
+          "description": "Subset of AI environments detected on PATH or via workspace signals.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "vscode",
+              "copilot-cli",
+              "claude",
+              "codex"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "register_default": {
+          "type": "string",
+          "description": "The deploy-harness --register default: the primary detected environment, preferring an explicit operator choice, then the strongest detected CLI, then vscode, then copilot-cli.",
+          "enum": [
+            "vscode",
+            "copilot-cli",
+            "claude",
+            "codex",
+            "none"
+          ]
+        }
+      }
+    },
     "distribution": {
       "type": "object",
       "description": "Signals indicating that this workspace is a globally-distributed tool that ships agent definitions in its package. When present, the installer routes workflow agents to a local-only directory to prevent distribution leakage.",

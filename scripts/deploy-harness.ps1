@@ -66,6 +66,7 @@ Set-StrictMode -Version Latest
 $PSNativeCommandUseErrorActionPreference = $true
 
 $WorkspaceRoot = (Get-Location).Path
+$PythonBin = "python"
 $AutoharnessHomeDefault = "$HOME/.autoharness"
 $PackRegistryRelPath = "templates/packs/capability-pack-registry.yaml"
 
@@ -132,10 +133,11 @@ function Invoke-Preflight {
     Write-Phase "preflight"
     $hardMissing = @()
 
-    foreach ($tool in @("python", "git")) {
-        if (Get-Command $tool -ErrorAction SilentlyContinue) { Write-Ok "$tool present" }
-        else { Write-Fail "$tool missing (required)"; $hardMissing += $tool }
-    }
+    if (Get-Command python -ErrorAction SilentlyContinue) { $script:PythonBin = "python"; Write-Ok "python present" }
+    elseif (Get-Command python3 -ErrorAction SilentlyContinue) { $script:PythonBin = "python3"; Write-Ok "python3 present" }
+    else { Write-Fail "python missing (required)"; $hardMissing += "python" }
+    if (Get-Command git -ErrorAction SilentlyContinue) { Write-Ok "git present" }
+    else { Write-Fail "git missing (required)"; $hardMissing += "git" }
     if (Get-Command gh -ErrorAction SilentlyContinue) { Write-Ok "gh present" }
     else { Write-Warn2 "gh not found (optional; needed for PR automation)" }
 
@@ -187,7 +189,7 @@ function Invoke-Bootstrap {
     switch ($InstallMethod) {
         "pip" {
             Write-Info "Installing autoharness via pip (global tool)..."
-            & python -m pip install --upgrade autoharness
+            & $PythonBin -m pip install --upgrade autoharness
         }
         "clone" {
             Write-Info "Cloning autoharness to $AutoharnessHomeDefault ..."

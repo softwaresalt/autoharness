@@ -446,7 +446,7 @@ Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.
 |---|---|---|---|
 | `{{DEFAULT_PRESET}}` | Selected preset from Step 1.3 | `full` | Default `-Preset`/`--preset` baked into the generated deploy script |
 | `{{DEFAULT_REGISTER_ENV}}` | Operator AI environment recorded by workspace-discovery (`register`-phase default) | `copilot-cli` | Default `-Register`/`--register` environment (`vscode`\|`copilot-cli`\|`claude`\|`codex`\|`none`) |
-| `{{DEFAULT_INSTALL_METHOD}}` | Operator preference / profile | `pip` | Default `-InstallMethod`/`--install-method` (`pip`\|`clone`\|`plugin`) |
+| `{{DEFAULT_INSTALL_METHOD}}` | Operator preference / profile | `pip` | Default `-InstallMethod`/`--install-method` (`pip`\|`clone`) |
 | `{{AUTOHARNESS_HOME_DEFAULT}}` | Conventional global-install fallback path | `$HOME/.autoharness` | Fallback `autoharness_home` used when `AUTOHARNESS_HOME` / `autoharness home` do not resolve |
 | `{{PACK_REGISTRY_PATH}}` | Fixed path under `autoharness_home` | `templates/packs/capability-pack-registry.yaml` | Registry file the deploy script reads to enumerate "all packs" |
 
