@@ -43,7 +43,7 @@ autoharness ships cross-platform deploy scripts and generates them into a target
 workspace on the `full` preset:
 
 * `scripts/deploy-harness.ps1` (PowerShell, Windows/macOS/Linux)
-* `scripts/deploy-harness.sh` (POSIX sh, macOS/Linux)
+* `scripts/deploy-harness.sh` (bash, macOS/Linux)
 
 To bootstrap from scratch, obtain the script from the autoharness repository
 (`scripts/deploy-harness.ps1` / `scripts/deploy-harness.sh`) or from a workspace

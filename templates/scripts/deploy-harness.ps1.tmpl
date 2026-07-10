@@ -60,6 +60,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+# Make native (external) commands with a non-zero exit code terminate like a
+# throwing cmdlet so the try/catch blocks below detect register/verify/bootstrap
+# failures (PowerShell 7.3+; harmlessly ignored on older hosts).
+$PSNativeCommandUseErrorActionPreference = $true
 
 $WorkspaceRoot = (Get-Location).Path
 $AutoharnessHomeDefault = "{{AUTOHARNESS_HOME_DEFAULT}}"
@@ -223,9 +227,11 @@ function Invoke-Register {
     try {
         if ($Register -eq "copilot-cli") {
             & copilot plugin install autoharness@autoharness
+            if ($LASTEXITCODE -ne 0) { throw "copilot plugin install exited $LASTEXITCODE" }
         }
         elseif ($cli) {
             & $cli.Source $cmd
+            if ($LASTEXITCODE -ne 0) { throw "autoharness $cmd exited $LASTEXITCODE" }
         }
         else {
             Write-Warn2 "autoharness CLI not on PATH; skipping register (run 'autoharness $cmd' after bootstrap)."
@@ -336,6 +342,7 @@ function Invoke-Verify {
     }
     try {
         & $cli.Source verify-workspace --workspace $WorkspaceRoot
+        if ($LASTEXITCODE -ne 0) { throw "verify-workspace exited $LASTEXITCODE" }
         Write-Ok "verify-workspace completed (see .autoharness reports)"
         return $true
     } catch {

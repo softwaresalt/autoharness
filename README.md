@@ -96,7 +96,7 @@ copilot plugin install autoharness@autoharness            # Copilot CLI plugin
 python -m pip install --upgrade autoharness
 
 # Or use the scripted one-command deploy (bootstraps + registers + scaffolds)
-./scripts/deploy-harness.sh --bootstrap --preset full     # POSIX sh
+./scripts/deploy-harness.sh --bootstrap --preset full     # bash
 ./scripts/deploy-harness.ps1 -Bootstrap -Preset full      # PowerShell
 
 # Compose a harness (from the target workspace)

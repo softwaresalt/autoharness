@@ -49,6 +49,7 @@ HOME_OVERRIDE=""
 BOOTSTRAP=0
 DRY_RUN=0
 FORCE=0
+PYTHON_BIN=""
 
 WORKSPACE_ROOT="$(pwd)"
 AUTOHARNESS_HOME_DEFAULT="$HOME/.autoharness"
@@ -128,13 +129,10 @@ registry_packs() {
 invoke_preflight() {
 	phase "preflight"
 	local hard_missing=""
-	for tool in python git; do
-		if command -v "$tool" >/dev/null 2>&1 || { [[ "$tool" == python ]] && command -v python3 >/dev/null 2>&1; }; then
-			ok "$tool present"
-		else
-			fail "$tool missing (required)"; hard_missing="$hard_missing $tool"
-		fi
-	done
+	if command -v python >/dev/null 2>&1; then PYTHON_BIN="python"; ok "python present"
+	elif command -v python3 >/dev/null 2>&1; then PYTHON_BIN="python3"; ok "python3 present"
+	else fail "python missing (required)"; hard_missing="$hard_missing python"; fi
+	if command -v git >/dev/null 2>&1; then ok "git present"; else fail "git missing (required)"; hard_missing="$hard_missing git"; fi
 	if command -v gh >/dev/null 2>&1; then ok "gh present"; else warn "gh not found (optional; needed for PR automation)"; fi
 
 	local cli_tool=""
@@ -175,7 +173,7 @@ invoke_bootstrap() {
 	fi
 
 	case "$INSTALL_METHOD" in
-		pip) info "Installing autoharness via pip (global tool)..."; python -m pip install --upgrade autoharness ;;
+		pip) info "Installing autoharness via pip (global tool)..."; "${PYTHON_BIN:-python}" -m pip install --upgrade autoharness ;;
 		clone) info "Cloning autoharness to $AUTOHARNESS_HOME_DEFAULT ..."; git clone https://github.com/softwaresalt/autoharness "$AUTOHARNESS_HOME_DEFAULT" ;;
 		plugin) info "Installing autoharness Copilot plugin..."; copilot plugin install autoharness@autoharness ;;
 	esac
