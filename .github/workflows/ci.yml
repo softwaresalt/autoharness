@@ -1,0 +1,106 @@
+name: CI
+
+# autoharness dogfood instance of the unified CI + local-gating primitive
+# (templates/ci/ci.yml.tmpl). Three jobs:
+#   1. changes — always-runs, fail-closed detection of code vs docs/backlog.
+#   2. test    — the expensive gate: runs the 416-test unittest suite. Skipped
+#                for docs-only and chore:/docs: PRs.
+#   3. build   — always-runs aggregation gate. Its check name is `build` so it
+#                satisfies the main branch ruleset's required `build` check with
+#                NO ruleset edit; it treats a skipped test job as OK.
+#
+# Regular PR/push CI is Linux-only. Cross-OS (macOS/Windows) verification and
+# publishing live in release.yml (tag-triggered) — this workflow does NOT
+# duplicate release.yml. autoharness has no ruff/pyright/pytest configured; the
+# only real gates are the stdlib unittest suite (here) and markdownlint (the
+# pre-commit/pre-push hooks). No lint/format/typecheck steps are invented.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Lightweight always-running gate. predicate-quantifier 'every' makes the '!'
+  # negations exclude docs/backlog/harness state per file; any code/config/
+  # unknown-type change fails CLOSED into the test gate below.
+  changes:
+    name: detect code changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Detect code changes
+        id: filter
+        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!.backlogit/**'
+              - '!.autoharness/**'
+
+  # Expensive gate: the stdlib unittest suite. Runs only when code changed and
+  # the PR is not a chore:/docs: PR (advisory title guard; inert on non-PR events).
+  test:
+    name: test
+    needs: changes
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      (github.event_name != 'pull_request' ||
+      (!startsWith(github.event.pull_request.title, 'chore:') &&
+      !startsWith(github.event.pull_request.title, 'docs:')))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+      - name: Install runtime dependencies
+        run: python -m pip install --upgrade pip jsonschema PyYAML
+      - name: Run unittest suite
+        run: PYTHONPATH=src python -m unittest discover -s tests
+
+  # Always-reporting aggregation gate. This is the single required status check:
+  # named `build` to satisfy the main ruleset with no edit. Passes unless a
+  # needed job failed or was cancelled (a skipped test job is OK).
+  build:
+    name: build
+    if: always()
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no required job failed
+        run: |
+          results="${{ needs.changes.result }} ${{ needs.test.result }}"
+          echo "job results: $results"
+          for r in $results; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "::error::A required job did not succeed: $r"
+              exit 1
+            fi
+          done
+          echo "All required jobs passed or were intentionally skipped."
