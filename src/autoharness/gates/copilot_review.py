@@ -181,6 +181,29 @@ def _login(node: Any) -> str | None:
     return None
 
 
+def _requested_is_copilot(node: Mapping[str, Any]) -> bool | None:
+    """Whether a ``reviewRequests`` node requests the Copilot bot.
+
+    Returns ``True``/``False`` when the reviewer identity is readable, or ``None``
+    when the reviewer object is malformed or its bot identity cannot be read. A
+    determinable non-bot reviewer (User/Team/Mannequin/...) is not the Copilot bot;
+    only a genuinely unreadable identity fails closed, so a pending human or team
+    review request never blocks the gate.
+    """
+    reviewer = node.get("requestedReviewer")
+    if not isinstance(reviewer, Mapping):
+        return None
+    typename = reviewer.get("__typename")
+    if not isinstance(typename, str):
+        return None
+    if typename == "Bot":
+        login = reviewer.get("login")
+        if not isinstance(login, str):
+            return None
+        return login == COPILOT_LOGIN
+    return False
+
+
 def _connection(container: Mapping[str, Any], key: str) -> Mapping[str, Any] | None:
     """Return the connection mapping for ``key``, or None if absent/malformed."""
     val = container.get(key)
@@ -233,9 +256,16 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
     req_nodes = _strict_nodes(req)
     if req_nodes is None:
         return _ambiguous()
-    copilot_requested = any(
-        _login(node.get("requestedReviewer")) == COPILOT_LOGIN for node in req_nodes
-    )
+    copilot_requested = False
+    for node in req_nodes:
+        is_copilot = _requested_is_copilot(node)
+        if is_copilot is None:
+            # A request node whose reviewer identity/type cannot be read is
+            # unverifiable: we cannot prove it is NOT the Copilot bot, so fail closed
+            # instead of silently treating it as "not Copilot".
+            return _ambiguous()
+        if is_copilot:
+            copilot_requested = True
 
     # reviews — must be structurally valid and provably complete; every Copilot review
     # must carry a known state (a missing/unknown state must not be read as "completed").
@@ -247,7 +277,13 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
         return _ambiguous()
     reviews: list[ReviewRecord] = []
     for node in review_nodes:
-        if _login(node.get("author")) != COPILOT_LOGIN:
+        author = _login(node.get("author"))
+        if author is None:
+            # An unidentifiable review author is unverifiable: it could be the Copilot
+            # bot with a transiently-null identity, so fail closed before filtering
+            # rather than silently skipping it as "not Copilot".
+            return _ambiguous()
+        if author != COPILOT_LOGIN:
             continue
         state = node.get("state")
         if not isinstance(state, str) or state not in _KNOWN_STATES:

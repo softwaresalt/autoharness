@@ -418,13 +418,15 @@ After all tasks in the queue are complete:
       with PR number, reviewed HEAD, checks state, merge strategy, approval source,
       and scope match.
     * When the `agent-intercom` capability pack is installed, broadcast `[WAIT] Awaiting user merge approval` and use the intercom clarification flow if unresolved operator guidance is needed before merge.
-15. **Last-mile §1.9 re-check**: Immediately before any normal merge or admin
-    fallback, re-query the PR `headRefOid` and confirm it still matches the HEAD
-    covered by the latest passed §1.9 gate. If the branch HEAD advanced at any
-    point after the §1.9 gate, re-run §1.9 AND the P-018 copilot-review gate in full
-    before executing the merge, regardless of whether approval came from an operator
-    message or a `DARK_MODE_ACTIVE` activation record. The prior gate result is stale
-    if the branch HEAD has advanced.
+15. **Last-mile gate re-check**: Immediately before any normal merge or admin
+    fallback, re-run the P-018 copilot-review gate in full, **unconditionally** — a
+    Copilot review can be dismissed or a Copilot-authored thread reopened without
+    advancing `headRefOid`, so a prior P-018 PASS must never be trusted as still-fresh
+    at the last mile. Additionally re-query the PR `headRefOid`: if the branch HEAD
+    advanced at any point after the latest passed §1.9 gate, re-run §1.9 in full as
+    well (the §1.9 result is stale once HEAD advances). Both re-runs apply regardless
+    of whether approval came from an operator message or a `DARK_MODE_ACTIVE`
+    activation record.
 16. **Pre-merge strategy guardrail (P-009)**: Before executing any merge, verify the PR is
     configured to use a merge commit strategy (not squash or rebase).
     * On GitHub: confirm the active merge button is "Create a merge commit" — not

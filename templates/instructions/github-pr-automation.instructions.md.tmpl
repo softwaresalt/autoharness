@@ -489,9 +489,13 @@ Evaluate five checks in order. All five must pass for merge readiness.
 4. Only when the gate returns a PASS verdict (or an audited `--force` is recorded)
    does the readiness gate reach **GATE PASSES**. The PR is ready for merge presentation.
 
-**Human and shadow-review threads**: Human review threads and non-blocking
-Copilot shadow-review threads are surfaced in the merge-readiness summary but do not
-block this local-readiness gate by default. However, if the repository has branch
+**Human review threads (Check 5 precedence)**: Human review threads are surfaced
+in the merge-readiness summary but do not block this local-readiness gate by
+default. **Copilot-authored threads are not advisory here**: an existing
+Copilot review is itself an engagement signal, so Check 5 (P-018) takes precedence
+and every unresolved Copilot-authored thread BLOCKS the merge — the legacy
+"advisory shadow-review does not block" rule never applies once Copilot is engaged.
+However, if the repository has branch
 protection rules requiring conversation resolution, approved reviews,
 or if a human reviewer submitted a `CHANGES_REQUESTED` review, those
 constraints may independently block the merge at the GitHub level. The

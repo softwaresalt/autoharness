@@ -545,6 +545,65 @@ class ParseHardeningTests(unittest.TestCase):
         self.assertTrue(st.parse_ok)
         self.assertEqual(st.copilot_unresolved_thread_ids, ())
 
+    # --- round-3 fail-closed hardening (reviewer/author identity) --------------------
+
+    def test_malformed_requested_reviewer_is_ambiguous(self) -> None:
+        raw = _pr(reviewRequests={
+            "nodes": [{"requestedReviewer": None}],
+            "pageInfo": {"hasNextPage": False},
+        })
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_requested_reviewer_missing_typename_is_ambiguous(self) -> None:
+        raw = _pr(reviewRequests={
+            "nodes": [{"requestedReviewer": {"login": COPILOT_LOGIN}}],
+            "pageInfo": {"hasNextPage": False},
+        })
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_bot_reviewer_without_login_is_ambiguous(self) -> None:
+        raw = _pr(reviewRequests={
+            "nodes": [{"requestedReviewer": {"__typename": "Bot"}}],
+            "pageInfo": {"hasNextPage": False},
+        })
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_team_review_request_is_determinable_not_copilot(self) -> None:
+        # A pending Team (or human) review request must NOT block or go ambiguous.
+        raw = _pr(reviewRequests={
+            "nodes": [{"requestedReviewer": {"__typename": "Team"}}],
+            "pageInfo": {"hasNextPage": False},
+        })
+        st = parse_graphql_response(raw)
+        self.assertTrue(st.parse_ok)
+        self.assertFalse(st.copilot_requested)
+
+    def test_copilot_bot_request_is_detected(self) -> None:
+        raw = _pr(reviewRequests={
+            "nodes": [{"requestedReviewer": {"__typename": "Bot", "login": COPILOT_LOGIN}}],
+            "pageInfo": {"hasNextPage": False},
+        })
+        st = parse_graphql_response(raw)
+        self.assertTrue(st.parse_ok)
+        self.assertTrue(st.copilot_requested)
+
+    def test_authorless_review_is_ambiguous(self) -> None:
+        raw = _pr(reviews={
+            "nodes": [{"state": "COMMENTED", "commit": {"oid": _HEAD}}],
+            "pageInfo": {"hasPreviousPage": False},
+        })
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_human_review_is_determinable_and_ignored(self) -> None:
+        raw = _pr(reviews={
+            "nodes": [{"author": {"login": "human"}, "state": "APPROVED",
+                       "commit": {"oid": _HEAD}}],
+            "pageInfo": {"hasPreviousPage": False},
+        })
+        st = parse_graphql_response(raw)
+        self.assertTrue(st.parse_ok)
+        self.assertEqual(st.copilot_reviews, ())
+
 
 class QueryHardeningTests(unittest.TestCase):
     def test_graphql_errors_array_raises(self) -> None:
