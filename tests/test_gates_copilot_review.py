@@ -190,7 +190,8 @@ def _graphql(head=_HEAD, requested=False, reviews=(), threads=()):
                             {"requestedReviewer": {"__typename": "Bot", "login": COPILOT_LOGIN}}
                         ]
                         if requested
-                        else []
+                        else [],
+                        "pageInfo": {"hasNextPage": False},
                     },
                     "reviews": {
                         "nodes": [
@@ -200,7 +201,8 @@ def _graphql(head=_HEAD, requested=False, reviews=(), threads=()):
                                 "commit": {"oid": oid},
                             }
                             for author, st, oid in reviews
-                        ]
+                        ],
+                        "pageInfo": {"hasPreviousPage": False},
                     },
                     "reviewThreads": {
                         "nodes": [
@@ -210,7 +212,8 @@ def _graphql(head=_HEAD, requested=False, reviews=(), threads=()):
                                 "comments": {"nodes": [{"author": {"login": author}}]},
                             }
                             for tid, resolved, author in threads
-                        ]
+                        ],
+                        "pageInfo": {"hasNextPage": False},
                     },
                 }
             }
@@ -405,12 +408,16 @@ class EvaluateTests(unittest.TestCase):
 
 
 def _pr(**overrides):
-    """Build a minimal-but-complete pullRequest dict, then apply overrides."""
+    """Build a minimal-but-complete pullRequest dict, then apply overrides.
+
+    Every connection carries an explicit, non-truncated ``pageInfo`` because the real
+    GraphQL query always requests one and the parser now fails closed without it.
+    """
     pr = {
         "headRefOid": _HEAD,
-        "reviewRequests": {"nodes": []},
-        "reviews": {"nodes": []},
-        "reviewThreads": {"nodes": []},
+        "reviewRequests": {"nodes": [], "pageInfo": {"hasNextPage": False}},
+        "reviews": {"nodes": [], "pageInfo": {"hasPreviousPage": False}},
+        "reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": False}},
     }
     pr.update(overrides)
     return {"data": {"repository": {"pullRequest": pr}}}
@@ -440,26 +447,26 @@ class ParseHardeningTests(unittest.TestCase):
     def test_unknown_review_state_is_ambiguous(self) -> None:
         raw = _pr(reviews={"nodes": [
             {"author": {"login": COPILOT_LOGIN}, "state": "WAT", "commit": {"oid": _HEAD}}
-        ]})
+        ], "pageInfo": {"hasPreviousPage": False}})
         self.assertFalse(parse_graphql_response(raw).parse_ok)
 
     def test_missing_review_state_is_ambiguous(self) -> None:
         raw = _pr(reviews={"nodes": [
             {"author": {"login": COPILOT_LOGIN}, "commit": {"oid": _HEAD}}
-        ]})
+        ], "pageInfo": {"hasPreviousPage": False}})
         self.assertFalse(parse_graphql_response(raw).parse_ok)
 
     def test_non_boolean_isresolved_is_ambiguous(self) -> None:
         raw = _pr(reviewThreads={"nodes": [
             {"id": "PRRT_x", "isResolved": None,
              "comments": {"nodes": [{"author": {"login": COPILOT_LOGIN}}]}}
-        ]})
+        ], "pageInfo": {"hasNextPage": False}})
         self.assertFalse(parse_graphql_response(raw).parse_ok)
 
     def test_dismissed_review_does_not_complete_head(self) -> None:
         raw = _pr(reviews={"nodes": [
             {"author": {"login": COPILOT_LOGIN}, "state": "DISMISSED", "commit": {"oid": _HEAD}}
-        ]})
+        ], "pageInfo": {"hasPreviousPage": False}})
         st = parse_graphql_response(raw)
         self.assertTrue(st.parse_ok)
         self.assertFalse(st.completed_for_head())
@@ -467,8 +474,76 @@ class ParseHardeningTests(unittest.TestCase):
     def test_pending_review_does_not_complete_head(self) -> None:
         raw = _pr(reviews={"nodes": [
             {"author": {"login": COPILOT_LOGIN}, "state": "PENDING", "commit": {"oid": _HEAD}}
-        ]})
-        self.assertFalse(parse_graphql_response(raw).completed_for_head())
+        ], "pageInfo": {"hasPreviousPage": False}})
+        st = parse_graphql_response(raw)
+        self.assertTrue(st.parse_ok)
+        self.assertFalse(st.completed_for_head())
+
+    # --- round-2 fail-closed hardening (strict pagination / nodes / thread identity) --
+
+    def test_missing_pageinfo_is_ambiguous(self) -> None:
+        # A connection with no pageInfo cannot be proven complete -> fail closed.
+        for key, field in (
+            ("reviewRequests", "hasNextPage"),
+            ("reviews", "hasPreviousPage"),
+            ("reviewThreads", "hasNextPage"),
+        ):
+            raw = _pr(**{key: {"nodes": []}})
+            self.assertFalse(parse_graphql_response(raw).parse_ok, msg=key)
+
+    def test_non_boolean_pageinfo_field_is_ambiguous(self) -> None:
+        raw = _pr(reviewThreads={"nodes": [], "pageInfo": {"hasNextPage": "false"}})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_missing_nodes_array_is_ambiguous(self) -> None:
+        # pageInfo present and complete, but nodes field absent -> unverifiable.
+        raw = _pr(reviewRequests={"pageInfo": {"hasNextPage": False}})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_non_array_nodes_is_ambiguous(self) -> None:
+        raw = _pr(reviews={"nodes": "oops", "pageInfo": {"hasPreviousPage": False}})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_non_object_node_is_ambiguous(self) -> None:
+        raw = _pr(reviewThreads={
+            "nodes": ["not-an-object"], "pageInfo": {"hasNextPage": False}
+        })
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_unresolved_thread_malformed_comments_is_ambiguous(self) -> None:
+        raw = _pr(reviewThreads={"nodes": [
+            {"id": "PRRT_x", "isResolved": False, "comments": "nope"}
+        ], "pageInfo": {"hasNextPage": False}})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_unresolved_thread_empty_comments_is_ambiguous(self) -> None:
+        raw = _pr(reviewThreads={"nodes": [
+            {"id": "PRRT_x", "isResolved": False, "comments": {"nodes": []}}
+        ], "pageInfo": {"hasNextPage": False}})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_unresolved_thread_missing_author_is_ambiguous(self) -> None:
+        raw = _pr(reviewThreads={"nodes": [
+            {"id": "PRRT_x", "isResolved": False, "comments": {"nodes": [{}]}}
+        ], "pageInfo": {"hasNextPage": False}})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_unresolved_copilot_thread_non_string_id_is_ambiguous(self) -> None:
+        raw = _pr(reviewThreads={"nodes": [
+            {"id": 123, "isResolved": False,
+             "comments": {"nodes": [{"author": {"login": COPILOT_LOGIN}}]}}
+        ], "pageInfo": {"hasNextPage": False}})
+        self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_unresolved_non_copilot_thread_is_ignored(self) -> None:
+        # A determinable human-authored unresolved thread does not block this gate.
+        raw = _pr(reviewThreads={"nodes": [
+            {"id": "PRRT_h", "isResolved": False,
+             "comments": {"nodes": [{"author": {"login": "human"}}]}}
+        ], "pageInfo": {"hasNextPage": False}})
+        st = parse_graphql_response(raw)
+        self.assertTrue(st.parse_ok)
+        self.assertEqual(st.copilot_unresolved_thread_ids, ())
 
 
 class QueryHardeningTests(unittest.TestCase):
@@ -522,6 +597,28 @@ class EvaluateHardeningTests(unittest.TestCase):
     def test_evaluate_validates_pr_before_querying(self) -> None:
         with self.assertRaises(ValueError):
             evaluate("1; rm", "owner/name")
+
+    def test_sleep_never_exceeds_remaining_budget(self) -> None:
+        # poll_interval (15) is larger than the leftover window, so the loop must sleep
+        # only the remaining budget rather than overshooting the advertised max-wait.
+        st = _state(requested=True, reviews=[])
+        slept: list[float] = []
+        clock = iter([0.0, 0.0, 10.0])  # start, round-1 elapsed=0, round-2 elapsed=10
+        r = evaluate(
+            1, "owner/name",
+            max_wait=10.0,
+            poll_interval=15.0,
+            query_fn=lambda: st,
+            sleep_fn=slept.append,
+            clock_fn=lambda: next(clock),
+        )
+        self.assertEqual(r.verdict, Verdict.REVIEW_TIMEOUT)
+        self.assertEqual(slept, [10.0])  # not 15.0 — bounded to the remaining window
+
+    def test_evaluate_has_no_forced_bypass_parameter(self) -> None:
+        # Evaluation is purely blocking; only the CLI applies an audited --force.
+        with self.assertRaises(TypeError):
+            evaluate(1, "owner/name", query_fn=lambda: _state(), forced=True)  # type: ignore[call-arg]
 
 
 if __name__ == "__main__":

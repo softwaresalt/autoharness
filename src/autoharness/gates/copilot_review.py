@@ -187,10 +187,17 @@ def _connection(container: Mapping[str, Any], key: str) -> Mapping[str, Any] | N
     return val if isinstance(val, Mapping) else None
 
 
-def _truncated(conn: Mapping[str, Any], field: str) -> bool:
-    """True when a connection's pageInfo reports more pages in ``field``."""
+def _page_complete(conn: Mapping[str, Any], field: str) -> bool:
+    """True ONLY when ``pageInfo`` explicitly proves the connection is not truncated.
+
+    Fail-closed: a missing ``pageInfo``, a non-mapping ``pageInfo``, or a non-boolean
+    (or ``True``) ``field`` is unverifiable and returns False, so the parser can never
+    mistake an unprovable connection for a complete one.
+    """
     page_info = conn.get("pageInfo")
-    return isinstance(page_info, Mapping) and page_info.get(field) is True
+    if not isinstance(page_info, Mapping):
+        return False
+    return page_info.get(field) is False
 
 
 def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
@@ -217,22 +224,29 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
     if head is None:
         return _ambiguous()
 
-    # reviewRequests — a structurally invalid or truncated connection means we cannot
-    # prove Copilot's enablement state, so fail closed rather than assume "not asked".
+    # reviewRequests — a structurally invalid, unprovably-complete, or truncated
+    # connection means we cannot prove Copilot's enablement state, so fail closed
+    # rather than assume "not asked".
     req = _connection(pr, "reviewRequests")
-    if req is None or _truncated(req, "hasNextPage"):
+    if req is None or not _page_complete(req, "hasNextPage"):
+        return _ambiguous()
+    req_nodes = _strict_nodes(req)
+    if req_nodes is None:
         return _ambiguous()
     copilot_requested = any(
-        _login(node.get("requestedReviewer")) == COPILOT_LOGIN for node in _nodes(req)
+        _login(node.get("requestedReviewer")) == COPILOT_LOGIN for node in req_nodes
     )
 
-    # reviews — must be structurally valid and not truncated; every Copilot review must
-    # carry a known state (a missing/unknown state must not be read as "completed").
+    # reviews — must be structurally valid and provably complete; every Copilot review
+    # must carry a known state (a missing/unknown state must not be read as "completed").
     rv = _connection(pr, "reviews")
-    if rv is None or _truncated(rv, "hasPreviousPage"):
+    if rv is None or not _page_complete(rv, "hasPreviousPage"):
+        return _ambiguous()
+    review_nodes = _strict_nodes(rv)
+    if review_nodes is None:
         return _ambiguous()
     reviews: list[ReviewRecord] = []
-    for node in _nodes(rv):
+    for node in review_nodes:
         if _login(node.get("author")) != COPILOT_LOGIN:
             continue
         state = node.get("state")
@@ -244,26 +258,39 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
             ReviewRecord(state=state, commit_oid=oid if isinstance(oid, str) else None)
         )
 
-    # reviewThreads — must be structurally valid and not truncated; a truncated thread
-    # list could hide an unresolved Copilot thread and yield a false SATISFIED.
+    # reviewThreads — must be structurally valid and provably complete; a truncated or
+    # malformed thread list could hide an unresolved Copilot thread and yield a false
+    # SATISFIED.
     threads = _connection(pr, "reviewThreads")
-    if threads is None or _truncated(threads, "hasNextPage"):
+    if threads is None or not _page_complete(threads, "hasNextPage"):
+        return _ambiguous()
+    thread_nodes = _strict_nodes(threads)
+    if thread_nodes is None:
         return _ambiguous()
     unresolved: list[str] = []
-    for node in _nodes(threads):
+    for node in thread_nodes:
         resolved = node.get("isResolved")
         if resolved is True:
             continue
         if resolved is not False:
             # A non-boolean isResolved is a malformed thread; fail closed.
             return _ambiguous()
-        comments = node.get("comments")
-        comment_nodes = _nodes(comments) if isinstance(comments, Mapping) else []
+        # An unresolved thread with a malformed/absent comment list or an
+        # undeterminable author is unverifiable: we cannot prove it is NOT an open
+        # Copilot thread, so fail closed instead of silently dropping it.
+        comment_nodes = _strict_nodes(node.get("comments"))
+        if comment_nodes is None:
+            return _ambiguous()
         first = comment_nodes[0] if comment_nodes else None
-        if first is not None and _login(first.get("author")) == COPILOT_LOGIN:
+        author = _login(first.get("author")) if first is not None else None
+        if author is None:
+            return _ambiguous()
+        if author == COPILOT_LOGIN:
             tid = node.get("id")
-            if isinstance(tid, str):
-                unresolved.append(tid)
+            if not isinstance(tid, str):
+                # A malformed id on an open Copilot thread cannot be resolved/tracked.
+                return _ambiguous()
+            unresolved.append(tid)
 
     return ReviewState(
         head_ref_oid=head,
@@ -273,12 +300,24 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
     )
 
 
-def _nodes(container: Any) -> list[Any]:
-    if isinstance(container, Mapping):
-        nodes = container.get("nodes")
-        if isinstance(nodes, Sequence) and not isinstance(nodes, (str, bytes)):
-            return [n for n in nodes if isinstance(n, Mapping)]
-    return []
+def _strict_nodes(container: Any) -> list[Mapping[str, Any]] | None:
+    """Return a connection's ``nodes`` as mappings, or None if unverifiable.
+
+    Fail-closed: a non-mapping container, an absent/non-array ``nodes`` field, or any
+    non-object entry yields None so the caller BLOCKS rather than treating malformed
+    data as an empty (and therefore "clean") node list.
+    """
+    if not isinstance(container, Mapping):
+        return None
+    nodes = container.get("nodes")
+    if not isinstance(nodes, Sequence) or isinstance(nodes, (str, bytes)):
+        return None
+    result: list[Mapping[str, Any]] = []
+    for node in nodes:
+        if not isinstance(node, Mapping):
+            return None
+        result.append(node)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -485,7 +524,6 @@ def evaluate(
     gh_bin: str = DEFAULT_GH,
     sleep_fn: "Callable[[float], None] | None" = None,
     clock_fn: "Callable[[], float] | None" = None,
-    forced: bool = False,
 ) -> CopilotReviewResult:
     """Evaluate the gate for ``pr``, polling up to ``max_wait`` seconds.
 
@@ -495,9 +533,10 @@ def evaluate(
     verdict is escalated to REVIEW_TIMEOUT (still a BLOCK). All I/O is injectable so
     the loop is fully deterministic under test.
 
-    ``forced`` records an audited operator override: the verdict is unchanged but the
-    result reports ``blocked=False`` so ``--force`` can let an otherwise-blocking
-    outcome through with an audit trail.
+    Evaluation is **purely blocking**: it never returns a passed-through override. An
+    audited operator ``--force`` bypass is applied by the CLI *after* the audit record
+    is written (see :func:`autoharness.cli._audit_copilot_review_force`), so a direct
+    caller can never obtain an unaudited non-blocking result from this function.
     """
     if enforcement not in ENFORCEMENT_MODES:
         raise ValueError(
@@ -505,7 +544,7 @@ def evaluate(
         )
 
     if enforcement == "disabled":
-        return CopilotReviewResult(Verdict.NOT_APPLICABLE, enforcement, forced=forced)
+        return CopilotReviewResult(Verdict.NOT_APPLICABLE, enforcement)
 
     import math
     import time as _time
@@ -537,7 +576,7 @@ def evaluate(
         except Exception:  # noqa: BLE001 - any query failure is a fail-safe BLOCK
             verdict = classify(None, enforcement, verify_failed=True)
             return CopilotReviewResult(
-                verdict, enforcement, rounds=rounds, forced=forced,
+                verdict, enforcement, rounds=rounds,
                 detail=f"round {rounds}",
             )
 
@@ -549,7 +588,6 @@ def evaluate(
                 head_ref_oid=state.head_ref_oid,
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
-                forced=forced,
             )
 
         # Review is enabled but not yet complete for HEAD. With no wait budget this
@@ -562,7 +600,6 @@ def evaluate(
                 head_ref_oid=state.head_ref_oid,
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
-                forced=forced,
             )
         elapsed = clock() - start
         if elapsed >= max_wait:
@@ -573,7 +610,9 @@ def evaluate(
                 head_ref_oid=state.head_ref_oid,
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
-                forced=forced,
                 detail=f"waited {elapsed:.0f}s of {max_wait:.0f}s",
             )
-        sleep(poll_interval)
+        # Sleep only for the remaining budget so the advertised bounded wait is
+        # honoured: a full poll_interval could otherwise overshoot the window by up to
+        # one interval (e.g. --max-wait 1 must not sleep a full 15s before rechecking).
+        sleep(min(poll_interval, max_wait - elapsed))
