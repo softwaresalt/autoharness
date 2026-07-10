@@ -545,6 +545,31 @@ follow-up items before `DARK_MODE_COMPLETE` is emitted.
 
 ---
 
+## P-019: Local Pre-Push Quality-Gate Enforcement
+
+| Field      | Value                                             |
+|------------|---------------------------------------------------|
+| Policy ID  | P-019                                             |
+| Applies To | pre-push hook, `ship`, contributor local workflow |
+| Gate Point | Local `git push` (client-side), before remote CI  |
+
+**Statement**: When the pre-push quality-gate hook is **enabled** (opt-in via `core.hooksPath`), a `git push` MUST run the workspace-discovered quality gates (build, test, lint, format, typecheck — whichever the profile resolved) in a single deterministic pass and MUST block the push on any gate failure. The hook is a **local guardrail that shifts the fast-feedback gates left**, ahead of remote CI; it is not a replacement for the CI aggregation gate (see P-009 / the CI required-check contract). A gate whose tool is not installed is **skipped with a warning**, never treated as a failure, so a partial toolchain never wedges a contributor's push.
+
+* **Opt-in by construction**: the hook is committed but inactive until a developer runs `git config core.hooksPath <hook-dir>`. Nothing in the harness activates it automatically, so automated agents (including Ship) are never intercepted by a half-configured hook during their own push loop.
+* **Single deterministic pass (circuit-breaker safe)**: the hook runs each gate exactly once with no internal retry loop, consistent with the circuit-breaker discipline. Push either passes all present gates or is blocked with a clear per-gate report.
+* **Cross-platform parity**: the `.sh` and `.ps1` hook variants enforce the same gate set so the guarantee holds regardless of the contributor's shell.
+* **Advisory, not a merge gate**: P-019 governs the *local* push experience. It does not substitute for P-014 (local review readiness), P-018 (Copilot review), or the remote CI required check. A workspace with the hook disabled still relies entirely on those remote gates.
+
+**Precondition**: The pre-push hook is installed in the workspace (`local_gating.pre_push_enabled: true`) and a contributor has opted in via `core.hooksPath`.
+
+**Postcondition**: Either every present quality gate passed for the pushed commits, or the push was blocked locally with an actionable per-gate failure report. Absent tools are reported as skipped, not failed.
+
+**Relationship to the CI required-check contract**: P-019 is the local, shift-left counterpart of the remote CI aggregation gate. The harness produces both the pre-push hook (local) and the aggregation-gate CI job (remote); re-adding or renaming a **required** status check in a branch ruleset remains an operator configuration action — the harness never edits rulesets.
+
+**Violation Action**: If the hook is enabled but a push proceeds despite a failed present gate (e.g., the hook was bypassed with `--no-verify` outside an approved exception), record the bypass through P-005 telemetry (`violation_policy: P-019`, `gate: local pre-push`, `action: bypassed`) so the local-gate skip is visible. Local bypass does not exempt the change from remote CI or the merge gates.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -563,3 +588,4 @@ follow-up items before `DARK_MODE_COMPLETE` is emitted.
 | 1.11.0  | {{DATE}}     | Added P-016      | No parallel branch/worktree execution, with only explicit Stage spike/research worktrees exempt |
 | 1.12.0  | {{DATE}}     | Added P-017      | Dark factory autonomy contract — bounded autonomous execution, local-review authority, and audited merge approval |
 | 1.13.0  | {{DATE}}     | Added P-018      | Copilot review completion & thread resolution merge gate — deterministic, fail-closed, admin non-bypass, multi-round, bounded-timeout escape |
+| 1.14.0  | {{DATE}}     | Added P-019      | Local pre-push quality-gate enforcement — opt-in, single-pass, tool-absent→skip, shift-left counterpart of the CI aggregation gate |

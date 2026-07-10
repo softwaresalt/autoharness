@@ -62,6 +62,22 @@ prompt shims, and verification surfaces. It is always bounded, local-review-firs
 merge-commit-only, single-worktree, and closure-complete; it is never a blanket
 permission to bypass the harness.
 
+The unified CI + local-gating primitive is a base-primitive deepening rather
+than a capability pack. It weaves a fail-closed CI aggregation gate (the single
+required status check) and an opt-in cross-platform pre-push quality-gate hook
+through several primitives at once, and must stay coherent across them:
+
+* Primitive 5 (Tool Execution, Safety Modes, Guardrails) — the pre-push hook
+  (P-019) and the fail-closed `changes` path filter add deterministic local and
+  remote guardrails; the harness produces the checks and never edits rulesets.
+* Primitive 7 (Observability and Evaluation) — the always-running aggregation
+  gate and hook gate reports are observable signals of change health.
+* Primitive 8 (Workflow Policy) — P-019 governs local pre-push enforcement and
+  the aggregation gate is the single required-check contract.
+* Primitive 10 (Operational Closure and Feedback) — green CI plus local gates
+  feed release-readiness evidence; re-adding or renaming a required status check
+  in a branch ruleset is an explicit operator configuration action.
+
 ## Primitive 1: State, Context, and Knowledge Retrieval
 
 **Purpose**: Maintain durable state across sessions, retrieve relevant prior learnings at the point of work, manage the context window, and prevent token overflow.
