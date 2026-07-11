@@ -144,22 +144,22 @@ artifacts:
   - path: ".github/agents/auto-mergeinstall.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "e0cb9a2a29d6d773811b411ef1b33aef91e3f4b9d475bfa09915682babcc1e82"
+    checksum: "78b74ba30f9bea0b47512a617abd6c12f061d535db5ecc7f3eff5b17728f15e9"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/agents/auto-tune.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "ea4089e812743b400005cb9fab16c3561d399fd3395ca58b640ec4d904a1a8b5"
+    checksum: "337fba555d04a390dbcdc63b025ccdc9eac5d9873a1a0e9671fb3963a255e7da"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "0aed75b2b6fa5b36a4ff833f9cf304be8abc6fb6d76bfef6f5dd8e4730f5476a"
+    checksum: "b5cf12619df594d96f669697f65a0037d9194a9c100d2deb56ff001eb32ea611"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "1e7d4ad6f804886b7e40400f47b094a0225caef6d97924e3f5e9eb0310f75e60"
+    checksum: "682a8b8996539af8fae1fb9354df72d8b7ba78b74df57a41200b7fe85a7c0855"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
@@ -169,7 +169,7 @@ artifacts:
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
     template: "global skill definition"
-    checksum: "d5bb1a4e75b7ec71a4810ee3a1d17ba2ed28e35aacaf864ca030ac34a0b75c99"
+    checksum: "406e89300401a5712e56300e72ab50143718ba3e31e27d0b2f5511db9b22fced"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/prompts/install-harness.prompt.md"
     primitive: 6
@@ -211,6 +211,11 @@ artifacts:
     template: "instructions/github-pr-automation.instructions.md.tmpl"
     checksum: "c79614febcde19ae55c3c05cac718586c9f1075692d1553f6b4a5c3c82a58e63"
     note: "GitHub PR/CI automation instruction (previously unrecorded)"
+  - path: ".github/instructions/copilot-code-review.instructions.md"
+    primitive: 7
+    template: "instructions/copilot-code-review.instructions.md.tmpl"
+    checksum: "238d6a45dde027c88d77a8262510da909b66654b41d6a9423af4f0f459987f6f"
+    note: "GitHub Copilot code-review focus instruction (086-S); GitHub-conditional, base-branch activated"
   - path: ".github/instructions/output-timestamps.instructions.md"
     primitive: 7
     template: "instructions/output-timestamps.instructions.md.tmpl"
@@ -287,3 +292,11 @@ variables_used:
   DOCS_CLOSURE: "docs/closure"
   DOCS_DESIGN_DOCS: "docs/design-docs"
   DOCS_PRODUCT_SPECS: "docs/product-specs"
+  HARNESS_ENFORCED_SUMMARY: |
+    * Markdown formatting and markdownlint heading hierarchy (MD001/MD025/MD041, P-008)
+    * Workflow policies P-001 through P-019 and constitutional principle sequencing
+    * Test-first red-green gate mechanics (P-002, P-004) and the `unittest` suite run
+    * Merge-commit-only discipline (P-009, Principle XI) — squash and rebase are forbidden
+    * Role-boundary enforcement (P-010) and single-worktree topology (P-016)
+    * Backlog and shipment bookkeeping conventions (backlogit)
+    * Template variable-completeness and cross-reference integrity checks
