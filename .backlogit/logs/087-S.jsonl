@@ -1,1 +1,3 @@
 {"timestamp":"2026-07-10T23:16:55.7656262-07:00","actor":"backlogit","item_id":"087-S","event_type":"shipment_created","delta":{"items":["075.001-T","075.002-T","075.003-T","075.004-T","075.005-T"],"title":"Capability-pack usage-enforcement hook (075-F)"}}
+{"timestamp":"2026-07-10T23:29:44.5638829-07:00","actor":"backlogit","item_id":"087-S","event_type":"shipment_item_added","delta":{"item_id":"075.006-T"}}
+{"timestamp":"2026-07-10T23:29:45.1845688-07:00","actor":"backlogit","item_id":"087-S","event_type":"shipment_item_added","delta":{"item_id":"075.007-T"}}

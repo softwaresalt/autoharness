@@ -16,14 +16,20 @@ backlog_items:
   - "075.003-T"
   - "075.004-T"
   - "075.005-T"
+  - "075.006-T"
+  - "075.007-T"
 linked_artifacts:
   - "templates/instructions/capability-pack-enforcement.instructions.md.tmpl"
   - ".github/instructions/capability-pack-enforcement.instructions.md"
   - "src/autoharness/verify_workspace.py"
   - "tests/test_capability_pack_enforcement.py"
+  - "schemas/capability-pack-registry.schema.json"
+  - "templates/packs/capability-pack-registry.yaml"
+  - "tests/test_capability_pack_registry.py"
   - ".github/skills/install-harness/SKILL.md"
   - ".github/skills/tune-harness/SKILL.md"
-  - "templates/packs/capability-pack-registry.yaml"
+  - ".github/instructions/agent-engram.instructions.md"
+  - ".github/instructions/graphtor-docs.instructions.md"
   - "docs/capability-packs.md"
 tags:
   - "capability-packs"
@@ -39,37 +45,67 @@ tags:
 ## Decision
 
 Build **one reusable capability-pack usage-enforcement overlay**, not two bespoke
-per-pack hooks. It has two deterministic surfaces plus install/tune weaving:
+per-pack hooks. It combines a soft session-time surface with a hard install-time
+surface, plus registry/tune weaving:
 
-1. **Session-time — a Pre-Retrieval Routing Protocol instruction.** A new
-   technology-agnostic template
+1. **Session-time — a Pre-Retrieval Routing *coordinator* instruction (soft
+   discipline).** A new technology-agnostic template
    `templates/instructions/capability-pack-enforcement.instructions.md.tmpl`
    (installed mirror `.github/instructions/capability-pack-enforcement.instructions.md`)
-   modeled on `role-enforcement.instructions.md`. It defines a fail-closed
-   routing discipline: before any retrieval operation (code/symbol/structural/
-   semantic search, or documentation/domain-context/business-context lookup), the
-   agent MUST (a) check the responsible pack's health/freshness with the pack's
-   own lifecycle tool, (b) route the query through the pack's most-specific tool,
-   and (c) fall back to grep/glob/web **only** after a documented pack-miss or
-   pack-unavailability. Deviations (raw grep/web used for a pack-covered query
-   class while the pack was installed and reachable) are logged as observability
-   events. The instruction contains a query-class → pack routing table so the
-   discipline is concrete and generic across retrieval packs.
+   modeled on `role-enforcement.instructions.md`. It is a **thin coordinator**:
+   it owns cross-pack query **classification**, **precedence**, **exemptions**,
+   and the **deviation-record format**, and it **defers to each pack's own
+   instruction** for lifecycle/tool/fallback specifics (the pack instruction
+   wins on those details). It defines a routing discipline: for a retrieval
+   operation, classify the query, route structural/conceptual code queries to
+   engram and indexed documentation/domain/business-context queries to
+   graphtor-docs, and reuse a per-phase health check rather than probing before
+   every call. **Explicit exemptions** (consistent with the existing pack
+   instructions) keep direct tools first-class: literal-text/regex search and
+   known exact-path confirmation use grep/read directly; mixed queries may use
+   both packs. **Fallback is sensitivity-aware**: on an index miss, public/
+   external questions may fall back to web, but **internal business-context
+   misses (SoWs, internal docs, process, data-mapping) MUST NOT go to public web**
+   — they fall back to approved local/internal sources or request source
+   configuration. The routing/exemption table renders **only the enabled**
+   packs' rows (delimited by stable markers) so the instruction never points at
+   an unavailable tool. Deviations are recorded as **session-output signals**
+   (not audited telemetry, which is deferred).
 
-2. **Install/CI-time — a deterministic verifier check.** A new
+2. **Install/CI-time — a deterministic verifier check (hard coherence).** A new
    `_check_capability_pack_enforcement` in `src/autoharness/verify_workspace.py`
-   (modeled on `_check_copilot_code_review_instruction`). When at least one
-   retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled, it
-   asserts the enforcement instruction is installed, has valid YAML frontmatter
-   with `applyTo: '**'`, references each enabled retrieval pack, contains no
-   unresolved `{{PLACEHOLDER}}` tokens, and (when manifest-listed) is present.
-   Existence-gated: when no retrieval pack is enabled the check is a no-op.
+   (modeled on `_check_copilot_code_review_instruction`). Expectedness is driven
+   by **enabled retrieval-enforced packs, not manifest membership**: when at
+   least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled
+   in `installed_packs`, the check **independently requires** (a) the enforcement
+   instruction file exists, (b) it is manifest-listed with a checksum, and (c) it
+   represents **exactly** the enabled retrieval-pack set (verified via stable
+   route-row markers, not a loose substring). It also asserts valid YAML
+   frontmatter with `applyTo: '**'` and no unresolved `{{PLACEHOLDER}}` tokens.
+   When **no** retrieval-enforced pack is enabled the check is a no-op. This
+   closes the silent-omission gap: an installer cannot drop both the file and the
+   manifest entry while leaving a retrieval pack enabled.
 
-3. **Install + tune weaving.** `install-harness` installs the enforcement
-   instruction whenever any retrieval-enforced pack is selected and records it in
-   the manifest; the capability-pack registry marks which packs are
-   retrieval-enforced. `tune-harness` detects drift (pack enabled but enforcement
-   instruction missing, stale, or no longer referencing the enabled packs).
+3. **Install + tune weaving + registry + contracts.** `install-harness` installs
+   the enforcement instruction whenever any retrieval-enforced pack is selected,
+   records it in the manifest `artifacts[]`, and adds it as an overlay entry in
+   each relevant pack's `capability_pack_overlays[]` record. The capability-pack
+   registry marks which packs are retrieval-enforced via a new **optional
+   `retrieval_enforced` boolean** added to `capability-pack-registry.schema.json`
+   (the schema is `additionalProperties: false`, so the property must be declared;
+   no closed pack-ID enum changes). The `agent-engram` and `graphtor-docs` pack
+   instructions (templates + dogfood mirrors) gain a cross-reference to the
+   coordinator. `tune-harness` detects drift (pack enabled but enforcement
+   instruction missing, stale, or representing the wrong pack set) and re-renders
+   the enabled route rows when the set changes / removes the file when no
+   retrieval-enforced pack remains.
+
+The two surfaces are **not equally hard**: surface 1 is *soft* session-time
+routing discipline that an LLM agent self-applies; surface 2 is *hard*
+installation/coherence enforcement that CI catches deterministically. The
+"deterministic hook" the stash items ask for is the guarantee that a workspace
+cannot silently drop the enforcement discipline without the verifier failing —
+not a guarantee that the agent's every tool choice is intercepted.
 
 Telemetry-based retrospective usage auditing (the telemetry epoch already carries
 `operations.cli_tools`) is noted as a **future phase**, not built here.
@@ -85,9 +121,9 @@ Telemetry-based retrospective usage auditing (the telemetry epoch already carrie
   templates + a verifier, not a runtime that sits between the agent and its tools.
   A git `pre-push` hook (P-019) fires on git events and cannot observe mid-session
   tool choices, so it can only check index freshness — a weak proxy for "usage."
-  The honest *deterministic* surfaces are therefore **session-time** (an
-  instruction protocol the agent self-applies, exactly like role-enforcement's
-  pre-mutation protocol) and **install/CI-time** (the verifier). This decision
+  The honest surfaces are therefore a **soft session-time** discipline (an
+  instruction protocol the agent self-applies, like role-enforcement's
+  pre-mutation protocol) and a **hard install/CI-time** verifier. This decision
   builds on both rather than over-promising an interceptor.
 
 * **Reuses three proven patterns**, minimizing novel surface and review risk:
@@ -115,23 +151,72 @@ Telemetry-based retrospective usage auditing (the telemetry epoch already carrie
 
 ## Scope boundary
 
-* **In scope:** the enforcement instruction template + dogfood mirror; the
-  verifier check + tests; install-harness weaving + registry marking; tune drift
-  check; `docs/capability-packs.md` + a harness-architecture note; dogfood
-  manifest tracking (this repo enables engram + graphtor-docs).
+* **In scope:** the enforcement coordinator instruction template + dogfood
+  mirror (thin coordinator with exemptions + sensitivity-aware fallback +
+  conditional enabled-row rendering); the verifier check + tests (pack-enabled
+  gating, exact-set, file/manifest/checksum); the `retrieval_enforced` registry
+  schema property + registry data marking + registry tests; install-harness
+  weaving + manifest `artifacts[]` + `capability_pack_overlays[]` records;
+  `agent-engram` + `graphtor-docs` pack-instruction cross-references (templates +
+  mirrors) + overlay-contract text; tune drift check (re-render on set change /
+  remove when none remain); `docs/capability-packs.md` + a harness-architecture
+  note; dogfood manifest tracking (this repo enables engram + graphtor-docs).
 * **Out of scope:** telemetry capture of live tool usage; any git-hook usage
-  proxy; changing engram/graphtor-docs pack instruction *content* beyond a
-  cross-reference to the enforcement instruction; new schema enums for packs (the
-  registry marking is additive and does not change the closed pack enums).
+  proxy; a runtime tool-call interceptor; changing engram/graphtor-docs pack
+  instruction *content* beyond a cross-reference to the coordinator; new closed
+  pack-ID enums (the `retrieval_enforced` property is additive and does not touch
+  the closed pack enums).
+
+## Review hardening (adversarial design review, 2026-07-10)
+
+An adversarial design review (rubber-duck, gpt-5.6-sol) accepted the core
+architecture and required these corrections, all folded into the decision above
+and the task breakdown:
+
+* **P0 — Routing must defer, not override.** The coordinator carves out explicit
+  exemptions (literal/regex/known-path → direct grep/read; per-phase health
+  reuse; mixed queries may use both) and defers to each pack instruction for
+  lifecycle/tool/fallback specifics, so it never contradicts the existing pack
+  protocols.
+* **P0 — Sensitivity-aware fallback.** Internal business-context misses must not
+  fall back to public web; only public/external questions may.
+* **P0 — Pack-enabled verifier gating.** Expectedness derives from the enabled
+  retrieval-enforced set (not manifest membership); when a retrieval pack is
+  enabled the file must exist, be manifest-listed with checksum, and represent
+  exactly the enabled set — closing the silent-omission gap.
+* **P0 — Registry schema property.** `retrieval_enforced` is declared in
+  `capability-pack-registry.schema.json` (additionalProperties:false) with tests.
+* **P1 — Thin coordinator + cross-references.** The coordinator owns only
+  classification/precedence/exemptions/deviation-format; pack instructions win on
+  details and gain a cross-reference; overlay-contract records updated.
+* **P1 — Conditional rendering + exact-set verification** via stable route-row
+  markers; tune re-renders on set change and removes the file when none remain.
+* **P1 — Honest framing.** Soft session discipline + hard install coherence;
+  deviation records are session-output signals, not audited telemetry.
+* **P1 — Re-decomposition** into seven single-domain tasks (below).
+
+## Task decomposition (seven single-domain units)
+
+| Task | Domain | Scope |
+|---|---|---|
+| 075.001-T | instruction | Coordinator instruction template + dogfood mirror (exemptions, sensitivity-aware fallback, conditional enabled-row rendering, stable markers, defers to pack protocols) |
+| 075.002-T | verifier code | `_check_capability_pack_enforcement` (pack-enabled gating, exact-set via markers, independent file/manifest/checksum) |
+| 075.003-T | test | Verifier behavior matrix (none / engram-only / graphtor-only / both; missing-file; missing-manifest-entry; wrong-set; placeholder; frontmatter flip) |
+| 075.004-T | install-workflow | install-harness conditional install + manifest `artifacts[]` + `capability_pack_overlays[]` + dogfood mirror checksum |
+| 075.005-T | tune + docs | tune drift (re-render on set change / remove when none) + `docs/capability-packs.md` + harness-architecture note |
+| 075.006-T | schema/data | `retrieval_enforced` registry schema property + registry data marking + registry schema/data tests |
+| 075.007-T | instruction cross-ref | `agent-engram` + `graphtor-docs` templates + mirrors reference the coordinator; overlay-contract text alignment |
 
 ## Verification expectation (for Ship)
 
-* Full unittest suite green, including new `tests/test_capability_pack_enforcement.py`.
+* Full unittest suite green, including new `tests/test_capability_pack_enforcement.py`
+  and updated `tests/test_capability_pack_registry.py`.
 * `verify_workspace` on the dogfood repo passes with the enforcement instruction
-  installed, manifest-tracked, and referencing engram + graphtor-docs.
+  installed, manifest-tracked (`artifacts[]` + both packs' `capability_pack_overlays[]`),
+  and its rendered route rows representing exactly {engram, graphtor-docs}.
 * No unresolved `{{VARIABLE}}` in the installed mirror; markdownlint heading
   hierarchy (MD001/MD025/MD041) clean; all cross-references resolve.
-* Adversarial review of the routing table (no false "must route" claims that
-  would wrongly forbid legitimate grep for literal-text/known-path cases) and of
-  the verifier's existence-gating (no false failures when no retrieval pack is
-  enabled).
+* Adversarial code review confirms: no exemption regressions (legitimate
+  literal/known-path grep still allowed), no public-web fallback path for
+  internal business-context, verifier no-ops cleanly when no retrieval pack is
+  enabled, and exact-set marker matching (not loose substring).
