@@ -30,12 +30,17 @@ ALLOWED_VARIABLES = {"PROJECT_NAME", "HARNESS_ENFORCED_SUMMARY"}
 
 
 def _parse_frontmatter(path: Path) -> dict:
-    """Return the parsed YAML frontmatter mapping for a Markdown file."""
+    """Return the parsed YAML frontmatter mapping for a Markdown file.
+
+    Matches the ``---`` fences only at the start of a line so a horizontal rule
+    (``---``) elsewhere in the body cannot corrupt the parse, and reports a clear
+    assertion when the frontmatter block is absent or unterminated.
+    """
     text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        raise AssertionError(f"{path} has no YAML frontmatter")
-    _, frontmatter, _ = text.split("---", 2)
-    data = yaml.safe_load(frontmatter)
+    match = re.match(r"^---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n", text, re.DOTALL)
+    if not match:
+        raise AssertionError(f"{path} has no well-formed YAML frontmatter block")
+    data = yaml.safe_load(match.group(1))
     if not isinstance(data, dict):
         raise AssertionError(f"{path} frontmatter is not a mapping")
     return data
