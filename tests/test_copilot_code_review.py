@@ -177,13 +177,14 @@ class CopilotCodeReviewWiringTests(unittest.TestCase):
         self.assertIn("copilot-code-review.instructions.md", content)
 
     def test_elective_agents_reference_capability_and_base_branch(self) -> None:
+        # Task 074.005-T requires BOTH elective agents to document the capability
+        # AND carry the base-branch activation note (install validated
+        # structurally; refreshed guidance governs subsequent PRs after merge).
         for agent_path in (MERGEINSTALL_AGENT, TUNE_AGENT):
             with self.subTest(agent=agent_path.name):
                 content = agent_path.read_text(encoding="utf-8")
                 self.assertIn("copilot-code-review.instructions.md", content)
-        # The activation caveat lives with the install/discover agent.
-        mergeinstall = MERGEINSTALL_AGENT.read_text(encoding="utf-8")
-        self.assertIn("base branch", mergeinstall)
+                self.assertIn("base branch", content)
 
 
 class CopilotCodeReviewVerifierTests(unittest.TestCase):
@@ -218,17 +219,34 @@ class CopilotCodeReviewDeterministicCheckTests(unittest.TestCase):
     def _manifest_listing(self) -> dict:
         return {"artifacts": [{"path": self.RELATIVE}]}
 
-    def _run_check(self, content: str, manifest: dict | None = None) -> dict | None:
+    def _run_check(
+        self,
+        content: str,
+        manifest: dict | None = None,
+        policy_registry: str | None = None,
+        autoharness_home: Path | None = None,
+    ) -> dict | None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             target = workspace / self.RELATIVE
             target.parent.mkdir(parents=True)
             target.write_text(content, encoding="utf-8")
+            if policy_registry is not None:
+                registry = workspace / ".github" / "policies" / "workflow-policies.md"
+                registry.parent.mkdir(parents=True, exist_ok=True)
+                registry.write_text(policy_registry, encoding="utf-8")
             report: dict = {"targeted_checks": {}}
             _check_copilot_code_review_instruction(
-                report, workspace, manifest if manifest is not None else self._manifest_listing()
+                report,
+                workspace,
+                manifest if manifest is not None else self._manifest_listing(),
+                autoharness_home,
             )
             return report["targeted_checks"].get("copilot_code_review_frontmatter")
+
+    @staticmethod
+    def _synthetic_registry() -> str:
+        return "\n".join(f"## P-{i:03d}: Policy {i}" for i in range(1, 20))
 
     def test_valid_installed_file_passes(self) -> None:
         check = self._run_check(DOGFOOD_PATH.read_text(encoding="utf-8"))
@@ -289,6 +307,45 @@ class CopilotCodeReviewDeterministicCheckTests(unittest.TestCase):
                 report, Path(tmp), {"artifacts": []}
             )
             self.assertNotIn("copilot_code_review_frontmatter", report["targeted_checks"])
+
+    def test_valid_policy_references_pass_with_registry(self) -> None:
+        # The dogfood summary references only defined policies (P-001..P-019);
+        # with a registry present it resolves cleanly.
+        check = self._run_check(
+            DOGFOOD_PATH.read_text(encoding="utf-8"),
+            policy_registry=self._synthetic_registry(),
+        )
+        self.assertIsNotNone(check)
+        self.assertTrue(check["ok"], check.get("errors"))
+
+    def test_undefined_policy_reference_fails_with_registry(self) -> None:
+        # A stale/undefined policy reference (P-999) in the enforced summary must
+        # fail once an authoritative registry is resolvable.
+        content = DOGFOOD_PATH.read_text(encoding="utf-8").replace(
+            "* Backlog and shipment bookkeeping conventions (backlogit)",
+            "* Backlog and shipment bookkeeping conventions (backlogit, P-999)",
+            1,
+        )
+        check = self._run_check(
+            content, policy_registry=self._synthetic_registry()
+        )
+        self.assertIsNotNone(check)
+        self.assertFalse(check["ok"])
+        self.assertTrue(
+            any("undefined" in err and "P-999" in err for err in check["errors"])
+        )
+
+    def test_undefined_policy_reference_skipped_without_registry(self) -> None:
+        # Existence-gated: with no resolvable registry, reference validation is
+        # skipped rather than failed, so an undefined reference does not fail here.
+        content = DOGFOOD_PATH.read_text(encoding="utf-8").replace(
+            "* Backlog and shipment bookkeeping conventions (backlogit)",
+            "* Backlog and shipment bookkeeping conventions (backlogit, P-999)",
+            1,
+        )
+        check = self._run_check(content)
+        self.assertIsNotNone(check)
+        self.assertTrue(check["ok"], check.get("errors"))
 
 
 if __name__ == "__main__":
