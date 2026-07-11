@@ -67,7 +67,8 @@ surface, plus registry/tune weaving:
    external questions may fall back to web, but **internal business-context
    misses (SoWs, internal docs, process, data-mapping) MUST NOT go to public web**
    — they fall back to approved local/internal sources or request source
-   configuration. The routing/exemption table renders **only the enabled**
+   configuration. **Ambiguous sensitivity defaults to internal/no-public-web**
+   (fail-closed on exfiltration risk). The routing/exemption table renders **only the enabled**
    packs' rows (delimited by stable markers) so the instruction never points at
    an unavailable tool. Deviations are recorded as **session-output signals**
    (not audited telemetry, which is deferred).
@@ -78,13 +79,20 @@ surface, plus registry/tune weaving:
    by **enabled retrieval-enforced packs, not manifest membership**: when at
    least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled
    in `installed_packs`, the check **independently requires** (a) the enforcement
-   instruction file exists, (b) it is manifest-listed with a checksum, and (c) it
+   instruction file exists, (b) it is manifest-listed with a checksum, (c) it
    represents **exactly** the enabled retrieval-pack set (verified via stable
-   route-row markers, not a loose substring). It also asserts valid YAML
+   route-row markers, not a loose substring), and (d) it still carries the key
+   **safeguard invariant markers** (pack deferral, direct-search exemptions,
+   per-phase health reuse, internal-no-public-web) so a coherent-but-gutted
+   instruction cannot pass. It also asserts valid YAML
    frontmatter with `applyTo: '**'` and no unresolved `{{PLACEHOLDER}}` tokens.
-   When **no** retrieval-enforced pack is enabled the check is a no-op. This
-   closes the silent-omission gap: an installer cannot drop both the file and the
-   manifest entry while leaving a retrieval pack enabled.
+   When **no** retrieval-enforced pack is enabled the check is a no-op **only if
+   the file and manifest entry are both absent**; if the file or a manifest entry
+   is still present with no retrieval pack enabled, the check **fails as an
+   orphaned overlay** (a stale globally-applied instruction pointing at
+   unavailable tools). This closes the silent-omission gap: an installer cannot
+   drop both the file and the manifest entry while leaving a retrieval pack
+   enabled, and cannot strand the instruction after all retrieval packs are removed.
 
 3. **Install + tune weaving + registry + contracts.** `install-harness` installs
    the enforcement instruction whenever any retrieval-enforced pack is selected,
@@ -195,16 +203,42 @@ and the task breakdown:
   deviation records are session-output signals, not audited telemetry.
 * **P1 — Re-decomposition** into seven single-domain tasks (below).
 
+### Second-pass review (resolutions confirmed no P0 remains)
+
+A follow-up pass on the hardened doc confirmed the core design is sound with **no
+remaining P0** and raised four P1 refinements, all folded in above:
+
+* **Orphaned-overlay gap.** The verifier no-op now applies only when the file and
+  manifest entry are both absent; a stranded instruction with no retrieval pack
+  enabled fails as an orphaned overlay (surface 2). Tune flags/removes it (075.005-T).
+* **Safeguard markers, not just route membership.** The verifier also checks the
+  key safeguard invariant markers (pack deferral, direct-search exemptions,
+  per-phase health reuse, internal-no-public-web) so a gutted-but-coherent
+  instruction cannot pass; ambiguous sensitivity defaults to internal/no-public-web.
+* **Dependency-cycle fix.** The constant↔registry drift guard moved from 075.006-T
+  to 075.003-T; 075.006-T is now registry schema/data only (no verifier coupling),
+  breaking the 075.002-T → 075.006-T → (drift needs verifier) cycle.
+* **Decomposition granularity — deliberate judgment.** The reviewer flagged
+  075.003/005/006/007 as touching several files. These are held at seven tasks by
+  design: the affected work is mechanical documentation/template replication
+  (e.g., 075.007-T adds one identical cross-reference line to a template+mirror
+  pair per pack) and a single cohesive parametrized test matrix (075.003-T), where
+  "files touched" overcounts blast radius and each unit is well under the 2-hour
+  horizon. Further fragmentation would add dependency-wiring risk (the very cycle
+  just corrected) without reducing per-task error compounding. Ownership is kept
+  non-overlapping: install-contract text lives in 075.004-T, documentation-contract
+  text in 075.005-T.
+
 ## Task decomposition (seven single-domain units)
 
 | Task | Domain | Scope |
 |---|---|---|
 | 075.001-T | instruction | Coordinator instruction template + dogfood mirror (exemptions, sensitivity-aware fallback, conditional enabled-row rendering, stable markers, defers to pack protocols) |
 | 075.002-T | verifier code | `_check_capability_pack_enforcement` (pack-enabled gating, exact-set via markers, independent file/manifest/checksum) |
-| 075.003-T | test | Verifier behavior matrix (none / engram-only / graphtor-only / both; missing-file; missing-manifest-entry; wrong-set; placeholder; frontmatter flip) |
+| 075.003-T | test | Verifier behavior matrix (none / engram-only / graphtor-only / both; missing-file; missing-manifest-entry; wrong-set; **orphaned-overlay** (file/manifest present, no pack); gutted-safeguard-marker; placeholder; frontmatter flip) **plus the constant↔registry drift guard** (verifier's retrieval-enforced constant equals the registry-marked set) |
 | 075.004-T | install-workflow | install-harness conditional install + manifest `artifacts[]` + `capability_pack_overlays[]` + dogfood mirror checksum |
-| 075.005-T | tune + docs | tune drift (re-render on set change / remove when none) + `docs/capability-packs.md` + harness-architecture note |
-| 075.006-T | schema/data | `retrieval_enforced` registry schema property + registry data marking + registry schema/data tests |
+| 075.005-T | tune + docs | tune drift (re-render on set change / remove when none / flag orphaned overlay) + `docs/capability-packs.md` + harness-architecture note |
+| 075.006-T | schema/data | `retrieval_enforced` registry schema property + registry data marking (engram + graphtor-docs) + registry schema/data validation tests (no verifier coupling) |
 | 075.007-T | instruction cross-ref | `agent-engram` + `graphtor-docs` templates + mirrors reference the coordinator; overlay-contract text alignment |
 
 ## Verification expectation (for Ship)
@@ -218,5 +252,7 @@ and the task breakdown:
   hierarchy (MD001/MD025/MD041) clean; all cross-references resolve.
 * Adversarial code review confirms: no exemption regressions (legitimate
   literal/known-path grep still allowed), no public-web fallback path for
-  internal business-context, verifier no-ops cleanly when no retrieval pack is
-  enabled, and exact-set marker matching (not loose substring).
+  internal business-context (ambiguous sensitivity defaults to internal),
+  verifier no-ops cleanly only when file+manifest are both absent (orphaned
+  overlay fails otherwise), safeguard invariant markers are verified (not just
+  route-set membership), and exact-set marker matching (not loose substring).
