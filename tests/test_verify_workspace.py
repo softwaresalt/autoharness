@@ -261,12 +261,21 @@ class VerifyWorkspaceTests(unittest.TestCase):
             "DOCS_MEMORY",
             "BACKLOG_DIRECTORY",
             "STATUS_QUEUED",
+            "OP_CREATE_MCP",
+            "FIELD_TITLE",
+            "FIELD_DESCRIPTION",
+            "FIELD_STATUS",
+            "FIELD_LABELS",
         }
         found_variables = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", content))
         self.assertTrue(
             found_variables.issubset(allowed_variables),
             f"unregistered template variables: {found_variables - allowed_variables}",
         )
+
+        # The queue handoff must be executable for the registry-backed backlog-md
+        # tool, not just backlogit prose and the manual .stash.md fallback.
+        self.assertIn("{{OP_CREATE_MCP}}", content)
 
         # Registration in the enumeration surfaces
         for path in (
@@ -295,6 +304,16 @@ class VerifyWorkspaceTests(unittest.TestCase):
         ):
             with self.subTest(pipeline=str(path.relative_to(repo_root))):
                 self.assertIn("Brainstorm/Deliberate/Spike", path.read_text(encoding="utf-8"))
+
+        # The public primitive overview must enumerate the brainstorm front door,
+        # and the installer confirmation preview must list it as a generated skill,
+        # so canonical architecture and operator-visible surfaces stay in agreement.
+        primitives = (repo_root / "docs" / "primitives.md").read_text(encoding="utf-8")
+        self.assertIn("**Brainstorm Skill**", primitives)
+        installer_preview = (
+            repo_root / ".github" / "agents" / "auto-mergeinstall.agent.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("brainstorm, deliberate, spike", installer_preview)
 
     def test_runtime_validator_model_is_woven_through_runtime_and_architecture_surfaces(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

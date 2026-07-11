@@ -154,7 +154,7 @@ Artifacts to generate:
   AGENTS.md:        1 file   (quality gates, conventions)
   Instructions:     {{N}} files ({{language}}, commit, markdown, git, PR, style, prompts)
   Agents:           {{N}} files (pipeline + support + expert + review orchestrators + review personas)
-  Skills:           {{N}} files (deliberate, spike, build, compact, compound, compound-refresh, fix-ci, impl-plan, plan-harden, runtime-verification, operational-closure, safety-modes, plus observe/learn/evolve when continuous-learning is enabled)
+  Skills:           {{N}} files (brainstorm, deliberate, spike, build, compact, compound, compound-refresh, fix-ci, impl-plan, plan-harden, runtime-verification, operational-closure, safety-modes, plus observe/learn/evolve when continuous-learning is enabled)
   Policies:         1 file   (5 workflow policies)
   Prompts:          1 file   (ping-loop)
   Backlog:          2 dirs  (queue, archive) + config.yml + .stash.md

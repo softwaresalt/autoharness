@@ -213,8 +213,13 @@ brainstorm requirements doc
   capability pack (or another backlog tool) is installed, create the entry
   through the backlog tool with a title derived from the topic, a description
   linking the artifact path, status `{{STATUS_QUEUED}}`, and a
-  `brainstorm-outcome` label. When no backlog tool is available (manual backlog
-  mode), append a structured entry to `{{BACKLOG_DIRECTORY}}/queue/.stash.md`
+  `brainstorm-outcome` label. When `backlog-md` is the installed backlog tool,
+  create the entry using `{{OP_CREATE_MCP}}` with `{{FIELD_TITLE}}` derived from
+  the topic, `{{FIELD_DESCRIPTION}}` linking the requirements-artifact path,
+  `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`, and
+  `{{FIELD_LABELS}}: ["brainstorm-outcome"]`. When no backlog tool is available
+  (manual backlog mode), append a structured entry to
+  `{{BACKLOG_DIRECTORY}}/queue/.stash.md`
   instead — a bullet carrying the date, topic, the `{{DOCS_PRODUCT_SPECS}}`
   requirements-artifact path, and `Status: queued` — mirroring the `.stash.md`
   fallback used by `deliberate` and `spike`. Do NOT claim shipments or mark items
