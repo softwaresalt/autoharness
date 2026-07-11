@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-10T16:42:39.8115963-07:00","actor":"backlogit","item_id":"085-S","event_type":"shipment_created","delta":{"items":["073.001-T"],"title":"Brainstorm intake skill"}}
+{"timestamp":"2026-07-10T18:05:02.8431002-07:00","actor":"backlogit","item_id":"085-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/085-S.md"}}
