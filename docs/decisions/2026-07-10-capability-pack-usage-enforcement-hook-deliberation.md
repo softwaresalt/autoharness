@@ -77,8 +77,8 @@ surface, plus registry/tune weaving:
    `_check_capability_pack_enforcement` in `src/autoharness/verify_workspace.py`
    (modeled on `_check_copilot_code_review_instruction`). Expectedness is driven
    by **enabled retrieval-enforced packs, not manifest membership**: when at
-   least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled
-   in `installed_packs`, the check **independently requires** (a) the enforcement
+   least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled,
+   the check **independently requires** (a) the enforcement
    instruction file exists, (b) it is manifest-listed with a checksum that
    **matches the installed file** (the check itself **fails**, not merely warns,
    on a missing/empty checksum **or a mismatch** — the generic checksum scan only
@@ -97,6 +97,14 @@ surface, plus registry/tune weaving:
    unavailable tools). This closes the silent-omission gap: an installer cannot
    drop both the file and the manifest entry while leaving a retrieval pack
    enabled, and cannot strand the instruction after all retrieval packs are removed.
+   One subtlety hardened during review: the existing `installed_packs`
+   (`verify_workspace.py` ~2948-2951) is built from `manifest.capability_packs`
+   **or** `config.capability_packs`, so it is *not* independent of manifest
+   membership — a nonempty manifest that omits a pack while config still enables
+   it would silently disable the check. The enabled retrieval-enforced set is
+   therefore computed from the **union** of the manifest and config capability-pack
+   lists (config is authoritative for "enabled"), so dropping a pack from the
+   manifest's list cannot suppress enforcement.
 
 3. **Install + tune weaving + registry + contracts.** `install-harness` installs
    the enforcement instruction whenever any retrieval-enforced pack is selected,
@@ -115,7 +123,13 @@ surface, plus registry/tune weaving:
    the enabled route rows when the set changes **and updates the recorded manifest
    checksum**, and removes the file when no retrieval-enforced pack remains
    **together with its `artifacts[]` entry and both packs'
-   `capability_pack_overlays[]` records** (no orphaned manifest state).
+   `capability_pack_overlays[]` records** (no orphaned manifest state). As the
+   terminal task, 075.005-T also performs a **final dogfood manifest
+   reconciliation**: it refreshes the `.autoharness/harness-manifest.yaml`
+   checksums for every already-tracked artifact this shipment modifies —
+   `install-harness/SKILL.md` (075.004), `tune-harness/SKILL.md` (075.005), and
+   both pack instructions (075.007) — plus the new coordinator instruction, so
+   dogfood `verify_workspace` reports no stale/user-modified checksums.
 
 The two surfaces are **not equally hard**: surface 1 is *soft* session-time
 routing discipline that an LLM agent self-applies; surface 2 is *hard*
