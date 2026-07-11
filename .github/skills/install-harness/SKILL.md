@@ -830,8 +830,10 @@ mechanics to the individual pack instruction files.
   `<!-- safeguard:pack-deferral -->`, `<!-- safeguard:direct-search-exemptions -->`,
   `<!-- safeguard:per-phase-health-reuse -->`, `<!-- safeguard:internal-no-public-web -->`.
 * Keep `applyTo: '**'` and resolve every `{{VARIABLE}}` before recording the checksum.
-* Record the artifact in the manifest with its SHA-256 checksum; the verifier
-  FAILS (not warns) on a missing/empty/mismatched checksum.
+* Record the artifact in the manifest with its EOL-normalized (LF) content
+  checksum; the verifier normalizes `\r\n` to `\n` before hashing so CRLF/LF
+  checkout differences are not misreported as tampering, and it FAILS (not warns)
+  on a missing/empty/mismatched checksum.
 * When **no** retrieval-enforced pack is selected, do NOT install the file. If a
   prior install left the file (or its manifest entry) behind after the packs were
   removed, remove both — a present file with no enabling pack is an orphaned
@@ -841,7 +843,7 @@ mechanics to the individual pack instruction files.
 * `capability-pack-enforcement.instructions.md` present when ≥1 retrieval-enforced pack is enabled, absent otherwise
 * route rows equal exactly the enabled retrieval-enforced set
 * all four safeguard markers present; `applyTo: '**'`; no unresolved `{{VARIABLE}}`
-* manifest `artifacts[]` records the file with a checksum matching the installed bytes
+* manifest `artifacts[]` records the file with an EOL-normalized (LF) content checksum matching the installed file
 
 **Tuning drift checks**:
 * coordinator checksum vs. installed file (mismatch → user-modified or un-refreshed manifest)

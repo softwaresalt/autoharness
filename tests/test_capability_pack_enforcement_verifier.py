@@ -84,6 +84,7 @@ def _run(
     file_text: str | None,
     manifest_checksum: str | None,
     manifest_listed: bool,
+    crlf: bool = False,
 ):
     """Build a temp workspace and return the targeted_checks dict."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -137,7 +138,10 @@ def _run(
         )
 
         if file_text is not None:
-            (ws / _CPE_REL).write_bytes(file_text.encode("utf-8"))
+            data = file_text.encode("utf-8")
+            if crlf:
+                data = data.replace(b"\n", b"\r\n")
+            (ws / _CPE_REL).write_bytes(data)
 
         return verify_workspace(ws, home)["targeted_checks"]
 
@@ -217,6 +221,26 @@ class CapabilityPackEnforcementVerifierTests(unittest.TestCase):
         check = checks["capability_pack_enforcement"]
         self.assertFalse(check["ok"])
         self.assertTrue(any("route rows" in e for e in check["errors"]))
+
+    def test_crlf_working_tree_matches_lf_normalized_checksum(self) -> None:
+        # Regression: instruction files are text; a CRLF working tree (Windows
+        # autocrlf) must not be misreported as tampering when the manifest
+        # records the LF-normalized content checksum. Both EOL styles pass.
+        text = _instruction(["agent-engram", "graphtor-docs"])
+        lf_checksum = _sha256(text)  # _sha256 hashes the LF form
+        for crlf in (False, True):
+            checks = _run(
+                manifest_packs=["agent-engram", "graphtor-docs"],
+                config_packs=["agent-engram", "graphtor-docs"],
+                file_text=text,
+                manifest_checksum=lf_checksum,
+                manifest_listed=True,
+                crlf=crlf,
+            )
+            self.assertTrue(
+                checks["capability_pack_enforcement"]["ok"],
+                f"crlf={crlf}: {checks['capability_pack_enforcement']['errors']}",
+            )
 
     def test_missing_file_fails(self) -> None:
         checks = _run(

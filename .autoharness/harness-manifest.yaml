@@ -156,7 +156,7 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "8d7c1ebed314ed3f38081c8496cd1ac6020d59653de38c84d1446da47ecfa14f"
+    checksum: "7e783040a038b38965ac965a2574bd212388dacddf3518adacd9b92ab53ba28f"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
@@ -221,8 +221,8 @@ artifacts:
   - path: ".github/instructions/capability-pack-enforcement.instructions.md"
     primitive: 6
     template: "instructions/capability-pack-enforcement.instructions.md.tmpl"
-    checksum: "5ccfe6d43834dbae3fc7b77633894986671e50fc606f9bdc52bed8eb9e38b84f"
-    note: "capability-pack usage-enforcement coordinator (075-F/087-S); routes retrieval-enforced packs (agent-engram, graphtor-docs) with safeguard invariants"
+    checksum: "053ef4d35c2086222017f7416f66ef46ea8be4d0f5e58d44235e6f35a38ea868"
+    note: "capability-pack usage-enforcement coordinator (075-F/087-S); routes retrieval-enforced packs (agent-engram, graphtor-docs) with safeguard invariants; checksum is EOL-normalized (LF)"
   - path: ".github/instructions/output-timestamps.instructions.md"
     primitive: 7
     template: "instructions/output-timestamps.instructions.md.tmpl"

@@ -2493,14 +2493,17 @@ def _check_capability_pack_enforcement(
 
     When at least one retrieval-enforced pack is enabled, the enforcement
     instruction is INDEPENDENTLY required to: (a) exist; (b) be recorded in the
-    manifest ``artifacts[]`` with a checksum that MATCHES the installed file —
-    this check FAILS (not merely warns) on a missing/empty checksum or a
-    mismatch, because the generic checksum scan only records ``user-modified`` /
-    ``checksum-untracked`` as warnings; (c) carry a route block whose
-    ``<!-- route:{id} -->`` rows represent EXACTLY the enabled retrieval-enforced
-    set (via stable markers, not a loose substring); and (d) still carry the four
-    safeguard-invariant markers. It also asserts ``applyTo: '**'`` and no
-    unresolved ``{{PLACEHOLDER}}`` tokens.
+    manifest ``artifacts[]`` with an EOL-normalized content checksum that MATCHES
+    the installed file — this check FAILS (not merely warns) on a missing/empty
+    checksum or a mismatch, because the generic checksum scan only records
+    ``user-modified`` / ``checksum-untracked`` as warnings. The comparison
+    normalizes ``\r\n`` to ``\n`` before hashing so a CRLF/LF difference across
+    checkouts (git stores LF; Windows ``autocrlf`` yields CRLF working trees) is
+    not misreported as tampering; a genuine content change still fails. (c) carry
+    a route block whose ``<!-- route:{id} -->`` rows represent EXACTLY the enabled
+    retrieval-enforced set (via stable markers, not a loose substring); and (d)
+    still carry the four safeguard-invariant markers. It also asserts
+    ``applyTo: '**'`` and no unresolved ``{{PLACEHOLDER}}`` tokens.
 
     When NO retrieval-enforced pack is enabled, the check is a no-op ONLY when the
     file and manifest entry are both absent; if either is still present it FAILS
@@ -2561,7 +2564,7 @@ def _check_capability_pack_enforcement(
         )
     else:
         expected_checksum = checksum_by_path[_CPE_RELATIVE_PATH]
-        actual_checksum = _sha256_bytes(path.read_bytes())
+        actual_checksum = _sha256_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
         if not expected_checksum:
             errors.append(
                 "manifest checksum for the enforcement instruction is missing or "
