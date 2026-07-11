@@ -9,12 +9,16 @@ verify, the verifier engine, and both elective agents.
 from __future__ import annotations
 
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
 import yaml
 
-from autoharness.verify_workspace import FOUNDATION_ASSERTIONS
+from autoharness.verify_workspace import (
+    FOUNDATION_ASSERTIONS,
+    _check_copilot_code_review_instruction,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -197,6 +201,57 @@ class CopilotCodeReviewVerifierTests(unittest.TestCase):
         joined = "\n".join(must_contain)
         self.assertIn("excludeAgent", joined)
         self.assertIn("Focus on high-value concerns", joined)
+
+
+class CopilotCodeReviewDeterministicCheckTests(unittest.TestCase):
+    """Behavioral tests for the parse-based verifier check.
+
+    Unlike the substring-based FOUNDATION_ASSERTIONS entry, this check parses the
+    installed file's frontmatter, so it detects a flipped ``excludeAgent`` value
+    (which shares its string with body prose) and unresolved placeholders.
+    """
+
+    def _run_check(self, content: str) -> dict | None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            target = workspace / ".github" / "instructions" / "copilot-code-review.instructions.md"
+            target.parent.mkdir(parents=True)
+            target.write_text(content, encoding="utf-8")
+            report: dict = {"targeted_checks": {}}
+            _check_copilot_code_review_instruction(report, workspace)
+            return report["targeted_checks"].get("copilot_code_review_frontmatter")
+
+    def test_valid_installed_file_passes(self) -> None:
+        check = self._run_check(DOGFOOD_PATH.read_text(encoding="utf-8"))
+        self.assertIsNotNone(check)
+        self.assertTrue(check["ok"], check.get("errors"))
+
+    def test_flipped_exclude_agent_frontmatter_fails(self) -> None:
+        # Flip ONLY the first (frontmatter) occurrence; body prose still mentions
+        # the correct string. A substring check cannot see this; the parse can.
+        content = DOGFOOD_PATH.read_text(encoding="utf-8").replace(
+            "excludeAgent: 'cloud-agent'", "excludeAgent: 'code-review'", 1
+        )
+        check = self._run_check(content)
+        self.assertIsNotNone(check)
+        self.assertFalse(check["ok"])
+        self.assertTrue(any("excludeAgent" in err for err in check["errors"]))
+
+    def test_unresolved_placeholder_fails(self) -> None:
+        content = (
+            DOGFOOD_PATH.read_text(encoding="utf-8")
+            + "\n\nResidual unresolved token {{HARNESS_ENFORCED_SUMMARY}} left behind.\n"
+        )
+        check = self._run_check(content)
+        self.assertIsNotNone(check)
+        self.assertFalse(check["ok"])
+        self.assertTrue(any("placeholder" in err for err in check["errors"]))
+
+    def test_absent_file_is_noop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            report: dict = {"targeted_checks": {}}
+            _check_copilot_code_review_instruction(report, Path(tmp))
+            self.assertNotIn("copilot_code_review_frontmatter", report["targeted_checks"])
 
 
 if __name__ == "__main__":

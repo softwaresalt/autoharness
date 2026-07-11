@@ -2318,6 +2318,61 @@ def _add_text_check(
     }
 
 
+def _check_copilot_code_review_instruction(
+    report: dict[str, Any], workspace_path: Path
+) -> None:
+    """Deterministic frontmatter + placeholder guard for the Copilot code-review
+    focus instruction.
+
+    Existence-gated: an absent file (non-GitHub or minimal workspaces) is a no-op.
+    When the file is present this parses the YAML frontmatter so a flipped
+    ``excludeAgent`` value is caught — a substring check cannot distinguish the
+    frontmatter value from the identical string in the body prose — and scans the
+    installed file for unresolved ``{{PLACEHOLDER}}`` tokens.
+    """
+    path = workspace_path / ".github/instructions/copilot-code-review.instructions.md"
+    if not path.exists():
+        return
+
+    errors: list[str] = []
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"^---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n", text, re.DOTALL)
+    frontmatter: dict[str, Any] = {}
+    if not match:
+        errors.append("missing or unterminated YAML frontmatter block")
+    else:
+        try:
+            loaded = yaml.safe_load(match.group(1))
+        except yaml.YAMLError as exc:
+            errors.append(f"invalid YAML frontmatter: {exc}")
+        else:
+            if isinstance(loaded, dict):
+                frontmatter = loaded
+            else:
+                errors.append("frontmatter is not a mapping")
+
+    exclude_agent = frontmatter.get("excludeAgent")
+    if exclude_agent != "cloud-agent":
+        errors.append(
+            f"excludeAgent must be 'cloud-agent' (got {exclude_agent!r}); "
+            "'code-review' would silence the reviewer and 'coding-agent' is invalid"
+        )
+    apply_to = frontmatter.get("applyTo")
+    if apply_to != "**":
+        errors.append(f"applyTo must be '**' (got {apply_to!r})")
+
+    unresolved = _find_unresolved_placeholders(path)
+    if unresolved:
+        tokens = sorted({item["placeholder"] for item in unresolved})
+        errors.append("unresolved template placeholders: " + ", ".join(tokens))
+
+    report["targeted_checks"]["copilot_code_review_frontmatter"] = {
+        "path": str(path),
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
 def _add_runtime_validation_profile_check(
     report: dict[str, Any],
     profile_path: Path,
@@ -3035,6 +3090,8 @@ def verify_workspace(
             assertion["must_contain"],
             [tuple(pair) for pair in assertion.get("must_precede") or []],
         )
+
+    _check_copilot_code_review_instruction(report, workspace_path)
 
     artifact_paths = {
         str(artifact.get("path") or "").replace("\\", "/")
