@@ -79,7 +79,10 @@ surface, plus registry/tune weaving:
    by **enabled retrieval-enforced packs, not manifest membership**: when at
    least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled
    in `installed_packs`, the check **independently requires** (a) the enforcement
-   instruction file exists, (b) it is manifest-listed with a checksum, (c) it
+   instruction file exists, (b) it is manifest-listed with a **non-empty
+   checksum** (the check itself **fails**, not merely warns, on a missing/empty
+   checksum — the generic checksum scan only emits `checksum-untracked`
+   warnings, so this check enforces the checksum independently), (c) it
    represents **exactly** the enabled retrieval-pack set (verified via stable
    route-row markers, not a loose substring), and (d) it still carries the key
    **safeguard invariant markers** (pack deferral, direct-search exemptions,
