@@ -77,8 +77,8 @@ surface, plus registry/tune weaving:
    `_check_capability_pack_enforcement` in `src/autoharness/verify_workspace.py`
    (modeled on `_check_copilot_code_review_instruction`). Expectedness is driven
    by **enabled retrieval-enforced packs, not manifest membership**: when at
-   least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled
-   in `installed_packs`, the check **independently requires** (a) the enforcement
+   least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled,
+   the check **independently requires** (a) the enforcement
    instruction file exists, (b) it is manifest-listed with a checksum that
    **matches the installed file** (the check itself **fails**, not merely warns,
    on a missing/empty checksum **or a mismatch** — the generic checksum scan only
@@ -97,6 +97,14 @@ surface, plus registry/tune weaving:
    unavailable tools). This closes the silent-omission gap: an installer cannot
    drop both the file and the manifest entry while leaving a retrieval pack
    enabled, and cannot strand the instruction after all retrieval packs are removed.
+   One subtlety hardened during review: the existing `installed_packs`
+   (`verify_workspace.py` ~2948-2951) is built from `manifest.capability_packs`
+   **or** `config.capability_packs`, so it is *not* independent of manifest
+   membership — a nonempty manifest that omits a pack while config still enables
+   it would silently disable the check. The enabled retrieval-enforced set is
+   therefore computed from the **union** of the manifest and config capability-pack
+   lists (config is authoritative for "enabled"), so dropping a pack from the
+   manifest's list cannot suppress enforcement.
 
 3. **Install + tune weaving + registry + contracts.** `install-harness` installs
    the enforcement instruction whenever any retrieval-enforced pack is selected,
@@ -108,14 +116,31 @@ surface, plus registry/tune weaving:
    registry marks which packs are retrieval-enforced via a new **optional
    `retrieval_enforced` boolean** added to `capability-pack-registry.schema.json`
    (the schema is `additionalProperties: false`, so the property must be declared;
-   no closed pack-ID enum changes). The `agent-engram` and `graphtor-docs` pack
+   no closed pack-ID enum changes). 075.006-T also fixes a coupled pre-existing
+   bug in the **manifest** schema (distinct from the registry schema):
+   `graphtor-docs` is absent from the pack enums in
+   `schemas/harness-manifest.schema.json` and `schemas/harness-manifest/1.0.0.schema.json`
+   (both `capability_packs[].items.enum` and `capability_pack_overlays[].pack.enum`),
+   yet the dogfood manifest already lists it — so the current manifest is
+   schema-invalid and the install contract would perpetuate it. Adding
+   `graphtor-docs` to both enums in both files (landed before 075.004-T) closes
+   that gap. The `agent-engram` and `graphtor-docs` pack
    instructions (templates + dogfood mirrors) gain a cross-reference to the
    coordinator. `tune-harness` detects drift (pack enabled but enforcement
    instruction missing, stale, or representing the wrong pack set), re-renders
    the enabled route rows when the set changes **and updates the recorded manifest
    checksum**, and removes the file when no retrieval-enforced pack remains
    **together with its `artifacts[]` entry and both packs'
-   `capability_pack_overlays[]` records** (no orphaned manifest state).
+   `capability_pack_overlays[]` records** (no orphaned manifest state). Each task
+   that edits a checksum-tracked dogfood artifact refreshes that artifact's
+   manifest checksum as part of its own DoD, and as the
+   terminal task, 075.005-T performs a **final dogfood manifest
+   reconciliation**: it re-confirms the `.autoharness/harness-manifest.yaml`
+   checksums for every already-tracked artifact this shipment modifies —
+   `install-harness/SKILL.md` (075.004), `tune-harness/SKILL.md` and
+   `harness-architecture.instructions.md` (075.005), and both pack instructions
+   (075.007) — plus the new coordinator instruction, so
+   dogfood `verify_workspace` reports no stale/user-modified checksums.
 
 The two surfaces are **not equally hard**: surface 1 is *soft* session-time
 routing discipline that an LLM agent self-applies; surface 2 is *hard*
