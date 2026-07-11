@@ -1,0 +1,348 @@
+---
+description: "Front-door requirements intake — frame the problem, elicit stable requirements, define success criteria and scope, separate blocking from deferred questions, and hand a durable requirements artifact to impl-plan before any implementation"
+---
+
+## Brainstorm
+
+Explore WHAT to build and WHY as a product-shaped requirements intake, before
+`impl-plan` decides HOW. Brainstorm produces a durable requirements artifact —
+problem frame, stable requirement IDs, success criteria, scope boundaries,
+assumptions, and separated outstanding questions — that hands off cleanly to
+`impl-plan`, `plan-review`, and `harvest`.
+
+Brainstorm is the front-door `/brainstorm` entry point operators expect before
+handing work to planning or dark factory mode. It complements `deliberate`
+rather than replacing it: `deliberate` selects between options and captures
+rationale; brainstorm shapes requirements and readiness. When trade-off analysis
+is needed, brainstorm escalates to `deliberate` rather than duplicating its
+mechanics.
+
+This skill MUST NOT perform implementation, template/source/config mutation,
+shipment claim, PR preparation, or Ship execution. See **Non-Goals and Role
+Boundary**.
+
+## When to Use
+
+Invoke when the operator wants to shape requirements before committing to a
+plan. Use for:
+
+* New features or epics that need a clear problem frame and requirements before
+  planning
+* Requirements, success-criteria, and scope shaping
+* Separating "must resolve before planning" questions from "defer to planning"
+  questions
+* Preparing a bounded requirements handoff before dark factory execution under
+  P-017
+* Any time the operator says "brainstorm", "let's shape this", "what are the
+  requirements", or "capture requirements before we plan"
+
+Escalate to `deliberate` when the core question is which option to choose and why
+(architecture, policy, or tooling trade-offs) rather than what the requirements
+are.
+
+## Inputs
+
+* `topic`: (Required) The feature, epic, request, or problem to shape
+  requirements for.
+* `scope`: (Optional) `lightweight`, `standard`, or `deep`. Defaults to
+  `standard`.
+* `handoff`: (Optional) Where the artifact should go when ready: `ask` (prompt
+  the operator to choose, then resolve to one of the paths below), `plan` (feed
+  `impl-plan`), `queue` (link a backlog entry for later pursuit), `both`, or
+  `none`. Defaults to `ask`.
+* `dark_factory`: (Optional) `true` only when the operator has used an explicit
+  dark-mode trigger or the Orchestrator has already recorded `DARK_MODE_ACTIVE`.
+  Defaults to `false`. See **Dark Factory Handoff Rules**.
+
+## Output
+
+A requirements artifact at
+`{{DOCS_PRODUCT_SPECS}}/{YYYY-MM-DD}-{slug}-requirements.md`.
+
+This uses the repository's registered product-spec documentation surface. Do not
+hard-code an unregistered docs path (for example `docs/brainstorms/`) — a future
+task must first register any new path in the docs-path variable table, the
+docline path map, and the validation taxonomy before generated artifacts may use
+it.
+
+When `handoff` includes `plan`, the artifact path is passed to `impl-plan` as its
+source document. When `handoff` includes `queue`, a backlog entry in
+`{{BACKLOG_DIRECTORY}}/queue/` links the artifact for future pursuit.
+
+## Required Protocol
+
+When the `agent-intercom` capability pack is installed, follow
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat /
+ping visibility at the start of intake, broadcast major phase transitions, and
+use the intercom clarification flow when the operator needs to be consulted
+between phases.
+
+Always record a `BRAINSTORM_HANDOFF_READY` event when the requirements artifact
+reaches `ready_for_plan`, carrying the artifact path, unresolved questions, and
+handoff target. When `agent-intercom` is installed, broadcast it on the operator
+channel; when intercom is unavailable (degraded visibility, including dark mode
+under P-017), record the same evidence in the session summary and the
+requirements artifact itself so remote operators and the downstream `impl-plan`
+and Ship steps retain handoff visibility. Brainstorm does not author pull request
+descriptions — that surface belongs to Ship. Visibility must never silently
+degrade to nothing.
+
+When the `agent-engram` capability pack is installed, follow
+`.github/instructions/agent-engram.instructions.md`: verify the engram search
+surface before relying on indexed discovery, and prefer engram-first lookup while
+scanning for prior requirements and precedent.
+
+### Phase 1: Scope and Frame
+
+#### Step 1.1: Classify Scope
+
+| Scope | Criteria | Approach |
+|---|---|---|
+| **Lightweight** | Single, well-defined need | 1-2 questions, then document |
+| **Standard** | Multi-faceted feature or request | Full intake protocol |
+| **Deep** | Complex system change or new capability | Full protocol + precedent scan + risk framing |
+
+Classify scope before adding ceremony. Do not run the full protocol for a
+lightweight ask.
+
+#### Step 1.2: Scan Context Before Claiming
+
+Before asserting that something exists, is missing, or is already solved, read
+the relevant instructions and nearby artifacts. Retrieve prior learnings from
+`{{DOCS_COMPOUND}}/` and scan existing product specs, decisions, and backlog
+items for precedent. Ground every claim in evidence.
+
+#### Step 1.3: Frame and Pressure-Test the Problem
+
+Establish and record the **problem frame**:
+
+* The problem being solved (user pain, technical need, business goal)
+* Who cares about the outcome and why
+* Success criteria (how we know we solved it)
+* Constraints (performance, compatibility, security, timeline)
+
+Pressure-test the framing: challenge whether the request solves the real problem
+and whether a simpler or higher-leverage framing exists. Surface a better framing
+before eliciting detailed requirements.
+
+### Phase 2: Elicit Requirements
+
+#### Step 2.1: Ask One Question at a Time
+
+Ask single, focused questions — prefer multiple-choice when it reduces operator
+effort. Do not batch many open questions at once. Let each answer inform the next
+question.
+
+When the operator is unavailable in already-authorized dark mode, do NOT block on
+interactive questions. Instead, convert unresolved product questions into
+explicit **assumptions** or **blockers** and reflect them in `handoff_status`
+(see Phase 4).
+
+#### Step 2.2: Capture Requirements with Stable IDs
+
+Record requirements as a grouped list with stable IDs (`R1`, `R2`, …) so
+`impl-plan`, `plan-review`, and `harvest` can cite them unambiguously. IDs are
+stable: never renumber an existing requirement; append new ones.
+
+### Phase 3: Success Criteria and Scope Boundaries
+
+Make success criteria and scope explicit:
+
+* **Success Criteria** — observable, verifiable outcomes that define "done" at
+  the requirements level
+* **Scope Boundaries** — what is explicitly IN scope and, just as importantly,
+  what is explicitly OUT of scope
+* **Key Decisions** — requirement-level decisions already settled during intake
+* **Assumptions** — anything taken as true without confirmation, including
+  questions converted to assumptions in dark mode
+
+### Phase 4: Outstanding Questions
+
+Separate outstanding questions into two groups:
+
+* **Resolve Before Planning** — questions that MUST be answered before
+  `impl-plan` can start. The artifact cannot be marked `ready_for_plan` while any
+  remain unconverted.
+* **Deferred to Planning** — questions safe to answer during planning.
+
+In already-authorized dark mode with the operator AFK, convert each
+"Resolve Before Planning" item into an explicit assumption (with rationale) or a
+blocker. If genuine blockers remain, set `handoff_status: blocked_on_questions`
+and do not present the artifact as ready.
+
+### Phase 5: Document Review and Handoff
+
+#### Step 5.1: Document Review Pass
+
+Run or explicitly define a review pass over the requirements artifact before
+planning starts. If the review is deferred, record the rationale.
+
+#### Step 5.2: Verify the Handoff Contract
+
+The brainstorm output may enter the rest of the pipeline only when ALL hold:
+
+1. `Resolve Before Planning` is empty, or every remaining item has been converted
+   to an explicit assumption or a deferred planning question.
+2. Each non-trivial requirement has a stable ID.
+3. Scope boundaries and success criteria are explicit.
+4. A document-review pass has completed, or is explicitly deferred with rationale.
+5. `handoff_status` is `ready_for_plan`.
+
+When ready, the downstream handoff is:
+
+```text
+brainstorm requirements doc
+  -> impl-plan source document
+  -> plan-review
+  -> harvest into backlog feature/tasks
+  -> Stage shipment assembly or Ship fallback shipment selection
+  -> optional dark factory execution under P-017
+```
+
+#### Step 5.3: Execute Handoff
+
+* **Ask** (default) → prompt the operator to choose `plan`, `queue`, `both`, or
+  `none`, then execute that resolved path. When no operator is reachable
+  (unattended or dark mode), resolve to `plan` if the handoff contract is
+  satisfied, otherwise `none`. Record the resolved choice in the artifact and in
+  the `BRAINSTORM_HANDOFF_READY` event so the promotion path is never undefined.
+* **Plan** → pass the artifact path to `impl-plan` as its source document. The
+  problem frame maps to requirements, success criteria carry forward, and stable
+  IDs are preserved.
+* **Queue** → link a backlog entry for later pursuit. When the `backlogit`
+  capability pack (or another backlog tool) is installed, create the entry
+  through the backlog tool with a title derived from the topic, a description
+  linking the artifact path, status `{{STATUS_QUEUED}}`, and a
+  `brainstorm-outcome` label. When `backlog-md` is the installed backlog tool,
+  create the entry using `{{OP_CREATE_MCP}}` with `{{FIELD_TITLE}}` derived from
+  the topic, `{{FIELD_DESCRIPTION}}` linking the requirements-artifact path,
+  `{{FIELD_STATUS}}: "{{STATUS_QUEUED}}"`, and
+  `{{FIELD_LABELS}}: ["brainstorm-outcome"]`. When no backlog tool is available
+  (manual backlog mode), append a structured entry to
+  `{{BACKLOG_DIRECTORY}}/queue/.stash.md`
+  instead — a bullet carrying the date, topic, the `{{DOCS_PRODUCT_SPECS}}`
+  requirements-artifact path, and `Status: queued` — mirroring the `.stash.md`
+  fallback used by `deliberate` and `spike`. Do NOT claim shipments or mark items
+  complete.
+* **Both** → hand to `impl-plan` and link a queue entry for tracking.
+* **None** → leave the artifact under `{{DOCS_PRODUCT_SPECS}}/` unlinked.
+
+### Phase 6: Write the Requirements Artifact
+
+Produce the artifact with this frontmatter and structure:
+
+```markdown
+---
+title: "<topic>"
+description: "<one-line requirements summary>"
+doc_type: spec
+source: "{{DOCS_PRODUCT_SPECS}}/{YYYY-MM-DD}-{slug}-requirements.md"
+date: "YYYY-MM-DD"
+source_stash_ids: []
+source_research:
+  - "<repo-relative path or URL>"
+scope: "lightweight|standard|deep"
+handoff_status: "ready_for_plan|blocked_on_questions|deferred"
+dark_factory_ready: false   # set true only when a validated dark_factory input satisfies the Dark Factory Handoff Rules
+requirement_ids:
+  - "R1"
+---
+
+# <Topic>
+
+## Problem Frame
+
+## Requirements
+
+**<Group>**
+- R1. ...
+- R2. ...
+
+## Success Criteria
+
+## Scope Boundaries
+
+## Key Decisions
+
+## Assumptions
+
+## Outstanding Questions
+
+### Resolve Before Planning
+
+### Deferred to Planning
+
+## Handoff
+```
+
+Use `doc_type: spec` — the artifact is a requirements/specification handoff and
+the product-specs surface is already part of the repository knowledge model. A
+future task that wants a dedicated `brainstorm` or `requirements` document type
+must first update the docline taxonomy/path-map and validation surfaces.
+
+## Dark Factory Handoff Rules
+
+Brainstorm does NOT activate dark mode by itself. It may mark a feature as a
+dark-mode candidate only when:
+
+* the operator used an explicit dark-mode trigger, or the Orchestrator has already
+  recorded `DARK_MODE_ACTIVE`;
+* P-017's activation contract has a bounded scope;
+* P-014 local readiness, P-016 branch/worktree topology, P-009 merge strategy, and
+  CI/check gating remain mandatory for downstream Ship execution.
+
+Include a `Dark Factory Handoff` note in the artifact only when those conditions
+are satisfied or intentionally planned. The note MUST reference P-017 and MUST NOT
+weaken P-014, P-016, P-009, or CI/check requirements.
+
+The `dark_factory` input drives the artifact's `dark_factory_ready` flag: when
+`dark_factory: true` is passed AND the conditions above are validated, set
+`dark_factory_ready: true` and add the `Dark Factory Handoff` note. If the input
+is `false`, absent, or fails validation, leave `dark_factory_ready: false` and
+omit the note — a `true` input never silently marks the artifact ready.
+
+## Non-Goals and Role Boundary
+
+Brainstorm is a requirements-intake skill. It MUST refuse the following, even
+under operator pressure or in already-authorized dark mode:
+
+* Implementing code, or mutating templates, source, or configuration.
+* Claiming shipments, moving backlog items to done, or marking work complete
+  (optional queue linkage that references the artifact is the only backlog write).
+* Creating implementation branches or worktrees.
+* Preparing pull requests or executing any Ship step.
+* Activating dark mode or Orchestrator dark-mode triggers.
+* Replacing `deliberate` — it remains the option/rationale decision skill.
+
+If asked to do any of these, decline and redirect: escalate trade-off analysis to
+`deliberate`, planning to `impl-plan`, and implementation/Ship to the Ship agent.
+
+## Quality Criteria
+
+* Problem is framed from the operator's perspective and pressure-tested.
+* Claims about existing state are grounded in a context scan, not assumed.
+* Every non-trivial requirement has a stable `R#` ID; IDs are never renumbered.
+* Success criteria and scope boundaries (in AND out of scope) are explicit.
+* Outstanding questions are split into "Resolve Before Planning" and
+  "Deferred to Planning"; nothing blocking is hidden.
+* `handoff_status` is `ready_for_plan` only when the handoff contract is fully
+  satisfied.
+* Dark-factory notes, when present, reference P-017 and preserve P-014, P-016,
+  P-009, and CI/check requirements.
+* The artifact is linked (plan/queue) or intentionally left unlinked — never
+  orphaned by accident.
+
+## Resumption Protocol
+
+If the skill is interrupted (context overflow, session timeout, or operator
+halt), write a checkpoint to `{{DOCS_MEMORY}}/` capturing: current phase,
+requirements captured so far (with IDs), operator answers recorded, unresolved
+questions, and next step. On re-invocation, check for an existing checkpoint and
+resume from the recorded phase rather than restarting.
+
+## Model Routing
+
+This skill operates at **Tier 3 (Frontier)** — requirements framing, pressure
+testing, and handoff-readiness judgment require deep analysis.
+
+Generated by autoharness | Template: brainstorm/SKILL.md.tmpl

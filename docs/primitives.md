@@ -120,15 +120,16 @@ Shipping a top-level release unit — whether a feature or a chore — involves 
 
 A pipeline of specialized agents, each with a narrow role and explicit handoff expectations:
 
-1. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
-2. **Spike Skill**: Execute time-boxed investigations to answer technical questions, evaluate feasibility, and capture findings
-3. **Stage Agent**: Triage stash → classify entry shapes → group task-shaped entries under covering features → deliberate/spike → plan → harden risky plans → review → harvest into backlog → assemble shipment (when backlogit with shipments is active)
-4. **Plan-Harden Skill**: Deepen high-risk plans with concrete verification, rollback, and action-risk detail before plan review
-5. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
-6. **Ship Agent**: Claim tasks, delegate to build-feature skill, verify quality, manage review/CI/PR lifecycle, runtime verification, and operational closure
-7. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
-8. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
-9. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
+1. **Brainstorm Skill**: Front-door requirements intake — frame the problem, elicit stable requirements, define success criteria and scope, and hand a durable requirements artifact to planning. Manually invoked (`/brainstorm`); not automatically routed by Stage.
+2. **Deliberate Skill**: Explore requirements, research options, and capture decisions through structured operator dialogue
+3. **Spike Skill**: Execute time-boxed investigations to answer technical questions, evaluate feasibility, and capture findings
+4. **Stage Agent**: Triage stash → classify entry shapes → group task-shaped entries under covering features → deliberate/spike → plan → harden risky plans → review → harvest into backlog → assemble shipment (when backlogit with shipments is active)
+5. **Plan-Harden Skill**: Deepen high-risk plans with concrete verification, rollback, and action-risk detail before plan review
+6. **Harness Architect**: Generate test harnesses and stubs (TDD gate)
+7. **Ship Agent**: Claim tasks, delegate to build-feature skill, verify quality, manage review/CI/PR lifecycle, runtime verification, and operational closure
+8. **Fix-CI**: Resolve CI failures and review comments while preserving release readiness context
+9. **Runtime Verification**: Validate runtime behavior against the surfaces changed by the work
+10. **Operational Closure**: Convert implementation success into release readiness, monitoring intent, and structured follow-up
 
 **Stop conditions** prevent infinite loops:
 

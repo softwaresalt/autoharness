@@ -852,7 +852,7 @@ Map primitives to template groups:
 | 1 - State & Context | `agents/stage` (session continuity), `agents/ship` (session continuity), `agents/research/learnings-researcher`, `skills/compact-context`, `skills/compound`, `skills/compound-refresh`, `skills/harness-doctor` (install health baseline and pre-flight context), `instructions/context-efficiency` |
 | 2 - Task Granularity | Embedded in `foundation/AGENTS.md`, `agents/stage` |
 | 3 - Model Routing | Embedded in `foundation/AGENTS.md`, all agent definitions |
-| 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true), `prompts/feature-flow`, `prompts/feature-flow-parallel` (P-016 planning-overlap alias, not parallel implementation), `prompts/feature-flow-dark` (P-017 exact-trigger shim) |
+| 4 - Orchestration | `agents/stage`, `agents/ship`, `agents/orchestrator`, `skills/deliberate`, `skills/brainstorm`, `skills/spike`, `skills/impl-plan`, `skills/plan-harden`, `skills/build-feature`, `skills/fix-ci`, `skills/harvest`, `skills/pr-lifecycle`, `skills/harness-architect`, `skills/shipment-reconcile` (when `{{FEATURE_SHIPMENTS}}` is true), `prompts/feature-flow`, `prompts/feature-flow-parallel` (P-016 planning-overlap alias, not parallel implementation), `prompts/feature-flow-dark` (P-017 exact-trigger shim) |
 | 5 - Guardrails | `foundation/constitution`, `policies/workflow-policies`, `foundation/AGENTS.md`, `skills/safety-modes`, `skills/file-lock`, `skills/harness-doctor` (MCP pre-flight, tool availability gate, P-016 topology awareness, and P-017 dark-mode gate awareness), `instructions/circuit-breaker`, `instructions/concurrency`, optional `instructions/strict-safety` |
 | 6 - Injection Points | `instructions/*`, including `instructions/output-timestamps`, `foundation/copilot-instructions`, `skills/skill-search` |
 | 7 - Observability | `agents/review/*`, `skills/review`, `skills/plan-review`, `instructions/output-timestamps` |
@@ -1068,6 +1068,7 @@ Generate skill files:
 
 2. **Universal skills** (minimal adaptation; install only when their governing primitives are selected):
     * `deliberate/SKILL.md`
+    * `brainstorm/SKILL.md` — Install when Primitive 4 is selected. Front-door requirements-intake skill that complements `deliberate` and hands a requirements artifact to `impl-plan`.
     * `spike/SKILL.md`
     * `plan-harden/SKILL.md` — Install when Primitive 4 is selected so risky plans can be strengthened before review
     * `compact-context/SKILL.md`

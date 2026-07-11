@@ -142,12 +142,13 @@ through several primitives at once, and must stay coherent across them:
 
 **Key Artifacts**:
 
-* `.stage.agent.md` — Stash-to-backlog pipeline (triage → deliberate/spike → impl-plan → plan-harden when needed → plan-review → harvest)
+* `.stage.agent.md` — Stash-to-backlog pipeline (triage → brainstorm/deliberate/spike → impl-plan → plan-harden when needed → plan-review → harvest)
 * `plan-harden/SKILL.md` — Risk-triggered hardening of high-blast-radius plans before review
 * `.ship.agent.md` — Backlog-to-shipped pipeline (harness → build → review → PR → fix-ci → closure)
 * `harness-architect/SKILL.md` — TDD harness generation
 * `build-feature/SKILL.md` — Harness loop execution
 * `deliberate/SKILL.md` — Structured deliberation and decision capture
+* `brainstorm/SKILL.md` — Front-door requirements intake that shapes requirements before planning and hands a requirements artifact to impl-plan
 * `spike/SKILL.md` — Time-boxed investigation and findings capture
 * `fix-ci/SKILL.md` — CI failure resolution
 * `pr-lifecycle/SKILL.md` — PR creation and follow-up
@@ -156,7 +157,7 @@ through several primitives at once, and must stay coherent across them:
 
 **Design Rules**:
 
-* Pipeline: Deliberate/Spike → Plan → Plan-Harden (when needed) → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
+* Pipeline: Brainstorm/Deliberate/Spike → Plan → Plan-Harden (when needed) → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
 * Each agent declares its maximum subagent depth
 * Skills are leaf executors (no subagent spawning)
 * Handoff contracts preserve verification and closure expectations from planning through release
