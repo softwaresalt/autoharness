@@ -79,10 +79,11 @@ surface, plus registry/tune weaving:
    by **enabled retrieval-enforced packs, not manifest membership**: when at
    least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is enabled
    in `installed_packs`, the check **independently requires** (a) the enforcement
-   instruction file exists, (b) it is manifest-listed with a **non-empty
-   checksum** (the check itself **fails**, not merely warns, on a missing/empty
-   checksum — the generic checksum scan only emits `checksum-untracked`
-   warnings, so this check enforces the checksum independently), (c) it
+   instruction file exists, (b) it is manifest-listed with a checksum that
+   **matches the installed file** (the check itself **fails**, not merely warns,
+   on a missing/empty checksum **or a mismatch** — the generic checksum scan only
+   emits `checksum-untracked` / `user-modified` warnings, so this check enforces
+   checksum integrity independently), (c) it
    represents **exactly** the enabled retrieval-pack set (verified via stable
    route-row markers, not a loose substring), and (d) it still carries the key
    **safeguard invariant markers** (pack deferral, direct-search exemptions,
@@ -99,17 +100,22 @@ surface, plus registry/tune weaving:
 
 3. **Install + tune weaving + registry + contracts.** `install-harness` installs
    the enforcement instruction whenever any retrieval-enforced pack is selected,
-   records it in the manifest `artifacts[]`, and adds it as an overlay entry in
-   each relevant pack's `capability_pack_overlays[]` record. The capability-pack
+   **rendering its route-row block to exactly the selected set** (a one-pack
+   install must not retain both rows, or it would fail the exact-set verifier),
+   records it in the manifest `artifacts[]` with a checksum of the rendered file,
+   and adds it as an overlay entry in each **selected** pack's
+   `capability_pack_overlays[]` record. The capability-pack
    registry marks which packs are retrieval-enforced via a new **optional
    `retrieval_enforced` boolean** added to `capability-pack-registry.schema.json`
    (the schema is `additionalProperties: false`, so the property must be declared;
    no closed pack-ID enum changes). The `agent-engram` and `graphtor-docs` pack
    instructions (templates + dogfood mirrors) gain a cross-reference to the
    coordinator. `tune-harness` detects drift (pack enabled but enforcement
-   instruction missing, stale, or representing the wrong pack set) and re-renders
-   the enabled route rows when the set changes / removes the file when no
-   retrieval-enforced pack remains.
+   instruction missing, stale, or representing the wrong pack set), re-renders
+   the enabled route rows when the set changes **and updates the recorded manifest
+   checksum**, and removes the file when no retrieval-enforced pack remains
+   **together with its `artifacts[]` entry and both packs'
+   `capability_pack_overlays[]` records** (no orphaned manifest state).
 
 The two surfaces are **not equally hard**: surface 1 is *soft* session-time
 routing discipline that an LLM agent self-applies; surface 2 is *hard*
