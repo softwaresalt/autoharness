@@ -208,17 +208,26 @@ class CopilotCodeReviewDeterministicCheckTests(unittest.TestCase):
 
     Unlike the substring-based FOUNDATION_ASSERTIONS entry, this check parses the
     installed file's frontmatter, so it detects a flipped ``excludeAgent`` value
-    (which shares its string with body prose) and unresolved placeholders.
+    (which shares its string with body prose) and unresolved placeholders. It is
+    gated on manifest membership: a manifest-listed-but-missing file fails, while
+    an absent file that was never installed is a no-op.
     """
 
-    def _run_check(self, content: str) -> dict | None:
+    RELATIVE = ".github/instructions/copilot-code-review.instructions.md"
+
+    def _manifest_listing(self) -> dict:
+        return {"artifacts": [{"path": self.RELATIVE}]}
+
+    def _run_check(self, content: str, manifest: dict | None = None) -> dict | None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
-            target = workspace / ".github" / "instructions" / "copilot-code-review.instructions.md"
+            target = workspace / self.RELATIVE
             target.parent.mkdir(parents=True)
             target.write_text(content, encoding="utf-8")
             report: dict = {"targeted_checks": {}}
-            _check_copilot_code_review_instruction(report, workspace)
+            _check_copilot_code_review_instruction(
+                report, workspace, manifest if manifest is not None else self._manifest_listing()
+            )
             return report["targeted_checks"].get("copilot_code_review_frontmatter")
 
     def test_valid_installed_file_passes(self) -> None:
@@ -247,10 +256,38 @@ class CopilotCodeReviewDeterministicCheckTests(unittest.TestCase):
         self.assertFalse(check["ok"])
         self.assertTrue(any("placeholder" in err for err in check["errors"]))
 
-    def test_absent_file_is_noop(self) -> None:
+    def test_present_file_validated_even_when_not_manifest_listed(self) -> None:
+        # A file placed in the workspace is always validated, regardless of
+        # manifest membership — a present-but-invalid focus surface is a defect.
+        content = DOGFOOD_PATH.read_text(encoding="utf-8").replace(
+            "excludeAgent: 'cloud-agent'", "excludeAgent: 'coding-agent'", 1
+        )
+        check = self._run_check(content, manifest={"artifacts": []})
+        self.assertIsNotNone(check)
+        self.assertFalse(check["ok"])
+
+    def test_manifest_listed_but_missing_fails(self) -> None:
+        # Deleting an installed (manifest-listed) focus surface must FAIL, not
+        # merely warn — otherwise verification would pass after the required
+        # surface is removed.
         with tempfile.TemporaryDirectory() as tmp:
             report: dict = {"targeted_checks": {}}
-            _check_copilot_code_review_instruction(report, Path(tmp))
+            _check_copilot_code_review_instruction(
+                report, Path(tmp), self._manifest_listing()
+            )
+            check = report["targeted_checks"].get("copilot_code_review_frontmatter")
+            self.assertIsNotNone(check)
+            self.assertFalse(check["ok"])
+            self.assertTrue(any("missing" in err for err in check["errors"]))
+
+    def test_absent_and_not_manifest_listed_is_noop(self) -> None:
+        # A composition that never installed the file (not manifest-listed) must
+        # not fail — the conditional-install skip is preserved.
+        with tempfile.TemporaryDirectory() as tmp:
+            report: dict = {"targeted_checks": {}}
+            _check_copilot_code_review_instruction(
+                report, Path(tmp), {"artifacts": []}
+            )
             self.assertNotIn("copilot_code_review_frontmatter", report["targeted_checks"])
 
 
