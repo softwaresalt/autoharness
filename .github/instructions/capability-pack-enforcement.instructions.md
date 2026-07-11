@@ -20,10 +20,12 @@ For any pack listed in the routing table below, the pack's own instruction file
 is **authoritative** for lifecycle checks, exact tool names, freshness/index
 rules, and pack-specific fallback. This coordinator defers to:
 
+<!-- BEGIN:capability-pack-deferral -->
 * `.github/instructions/agent-engram.instructions.md` — engram lifecycle,
-  indexed/semantic search, code-graph lookup, freshness.
+  indexed/semantic search, code-graph lookup, freshness. <!-- defer:agent-engram -->
 * `.github/instructions/graphtor-docs.instructions.md` — graphtor-docs server
-  lifecycle, indexed doc search, semantic retrieval, doc-link traversal.
+  lifecycle, indexed doc search, semantic retrieval, doc-link traversal. <!-- defer:graphtor-docs -->
+<!-- END:capability-pack-deferral -->
 
 When this coordinator and a pack instruction appear to conflict on a
 pack-specific detail, the **pack instruction wins**. This coordinator only wins

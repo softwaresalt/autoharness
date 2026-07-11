@@ -154,6 +154,10 @@ pack's mechanics to that pack's own instruction file:
 * **Route block** — a `<!-- BEGIN:capability-pack-routes -->` … `<!-- END:capability-pack-routes -->`
   block whose `<!-- route:{id} -->` rows represent **exactly** the enabled
   retrieval-enforced set (one row for a single pack, both rows when both are on).
+* **Deferral block** — a `<!-- BEGIN:capability-pack-deferral -->` … `<!-- END:capability-pack-deferral -->`
+  block whose `<!-- defer:{id} -->` bullets are rendered to the **same** enabled
+  set as the route rows, so a single-pack install never defers to a pack
+  instruction file that was not installed.
 * **Safeguard invariants** — four stable markers that survive re-rendering:
   `pack-deferral`, `direct-search-exemptions`, `per-phase-health-reuse`, and
   `internal-no-public-web`.
@@ -164,23 +168,29 @@ pack's mechanics to that pack's own instruction file:
 coordinator as **independently required** whenever a retrieval-enforced pack is
 enabled: the file must exist, be recorded in the manifest `artifacts[]` with a
 checksum that **matches** the installed bytes (a missing/empty/mismatched
-checksum is a failure, not a warning), carry route rows equal to exactly the
-enabled set, retain all four safeguard markers, keep `applyTo: '**'`, and contain
-no unresolved `{{VARIABLE}}`. When no retrieval-enforced pack is enabled, a
-lingering file or manifest entry fails as an orphaned overlay.
+checksum is a failure, not a warning), carry route rows AND deferral bullets each
+equal to exactly the enabled set, retain all four safeguard markers, keep
+`applyTo: '**'`, and contain no unresolved `{{VARIABLE}}`. When no
+retrieval-enforced pack is enabled, a lingering file or manifest entry fails as
+an orphaned overlay.
 
-Expectedness is computed from the **union** of the manifest and config
-`capability_packs` lists, so a manifest that drops a pack while config still
-enables it cannot silently suppress the check. The verifier's
-`RETRIEVAL_ENFORCED_PACKS` constant is drift-guarded against the
-`retrieval_enforced: true` set in `templates/packs/capability-pack-registry.yaml`.
+The enabled set is taken from config's `capability_packs` when that key is
+present (config is authoritative for "enabled"), falling back to the manifest
+only when config does not declare it. This is correct in both divergence
+directions: a stale manifest that still lists a pack cannot keep the check
+"enabled" after config removes it (which would route agents to a disabled pack),
+and a stale manifest that dropped a pack cannot suppress the check while config
+still enables it. Manifest/config disagreement itself is surfaced as harness
+drift by `tune-harness`. The verifier's `RETRIEVAL_ENFORCED_PACKS` constant is
+drift-guarded against the `retrieval_enforced: true` set in
+`templates/packs/capability-pack-registry.yaml`.
 
 ### Tuning
 
 `tune-harness` flags `capability_pack_enforcement_incomplete` drift on a missing
-file, checksum mismatch, wrong route set, gutted safeguard, or flipped `applyTo`,
-and `capability_pack_enforcement_orphaned` drift when the coordinator remains
-after all retrieval-enforced packs are removed.
+file, checksum mismatch, wrong route set, wrong deferral set, gutted safeguard,
+or flipped `applyTo`, and `capability_pack_enforcement_orphaned` drift when the
+coordinator remains after all retrieval-enforced packs are removed.
 
 ## Example: agent-engram as a formal overlay
 

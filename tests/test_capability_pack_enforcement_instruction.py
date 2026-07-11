@@ -6,7 +6,11 @@ routing overlay. These tests lock the stable markers the verifier
 
 * a route block delimited by ``<!-- BEGIN:capability-pack-routes -->`` /
   ``<!-- END:capability-pack-routes -->`` containing one ``<!-- route:{id} -->``
-  row per enabled retrieval-enforced pack, and
+  row per enabled retrieval-enforced pack,
+* a deferral block delimited by ``<!-- BEGIN:capability-pack-deferral -->`` /
+  ``<!-- END:capability-pack-deferral -->`` containing one ``<!-- defer:{id} -->``
+  bullet per enabled retrieval-enforced pack (kept in sync with the route rows so
+  a single-pack install never points at an uninstalled pack instruction), and
 * four safeguard-invariant markers.
 """
 
@@ -32,6 +36,8 @@ _DOGFOOD = (
 
 _ROUTE_BEGIN = "<!-- BEGIN:capability-pack-routes -->"
 _ROUTE_END = "<!-- END:capability-pack-routes -->"
+_DEFER_BEGIN = "<!-- BEGIN:capability-pack-deferral -->"
+_DEFER_END = "<!-- END:capability-pack-deferral -->"
 _SAFEGUARD_MARKERS = (
     "<!-- safeguard:pack-deferral -->",
     "<!-- safeguard:direct-search-exemptions -->",
@@ -46,6 +52,11 @@ _RETRIEVAL_PACKS = ("agent-engram", "graphtor-docs")
 def _route_pack_ids(text: str) -> set[str]:
     block = text.split(_ROUTE_BEGIN, 1)[1].split(_ROUTE_END, 1)[0]
     return set(re.findall(r"<!-- route:([a-z0-9-]+) -->", block))
+
+
+def _defer_pack_ids(text: str) -> set[str]:
+    block = text.split(_DEFER_BEGIN, 1)[1].split(_DEFER_END, 1)[0]
+    return set(re.findall(r"<!-- defer:([a-z0-9-]+) -->", block))
 
 
 class CapabilityPackEnforcementInstructionTests(unittest.TestCase):
@@ -69,6 +80,19 @@ class CapabilityPackEnforcementInstructionTests(unittest.TestCase):
             self.assertIn(_ROUTE_BEGIN, text)
             self.assertIn(_ROUTE_END, text)
             self.assertEqual(_route_pack_ids(text), set(_RETRIEVAL_PACKS))
+
+    def test_deferral_block_present_with_full_set(self) -> None:
+        for text in (self.template, self.dogfood):
+            self.assertIn(_DEFER_BEGIN, text)
+            self.assertIn(_DEFER_END, text)
+            self.assertEqual(_defer_pack_ids(text), set(_RETRIEVAL_PACKS))
+
+    def test_deferral_set_matches_route_set(self) -> None:
+        # The installer renders both blocks to the same enabled set; the two
+        # marker sets must stay in sync so a pruned single-pack install never
+        # defers to an uninstalled pack instruction file.
+        for text in (self.template, self.dogfood):
+            self.assertEqual(_defer_pack_ids(text), _route_pack_ids(text))
 
     def test_all_safeguard_markers_present(self) -> None:
         for text in (self.template, self.dogfood):

@@ -430,9 +430,10 @@ Flag any missing items as `graphtor_docs_overlay_incomplete` drift.
 
 1. `capability-pack-enforcement.instructions.md` is present in the instructions directory and recorded in `harness-manifest.yaml` `artifacts[]` with a checksum matching the installed file (checksum mismatch → `user-modified` or un-refreshed manifest).
 2. Its `<!-- route:{id} -->` rows equal exactly the enabled retrieval-enforced set — route drift when a pack was added or removed without re-rendering.
-3. All four safeguard markers (`pack-deferral`, `direct-search-exemptions`, `per-phase-health-reuse`, `internal-no-public-web`) are present and `applyTo: '**'` is unchanged.
-4. Each enabled retrieval-enforced pack's `capability_pack_overlays[]` lists the coordinator routing verification check.
-5. `RETRIEVAL_ENFORCED_PACKS` in `verify_workspace.py` matches the `retrieval_enforced: true` set in `templates/packs/capability-pack-registry.yaml`.
+3. Its `<!-- defer:{id} -->` deferral bullets (inside the `capability-pack-deferral` block) equal the same enabled set as the route rows — deferral drift when a pack was added or removed without re-rendering the deferral block; a stale bullet points at an uninstalled pack instruction file.
+4. All four safeguard markers (`pack-deferral`, `direct-search-exemptions`, `per-phase-health-reuse`, `internal-no-public-web`) are present and `applyTo: '**'` is unchanged.
+5. Each enabled retrieval-enforced pack's `capability_pack_overlays[]` lists the coordinator routing verification check.
+6. `RETRIEVAL_ENFORCED_PACKS` in `verify_workspace.py` matches the `retrieval_enforced: true` set in `templates/packs/capability-pack-registry.yaml`.
 
 When NO retrieval-enforced pack is enabled but the coordinator file or its manifest entry remains, flag `capability_pack_enforcement_orphaned` drift and propose removing both. Flag missing or mismatched items above as `capability_pack_enforcement_incomplete` drift.
 

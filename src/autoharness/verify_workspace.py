@@ -47,6 +47,9 @@ _CPE_RELATIVE_PATH = ".github/instructions/capability-pack-enforcement.instructi
 _CPE_ROUTE_BEGIN = "<!-- BEGIN:capability-pack-routes -->"
 _CPE_ROUTE_END = "<!-- END:capability-pack-routes -->"
 _CPE_ROUTE_RE = re.compile(r"<!-- route:([a-z0-9-]+) -->")
+_CPE_DEFER_BEGIN = "<!-- BEGIN:capability-pack-deferral -->"
+_CPE_DEFER_END = "<!-- END:capability-pack-deferral -->"
+_CPE_DEFER_RE = re.compile(r"<!-- defer:([a-z0-9-]+) -->")
 _CPE_SAFEGUARD_MARKERS = (
     "<!-- safeguard:pack-deferral -->",
     "<!-- safeguard:direct-search-exemptions -->",
@@ -2484,12 +2487,15 @@ def _check_capability_pack_enforcement(
     """Deterministic coherence guard for the capability-pack usage-enforcement overlay.
 
     Expectedness is driven by the set of ENABLED retrieval-enforced packs
-    (``RETRIEVAL_ENFORCED_PACKS``), computed from the **union** of the manifest
-    and config ``capability_packs`` lists (config is authoritative for
-    "enabled"). Deriving expectedness from the union — rather than the existing
-    ``installed_packs`` value, which collapses to ``manifest OR config`` — means
-    a nonempty manifest that drops a pack while config still enables it cannot
-    silently suppress this check.
+    (``RETRIEVAL_ENFORCED_PACKS``). The live enabled set comes from config's
+    ``capability_packs`` when that key is present (config is authoritative for
+    "enabled"), falling back to the manifest only when config does not declare it.
+    Config-when-present-else-manifest is correct in BOTH divergence directions: a
+    stale manifest that still lists a pack cannot keep the check "enabled" after
+    config removes it (which would keep routing agents to a now-disabled pack), and
+    a stale manifest that dropped a pack cannot suppress the check while config
+    still enables it. Manifest/config disagreement itself is surfaced as harness
+    drift by the tune workflow, not by this coherence guard.
 
     When at least one retrieval-enforced pack is enabled, the enforcement
     instruction is INDEPENDENTLY required to: (a) exist; (b) be recorded in the
@@ -2500,19 +2506,26 @@ def _check_capability_pack_enforcement(
     normalizes ``\r\n`` to ``\n`` before hashing so a CRLF/LF difference across
     checkouts (git stores LF; Windows ``autocrlf`` yields CRLF working trees) is
     not misreported as tampering; a genuine content change still fails. (c) carry
-    a route block whose ``<!-- route:{id} -->`` rows represent EXACTLY the enabled
-    retrieval-enforced set (via stable markers, not a loose substring); and (d)
-    still carry the four safeguard-invariant markers. It also asserts
-    ``applyTo: '**'`` and no unresolved ``{{PLACEHOLDER}}`` tokens.
+    a route block AND a deferral block whose ``<!-- route:{id} -->`` and
+    ``<!-- defer:{id} -->`` rows each represent EXACTLY the enabled
+    retrieval-enforced set (via stable markers, not a loose substring) — the
+    deferral block must not point at pack instruction files that a single-pack
+    install did not install; and (d) still carry the four safeguard-invariant
+    markers. It also asserts ``applyTo: '**'`` and no unresolved
+    ``{{PLACEHOLDER}}`` tokens.
 
     When NO retrieval-enforced pack is enabled, the check is a no-op ONLY when the
     file and manifest entry are both absent; if either is still present it FAILS
     as an orphaned overlay (a stale globally-applied instruction pointing at
     unavailable tools).
     """
-    manifest_packs = {str(p) for p in (manifest.get("capability_packs") or [])}
-    config_packs = {str(p) for p in (config.get("capability_packs") or [])}
-    enabled_retrieval = (manifest_packs | config_packs) & set(RETRIEVAL_ENFORCED_PACKS)
+    # Config is authoritative for the live enabled set when it declares
+    # capability_packs; the manifest is only the install record and can be stale.
+    if "capability_packs" in config:
+        enabled_source = {str(p) for p in (config.get("capability_packs") or [])}
+    else:
+        enabled_source = {str(p) for p in (manifest.get("capability_packs") or [])}
+    enabled_retrieval = enabled_source & set(RETRIEVAL_ENFORCED_PACKS)
 
     path = workspace_path / _CPE_RELATIVE_PATH
     file_exists = path.exists()
@@ -2608,6 +2621,22 @@ def _check_capability_pack_enforcement(
             errors.append(
                 "route rows do not match the enabled retrieval-enforced set "
                 f"(rows={sorted(route_ids)}, enabled={sorted(enabled_retrieval)})"
+            )
+
+    if _CPE_DEFER_BEGIN not in text or _CPE_DEFER_END not in text:
+        errors.append(
+            "deferral block markers "
+            f"({_CPE_DEFER_BEGIN} / {_CPE_DEFER_END}) are missing"
+        )
+    else:
+        defer_block = text.split(_CPE_DEFER_BEGIN, 1)[1].split(_CPE_DEFER_END, 1)[0]
+        defer_ids = set(_CPE_DEFER_RE.findall(defer_block))
+        if defer_ids != enabled_retrieval:
+            errors.append(
+                "deferral bullets do not match the enabled retrieval-enforced set "
+                f"(defers={sorted(defer_ids)}, enabled={sorted(enabled_retrieval)}) "
+                "— the coordinator would point at pack instruction files that are "
+                "not installed"
             )
 
     missing_safeguards = [m for m in _CPE_SAFEGUARD_MARKERS if m not in text]

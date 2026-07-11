@@ -826,6 +826,14 @@ mechanics to the individual pack instruction files.
   enabled retrieval-enforced set — one row when only `agent-engram` or only
   `graphtor-docs` is selected, both rows when both are selected. Never emit a
   route row for a pack that was not selected.
+* Render the deferral block (`<!-- BEGIN:capability-pack-deferral -->` /
+  `<!-- END:capability-pack-deferral -->`) so its `<!-- defer:{id} -->` bullets
+  represent the **SAME** enabled set as the route rows. A single-pack install
+  MUST drop the non-selected pack's deferral bullet; otherwise the coordinator
+  would defer to a pack instruction file (`agent-engram.instructions.md` or
+  `graphtor-docs.instructions.md`) that was never installed — a broken
+  cross-reference. The verifier fails when the deferral set and the enabled set
+  diverge.
 * Preserve all four safeguard-invariant markers verbatim:
   `<!-- safeguard:pack-deferral -->`, `<!-- safeguard:direct-search-exemptions -->`,
   `<!-- safeguard:per-phase-health-reuse -->`, `<!-- safeguard:internal-no-public-web -->`.
@@ -842,12 +850,14 @@ mechanics to the individual pack instruction files.
 **Verification checks** (installation-time):
 * `capability-pack-enforcement.instructions.md` present when ≥1 retrieval-enforced pack is enabled, absent otherwise
 * route rows equal exactly the enabled retrieval-enforced set
+* deferral bullets equal exactly the enabled retrieval-enforced set (kept in sync with the route rows)
 * all four safeguard markers present; `applyTo: '**'`; no unresolved `{{VARIABLE}}`
 * manifest `artifacts[]` records the file with an EOL-normalized (LF) content checksum matching the installed file
 
 **Tuning drift checks**:
 * coordinator checksum vs. installed file (mismatch → user-modified or un-refreshed manifest)
 * route rows vs. currently enabled retrieval-enforced pack set (drift when a pack is added/removed without re-rendering)
+* deferral bullets vs. route rows / enabled set (drift when a pack is added/removed without re-rendering the deferral block)
 * orphaned coordinator (file present, no retrieval-enforced pack enabled) → remove
 * `RETRIEVAL_ENFORCED_PACKS` in `verify_workspace.py` vs. `retrieval_enforced: true` set in the registry data
 
