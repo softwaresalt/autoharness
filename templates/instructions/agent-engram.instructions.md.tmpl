@@ -9,6 +9,12 @@ Use these rules when the workspace enabled the `agent-engram` capability pack. T
 generic search preference toggle. It weaves engram-first indexed retrieval and code-graph-aware
 reasoning through the harness workflow.
 
+When any retrieval-enforced pack is enabled, `capability-pack-enforcement.instructions.md` is the
+coordinator that routes retrieval across packs before any raw grep/glob or public web search. It
+defers pack-specific mechanics to this file: use Engram for code structure, symbols, impact analysis,
+and history. Honor that coordinator's safeguards (pack deferral, direct-search exemptions, per-phase
+health reuse, internal-first / no-public-web) in addition to the rules below.
+
 ## Required Tool Surface
 
 The workspace should expose an engram-style tool surface for these behaviors:

@@ -55,6 +55,7 @@ capability_pack_overlays:
       - ".ship.agent.md contains Engram session-start check (get_workspace_status)"
       - "copilot-instructions.md engram block cross-references installed instructions"
       - "No unresolved {{VARIABLE}} in agent-engram.instructions.md"
+      - "capability-pack-enforcement.instructions.md present with route:agent-engram row and matching manifest checksum"
   - pack: "graphtor-docs"
     overlay_targets:
       - "graphtor-docs.instructions.md"
@@ -65,6 +66,7 @@ capability_pack_overlays:
       - "Zero {{VARIABLE}} placeholders in installed graphtor-docs.instructions.md"
       - ".stage.agent.md and .ship.agent.md contain GRAPHTOR_UNAVAILABLE references"
       - "workspace-profile.yaml has graphtor_docs section"
+      - "capability-pack-enforcement.instructions.md present with route:graphtor-docs row and matching manifest checksum"
 primitives_installed:
   - 1
   - 2
@@ -154,12 +156,12 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "b5cf12619df594d96f669697f65a0037d9194a9c100d2deb56ff001eb32ea611"
+    checksum: "88aee9aeb753d075bfd74ed1aa5be2e7144a82c62fff02d9f238b7d1e22520b6"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "8cd60804f25d9743ec58e3a66be37e81c370c090e5af2bd002c23719c03fab24"
+    checksum: "ec107dd3c2dd8b54222d96de311c5db769f01d50d21224b38547aed97a6a4d13"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
@@ -184,7 +186,7 @@ artifacts:
   - path: ".github/instructions/agent-engram.instructions.md"
     primitive: 1
     template: "instructions/agent-engram.instructions.md.tmpl"
-    checksum: "194ab53bb81880b752f34e5a7edbdb90d7b734d1f19ab7595b54739ee9955dbe"
+    checksum: "f19b0fceb913182af6b1f809dfbf00b7d5deb2bad2e67ac008044ddfceef4241"
     note: "agent-engram capability pack overlay instruction"
   - path: ".github/instructions/agent-intercom.instructions.md"
     primitive: 4
@@ -194,7 +196,7 @@ artifacts:
   - path: ".github/instructions/graphtor-docs.instructions.md"
     primitive: 1
     template: "instructions/graphtor-docs.instructions.md.tmpl"
-    checksum: "00a5093c9db3aeebb41e6ceea29e095062b1a451007daa8b9229f8fcb0eac3eb"
+    checksum: "a994a7f1125b08e5cd0afd8b269e6d7532e8ca3d544c19ce90fc7ebeaf46b50c"
     note: "graphtor-docs capability pack overlay instruction (vars resolved: GRAPHTOR_SOURCES_PATH=.graphtor/config/sources.yaml, GRAPHTOR_BINARY_PATH=.graphtor/bin/graphtor-docs.exe)"
   - path: ".github/instructions/circuit-breaker.instructions.md"
     primitive: 5
@@ -216,6 +218,11 @@ artifacts:
     template: "instructions/copilot-code-review.instructions.md.tmpl"
     checksum: "238d6a45dde027c88d77a8262510da909b66654b41d6a9423af4f0f459987f6f"
     note: "GitHub Copilot code-review focus instruction (086-S); GitHub-conditional, base-branch activated"
+  - path: ".github/instructions/capability-pack-enforcement.instructions.md"
+    primitive: 6
+    template: "instructions/capability-pack-enforcement.instructions.md.tmpl"
+    checksum: "4332ec124aaa2843a818b33a967c25a47840f7d44c00c3787324953f266f0962"
+    note: "capability-pack usage-enforcement coordinator (075-F/087-S); routes retrieval-enforced packs (agent-engram, graphtor-docs) with safeguard invariants; checksum is EOL-normalized (LF)"
   - path: ".github/instructions/output-timestamps.instructions.md"
     primitive: 7
     template: "instructions/output-timestamps.instructions.md.tmpl"
