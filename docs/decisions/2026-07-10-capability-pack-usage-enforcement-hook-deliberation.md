@@ -116,19 +116,30 @@ surface, plus registry/tune weaving:
    registry marks which packs are retrieval-enforced via a new **optional
    `retrieval_enforced` boolean** added to `capability-pack-registry.schema.json`
    (the schema is `additionalProperties: false`, so the property must be declared;
-   no closed pack-ID enum changes). The `agent-engram` and `graphtor-docs` pack
+   no closed pack-ID enum changes). 075.006-T also fixes a coupled pre-existing
+   bug in the **manifest** schema (distinct from the registry schema):
+   `graphtor-docs` is absent from the pack enums in
+   `schemas/harness-manifest.schema.json` and `schemas/harness-manifest/1.0.0.schema.json`
+   (both `capability_packs[].items.enum` and `capability_pack_overlays[].pack.enum`),
+   yet the dogfood manifest already lists it — so the current manifest is
+   schema-invalid and the install contract would perpetuate it. Adding
+   `graphtor-docs` to both enums in both files (landed before 075.004-T) closes
+   that gap. The `agent-engram` and `graphtor-docs` pack
    instructions (templates + dogfood mirrors) gain a cross-reference to the
    coordinator. `tune-harness` detects drift (pack enabled but enforcement
    instruction missing, stale, or representing the wrong pack set), re-renders
    the enabled route rows when the set changes **and updates the recorded manifest
    checksum**, and removes the file when no retrieval-enforced pack remains
    **together with its `artifacts[]` entry and both packs'
-   `capability_pack_overlays[]` records** (no orphaned manifest state). As the
-   terminal task, 075.005-T also performs a **final dogfood manifest
-   reconciliation**: it refreshes the `.autoharness/harness-manifest.yaml`
+   `capability_pack_overlays[]` records** (no orphaned manifest state). Each task
+   that edits a checksum-tracked dogfood artifact refreshes that artifact's
+   manifest checksum as part of its own DoD, and as the
+   terminal task, 075.005-T performs a **final dogfood manifest
+   reconciliation**: it re-confirms the `.autoharness/harness-manifest.yaml`
    checksums for every already-tracked artifact this shipment modifies —
-   `install-harness/SKILL.md` (075.004), `tune-harness/SKILL.md` (075.005), and
-   both pack instructions (075.007) — plus the new coordinator instruction, so
+   `install-harness/SKILL.md` (075.004), `tune-harness/SKILL.md` and
+   `harness-architecture.instructions.md` (075.005), and both pack instructions
+   (075.007) — plus the new coordinator instruction, so
    dogfood `verify_workspace` reports no stale/user-modified checksums.
 
 The two surfaces are **not equally hard**: surface 1 is *soft* session-time
