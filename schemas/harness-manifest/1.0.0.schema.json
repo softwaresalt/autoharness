@@ -59,7 +59,7 @@
       "description": "Optional capability packs enabled during installation",
       "items": {
         "type": "string",
-        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review", "graphtor-docs"]
       }
     },
     "community_templates": {
@@ -107,7 +107,7 @@
         "properties": {
             "pack": {
               "type": "string",
-              "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review"]
+              "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review", "graphtor-docs"]
             },
           "overlay_targets": {
             "type": "array",

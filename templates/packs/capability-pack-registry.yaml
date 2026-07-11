@@ -46,6 +46,7 @@ packs:
     overlay_instruction: "templates/instructions/agent-engram.instructions.md.tmpl"
     mcp_requirements: ["engram"]
     default_in_preset: ["full"]
+    retrieval_enforced: true
 
   - id: "backlogit"
     title: "Backlogit"
@@ -130,3 +131,4 @@ packs:
     overlay_instruction: "templates/instructions/graphtor-docs.instructions.md.tmpl"
     mcp_requirements: ["graphtor-docs"]
     default_in_preset: []
+    retrieval_enforced: true

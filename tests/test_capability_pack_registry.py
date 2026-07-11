@@ -91,6 +91,25 @@ class CapabilityPackRegistryTests(unittest.TestCase):
         for pack in self.data["packs"]:
             self.assertTrue(set(pack["default_in_preset"]).issubset(allowed))
 
+    def test_retrieval_enforced_is_optional_boolean(self) -> None:
+        pack_props = self.schema["definitions"]["pack"]["properties"]
+        self.assertIn(
+            "retrieval_enforced",
+            pack_props,
+            "retrieval_enforced must be declared (schema is additionalProperties:false)",
+        )
+        self.assertEqual(pack_props["retrieval_enforced"]["type"], "boolean")
+        required = set(self.schema["definitions"]["pack"]["required"])
+        self.assertNotIn(
+            "retrieval_enforced", required, "retrieval_enforced must remain optional"
+        )
+
+    def test_exactly_engram_and_graphtor_are_retrieval_enforced(self) -> None:
+        marked = {
+            p["id"] for p in self.data["packs"] if p.get("retrieval_enforced") is True
+        }
+        self.assertEqual(marked, {"agent-engram", "graphtor-docs"})
+
 
 if __name__ == "__main__":
     unittest.main()

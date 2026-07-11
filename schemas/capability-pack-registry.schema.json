@@ -92,6 +92,10 @@
             "type": "string",
             "enum": ["starter", "standard", "full"]
           }
+        },
+        "retrieval_enforced": {
+          "type": "boolean",
+          "description": "True when the pack provides indexed/context retrieval that the capability-pack usage-enforcement overlay routes to before falling back to broad search. Optional; absent or false means the pack participates in no retrieval-routing enforcement."
         }
       }
     }
