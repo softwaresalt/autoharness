@@ -10,6 +10,12 @@ a generic documentation search hint. It weaves indexed local documentation retri
 harness workflow so agents resolve domain concepts and referenced APIs from indexed sources before
 resorting to broad web search or raw filesystem scan.
 
+When any retrieval-enforced pack is enabled, `capability-pack-enforcement.instructions.md` is the
+coordinator that routes retrieval across packs before any raw grep/glob or public web search. It
+defers pack-specific mechanics to this file: use graphtor-docs for documentation and API concepts.
+Honor that coordinator's safeguards (pack deferral, direct-search exemptions, per-phase health reuse,
+internal-first / no-public-web) in addition to the rules below.
+
 ## Required Tool Surface
 
 The workspace exposes an MCP tool surface from the graphtor-docs server. Tool names are registered
