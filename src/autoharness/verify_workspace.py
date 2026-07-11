@@ -383,6 +383,21 @@ FOUNDATION_ASSERTIONS = [
         ],
     },
     {
+        "key": "copilot_code_review_focus_instruction",
+        "path": ".github/instructions/copilot-code-review.instructions.md",
+        "must_contain": [
+            "applyTo: '**'",
+            "excludeAgent: 'cloud-agent'",
+            "Focus on high-value concerns",
+            "De-prioritize",
+            "weakened enforcement",
+            "base branch",
+        ],
+        "must_precede": [
+            ["Focus on high-value concerns", "De-prioritize"],
+        ],
+    },
+    {
         "key": "workspace_discovery_runtime_validation_contract",
         "path": ".github/skills/workspace-discovery/SKILL.md",
         "must_contain": [

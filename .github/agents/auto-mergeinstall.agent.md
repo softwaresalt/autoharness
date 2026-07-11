@@ -202,6 +202,7 @@ After installation completes, provide the user with:
 13. **Strict-safety reminder**: Point out the `strict-safety` instruction file plus the `plan-harden` and `safety-modes` workflows when the pack is enabled
 14. **Release-observability reminder**: Point out the `release-observability` instruction file and the monitoring plan, observation window, and rollback trigger expectations when the pack is enabled
 15. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
+16. **Copilot code-review focus reminder**: When the workspace is hosted on GitHub, point out the installed `copilot-code-review.instructions.md` focus surface (`applyTo: '**'`, `excludeAgent: 'cloud-agent'`). Explain that GitHub Copilot code review reads instruction files from the pull request's **base branch**, so the installing pull request is validated structurally only — the guidance governs subsequent pull requests once it is merged to the base branch. Note that enabling Copilot code review in repository Settings → Copilot → Code review is an advisory per-repository toggle, not a hard install gate.
 
 ## Behavioral Constraints
 

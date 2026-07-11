@@ -126,6 +126,7 @@ After tuning completes, present:
 * Missing or user-modified artifacts surfaced by the checksum scan
 * Any partially woven capability packs or conditional reviewer drift that was detected
 * Any plan-hardening or strict-safety drift that was detected
+* Any `copilot-code-review.instructions.md` focus-surface drift that was detected on GitHub-hosted workspaces (missing file, an `excludeAgent` value changed away from `cloud-agent`, or FOCUS framing degraded into blanket suppression)
 * Any stack-pack, install-layer, or preset-composition drift that was detected
 * Any schema-contract migration proposals that remain unresolved, including known-legacy upgrades and unknown-version manual-review gates
 * New capabilities that were added (growth opportunities)

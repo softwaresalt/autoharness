@@ -61,6 +61,7 @@ The skill is mandatory for `standard` and `full` presets. It may be skipped for
    * The "Where to look next" or equivalent discovery table in `AGENTS.md`
    * The workspace profile's capability pack detection flags
    * The local review readiness surfaces: workflow policy text, review skill readiness contract, and GitHub PR automation readiness instructions
+   * When the workspace is hosted on GitHub, the `copilot-code-review.instructions.md` focus surface: confirm it exists, carries `applyTo: '**'` and `excludeAgent: 'cloud-agent'`, keeps the FOCUS-on-high-value-concerns framing (not blanket suppression), and preserves the weakened-enforcement review guidance
    * The dark factory mode surfaces when P-017 is installed: Orchestrator trigger/state guidance, Ship/pr-lifecycle merge/admin fallback guidance, `agent-intercom` event contract, `feature-flow-dark` prompt, and foundation docs
 
 ### Phase 2: Define Review Domains
