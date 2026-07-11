@@ -268,14 +268,21 @@ class VerifyWorkspaceTests(unittest.TestCase):
             f"unregistered template variables: {found_variables - allowed_variables}",
         )
 
-        # Registration in the three enumeration surfaces (install is manifest-based)
+        # Registration in the enumeration surfaces
         for path in (
-            repo_root / ".github" / "skills" / "install-harness" / "SKILL.md",
             repo_root / ".github" / "instructions" / "harness-architecture.instructions.md",
             repo_root / "docs" / "getting-started.md",
         ):
             with self.subTest(registration=str(path.relative_to(repo_root))):
                 self.assertIn("brainstorm/SKILL.md", path.read_text(encoding="utf-8"))
+
+        # install-harness must register brainstorm in BOTH the Step 2.5 skill manifest
+        # AND the Primitive 4 template-group map row that drives Phase 1 group selection.
+        installer = (repo_root / ".github" / "skills" / "install-harness" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("brainstorm/SKILL.md", installer)
+        primitive4_rows = [ln for ln in installer.splitlines() if ln.startswith("| 4 - Orchestration |")]
+        self.assertTrue(primitive4_rows, "Primitive 4 template-group map row not found")
+        self.assertIn("skills/brainstorm", primitive4_rows[0])
 
         # impl-plan accepts a brainstorm requirements document as a planning source
         impl_plan = repo_root / "templates" / "skills" / "impl-plan" / "SKILL.md.tmpl"

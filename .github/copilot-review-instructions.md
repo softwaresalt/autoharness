@@ -70,7 +70,7 @@ The 10 primitives are the irreducible architecture. Flag changes that:
 
 - Attempt to add an 11th primitive or redefine existing primitives
 - Treat a capability pack as a primitive (packs are optional overlays, not architecture)
-- Break the pipeline sequence without updating all references (pipeline: Brainstorm/Deliberate/Spike → Plan → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure)
+- Break the pipeline sequence without updating all references (pipeline: Brainstorm/Deliberate/Spike → Plan → Plan-Harden (when needed) → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure)
 - Violate the 2-hour rule for task granularity without explicit justification
 
 ### 7. Global Tool / Local Output Boundary
