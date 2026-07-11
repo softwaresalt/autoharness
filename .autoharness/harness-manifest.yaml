@@ -156,12 +156,12 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "b5cf12619df594d96f669697f65a0037d9194a9c100d2deb56ff001eb32ea611"
+    checksum: "8d7c1ebed314ed3f38081c8496cd1ac6020d59653de38c84d1446da47ecfa14f"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "8cd60804f25d9743ec58e3a66be37e81c370c090e5af2bd002c23719c03fab24"
+    checksum: "73f890adade0ea1055bc13e62885ef1718379f1136e8c8a31f867a6511a6eab1"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1

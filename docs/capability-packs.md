@@ -139,6 +139,49 @@ Partially woven overlays should be treated as a real harness-quality problem.
 | `adversarial-review` | Multi-model parallel review with consensus-weighted findings and remediation queue | 7, 10 |
 | `graphtor-docs` | Indexed local documentation search and semantic retrieval via graphtor-docs MCP server | 1, 6, 9 |
 
+## Retrieval-enforcement coordinator (agent-engram, graphtor-docs)
+
+`agent-engram` and `graphtor-docs` are **retrieval-enforced** packs — each is
+marked `retrieval_enforced: true` in the capability-pack registry. When at least
+one of them is enabled, the installer additionally installs a single coordinator
+instruction, `capability-pack-enforcement.instructions.md` (`applyTo: '**'`).
+
+The coordinator is not a fourth architecture layer. It is a Primitive 6 injection
+point that tells agents to route retrieval through the enabled indexed packs
+before falling back to raw `grep`/`glob` or public web search, and it defers each
+pack's mechanics to that pack's own instruction file:
+
+* **Route block** — a `<!-- BEGIN:capability-pack-routes -->` … `<!-- END:capability-pack-routes -->`
+  block whose `<!-- route:{id} -->` rows represent **exactly** the enabled
+  retrieval-enforced set (one row for a single pack, both rows when both are on).
+* **Safeguard invariants** — four stable markers that survive re-rendering:
+  `pack-deferral`, `direct-search-exemptions`, `per-phase-health-reuse`, and
+  `internal-no-public-web`.
+
+### Enforcement (deterministic)
+
+`verify_workspace.py` runs a `capability_pack_enforcement` check that treats the
+coordinator as **independently required** whenever a retrieval-enforced pack is
+enabled: the file must exist, be recorded in the manifest `artifacts[]` with a
+checksum that **matches** the installed bytes (a missing/empty/mismatched
+checksum is a failure, not a warning), carry route rows equal to exactly the
+enabled set, retain all four safeguard markers, keep `applyTo: '**'`, and contain
+no unresolved `{{VARIABLE}}`. When no retrieval-enforced pack is enabled, a
+lingering file or manifest entry fails as an orphaned overlay.
+
+Expectedness is computed from the **union** of the manifest and config
+`capability_packs` lists, so a manifest that drops a pack while config still
+enables it cannot silently suppress the check. The verifier's
+`RETRIEVAL_ENFORCED_PACKS` constant is drift-guarded against the
+`retrieval_enforced: true` set in `templates/packs/capability-pack-registry.yaml`.
+
+### Tuning
+
+`tune-harness` flags `capability_pack_enforcement_incomplete` drift on a missing
+file, checksum mismatch, wrong route set, gutted safeguard, or flipped `applyTo`,
+and `capability_pack_enforcement_orphaned` drift when the coordinator remains
+after all retrieval-enforced packs are removed.
+
 ## Example: agent-engram as a formal overlay
 
 `agent-engram` is a pack for workspaces that use the Engram MCP daemon as a local code graph,

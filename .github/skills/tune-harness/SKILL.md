@@ -426,6 +426,16 @@ that Ship and pr-lifecycle depend on before PR presentation.
 
 Flag any missing items as `graphtor_docs_overlay_incomplete` drift.
 
+**Capability-pack usage-enforcement coordinator checks**: When at least one retrieval-enforced pack (`agent-engram`, `graphtor-docs`) is in the enabled pack list, verify:
+
+1. `capability-pack-enforcement.instructions.md` is present in the instructions directory and recorded in `harness-manifest.yaml` `artifacts[]` with a checksum matching the installed file (checksum mismatch → `user-modified` or un-refreshed manifest).
+2. Its `<!-- route:{id} -->` rows equal exactly the enabled retrieval-enforced set — route drift when a pack was added or removed without re-rendering.
+3. All four safeguard markers (`pack-deferral`, `direct-search-exemptions`, `per-phase-health-reuse`, `internal-no-public-web`) are present and `applyTo: '**'` is unchanged.
+4. Each enabled retrieval-enforced pack's `capability_pack_overlays[]` lists the coordinator routing verification check.
+5. `RETRIEVAL_ENFORCED_PACKS` in `verify_workspace.py` matches the `retrieval_enforced: true` set in `templates/packs/capability-pack-registry.yaml`.
+
+When NO retrieval-enforced pack is enabled but the coordinator file or its manifest entry remains, flag `capability_pack_enforcement_orphaned` drift and propose removing both. Flag missing or mismatched items above as `capability_pack_enforcement_incomplete` drift.
+
 #### Step 1.8: Mine Learning Signals for Improvement Proposals
 
 After structural drift detection (Steps 1.1–1.7), analyze the accumulated
