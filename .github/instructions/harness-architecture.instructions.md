@@ -142,7 +142,7 @@ through several primitives at once, and must stay coherent across them:
 
 **Key Artifacts**:
 
-* `.stage.agent.md` — Stash-to-backlog pipeline (triage → deliberate/spike → impl-plan → plan-harden when needed → plan-review → harvest)
+* `.stage.agent.md` — Stash-to-backlog pipeline (triage → brainstorm/deliberate/spike → impl-plan → plan-harden when needed → plan-review → harvest)
 * `plan-harden/SKILL.md` — Risk-triggered hardening of high-blast-radius plans before review
 * `.ship.agent.md` — Backlog-to-shipped pipeline (harness → build → review → PR → fix-ci → closure)
 * `harness-architect/SKILL.md` — TDD harness generation
