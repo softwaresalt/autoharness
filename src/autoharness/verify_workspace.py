@@ -383,6 +383,21 @@ FOUNDATION_ASSERTIONS = [
         ],
     },
     {
+        "key": "copilot_code_review_focus_instruction",
+        "path": ".github/instructions/copilot-code-review.instructions.md",
+        "must_contain": [
+            "applyTo: '**'",
+            "excludeAgent: 'cloud-agent'",
+            "Focus on high-value concerns",
+            "De-prioritize",
+            "weakened enforcement",
+            "base branch",
+        ],
+        "must_precede": [
+            ["Focus on high-value concerns", "De-prioritize"],
+        ],
+    },
+    {
         "key": "workspace_discovery_runtime_validation_contract",
         "path": ".github/skills/workspace-discovery/SKILL.md",
         "must_contain": [
@@ -2303,6 +2318,145 @@ def _add_text_check(
     }
 
 
+def _defined_policy_ids(registry_text: str) -> set[int]:
+    """Return the set of policy numbers defined by heading lines in a workflow
+    policy registry (``## P-001: ...`` / ``### P-013.1 — ...``)."""
+    return {
+        int(match)
+        for match in re.findall(r"^#{2,4}\s+P-(\d+)", registry_text, re.MULTILINE)
+    }
+
+
+def _resolve_policy_registry(
+    workspace_path: Path, autoharness_home: Path | None
+) -> Path | None:
+    """Resolve the authoritative workflow-policy registry.
+
+    Prefers the installed registry (``.github/policies/workflow-policies.md`` in a
+    real target install), then falls back to the ``autoharness_home`` template
+    (the dogfood self-install never installs a policies mirror). Returns ``None``
+    when neither is resolvable so reference validation is existence-gated rather
+    than a false failure.
+    """
+    installed = workspace_path / ".github" / "policies" / "workflow-policies.md"
+    if installed.exists():
+        return installed
+    if autoharness_home is not None:
+        template = (
+            Path(autoharness_home)
+            / "templates"
+            / "policies"
+            / "workflow-policies.md.tmpl"
+        )
+        if template.exists():
+            return template
+    return None
+
+
+def _check_copilot_code_review_instruction(
+    report: dict[str, Any],
+    workspace_path: Path,
+    manifest: dict[str, Any],
+    autoharness_home: Path | None = None,
+) -> None:
+    """Deterministic frontmatter + placeholder guard for the Copilot code-review
+    focus instruction.
+
+    Expectedness is gated on manifest membership: the installer only records
+    ``.github/instructions/copilot-code-review.instructions.md`` in the harness
+    manifest for GitHub-hosted compositions, so a manifest-listed entry means the
+    file is a required focus surface for this workspace. When the file is expected
+    (manifest-listed) but missing, this records an ``ok: false`` targeted check so
+    verification fails — the manifest checksum scan only warns on a deleted
+    artifact, and warnings do not fail the report. When the file is not
+    manifest-listed (a composition that never installed it), an absent file is a
+    no-op. When the file is present it is always validated: the YAML frontmatter is
+    parsed so a flipped ``excludeAgent`` value is caught (a substring check cannot
+    distinguish the frontmatter value from the identical string in the body prose),
+    and the installed file is scanned for unresolved ``{{PLACEHOLDER}}`` tokens.
+    Finally, any ``P-NNN`` policy references in the harness-enforced summary are
+    resolved against the authoritative workflow-policy registry (the installed
+    ``.github/policies/workflow-policies.md`` or the ``autoharness_home`` template
+    fallback); a reference to an undefined policy fails the check so a stale
+    enforcement summary cannot pass silently. Reference validation is
+    existence-gated: when no registry is resolvable it is skipped rather than
+    failed.
+    """
+    relative_path = ".github/instructions/copilot-code-review.instructions.md"
+    path = workspace_path / relative_path
+    manifest_paths = {
+        str(artifact.get("path") or "").replace("\\", "/")
+        for artifact in (manifest.get("artifacts") or [])
+        if isinstance(artifact, dict)
+    }
+    expected = relative_path in manifest_paths
+
+    if not path.exists():
+        if expected:
+            report["targeted_checks"]["copilot_code_review_frontmatter"] = {
+                "path": str(path),
+                "ok": False,
+                "errors": [
+                    "manifest-listed copilot-code-review focus instruction is "
+                    "missing from the workspace"
+                ],
+            }
+        return
+
+    errors: list[str] = []
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"^---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n", text, re.DOTALL)
+    frontmatter: dict[str, Any] = {}
+    if not match:
+        errors.append("missing or unterminated YAML frontmatter block")
+    else:
+        try:
+            loaded = yaml.safe_load(match.group(1))
+        except yaml.YAMLError as exc:
+            errors.append(f"invalid YAML frontmatter: {exc}")
+        else:
+            if isinstance(loaded, dict):
+                frontmatter = loaded
+            else:
+                errors.append("frontmatter is not a mapping")
+
+    exclude_agent = frontmatter.get("excludeAgent")
+    if exclude_agent != "cloud-agent":
+        errors.append(
+            f"excludeAgent must be 'cloud-agent' (got {exclude_agent!r}); "
+            "'code-review' would silence the reviewer and 'coding-agent' is invalid"
+        )
+    apply_to = frontmatter.get("applyTo")
+    if apply_to != "**":
+        errors.append(f"applyTo must be '**' (got {apply_to!r})")
+
+    unresolved = _find_unresolved_placeholders(path)
+    if unresolved:
+        tokens = sorted({item["placeholder"] for item in unresolved})
+        errors.append("unresolved template placeholders: " + ", ".join(tokens))
+
+    registry = _resolve_policy_registry(workspace_path, autoharness_home)
+    if registry is not None:
+        defined = _defined_policy_ids(registry.read_text(encoding="utf-8"))
+        referenced = {
+            token: int(token[2:]) for token in re.findall(r"P-\d+", text)
+        }
+        undefined = sorted(
+            token for token, number in referenced.items() if number not in defined
+        )
+        if undefined:
+            errors.append(
+                "harness-enforced summary references undefined policies: "
+                + ", ".join(undefined)
+            )
+
+    report["targeted_checks"]["copilot_code_review_frontmatter"] = {
+        "path": str(path),
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
 def _add_runtime_validation_profile_check(
     report: dict[str, Any],
     profile_path: Path,
@@ -3020,6 +3174,10 @@ def verify_workspace(
             assertion["must_contain"],
             [tuple(pair) for pair in assertion.get("must_precede") or []],
         )
+
+    _check_copilot_code_review_instruction(
+        report, workspace_path, manifest, autoharness_home
+    )
 
     artifact_paths = {
         str(artifact.get("path") or "").replace("\\", "/")

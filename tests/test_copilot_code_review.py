@@ -1,0 +1,352 @@
+"""Tests for the copilot-code-review focus instruction artifact and its wiring.
+
+Shipment 086-S / feature 074-F: a dedicated GitHub Copilot code-review focus
+instruction file that directs the code-review agent to high-value defects and
+away from harness-enforced mechanical concerns, woven through install, tune,
+verify, the verifier engine, and both elective agents.
+"""
+
+from __future__ import annotations
+
+import re
+import tempfile
+import unittest
+from pathlib import Path
+
+import yaml
+
+from autoharness.verify_workspace import (
+    FOUNDATION_ASSERTIONS,
+    _check_copilot_code_review_instruction,
+)
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+TEMPLATE_PATH = REPO_ROOT / "templates" / "instructions" / "copilot-code-review.instructions.md.tmpl"
+DOGFOOD_PATH = REPO_ROOT / ".github" / "instructions" / "copilot-code-review.instructions.md"
+INSTALL_SKILL = REPO_ROOT / ".github" / "skills" / "install-harness" / "SKILL.md"
+TUNE_SKILL = REPO_ROOT / ".github" / "skills" / "tune-harness" / "SKILL.md"
+VERIFY_SKILL = REPO_ROOT / ".github" / "skills" / "verify-harness" / "SKILL.md"
+MERGEINSTALL_AGENT = REPO_ROOT / ".github" / "agents" / "auto-mergeinstall.agent.md"
+TUNE_AGENT = REPO_ROOT / ".github" / "agents" / "auto-tune.agent.md"
+
+ALLOWED_VARIABLES = {"PROJECT_NAME", "HARNESS_ENFORCED_SUMMARY"}
+
+
+def _parse_frontmatter(path: Path) -> dict:
+    """Return the parsed YAML frontmatter mapping for a Markdown file.
+
+    Matches the ``---`` fences only at the start of a line so a horizontal rule
+    (``---``) elsewhere in the body cannot corrupt the parse, and reports a clear
+    assertion when the frontmatter block is absent or unterminated.
+    """
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"^---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n", text, re.DOTALL)
+    if not match:
+        raise AssertionError(f"{path} has no well-formed YAML frontmatter block")
+    data = yaml.safe_load(match.group(1))
+    if not isinstance(data, dict):
+        raise AssertionError(f"{path} frontmatter is not a mapping")
+    return data
+
+
+# Framing phrases that encode the FOCUS-not-blanket-IGNORE design decision.
+FOCUS_PHRASES = [
+    "Focus on high-value concerns",
+    "Secret or credential exposure",
+    "Injection",
+    "Concurrency",
+    "Data-loss",
+    "De-prioritize",
+    "weakened enforcement",
+]
+
+
+class CopilotCodeReviewTemplateTests(unittest.TestCase):
+    def test_template_exists_with_focus_frontmatter_and_variables(self) -> None:
+        self.assertTrue(TEMPLATE_PATH.exists(), f"missing template: {TEMPLATE_PATH}")
+        content = TEMPLATE_PATH.read_text(encoding="utf-8")
+
+        # Frontmatter: path-scoped, code-review-only via excludeAgent.
+        self.assertIn("applyTo: '**'", content)
+        self.assertIn("excludeAgent: 'cloud-agent'", content)
+
+        # Base-branch activation caveat must be documented.
+        self.assertIn("base branch", content)
+
+        # FOCUS-not-blanket-IGNORE framing.
+        for phrase in FOCUS_PHRASES:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, content)
+
+        # Never suppress substantive defects.
+        self.assertRegex(content, r"[Nn]ever\s+suppress|not\s+suppression")
+
+        # Both required variables are present.
+        self.assertIn("{{PROJECT_NAME}}", content)
+        self.assertIn("{{HARNESS_ENFORCED_SUMMARY}}", content)
+
+    def test_template_uses_only_registered_variables(self) -> None:
+        content = TEMPLATE_PATH.read_text(encoding="utf-8")
+        used = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", content))
+        unexpected = used - ALLOWED_VARIABLES
+        self.assertFalse(
+            unexpected,
+            f"template uses unregistered variables: {sorted(unexpected)}",
+        )
+
+    def test_frontmatter_pins_exclude_agent_and_applyto(self) -> None:
+        # Parse the actual YAML frontmatter so a regression that flips ONLY the
+        # frontmatter value (while body prose still mentions the old string) is
+        # caught. `code-review` would silence the reviewer; `coding-agent` is
+        # invalid; only `cloud-agent` is correct.
+        for path in (TEMPLATE_PATH, DOGFOOD_PATH):
+            with self.subTest(path=path.name):
+                fm = _parse_frontmatter(path)
+                self.assertEqual(fm.get("excludeAgent"), "cloud-agent")
+                self.assertEqual(fm.get("applyTo"), "**")
+                self.assertIn("description", fm)
+
+    def test_template_and_dogfood_are_drift_free_after_substitution(self) -> None:
+        # Everything except the two variable placeholders must be identical
+        # between the product template and the dogfood render.
+        template = TEMPLATE_PATH.read_text(encoding="utf-8")
+        dogfood = DOGFOOD_PATH.read_text(encoding="utf-8")
+        resolved = template.replace("{{PROJECT_NAME}}", "autoharness")
+        self.assertEqual(resolved.count("{{HARNESS_ENFORCED_SUMMARY}}"), 1)
+        prefix, suffix = resolved.split("{{HARNESS_ENFORCED_SUMMARY}}")
+        self.assertTrue(dogfood.startswith(prefix), "dogfood prefix diverges from template")
+        self.assertTrue(dogfood.endswith(suffix), "dogfood suffix diverges from template")
+        summary = dogfood[len(prefix): len(dogfood) - len(suffix)]
+        self.assertTrue(summary.strip(), "resolved HARNESS_ENFORCED_SUMMARY is empty")
+        self.assertIn("* ", summary)
+
+
+class CopilotCodeReviewDogfoodTests(unittest.TestCase):
+    def test_dogfood_render_present_and_fully_resolved(self) -> None:
+        self.assertTrue(DOGFOOD_PATH.exists(), f"missing dogfood render: {DOGFOOD_PATH}")
+        content = DOGFOOD_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("applyTo: '**'", content)
+        self.assertIn("excludeAgent: 'cloud-agent'", content)
+        self.assertIn("base branch", content)
+        for phrase in FOCUS_PHRASES:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, content)
+
+        # No unresolved placeholders in the installed render.
+        leftover = re.findall(r"\{\{[A-Z0-9_]+\}\}", content)
+        self.assertFalse(leftover, f"unresolved placeholders in dogfood render: {leftover}")
+
+        # Resolved project name.
+        self.assertIn("autoharness", content)
+
+
+class CopilotCodeReviewWiringTests(unittest.TestCase):
+    def test_install_harness_registers_instruction_and_variable(self) -> None:
+        content = INSTALL_SKILL.read_text(encoding="utf-8")
+        lines = content.splitlines()
+
+        # Registration line exists, is GitHub-conditional, and documents excludeAgent.
+        reg_lines = [ln for ln in lines if "copilot-code-review.instructions.md" in ln]
+        self.assertTrue(reg_lines, "install-harness does not register the instruction")
+        self.assertTrue(
+            any(("github.com" in ln) or ("GitHub" in ln) for ln in reg_lines),
+            "registration is not gated to GitHub-hosted workspaces",
+        )
+        self.assertTrue(
+            any("excludeAgent" in ln for ln in reg_lines),
+            "registration does not document excludeAgent scoping",
+        )
+
+        # Variable-resolution row exists with a non-empty (bulleted) default so
+        # installs never leave the placeholder unresolved.
+        var_rows = [
+            ln for ln in lines
+            if "{{HARNESS_ENFORCED_SUMMARY}}" in ln and ln.lstrip().startswith("|")
+        ]
+        self.assertTrue(var_rows, "HARNESS_ENFORCED_SUMMARY variable-resolution row missing")
+        self.assertIn("*", var_rows[0], "variable-resolution row lacks a bulleted default")
+
+    def test_tune_harness_has_drift_check(self) -> None:
+        content = TUNE_SKILL.read_text(encoding="utf-8")
+        self.assertIn("copilot-code-review.instructions.md", content)
+
+    def test_verify_harness_has_coherence_check(self) -> None:
+        content = VERIFY_SKILL.read_text(encoding="utf-8")
+        self.assertIn("copilot-code-review.instructions.md", content)
+
+    def test_elective_agents_reference_capability_and_base_branch(self) -> None:
+        # Task 074.005-T requires BOTH elective agents to document the capability
+        # AND carry the base-branch activation note (install validated
+        # structurally; refreshed guidance governs subsequent PRs after merge).
+        for agent_path in (MERGEINSTALL_AGENT, TUNE_AGENT):
+            with self.subTest(agent=agent_path.name):
+                content = agent_path.read_text(encoding="utf-8")
+                self.assertIn("copilot-code-review.instructions.md", content)
+                self.assertIn("base branch", content)
+
+
+class CopilotCodeReviewVerifierTests(unittest.TestCase):
+    def test_foundation_assertion_registered(self) -> None:
+        entries = [
+            a
+            for a in FOUNDATION_ASSERTIONS
+            if a.get("path") == ".github/instructions/copilot-code-review.instructions.md"
+        ]
+        self.assertTrue(
+            entries,
+            "FOUNDATION_ASSERTIONS missing copilot-code-review.instructions.md entry",
+        )
+        must_contain = entries[0]["must_contain"]
+        joined = "\n".join(must_contain)
+        self.assertIn("excludeAgent", joined)
+        self.assertIn("Focus on high-value concerns", joined)
+
+
+class CopilotCodeReviewDeterministicCheckTests(unittest.TestCase):
+    """Behavioral tests for the parse-based verifier check.
+
+    Unlike the substring-based FOUNDATION_ASSERTIONS entry, this check parses the
+    installed file's frontmatter, so it detects a flipped ``excludeAgent`` value
+    (which shares its string with body prose) and unresolved placeholders. It is
+    gated on manifest membership: a manifest-listed-but-missing file fails, while
+    an absent file that was never installed is a no-op.
+    """
+
+    RELATIVE = ".github/instructions/copilot-code-review.instructions.md"
+
+    def _manifest_listing(self) -> dict:
+        return {"artifacts": [{"path": self.RELATIVE}]}
+
+    def _run_check(
+        self,
+        content: str,
+        manifest: dict | None = None,
+        policy_registry: str | None = None,
+        autoharness_home: Path | None = None,
+    ) -> dict | None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            target = workspace / self.RELATIVE
+            target.parent.mkdir(parents=True)
+            target.write_text(content, encoding="utf-8")
+            if policy_registry is not None:
+                registry = workspace / ".github" / "policies" / "workflow-policies.md"
+                registry.parent.mkdir(parents=True, exist_ok=True)
+                registry.write_text(policy_registry, encoding="utf-8")
+            report: dict = {"targeted_checks": {}}
+            _check_copilot_code_review_instruction(
+                report,
+                workspace,
+                manifest if manifest is not None else self._manifest_listing(),
+                autoharness_home,
+            )
+            return report["targeted_checks"].get("copilot_code_review_frontmatter")
+
+    @staticmethod
+    def _synthetic_registry() -> str:
+        return "\n".join(f"## P-{i:03d}: Policy {i}" for i in range(1, 20))
+
+    def test_valid_installed_file_passes(self) -> None:
+        check = self._run_check(DOGFOOD_PATH.read_text(encoding="utf-8"))
+        self.assertIsNotNone(check)
+        self.assertTrue(check["ok"], check.get("errors"))
+
+    def test_flipped_exclude_agent_frontmatter_fails(self) -> None:
+        # Flip ONLY the first (frontmatter) occurrence; body prose still mentions
+        # the correct string. A substring check cannot see this; the parse can.
+        content = DOGFOOD_PATH.read_text(encoding="utf-8").replace(
+            "excludeAgent: 'cloud-agent'", "excludeAgent: 'code-review'", 1
+        )
+        check = self._run_check(content)
+        self.assertIsNotNone(check)
+        self.assertFalse(check["ok"])
+        self.assertTrue(any("excludeAgent" in err for err in check["errors"]))
+
+    def test_unresolved_placeholder_fails(self) -> None:
+        content = (
+            DOGFOOD_PATH.read_text(encoding="utf-8")
+            + "\n\nResidual unresolved token {{HARNESS_ENFORCED_SUMMARY}} left behind.\n"
+        )
+        check = self._run_check(content)
+        self.assertIsNotNone(check)
+        self.assertFalse(check["ok"])
+        self.assertTrue(any("placeholder" in err for err in check["errors"]))
+
+    def test_present_file_validated_even_when_not_manifest_listed(self) -> None:
+        # A file placed in the workspace is always validated, regardless of
+        # manifest membership — a present-but-invalid focus surface is a defect.
+        content = DOGFOOD_PATH.read_text(encoding="utf-8").replace(
+            "excludeAgent: 'cloud-agent'", "excludeAgent: 'coding-agent'", 1
+        )
+        check = self._run_check(content, manifest={"artifacts": []})
+        self.assertIsNotNone(check)
+        self.assertFalse(check["ok"])
+
+    def test_manifest_listed_but_missing_fails(self) -> None:
+        # Deleting an installed (manifest-listed) focus surface must FAIL, not
+        # merely warn — otherwise verification would pass after the required
+        # surface is removed.
+        with tempfile.TemporaryDirectory() as tmp:
+            report: dict = {"targeted_checks": {}}
+            _check_copilot_code_review_instruction(
+                report, Path(tmp), self._manifest_listing()
+            )
+            check = report["targeted_checks"].get("copilot_code_review_frontmatter")
+            self.assertIsNotNone(check)
+            self.assertFalse(check["ok"])
+            self.assertTrue(any("missing" in err for err in check["errors"]))
+
+    def test_absent_and_not_manifest_listed_is_noop(self) -> None:
+        # A composition that never installed the file (not manifest-listed) must
+        # not fail — the conditional-install skip is preserved.
+        with tempfile.TemporaryDirectory() as tmp:
+            report: dict = {"targeted_checks": {}}
+            _check_copilot_code_review_instruction(
+                report, Path(tmp), {"artifacts": []}
+            )
+            self.assertNotIn("copilot_code_review_frontmatter", report["targeted_checks"])
+
+    def test_valid_policy_references_pass_with_registry(self) -> None:
+        # The dogfood summary references only defined policies (P-001..P-019);
+        # with a registry present it resolves cleanly.
+        check = self._run_check(
+            DOGFOOD_PATH.read_text(encoding="utf-8"),
+            policy_registry=self._synthetic_registry(),
+        )
+        self.assertIsNotNone(check)
+        self.assertTrue(check["ok"], check.get("errors"))
+
+    def test_undefined_policy_reference_fails_with_registry(self) -> None:
+        # A stale/undefined policy reference (P-999) in the enforced summary must
+        # fail once an authoritative registry is resolvable.
+        content = DOGFOOD_PATH.read_text(encoding="utf-8").replace(
+            "* Backlog and shipment bookkeeping conventions (backlogit)",
+            "* Backlog and shipment bookkeeping conventions (backlogit, P-999)",
+            1,
+        )
+        check = self._run_check(
+            content, policy_registry=self._synthetic_registry()
+        )
+        self.assertIsNotNone(check)
+        self.assertFalse(check["ok"])
+        self.assertTrue(
+            any("undefined" in err and "P-999" in err for err in check["errors"])
+        )
+
+    def test_undefined_policy_reference_skipped_without_registry(self) -> None:
+        # Existence-gated: with no resolvable registry, reference validation is
+        # skipped rather than failed, so an undefined reference does not fail here.
+        content = DOGFOOD_PATH.read_text(encoding="utf-8").replace(
+            "* Backlog and shipment bookkeeping conventions (backlogit)",
+            "* Backlog and shipment bookkeeping conventions (backlogit, P-999)",
+            1,
+        )
+        check = self._run_check(content)
+        self.assertIsNotNone(check)
+        self.assertTrue(check["ok"], check.get("errors"))
+
+
+if __name__ == "__main__":
+    unittest.main()
