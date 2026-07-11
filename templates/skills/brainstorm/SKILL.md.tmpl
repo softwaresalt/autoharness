@@ -46,7 +46,8 @@ are.
   requirements for.
 * `scope`: (Optional) `lightweight`, `standard`, or `deep`. Defaults to
   `standard`.
-* `handoff`: (Optional) Where the artifact should go when ready: `plan` (feed
+* `handoff`: (Optional) Where the artifact should go when ready: `ask` (prompt
+  the operator to choose, then resolve to one of the paths below), `plan` (feed
   `impl-plan`), `queue` (link a backlog entry for later pursuit), `both`, or
   `none`. Defaults to `ask`.
 * `dark_factory`: (Optional) `true` only when the operator has used an explicit
@@ -200,6 +201,11 @@ brainstorm requirements doc
 
 #### Step 5.3: Execute Handoff
 
+* **Ask** (default) → prompt the operator to choose `plan`, `queue`, `both`, or
+  `none`, then execute that resolved path. When no operator is reachable
+  (unattended or dark mode), resolve to `plan` if the handoff contract is
+  satisfied, otherwise `none`. Record the resolved choice in the artifact and in
+  the `BRAINSTORM_HANDOFF_READY` event so the promotion path is never undefined.
 * **Plan** → pass the artifact path to `impl-plan` as its source document. The
   problem frame maps to requirements, success criteria carry forward, and stable
   IDs are preserved.
@@ -227,7 +233,7 @@ source_research:
   - "<repo-relative path or URL>"
 scope: "lightweight|standard|deep"
 handoff_status: "ready_for_plan|blocked_on_questions|deferred"
-dark_factory_ready: false
+dark_factory_ready: false   # set true only when a validated dark_factory input satisfies the Dark Factory Handoff Rules
 requirement_ids:
   - "R1"
 ---
@@ -278,6 +284,12 @@ dark-mode candidate only when:
 Include a `Dark Factory Handoff` note in the artifact only when those conditions
 are satisfied or intentionally planned. The note MUST reference P-017 and MUST NOT
 weaken P-014, P-016, P-009, or CI/check requirements.
+
+The `dark_factory` input drives the artifact's `dark_factory_ready` flag: when
+`dark_factory: true` is passed AND the conditions above are validated, set
+`dark_factory_ready: true` and add the `Dark Factory Handoff` note. If the input
+is `false`, absent, or fails validation, leave `dark_factory_ready: false` and
+omit the note — a `true` input never silently marks the artifact ready.
 
 ## Non-Goals and Role Boundary
 

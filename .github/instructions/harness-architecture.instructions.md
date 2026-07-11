@@ -157,7 +157,7 @@ through several primitives at once, and must stay coherent across them:
 
 **Design Rules**:
 
-* Pipeline: Deliberate/Spike → Plan → Plan-Harden (when needed) → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
+* Pipeline: Brainstorm/Deliberate/Spike → Plan → Plan-Harden (when needed) → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
 * Each agent declares its maximum subagent depth
 * Skills are leaf executors (no subagent spawning)
 * Handoff contracts preserve verification and closure expectations from planning through release

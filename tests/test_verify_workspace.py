@@ -231,6 +231,64 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, content)
 
+    def test_brainstorm_skill_is_registered_and_uses_registered_variables(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        brainstorm = repo_root / "templates" / "skills" / "brainstorm" / "SKILL.md.tmpl"
+        content = brainstorm.read_text(encoding="utf-8")
+
+        # Structure, frontmatter, and handoff invariants from the decision doc
+        for phrase in (
+            "doc_type: spec",
+            "handoff_status:",
+            "dark_factory_ready:",
+            "BRAINSTORM_HANDOFF_READY",
+            "#### Step 5.3: Execute Handoff",
+            "## Non-Goals and Role Boundary",
+        ):
+            with self.subTest(invariant=phrase):
+                self.assertIn(phrase, content)
+
+        # The default `ask` handoff must be an accepted, defined value (no undefined promotion path)
+        self.assertIn("`ask`", content)
+        self.assertIn("**Ask** (default)", content)
+
+        # Only registered docs/backlog variables may appear; the product-specs subdir
+        # must never be hard-coded past the registered variable.
+        self.assertNotIn("{{DOCS_ROOT}}/product-specs", content)
+        allowed_variables = {
+            "DOCS_PRODUCT_SPECS",
+            "DOCS_COMPOUND",
+            "DOCS_MEMORY",
+            "BACKLOG_DIRECTORY",
+            "STATUS_QUEUED",
+        }
+        found_variables = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", content))
+        self.assertTrue(
+            found_variables.issubset(allowed_variables),
+            f"unregistered template variables: {found_variables - allowed_variables}",
+        )
+
+        # Registration in the three enumeration surfaces (install is manifest-based)
+        for path in (
+            repo_root / ".github" / "skills" / "install-harness" / "SKILL.md",
+            repo_root / ".github" / "instructions" / "harness-architecture.instructions.md",
+            repo_root / "docs" / "getting-started.md",
+        ):
+            with self.subTest(registration=str(path.relative_to(repo_root))):
+                self.assertIn("brainstorm/SKILL.md", path.read_text(encoding="utf-8"))
+
+        # impl-plan accepts a brainstorm requirements document as a planning source
+        impl_plan = repo_root / "templates" / "skills" / "impl-plan" / "SKILL.md.tmpl"
+        self.assertIn("{{DOCS_PRODUCT_SPECS}}", impl_plan.read_text(encoding="utf-8"))
+
+        # Pipeline references must stay synchronized once brainstorm is a Primitive 4 front door
+        for path in (
+            repo_root / ".github" / "instructions" / "harness-architecture.instructions.md",
+            repo_root / ".github" / "copilot-review-instructions.md",
+        ):
+            with self.subTest(pipeline=str(path.relative_to(repo_root))):
+                self.assertIn("Brainstorm/Deliberate/Spike", path.read_text(encoding="utf-8"))
+
     def test_runtime_validator_model_is_woven_through_runtime_and_architecture_surfaces(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         expected_phrases_by_file = {
