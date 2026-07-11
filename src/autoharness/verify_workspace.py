@@ -36,6 +36,23 @@ SUPPORTED_CAPABILITY_PACKS = {
     "adversarial-review",
     "graphtor-docs",
 }
+# Capability packs whose value is indexed/context retrieval that the
+# capability-pack usage-enforcement overlay routes to before broad search.
+# This constant is the verifier's self-contained source of truth (it cannot read
+# the autoharness_home registry at target verify-time). A drift guard test
+# (075.003-T) asserts it equals the retrieval_enforced-marked set in
+# templates/packs/capability-pack-registry.yaml.
+RETRIEVAL_ENFORCED_PACKS = frozenset({"agent-engram", "graphtor-docs"})
+_CPE_RELATIVE_PATH = ".github/instructions/capability-pack-enforcement.instructions.md"
+_CPE_ROUTE_BEGIN = "<!-- BEGIN:capability-pack-routes -->"
+_CPE_ROUTE_END = "<!-- END:capability-pack-routes -->"
+_CPE_ROUTE_RE = re.compile(r"<!-- route:([a-z0-9-]+) -->")
+_CPE_SAFEGUARD_MARKERS = (
+    "<!-- safeguard:pack-deferral -->",
+    "<!-- safeguard:direct-search-exemptions -->",
+    "<!-- safeguard:per-phase-health-reuse -->",
+    "<!-- safeguard:internal-no-public-web -->",
+)
 WORKSPACE_SOURCE_TEMPLATES = {
     "workspace merge install",
     "workspace deliberation template",
@@ -2457,6 +2474,157 @@ def _check_copilot_code_review_instruction(
     }
 
 
+def _check_capability_pack_enforcement(
+    report: dict[str, Any],
+    workspace_path: Path,
+    manifest: dict[str, Any],
+    config: dict[str, Any],
+    autoharness_home: Path | None = None,
+) -> None:
+    """Deterministic coherence guard for the capability-pack usage-enforcement overlay.
+
+    Expectedness is driven by the set of ENABLED retrieval-enforced packs
+    (``RETRIEVAL_ENFORCED_PACKS``), computed from the **union** of the manifest
+    and config ``capability_packs`` lists (config is authoritative for
+    "enabled"). Deriving expectedness from the union — rather than the existing
+    ``installed_packs`` value, which collapses to ``manifest OR config`` — means
+    a nonempty manifest that drops a pack while config still enables it cannot
+    silently suppress this check.
+
+    When at least one retrieval-enforced pack is enabled, the enforcement
+    instruction is INDEPENDENTLY required to: (a) exist; (b) be recorded in the
+    manifest ``artifacts[]`` with a checksum that MATCHES the installed file —
+    this check FAILS (not merely warns) on a missing/empty checksum or a
+    mismatch, because the generic checksum scan only records ``user-modified`` /
+    ``checksum-untracked`` as warnings; (c) carry a route block whose
+    ``<!-- route:{id} -->`` rows represent EXACTLY the enabled retrieval-enforced
+    set (via stable markers, not a loose substring); and (d) still carry the four
+    safeguard-invariant markers. It also asserts ``applyTo: '**'`` and no
+    unresolved ``{{PLACEHOLDER}}`` tokens.
+
+    When NO retrieval-enforced pack is enabled, the check is a no-op ONLY when the
+    file and manifest entry are both absent; if either is still present it FAILS
+    as an orphaned overlay (a stale globally-applied instruction pointing at
+    unavailable tools).
+    """
+    manifest_packs = {str(p) for p in (manifest.get("capability_packs") or [])}
+    config_packs = {str(p) for p in (config.get("capability_packs") or [])}
+    enabled_retrieval = (manifest_packs | config_packs) & set(RETRIEVAL_ENFORCED_PACKS)
+
+    path = workspace_path / _CPE_RELATIVE_PATH
+    file_exists = path.exists()
+
+    artifacts = [a for a in (manifest.get("artifacts") or []) if isinstance(a, dict)]
+    checksum_by_path = {
+        str(a.get("path") or "").replace("\\", "/"): _normalize_signal_text(
+            a.get("checksum")
+        )
+        for a in artifacts
+    }
+    manifest_listed = _CPE_RELATIVE_PATH in checksum_by_path
+
+    if not enabled_retrieval:
+        if file_exists or manifest_listed:
+            report["targeted_checks"]["capability_pack_enforcement"] = {
+                "path": str(path),
+                "ok": False,
+                "errors": [
+                    "orphaned enforcement overlay: the capability-pack "
+                    "usage-enforcement instruction (or its manifest entry) is "
+                    "present but no retrieval-enforced pack (agent-engram, "
+                    "graphtor-docs) is enabled; remove the file and its manifest "
+                    "artifacts[]/capability_pack_overlays[] records"
+                ],
+            }
+        return
+
+    errors: list[str] = []
+
+    if not file_exists:
+        report["targeted_checks"]["capability_pack_enforcement"] = {
+            "path": str(path),
+            "ok": False,
+            "errors": [
+                "enabled retrieval-enforced packs "
+                f"({', '.join(sorted(enabled_retrieval))}) require the "
+                "capability-pack usage-enforcement instruction, which is missing "
+                "from the workspace"
+            ],
+        }
+        return
+
+    text = path.read_text(encoding="utf-8")
+
+    if not manifest_listed:
+        errors.append(
+            "enforcement instruction is not recorded in the manifest artifacts[]"
+        )
+    else:
+        expected_checksum = checksum_by_path[_CPE_RELATIVE_PATH]
+        actual_checksum = _sha256_bytes(path.read_bytes())
+        if not expected_checksum:
+            errors.append(
+                "manifest checksum for the enforcement instruction is missing or "
+                "empty (checksum integrity cannot be verified)"
+            )
+        elif expected_checksum != actual_checksum:
+            errors.append(
+                "manifest checksum does not match the installed enforcement "
+                f"instruction (expected {expected_checksum}, got {actual_checksum}) "
+                "— possible tampering or un-refreshed manifest"
+            )
+
+    match = re.match(r"^---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n", text, re.DOTALL)
+    frontmatter: dict[str, Any] = {}
+    if not match:
+        errors.append("missing or unterminated YAML frontmatter block")
+    else:
+        try:
+            loaded = yaml.safe_load(match.group(1))
+        except yaml.YAMLError as exc:
+            errors.append(f"invalid YAML frontmatter: {exc}")
+        else:
+            if isinstance(loaded, dict):
+                frontmatter = loaded
+            else:
+                errors.append("frontmatter is not a mapping")
+    if frontmatter.get("applyTo") != "**":
+        errors.append(
+            f"applyTo must be '**' (got {frontmatter.get('applyTo')!r})"
+        )
+
+    if _CPE_ROUTE_BEGIN not in text or _CPE_ROUTE_END not in text:
+        errors.append(
+            "route block markers "
+            f"({_CPE_ROUTE_BEGIN} / {_CPE_ROUTE_END}) are missing"
+        )
+    else:
+        block = text.split(_CPE_ROUTE_BEGIN, 1)[1].split(_CPE_ROUTE_END, 1)[0]
+        route_ids = set(_CPE_ROUTE_RE.findall(block))
+        if route_ids != enabled_retrieval:
+            errors.append(
+                "route rows do not match the enabled retrieval-enforced set "
+                f"(rows={sorted(route_ids)}, enabled={sorted(enabled_retrieval)})"
+            )
+
+    missing_safeguards = [m for m in _CPE_SAFEGUARD_MARKERS if m not in text]
+    if missing_safeguards:
+        errors.append(
+            "missing safeguard-invariant markers: " + ", ".join(missing_safeguards)
+        )
+
+    unresolved = _find_unresolved_placeholders(path)
+    if unresolved:
+        tokens = sorted({item["placeholder"] for item in unresolved})
+        errors.append("unresolved template placeholders: " + ", ".join(tokens))
+
+    report["targeted_checks"]["capability_pack_enforcement"] = {
+        "path": str(path),
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
 def _add_runtime_validation_profile_check(
     report: dict[str, Any],
     profile_path: Path,
@@ -3177,6 +3345,10 @@ def verify_workspace(
 
     _check_copilot_code_review_instruction(
         report, workspace_path, manifest, autoharness_home
+    )
+
+    _check_capability_pack_enforcement(
+        report, workspace_path, manifest, config, autoharness_home
     )
 
     artifact_paths = {
