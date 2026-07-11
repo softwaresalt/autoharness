@@ -1068,6 +1068,7 @@ Generate skill files:
 
 2. **Universal skills** (minimal adaptation; install only when their governing primitives are selected):
     * `deliberate/SKILL.md`
+    * `brainstorm/SKILL.md` — Install when Primitive 4 is selected. Front-door requirements-intake skill that complements `deliberate` and hands a requirements artifact to `impl-plan`.
     * `spike/SKILL.md`
     * `plan-harden/SKILL.md` — Install when Primitive 4 is selected so risky plans can be strengthened before review
     * `compact-context/SKILL.md`

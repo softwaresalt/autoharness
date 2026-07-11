@@ -279,6 +279,7 @@ target-workspace/
       research/
         learnings-researcher.agent.md
     skills/
+      brainstorm/SKILL.md
       deliberate/SKILL.md
       spike/SKILL.md
       build-feature/SKILL.md

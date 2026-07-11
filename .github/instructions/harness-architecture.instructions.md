@@ -148,6 +148,7 @@ through several primitives at once, and must stay coherent across them:
 * `harness-architect/SKILL.md` — TDD harness generation
 * `build-feature/SKILL.md` — Harness loop execution
 * `deliberate/SKILL.md` — Structured deliberation and decision capture
+* `brainstorm/SKILL.md` — Front-door requirements intake that shapes requirements before planning and hands a requirements artifact to impl-plan
 * `spike/SKILL.md` — Time-boxed investigation and findings capture
 * `fix-ci/SKILL.md` — CI failure resolution
 * `pr-lifecycle/SKILL.md` — PR creation and follow-up
