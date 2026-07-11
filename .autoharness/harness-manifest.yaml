@@ -55,6 +55,7 @@ capability_pack_overlays:
       - ".ship.agent.md contains Engram session-start check (get_workspace_status)"
       - "copilot-instructions.md engram block cross-references installed instructions"
       - "No unresolved {{VARIABLE}} in agent-engram.instructions.md"
+      - "capability-pack-enforcement.instructions.md present with route:agent-engram row and matching manifest checksum"
   - pack: "graphtor-docs"
     overlay_targets:
       - "graphtor-docs.instructions.md"
@@ -65,6 +66,7 @@ capability_pack_overlays:
       - "Zero {{VARIABLE}} placeholders in installed graphtor-docs.instructions.md"
       - ".stage.agent.md and .ship.agent.md contain GRAPHTOR_UNAVAILABLE references"
       - "workspace-profile.yaml has graphtor_docs section"
+      - "capability-pack-enforcement.instructions.md present with route:graphtor-docs row and matching manifest checksum"
 primitives_installed:
   - 1
   - 2
@@ -216,6 +218,11 @@ artifacts:
     template: "instructions/copilot-code-review.instructions.md.tmpl"
     checksum: "238d6a45dde027c88d77a8262510da909b66654b41d6a9423af4f0f459987f6f"
     note: "GitHub Copilot code-review focus instruction (086-S); GitHub-conditional, base-branch activated"
+  - path: ".github/instructions/capability-pack-enforcement.instructions.md"
+    primitive: 6
+    template: "instructions/capability-pack-enforcement.instructions.md.tmpl"
+    checksum: "5ccfe6d43834dbae3fc7b77633894986671e50fc606f9bdc52bed8eb9e38b84f"
+    note: "capability-pack usage-enforcement coordinator (075-F/087-S); routes retrieval-enforced packs (agent-engram, graphtor-docs) with safeguard invariants"
   - path: ".github/instructions/output-timestamps.instructions.md"
     primitive: 7
     template: "instructions/output-timestamps.instructions.md.tmpl"
