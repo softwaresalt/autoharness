@@ -208,13 +208,15 @@ Sequence the decision, don't jump to a launcher:
 
 1. **Resolve the `github` server first, routed by client/auth capability.** Retire
    the deprecated `@modelcontextprotocol/server-github` and migrate to GitHub's
-   official server. There is no single PAT-free path for every client: hosted
-   remote is OAuth on supported Copilot IDE hosts but needs a **PAT** on Copilot
-   CLI / Claude Code / Cursor; the official local stdio binary has built-in OAuth
-   but holds the token in memory (re-auth per restart) unless given a static
-   token; and Copilot CLI can use its built-in GitHub server. Pick per the
-   client(s) actually targeted. Any of these removes the only launcher that needs
-   command substitution.
+   official server. There **is** one client-agnostic PAT-free option: the official
+   local `github-mcp-server stdio` binary performs OAuth itself and launches
+   without a PAT on each targeted stdio client (Copilot CLI, Claude Code, Cursor),
+   at the cost of an in-memory token that re-authorizes on each restart (a static
+   token avoids the re-auth but reintroduces a PAT). Only the **hosted-remote**
+   path forces the per-client auth split: OAuth on supported Copilot IDE hosts but
+   a **PAT** on Copilot CLI / Claude Code / Cursor. Copilot CLI additionally has a
+   built-in GitHub server. Pick per the client(s) actually targeted. Any of these
+   removes the only launcher that needs command substitution.
 2. **With `github` resolved, the launcher question collapses.** The only
    remaining wrapper is `tavily`'s optional API-key guard. A plain `npx` entry
    with **no** wrapper already inherits the MCP client's process environment, so
