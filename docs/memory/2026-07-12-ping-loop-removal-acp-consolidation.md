@@ -21,8 +21,9 @@ ACP mode; the MCP-mode sustained-heartbeat prompt is retired. Heartbeat
 in `agent-intercom.instructions.md` — only the standalone prompt artifact and its
 wiring were removed.
 
-PR #210 merged via merge commit `e1dda8f` (2 parents `da44830` + `53682b2`,
-P-009 verified). Feature + closure done in a single chore PR.
+PR #210 (feature/shipping) merged via merge commit `e1dda8f` (2 parents
+`da44830` + `53682b2`, P-009 verified). Backlog archival and this closure memo
+land in the separate closure PR #211.
 
 ## Changes
 
