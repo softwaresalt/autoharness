@@ -1,6 +1,6 @@
 ---
 title: ".mcp.json Launcher Strategy Consolidation (npx / pwsh mix)"
-description: "Deliberation for stash item FD962DCC. The workspace-root .mcp.json mixes plain npx launchers with pwsh -Command wrappers that guard an env var (tavily) and read the gh credential (github). Reframes the problem around the deprecated @modelcontextprotocol/server-github package, then evaluates standardizing on a launcher, per-OS variants, an env-block approach, and a Node helper. Recommends resolving the github server first (official hosted/local server or Copilot-CLI built-in) — which retires the deprecated package and removes the only command-substitution launcher — then consolidating toward npx + native binaries away from pwsh. Left at decision_status proposed because the client-set and github-server choices are operator/product tradeoffs and implementation mutates the live dogfood MCP config."
+description: "Deliberation for stash item FD962DCC. The workspace-root .mcp.json mixes plain npx launchers with pwsh -Command wrappers that guard an env var (tavily) and read the gh credential (github). Reframes the problem around the deprecated @modelcontextprotocol/server-github package, then evaluates standardizing on a launcher, per-OS variants, a process-environment-inheritance approach, and a Node helper. Recommends resolving the github server first (official hosted/local server or Copilot-CLI built-in) — which retires the deprecated package and removes the only command-substitution launcher — then consolidating toward npx + native binaries away from pwsh. Left at decision_status proposed because the client-set and github-server choices are operator/product tradeoffs and implementation mutates the live dogfood MCP config."
 topic: "How should the harness resolve the mixed npx/pwsh launcher strategy in the workspace-root .mcp.json so the configuration stays cross-platform, keeps the gh credential read, and accounts for the deprecated github MCP package and differing per-client config locations?"
 depth: "significant"
 decision_status: "proposed"
@@ -79,12 +79,16 @@ alternate cross-platform approach, or (c) generate per-OS `.mcp.json` variants.
 
 ## Constraints
 
-1. **Config-location differs by client.** Copilot CLI and Claude Code read the
-   root `.mcp.json`; VS Code reads `.vscode/mcp.json` (`servers` key); Cursor
-   reads `.cursor/mcp.json`. A "single file for all clients" assumption is false.
-   The IDE-reads-it-before-any-start-script race only applies to clients that
-   read a **committed** file on workspace open. For Copilot CLI launched *by*
-   `start.ps1`/`start.sh`, the script necessarily runs before config load, so a
+1. **Config-location differs by client, and the root file is not committed.**
+   Copilot CLI and Claude Code read the root `.mcp.json`; VS Code reads
+   `.vscode/mcp.json` (`servers` key); Cursor reads `.cursor/mcp.json`. A "single
+   file for all clients" assumption is false. Moreover the root `.mcp.json` is
+   **gitignored / untracked** (`.gitignore:24`, commit `2b34b8c` "stop tracking
+   local MCP config"), so it is a **developer-local** artifact: a fresh clone has
+   **no** root config until one is created locally, and an existing clone may
+   keep a stale local copy. The IDE-reads-it-before-any-start-script race applies
+   to whatever local `.mcp.json` exists on workspace open. For Copilot CLI
+   launched *by* `start.ps1`/`start.sh`, the script runs before config load, so a
    start-script-generated config is safe there but not for IDE-direct launches.
 2. **Avoid duplicating the token.** The `github` server reads the credential
    `gh` already holds rather than copying a token into `.mcp.json`. Any solution
@@ -156,10 +160,15 @@ Use `sh -c 'export GITHUB_PERSONAL_ACCESS_TOKEN=$(gh auth token); exec npx ...'`
 Ship `.mcp.windows.json` + `.mcp.posix.json`; `start.ps1` / `start.sh` copy the
 right one to `.mcp.json`.
 
-* **Pro:** Each variant uses the most native launcher.
-* **Con:** For IDE-direct clients (Constraint 1) a fresh clone or IDE-first
-  launch gets whatever was last committed, before any start script runs. Doubles
-  maintenance surface. Fragile and non-obvious.
+* **Pro:** Each variant uses the most native launcher. Because the root
+  `.mcp.json` is already gitignored/generated (not committed), producing it per
+  OS at start time fits the existing "local artifact" model rather than
+  overwriting a tracked file.
+* **Con:** It only works if the start script actually generates `.mcp.json`
+  (today it appears hand-authored locally). For IDE-direct launches on a fresh
+  clone there is **no** config until the generator runs (Constraint 1), and an
+  existing clone may keep a stale local variant. Doubles the maintained source
+  surface. Fragile and non-obvious.
 
 ### Option D — Drop wrappers; inherit secrets from the client's process environment
 
@@ -269,3 +278,8 @@ Deferring *ratification* does not mean nothing is verifiable. Separate:
   a dogfood artifact. Templatizing MCP registration is a separate, larger item.
 * Fixing the operator-reported `graphtor-docs` `graph.db` open failure. That is
   tool-managed local daemon state (reindex/reset), not a repository change.
+* Resolving the `.gitignore` inconsistency: lines 19-20 comment that "The root
+  `.mcp.json` ... is tracked," but line 24 actually ignores it and commit
+  `2b34b8c` stopped tracking it. Whether the root `.mcp.json` should be tracked
+  (canonical, committed) or generated-and-ignored (local) is itself an operator
+  decision that gates the per-OS-variant option above; flagged here, not changed.
