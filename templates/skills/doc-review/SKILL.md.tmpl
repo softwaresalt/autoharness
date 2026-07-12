@@ -169,11 +169,22 @@ Verify optional-but-recommended frontmatter fields:
 
 * Instruction files: `applyTo` glob is present and non-empty.
 * Skill files: `argument-hint` is present.
-* Agent files: `max_subagent_tier` is present (the base tier is config-resolved via `model_routing`, not a `model_tier` frontmatter field).
 
 ```text
 Action class: advisory — missing recommended fields do not block but
 degrade runtime behavior or tooling integration
+```
+
+Agent files additionally carry one **required** structured tier field:
+
+* Agent files: `max_subagent_tier` is present as an integer. Per P-013.4 an
+  agent that omits it is non-conformant. (The base tier is config-resolved via
+  `model_routing`; there is no `model_tier` frontmatter field.)
+
+```text
+Action class: manual — a missing `max_subagent_tier` is a P-013.4 conformance
+finding, not an advisory nit; surface it for correction before the next
+verification pass
 ```
 
 ## Workflow

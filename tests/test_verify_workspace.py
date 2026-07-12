@@ -3119,6 +3119,13 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 f"legacy model_tier must be ignored, not flagged: {check}",
             )
             self.assertEqual(check.get("errors", []), [])
+
+    def test_verify_workspace_checks_p013_policy_in_workflow_policies(self) -> None:
+        """The installed workflow-policies.md must document P-013 with the
+        config-resolved tier language (model_routing -> resolved model fields)
+        and the max_subagent_tier ceiling. Exercised independently of the
+        legacy model_tier backward-compatibility test above so a failure in
+        either test identifies the correct contract."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             autoharness_home = root / "autoharness-home"
