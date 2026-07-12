@@ -146,7 +146,7 @@ artifacts:
   - path: ".github/agents/auto-mergeinstall.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "78b74ba30f9bea0b47512a617abd6c12f061d535db5ecc7f3eff5b17728f15e9"
+    checksum: "d709e75ffff2ab8d5341057c1d7b40a08b54509ce3427468dc45083dbe57d487"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/agents/auto-tune.agent.md"
     primitive: 4
@@ -176,7 +176,7 @@ artifacts:
   - path: ".github/prompts/install-harness.prompt.md"
     primitive: 6
     template: "global prompt definition"
-    checksum: "09988e6c3e5121334371af4d86b284cbd4f369eb1e28a284df4c80c35421d06a"
+    checksum: "2a2a58a20642c48cb3acfb1f3855368392301ce713a4cc99fdf39d1990042065"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/prompts/tune-harness.prompt.md"
     primitive: 6
