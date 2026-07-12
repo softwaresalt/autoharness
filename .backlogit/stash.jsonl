@@ -1,5 +1,4 @@
 {"id":"CE8771AF","priority":"medium","kind":"feature","text":"Evaluate tokenmasterx submodule for ideas and features to integrate into autoharness","created_at":"2026-07-09T06:50:31.7986593Z"}
-{"id":"CA76F48B","priority":"medium","kind":"feature","text":"Add graphtor as a capability pack in the full suite","created_at":"2026-07-09T06:51:25.1564914Z"}
 {"id":"83854CD2","priority":"medium","kind":"feature","text":"Run session with read access to all capability pack workspaces; coordinate standardized logging and telemetry to enable full measurability","created_at":"2026-07-09T06:51:50.7378886Z"}
 {"id":"6C5B3463","priority":"medium","kind":"feature","text":"Evaluate shifting harness metrics, reporting, and evals out of backlogit; also consider a data contract for tool telemetry to standardize how autoharness measures tool usage and token efficiency through tooling","created_at":"2026-07-09T06:54:31.8531127Z"}
 {"id":"1270EC13","priority":"medium","kind":"feature","text":"Expand harness to be multi-repo capable where a workspace spans multiple codebases or is a monorepo","created_at":"2026-07-09T06:54:46.4844619Z"}
