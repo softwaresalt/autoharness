@@ -108,8 +108,12 @@ it:
   process) would eliminate the launcher *and* the `pwsh` wrapper for the
   load-bearing case entirely.
 * Migrating to the **official local** `github-mcp-server` binary replaces `npx`
-  with a native binary (like `backlogit`/`engram`), and its token can come from
-  an `env` block instead of a `pwsh` command substitution.
+  with a native binary (like `backlogit`/`engram`). As of GitHub MCP Server
+  v1.5.0 (2026-06-27) the stdio binary has **built-in OAuth**: `github-mcp-server
+  stdio` starts on github.com with no PAT, client ID, or `env` block, and a
+  static token is only an optional override. So the local option needs no token
+  wiring at all — comparable to the hosted remote for auth, while running in
+  the developer's own process.
 
 Any of these removes the only launcher that genuinely needs command
 substitution. That would shrink the launcher problem down to `tavily`'s optional
@@ -179,16 +183,20 @@ environment, and spawn the target server with inherited stdio on all three OSes.
 Sequence the decision, don't jump to a launcher:
 
 1. **Resolve the `github` server first.** Migrate the custom `github` entry to
-   GitHub's official server — hosted remote (no local launcher, no `pwsh`) is the
-   cleanest; the official local binary is the fallback — or drop the entry for
-   Copilot CLI where a GitHub MCP server is built in. This retires the deprecated
-   `@modelcontextprotocol/server-github` package and removes the only launcher
-   that needs command substitution.
+   GitHub's official server — hosted remote (no local process, no `pwsh`) or the
+   official local stdio binary (built-in OAuth as of v1.5.0, so no PAT/`env`
+   block needed) — or drop the entry for Copilot CLI where a GitHub MCP server is
+   built in. This retires the deprecated `@modelcontextprotocol/server-github`
+   package and removes the only launcher that needs command substitution.
 2. **With `github` resolved, the launcher question collapses.** The only
-   remaining wrapper is `tavily`'s optional API-key guard, expressible as a plain
-   `npx` entry with the key supplied via an `env` block (Option D shape) — no
-   `pwsh`, no `sh`. If a custom local launcher must remain for any server, use a
-   small Node helper (Option E) rather than adding a `pwsh`/`sh` OS dependency.
+   remaining wrapper is `tavily`'s optional API-key guard. A plain `npx` entry
+   with **no** wrapper already inherits the MCP client's process environment, so
+   `TAVILY_API_KEY` is available if it is set where the client runs — no `pwsh`,
+   no `sh`, and no `env`-block secret duplication. Keep it client-agnostic by
+   relying on that inherited environment; document client-specific secret input
+   (`${input:...}` in VS Code-style config, `${VAR}` for Copilot CLI) only as a
+   fallback. If a custom local launcher must remain for any server, use a small
+   Node helper (Option E) rather than adding a `pwsh`/`sh` OS dependency.
 
 Net direction: **npx + native binaries + the official GitHub MCP server**, which
 consolidates *away* from `pwsh` while staying cross-platform — the outcome the
@@ -220,8 +228,9 @@ Deferring *ratification* does not mean nothing is verifiable. Separate:
 
 1. Decide the `github` server target (hosted remote / official local binary /
    Copilot-CLI built-in) and update the entry accordingly.
-2. Simplify `tavily` to a plain `npx` entry with the key via `env` (or a Node
-   guard) and drop the `pwsh` wrapper.
+2. Simplify `tavily` to a plain `npx` entry that inherits `TAVILY_API_KEY` from
+   the client's process environment and drop the `pwsh` wrapper; document
+   client-specific secret input only as a fallback.
 3. Add `gh` failure/empty-output handling wherever a launcher still reads the
    credential.
 4. Run the automatable checks above in CI or locally.
