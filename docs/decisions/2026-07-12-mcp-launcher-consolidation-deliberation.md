@@ -104,16 +104,24 @@ it:
 
 * **Copilot CLI** ships a built-in GitHub MCP server → the custom entry may be
   redundant there.
-* Migrating to GitHub's **hosted remote** `github-mcp-server` (OAuth, no local
-  process) would eliminate the launcher *and* the `pwsh` wrapper for the
-  load-bearing case entirely.
+* Migrating to GitHub's **hosted remote** `github-mcp-server` removes the local
+  process and the `pwsh` wrapper. But remote **OAuth is not universal**: GitHub's
+  support matrix lists remote OAuth for supported Copilot IDE hosts, while
+  Copilot CLI, Claude Code, and Cursor still require a **PAT** for the hosted
+  server. For those clients the hosted option re-introduces token
+  provisioning/forwarding, so it does not by itself satisfy the
+  no-duplication/client-agnostic goals — the choice must be split by client/auth
+  capability.
 * Migrating to the **official local** `github-mcp-server` binary replaces `npx`
   with a native binary (like `backlogit`/`engram`). As of GitHub MCP Server
   v1.5.0 (2026-06-27) the stdio binary has **built-in OAuth**: `github-mcp-server
   stdio` starts on github.com with no PAT, client ID, or `env` block, and a
-  static token is only an optional override. So the local option needs no token
-  wiring at all — comparable to the hosted remote for auth, while running in
-  the developer's own process.
+  static token is only an optional override. **Lifecycle caveat:** per the
+  official `oauth-login.md`, the OAuth token is held **in memory only** (nothing
+  written to disk), so **every server-process restart requires a fresh
+  interactive browser/device authorization**. That is a material cost given this
+  document's AFK/restart concern — a static token override trades the
+  no-secret-on-disk property for unattended restarts.
 
 Any of these removes the only launcher that genuinely needs command
 substitution. That would shrink the launcher problem down to `tavily`'s optional
@@ -153,11 +161,14 @@ right one to `.mcp.json`.
   launch gets whatever was last committed, before any start script runs. Doubles
   maintenance surface. Fragile and non-obvious.
 
-### Option D — Drop wrappers; use `env` block + documented export
+### Option D — Drop wrappers; inherit secrets from the client's process environment
 
-All servers use plain `command`; secrets come from the process environment
-(`GITHUB_PERSONAL_ACCESS_TOKEN`, `TAVILY_API_KEY`) exported by the user, or by
-the `start` scripts for start-script-launched Copilot CLI.
+All servers use plain `command`; secrets (`GITHUB_PERSONAL_ACCESS_TOKEN`,
+`TAVILY_API_KEY`) are **inherited from the environment the MCP client runs in** —
+set by the user's shell/profile, or by the `start` scripts for
+start-script-launched Copilot CLI. No `env` block (a literal duplicates the
+secret in config; forwarding syntax like `${input:...}` / `${VAR}` is
+client-specific).
 
 * **Pro:** Cleanest, most portable, launcher-free config.
 * **Con:** For IDE-direct launches the server won't inherit a start-script-only
@@ -182,12 +193,15 @@ environment, and spawn the target server with inherited stdio on all three OSes.
 
 Sequence the decision, don't jump to a launcher:
 
-1. **Resolve the `github` server first.** Migrate the custom `github` entry to
-   GitHub's official server — hosted remote (no local process, no `pwsh`) or the
-   official local stdio binary (built-in OAuth as of v1.5.0, so no PAT/`env`
-   block needed) — or drop the entry for Copilot CLI where a GitHub MCP server is
-   built in. This retires the deprecated `@modelcontextprotocol/server-github`
-   package and removes the only launcher that needs command substitution.
+1. **Resolve the `github` server first, routed by client/auth capability.** Retire
+   the deprecated `@modelcontextprotocol/server-github` and migrate to GitHub's
+   official server. There is no single PAT-free path for every client: hosted
+   remote is OAuth on supported Copilot IDE hosts but needs a **PAT** on Copilot
+   CLI / Claude Code / Cursor; the official local stdio binary has built-in OAuth
+   but holds the token in memory (re-auth per restart) unless given a static
+   token; and Copilot CLI can use its built-in GitHub server. Pick per the
+   client(s) actually targeted. Any of these removes the only launcher that needs
+   command substitution.
 2. **With `github` resolved, the launcher question collapses.** The only
    remaining wrapper is `tavily`'s optional API-key guard. A plain `npx` entry
    with **no** wrapper already inherits the MCP client's process environment, so
@@ -226,16 +240,26 @@ Deferring *ratification* does not mean nothing is verifiable. Separate:
 
 ## Deferred implementation checklist (for operator ratification)
 
-1. Decide the `github` server target (hosted remote / official local binary /
-   Copilot-CLI built-in) and update the entry accordingly.
+1. Decide the `github` server target and route by client/auth capability: hosted
+   remote (OAuth on Copilot IDE hosts; **PAT** on Copilot CLI / Claude Code /
+   Cursor), official local stdio binary (built-in OAuth, but in-memory token →
+   re-auth on every restart, or a static token override for unattended restarts),
+   or Copilot-CLI built-in. Update the entry accordingly.
 2. Simplify `tavily` to a plain `npx` entry that inherits `TAVILY_API_KEY` from
    the client's process environment and drop the `pwsh` wrapper; document
    client-specific secret input only as a fallback.
-3. Add `gh` failure/empty-output handling wherever a launcher still reads the
+3. **Pin the tavily package to an exact reviewed version** (not
+   `npx -y tavily-mcp@latest`) with an explicit update process — `-y ...@latest`
+   non-interactively fetches and runs a moving version with the secret in the
+   environment, so a newly published or compromised release would execute
+   immediately and launches are non-reproducible. Prefer the official hosted
+   service if one is available.
+4. Add `gh` failure/empty-output handling wherever a launcher still reads the
    credential.
-4. Run the automatable checks above in CI or locally.
-5. Restart the IDE/CLI and confirm every MCP server connects (operator-present).
-6. Update `docs/environment-setup.md` to match the chosen strategy and note any
+5. Run the automatable checks above in CI or locally.
+6. Restart the IDE/CLI and confirm every MCP server connects (operator-present);
+   for local stdio OAuth, verify the restart re-authorization flow specifically.
+7. Update `docs/environment-setup.md` to match the chosen strategy and note any
    remaining external prerequisite.
 
 ## Out of scope
