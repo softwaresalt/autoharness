@@ -156,7 +156,7 @@ Artifacts to generate:
   Agents:           {{N}} files (pipeline + support + expert + review orchestrators + review personas)
   Skills:           {{N}} files (brainstorm, deliberate, spike, build, compact, compound, compound-refresh, fix-ci, impl-plan, plan-harden, runtime-verification, operational-closure, safety-modes, plus observe/learn/evolve when continuous-learning is enabled)
   Policies:         1 file   (5 workflow policies)
-  Prompts:          1 file   (ping-loop)
+  Prompts:          {{N}} files (feature-flow routing shims, gated on Primitive 4 / P-017)
   Backlog:          2 dirs  (queue, archive) + config.yml + .stash.md
   Docs:             5 dirs  (compound, plans, decisions, memory, closure)
 ```

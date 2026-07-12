@@ -587,7 +587,7 @@ Capability-pack overlays:
 
 | Capability Pack | Overlay Behavior |
 |---|---|
-| `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, review / verification / closure workflows, long-running skills, and the ping-loop prompt |
+| `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, review / verification / closure workflows, and long-running skills |
 | `agent-engram` | Installs `agent-engram.instructions.md` and threads engram-first indexed search, workspace binding, freshness checks, and code-graph-driven analysis through foundation docs and analysis-heavy workflows |
 | `backlogit` | Installs `backlogit.instructions.md`, `backlogit-sql-schema.instructions.md`, and `backlogit-yaml-header-tooling.instructions.md`, and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, commit-trace, and source-artifact-cleanup workflows through backlog-aware artifacts |
 | `browser-verification` | Installs `browser-verification.instructions.md` and threads server readiness, route selection, headed/headless choice, and human-checkpoint handling through runtime verification and closure workflows |
@@ -665,7 +665,7 @@ Example overlay target map for `agent-intercom`:
 
 | Overlay Element | Required Targets |
 |---|---|
-| Startup / liveness | foundation docs, `ping-loop.prompt.md`, long-running agents / skills |
+| Startup / liveness | foundation docs, long-running agents / skills |
 | Approval routing | constitution, intercom instructions, risky execution skills |
 | Progress visibility | pipeline agents, review / verification / closure skills |
 | Operator wait flows | pipeline agents and long-running skills that block on clarification |
@@ -1193,7 +1193,6 @@ non-applicability allowed only for documentation-only/backlog-only PRs.
 
 Generate prompt files:
 
-* `ping-loop.prompt.md` — Universal
 * `feature-flow.prompt.md` — Install when Primitive 4 is selected. User-facing alias to the Orchestrator's standard sequential full-cycle routing.
 * `feature-flow-parallel.prompt.md` — Install when Primitive 4 is selected. User-facing alias to the Orchestrator's pipelined full-cycle routing preference, now constrained to P-016-compliant planning overlap; it must degrade to sequential execution when overlap would create parallel implementation branches/worktrees.
 * `feature-flow-dark.prompt.md` — Install when Primitive 4 and P-017 are selected. User-facing shim for the exact `Run pipeline in dark mode` trigger; it must route through Orchestrator, record `DARK_MODE_ACTIVE`, preserve P-001/P-009/P-014/P-016/P-017, and never bypass local readiness, required checks, telemetry, or closure gates.

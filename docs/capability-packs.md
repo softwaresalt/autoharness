@@ -245,7 +245,6 @@ This pack does not replace general search guidance. It deepens it when a workspa
 * Pipeline agents
 * Review / verification / closure workflows
 * Long-running and gating skills
-* Heartbeat prompt
 
 ### Behavior deltas
 

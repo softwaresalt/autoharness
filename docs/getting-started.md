@@ -199,7 +199,7 @@ Capability packs deepen the harness without redefining the primitive model:
 | `adversarial-review` | Multi-model consensus review and escalation for higher-confidence review gates |
 | `graphtor-docs` | Indexed local documentation search and semantic retrieval woven through concept and API resolution before broad web or file search |
 
-`agent-intercom` is intentionally different from a narrow add-on. When enabled, autoharness should thread its workflow expectations into `AGENTS.md`, `copilot-instructions.md`, intercom-specific instructions, pipeline agents, long-running skills, and heartbeat prompts so operator visibility and approval routing become part of the normal harness behavior.
+`agent-intercom` is intentionally different from a narrow add-on. When enabled, autoharness should thread its workflow expectations into `AGENTS.md`, `copilot-instructions.md`, intercom-specific instructions, pipeline agents, and long-running skills so operator visibility and approval routing become part of the normal harness behavior.
 
 `agent-engram` is also an overlay rather than a single search toggle. When enabled, autoharness should keep the generic search guidance in place while additionally teaching the harness to use Engram's higher-leverage indexed capabilities such as unified search, code graph lookup, workspace memory queries, lifecycle checks, and index freshness workflows.
 
@@ -331,7 +331,6 @@ target-workspace/
     policies/
       workflow-policies.md
     prompts/
-      ping-loop.prompt.md
       feature-flow.prompt.md
       feature-flow-parallel.prompt.md
       feature-flow-dark.prompt.md

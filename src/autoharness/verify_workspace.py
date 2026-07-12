@@ -87,7 +87,6 @@ NEW_ARTIFACT_SCAN_CLASSES = (
 # prompts are always annotated operator-decides so the tuner never auto-installs
 # a policy-gated shim into a workspace that did not opt into that policy.
 PROMPT_INSTALL_RULES = {
-    "ping-loop.prompt.md": {"rule": "universal", "requires_primitive": None},
     "feature-flow.prompt.md": {"rule": "primitive-4", "requires_primitive": 4},
     "feature-flow-parallel.prompt.md": {"rule": "primitive-4", "requires_primitive": 4},
     "feature-flow-dark.prompt.md": {
@@ -389,7 +388,6 @@ FOUNDATION_ASSERTIONS = [
             "## Remote Operator Integration",
             "### agent-intercom",
             "### agent-engram",
-            "ping-loop.prompt.md",
             "sync_workspace",
         ],
     },
