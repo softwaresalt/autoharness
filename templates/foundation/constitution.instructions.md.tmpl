@@ -138,6 +138,20 @@ creating parallel task state outside the configured backlog workspace.
 ordering, and durable execution traces. Treating it as a thin file store would discard the very
 capabilities that justify enabling the overlay.
 
+### Capability Overlay — graphtor-docs
+
+When the workspace enables the `graphtor-docs` capability pack, agents MUST use the configured
+graphtor-docs workflow for indexed local documentation search, semantic retrieval, doc-link
+traversal, and source-index status checks. Agents MUST prefer graphtor-docs indexed retrieval over
+broad web search or raw filesystem scanning for conceptual, API-oriented, or documentation
+questions, MUST verify server reachability and index freshness before trusting results, and MUST
+not hand-edit tool-managed `.graphtor/` artifacts as a substitute for re-indexing or configuration
+updates.
+
+**Rationale**: graphtor-docs exists to resolve domain concepts and referenced APIs from an indexed
+local documentation corpus. Defaulting immediately to broad web search or raw file scanning wastes
+context budget and discards the retrieval leverage the overlay was meant to provide.
+
 ### IX. Git-Friendly Persistence
 
 All workspace state managed by the agent harness MUST be serializable to

@@ -98,6 +98,10 @@ detected.
 * **backlogit** — agents MUST use the configured backlogit workflow for queue
   selection, dependency management, token-efficient lookup, and traceability, and
   MUST refresh the index after out-of-band edits before trusting query output.
+* **graphtor-docs** — agents MUST prefer graphtor-docs indexed documentation
+  retrieval over broad web or raw file search for conceptual and API questions,
+  verify server reachability and index freshness before trusting results, and not
+  hand-edit `.graphtor/` artifacts as a substitute for re-indexing or config updates.
 
 ## Technical Constraints
 
