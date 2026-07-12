@@ -1851,7 +1851,6 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "phase or major task group\n"
                 "## Remote Operator Integration\n"
                 "### agent-intercom\n"
-                "ping-loop.prompt.md\n"
                 "### agent-engram\n"
                 "sync_workspace\n"
                 "## Backlog Workflow Expectations\n"
@@ -4426,27 +4425,70 @@ class NewArtifactDetectionTests(unittest.TestCase):
     def _by_expected(self, findings: list[dict]) -> dict[str, dict]:
         return {f["expected_path"]: f for f in findings}
 
+    def test_prompt_install_rules_excludes_ping_loop(self) -> None:
+        from autoharness.verify_workspace import PROMPT_INSTALL_RULES
+
+        self.assertNotIn("ping-loop.prompt.md", PROMPT_INSTALL_RULES)
+        # feature-flow prompts remain governed by their primitive-4 install rule.
+        self.assertIn("feature-flow.prompt.md", PROMPT_INSTALL_RULES)
+
+    def test_ping_loop_prompt_fully_removed(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        self.assertFalse(
+            (repo_root / "templates" / "prompts" / "ping-loop.prompt.md.tmpl").exists(),
+            "ping-loop.prompt template must be deleted (agent-intercom ACP consolidation)",
+        )
+        live_files = [
+            "src/autoharness/verify_workspace.py",
+            "templates/foundation/copilot-instructions.md.tmpl",
+            ".github/skills/install-harness/SKILL.md",
+            ".github/agents/auto-mergeinstall.agent.md",
+            ".github/copilot-review-instructions.md",
+            "docs/getting-started.md",
+        ]
+        for rel in live_files:
+            text = (repo_root / rel).read_text(encoding="utf-8")
+            self.assertNotIn(
+                "ping-loop",
+                text,
+                f"{rel} still references the removed ping-loop prompt",
+            )
+        # The heartbeat prompt was the ping-loop artifact; docs must no longer
+        # advertise it as an overlay target (heartbeat *behavior* stays, so match
+        # only "heartbeat ... prompt(s)" advertisements, not behavioral mentions).
+        heartbeat_prompt_docs = [
+            "docs/capability-packs.md",
+            "docs/getting-started.md",
+        ]
+        heartbeat_prompt_pattern = re.compile(r"heartbeat[\w/ ]{0,40}prompts?")
+        for rel in heartbeat_prompt_docs:
+            text = (repo_root / rel).read_text(encoding="utf-8").lower()
+            self.assertIsNone(
+                heartbeat_prompt_pattern.search(text),
+                f"{rel} still advertises the removed heartbeat (ping-loop) prompt",
+            )
+
     def test_flags_uninstalled_prompt_template(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp) / "ws"
             home = Path(tmp) / "home"
-            _write_prompt_template(home, "ping-loop")
+            _write_prompt_template(home, "feature-flow")
 
             findings = _scan_uninstalled_templates(
                 workspace, home, {"artifacts": [], "primitives_installed": [4]}
             )
 
             index = self._by_expected(findings)
-            self.assertIn(".github/prompts/ping-loop.prompt.md", index)
-            finding = index[".github/prompts/ping-loop.prompt.md"]
+            self.assertIn(".github/prompts/feature-flow.prompt.md", index)
+            finding = index[".github/prompts/feature-flow.prompt.md"]
             self.assertEqual(finding["kind"], "new-artifact")
             self.assertEqual(finding["artifact_class"], "prompt")
             self.assertEqual(finding["severity"], "advisory")
             self.assertEqual(
-                finding["template"], "templates/prompts/ping-loop.prompt.md.tmpl"
+                finding["template"], "templates/prompts/feature-flow.prompt.md.tmpl"
             )
-            # ping-loop is universal -> applicable regardless of primitives.
-            self.assertEqual(finding["install_rule"], "universal")
+            # feature-flow is gated on primitive 4, which is installed here.
+            self.assertEqual(finding["install_rule"], "primitive-4")
             self.assertTrue(finding["applicable"])
 
     def test_skips_prompt_present_on_disk(self) -> None:

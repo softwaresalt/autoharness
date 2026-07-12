@@ -146,7 +146,7 @@ artifacts:
   - path: ".github/agents/auto-mergeinstall.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "d709e75ffff2ab8d5341057c1d7b40a08b54509ce3427468dc45083dbe57d487"
+    checksum: "e99f95db73b087075dbbfaa6d5a6aa6713ad1e87ad7723f353307b621794edb1"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/agents/auto-tune.agent.md"
     primitive: 4
@@ -156,7 +156,7 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "af7ad208bfb9d769ed89430019fe96edb7bac99aa6b3a5ff83e529f46c0c43a8"
+    checksum: "b62b2a086410a314b6b860dd96fbf0b11b8dc74ce17ede349bc9b119e53b9f99"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4

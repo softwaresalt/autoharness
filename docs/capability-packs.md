@@ -70,7 +70,7 @@ Typical target classes:
 | Instructions | `*.instructions.md` overlays or pack-specific instruction files |
 | Agents | Pipeline agents and support agents |
 | Skills | Long-running, risky, or gating workflows |
-| Prompts | Heartbeat or orchestration prompts |
+| Prompts | Orchestration prompts |
 | Policies | Workflow or approval policies |
 
 ### 4. Behavior deltas
@@ -245,7 +245,6 @@ This pack does not replace general search guidance. It deepens it when a workspa
 * Pipeline agents
 * Review / verification / closure workflows
 * Long-running and gating skills
-* Heartbeat prompt
 
 ### Behavior deltas
 

@@ -35,7 +35,7 @@ Enforce these naming patterns strictly:
 | Agent definition | `{name}.agent.md` | `.stage.agent.md` |
 | Skill | `{skill-name}/SKILL.md` | `spike/SKILL.md` |
 | Instruction | `{name}.instructions.md` | `agent-engram.instructions.md` |
-| Prompt | `{name}.prompt.md` | `ping-loop.prompt.md` |
+| Prompt | `{name}.prompt.md` | `feature-flow.prompt.md` |
 | Policy | `{name}-policies.md` | `workflow-policies.md` |
 
 Flag files that don't follow these patterns.
