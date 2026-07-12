@@ -144,7 +144,7 @@ invoke_preflight() {
 	for mcp in backlogit engram graphtor-docs; do
 		# graphtor-docs may be installed workspace-local at .graphtor/bin/ (registry eligibility signal), not just on PATH.
 		if command -v "$mcp" >/dev/null 2>&1; then ok "$mcp MCP prereq present"
-		elif [[ "$mcp" == "graphtor-docs" && ( -x ".graphtor/bin/graphtor-docs" || -x ".graphtor/bin/graphtor-docs.exe" ) ]]; then ok "$mcp MCP prereq present"
+		elif [[ "$mcp" == "graphtor-docs" && ( ( -f ".graphtor/bin/graphtor-docs" && -x ".graphtor/bin/graphtor-docs" ) || ( -f ".graphtor/bin/graphtor-docs.exe" && -x ".graphtor/bin/graphtor-docs.exe" ) ) ]]; then ok "$mcp MCP prereq present"
 		else info "$mcp not found (optional pack MCP prereq)"; fi
 	done
 

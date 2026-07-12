@@ -158,7 +158,7 @@ function Invoke-Preflight {
         $present = [bool](Get-Command $mcp -ErrorAction SilentlyContinue)
         if (-not $present -and $mcp -eq "graphtor-docs") {
             # graphtor-docs may be installed workspace-local at .graphtor/bin/ (registry eligibility signal), not just on PATH.
-            $present = (Test-Path -LiteralPath ".graphtor/bin/graphtor-docs.exe") -or (Test-Path -LiteralPath ".graphtor/bin/graphtor-docs")
+            $present = (Test-Path -LiteralPath ".graphtor/bin/graphtor-docs.exe" -PathType Leaf) -or (Test-Path -LiteralPath ".graphtor/bin/graphtor-docs" -PathType Leaf)
         }
         if ($present) { Write-Ok "$mcp MCP prereq present" }
         else { Write-Info "$mcp not found (optional pack MCP prereq)" }
