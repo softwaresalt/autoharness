@@ -168,7 +168,7 @@ Choose the installation shape before fine-tuning primitives manually:
 
 ```text
 /install-harness preset=starter
-/install-harness preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review,graphtor-docs
+/install-harness preset=full
 ```
 
 | Preset | Installs | Best For |
