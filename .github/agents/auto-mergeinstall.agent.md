@@ -164,7 +164,7 @@ Artifacts to generate:
 Wait for user confirmation before proceeding. The user may request:
 
 * Select a preset (`starter`, `standard`, `full`)
-* Add capability packs (`agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`)
+* Add capability packs (`agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`, `graphtor-docs`)
 * Exclude specific primitives (e.g., "skip model routing" or "no review personas")
 * Customize specific values (e.g., "our test command is `make test`")
 * Override composition signals (for example primary stack pack or explicit install layers)
@@ -196,13 +196,14 @@ After installation completes, provide the user with:
 7. **Knowledge maintenance reminder**: Point out `compound-refresh` as the workflow for refreshing stale or overlapping compound learnings after large merges or tuning passes
 8. **Intercom reminder**: Point out the `agent-intercom` instruction file and the need to verify the intercom server/tool surface before relying on remote approval or operator steering
 9. **Engram reminder**: Point out the `agent-engram` instruction file and the need to verify the engram daemon / MCP surface and workspace binding before relying on indexed lookup workflows
-10. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
-11. **Browser-verification reminder**: Point out the `browser-verification` instruction file and the need to verify server readiness plus browser tooling before relying on browser-backed runtime confidence
-12. **Continuous-learning reminder**: Point out the `continuous-learning` instruction file plus the `observe`, `learn`, and `evolve` skills when the pack is enabled
-13. **Strict-safety reminder**: Point out the `strict-safety` instruction file plus the `plan-harden` and `safety-modes` workflows when the pack is enabled
-14. **Release-observability reminder**: Point out the `release-observability` instruction file and the monitoring plan, observation window, and rollback trigger expectations when the pack is enabled
-15. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
-16. **Copilot code-review focus reminder**: When the workspace is hosted on GitHub, point out the installed `copilot-code-review.instructions.md` focus surface (`applyTo: '**'`, `excludeAgent: 'cloud-agent'`). Explain that GitHub Copilot code review reads instruction files from the pull request's **base branch**, so the installing pull request is validated structurally only — the guidance governs subsequent pull requests once it is merged to the base branch. Note that enabling Copilot code review in repository Settings → Copilot → Code review is an advisory per-repository toggle, not a hard install gate.
+10. **Graphtor-docs reminder**: Point out the `graphtor-docs` instruction file and the need to verify the graphtor-docs server / MCP surface and indexed sources before relying on indexed documentation retrieval workflows
+11. **backlogit reminder**: Point out the `backlogit` instruction file and the need to verify the backlogit MCP or CLI path before relying on queue, SQL query, checkpoint, or traceability workflows
+12. **Browser-verification reminder**: Point out the `browser-verification` instruction file and the need to verify server readiness plus browser tooling before relying on browser-backed runtime confidence
+13. **Continuous-learning reminder**: Point out the `continuous-learning` instruction file plus the `observe`, `learn`, and `evolve` skills when the pack is enabled
+14. **Strict-safety reminder**: Point out the `strict-safety` instruction file plus the `plan-harden` and `safety-modes` workflows when the pack is enabled
+15. **Release-observability reminder**: Point out the `release-observability` instruction file and the monitoring plan, observation window, and rollback trigger expectations when the pack is enabled
+16. **Agent-native reviewer reminder**: Point out the `agent-native-parity-reviewer` persona when discovery recommended parity-sensitive review for MCP or agent-facing product surfaces
+17. **Copilot code-review focus reminder**: When the workspace is hosted on GitHub, point out the installed `copilot-code-review.instructions.md` focus surface (`applyTo: '**'`, `excludeAgent: 'cloud-agent'`). Explain that GitHub Copilot code review reads instruction files from the pull request's **base branch**, so the installing pull request is validated structurally only — the guidance governs subsequent pull requests once it is merged to the base branch. Note that enabling Copilot code review in repository Settings → Copilot → Code review is an advisory per-repository toggle, not a hard install gate.
 
 ## Behavioral Constraints
 

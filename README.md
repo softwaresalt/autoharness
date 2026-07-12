@@ -77,6 +77,7 @@ Start light and grow. Presets control the installation shape; capability packs o
 | **strict-safety** | Explicit ProposedAction / ActionRisk / ActionResult tracking |
 | **release-observability** | Richer operational closure and monitoring |
 | **adversarial-review** | Multi-model consensus review and escalation |
+| **graphtor-docs** | Indexed local documentation search and semantic retrieval |
 
 See [Capability Packs](docs/capability-packs.md) for the full overlay contract and pack details.
 

@@ -19,7 +19,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the A
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `preset`: (Optional, default `standard`) One of `starter`, `standard`, or `full`. Presets define the default primitive set and capability-pack defaults.
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-10) to install. Defaults to the selected preset.
-* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`.
+* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`, `graphtor-docs`.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -540,9 +540,9 @@ Preset defaults:
 |---|---|---|---|
 | `starter` | 1, 2, 4, 5, 6, 8, 9 | none | First-time adoption, smaller repos |
 | `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review` | Most repositories |
-| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification` | Higher-operational-maturity teams |
+| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `graphtor-docs` | Higher-operational-maturity teams |
 
-If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-intercom`, `agent-engram`, `backlogit`, and `browser-verification`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs.
+If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, and `graphtor-docs`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs.
 
 Additive stack packs are descriptive composition inputs rather than substitute
 architectures. They capture multiple concurrent workspace shapes such as

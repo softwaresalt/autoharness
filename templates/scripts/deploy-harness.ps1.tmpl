@@ -154,8 +154,13 @@ function Invoke-Preflight {
 
     # Pack MCP prereqs are advisory: the deploy path seeds config and hands off;
     # missing MCP tools do not block scaffolding.
-    foreach ($mcp in @("backlogit", "engram")) {
-        if (Get-Command $mcp -ErrorAction SilentlyContinue) { Write-Ok "$mcp MCP prereq present" }
+    foreach ($mcp in @("backlogit", "engram", "graphtor-docs")) {
+        $present = [bool](Get-Command $mcp -ErrorAction SilentlyContinue)
+        if (-not $present -and $mcp -eq "graphtor-docs") {
+            # graphtor-docs may be installed workspace-local at .graphtor/bin/ (registry eligibility signal), not just on PATH.
+            $present = (Test-Path -LiteralPath ".graphtor/bin/graphtor-docs.exe" -PathType Leaf) -or (Test-Path -LiteralPath ".graphtor/bin/graphtor-docs" -PathType Leaf)
+        }
+        if ($present) { Write-Ok "$mcp MCP prereq present" }
         else { Write-Info "$mcp not found (optional pack MCP prereq)" }
     }
 

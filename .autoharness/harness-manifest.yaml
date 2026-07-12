@@ -146,7 +146,7 @@ artifacts:
   - path: ".github/agents/auto-mergeinstall.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "78b74ba30f9bea0b47512a617abd6c12f061d535db5ecc7f3eff5b17728f15e9"
+    checksum: "d709e75ffff2ab8d5341057c1d7b40a08b54509ce3427468dc45083dbe57d487"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/agents/auto-tune.agent.md"
     primitive: 4
@@ -156,7 +156,7 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "88aee9aeb753d075bfd74ed1aa5be2e7144a82c62fff02d9f238b7d1e22520b6"
+    checksum: "af7ad208bfb9d769ed89430019fe96edb7bac99aa6b3a5ff83e529f46c0c43a8"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
@@ -166,7 +166,7 @@ artifacts:
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
     template: "global skill definition"
-    checksum: "3a5d46adb78c831dd30c40eeb3251c2706a7858b715b67e8032c1e4e138659e4"
+    checksum: "ac854403d76f790bb2d33690e5f2a3c932b1c5a8a4681702b93ad18b1a6a5e52"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
@@ -176,7 +176,7 @@ artifacts:
   - path: ".github/prompts/install-harness.prompt.md"
     primitive: 6
     template: "global prompt definition"
-    checksum: "09988e6c3e5121334371af4d86b284cbd4f369eb1e28a284df4c80c35421d06a"
+    checksum: "2a2a58a20642c48cb3acfb1f3855368392301ce713a4cc99fdf39d1990042065"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/prompts/tune-harness.prompt.md"
     primitive: 6
@@ -271,7 +271,7 @@ artifacts:
   - path: ".github/instructions/constitution.instructions.md"
     primitive: 5
     template: "foundation/constitution.instructions.md.tmpl"
-    checksum: "28f40c571a4c6e89e99ea4c938018e7909c0cfa7bf4b2cb141db937b15df2248"
+    checksum: "7258c8d81371eb9cde2111742492c6616e3815422727240f3e04be1aeb54c38d"
     note: "condensed constitution self-install variant (installed 067.006-T)"
 variables_used:
   PROJECT_NAME: "autoharness"

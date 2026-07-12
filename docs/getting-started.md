@@ -168,7 +168,7 @@ Choose the installation shape before fine-tuning primitives manually:
 
 ```text
 /install-harness preset=starter
-/install-harness preset=full capability_packs=agent-intercom,browser-verification,continuous-learning,strict-safety,release-observability,adversarial-review
+/install-harness preset=full
 ```
 
 | Preset | Installs | Best For |
@@ -197,6 +197,7 @@ Capability packs deepen the harness without redefining the primitive model:
 | `strict-safety` | Stronger default use of careful / freeze-scope / investigate-first modes plus explicit `ProposedAction` / `ActionRisk` / `ActionResult` tracking |
 | `release-observability` | Richer operational closure and monitoring artifacts |
 | `adversarial-review` | Multi-model consensus review and escalation for higher-confidence review gates |
+| `graphtor-docs` | Indexed local documentation search and semantic retrieval woven through concept and API resolution before broad web or file search |
 
 `agent-intercom` is intentionally different from a narrow add-on. When enabled, autoharness should thread its workflow expectations into `AGENTS.md`, `copilot-instructions.md`, intercom-specific instructions, pipeline agents, long-running skills, and heartbeat prompts so operator visibility and approval routing become part of the normal harness behavior.
 
@@ -212,6 +213,8 @@ Capability packs deepen the harness without redefining the primitive model:
 enabled, autoharness should install explicit action-risk/result guidance and
 keep risky planning, review, verification, and closure states legible instead
 of leaving them implicit.
+
+`graphtor-docs` is also an overlay rather than a generic doc-search hint. When enabled, autoharness should teach the harness to resolve domain concepts and referenced APIs from indexed local documentation via `search_local_docs`, `search_semantic`, `research_topic`, and doc-link traversal before falling back to broad web search or raw file scans, and to treat `.graphtor/` state as tool-managed.
 
 Use [Backlogit Operating Model](backlogit-operating-model.md) as the contract for
 what `autoharness` should consume today. If backlogit evolves a new internal
@@ -324,6 +327,7 @@ target-workspace/
       strict-safety.instructions.md       # Optional: strict-safety pack
       release-observability.instructions.md # Optional: release-observability pack
       adversarial-review.instructions.md  # Optional: adversarial-review pack
+      graphtor-docs.instructions.md       # Optional: graphtor-docs pack
     policies/
       workflow-policies.md
     prompts/
@@ -401,6 +405,7 @@ The installer runs automatic verification. You can also manually check:
 8. If `agent-intercom` is enabled, verify `.github/instructions/agent-intercom.instructions.md` exists and the installed agents/skills reference intercom heartbeat, broadcast, and approval usage where expected
 9. If `agent-engram` is enabled, verify `.github/instructions/agent-engram.instructions.md` exists and the installed agents/skills reference engram-first search, workspace binding, or indexed-fallback behaviors where expected
 10. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md`, `.github/instructions/backlogit-sql-schema.instructions.md`, and `.github/instructions/backlogit-yaml-header-tooling.instructions.md` exist and the installed agents/skills reference backlogit query / queue / memory / traceability / source-artifact-cleanup behaviors where expected
+11. If `graphtor-docs` is enabled, verify `.github/instructions/graphtor-docs.instructions.md` exists and the installed agents/skills reference indexed documentation search, doc-link traversal, or indexed-fallback behaviors where expected
 
 ### First Use
 
@@ -441,6 +446,7 @@ If you want to drive the lifecycle manually instead of using the workflow entryp
 11. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
 12. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
 13. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, checkpoint, YAML/frontmatter, or source-artifact-cleanup workflows
+14. If the workspace enabled `graphtor-docs`, confirm the graphtor-docs server / MCP path is reachable and sources are indexed before relying on indexed documentation retrieval
 
 ## Updating autoharness
 

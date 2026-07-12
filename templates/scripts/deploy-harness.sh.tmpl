@@ -141,8 +141,11 @@ invoke_preflight() {
 		if command -v "$cli_tool" >/dev/null 2>&1; then ok "$cli_tool present"; else warn "$cli_tool not found (needed to register the $REGISTER environment)"; fi
 	fi
 
-	for mcp in backlogit engram; do
-		if command -v "$mcp" >/dev/null 2>&1; then ok "$mcp MCP prereq present"; else info "$mcp not found (optional pack MCP prereq)"; fi
+	for mcp in backlogit engram graphtor-docs; do
+		# graphtor-docs may be installed workspace-local at .graphtor/bin/ (registry eligibility signal), not just on PATH.
+		if command -v "$mcp" >/dev/null 2>&1; then ok "$mcp MCP prereq present"
+		elif [[ "$mcp" == "graphtor-docs" && ( ( -f ".graphtor/bin/graphtor-docs" && -x ".graphtor/bin/graphtor-docs" ) || ( -f ".graphtor/bin/graphtor-docs.exe" && -x ".graphtor/bin/graphtor-docs.exe" ) ) ]]; then ok "$mcp MCP prereq present"
+		else info "$mcp not found (optional pack MCP prereq)"; fi
 	done
 
 	if [[ -n "$hard_missing" ]]; then fail "Missing hard prerequisites:$hard_missing"; return 1; fi
