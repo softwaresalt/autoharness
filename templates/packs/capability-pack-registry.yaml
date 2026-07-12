@@ -130,5 +130,5 @@ packs:
       - "graphtor-docs binary is present on PATH or at .graphtor/bin/"
     overlay_instruction: "templates/instructions/graphtor-docs.instructions.md.tmpl"
     mcp_requirements: ["graphtor-docs"]
-    default_in_preset: []
+    default_in_preset: ["full"]
     retrieval_enforced: true
