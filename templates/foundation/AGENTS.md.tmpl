@@ -114,6 +114,18 @@ When the `backlogit` capability pack is installed, agents MUST also follow
 * record meaningful comments and commit associations for traceability
 * refresh the backlog index after out-of-band edits before trusting query results
 
+### Capability Overlay — graphtor-docs
+
+When the `graphtor-docs` capability pack is installed, agents MUST also follow
+`.github/instructions/graphtor-docs.instructions.md` and the corresponding
+`Capability Overlay` section in `.github/instructions/constitution.instructions.md`:
+
+* prefer graphtor-docs indexed retrieval (`search_local_docs`, `search_semantic`, `research_topic`) for conceptual, API-oriented, or documentation questions before broad web search or raw file scanning
+* verify server reachability and index freshness with `get_status` / `list_sources` before relying on results
+* use `traverse_doc_links` to follow related documentation and `get_document` / `get_chunk_by_id` for specific content
+* fall back to grep, glob, or direct file reading only when the server is unavailable, sources are not indexed, or the query is literal-text oriented
+* treat `.graphtor/` artifacts as tool-managed state rather than files to hand-edit
+
 ### Capability Overlay — browser-verification
 
 When the `browser-verification` capability pack is installed, agents MUST also follow
@@ -184,6 +196,7 @@ precedence rules to resolve conflicts:
 |---|---|
 | agent-intercom + backlogit | Query backlogit first for task state; format the result using intercom broadcast rules for remote operator choice |
 | agent-engram + any other overlay | Engram is a discovery method; other overlays are independent. Use engram for search, other overlays for their domain |
+| agent-engram + graphtor-docs | Both are indexed retrieval overlays; prefer engram for code/symbol/graph discovery and graphtor-docs for documentation and API concept lookup |
 | strict-safety + any overlay | Classify risky actions via strict-safety first; then route approval through the appropriate overlay (intercom if available, else local) |
 | strict-safety + concurrency | Log lock conflicts as `ActionResult: blocked` when strict-safety is enabled |
 | backlogit + strict-safety | Persist strict-safety decisions via backlogit checkpoints when checkpoint operations are supported |
