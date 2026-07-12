@@ -2883,32 +2883,66 @@ class VerifyWorkspaceTests(unittest.TestCase):
         orchestrator_tmpl = repo_root / "templates" / "agents" / "_orchestrator.agent.md.tmpl"
 
         content = orchestrator_tmpl.read_text(encoding="utf-8")
-        self.assertIn("model_tier:", content, "orchestrator template must declare model_tier")
+        self.assertNotIn(
+            "model_tier:",
+            content,
+            "orchestrator template must not declare model_tier (removed; tier is config-resolved via model_routing)",
+        )
         self.assertIn("max_subagent_tier:", content, "orchestrator template must declare max_subagent_tier")
 
-    def test_all_agent_templates_have_tier_fields(self) -> None:
+    def test_all_agent_templates_have_max_subagent_tier_and_no_model_tier(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         agents_dir = repo_root / "templates" / "agents"
 
-        missing_tier = []
+        has_model_tier = []
         missing_max = []
         for tmpl in agents_dir.rglob("*.agent.md.tmpl"):
             content = tmpl.read_text(encoding="utf-8")
             rel = str(tmpl.relative_to(repo_root))
-            if "model_tier:" not in content:
-                missing_tier.append(rel)
+            if "model_tier:" in content:
+                has_model_tier.append(rel)
             if "max_subagent_tier:" not in content:
                 missing_max.append(rel)
 
         self.assertEqual(
-            missing_tier,
+            has_model_tier,
             [],
-            f"Agent templates missing model_tier frontmatter field: {missing_tier}",
+            "Agent templates must not declare model_tier frontmatter "
+            f"(removed; tier is config-resolved via model_routing): {has_model_tier}",
         )
         self.assertEqual(
             missing_max,
             [],
             f"Agent templates missing max_subagent_tier frontmatter field: {missing_max}",
+        )
+
+    def test_no_agent_definition_declares_model_tier(self) -> None:
+        """model_tier frontmatter is retired across templates AND installed
+        instances; the tier is defined by the config model_routing binding and
+        the template's tier selection, not a redundant per-agent integer."""
+        repo_root = Path(__file__).resolve().parents[1]
+        offenders = []
+        for base, pattern in (
+            (repo_root / "templates" / "agents", "*.agent.md.tmpl"),
+            (repo_root / ".github" / "agents", "*.agent.md"),
+        ):
+            if not base.exists():
+                continue
+            for agent_file in base.rglob(pattern):
+                content = agent_file.read_text(encoding="utf-8")
+                if content.startswith("---"):
+                    end = content.find("\n---", 3)
+                    frontmatter = content[3:end] if end != -1 else content
+                else:
+                    frontmatter = content
+                if "model_tier:" in frontmatter:
+                    offenders.append(str(agent_file.relative_to(repo_root)))
+
+        self.assertEqual(
+            offenders,
+            [],
+            "Agent definitions must not declare model_tier frontmatter "
+            f"(removed; tier is config-resolved via model_routing): {offenders}",
         )
 
     def test_verify_workspace_checks_orchestrator_tier_fields(self) -> None:
@@ -2962,11 +2996,11 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            # Valid frontmatter: both fields present as integers in range 1-3
+            # Valid frontmatter: max_subagent_tier present as integer in range 1-3
+            # (model_tier is no longer required — tier is config-resolved)
             (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
                 "---\n"
                 "name: Orchestrator\n"
-                "model_tier: 2\n"
                 "max_subagent_tier: 3\n"
                 "---\n\n"
                 "# Orchestrator\n",
@@ -3033,11 +3067,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            # Invalid: model_tier is a string, max_subagent_tier is out of range
+            # Invalid: max_subagent_tier is out of range (model_tier is ignored — removed)
             (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
                 "---\n"
                 "name: Orchestrator\n"
-                'model_tier: "Tier 2 (Standard)"\n'
                 "max_subagent_tier: 5\n"
                 "---\n\n"
                 "# Orchestrator\n",
@@ -3051,15 +3084,48 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertFalse(check["ok"])
             errors = check.get("errors", [])
             self.assertTrue(
-                any("model_tier" in e and "integer" in e for e in errors),
-                f"Expected model_tier type error, got: {errors}",
-            )
-            self.assertTrue(
                 any("max_subagent_tier" in e and "range" in e for e in errors),
                 f"Expected max_subagent_tier range error, got: {errors}",
             )
+            self.assertFalse(
+                any("model_tier" in e for e in errors),
+                f"model_tier must no longer be validated, got: {errors}",
+            )
+
+    def test_frontmatter_tier_check_ignores_legacy_model_tier_field(self) -> None:
+        """Backward compatibility: an already-installed agent that still carries a
+        leftover model_tier field must remain conformant. Removing model_tier from
+        the check is a graceful, non-breaking change — the extra field is ignored,
+        not flagged — so existing installed workspaces do not regress until they
+        are re-installed or tuned."""
+        from autoharness.verify_workspace import _add_frontmatter_tier_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            agent = Path(temp_dir) / "_orchestrator.agent.md"
+            agent.write_text(
+                "---\n"
+                "name: Orchestrator\n"
+                "model_tier: 2\n"  # legacy leftover
+                "max_subagent_tier: 3\n"
+                "---\n\n"
+                "# Orchestrator\n",
+                encoding="utf-8",
+            )
+            report: dict = {"targeted_checks": {}}
+            _add_frontmatter_tier_check(report, "legacy", agent)
+            check = report["targeted_checks"]["legacy"]
+            self.assertTrue(
+                check["ok"],
+                f"legacy model_tier must be ignored, not flagged: {check}",
+            )
+            self.assertEqual(check.get("errors", []), [])
 
     def test_verify_workspace_checks_p013_policy_in_workflow_policies(self) -> None:
+        """The installed workflow-policies.md must document P-013 with the
+        config-resolved tier language (model_routing -> resolved model fields)
+        and the max_subagent_tier ceiling. Exercised independently of the
+        legacy model_tier backward-compatibility test above so a failure in
+        either test identifies the correct contract."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             autoharness_home = root / "autoharness-home"
@@ -3112,7 +3178,9 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
             (workspace / ".github" / "policies" / "workflow-policies.md").write_text(
                 "## P-013: Agent Tier Hierarchy and Escalation\n\n"
-                "Every agent must operate at the tier declared in its frontmatter model_tier field.\n"
+                "Every agent operates at the tier bound to it by the config-driven "
+                "model_routing map, resolved into its model_family/model_provider/"
+                "reasoning_effort frontmatter.\n"
                 "An agent must not invoke a subagent at a tier higher than its max_subagent_tier.\n\n"
                 "## P-014: Local Review Readiness Merge Gate\n\n"
                 "The readiness summary must include the reviewed HEAD SHA.\n"
@@ -4024,7 +4092,7 @@ class PortabilityTests(unittest.TestCase):
 def _write_agent_file(directory: Path, filename: str, name: str) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / filename).write_text(
-        f"---\nname: {name}\nmodel_tier: 2\n---\n\n# {name}\n",
+        f"---\nname: {name}\nmax_subagent_tier: 2\n---\n\n# {name}\n",
         encoding="utf-8",
     )
 
@@ -4034,7 +4102,7 @@ def _write_agent_file_with_id(
 ) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / filename).write_text(
-        f"---\nname: {name}\nid: {agent_id}\nmodel_tier: 2\n---\n\n# {name}\n",
+        f"---\nname: {name}\nid: {agent_id}\nmax_subagent_tier: 2\n---\n\n# {name}\n",
         encoding="utf-8",
     )
 

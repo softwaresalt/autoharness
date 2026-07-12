@@ -690,7 +690,6 @@ FOUNDATION_ASSERTIONS = [
         "path": ".github/policies/workflow-policies.md",
         "must_contain": [
             "P-013",
-            "model_tier",
             "max_subagent_tier",
         ],
     },
@@ -2249,8 +2248,9 @@ def _add_frontmatter_tier_check(
     key: str,
     file_path: Path,
 ) -> None:
-    """Validate that an agent file declares model_tier and max_subagent_tier
-    as integers (in range 1–3) within its YAML frontmatter block."""
+    """Validate that an agent file declares max_subagent_tier as an integer
+    (in range 1–3) within its YAML frontmatter block. The base tier is
+    config-resolved via model_routing (not a redundant model_tier integer)."""
     if not file_path.exists():
         report["targeted_checks"][key] = {
             "path": str(file_path),
@@ -2289,7 +2289,7 @@ def _add_frontmatter_tier_check(
         return
 
     errors = []
-    for field in ("model_tier", "max_subagent_tier"):
+    for field in ("max_subagent_tier",):
         value = frontmatter.get(field)
         if value is None:
             errors.append(f"missing field: {field}")

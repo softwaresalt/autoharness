@@ -9,6 +9,18 @@ status: implemented
 
 ## Execution Plan: P-013 Orchestrator Persona and Model Tier Routing
 
+> **Amendment (2026-07-11) — `model_tier` frontmatter retired.** The redundant
+> per-agent `model_tier` integer described below has been removed from all agent
+> definitions (053.004-T). Config-driven model routing is unchanged: each agent's
+> base tier is bound by the `model_routing` map in `.autoharness/config.yaml` and
+> resolved at install time into its `model_family` / `model_provider` /
+> `reasoning_effort` frontmatter, while `max_subagent_tier` still declares the
+> delegation ceiling. The base tier is defined by that config binding and the
+> template's tier selection rather than a duplicate frontmatter integer. P-013.1
+> and P-013.4 were reframed to config-resolved tier, and `verify-workspace` now
+> validates only `max_subagent_tier`. Sections below reflect the original
+> 2026-05-07 design and are annotated inline where superseded.
+
 1. Problem Statement
 
 The current agent architecture suffers from two critical flaws:
@@ -57,10 +69,11 @@ The autoharness template frontmatter schema must be updated to enforce integer-b
 
 Every agent template MUST declare (skill templates are not required to carry tier fields — skills are leaf executors invoked by agents, not independently routed):
 
-## Replaces unstructured 'model_routing'
+## Config-resolved tier binding (model_routing) + frontmatter delegation ceiling
 
-model_tier: 2             # The base tier this entity runs on
 max_subagent_tier: 3      # The maximum tier it is authorized to invoke
+# (base tier is config-resolved via model_routing — the standalone `model_tier`
+#  integer shown in the original design was retired 2026-07-11)
 
 ## Environment-configurable overrides (resolved via config.yaml)
 
@@ -94,15 +107,15 @@ Modify Config Schemas: Update schemas/harness-config.schema.json to support a ne
 
 **Note on harness-manifest.schema.json**: The original spec proposed updating the manifest schema to require `model_tier`/`max_subagent_tier`. This was intentionally not done — the harness manifest is a deployment record (which primitives/artifacts were installed) and is not the appropriate place to validate agent frontmatter content. Agent tier field enforcement is handled at harness-verification time by `_add_frontmatter_tier_check()` in `verify_workspace.py`, which parses installed agent files directly. A future refinement could add a manifest-level signal if tier metadata is worth tracking at the artifact registry level.
 
-Update Agent Templates:
+Update Agent Templates (base tier config-resolved via `model_routing`; only `max_subagent_tier` is a frontmatter integer — the `model_tier` values below reflect the original design and were retired 2026-07-11):
 
-orchestrator.agent.md.tmpl: model_tier: 2, max_subagent_tier: 3 (plus parameterized overrides)
+orchestrator.agent.md.tmpl: Tier 2, max_subagent_tier: 3 (plus parameterized overrides)
 
-ship.agent.md.tmpl: model_tier: 2, max_subagent_tier: 2 (plus parameterized overrides)
+ship.agent.md.tmpl: Tier 2, max_subagent_tier: 2 (plus parameterized overrides)
 
-stage.agent.md.tmpl: model_tier: 3, max_subagent_tier: 3 (plus parameterized overrides)
+stage.agent.md.tmpl: Tier 3, max_subagent_tier: 3 (plus parameterized overrides)
 
-adversarial-review.agent.md.tmpl: model_tier: 3, max_subagent_tier: 1 (plus parameterized overrides)
+adversarial-review.agent.md.tmpl: Tier 3, max_subagent_tier: 1 (plus parameterized overrides)
 
 Update Policy Docs: Append P-013 to templates/policies/workflow-policies.md.tmpl.
 
@@ -112,11 +125,11 @@ The following assertions and tests were added:
 
 **`test_no_operator_ai_persona_in_agent_templates`** (test_verify_workspace.py): Scans all `templates/agents/*.agent.md.tmpl` to ensure `name: Operator` or `You are the Operator` does not appear (P-013.1 persona isolation). This is a template-level scan, not a workspace targeted check.
 
-**`orchestrator_tier_fields`** (FOUNDATION_ASSERTIONS via `_add_frontmatter_tier_check()`): Validates that the installed `orchestrator.agent.md` declares `model_tier` and `max_subagent_tier` as integers in range 1–3 within its YAML frontmatter block. Rejects string-valued fields and out-of-range values.
+**`orchestrator_tier_fields`** (FOUNDATION_ASSERTIONS via `_add_frontmatter_tier_check()`): Validates that the installed `orchestrator.agent.md` declares `max_subagent_tier` as an integer in range 1–3 within its YAML frontmatter block. Rejects missing, string-valued, and out-of-range values. (As of 2026-07-11 `model_tier` is no longer required or validated — the base tier is config-resolved via `model_routing`.)
 
-**`p013_policy_in_workflow_policies`** (FOUNDATION_ASSERTIONS): Verifies the installed `workflow-policies.md` contains P-013, `model_tier`, and `max_subagent_tier` text (confirming the policy was installed).
+**`p013_policy_in_workflow_policies`** (FOUNDATION_ASSERTIONS): Verifies the installed `workflow-policies.md` contains P-013 and `max_subagent_tier` text (confirming the policy was installed).
 
-**`test_all_agent_templates_have_tier_fields`** (test_verify_workspace.py): Confirms all agent template files declare both `model_tier:` and `max_subagent_tier:` in their frontmatter.
+**`test_all_agent_templates_have_max_subagent_tier_and_no_model_tier`** (test_verify_workspace.py): Confirms all agent template files declare `max_subagent_tier:` and that none declare `model_tier:` in their frontmatter. A companion **`test_no_agent_definition_declares_model_tier`** extends the same guard to installed instances under `.github/agents/`.
 
 **Implementation note on `assert_tier_hierarchy`**: The strict caller/callee tier dependency graph check (e.g., flagging Orchestrator if `max_subagent_tier < Stage's model_tier`) was reviewed during deliberation and deferred. A static dependency graph cannot be reliably inferred from agent templates alone without a formal invocation registry. The `orchestrator_tier_fields` frontmatter check and the P-013 policy prose enforce the intent; a future `assert_tier_hierarchy` can be added when the dependency graph is formalized.
 

@@ -308,7 +308,7 @@ P-005 violation event.
 
 ## P-013: Agent Tier Hierarchy and Escalation
 
-**Purpose**: Enforce consistent model tier usage across the harness — agents must operate at their declared tier, subagents must not exceed the invoking agent's `max_subagent_tier`, and escalation to higher tiers follows a defined circuit before halting.
+**Purpose**: Enforce consistent model tier usage across the harness — agents must operate at their config-resolved tier, subagents must not exceed the invoking agent's `max_subagent_tier`, and escalation to higher tiers follows a defined circuit before halting.
 
 | Field      | Value                                    |
 |------------|------------------------------------------|
@@ -317,9 +317,9 @@ P-005 violation event.
 | Gate Point | Before every subagent invocation; before escalation requests |
 | Owner      | Orchestrator                             |
 
-### P-013.1 — Declared Tier Compliance
+### P-013.1 — Resolved Tier Compliance
 
-Every agent must operate at the tier declared in its frontmatter `model_tier` field. An agent must not request a lower-capability model than its declared tier to reduce cost, nor a higher-capability model than its declared tier without following the escalation path in P-013.3.
+Every agent operates at the tier bound to it by the config-driven `model_routing` map in `.autoharness/config.yaml`. That binding is resolved at install time into the agent's `model_family` / `model_provider` / `reasoning_effort` frontmatter (its effective model) and is documented in the agent's persona prose (for example, "operates at Tier 2 (Standard)"). An agent must not request a lower-capability model than its resolved tier to reduce cost, nor a higher-capability model than its resolved tier without following the escalation path in P-013.3.
 
 ### P-013.2 — Subagent Tier Ceiling
 
@@ -337,7 +337,7 @@ Skipping escalation steps and halting prematurely is a P-013 violation.
 
 ### P-013.4 — Tier Annotation in Agent Definitions
 
-Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare `model_tier` and `max_subagent_tier` as integer frontmatter fields. Agents that omit these structured fields are non-conformant and must be updated before the next harness verification pass.
+Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare `max_subagent_tier` as an integer frontmatter field. The agent's base tier is expressed by its install-resolved `model_family` / `model_provider` / `reasoning_effort` frontmatter (populated from the `model_routing` map) together with the tier selection baked into its template — it is not duplicated as a standalone `model_tier` integer. Agents that omit `max_subagent_tier` are non-conformant and must be updated before the next harness verification pass.
 
 **Violation Action**: Record a P-013 violation (via P-005 telemetry) with the specific sub-policy identifier (P-013.1–P-013.4), halt the violating invocation, and surface the violation to the operator.
 
