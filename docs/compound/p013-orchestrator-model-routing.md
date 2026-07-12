@@ -11,6 +11,19 @@ merged_at: "2026-05-08T13:07:22Z"
 date: "2026-05-08"
 ---
 
+> **Update (2026-07-11) — `model_tier` frontmatter retired (053.004-T).** The
+> per-agent `model_tier` integer added by 013-S (Part 2 below) has been removed
+> from all agent definitions. It duplicated a tier the template already selects
+> and was the only field the frontmatter tier check still required beyond
+> `max_subagent_tier`. Config-driven routing is unchanged: each agent's base tier
+> is bound by the `model_routing` map in `.autoharness/config.yaml`, resolved at
+> install into `model_family` / `model_provider` / `reasoning_effort`, and
+> `max_subagent_tier` still declares the delegation ceiling. P-013.1/P-013.4 were
+> reframed to config-resolved tier, and `_add_frontmatter_tier_check()` now
+> validates only `max_subagent_tier`. The sections below reflect the original
+> 013-S design; the base-tier column in the reference table is the config-resolved
+> tier, no longer a `model_tier` frontmatter value.
+
 ## Problem
 
 The `dispatch.agent.md.tmpl` used a plain prose `model_routing` string in
@@ -37,10 +50,13 @@ Added `model_tier`, `max_subagent_tier`, and parameterized override fields
 templates. Legacy `model_routing` string retained with `# DEPRECATED` comment
 for backward compatibility.
 
-Frontmatter pattern used across all agent templates:
+Frontmatter pattern used across all agent templates (as-of-013-S; RETIRED — the
+`model_routing` string was removed in 058-S and the `model_tier` integer in
+053.004-T. Do NOT copy this block; the current pattern omits both — see the
+Update banner above):
 ```yaml
-model_routing: "Tier N (Label)"  # DEPRECATED — use model_tier
-model_tier: N
+model_routing: "Tier N (Label)"  # RETIRED (058-S)
+model_tier: N                     # RETIRED (053.004-T) — base tier is config-resolved
 max_subagent_tier: N
 reasoning_effort: "{{TIER_N_REASONING_EFFORT}}"
 model_provider: "{{TIER_N_PROVIDER}}"
@@ -52,8 +68,9 @@ model_family: "{{TIER_N_FAMILY}}"
 - `schemas/harness-config.schema.json` — tier objects changed to `oneOf: [string, object]`
   with `required: ["model"]` + `additionalProperties: false` for backward compat.
 - `verify_workspace.py` — added `_add_frontmatter_tier_check()` (YAML frontmatter
-  parser; validates `model_tier`/`max_subagent_tier` are integers 1–3). Two new
+  parser; validates tier fields are integers 1–3). Two new
   FOUNDATION_ASSERTIONS: `orchestrator_tier_fields` and `p013_policy_in_workflow_policies`.
+  (As of 2026-07-11 the check validates only `max_subagent_tier`; `model_tier` was retired.)
 - `workflow-policies.md.tmpl` — added P-013 (4 sub-policies) + amendment log v1.8.0.
 - `templates/harness-config.yaml.tmpl` — updated to emit new object form for tiers.
 
@@ -101,7 +118,7 @@ the canonical format for P-010 through P-013 and must be followed in all future 
 
 ## Tier Assignment Reference
 
-| Agent | model_tier | max_subagent_tier |
+| Agent | base tier (config-resolved) | max_subagent_tier |
 |---|---|---|
 | orchestrator | 2 | 3 |
 | ship | 2 | 2 |

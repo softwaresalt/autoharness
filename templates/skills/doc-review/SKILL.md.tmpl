@@ -169,7 +169,7 @@ Verify optional-but-recommended frontmatter fields:
 
 * Instruction files: `applyTo` glob is present and non-empty.
 * Skill files: `argument-hint` is present.
-* Agent files: `model_tier` is present.
+* Agent files: `max_subagent_tier` is present (the base tier is config-resolved via `model_routing`, not a `model_tier` frontmatter field).
 
 ```text
 Action class: advisory — missing recommended fields do not block but

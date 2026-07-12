@@ -107,17 +107,17 @@ artifacts:
   - path: ".github/agents/.stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "c4d3851420b4ee8d8a05dd6ba3df59a64f9a9453b30a9e42c077cb62b627f4ae"
+    checksum: "405e4cdd8245c612eacca2a2943449bb8353b6785325541b64f85794a49ab877"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/.ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "970b396cc0b65dec9dd13f2c0344598a1f83de7c65953d2b545f3a221701f9e4"
+    checksum: "e17ea2a6b3bae56240eaf3aa4e7eed070dfdb96d6947265f8235c33419c334f7"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "909d367ce6b2d3a1d6cf1992598548014cbfe0f4674c75f0b05e650af4aef77b"
+    checksum: "439a9bf309e7a5a590b37cf9cffcefb8f943443fa876004955ec59fc0c11a164"
     note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1

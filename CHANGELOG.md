@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Removed the redundant per-agent `model_tier` frontmatter integer from all
+  agent definitions (templates and installed instances). Config-driven agent
+  model routing is unchanged: each agent's tier is bound by the `model_routing`
+  map in `.autoharness/config.yaml` and resolved at install time into its
+  `model_family` / `model_provider` / `reasoning_effort` frontmatter, while
+  `max_subagent_tier` continues to declare the delegation ceiling. P-013.1 and
+  P-013.4 were reframed from "declared `model_tier`" to config-resolved tier,
+  `verify-workspace` now validates only `max_subagent_tier`, and the doc-review
+  frontmatter check recommends `max_subagent_tier` instead of `model_tier`.
+
 ## 1.4.11 - 2026-07-08
 
 ### Fixed
