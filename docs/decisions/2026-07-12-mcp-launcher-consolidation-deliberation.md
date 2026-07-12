@@ -1,6 +1,6 @@
 ---
 title: ".mcp.json Launcher Strategy Consolidation (npx / pwsh mix)"
-description: "Deliberation for stash item FD962DCC. The workspace-root .mcp.json mixes plain npx launchers with pwsh -Command wrappers that guard an env var (tavily) and read the gh credential (github). Reframes the problem around the deprecated @modelcontextprotocol/server-github package, then evaluates standardizing on a launcher, per-OS variants, a process-environment-inheritance approach, and a Node helper. Recommends resolving the github server first (official hosted/local server or Copilot-CLI built-in) — which retires the deprecated package and removes the only command-substitution launcher — then consolidating toward npx + native binaries away from pwsh. Left at decision_status proposed because the client-set and github-server choices are operator/product tradeoffs and implementation mutates the live dogfood MCP config."
+description: "Deliberation for stash item FD962DCC. The workspace-root .mcp.json mixes plain npx launchers with pwsh -Command wrappers that guard an env var (tavily) and read the gh credential (github). Reframes the problem around the deprecated @modelcontextprotocol/server-github package, then evaluates standardizing on a launcher, per-OS variants, a client-native env-forwarding approach (secrets forwarded via each client's declarative env field rather than a shell wrapper or an assumption of ambient inheritance), and a Node helper. Recommends resolving the github server first (official hosted/local server or Copilot-CLI built-in) — which retires the deprecated package and removes the only command-substitution launcher — then consolidating toward npx + native binaries away from pwsh. Left at decision_status proposed because the client-set and github-server choices are operator/product tradeoffs and implementation mutates the live dogfood MCP config."
 topic: "How should the harness resolve the mixed npx/pwsh launcher strategy in the workspace-root .mcp.json so the configuration stays cross-platform, keeps the gh credential read, and accounts for the deprecated github MCP package and differing per-client config locations?"
 depth: "significant"
 decision_status: "proposed"
@@ -174,20 +174,26 @@ right one to `.mcp.json`.
   existing clone may keep a stale local variant. Doubles the maintained source
   surface. Fragile and non-obvious.
 
-### Option D — Drop wrappers; inherit secrets from the client's process environment
+### Option D — Drop wrappers; forward secrets via each client's env mechanism
 
 All servers use plain `command`; secrets (`GITHUB_PERSONAL_ACCESS_TOKEN`,
-`TAVILY_API_KEY`) are **inherited from the environment the MCP client runs in** —
-set by the user's shell/profile, or by the `start` scripts for
-start-script-launched Copilot CLI. No `env` block (a literal duplicates the
-secret in config; forwarding syntax like `${input:...}` / `${VAR}` is
-client-specific).
+`TAVILY_API_KEY`) are supplied through the MCP client's own environment policy
+rather than a shell wrapper. **This is not zero-config or uniformly ambient.**
+Env inheritance is client-specific: VS Code-style hosts pass the parent process
+environment to local servers, but **Copilot CLI auto-inherits only `PATH`** for
+local/STDIO servers — every other variable must be forwarded explicitly in the
+server's declarative `env` field. The portable, shell-free mechanism is therefore
+the standard per-server `env` field carrying a **non-literal reference**
+(`${input:...}` in VS Code-style config, `${VAR}` for Copilot CLI) — not a
+literal secret and not an assumption of ambient inheritance.
 
-* **Pro:** Cleanest, most portable, launcher-free config.
-* **Con:** For IDE-direct launches the server won't inherit a start-script-only
-  export, so the user must set the vars in their environment. Loses the
-  automatic `gh` credential read unless paired with the github-server migration
-  above (which supplies its own auth).
+* **Pro:** Launcher-free config; no OS shell dependency; uses the standard MCP
+  `env` field every client already supports.
+* **Con:** Not a single copy-paste value across clients — the forwarding syntax
+  differs per client, so the `env` field must be set per each targeted client's
+  policy. For IDE-direct launches the user must still ensure the source variable
+  is set in their environment. Loses the automatic `gh` credential read unless
+  paired with the github-server migration above (which supplies its own auth).
 
 ### Option E — Small cross-platform Node launcher (dependency-neutral)
 
@@ -217,15 +223,19 @@ Sequence the decision, don't jump to a launcher:
    a **PAT** on Copilot CLI / Claude Code / Cursor. Copilot CLI additionally has a
    built-in GitHub server. Pick per the client(s) actually targeted. Any of these
    removes the only launcher that needs command substitution.
-2. **With `github` resolved, the launcher question collapses.** The only
-   remaining wrapper is `tavily`'s optional API-key guard. A plain `npx` entry
-   with **no** wrapper already inherits the MCP client's process environment, so
-   `TAVILY_API_KEY` is available if it is set where the client runs — no `pwsh`,
-   no `sh`, and no `env`-block secret duplication. Keep it client-agnostic by
-   relying on that inherited environment; document client-specific secret input
-   (`${input:...}` in VS Code-style config, `${VAR}` for Copilot CLI) only as a
-   fallback. If a custom local launcher must remain for any server, use a small
-   Node helper (Option E) rather than adding a `pwsh`/`sh` OS dependency.
+2. **With `github` resolved, the launcher question narrows to secret
+   forwarding.** The only remaining wrapper is `tavily`'s optional API-key guard.
+   Dropping the `pwsh` wrapper does **not** by itself make `TAVILY_API_KEY`
+   available on every client: env inheritance is client-specific (VS Code-style
+   hosts pass the ambient environment, but Copilot CLI auto-inherits only `PATH`
+   and needs other vars forwarded explicitly). Replace the shell wrapper with the
+   standard declarative per-server `env` field carrying a **non-literal
+   reference** (`${input:...}` in VS Code-style config, `${VAR}` for Copilot CLI),
+   set per each targeted client's env policy — no `pwsh`, no `sh`, and no literal
+   secret duplicated in config. Only after that forwarding is in place is the
+   wrapper safe to drop. If a custom local launcher must remain for any server,
+   use a small Node helper (Option E) rather than adding a `pwsh`/`sh` OS
+   dependency.
 
 Net direction: **npx + native binaries + the official GitHub MCP server**, which
 consolidates *away* from `pwsh` while staying cross-platform — the outcome the
@@ -260,16 +270,18 @@ Deferring *ratification* does not mean nothing is verifiable. Separate:
    Cursor), official local stdio binary (built-in OAuth, but in-memory token →
    re-auth on every restart, or a static token override for unattended restarts),
    or Copilot-CLI built-in. Update the entry accordingly.
-2. Simplify `tavily` to a plain `npx` entry that inherits `TAVILY_API_KEY` from
-   the client's process environment and drop the `pwsh` wrapper; document
-   client-specific secret input only as a fallback.
+2. Replace `tavily`'s `pwsh` wrapper with a standard per-server `env` field that
+   forwards `TAVILY_API_KEY` via a non-literal reference, set per each targeted
+   client's env policy (VS Code-style ambient vs Copilot CLI explicit `env`); do
+   not rely on ambient inheritance alone, since Copilot CLI forwards only `PATH`.
 3. **Pin every `npx`-launched server to an exact reviewed version** (not `-y
    ...@latest`) with an explicit update process. Both `tavily`
    (`npx -y tavily-mcp@latest`) and `context7` (`npx -y @upstash/context7-mcp`)
-   currently resolve moving releases and inherit the client's process
-   environment, so a newly published or compromised release would execute
-   immediately (with the secret in env for `tavily`) and launches are
-   non-reproducible. Prefer an official hosted service where one is available.
+   currently resolve moving releases, so a newly published or compromised release
+   would execute immediately and launches are non-reproducible. Where the client
+   or config forwards `TAVILY_API_KEY` to the process (see step 2), such a release
+   also runs with the secret in its environment — so pin `tavily` regardless of
+   forwarding mechanism. Prefer an official hosted service where one is available.
 4. Add `gh` failure/empty-output handling wherever a launcher still reads the
    credential.
 5. Run the automatable checks above in CI or locally.
