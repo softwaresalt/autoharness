@@ -107,7 +107,10 @@ is **whether the custom `github` entry should exist at all**, not how to wrap
 it:
 
 * **Copilot CLI** ships a built-in GitHub MCP server → the custom entry may be
-  redundant there.
+  redundant there. Caveat: GitHub's install guide says the built-in server
+  enables **read-only** tools by default, with additional toolsets requiring
+  explicit CLI flags — so treating it as a drop-in for the custom entry can
+  silently remove write/toolset functionality unless those flags are set.
 * Migrating to GitHub's **hosted remote** `github-mcp-server` removes the local
   process and the `pwsh` wrapper. But remote **OAuth is not universal**: GitHub's
   support matrix lists remote OAuth for supported Copilot IDE hosts, while
@@ -161,12 +164,13 @@ Ship `.mcp.windows.json` + `.mcp.posix.json`; `start.ps1` / `start.sh` copy the
 right one to `.mcp.json`.
 
 * **Pro:** Each variant uses the most native launcher. Because the root
-  `.mcp.json` is already gitignored/generated (not committed), producing it per
-  OS at start time fits the existing "local artifact" model rather than
+  `.mcp.json` is already gitignored and developer-local (not committed),
+  producing it per OS fits the existing "local artifact" model rather than
   overwriting a tracked file.
-* **Con:** It only works if the start script actually generates `.mcp.json`
-  (today it appears hand-authored locally). For IDE-direct launches on a fresh
-  clone there is **no** config until the generator runs (Constraint 1), and an
+* **Con:** No generator exists today — the file appears hand-authored locally,
+  and ignoring a file does not make it generated. This option therefore requires
+  *building* a start-script generator first. For IDE-direct launches on a fresh
+  clone there is **no** config until that generator runs (Constraint 1), and an
   existing clone may keep a stale local variant. Doubles the maintained source
   surface. Fragile and non-obvious.
 
@@ -257,12 +261,13 @@ Deferring *ratification* does not mean nothing is verifiable. Separate:
 2. Simplify `tavily` to a plain `npx` entry that inherits `TAVILY_API_KEY` from
    the client's process environment and drop the `pwsh` wrapper; document
    client-specific secret input only as a fallback.
-3. **Pin the tavily package to an exact reviewed version** (not
-   `npx -y tavily-mcp@latest`) with an explicit update process — `-y ...@latest`
-   non-interactively fetches and runs a moving version with the secret in the
+3. **Pin every `npx`-launched server to an exact reviewed version** (not `-y
+   ...@latest`) with an explicit update process. Both `tavily`
+   (`npx -y tavily-mcp@latest`) and `context7` (`npx -y @upstash/context7-mcp`)
+   currently resolve moving releases and inherit the client's process
    environment, so a newly published or compromised release would execute
-   immediately and launches are non-reproducible. Prefer the official hosted
-   service if one is available.
+   immediately (with the secret in env for `tavily`) and launches are
+   non-reproducible. Prefer an official hosted service where one is available.
 4. Add `gh` failure/empty-output handling wherever a launcher still reads the
    credential.
 5. Run the automatable checks above in CI or locally.
