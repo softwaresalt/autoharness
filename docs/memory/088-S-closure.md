@@ -38,9 +38,13 @@ tags:
 
 Complete the `graphtor-docs` capability pack to `agent-engram` parity as a
 first-class member of the `full` preset. graphtor-docs was previously the only
-pack with `default_in_preset: []` and was absent from the versioned schemas and
-every user-facing surface, while its sibling retrieval-enforced pack
-`agent-engram` was fully woven into `full`.
+pack with `default_in_preset: []` and was missing from the versioned schemas and
+from the installation and user-facing surfaces that seed and describe the `full`
+preset (install-harness inputs/defaults/prose, install prompt, auto-mergeinstall
+agent, README and getting-started catalogs, foundation overlays), while its
+sibling retrieval-enforced pack `agent-engram` was fully woven into `full`.
+graphtor-docs was already documented in `docs/capability-packs.md` (catalog entry
+and formal-overlay section) — a file PR #206 did not change.
 
 Seeded from stash `CA76F48B` ("Add graphtor as a capability pack in the full
 suite"). Feature `076-F`, tasks `076.001-T`..`076.010-T`, shipment `088-S`.
@@ -48,7 +52,8 @@ suite"). Feature `076-F`, tasks `076.001-T`..`076.010-T`, shipment `088-S`.
 ## What shipped
 
 - Staging PR **#205** → merged as merge commit `70b33ba` (backlog structure:
-  feature 076-F + 10 tasks + shipment 088-S; 4 Copilot rounds).
+  feature 076-F + 10 tasks + shipment 088-S; 3 Copilot rounds — 8, then 2,
+  then 4 threads).
 - Feature PR **#206** → merged to `main` as merge commit
   `f0946b926920abb5f85c8f0aa0d47c2280dc8a51` (2 parents: `70b33ba` base +
   `bc90c19` head; **P-009 merge-commit satisfied**).
@@ -60,8 +65,12 @@ Change surface (excluding `.backlogit/`):
   list + full-preset default table + prose.
 - **Versioned schema parity**: `schemas/harness-config/1.0.0.schema.json`
   (`capability_packs` enum + `graphtor_docs` config block) and
-  `schemas/workspace-profile/1.0.0.schema.json` (`graphtor_docs` block), brought
-  byte-for-byte deep-equal to the root schemas.
+  `schemas/workspace-profile/1.0.0.schema.json` (`graphtor_docs` block), with
+  their `graphtor_docs` blocks (and the harness-config `capability_packs` enum)
+  brought byte-for-byte deep-equal to the corresponding blocks in the root
+  schemas. This scoped parity does not reconcile unrelated pre-existing
+  divergence — the versioned profile schema still lacks the root's top-level
+  `copilot_review` property (see follow-up 3).
 - **User-facing parity**: install-harness prompt, auto-mergeinstall agent (pack
   list + post-install reminder), README pack catalog, getting-started
   (full-preset command, catalog, overlay prose, instructions tree, verify +
