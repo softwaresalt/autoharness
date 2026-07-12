@@ -652,6 +652,24 @@ agent_engram:
   # config_paths: [".mcp.json", ".engram/config.toml"]
   # recommended: true
 
+graphtor_docs:
+  detected: false
+  mcp_configured: false
+  config_paths: []
+  sources_path: ""
+  binary_path: ""
+  embed_model_dir: ""
+  instruction_markers: []
+  recommended: false
+  # Example when graphtor-docs is present:
+  # detected: true
+  # mcp_configured: true
+  # config_paths: [".mcp.json"]
+  # sources_path: ".graphtor/config/sources.yaml"
+  # binary_path: ".graphtor/bin/graphtor-docs.exe"
+  # embed_model_dir: ".graphtor/models/all-MiniLM-L6-v2"
+  # recommended: true
+
 agent_native:
   detected: false
   mcp_sdk_present: false
@@ -709,6 +727,7 @@ The summary MUST include:
 * Runtime validator expectations — which surfaces are expected, which probe hints were detected, and whether releasability evidence is required before Ship treats runtime validation as complete
 * Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
 * Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
+* Whether the `graphtor-docs` pack is recommended because graphtor markers or indexed local-documentation workflow signals were detected
 * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
 * Whether the `strict-safety` pack is recommended because security-sensitive, migration, or high-blast-radius signals were detected
 * Whether the `release-observability` pack is recommended because deployment infrastructure and runtime surfaces were detected

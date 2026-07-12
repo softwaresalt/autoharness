@@ -166,7 +166,7 @@ artifacts:
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
     template: "global skill definition"
-    checksum: "3a5d46adb78c831dd30c40eeb3251c2706a7858b715b67e8032c1e4e138659e4"
+    checksum: "ac854403d76f790bb2d33690e5f2a3c932b1c5a8a4681702b93ad18b1a6a5e52"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
