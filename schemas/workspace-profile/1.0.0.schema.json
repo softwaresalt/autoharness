@@ -788,6 +788,52 @@
         }
       }
     },
+    "graphtor_docs": {
+      "type": "object",
+      "description": "Detected graphtor-docs integration markers and recommendation state",
+      "properties": {
+        "detected": {
+          "type": "boolean"
+        },
+        "mcp_configured": {
+          "type": "boolean"
+        },
+        "config_paths": {
+          "type": "array",
+          "description": "Paths to MCP and other non-sources config files found (normally .mcp.json; legacy editor-local MCP files may also be recorded when discovered)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sources_path": {
+          "type": "string",
+          "description": "Path to the graphtor-docs sources configuration file (sources.yaml) that declares which paths, repos, and URLs to index"
+        },
+        "binary_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Resolved path to the graphtor-docs binary. Null when the binary is discovered via PATH or the default '.graphtor/bin/' location."
+        },
+        "embed_model_dir": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Resolved path to the local sentence-transformer embedding model directory used for offline vector search. Null when not detected; the installer defaults it to '<workspace_root>/.graphtor/models/all-MiniLM-L6-v2'."
+        },
+        "instruction_markers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recommended": {
+          "type": "boolean"
+        }
+      }
+    },
     "agent_native": {
       "type": "object",
       "description": "Detected agent-native or MCP-heavy product signals that justify a parity-focused reviewer persona",
