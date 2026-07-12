@@ -4454,16 +4454,17 @@ class NewArtifactDetectionTests(unittest.TestCase):
                 f"{rel} still references the removed ping-loop prompt",
             )
         # The heartbeat prompt was the ping-loop artifact; docs must no longer
-        # advertise it as an overlay target (heartbeat *behavior* stays).
+        # advertise it as an overlay target (heartbeat *behavior* stays, so match
+        # only "heartbeat ... prompt(s)" advertisements, not behavioral mentions).
         heartbeat_prompt_docs = [
             "docs/capability-packs.md",
             "docs/getting-started.md",
         ]
+        heartbeat_prompt_pattern = re.compile(r"heartbeat[\w/ ]{0,40}prompts?")
         for rel in heartbeat_prompt_docs:
             text = (repo_root / rel).read_text(encoding="utf-8").lower()
-            self.assertNotIn(
-                "heartbeat prompt",
-                text,
+            self.assertIsNone(
+                heartbeat_prompt_pattern.search(text),
                 f"{rel} still advertises the removed heartbeat (ping-loop) prompt",
             )
 
