@@ -195,7 +195,7 @@ precedence rules to resolve conflicts:
 | Combination | Resolution |
 |---|---|
 | agent-intercom + backlogit | Query backlogit first for task state; format the result using intercom broadcast rules for remote operator choice |
-| agent-engram + any other overlay | Engram is a discovery method; other overlays are independent. Use engram for search, other overlays for their domain |
+| agent-engram + any non-retrieval overlay | Engram is a discovery method; non-retrieval overlays are independent. Use engram for code/symbol/graph search, other overlays for their domain |
 | agent-engram + graphtor-docs | Both are indexed retrieval overlays; prefer engram for code/symbol/graph discovery and graphtor-docs for documentation and API concept lookup |
 | strict-safety + any overlay | Classify risky actions via strict-safety first; then route approval through the appropriate overlay (intercom if available, else local) |
 | strict-safety + concurrency | Log lock conflicts as `ActionResult: blocked` when strict-safety is enabled |

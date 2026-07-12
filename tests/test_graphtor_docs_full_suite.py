@@ -58,9 +58,9 @@ class GraphtorDocsSchemaParityTests(unittest.TestCase):
             "versioned harness-config is missing the graphtor_docs config block",
         )
         self.assertEqual(
-            set(ver_props["graphtor_docs"]["properties"]),
-            set(root_block["properties"]),
-            "versioned graphtor_docs config block fields diverge from root",
+            ver_props["graphtor_docs"],
+            root_block,
+            "versioned graphtor_docs config block diverges from root",
         )
 
     def test_versioned_profile_has_graphtor_docs_block(self) -> None:
@@ -72,9 +72,9 @@ class GraphtorDocsSchemaParityTests(unittest.TestCase):
             "versioned workspace-profile is missing the graphtor_docs block",
         )
         self.assertEqual(
-            set(ver_props["graphtor_docs"]["properties"]),
-            set(root_block["properties"]),
-            "versioned graphtor_docs profile block fields diverge from root",
+            ver_props["graphtor_docs"],
+            root_block,
+            "versioned graphtor_docs profile block diverges from root",
         )
 
     def test_full_config_enabling_graphtor_docs_validates_versioned(self) -> None:

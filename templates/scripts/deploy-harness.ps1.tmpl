@@ -154,7 +154,7 @@ function Invoke-Preflight {
 
     # Pack MCP prereqs are advisory: the deploy path seeds config and hands off;
     # missing MCP tools do not block scaffolding.
-    foreach ($mcp in @("backlogit", "engram")) {
+    foreach ($mcp in @("backlogit", "engram", "graphtor-docs")) {
         if (Get-Command $mcp -ErrorAction SilentlyContinue) { Write-Ok "$mcp MCP prereq present" }
         else { Write-Info "$mcp not found (optional pack MCP prereq)" }
     }

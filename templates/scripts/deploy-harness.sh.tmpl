@@ -141,7 +141,7 @@ invoke_preflight() {
 		if command -v "$cli_tool" >/dev/null 2>&1; then ok "$cli_tool present"; else warn "$cli_tool not found (needed to register the $REGISTER environment)"; fi
 	fi
 
-	for mcp in backlogit engram; do
+	for mcp in backlogit engram graphtor-docs; do
 		if command -v "$mcp" >/dev/null 2>&1; then ok "$mcp MCP prereq present"; else info "$mcp not found (optional pack MCP prereq)"; fi
 	done
 
