@@ -152,6 +152,18 @@ registry. Native-binary servers such as backlogit, Engram, and graphtor-docs
 remain separate executables and must also be installed on `PATH` when those
 packs are enabled.
 
+The committed `.mcp.json` also retains the existing PowerShell wrappers for
+Tavily and GitHub until 077-F resolves wrapper removal and replacement targets.
+That means `pwsh` must be on `PATH` for those two entries. The GitHub entry also
+requires an authenticated GitHub CLI (`gh auth status` succeeds) because it reads
+`gh auth token` at launch instead of committing a literal token. The Tavily entry
+still requires `TAVILY_API_KEY` in the environment before the server starts.
+
+The native workspace-root entries use `${workspaceFolder}`, matching the
+workspace-local `.env.local` key loaded by the generated startup scripts. Keep
+that key populated when launching AI CLIs outside an environment that injects the
+workspace root automatically.
+
 Install Bun using the upstream installer for your platform:
 
 ```powershell

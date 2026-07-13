@@ -5,7 +5,7 @@
       "command": "backlogit",
       "args": ["mcp"],
       "env": {
-        "BACKLOGIT_WORKSPACE": "${workspace_folder}"
+        "BACKLOGIT_WORKSPACE": "${workspaceFolder}"
       },
       "tools": ["*"]
     },
@@ -14,7 +14,7 @@
       "command": "engram",
       "args": ["shim"],
       "env": {
-        "ENGRAM_WORKSPACE": "${workspace_folder}"
+        "ENGRAM_WORKSPACE": "${workspaceFolder}"
       },
       "tools": ["*"]
     },
@@ -23,8 +23,8 @@
       "command": "graphtor-docs",
       "args": ["serve"],
       "env": {
-        "GRAPHTOR_DB_PATH": "${workspace_folder}/.graphtor/graph.db",
-        "GRAPHTOR_SOURCES": "${workspace_folder}/.graphtor/config/sources.yaml"
+        "GRAPHTOR_DB_PATH": "${workspaceFolder}/.graphtor/graph.db",
+        "GRAPHTOR_SOURCES": "${workspaceFolder}/.graphtor/config/sources.yaml"
       }
     },
     "context7": {
