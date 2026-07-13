@@ -48,9 +48,11 @@ config, hooks, or source files were copied or modified.
 ## Operator Decision (2026-07-13)
 
 The operator accepted the TokenMasterX evaluation as a partial, sequenced
-decision: A is accepted for immediate implementation; B and D are accepted but
-sequenced behind 079-F; C is rejected; E needs a follow-up spike; and final
-B/D/E integration scope remains contingent on 079-F plus the E spike findings.
+decision: A is accepted for immediate implementation; B is sequenced behind
+079-F; D is sequenced behind 079-F and 084-F; C is rejected; and E needs a
+follow-up spike (086-F). Final B and D integration scope remains contingent on
+the 079-F telemetry decision (D also on 084-F); final E integration scope is
+contingent on the 086-F spike findings, not on 079-F.
 
 * **A — Tighten Engram-first structural routing: YES.** Build now with no
   blocked dependency. Follow-up work is 083-F and shipment 090-S, limited to
@@ -69,8 +71,9 @@ B/D/E integration scope remains contingent on 079-F plus the E spike findings.
   retention/privacy/security, reversible raw-output storage, and representative
   benchmark tasks before the operator makes a final E decision.
 * **F — "Don't integrate": integration is contingent on findings.** Immediate
-  integration proceeds only for A. Final B/D/E integration scope depends on
-  the 079-F telemetry decision and 086-F spike findings.
+  integration proceeds only for A. Final B and D integration scope depends on
+  the 079-F telemetry decision (D also on 084-F); final E integration scope
+  depends on the 086-F spike findings. 079-F does not gate E.
 
 ## Evidence provenance
 
