@@ -4,13 +4,17 @@ date: "2026-07-13"
 description: "Spike evaluation of TokenMasterX at All-The-Vibes/TokenMasterX commit 9b86c8ac22d8145e751966d92336aa302f4261f9 and candidate autoharness integration ideas for graph-routed structural queries, token-economics measurement, and Brainspace-style output compression."
 topic: "Which TokenMasterX ideas, if any, should autoharness integrate, given existing agent-engram code-graph coverage and the need for operator product direction?"
 depth: "spike"
-decision_status: "proposed"
+decision_status: "accepted"
 doc_type: decision
 source: docs/decisions/2026-07-13-tokenmasterx-integration-spike.md
 source_stash_ids:
   - "CE8771AF"
 backlog_items:
   - "078-F"
+  - "083-F"
+  - "084-F"
+  - "085-F"
+  - "086-F"
 linked_artifacts:
   - "https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/README.md"
   - "https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/token-master-plugin/skills/token-master/SKILL.md"
@@ -32,7 +36,7 @@ tags:
 
 ## Status
 
-**PROPOSED — operator product decision required before implementation.** This
+**ACCEPTED — partial/sequenced operator decision recorded.** This
 spike evaluated the upstream TokenMasterX repository
 `All-The-Vibes/TokenMasterX` at commit
 `9b86c8ac22d8145e751966d92336aa302f4261f9` for ideas that could inform
@@ -40,6 +44,36 @@ autoharness. The local cache used during the spike lived under the gitignored
 `references/tokenmasterx/` tree, but this committed decision record uses durable
 upstream URLs pinned to that revision. No TokenMasterX code, templates, schemas,
 config, hooks, or source files were copied or modified.
+
+## Operator Decision (2026-07-13)
+
+The operator accepted the TokenMasterX evaluation as a partial, sequenced
+decision: A is accepted for immediate implementation; B is sequenced behind
+079-F; D is sequenced behind 079-F and 084-F; C is rejected; and E needs a
+follow-up spike (086-F). Final B and D integration scope remains contingent on
+the 079-F telemetry decision (D also on 084-F); final E integration scope is
+contingent on the 086-F spike findings, not on 079-F.
+
+* **A — Tighten Engram-first structural routing: YES.** Build now with no
+  blocked dependency. Follow-up work is 083-F and shipment 090-S, limited to
+  tightening existing `agent-engram` structural-query routing.
+* **B — Add token-efficiency metrics to the telemetry contract: YES, but
+  depends on 079-F.** Accepted as 084-F, blocked until 079-F resolves the
+  operator-gated telemetry data contract.
+* **C — Graph-supplier abstraction: NO.** Rejected because autoharness keeps
+  `agent-engram` as the single graph authority. Do not add a second graph stack
+  or duplicate graph authority.
+* **D — Structural-navigation benchmark suite: YES, but depends on 079-F and
+  logically on B.** Accepted as 085-F, blocked until 079-F and 084-F provide the
+  measurement contract and token-efficiency metrics.
+* **E — Brainspace-style output compression: MAYBE — needs more info.** Create
+  086-F as a queued feasibility spike to investigate host parity, CCR
+  retention/privacy/security, reversible raw-output storage, and representative
+  benchmark tasks before the operator makes a final E decision.
+* **F — "Don't integrate": integration is contingent on findings.** Immediate
+  integration proceeds only for A. Final B and D integration scope depends on
+  the 079-F telemetry decision (D also on 084-F); final E integration scope
+  depends on the 086-F spike findings. 079-F does not gate E.
 
 ## Evidence provenance
 
@@ -121,35 +155,42 @@ new graph supplier.
 | Explore Brainspace-like output compression as an optional capability pack. | Could reduce transcript cost for large JSON/log/tool outputs and complement graph routing. | High: CCR persistence, host-specific hooks, MCP tools, privacy/security review, tuning/verification. | Loss or hiding of relevant evidence; host parity gap; durable storage of raw outputs. | **Yes** — explicit product and safety decision required. |
 | Do not integrate yet; only record learnings. | Avoids duplicating Engram and keeps current roadmap focused. | Low. | Misses near-term token-efficiency wins if no follow-up is prioritized. | **Yes** — choosing not to integrate is still a product decision. |
 
-## Recommendation
+## Recommendation (superseded by operator decision)
 
-Sequence this behind the telemetry/data-contract work rather than importing a new
-implementation now:
+Superseded by the [Operator Decision (2026-07-13)](#operator-decision-2026-07-13)
+section above. The accepted sequencing is:
 
-1. Treat **079-F** as the prerequisite: define a tool-telemetry contract that can
-   measure graph routing, token efficiency, compression, and context-area savings.
-2. Strengthen **Engram-first structural routing** if the operator wants a near-term
-   low-cost win, because Engram is already installed and indexed in this repo.
-3. Defer **Brainspace** and any extra graph supplier until the operator decides
-   whether host-specific compression and multi-graph support belong in
-   autoharness.
+1. **A → now:** tighten Engram-first structural routing through 083-F and shipment
+   090-S.
+2. **B → after 079-F:** implement token-efficiency telemetry metrics through 084-F
+   only after the telemetry data contract is accepted.
+3. **D → after 079-F and 084-F:** build structural-navigation benchmarks through
+   085-F only after the measurement contract and token-efficiency metrics exist.
+4. **E → after 086-F spike findings:** decide Brainspace-style compression only
+   after the feasibility spike answers host-parity, CCR, storage, and benchmark
+   questions.
+5. **C → rejected:** do not add a graph-supplier abstraction; `agent-engram`
+   remains the single graph authority.
 
-## Operator Decision Required
+## Prior Operator Decision Request
 
-The operator must decide **which TokenMasterX ideas, if any, autoharness should
+Superseded by the [Operator Decision (2026-07-13)](#operator-decision-2026-07-13)
+section above. Before that decision, the operator needed to decide **which
+TokenMasterX ideas, if any, autoharness should
 integrate**: measurement-only, Engram-routing tightening, benchmark/eval work,
 Brainspace-style compression, graph-supplier abstraction, or no integration.
-Implementation is blocked until that product direction is chosen.
+Implementation was blocked until that product direction was chosen.
 
 ## Open questions
 
 1. Should autoharness measure cumulative token economics as a first-class success
-   metric for every task, or only for eval/spike sessions?
-2. Is Engram the single graph authority for autoharness, or should autoharness
-   support interchangeable graph suppliers?
+   metric for every task, or only for eval/spike sessions? **Follow-up:** 084-F
+   defines/emits the metrics after 079-F; 085-F validates them in benchmarks.
+2. **RESOLVED:** Engram is the single graph authority for autoharness. Option C
+   rejected interchangeable graph suppliers and any second graph stack.
 3. What host parity is required before output compression is acceptable, given
-   Claude Code hooks and Copilot CLI MCP-only behavior differ?
+   Claude Code hooks and Copilot CLI MCP-only behavior differ? **Follow-up:** 086-F.
 4. Where should reversible raw-output storage live, and what retention/privacy
-   rules apply?
+   rules apply? **Follow-up:** 086-F.
 5. What benchmark tasks would be representative of autoharness's real work rather
-   than only structural navigation demos?
+   than only structural navigation demos? **Follow-up:** 085-F.
