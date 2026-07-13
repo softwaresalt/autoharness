@@ -8,7 +8,8 @@ doc_type: decision
 source: docs/decisions/2026-07-12-mcp-launcher-consolidation-deliberation.md
 source_stash_ids:
   - "FD962DCC"
-backlog_items: []
+backlog_items:
+  - "077-F"
 linked_artifacts:
   - ".mcp.json"
   - "templates/scripts/start.ps1.tmpl"
