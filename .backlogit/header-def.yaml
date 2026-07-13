@@ -191,6 +191,15 @@ types:
                     - rejected
                     - archived
                 default: queued
+            size:
+                type: enum
+                values:
+                    - XS
+                    - S
+                    - M
+                    - L
+                    - XL
+                optional: true
     task:
         prefix: T
         suffix: -T
@@ -216,3 +225,12 @@ types:
                     - rejected
                     - archived
                 default: queued
+            size:
+                type: enum
+                values:
+                    - XS
+                    - S
+                    - M
+                    - L
+                    - XL
+                optional: true
