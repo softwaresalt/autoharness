@@ -66,6 +66,11 @@ The script runs a deterministic, single-pass sequence (no internal retry loop):
 The **scaffold** and **verify** phases write only inside the current workspace.
 The **bootstrap** phase installs a global tool outside the workspace **by design**
 and is therefore gated behind an explicit `-Bootstrap`/`--bootstrap` opt-in.
+For workspaces that enable JavaScript-based MCP tools, install Bun and ensure
+both `bun` and `bunx` are on `PATH`; native MCP servers such as backlogit,
+Engram, and graphtor-docs remain separate binary prerequisites. If a launcher is
+kept as bare `bunx` because `bunx --bun` compatibility was not verified, keep
+Node available too.
 
 ### Flags
 

@@ -16,7 +16,7 @@ autoharness supports pluggable backlog tools through a registry abstraction laye
 | Tool | Runtime | Directory | Transport | Key Differentiators |
 |------|---------|-----------|-----------|---------------------|
 | **backlogit** | Go binary | `.backlogit/` | MCP (stdio) + CLI | SQL query engine, telemetry, memory/checkpoints, sections |
-| **backlog-md** | Node.js (npm) | `backlog/` | MCP (stdio) + CLI | Milestones, documents, Definition of Done, workflow guides |
+| **backlog-md** | Bun/`bunx` launcher; keep Node if bare `bunx` is retained | `backlog/` | MCP (stdio) + CLI | Milestones, documents, Definition of Done, workflow guides |
 
 ## How Detection and Registry Abstraction Works
 

@@ -117,6 +117,14 @@ python -m pip install --upgrade autoharness
 autoharness verify-workspace --workspace .
 ```
 
+### MCP runtime prerequisites
+
+Workspaces that enable JavaScript-based MCP tools need Bun and `bunx` installed
+on `PATH`. Native-binary MCP tools such as backlogit, Engram, and graphtor-docs
+still need their own executables on `PATH`. If an MCP launcher must remain bare
+`bunx` instead of verified `bunx --bun`, keep Node available too because package
+shebangs may still delegate to Node.
+
 See [Installation](docs/installation.md) for environment registration, install
 methods, upgrade/migration steps, and the `autoharness_home` resolution order.
 

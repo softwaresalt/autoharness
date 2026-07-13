@@ -144,6 +144,47 @@ The startup scripts are runtime launchers only. They do not install `Auto-MergeI
 
 Sections for Claude Code and OpenAI Codex are included in each script as commented-out blocks; activate the one you need.
 
+## MCP Runtime Prerequisites
+
+JavaScript-based MCP tools require Bun and `bunx` on `PATH`. Bun supplies the
+lightweight launcher used by the committed `.mcp.json` and the backlog-md
+registry. Native-binary servers such as backlogit, Engram, and graphtor-docs
+remain separate executables and must also be installed on `PATH` when those
+packs are enabled.
+
+Install Bun using the upstream installer for your platform:
+
+```powershell
+# Windows PowerShell
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+```bash
+# macOS / Linux
+curl -fsSL https://bun.sh/install | bash
+```
+
+Then verify both entrypoints:
+
+```bash
+bun --version
+bunx --version
+```
+
+Runtime facts verified for this workspace:
+
+| Surface | Launcher | Runtime note |
+|---|---|---|
+| `.mcp.json` `context7` | `bunx --bun @upstash/context7-mcp` | Verified with `bunx --bun`; Bun-only launcher. |
+| `.mcp.json` `tavily` | `bunx tavily-mcp@latest` inside the existing PowerShell guard | `bunx --bun` could not be verified because package-manifest download was refused during the bounded probe; keep Node available conservatively. |
+| `.mcp.json` `github` | `bunx --bun @modelcontextprotocol/server-github` inside the existing PowerShell token wrapper | Verified with `bunx --bun`; Bun-only launcher. The deprecated package target and PowerShell wrapper remain intentionally unchanged for 077-F. |
+| backlog-md registry | `bunx backlog-md mcp` | `bunx --bun` could not be verified because package-manifest download was refused during the bounded probe; keep Node available conservatively. |
+
+Bare `bunx` can still honor a package's `#!/usr/bin/env node` shebang and
+delegate to Node. `bunx --bun` forces the Bun runtime; only claim Node is not
+required for a launcher after that specific package initializes successfully
+under `bunx --bun`.
+
 ### Local environment file (`.env.local`)
 
 The installer also generates a gitignored `.env.local` at the workspace root. The

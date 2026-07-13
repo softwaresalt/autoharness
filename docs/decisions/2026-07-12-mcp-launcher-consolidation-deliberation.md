@@ -1,6 +1,6 @@
 ---
 title: ".mcp.json Launcher Strategy Consolidation (npx / pwsh mix)"
-description: "Deliberation for stash item FD962DCC. The workspace-root .mcp.json mixes plain npx launchers with pwsh -Command wrappers that guard an env var (tavily) and read the gh credential (github). Reframes the problem around the deprecated @modelcontextprotocol/server-github package, then evaluates standardizing on a launcher, per-OS variants, a client-native env-forwarding approach (secrets forwarded via each client's declarative env field rather than a shell wrapper or an assumption of ambient inheritance), and a Node helper. The 2026-07-13 operator decision supersedes the runtime recommendation: track the root .mcp.json and use bun/bunx instead of npx for JS-engine MCP launchers, with the Bun prerequisite accepted. Left at decision_status proposed because the github-server target, pwsh removal, tavily env-forwarding, and version-pinning choices remain operator-gated under 077-F."
+description: "Deliberation for stash item FD962DCC. The workspace-root .mcp.json formerly mixed plain npx launchers with pwsh -Command wrappers that guard an env var (tavily) and read the gh credential (github). Reframes the problem around the deprecated @modelcontextprotocol/server-github package, then evaluates standardizing on a launcher, per-OS variants, a client-native env-forwarding approach (secrets forwarded via each client's declarative env field rather than a shell wrapper or an assumption of ambient inheritance), and a Node helper. The 2026-07-13 operator decision supersedes the runtime recommendation: track the root .mcp.json and use bun/bunx instead of npx for JS-engine MCP launchers, with the Bun prerequisite accepted. Left at decision_status proposed because the github-server target, pwsh removal, tavily env-forwarding, and version-pinning choices remain operator-gated under 077-F."
 topic: "How should the harness resolve the mixed npx/pwsh launcher strategy in the workspace-root .mcp.json so the configuration stays cross-platform, keeps the gh credential read, and accounts for the deprecated github MCP package and differing per-client config locations?"
 depth: "significant"
 decision_status: "proposed"
@@ -70,6 +70,14 @@ Node. 087-F therefore verifies `bunx --bun` compatibility empirically per server
 and documents the true prerequisite: Bun-only where `--bun` initializes
 successfully, and Bun+Node where a server or registry must retain bare `bunx`.
 
+091-S implementation results:
+
+* `context7` and the existing deprecated `github` package initialized under
+  `bunx --bun`, so those launchers now force the Bun runtime.
+* `tavily-mcp@latest` and `backlog-md` could not be verified under `bunx --bun`
+  because package-manifest downloads were refused during bounded probes. They
+  retain bare `bunx` launchers and keep Node as a conservative prerequisite.
+
 Therefore the original "npx + native binaries" net recommendation is
 **superseded-for-runtime** by bun/bunx, while the github/pwsh/env-forwarding and
 pinning analysis below remains live for 077-F.
@@ -79,7 +87,8 @@ pinning analysis below remains live for 077-F.
 The workspace-root `.mcp.json` is the harness's declared canonical MCP surface,
 with editor-local files (VS Code `.vscode/mcp.json`, Cursor `.cursor/mcp.json`)
 as compatibility fallbacks. Copilot CLI and Claude Code read the root
-`.mcp.json` (`mcpServers` key) directly. Today it mixes three launcher styles:
+`.mcp.json` (`mcpServers` key) directly. At deliberation time it mixed three
+launcher styles:
 
 | Server | Launcher | Why |
 |---|---|---|
