@@ -1,6 +1,6 @@
 ---
 title: ".mcp.json Launcher Strategy Consolidation (npx / pwsh mix)"
-description: "Deliberation for stash item FD962DCC. The workspace-root .mcp.json mixes plain npx launchers with pwsh -Command wrappers that guard an env var (tavily) and read the gh credential (github). Reframes the problem around the deprecated @modelcontextprotocol/server-github package, then evaluates standardizing on a launcher, per-OS variants, a client-native env-forwarding approach (secrets forwarded via each client's declarative env field rather than a shell wrapper or an assumption of ambient inheritance), and a Node helper. Recommends resolving the github server first (official hosted/local server or Copilot-CLI built-in) — which retires the deprecated package and removes the only command-substitution launcher — then consolidating toward npx + native binaries away from pwsh. Left at decision_status proposed because the client-set and github-server choices are operator/product tradeoffs and implementation mutates the live dogfood MCP config."
+description: "Deliberation for stash item FD962DCC. The workspace-root .mcp.json mixes plain npx launchers with pwsh -Command wrappers that guard an env var (tavily) and read the gh credential (github). Reframes the problem around the deprecated @modelcontextprotocol/server-github package, then evaluates standardizing on a launcher, per-OS variants, a client-native env-forwarding approach (secrets forwarded via each client's declarative env field rather than a shell wrapper or an assumption of ambient inheritance), and a Node helper. The 2026-07-13 operator decision supersedes the runtime recommendation: track the root .mcp.json and use bun/bunx instead of npx for JS-engine MCP launchers, with the Bun prerequisite accepted. Left at decision_status proposed because the github-server target, pwsh removal, tavily env-forwarding, and version-pinning choices remain operator-gated under 077-F."
 topic: "How should the harness resolve the mixed npx/pwsh launcher strategy in the workspace-root .mcp.json so the configuration stays cross-platform, keeps the gh credential read, and accounts for the deprecated github MCP package and differing per-client config locations?"
 depth: "significant"
 decision_status: "proposed"
@@ -8,8 +8,10 @@ doc_type: decision
 source: docs/decisions/2026-07-12-mcp-launcher-consolidation-deliberation.md
 source_stash_ids:
   - "FD962DCC"
+  - "75E8E8E2"
 backlog_items:
   - "077-F"
+  - "087-F"
 linked_artifacts:
   - ".mcp.json"
   - "templates/scripts/start.ps1.tmpl"
@@ -28,16 +30,49 @@ tags:
 
 ## Status
 
-**PROPOSED — operator decision required before implementation.** This
-deliberation was produced autonomously under dark factory mode (P-017). It does
-**not** modify the live `.mcp.json`. Implementation is deferred to the operator
-because the `github`-server target and the supported-client set are
-environment/product tradeoffs to ratify, and because editing the live dogfood
-`.mcp.json` changes how auth reaches the GitHub server and can break MCP on the
-next IDE/CLI restart — a state an AFK operator cannot recover from. Automatable
-checks (JSON/schema validity, `PATH` resolution, `gh` failure handling, a direct
-MCP handshake) remain possible now; only end-to-end IDE trust needs the operator
-present (see Verification split).
+**PARTIALLY DECIDED — runtime/tracking accepted; github/pwsh items remain
+proposed.** This deliberation was produced autonomously under dark factory mode
+(P-017). It does **not** modify the live `.mcp.json`. The 2026-07-13 operator
+decision below supersedes the runtime portion of the recommendation by choosing
+bun/bunx and a tracked workspace-root `.mcp.json`. The document keeps
+`decision_status: proposed` because the `github`-server target, `pwsh` removal,
+`tavily` env-forwarding, and exact-version pinning remain operator/product
+tradeoffs under 077-F. Automatable checks (JSON/schema validity, `PATH`
+resolution, `gh` failure handling, a direct MCP handshake) remain possible now;
+only end-to-end IDE trust needs the operator present (see Verification split).
+
+## Operator Decision (2026-07-13)
+
+The operator overrode the launcher-runtime portion of this deliberation and
+split it into 087-F / 091-S:
+
+* Track the workspace-root `.mcp.json` as a canonical committed artifact. It is
+  no longer treated as purely developer-local for this sub-decision.
+* Adopt **bun/bunx** as the standard runtime for MCP tools that require a
+  JavaScript engine, replacing the earlier npx runtime recommendation. The Bun
+  prerequisite is explicitly accepted because `bunx` is a lighter-weight
+  installed executable and works cross-platform on Windows/macOS/Linux.
+* Do **not** templatize `.mcp.json` at this time.
+* Keep the scope narrow: 087-F covers only the runtime/launcher swap,
+  root `.mcp.json` tracking, and docs. It preserves the no-token-duplication
+  property: the `github` entry still reads `gh auth token` at launch and no
+  literal token is committed.
+* Leave the remaining 077-F decisions open and operator-gated: the
+  `github`-server target, removing `pwsh` wrappers, `tavily` env-forwarding, and
+  exact-version pinning. In particular, 087-F does **not** resolve the
+  deprecated `@modelcontextprotocol/server-github` target or the existing
+  `pwsh` wrapper.
+
+The intended "obviate the full Node install" outcome is contingent on the
+JS-engine MCP packages being Bun-runtime-compatible under `bunx --bun`. Packages
+that ship `#!/usr/bin/env node` shebangs can still make bare `bunx` delegate to
+Node. 087-F therefore verifies `bunx --bun` compatibility empirically per server
+and documents the true prerequisite: Bun-only where `--bun` initializes
+successfully, and Bun+Node where a server or registry must retain bare `bunx`.
+
+Therefore the original "npx + native binaries" net recommendation is
+**superseded-for-runtime** by bun/bunx, while the github/pwsh/env-forwarding and
+pinning analysis below remains live for 077-F.
 
 ## Problem (stash FD962DCC)
 
@@ -238,21 +273,24 @@ Sequence the decision, don't jump to a launcher:
    use a small Node helper (Option E) rather than adding a `pwsh`/`sh` OS
    dependency.
 
-Net direction: **npx + native binaries + the official GitHub MCP server**, which
-consolidates *away* from `pwsh` while staying cross-platform — the outcome the
-stash was reaching for. Option A (keep `pwsh`) is the smallest change but does
-not satisfy the cross-platform constraint and leaves the deprecated package in
-place.
+Original net direction (now **superseded-for-runtime** by the 2026-07-13
+operator decision): **npx + native binaries + the official GitHub MCP server**,
+which consolidates *away* from `pwsh` while staying cross-platform — the outcome
+the stash was reaching for. Option A (keep `pwsh`) is the smallest change but
+does not satisfy the cross-platform constraint and leaves the deprecated package
+in place. For runtime launcher work, use bun/bunx instead of npx; for the
+github/pwsh/env-forwarding and pinning work, continue to use the analysis below
+under 077-F.
 
-This is a recommendation with `decision_status: proposed`, not an applied
-change, because:
+This remains `decision_status: proposed` for the still-open 077-F items, not a
+fully applied decision, because:
 
 * Choosing among hosted-remote vs. local-binary vs. Copilot-CLI-built-in for
   `github`, and deciding which client set the harness commits to supporting,
   are environment/product tradeoffs the operator should ratify.
-* Implementation edits the **live** dogfood `.mcp.json`; a wrong edit changes how
-  auth reaches the GitHub server and can break MCP on the next IDE/CLI restart,
-  which an AFK operator cannot recover from.
+* The remaining implementation edits the **live** dogfood `.mcp.json`; a wrong
+  edit changes how auth reaches the GitHub server and can break MCP on the next
+  IDE/CLI restart, which an AFK operator cannot recover from.
 
 ## Verification split (what can be checked without the operator)
 
@@ -275,13 +313,14 @@ Deferring *ratification* does not mean nothing is verifiable. Separate:
    forwards `TAVILY_API_KEY` via a non-literal reference, set per each targeted
    client's env policy (VS Code-style ambient vs Copilot CLI explicit `env`); do
    not rely on ambient inheritance alone, since Copilot CLI forwards only `PATH`.
-3. **Pin every `npx`-launched server to an exact reviewed version** (not `-y
-   ...@latest`) with an explicit update process. Both `tavily`
-   (`npx -y tavily-mcp@latest`) and `context7` (`npx -y @upstash/context7-mcp`)
-   currently resolve moving releases, so a newly published or compromised release
-   would execute immediately and launches are non-reproducible. Where the client
-   or config forwards `TAVILY_API_KEY` to the process (see step 2), such a release
-   also runs with the secret in its environment — so pin `tavily` regardless of
+3. **Pin every JS-engine package launcher to an exact reviewed version** (not a
+   moving `@latest` or implicit latest) with an explicit update process. The
+   original examples were npx launches (`tavily` and `context7`); after the
+   2026-07-13 runtime decision, apply the same pinning concern to bunx-based
+   package launches. A newly published or compromised release would execute
+   immediately and launches are non-reproducible. Where the client or config
+   forwards `TAVILY_API_KEY` to the process (see step 2), such a release also
+   runs with the secret in its environment — so pin `tavily` regardless of
    forwarding mechanism. Prefer an official hosted service where one is available.
 4. Add `gh` failure/empty-output handling wherever a launcher still reads the
    credential.
@@ -298,8 +337,7 @@ Deferring *ratification* does not mean nothing is verifiable. Separate:
   a dogfood artifact. Templatizing MCP registration is a separate, larger item.
 * Fixing the operator-reported `graphtor-docs` `graph.db` open failure. That is
   tool-managed local daemon state (reindex/reset), not a repository change.
-* Resolving the `.gitignore` inconsistency: lines 19-20 comment that "The root
-  `.mcp.json` ... is tracked," but line 24 actually ignores it and commit
-  `2b34b8c` stopped tracking it. Whether the root `.mcp.json` should be tracked
-  (canonical, committed) or generated-and-ignored (local) is itself an operator
-  decision that gates the per-OS-variant option above; flagged here, not changed.
+* Resolving the `.gitignore` inconsistency was out of scope for the original
+  deliberation. The 2026-07-13 operator decision now resolves that sub-decision:
+  track the root `.mcp.json` as canonical, committed workspace config. 087-F
+  carries the implementation work; the remaining 077-F items above stay open.
