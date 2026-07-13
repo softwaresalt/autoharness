@@ -16,6 +16,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import yaml
+
 from autoharness.gates.sizing import (
     DEFAULT_BACKLOGIT,
     SIZES,
@@ -29,6 +31,7 @@ from autoharness.gates.sizing import (
 )
 
 _SIZE_INDEX = {s: i for i, s in enumerate(SIZES)}
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _task(*, title="", body="", description="", acceptance="", references=None, labels=None, size=None):
@@ -62,6 +65,20 @@ class _FakeProc:
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
+
+
+class HeaderDefSizeFieldTests(unittest.TestCase):
+    def test_task_and_subtask_size_fields_are_optional_enums_without_default(self) -> None:
+        header_def = yaml.safe_load((_REPO_ROOT / ".backlogit" / "header-def.yaml").read_text())
+
+        for artifact_type in ("task", "subtask"):
+            with self.subTest(artifact_type=artifact_type):
+                fields = header_def["types"][artifact_type]["fields"]
+                size = fields["size"]
+                self.assertEqual(size["type"], "enum")
+                self.assertEqual(size["values"], ["XS", "S", "M", "L", "XL"])
+                self.assertNotIn("default", size)
+                self.assertIs(size.get("optional"), True)
 
 
 class ExtractSignalsTests(unittest.TestCase):

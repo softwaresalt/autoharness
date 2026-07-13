@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-12T19:19:13.4286216-07:00","actor":"backlogit","item_id":"089-S","event_type":"shipment_created","delta":{"items":["065.001-T"],"title":"probe-size-field: backlogit task size field"}}
+{"timestamp":"2026-07-12T23:22:58.3470166-07:00","actor":"backlogit","item_id":"089-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
