@@ -25,7 +25,8 @@
       "env": {
         "GRAPHTOR_DB_PATH": "${workspaceFolder}/.graphtor/graph.db",
         "GRAPHTOR_SOURCES": "${workspaceFolder}/.graphtor/config/sources.yaml"
-      }
+      },
+      "tools": ["*"]
     },
     "context7": {
       "type": "stdio",
@@ -40,7 +41,8 @@
         "-NoProfile",
         "-Command",
         "if ([string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) { throw 'TAVILY_API_KEY is not set.' }; bunx tavily-mcp@latest"
-      ]
+      ],
+      "tools": ["*"]
     },
     "github": {
       "type": "stdio",
