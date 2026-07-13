@@ -2,7 +2,7 @@
 description: "Maintenance and tuning workflow that iteratively adapts an installed agent harness to match the current state of a codebase as it evolves"
 ---
 
-## Tune Harness
+# Tune Harness
 
 Analyze an installed agent harness against the current workspace state, detect drift, and propose targeted updates to keep the harness aligned with codebase evolution. Tuning is a non-destructive process: it proposes changes for review rather than silently overwriting artifacts.
 
@@ -416,6 +416,25 @@ lacks `correctness-reviewer.agent.md`, `maintainability-reviewer.agent.md`,
 `template-integrity-reviewer.agent.md`, `schema-cli-docs-coupling-reviewer.agent.md`, or the
 local review readiness contract (`READY`, `READY_WITH_FOLLOWUPS`, `BLOCKED`)
 that Ship and pr-lifecycle depend on before PR presentation.
+
+**agent-engram overlay coherence checks**: When `agent-engram` is in the enabled
+pack list, verify:
+
+1. `agent-engram.instructions.md` is present in the workspace's instructions directory.
+2. The instruction asserts that structural code questions MUST route through
+   agent-engram code-graph tools before grep/ripgrep or raw file reads unless a
+   direct-tool exemption applies.
+3. The structural-routing assertion covers callers/callees, impact, symbols,
+   blast radius, inheritance, implementations, implementers, and where/how
+   implemented questions.
+4. `capability-pack-enforcement.instructions.md` keeps the same
+   structural-code route to agent-engram first before grep/raw file reads,
+   while preserving direct-tool exemptions and internal-first / no-public-web
+   safeguards.
+
+Flag missing or weakened items as `agent_engram_overlay_incomplete` drift.
+Treat missing inheritance, implementation, or implementer coverage as real
+agent-engram weaving drift, not a cosmetic wording difference.
 
 **graphtor-docs overlay coherence checks**: When `graphtor-docs` is in the enabled pack list, verify:
 

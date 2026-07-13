@@ -38,7 +38,7 @@ Before a retrieval operation, classify the query and route it:
 <!-- BEGIN:capability-pack-routes -->
 | Query kind | Route to | Marker |
 |---|---|---|
-| Structural/conceptual **code** questions (symbols, callers/callees, blast radius, "where/how is X implemented") | **agent-engram** (indexed + code-graph search) | <!-- route:agent-engram --> |
+| Structural/conceptual **code** questions (symbols, callers/callees, blast radius, inheritance, implementations, implementers, "where/how is X implemented") | **agent-engram** first (indexed + code-graph search before grep/raw file reads unless a direct-tool exemption applies) | <!-- route:agent-engram --> |
 | **Documentation / domain / business-context** questions (indexed docs, APIs, SoWs, process, data mapping, "what does the spec say") | **graphtor-docs** (indexed local documentation retrieval) | <!-- route:graphtor-docs --> |
 <!-- END:capability-pack-routes -->
 
@@ -50,7 +50,10 @@ only if the specific route misses.
 1. **Direct-tool exemptions** (below) always take precedence — never route an
    exempt query through a pack.
 2. Otherwise route by the classification table to the **most specific** enabled
-   pack.
+   pack. Structural code questions MUST route to **agent-engram** before
+   grep/ripgrep or raw file reads, including callers/callees, impact, symbols,
+   blast radius, inheritance, implementations, implementers, and where/how
+   implemented questions.
 3. Only after the routed pack misses (index gap, no result) do you consider the
    **sensitivity-aware fallback**.
 

@@ -161,7 +161,7 @@ artifacts:
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "ec107dd3c2dd8b54222d96de311c5db769f01d50d21224b38547aed97a6a4d13"
+    checksum: "68ace92e4cd2dc83ad56bd29f34a09b5bf4aa901c60ee7bfc3520339e3a6e912"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
@@ -171,7 +171,7 @@ artifacts:
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
     template: "global skill definition"
-    checksum: "406e89300401a5712e56300e72ab50143718ba3e31e27d0b2f5511db9b22fced"
+    checksum: "d7f746377246d3aa0c61a8ec964de6ffac116a19b3def33bb0b423fab10b4302"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/prompts/install-harness.prompt.md"
     primitive: 6
@@ -186,7 +186,7 @@ artifacts:
   - path: ".github/instructions/agent-engram.instructions.md"
     primitive: 1
     template: "instructions/agent-engram.instructions.md.tmpl"
-    checksum: "f19b0fceb913182af6b1f809dfbf00b7d5deb2bad2e67ac008044ddfceef4241"
+    checksum: "ceac342b56ad6aec7ab36f7e80c6c4bbd437a9c63629ce8180750acb74fee1e7"
     note: "agent-engram capability pack overlay instruction"
   - path: ".github/instructions/agent-intercom.instructions.md"
     primitive: 4
@@ -221,7 +221,7 @@ artifacts:
   - path: ".github/instructions/capability-pack-enforcement.instructions.md"
     primitive: 6
     template: "instructions/capability-pack-enforcement.instructions.md.tmpl"
-    checksum: "4332ec124aaa2843a818b33a967c25a47840f7d44c00c3787324953f266f0962"
+    checksum: "57ee627109e698d9fb3117606dcdab2b1c85b546599d8fd889aa8a2c7984ccdc"
     note: "capability-pack usage-enforcement coordinator (075-F/087-S); routes retrieval-enforced packs (agent-engram, graphtor-docs) with safeguard invariants; checksum is EOL-normalized (LF)"
   - path: ".github/instructions/output-timestamps.instructions.md"
     primitive: 7
