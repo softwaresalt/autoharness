@@ -186,7 +186,7 @@ artifacts:
   - path: ".github/instructions/agent-engram.instructions.md"
     primitive: 1
     template: "instructions/agent-engram.instructions.md.tmpl"
-    checksum: "6feb13812523a969a1376a9dfe05d0084a9e3bbe5b0abde203bc9abda696ffb5"
+    checksum: "ceac342b56ad6aec7ab36f7e80c6c4bbd437a9c63629ce8180750acb74fee1e7"
     note: "agent-engram capability pack overlay instruction"
   - path: ".github/instructions/agent-intercom.instructions.md"
     primitive: 4

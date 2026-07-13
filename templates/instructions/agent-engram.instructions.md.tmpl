@@ -77,6 +77,7 @@ Fall back to grep, glob, or direct file reading only when:
 * the workspace is not yet bound or indexed
 * the query is literal-text or regex oriented rather than symbol or concept oriented
 * you already know the exact file path and need line-level source confirmation
+* the query is a trivial single-file lookup where indexed search adds only latency
 * indexed results are insufficient even after using the most specific engram tool
 
 If semantic search is unavailable, degraded, or returns a database / embedding failure, do not keep

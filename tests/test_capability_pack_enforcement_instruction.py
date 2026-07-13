@@ -44,6 +44,15 @@ _SAFEGUARD_MARKERS = (
     "<!-- safeguard:per-phase-health-reuse -->",
     "<!-- safeguard:internal-no-public-web -->",
 )
+_STRUCTURAL_TERMS = (
+    "symbols",
+    "callers/callees",
+    "blast radius",
+    "inheritance",
+    "implementations",
+    "implementers",
+    "where/how is x implemented",
+)
 # Retrieval-enforced packs: the template ships the full set; the dogfood enables
 # both, so both files carry both route rows.
 _RETRIEVAL_PACKS = ("agent-engram", "graphtor-docs")
@@ -116,6 +125,37 @@ class CapabilityPackEnforcementInstructionTests(unittest.TestCase):
         for text in (self.template, self.dogfood):
             self.assertIn("agent-engram.instructions.md", text)
             self.assertIn("graphtor-docs.instructions.md", text)
+
+    def test_structural_code_route_requires_engram_before_grep(self) -> None:
+        for text in (self.template, self.dogfood):
+            normalized = text.lower()
+            route_block = normalized.split(_ROUTE_BEGIN.lower(), 1)[1].split(
+                _ROUTE_END.lower(), 1
+            )[0]
+            precedence = normalized.split("## precedence", 1)[1].split(
+                "## direct-tool exemptions", 1
+            )[0]
+            route_block_flat = re.sub(r"\s+", " ", route_block)
+            precedence_flat = re.sub(r"\s+", " ", precedence)
+
+            self.assertIn("agent-engram", route_block_flat)
+            self.assertIn("before grep/raw file reads", route_block_flat)
+            self.assertIn("direct-tool exemption applies", route_block_flat)
+            self.assertIn("must route to **agent-engram** before", precedence_flat)
+            self.assertIn("grep/ripgrep or raw file reads", precedence_flat)
+            for term in _STRUCTURAL_TERMS:
+                self.assertIn(term, route_block_flat)
+                self.assertIn(
+                    term.replace("where/how is x implemented", "where/how implemented"),
+                    precedence_flat,
+                )
+
+    def test_direct_tool_exemptions_remain_explicit(self) -> None:
+        for text in (self.template, self.dogfood):
+            normalized = text.lower()
+            self.assertIn("literal-text / regex", normalized)
+            self.assertIn("known exact path", normalized)
+            self.assertIn("trivial single-file lookups", normalized)
 
 
 if __name__ == "__main__":
