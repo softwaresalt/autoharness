@@ -1,7 +1,7 @@
 ---
 title: "TokenMasterX Token-Economics Integration Evaluation"
 date: "2026-07-13"
-description: "Spike evaluation of the gitignored TokenMasterX reference workspace and candidate autoharness integration ideas for graph-routed structural queries, token-economics measurement, and Brainspace-style output compression."
+description: "Spike evaluation of TokenMasterX at All-The-Vibes/TokenMasterX commit 9b86c8ac22d8145e751966d92336aa302f4261f9 and candidate autoharness integration ideas for graph-routed structural queries, token-economics measurement, and Brainspace-style output compression."
 topic: "Which TokenMasterX ideas, if any, should autoharness integrate, given existing agent-engram code-graph coverage and the need for operator product direction?"
 depth: "spike"
 decision_status: "proposed"
@@ -12,10 +12,11 @@ source_stash_ids:
 backlog_items:
   - "078-F"
 linked_artifacts:
-  - "references/tokenmasterx/README.md"
-  - "references/tokenmasterx/token-master-plugin/skills/token-master/SKILL.md"
-  - "references/tokenmasterx/token-master-plugin/skills/token-master/agent.template.copilot.md"
-  - "references/tokenmasterx/token-master-plugin/skills/token-master/brainspace/router.py"
+  - "https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/README.md"
+  - "https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/token-master-plugin/skills/token-master/SKILL.md"
+  - "https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/token-master-plugin/skills/token-master/agent.template.copilot.md"
+  - "https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/token-master-plugin/skills/token-master/brainspace/router.py"
+  - "https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/LICENSE"
   - ".github/instructions/agent-engram.instructions.md"
 tags:
   - "token-economics"
@@ -32,11 +33,21 @@ tags:
 ## Status
 
 **PROPOSED — operator product decision required before implementation.** This
-spike evaluated the local, gitignored `references/tokenmasterx/` workspace for
-ideas that could inform autoharness. The reference contents are intentionally not
-committable here; this document records the evaluation and links to the local
-paths used as evidence. No TokenMasterX code, templates, schemas, config, hooks,
-or source files were copied or modified.
+spike evaluated the upstream TokenMasterX repository
+`All-The-Vibes/TokenMasterX` at commit
+`9b86c8ac22d8145e751966d92336aa302f4261f9` for ideas that could inform
+autoharness. The local cache used during the spike lived under the gitignored
+`references/tokenmasterx/` tree, but this committed decision record uses durable
+upstream URLs pinned to that revision. No TokenMasterX code, templates, schemas,
+config, hooks, or source files were copied or modified.
+
+## Evidence provenance
+
+* Upstream repository: `https://github.com/All-The-Vibes/TokenMasterX`
+* Reviewed revision: `9b86c8ac22d8145e751966d92336aa302f4261f9`
+* License: MIT License, recorded in the pinned upstream `LICENSE` file.
+* Local cache status: `references/tokenmasterx/` was an uncommitted,
+  gitignored checkout used only to inspect the pinned upstream revision.
 
 ## Problem (stash CE8771AF)
 
@@ -51,15 +62,16 @@ but which ones belong in autoharness without duplicating the already-enabled
 
 ## Evaluation inputs
 
-* `references/tokenmasterx/README.md` — measurement thesis, graph-routing design,
-  Brainspace compression layer, install model, limitations, and repository layout.
-* `references/tokenmasterx/token-master-plugin/skills/token-master/SKILL.md` —
-  `/token-master` command behavior: build `.token-master/graph.json`, install a
+* [`README.md`](https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/README.md)
+  — measurement thesis, graph-routing design, Brainspace compression layer,
+  install model, limitations, and repository layout.
+* [`token-master-plugin/skills/token-master/SKILL.md`](https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/token-master-plugin/skills/token-master/SKILL.md)
+  — `/token-master` command behavior: build `.token-master/graph.json`, install a
   routing agent, prefer graphify, escalate to codegraph only for precision cases.
-* `references/tokenmasterx/token-master-plugin/skills/token-master/agent.template.copilot.md`
+* [`token-master-plugin/skills/token-master/agent.template.copilot.md`](https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/token-master-plugin/skills/token-master/agent.template.copilot.md)
   — routing instructions for graphify-nav vs codegraph and native Copilot session
   recall.
-* `references/tokenmasterx/token-master-plugin/skills/token-master/brainspace/router.py`
+* [`token-master-plugin/skills/token-master/brainspace/router.py`](https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/token-master-plugin/skills/token-master/brainspace/router.py)
   — type detection and never-expand guard for JSON, logs, code, and prose output.
 * Directory skim: `.claude-plugin/`, `token-master-plugin/`, and `assets/` confirm
   this is packaged as a plugin/skill with host-agent templates, graph MCP server,
