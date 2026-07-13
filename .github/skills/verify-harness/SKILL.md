@@ -2,7 +2,7 @@
 description: "Multi-model adversarial verification of installed or tuned harness artifacts using parallel reviewers with consensus-based finding assembly and auto-remediation"
 ---
 
-## Adversarial Harness Verification
+# Adversarial Harness Verification
 
 Dispatch multiple independent reviewer subagents — each using a different model —
 to audit installed harness artifacts against their authoritative templates, overlay
@@ -72,8 +72,17 @@ dispatched in parallel:
 | Domain | Focus | Key Checks |
 |---|---|---|
 | **Template Fidelity** | Compare every installed artifact against its source template | Dropped content, unresolved variables, missing sections, incorrect variable resolution, missing Model Routing sections |
-| **Overlay Coherence** | Verify each enabled pack is consistently woven | Pack instruction file exists, foundation docs reference the pack, pipeline agents declare pack tools, skills reference pack instruction file, overlay targets contain pack behavior keywords |
+| **Overlay Coherence** | Verify each enabled pack is consistently woven | Pack instruction file exists, foundation docs reference the pack, pipeline agents declare pack tools, skills reference pack instruction file, overlay targets contain pack behavior keywords, agent-engram structural-routing-before-grep assertions are present |
 | **Cross-Reference Integrity** | Verify all discovery tables, policy references, and agent→skill→reviewer chains resolve | Skills table complete vs actual skills, reviewer table complete vs actual reviewers, policy agents are installed agents (not skills), profile detection flags match installed packs, deprecated agent references cleaned up, local review readiness references agree across policy / skill / instruction surfaces, P-017 dark factory references agree across policy / Orchestrator / Ship / pr-lifecycle / intercom / prompt surfaces |
+
+When `agent-engram` is enabled, overlay coherence MUST verify both
+`.github/instructions/agent-engram.instructions.md` and
+`.github/instructions/capability-pack-enforcement.instructions.md` assert that
+structural code questions route to agent-engram before grep/ripgrep or raw file
+reads unless a direct-tool exemption applies. The assertion must cover
+callers/callees, impact, symbols, blast radius, inheritance, implementations,
+implementers, and where/how-implemented questions. Missing or weakened coverage
+is a MAJOR overlay-coherence finding.
 
 ### Phase 3: Dispatch Parallel Reviewers
 

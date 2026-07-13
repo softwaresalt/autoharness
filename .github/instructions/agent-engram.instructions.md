@@ -56,6 +56,15 @@ Use the most specific engram tool first:
 | Run advanced read-only graph queries | `query_graph` |
 | Traverse typed edges from a known node to explore local graph neighborhood | `query_graph_neighborhood` |
 
+Structural code questions MUST route through the agent-engram code-graph tools
+before grep/ripgrep or raw file reads unless a direct-tool exemption applies. This
+includes callers/callees, impact analysis, symbol lookup, blast-radius checks,
+inheritance, implementations, implementers, and "where/how is this implemented?"
+questions. Use `list_symbols` for symbol and implementation discovery, `map_code`
+for callers/callees and local graph context, `impact_analysis` for blast radius,
+and related graph lookup tools such as `query_graph` or
+`query_graph_neighborhood` when the question needs graph traversal.
+
 Prefer these before file-based fallback whenever the question is structural or conceptual.
 
 Use `query_graph` for ad-hoc Cypher-style read-only queries across the full graph. Use `query_graph_neighborhood` for structured node-centric traversal when exploring typed edges from a known node (033-S). Prefer the neighborhood API when you have a specific starting node.
