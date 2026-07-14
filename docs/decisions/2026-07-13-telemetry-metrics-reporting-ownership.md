@@ -200,10 +200,18 @@ fields and no label-to-weight mapping.
 | `sizing_ruleset_versions` | object | Per-level ruleset/contract map with keys `task`, `feature`, and `shipment`; values name the backlogit release/contract or autoharness sizing ruleset used. |
 | `feature_planned_child_task_count` | integer or null | Count of known/planned task children under `feature_id` at snapshot time. |
 | `feature_planned_child_size_histogram` | object | Count of feature child tasks by `XS`/`S`/`M`/`L`/`XL`/`unavailable`; labels are buckets only, not numeric weights. |
-| `feature_child_membership_hash` | string or null | Stable hash/fingerprint of the feature child task ID set used for the snapshot. |
+| `feature_child_membership_hash` | string or null | Lowercase SHA-256 hex digest of the canonical feature child task ID set used for the snapshot. |
 | `shipment_manifest_task_count` | integer or null | Count of task IDs in the shipment manifest at snapshot time. |
 | `shipment_manifest_size_histogram` | object | Count of shipment task IDs by task `size` label plus `unavailable`. |
-| `shipment_membership_hash` | string or null | Stable hash/fingerprint of the shipment task ID set used for the snapshot. |
+| `shipment_membership_hash` | string or null | Lowercase SHA-256 hex digest of the canonical shipment task ID set used for the snapshot. |
+
+
+
+Canonical membership digests use lowercase SHA-256 hex over a UTF-8 JSON array of
+unique ID strings sorted by bytewise/ordinal string order and encoded without
+insignificant whitespace. The digest input is the ID set only; label histograms
+and counts are stored separately. Missing or unavailable membership data yields
+`null`, not a hash of an empty unknown set.
 
 The corresponding root `ExecutionEpoch` correlation vocabulary includes
 `feature_id` in addition to the existing task/backlog item and shipment IDs.
@@ -330,8 +338,8 @@ reported as observed. Implementations must not emit a hybrid record that keeps
 `schema_version: 1.0.0` while adding v1.1 fields.
 
 The serialized `ExecutionEpoch` v1.1 schema required set is `schema_version`,
-`epoch_id`, `task_id`, `timestamp`, `route`, `economics`, `operations`, and
-`outcome`. CLI or reader input helpers may accept a looser construction shape
+`epoch_id`, `task_id`, `backlog_item_id`, `timestamp`, `route`, `economics`,
+`operations`, and `outcome`. CLI or reader input helpers may accept a looser construction shape
 that fills defaults such as `epoch_id` or `timestamp`, but schema mirrors and
 parity tests validate the complete serialized record shape.
 
@@ -413,6 +421,12 @@ Roll-up rules:
    roll-up.
 
 ## Reporting and aggregation ownership
+
+Report bucketing normalizes epoch timestamps to UTC before ordering, filtering,
+range slicing, and calendar/date bucket assignment. Mixed-offset timestamps that
+represent the same instant must sort together and fall into the same UTC bucket;
+source offsets are not used as local-calendar bucket boundaries.
+
 
 ### Options evaluated
 
