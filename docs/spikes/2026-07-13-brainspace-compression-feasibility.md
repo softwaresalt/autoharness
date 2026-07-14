@@ -37,7 +37,8 @@ tags:
 
 <!-- markdownlint-disable MD013 -->
 
-## Brainspace Compression Feasibility Spike
+<!-- markdownlint-disable-next-line MD025 -->
+# Brainspace Compression Feasibility Spike
 
 ## Status
 
