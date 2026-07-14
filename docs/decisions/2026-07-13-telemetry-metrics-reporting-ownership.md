@@ -205,6 +205,8 @@ move fields between payloads.
 | `AbsoluteOutcome` | `tool_failure_count`, `tool_degraded_count`, `tool_gap_count` |
 | `RouteConfiguration` | `route_kinds` and optional `primary_route_kind` derived from the first route kind |
 
+Degraded-count ownership is intentionally split: `OperationalReality.degraded_tool_count` is a routing/offload diagnostic for expected or routed tools that were invoked only through degraded fallback behavior, while `AbsoluteOutcome.tool_degraded_count` counts tool operations whose execution outcome status is `degraded`. They are not aliases and no equality invariant is required; reports may show both side by side, but implementation tests must keep them in their assigned payloads and must not sum either field into `tool_gap_count`.
+
 Roll-up rules:
 
 1. For future live events, sum per-event **delta** metrics such as `input_tokens`,
@@ -326,8 +328,9 @@ The extension is contractual, not an import-boundary change:
   core contract and reporting surface.
 * Schema work must be versioned and mirrored: root schema, versioned schema, and
   `src/autoharness/schema_contracts.py` registration must stay in sync.
-* Time-series reports must work from local epoch SQLite/JSONL without an external
-  service or queryable event store.
+* Time-series reports must work from both local epoch SQLite and JSONL sinks
+  under `.autoharness/metrics/` without an external service or queryable event
+  store.
 * CLI exposure for telemetry reports is out of scope for shipment 092-S; 079-F
   delivers the reporting library and docs, not a report subcommand.
 * Tests must preserve telemetry import boundaries and the one-way eval →
