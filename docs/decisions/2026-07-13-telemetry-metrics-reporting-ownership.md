@@ -138,7 +138,8 @@ precision.
 | Correlation | `session_id`, `agent_role`, `phase` | strings or null | Agent/session/phase correlation. |
 | Correlation | `backlog_item_id`, `shipment_id` | strings or null | Work traceability supplied by backlogit or the operator. |
 | Tool | `tool_surface` | enum | `mcp`, `cli`, `shell`, `builtin`, `api`, or `unknown`. |
-| Tool | `server_name`, `tool_name`, `operation` | strings | Pack/tool identity and operation name. |
+| Tool | `server_name` | string or null | MCP server/pack identity when applicable; null for `cli`, `shell`, `builtin`, and direct `api` events. |
+| Tool | `tool_name`, `operation` | strings | Tool identity and operation name. |
 | Tool | `tool_version` | string or null | Emitting tool version if safe and available. |
 | Tool | `argv_fingerprint` | string or null | Safe command shape/fingerprint; never raw secrets. |
 | Timing | `started_at`, `ended_at` | ISO-8601 strings or null | Tool operation timing. |
@@ -158,7 +159,7 @@ precision.
 | Token economics | `context_area_tokens` | integer or null | Area-under-context delta attributable to this operation. |
 | Provenance | `metric_sources` | object | Map of metric field name to `host_reported`, `estimated`, `derived`, `unavailable`, or `not_applicable`. |
 | Provenance | `metric_quality` | object | Map of metric field name to `observed`, `estimated`, `derived`, `unavailable`, or `not_applicable`. |
-| Offload | `route_kind` | enum or null | `structural_graph`, `doc_index`, `backlog_index`, `intercom`, `raw_search`, `raw_read`, `none`, or pack-specific extension. |
+| Offload | `route_kind` | oneOf enum, extension string, or null | Well-known values: `structural_graph`, `doc_index`, `backlog_index`, `intercom`, `raw_search`, `raw_read`, `none`; pack-specific extensions must match `^x-[a-z0-9-]+$`. |
 | Offload | `retrieval_pack` | string or null | `agent-engram`, `graphtor-docs`, `backlogit`, or another pack. |
 | Offload | `expected_tool` | string or null | Tool that policy/instructions expected for this query. |
 | Offload | `expected_reason` | string or null | Short reason the tool was expected. |
@@ -172,18 +173,22 @@ precision.
 | Offload | `tool_output_bytes` | integer or null | Bytes returned by the tool after redaction/truncation. |
 | Offload | `tool_output_estimated_tokens` | integer or null | Estimated tokens introduced by tool output. |
 | Retrieval health | `result_count` | integer or null | Count of returned results when applicable. |
-| Retrieval health | `freshness_state` | enum or null | `fresh`, `stale`, `unavailable`, `unknown`, or pack-specific extension. |
+| Retrieval health | `freshness_state` | oneOf enum, extension string, or null | Well-known values: `fresh`, `stale`, `unavailable`, `unknown`; pack-specific extensions must match `^x-[a-z0-9-]+$`. |
 | Evidence | `evidence_path` | string or null | Repo-local path to sanitized evidence when retained. |
 | Evidence | `artifact_refs` | array of strings | Safe paths/IDs involved, not raw content. |
 | Safety | `sensitivity` | enum | `public`, `internal`, or `ambiguous`. Ambiguous defaults to internal handling. |
 | Safety | `redaction_applied` | boolean | True when sensitive fields were redacted. |
 | Safety | `secret_scan_status` | enum or null | `not_run`, `passed`, `flagged`, or `unavailable`. |
 
+`route_kind` and `freshness_state` schema definitions encode extension safety as `oneOf: [ {enum: [...well-known values...]}, {type: string, pattern: "^x-[a-z0-9-]+$"} ]` (plus `null` where the field is optional) so pack adapters can emit namespaced extensions without weakening the well-known contract.
+
 ## ExecutionEpoch v1.1 roll-up
 
 `ExecutionEpoch` remains the completion summary that SQLite/JSONL sinks write and
-that eval runs consume. Implementation must bump `ExecutionEpoch.SCHEMA_VERSION`
-from `1.0.0` to **`1.1.0`** because the serialized epoch gains additive fields.
+that eval runs consume. Implementation must bump the module-level `SCHEMA_VERSION`
+constant in `src/autoharness/telemetry/epoch.py` (the dataclass default for
+`schema_version`) from `1.0.0` to **`1.1.0`** because the serialized epoch gains
+additive fields; `ExecutionEpoch` has no class-level `SCHEMA_VERSION` attribute.
 Legacy v1.0 records are normalized to v1.1 through explicit reader/migration
 logic with additive metrics marked `unavailable`; implementations must not emit a
 hybrid record that keeps `schema_version: 1.0.0` while adding v1.1 fields.
@@ -218,7 +223,10 @@ Roll-up rules:
    `expected_tool_count = sum(expected_tool_counts.values())`,
    `observed_expected_tool_count = sum(observed_tool_counts.values())`,
    `missing_expected_tool_count = sum(missing_expected_tool_counts.values())`, and
-   `tool_gap_count = missing_expected_tool_count`.
+   `tool_gap_count = missing_expected_tool_count`. A `tool_gap_count` gap means a
+   missing expected-tool invocation only; degraded or stale-but-invoked routes are
+   reported via `degraded_tool_count` and `stale_or_unavailable_index_count`, not
+   summed into `tool_gap_count`.
 6. Preserve per-tool maps so reports can compute `gap_rate =
    missing_expected_tool_counts[tool] / expected_tool_counts[tool]` over time.
 7. Count **offload** only when there is positive routed/indexed evidence such as
@@ -227,9 +235,12 @@ Roll-up rules:
 8. Report deterministic efficiency metrics from persisted epoch fields:
    `net_offload_tokens = avoided_read_estimated_tokens -
    tool_output_estimated_tokens`, `consumption_generation_ratio = input_tokens /
-   max(output_tokens, 1)`, `gap_rate`, and `cost_per_successful_epoch` (or
+   output_tokens`, `gap_rate`, and `cost_per_successful_epoch` (or
    cost-per-nonblocked/outcome denominator when a report declares another
-   deterministic denominator).
+   deterministic denominator). A derived metric is reported as `unavailable` —
+   never coerced to `0` and never throwing — when any operand is
+   `unavailable`/null or the denominator is zero, such as zero successful epochs
+   in the slice or `output_tokens == 0`.
 9. Do not persist raw tool output in the epoch. Epoch records store only counts,
    maps, and estimates. Sanitized `evidence_path` / `artifact_refs` remain in the
    forward `ToolTelemetryEvent` contract and are not part of the 079-F epoch
