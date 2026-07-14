@@ -250,7 +250,9 @@ Roll-up rules:
    operand is `unavailable`/null or the denominator is zero, such as zero
    successful epochs in the slice or `output_tokens == 0`.
 9. A successful epoch for `cost_per_successful_epoch` is an epoch whose
-   `AbsoluteOutcome` has all gate exit codes equal to `0` and is not `blocked`.
+   `AbsoluteOutcome` has at least one recorded gate exit code, all recorded gate
+   exit codes equal to `0`, and is not `blocked`. Empty gate-outcome collections
+   are not successful.
    `cost_per_successful_epoch = sum(cogs_usd over successful epochs) /
    count(successful epochs)`; when the count is `0`, the metric is `unavailable`.
    Reports and eval summaries must use this same denominator so they cannot
