@@ -207,6 +207,13 @@ fields and no label-to-weight mapping.
 
 
 
+Feature and shipment composition values derive from one canonical sorted unique
+task-ID set per level at the pre-execution boundary. When membership is known,
+the count is the cardinality of that unique set, the count equals the sum of the
+histogram buckets including `unavailable`, and the membership hash is computed
+from that same set. Duplicate IDs are collapsed before count, histogram, and hash
+calculation, and are surfaced diagnostically rather than counted twice.
+
 Canonical membership digests use lowercase SHA-256 hex over a UTF-8 JSON array of
 unique ID strings sorted by bytewise/ordinal string order and encoded without
 insignificant whitespace. The digest input is the ID set only; label histograms
@@ -323,6 +330,15 @@ present with `null` when not applicable, such as non-MCP `cli`, `shell`,
 `builtin`, and direct `api` events. Nullable fields outside the required set may
 be omitted or present with `null`; omitted nullable metrics never imply `0` or
 false precision.
+
+Every `ToolTelemetryEvent` valid under this contract MUST have at least one
+non-null deterministic correlation key: `epoch_id` **or** `backlog_item_id`.
+Both fields remain individually nullable, but the schema must enforce an
+`anyOf`-equivalent assertion requiring one of them to be present and non-null. If
+`backlog_item_id` is used for event→epoch composition, it identifies the task or
+subtask work unit whose epoch will receive the composed roll-up. Events with
+neither key are uncorrelated and schema-invalid; 079-F does not define an
+uncorrelated event mode.
 
 ## ExecutionEpoch v1.1 roll-up
 
@@ -490,6 +506,15 @@ Parent and child costs must not be double counted. A report either aggregates
 observed epoch costs at the task/epoch level, or attributes those costs upward to
 feature/shipment groups; it must not add parent planned labels and child actual
 costs as if both were independent work units.
+
+Readers and aggregators must deduplicate by `epoch_id` before computing any
+totals. SQLite is already authoritative per `epoch_id` because the sink uses
+`INSERT OR REPLACE`. JSONL is append-only, so when repeated valid JSONL records
+share an `epoch_id`, the last valid occurrence in file order wins. When a report
+uses both SQLite and JSONL, it either selects one configured source, or, in a
+combined-source mode, applies fixed precedence of SQLite over JSONL for matching
+`epoch_id` values and surfaces conflicting duplicates diagnostically. Mirrored
+SQLite/JSONL rows and JSONL retry appends must count each epoch exactly once.
 
 Decomposition analyses are hypotheses, not causal truth. Metrics such as optimal
 task count, child-size distribution, oversized-task frequency, or shipment mix may
