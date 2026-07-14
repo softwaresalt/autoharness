@@ -208,6 +208,20 @@ cannot rely on the MCP path for large originals; it must either test direct CCR
 recovery separately or require an MCP pagination/no-truncation design before any
 pilot.
 
+### Placeholder-free lossy compression paths
+
+The pinned JSON and code compressors can still emit shortened output when CCR
+stash is unavailable or returns `None`: JSON list windows use elision markers
+without placeholders, long JSON strings use `...(+K chars)`, and code bodies use
+`<N lines elided>`. If `route_typed()` accepts that shorter result, a hook can
+replace the original output even though no retrievable placeholder exists.
+
+JSON reserialization and prose/code normalization can also change the full-output
+bytes without stashing the whole input. This is a direct loss-of-evidence risk,
+not only an MCP retrieval truncation limitation. A safe pilot would need failed
+or unwritable CCR paths to pass the original through unchanged, or to block hook
+replacement unless every omitted span has a retrievable lossless handle.
+
 ### Deletion expectations and risks
 
 Deletion must cover more than `DELETE FROM ccr`:
@@ -291,6 +305,10 @@ text smaller:
 
 * small outputs where placeholder/footer overhead loses the token-level
   never-expand check; the test must confirm no CCR row remains after the reject;
+* forced CCR stash failures, such as an unwritable store or stash callable that
+  returns `None`, where JSON/code compressors must preserve byte-identical
+  passthrough and the hook must not replace output with placeholder-free elision
+  markers;
 * security-sensitive outputs: tokens, `.env` content, auth output, environment
   dumps, private keys, or any output matching a secret detector;
 * any tool result where failure evidence may live outside the one text field a
