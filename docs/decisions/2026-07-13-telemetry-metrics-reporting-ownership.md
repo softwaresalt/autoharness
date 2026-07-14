@@ -241,11 +241,11 @@ Roll-up rules:
 8. Report deterministic efficiency metrics from persisted epoch fields:
    `net_offload_tokens = avoided_read_estimated_tokens -
    tool_output_estimated_tokens`, `consumption_generation_ratio = input_tokens /
-   output_tokens`, `gap_rate`, and `cost_per_successful_epoch` (or
-   cost-per-nonblocked/outcome denominator when a report declares another
-   deterministic denominator). Range and bucket derived ratios are computed from
-   aggregate totals: sum numerators and denominators across the epochs in the
-   bucket, then divide; do not average per-epoch ratios. A derived metric is
+   output_tokens`, `gap_rate`, and `cost_per_successful_epoch`. Range and bucket
+   derived ratios are computed from aggregate totals: sum numerators and
+   denominators across the epochs in the bucket, then divide; do not average
+   per-epoch ratios. Alternative cost denominators are separate explicitly named
+   metrics, not variants of `cost_per_successful_epoch`. A derived metric is
    reported as `unavailable` — never coerced to `0` and never throwing — when any
    operand is `unavailable`/null or the denominator is zero, such as zero
    successful epochs in the slice or `output_tokens == 0`.
