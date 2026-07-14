@@ -129,7 +129,15 @@ metric that cannot be established as observed — including pre-existing v1.0
 economic fields such as `input_tokens`, `output_tokens`, `cogs_usd`, and
 `duration_seconds`, not only newly additive v1.1 fields — must carry
 `metric_sources`/`metric_quality` of `unavailable` or `not_applicable`; a numeric
-`0` default must not be reported as an observed measurement.
+`0` default must not be reported as an observed measurement. Every populated
+metric field MUST have a same-named entry in both `metric_sources` and
+`metric_quality`; a reported metric may never lack provenance.
+
+All nonnegative quantity fields — token counts, cached/cumulative/context
+tokens, byte counts, durations, result/route/tool counts — MUST specify
+`minimum: 0` in their JSON Schema definitions; negative values are invalid. This
+excludes fields that may be negative by design, such as `exit_code` or
+intentionally signed derived metrics like `net_offload_tokens`.
 
 | Group | Field | Type | Semantics |
 |---|---|---:|---|
@@ -205,8 +213,10 @@ constant in `src/autoharness/telemetry/epoch.py` (the dataclass default for
 `schema_version`) from `1.0.0` to **`1.1.0`** because the serialized epoch gains
 additive fields; `ExecutionEpoch` has no class-level `SCHEMA_VERSION` attribute.
 Legacy v1.0 records are normalized to v1.1 through explicit reader/migration
-logic with additive metrics marked `unavailable`; implementations must not emit a
-hybrid record that keeps `schema_version: 1.0.0` while adding v1.1 fields.
+logic with every metric that cannot be established as observed — not only newly
+additive v1.1 fields — marked `unavailable`; a numeric `0` default must never be
+reported as observed. Implementations must not emit a hybrid record that keeps
+`schema_version: 1.0.0` while adding v1.1 fields.
 
 The matrix below is the canonical field-to-payload assignment for 079-F. Each
 additive epoch field appears in exactly one owner; implementation tasks must not
