@@ -225,10 +225,14 @@ Roll-up rules:
    `expected_tool_count = sum(expected_tool_counts.values())`,
    `observed_expected_tool_count = sum(observed_tool_counts.values())`,
    `missing_expected_tool_count = sum(missing_expected_tool_counts.values())`, and
-   `tool_gap_count = missing_expected_tool_count`. A `tool_gap_count` gap means a
-   missing expected-tool invocation only; degraded or stale-but-invoked routes are
-   reported via `degraded_tool_count` and `stale_or_unavailable_index_count`, not
-   summed into `tool_gap_count`.
+   `tool_gap_count = missing_expected_tool_count`. For every tool key,
+   `missing_expected_tool_counts[tool] = max(expected_tool_counts[tool] -
+   observed_tool_counts[tool], 0)`. `observed_tool_counts[tool]` counts observed
+   invocations of an expected tool, so the intended relation is observed <=
+   expected for missing derivation; over-observation clamps missing to `0`. A
+   `tool_gap_count` gap means a missing expected-tool invocation only; degraded or
+   stale-but-invoked routes are reported via `degraded_tool_count` and
+   `stale_or_unavailable_index_count`, not summed into `tool_gap_count`.
 6. Preserve per-tool maps so reports can compute `gap_rate =
    missing_expected_tool_counts[tool] / expected_tool_counts[tool]` over time.
 7. Count **offload** only when there is positive routed/indexed evidence such as
@@ -239,11 +243,19 @@ Roll-up rules:
    tool_output_estimated_tokens`, `consumption_generation_ratio = input_tokens /
    output_tokens`, `gap_rate`, and `cost_per_successful_epoch` (or
    cost-per-nonblocked/outcome denominator when a report declares another
-   deterministic denominator). A derived metric is reported as `unavailable` —
-   never coerced to `0` and never throwing — when any operand is
-   `unavailable`/null or the denominator is zero, such as zero successful epochs
-   in the slice or `output_tokens == 0`.
-9. Do not persist raw tool output in the epoch. Epoch records store only counts,
+   deterministic denominator). Range and bucket derived ratios are computed from
+   aggregate totals: sum numerators and denominators across the epochs in the
+   bucket, then divide; do not average per-epoch ratios. A derived metric is
+   reported as `unavailable` — never coerced to `0` and never throwing — when any
+   operand is `unavailable`/null or the denominator is zero, such as zero
+   successful epochs in the slice or `output_tokens == 0`.
+9. A successful epoch for `cost_per_successful_epoch` is an epoch whose
+   `AbsoluteOutcome` has all gate exit codes equal to `0` and is not `blocked`.
+   `cost_per_successful_epoch = sum(cogs_usd over successful epochs) /
+   count(successful epochs)`; when the count is `0`, the metric is `unavailable`.
+   Reports and eval summaries must use this same denominator so they cannot
+   diverge on the same persisted epochs.
+10. Do not persist raw tool output in the epoch. Epoch records store only counts,
    maps, and estimates. Sanitized `evidence_path` / `artifact_refs` remain in the
    forward `ToolTelemetryEvent` contract and are not part of the 079-F epoch
    roll-up.
