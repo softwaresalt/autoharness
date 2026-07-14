@@ -31,13 +31,15 @@ tags:
 
 ## Status
 
-**PROPOSED — blocked on operator-provided read access and data-contract direction.**
+**PROPOSED — blocked on operator-provided read access or sanitized fixtures.**
 This session only had access to the autoharness repository and its local dogfood
 artifacts. It did not have read access to all capability-pack source workspaces,
 so it cannot verify their real logging surfaces, metric schemas, retention
-policies, or integration constraints. This deliberation is linked to **079-F**
-because both items depend on a standardized tool-telemetry contract candidate
-that still requires operator ratification.
+policies, or integration constraints. The schema/ownership direction is now
+ratified by
+`docs/decisions/2026-07-13-telemetry-metrics-reporting-ownership.md`; 082-F
+remains the evidence-gathering step that maps real pack surfaces to that
+contract.
 
 ## Problem (stash 83854CD2)
 
@@ -89,33 +91,33 @@ with public web searches or guesses.
 
 ## Relationship to 079-F
 
-079-F sketches a **candidate** tool-telemetry data contract and narrows the
-operator decision to schema shape, reporting/aggregation ownership, and whether
-the existing agent-engram ingestion boundary remains authoritative. 082-F is the
-evidence-gathering and coordination session needed to validate that candidate
-against the actual pack implementations. The two should be planned together:
+079-F has ratified the telemetry data contract and ownership direction: 079-F
+core is epoch-level roll-up telemetry/reporting in autoharness, and
+`ToolTelemetryEvent` v1.0 is a forward contract for later pack emission work.
+082-F is now the evidence-gathering and coordination session needed to map that
+contract against the actual pack implementations:
 
-* 079-F recommends, but does not select, a candidate schema/ownership direction.
-* 082-F gathers **pack-specific evidence and adapter requirements** to support or
-  revise that candidate.
+* 079-F selects the schema/ownership direction.
+* 082-F gathers **pack-specific evidence and adapter requirements** to identify
+  field gaps, reliability limits, sensitivity concerns, and fixture needs before
+  broad adapter implementation.
 
 ## Recommendation
 
-Do not attempt implementation from the autoharness repo alone. First, the
-operator should provide a read-only bundle or local paths for each capability-pack
-workspace plus any existing docs/log samples that are safe to inspect. Then run a
-bounded cross-pack telemetry spike that maps current surfaces to the 079-F
-candidate contract and reports gaps before the operator ratifies any ownership
-model.
+Do not attempt broad capability-pack adapter implementation from the autoharness
+repo alone. First, the operator should provide a read-only bundle or local paths
+for each capability-pack workspace plus any existing docs/log samples that are
+safe to inspect. Then run a bounded cross-pack telemetry spike that maps current
+surfaces to the ratified 079-F contract and reports adapter gaps.
 
 ## Operator Decision Required
 
-The operator must decide **which external capability-pack workspaces may be read,
-what telemetry/log content is safe to inspect, who should own reporting/
-aggregation, and whether the recommended 079-F candidate contract should be
-autoharness-owned, agent-engram-owned, backlogit-viewed, externalized, or split
-across adapters**. The operator must provide the actual read access or artifacts;
-this session cannot infer them safely.
+The operator must provide **which external capability-pack workspaces may be
+read and what telemetry/log content is safe to inspect**. Reporting/aggregation
+ownership and the core contract are no longer open for 082-F; this session maps
+real pack evidence to the ratified 079-F contract and reports adapter gaps. The
+operator must provide the actual read access or artifacts; this session cannot
+infer them safely.
 
 ## Open questions
 

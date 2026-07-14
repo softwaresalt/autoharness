@@ -44,9 +44,11 @@ tags:
 deliberation remains as the research and option record for 079-F. The operator
 unblocked the feature with direction to prioritize token economics, time-series
 trend measurement, tool-usage gap detection, and eval enablement. The ratified
-decision extends the existing `ExecutionEpoch` model, assigns local time-series
-reporting/aggregation ownership to autoharness, and retains agent-engram as the
-single structural/graph authority and downstream ingestion consumer.
+decision extends the existing `ExecutionEpoch` model with epoch-level roll-ups,
+publishes `ToolTelemetryEvent` as a forward contract only, assigns local
+epoch time-series reporting/aggregation ownership to autoharness, and retains
+agent-engram as the single structural/graph authority and downstream ingestion
+consumer.
 
 ## Problem (stash 6C5B3463)
 
@@ -137,23 +139,32 @@ Engram-like analytics workspace or a data warehouse) ingests and reports.
 
 ### Option D — Hybrid contract + adapters
 
-Autoharness would own the candidate contract and emitters pending operator
-ratification. Backlogit, Engram, graphtor-docs, and agent-intercom could each
-provide adapters or views that project the same event contract into their local UX
-without owning the canonical schema.
+Autoharness would own the contract and emitters. Backlogit, Engram,
+graphtor-docs, and agent-intercom could each provide adapters or views that
+project the same event contract into their local UX without owning the canonical
+schema. This was the pre-ratification option record;
+the ratified decision now scopes 079-F implementation to epoch-level roll-ups and
+defers live event emission to 084-F.
 
 * **Pros:** Separates source-of-truth responsibilities while preserving local UX;
   best path to cross-pack measurability.
 * **Cons:** More coordination work and needs read access to those pack workspaces
   to avoid designing in a vacuum (see 082-F).
 
-## Proposed tool-telemetry data-contract sketch
+## Prior candidate tool-telemetry data-contract sketch
+
+The sketch below is retained as pre-ratification research context. It is
+superseded by
+`docs/decisions/2026-07-13-telemetry-metrics-reporting-ownership.md`, which
+scopes 079-F core to epoch-level `ExecutionEpoch` v1.1 roll-ups and publishes
+`ToolTelemetryEvent` v1.0 as a forward contract only.
 
 The existing `ExecutionEpoch` is a good **task-completion** record and already
 has an agent-engram ingestion design. Tool-level measurability needs a more
-granular candidate event stream that can roll up into epochs without replacing
-the existing eval -> telemetry and JSONL -> agent-engram boundaries unless the
-operator explicitly chooses to supersede them. A candidate v1 event shape:
+granular candidate event vocabulary that can later roll up into epochs without
+replacing the existing eval -> telemetry and JSONL -> agent-engram boundaries.
+The ratified decision publishes this as a forward schema contract only in 079-F
+and defers live event storage/emission to 084-F. The prior candidate v1 shape:
 
 | Field group | Candidate fields | Purpose |
 |---|---|---|
@@ -177,11 +188,14 @@ reporting store, backlogit views, or multiple adapters.
 The final decision is recorded in
 `docs/decisions/2026-07-13-telemetry-metrics-reporting-ownership.md`:
 
-* **Schema:** add a cross-pack `ToolTelemetryEvent` stream and roll up token
-  consumption, token generation, cumulative context area, offload evidence, and
-  expected-vs-actual tool gaps into additive `ExecutionEpoch` v1.1.0 fields.
+* **Schema:** scope 079-F core to additive `ExecutionEpoch` v1.1.0 epoch-level
+  roll-ups for token consumption, token generation, cumulative context area,
+  correlation, offload evidence, and expected-vs-actual tool gaps. Publish
+  `ToolTelemetryEvent` v1.0 as a forward contract only; live event emission,
+  event sinks, and event→epoch composition are deferred to 084-F.
 * **Ownership:** autoharness owns the local time-series store and reporting/
-  aggregation surface; backlogit remains the work-state and traceability system.
+  aggregation surface for epoch records; backlogit remains the work-state and
+  traceability system.
 * **agent-engram boundary:** retain and extend agent-engram as the single graph
   authority and downstream CozoDB ingestion consumer; do not add a second graph
   stack or CozoDB ingestion code under `src/autoharness/telemetry/`.
@@ -196,8 +210,8 @@ evidence gathering so real pack telemetry surfaces are mapped rather than guesse
    telemetry reports? **Default:** link to reports unless a later adapter task
    proves a low-coupling view.
 2. Which token metrics can the host reliably provide today, and which are estimates
-   that must be labeled as such? **Default:** emit `token_source` and
-   `measurement_quality`.
+   that must be labeled as such? **Default:** emit per-metric `metric_sources`
+   and `metric_quality` provenance maps.
 3. Is per-tool telemetry always emitted locally, or only during eval/staging/ship
    phases? **Default:** implement the core local store/reporting first, with
    phase filters in reports.

@@ -48,11 +48,11 @@ flow, or the agent-engram structural-authority boundary.
 
 ## Decision summary
 
-1. **Schema:** define a cross-pack `ToolTelemetryEvent` stream and roll it up into
-   additive `ExecutionEpoch` v1.1.0 summary fields for token consumption,
-   generation, cumulative context area, tool offload, and expected-vs-actual tool
-   usage gaps.
-2. **Ownership:** autoharness owns the local time-series telemetry store and
+1. **Schema:** scope 079-F core to additive `ExecutionEpoch` v1.1.0
+   **epoch-level roll-up aggregates** for token consumption, generation,
+   cumulative context area, correlation, tool offload, and expected-vs-actual
+   tool usage gaps. Publish `ToolTelemetryEvent` v1.0 as a forward contract only.
+2. **Ownership:** autoharness owns the local epoch time-series telemetry store and
    reporting/aggregation surface. Backlogit remains the work-state and
    traceability system; other packs may expose adapters or views.
 3. **agent-engram boundary:** retain and extend agent-engram as the single
@@ -79,10 +79,11 @@ The missing piece was the operator's definition of **useful telemetry**:
   must not collapse both into only `total_tokens`.
 * **Tool offload** must be measurable as work shifted from model context and
   model reasoning to tools: routed structural/doc lookups, avoided raw file
-  reads, avoided read bytes/tokens, tool-output bytes/tokens, and fallback
-  reasons when routing was expected but not used.
-* **Time-series telemetry** requires timestamped event and epoch records that can
-  show trend direction, regressions, and missing expected tool usage over time.
+  reads, avoided read bytes/tokens, tool-output bytes/tokens, and explicit
+  expected-vs-observed counts when routing was expected but not used.
+* **Time-series telemetry** requires timestamped epoch records in 079-F core that
+  can show trend direction, regressions, and missing expected tool usage over
+  time. Granular event records are a forward contract for later emission work.
 * **Eval enablement** depends on telemetry. Evals can only compare usage,
   consistency, cost effectiveness, and efficiency if the telemetry contract
   records the same quantities across runs.
@@ -92,13 +93,38 @@ fields may be reserved as optional/estimated offload evidence, but transparent
 compression itself remains deferred. 079-F must not implement reversible raw
 output storage or host-specific output rewriting.
 
-## Ratified cross-pack tool-event schema
+## Ratified 079-F core scope
 
-Tool events are the granular time-series records. They compose into an
-`ExecutionEpoch`; epochs remain the stable task/eval completion summary. Field
-names below are the ratified v1 contract for implementation planning. Values
-that cannot be measured directly must be emitted as zero or `null` with a
-`token_source` / `measurement_quality` value that makes the uncertainty explicit.
+079-F core is **epoch-level telemetry, not a live granular event stream**. This
+matches the current architecture in `src/autoharness/telemetry/epoch.py`: the
+autoharness runtime has no in-process model/tool loop to wrap, and a host or
+runtime supplies a fully formed epoch payload at task close.
+
+Therefore 079-F must implement:
+
+* additive `ExecutionEpoch` v1.1.0 roll-up fields;
+* root/versioned JSON schemas for `ExecutionEpoch` v1.1.0;
+* a root/versioned JSON schema for `ToolTelemetryEvent` v1.0.0 as a **forward
+  contract only**;
+* local epoch-level SQLite/JSONL persistence and epoch-level trend reporting.
+
+079-F must **not** implement a live `ToolTelemetryEvent` Python model, event
+emitter, event sink, event→epoch composer, or per-event query store. Those live
+emission and composition tasks are deferred to **084-F**, which implements
+token-efficiency metric emission against this contract.
+
+## Forward ToolTelemetryEvent v1.0 contract
+
+`ToolTelemetryEvent` is the future granular record shape that capability-pack
+adapters may emit after 082-F evidence gathering and 084-F implementation. It is
+published now so pack evidence can map to a stable vocabulary. It is not a 079-F
+runtime store.
+
+Truly unmeasurable optional quantities are `null`; count fields are `0` only when
+the emitter actually observed zero. Every reported metric carries provenance in
+`metric_sources` and `metric_quality` maps keyed by metric field name. Legacy or
+unavailable values must use `unavailable` provenance rather than implying
+precision.
 
 | Group | Field | Type | Semantics |
 |---|---|---:|---|
@@ -116,34 +142,35 @@ that cannot be measured directly must be emitted as zero or `null` with a
 | Tool | `tool_version` | string or null | Emitting tool version if safe and available. |
 | Tool | `argv_fingerprint` | string or null | Safe command shape/fingerprint; never raw secrets. |
 | Timing | `started_at`, `ended_at` | ISO-8601 strings or null | Tool operation timing. |
-| Timing | `duration_ms` | integer | Wall-clock duration for latency trend reporting. |
+| Timing | `duration_ms` | integer or null | Wall-clock duration for latency trend reporting. |
 | Outcome | `status` | enum | `success`, `degraded`, `blocked`, `skipped`, `failed`, or `operator_required`. |
 | Outcome | `exit_code` | integer or null | Process/gate exit code when applicable. |
 | Outcome | `error_kind` | string or null | Stable error category, not raw secret-bearing stderr. |
-| Outcome | `retry_count` | integer | Retries attempted for this logical operation. |
+| Outcome | `retry_count` | integer | Retries attempted for this logical operation; `0` means observed zero retries. |
 | Outcome | `degraded_mode` | boolean | True when fallback/degraded behavior was used. |
-| Token economics | `input_tokens` | integer | Token consumption for this operation/turn when available. |
-| Token economics | `output_tokens` | integer | Token generation for this operation/turn when available. |
-| Token economics | `cached_input_tokens` | integer | Host-reported cached/reused input tokens. |
-| Token economics | `cumulative_input_tokens` | integer | Sum of consumed input tokens in the epoch/session slice. |
-| Token economics | `cumulative_output_tokens` | integer | Sum of generated output tokens in the epoch/session slice. |
+| Token economics | `input_tokens` | integer or null | Token consumption delta for this operation/turn when available. |
+| Token economics | `output_tokens` | integer or null | Token generation delta for this operation/turn when available. |
+| Token economics | `cached_input_tokens` | integer or null | Host-reported cached/reused input tokens for this operation. |
+| Token economics | `cumulative_input_tokens` | integer or null | Running input-token total after this event. Do not sum this field. |
+| Token economics | `cumulative_output_tokens` | integer or null | Running output-token total after this event. Do not sum this field. |
 | Token economics | `context_tokens_before` | integer or null | Estimated or host-reported context tokens before the operation. |
 | Token economics | `context_tokens_after` | integer or null | Estimated or host-reported context tokens after the operation. |
-| Token economics | `context_area_tokens` | integer or null | Area-under-context estimate across repeated turns. |
-| Token economics | `token_source` | enum | `host_reported`, `estimated`, `mixed`, or `unavailable`. |
+| Token economics | `context_area_tokens` | integer or null | Area-under-context delta attributable to this operation. |
+| Provenance | `metric_sources` | object | Map of metric field name to `host_reported`, `estimated`, `derived`, `unavailable`, or `not_applicable`. |
+| Provenance | `metric_quality` | object | Map of metric field name to `observed`, `estimated`, `derived`, `unavailable`, or `not_applicable`. |
 | Offload | `route_kind` | enum or null | `structural_graph`, `doc_index`, `backlog_index`, `intercom`, `raw_search`, `raw_read`, `none`, or pack-specific extension. |
 | Offload | `retrieval_pack` | string or null | `agent-engram`, `graphtor-docs`, `backlogit`, or another pack. |
 | Offload | `expected_tool` | string or null | Tool that policy/instructions expected for this query. |
 | Offload | `expected_reason` | string or null | Short reason the tool was expected. |
 | Offload | `fallback_reason` | string or null | Why the expected route was not used. |
-| Offload | `routed_lookup_count` | integer | Count of routed/indexed lookups. |
-| Offload | `raw_file_read_count` | integer | Count of raw file reads. |
-| Offload | `raw_search_count` | integer | Count of raw grep/glob/search fallbacks. |
-| Offload | `avoided_file_read_count` | integer | Count of file reads avoided by routed/indexed lookup. |
-| Offload | `avoided_read_bytes` | integer | Estimated bytes not read into model context. |
-| Offload | `avoided_read_estimated_tokens` | integer | Estimated tokens avoided by offload. |
-| Offload | `tool_output_bytes` | integer | Bytes returned by the tool after redaction/truncation. |
-| Offload | `tool_output_estimated_tokens` | integer | Estimated tokens introduced by tool output. |
+| Offload | `routed_lookup_count` | integer or null | Count of routed/indexed lookups when observed. |
+| Offload | `raw_file_read_count` | integer or null | Count of raw file reads when observed. |
+| Offload | `raw_search_count` | integer or null | Count of raw grep/glob/search fallbacks when observed. |
+| Offload | `avoided_file_read_count` | integer or null | Count of file reads avoided by routed/indexed lookup when estimable. |
+| Offload | `avoided_read_bytes` | integer or null | Estimated bytes not read into model context. |
+| Offload | `avoided_read_estimated_tokens` | integer or null | Estimated tokens avoided by offload. |
+| Offload | `tool_output_bytes` | integer or null | Bytes returned by the tool after redaction/truncation. |
+| Offload | `tool_output_estimated_tokens` | integer or null | Estimated tokens introduced by tool output. |
 | Retrieval health | `result_count` | integer or null | Count of returned results when applicable. |
 | Retrieval health | `freshness_state` | enum or null | `fresh`, `stale`, `unavailable`, `unknown`, or pack-specific extension. |
 | Evidence | `evidence_path` | string or null | Repo-local path to sanitized evidence when retained. |
@@ -151,37 +178,52 @@ that cannot be measured directly must be emitted as zero or `null` with a
 | Safety | `sensitivity` | enum | `public`, `internal`, or `ambiguous`. Ambiguous defaults to internal handling. |
 | Safety | `redaction_applied` | boolean | True when sensitive fields were redacted. |
 | Safety | `secret_scan_status` | enum or null | `not_run`, `passed`, `flagged`, or `unavailable`. |
-| Quality | `measurement_quality` | enum | `observed`, `estimated`, `derived`, or `unavailable`. |
 
-## ExecutionEpoch roll-up
+## ExecutionEpoch v1.1 roll-up
 
 `ExecutionEpoch` remains the completion summary that SQLite/JSONL sinks write and
 that eval runs consume. Implementation must bump `ExecutionEpoch.SCHEMA_VERSION`
 from `1.0.0` to **`1.1.0`** because the serialized epoch gains additive fields.
-Readers must continue accepting v1.0.0 records with missing additive fields
-defaulted to zero, empty tuples, or `null`.
+Legacy v1.0 records are normalized to v1.1 through explicit reader/migration
+logic with additive metrics marked `unavailable`; implementations must not emit a
+hybrid record that keeps `schema_version: 1.0.0` while adding v1.1 fields.
 
-The ratified roll-up extends the existing payload classes instead of replacing
-them:
+The ratified roll-up extends the existing shape instead of replacing it:
 
-| Payload | Additive fields |
+| Shape | Additive fields |
 |---|---|
-| `EconomicPayload` | `cached_input_tokens`, `cumulative_input_tokens`, `cumulative_output_tokens`, `context_tokens_before`, `context_tokens_after`, `context_area_tokens`, `token_source`, `measurement_quality`, `avoided_read_estimated_tokens`, `tool_output_estimated_tokens` |
-| `OperationalReality` | `tool_event_count`, `tool_surfaces`, `retrieval_packs`, `routed_lookup_count`, `raw_file_read_count`, `raw_search_count`, `avoided_file_read_count`, `tool_output_bytes`, `expected_tool_count`, `missing_expected_tool_count`, `degraded_tool_count`, `stale_or_unavailable_index_count` |
+| Root `ExecutionEpoch` | `workspace_id`, `session_id`, `agent_role`, `phase`, `backlog_item_id`, `shipment_id`, `branch`, `commit_sha` |
+| `EconomicPayload` | `cached_input_tokens`, `cumulative_input_tokens`, `cumulative_output_tokens`, `context_tokens_before`, `context_tokens_after`, `context_area_tokens`, `avoided_read_estimated_tokens`, `tool_output_estimated_tokens`, `metric_sources`, `metric_quality` |
+| `OperationalReality` | `tool_surfaces`, `retrieval_packs`, `route_kinds`, `routed_lookup_count`, `raw_file_read_count`, `raw_search_count`, `avoided_file_read_count`, `tool_output_bytes`, `expected_tool_count`, `observed_expected_tool_count`, `missing_expected_tool_count`, `expected_tool_counts`, `observed_tool_counts`, `missing_expected_tool_counts`, `degraded_tool_count`, `stale_or_unavailable_index_count` |
 | `AbsoluteOutcome` | `tool_failure_count`, `tool_degraded_count`, `tool_gap_count` |
 | `RouteConfiguration` | `route_kinds` and optional `primary_route_kind` derived from the first route kind |
 
 Roll-up rules:
 
-1. Sum numeric token and count fields across events in the epoch.
-2. Keep generation (`output_tokens`, `cumulative_output_tokens`) separate from
+1. For future live events, sum per-event **delta** metrics such as `input_tokens`,
+   `output_tokens`, `context_area_tokens`, offload counts, and failure counts.
+2. Do **not** sum running cumulative totals. `cumulative_input_tokens` and
+   `cumulative_output_tokens` are final epoch-close totals, or the maximum/final
+   cumulative values observed in a future event stream. Tests must assert this
+   does not double-count.
+3. Keep generation (`output_tokens`, `cumulative_output_tokens`) separate from
    consumption (`input_tokens`, cached input, cumulative input, and context area).
-3. Count a **gap** when `expected_tool` is present and the event resolves through
-   `raw_search`, `raw_read`, `fallback_reason`, or an unavailable/stale route.
-4. Count **offload** only when there is positive routed/indexed evidence such as
+4. Count expected-tool gaps from explicit expectation aggregates, not only from
+   fallback events. An expected-but-never-invoked tool increments
+   `expected_tool_count` and `missing_expected_tool_count` even when no tool event
+   exists.
+5. Preserve per-tool maps so reports can compute `gap_rate =
+   missing_expected_tool_counts[tool] / expected_tool_counts[tool]` over time.
+6. Count **offload** only when there is positive routed/indexed evidence such as
    `routed_lookup_count > 0`, `avoided_file_read_count > 0`, or
    `avoided_read_estimated_tokens > 0`.
-5. Do not persist raw tool output in the epoch. Store only counts, safe IDs,
+7. Report deterministic efficiency metrics from persisted epoch fields:
+   `net_offload_tokens = avoided_read_estimated_tokens -
+   tool_output_estimated_tokens`, `consumption_generation_ratio = input_tokens /
+   max(output_tokens, 1)`, `gap_rate`, and `cost_per_successful_epoch` (or
+   cost-per-nonblocked/outcome denominator when a report declares another
+   deterministic denominator).
+8. Do not persist raw tool output in the epoch. Store only counts, safe IDs,
    estimates, and sanitized evidence paths.
 
 ## Reporting and aggregation ownership
@@ -201,7 +243,7 @@ Roll-up rules:
 Autoharness owns:
 
 * the `ExecutionEpoch` and `ToolTelemetryEvent` schemas;
-* local time-series persistence under `.autoharness/metrics/`;
+* local epoch time-series persistence under `.autoharness/metrics/`;
 * deterministic trend, cost, usage-consistency, gap, and efficiency reports;
 * eval-facing summary inputs and fail-open emission;
 * safe redaction/sensitivity rules for telemetry records.
@@ -230,7 +272,9 @@ ingestion path that consumes autoharness-emitted telemetry. The existing
 
 The extension is contractual, not an import-boundary change:
 
-* autoharness emits local epoch/event time-series data and reports over it;
+* autoharness emits local epoch time-series data and reports over it;
+* `ToolTelemetryEvent` remains a forward schema contract in 079-F, not an
+  autoharness telemetry runtime dependency;
 * agent-engram may ingest the emitted JSONL/roll-ups into CozoDB and link them to
   Task/Code/Graph nodes;
 * `src/autoharness/telemetry/` must not import agent-engram, CozoDB, eval,
@@ -241,12 +285,14 @@ The extension is contractual, not an import-boundary change:
 
 * **082-F** is the evidence-gathering follow-up for real pack surfaces. It should
   map Engram, backlogit, graphtor-docs, and agent-intercom records to this
-  ratified contract before broad capability-pack adapter implementation. 079-F
-  can implement the core autoharness schema/reporting surface first, but pack
-  adapters must wait for 082-F evidence or sanitized fixtures.
-* **084-F** implements token-efficiency metric emission against this contract:
-  cumulative input tokens, context-area estimates, routed-vs-raw lookup counts,
-  and avoided-file-read evidence.
+  ratified contract before broad capability-pack adapter implementation. 082-F is
+  no longer blocked on schema/ownership ratification; it remains blocked only on
+  operator-provided pack access or sanitized fixtures.
+* **084-F** implements token-efficiency metric emission against this contract,
+  including any live `ToolTelemetryEvent` model, event sink, live emission, and
+  deterministic event→epoch composition needed to produce the ratified epoch
+  roll-ups. It must preserve the 079-F boundary if it elects not to add a live
+  event store.
 * **085-F** builds the structural-navigation benchmark suite only after 079-F and
   084-F provide stable telemetry inputs. Benchmarks must report neutral/negative
   cases and distinguish correctness, latency, cost, and token/context savings.
@@ -256,12 +302,12 @@ The extension is contractual, not an import-boundary change:
 
 ## Consequences
 
-* 079-F implementation is now unblocked for the autoharness-owned core contract
-  and reporting surface.
+* 079-F implementation is now unblocked for the autoharness-owned epoch-level
+  core contract and reporting surface.
 * Schema work must be versioned and mirrored: root schema, versioned schema, and
   `src/autoharness/schema_contracts.py` registration must stay in sync.
-* Time-series reports must work from local SQLite/JSONL without an external
-  service.
+* Time-series reports must work from local epoch SQLite/JSONL without an external
+  service or queryable event store.
 * Tests must preserve telemetry import boundaries and the one-way eval →
   telemetry flow.
 * Backlogit remains a correlation source and shipment/task registry, not the
