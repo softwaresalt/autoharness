@@ -123,8 +123,13 @@ runtime store.
 Truly unmeasurable optional quantities are `null`; count fields are `0` only when
 the emitter actually observed zero. Every reported metric carries provenance in
 `metric_sources` and `metric_quality` maps keyed by metric field name. Legacy or
-unavailable values must use `unavailable` provenance rather than implying
-precision.
+unavailable values must use `unavailable` (or `not_applicable`) provenance rather
+than implying precision. When normalizing a legacy v1.0 epoch record, every
+metric that cannot be established as observed — including pre-existing v1.0
+economic fields such as `input_tokens`, `output_tokens`, `cogs_usd`, and
+`duration_seconds`, not only newly additive v1.1 fields — must carry
+`metric_sources`/`metric_quality` of `unavailable` or `not_applicable`; a numeric
+`0` default must not be reported as an observed measurement.
 
 | Group | Field | Type | Semantics |
 |---|---|---:|---|
