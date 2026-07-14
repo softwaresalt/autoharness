@@ -41,7 +41,7 @@ tags:
 
 ## Status
 
-**PROPOSED — investigation complete; recommendation: DEFER, with a possible
+**DEFERRED — investigation complete; recommendation: DEFER, with a possible
 later NARROW pilot.** This spike is Stage-side research for backlog item `086-F`.
 The Stage-side investigation produced findings only: no templates, source,
 config, shipment, PR, or merge state were changed during the research. This
