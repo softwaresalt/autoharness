@@ -182,6 +182,16 @@ precision.
 
 `route_kind` and `freshness_state` schema definitions encode extension safety as `oneOf: [ {enum: [...well-known values...]}, {type: string, pattern: "^x-[a-z0-9-]+$"} ]` (plus `null` where the field is optional) so pack adapters can emit namespaced extensions without weakening the well-known contract.
 
+The `ToolTelemetryEvent` schema has a fixed minimum `required` set:
+`schema_version`, `event_id`, `timestamp`, `tool_surface`, `server_name`,
+`tool_name`, `operation`, `status`, `retry_count`, `degraded_mode`,
+`sensitivity`, `redaction_applied`, `metric_sources`, `metric_quality`, and
+`artifact_refs`. Required nullable fields, currently `server_name`, must be
+present with `null` when not applicable, such as non-MCP `cli`, `shell`,
+`builtin`, and direct `api` events. Nullable fields outside the required set may
+be omitted or present with `null`; omitted nullable metrics never imply `0` or
+false precision.
+
 ## ExecutionEpoch v1.1 roll-up
 
 `ExecutionEpoch` remains the completion summary that SQLite/JSONL sinks write and
