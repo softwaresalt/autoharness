@@ -552,8 +552,11 @@ The extension is contractual, not an import-boundary change:
 * Schema work must be versioned and mirrored: root schema, versioned schema, and
   `src/autoharness/schema_contracts.py` registration must stay in sync.
 * Time-series reports must work from both local epoch SQLite and JSONL sinks
-  under `.autoharness/metrics/` without an external service or queryable event
-  store.
+  resolved through the configured `TelemetryConfig` paths. `.autoharness/metrics/`
+  is the default sink directory, but any workspace-contained custom
+  `database_path` and its colocated JSONL file remain valid inputs. Reports must
+  not assume only the default directory, and they require no external service or
+  queryable event store.
 * CLI exposure for telemetry reports is out of scope for shipment 092-S; 079-F
   delivers the reporting library and docs, not a report subcommand.
 * Tests must preserve telemetry import boundaries and the one-way eval →
