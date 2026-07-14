@@ -177,11 +177,12 @@ and defers live event storage/emission to 084-F. The prior candidate v1 shape:
 | Artifacts/gates | `artifacts_read`, `artifacts_written`, `gate_names`, `gate_exit_codes`, `evidence_path`, `policy_ids` | Link tool actions to validation and policy evidence. |
 | Sensitivity | `sensitivity` (`public`, `internal`, `ambiguous`), `redaction_applied`, `secret_scan_status` | Prevent observability from becoming an exfiltration path. |
 
-Candidate roll-up rule: **tool events compose into an `ExecutionEpoch`**, not
-the other way around. Epochs remain the stable completion summary; tool events
-provide detail for reports and token-efficiency analysis. The operator must decide
-whether that roll-up feeds the existing agent-engram CozoDB ingestion path, a new
-reporting store, backlogit views, or multiple adapters.
+Historical candidate roll-up rule: **tool events compose into an
+`ExecutionEpoch`**, not the other way around. Epochs remain the stable completion
+summary; tool events provide detail for reports and token-efficiency analysis.
+Before ratification, the open ownership question was whether that roll-up fed the
+existing agent-engram CozoDB ingestion path, a new reporting store, backlogit
+views, or multiple adapters.
 
 ## Ratified decision
 
