@@ -229,10 +229,11 @@ absent. Feature and shipment IDs stay separate correlation fields. The root ID
 fields identify the epoch; `WorkSizingSnapshot` captures the immutable
 sizing/composition facts associated with those IDs.
 
-Shipment 092-S is therefore fail-closed on the released backlogit
-hierarchical-sizing capability. The blocked child task `079.013-T` represents
-that external dependency inside the shipment; no source implementation may begin
-for that adapter until the released backlogit contract exists.
+Shipment 092-S is therefore held in supported `blocked` shipment status until the
+released backlogit hierarchical-sizing capability exists. The blocked child task
+`079.013-T` represents that external dependency inside the shipment; no source
+implementation may begin for that adapter until the released backlogit contract
+exists.
 
 ## Forward ToolTelemetryEvent v1.0 contract
 
