@@ -145,6 +145,12 @@ per-entry access control, and does not automatically expire entries. Its LRU
 mid-request because evicting a live placeholder strands the model without the
 original.
 
+CCR also normalizes through UTF-8 with `errors="replace"` when stashing and
+retrieving content. Tool-result JSON can contain surrogate code points or other
+non-round-trippable text, so direct retrieval may silently alter content even
+before MCP truncation. Autoharness would need a lossless codec or bytes-level
+representation before treating the store as byte-equivalent reversible storage.
+
 ### Stash-before-reject flaw
 
 The inspected router calls the selected compressor as
