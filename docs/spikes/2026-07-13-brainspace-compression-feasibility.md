@@ -4,7 +4,7 @@ date: "2026-07-13"
 description: "Feasibility findings for Option E from the TokenMasterX evaluation: Brainspace-style tool-output compression with a content-addressed reversible store."
 topic: "Should autoharness adopt Brainspace-style output compression, and under what host, storage, and safety constraints?"
 depth: "spike"
-decision_status: "proposed"
+decision_status: "deferred"
 doc_type: spike
 source: docs/spikes/2026-07-13-brainspace-compression-feasibility.md
 tokenmasterx_revision: "9b86c8ac22d8145e751966d92336aa302f4261f9"
