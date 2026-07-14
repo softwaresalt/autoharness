@@ -30,8 +30,8 @@
       "properties": {
         "command": {
           "type": "string",
-          "description": "Command to start the MCP server",
-          "examples": ["backlogit mcp", "npx backlog-md mcp"]
+          "description": "Command to start the MCP server. Native-binary tools should use their binary directly; JavaScript-engine tools should prefer a Bun launcher such as bunx, using --bun only after compatibility is verified.",
+          "examples": ["backlogit mcp", "bunx backlog-md mcp"]
         },
         "transport": {
           "type": "string",

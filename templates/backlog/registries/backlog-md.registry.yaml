@@ -4,7 +4,7 @@ tool_type: "both"
 directory: "backlog"
 
 mcp_server:
-  command: "npx backlog-md mcp"
+  command: "bunx backlog-md mcp"
   transport: "stdio"
 
 cli:

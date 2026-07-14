@@ -1022,6 +1022,13 @@ Otherwise:
 2. **Install as `.autoharness/backlog-registry.yaml`** in the target workspace
 3. **Resolve backlog template variables** from the registry into all templates
 4. **Add the backlog MCP server** to the tools list in all agent definitions that interact with the backlog
+5. **Preserve the registry launcher runtime contract**: native-binary registries
+   (for example backlogit) use their binary directly; JavaScript-engine
+   registries (for example backlog-md) use `bunx` and therefore require Bun and
+   `bunx` on `PATH`. Use `bunx --bun` only when the specific package has been
+   verified to initialize under the Bun runtime; otherwise retain bare `bunx`
+   and document that Node may still be required because package shebangs can
+   delegate to Node.
 
 If no backlog tool is detected:
 

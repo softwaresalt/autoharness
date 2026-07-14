@@ -21,7 +21,6 @@ src/autoharness/__pycache__/*.pyc
 .vscode/mcp.json
 .cursor/mcp.json
 .claude/mcp.json
-.mcp.json
 
 # graphtor-docs — managed by graphtor-docs install
 .graphtor/

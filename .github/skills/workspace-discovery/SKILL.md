@@ -377,8 +377,13 @@ Detect installed backlog management tools by scanning for their workspace marker
 For each detected tool, also check:
 
 * MCP server configuration in VS Code settings (`.vscode/settings.json` → `mcpServers`)
-* CLI binary availability (run `which backlogit` or `which backlog` or `npx backlog-md --version`)
+* CLI binary availability (run `which backlogit` or `which backlog` or
+  `bunx backlog-md --version`)
 * Package dependencies (`go.mod` for backlogit, `package.json` for backlog-md)
+* JavaScript MCP launcher runtime prerequisites: Bun and `bunx` must be on
+  `PATH`; if a package is launched with bare `bunx` rather than verified
+  `bunx --bun`, record Node as a retained conservative prerequisite because
+  package shebangs may delegate to Node.
 
 If no backlog tool is detected, check for manual backlog structures:
 
