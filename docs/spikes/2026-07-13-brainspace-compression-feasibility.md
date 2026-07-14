@@ -43,8 +43,10 @@ tags:
 
 **PROPOSED — investigation complete; recommendation: DEFER, with a possible
 later NARROW pilot.** This spike is Stage-side research for backlog item `086-F`.
-It produced findings only: no templates, source, config, backlog status,
-shipment, PR, or merge state were changed.
+The Stage-side investigation produced findings only: no templates, source,
+config, shipment, PR, or merge state were changed during the research. This
+publication PR separately closes `086-F` as done/archive to record the completed
+DEFER recommendation.
 
 ### Evidence provenance
 
