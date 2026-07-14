@@ -79,8 +79,8 @@ The missing piece was the operator's definition of **useful telemetry**:
   must not collapse both into only `total_tokens`.
 * **Tool offload** must be measurable as work shifted from model context and
   model reasoning to tools: routed structural/doc lookups, avoided raw file
-  reads, avoided read bytes/tokens, tool-output bytes/tokens, and explicit
-  expected-vs-observed counts when routing was expected but not used.
+  reads, avoided read counts/token estimates, tool-output bytes/token estimates,
+  and explicit expected-vs-observed counts when routing was expected but not used.
 * **Time-series telemetry** requires timestamped epoch records in 079-F core that
   can show trend direction, regressions, and missing expected tool usage over
   time. Granular event records are a forward contract for later emission work.
@@ -188,13 +188,15 @@ Legacy v1.0 records are normalized to v1.1 through explicit reader/migration
 logic with additive metrics marked `unavailable`; implementations must not emit a
 hybrid record that keeps `schema_version: 1.0.0` while adding v1.1 fields.
 
-The ratified roll-up extends the existing shape instead of replacing it:
+The matrix below is the canonical field-to-payload assignment for 079-F. Each
+additive epoch field appears in exactly one owner; implementation tasks must not
+move fields between payloads.
 
 | Shape | Additive fields |
 |---|---|
 | Root `ExecutionEpoch` | `workspace_id`, `session_id`, `agent_role`, `phase`, `backlog_item_id`, `shipment_id`, `branch`, `commit_sha` |
 | `EconomicPayload` | `cached_input_tokens`, `cumulative_input_tokens`, `cumulative_output_tokens`, `context_tokens_before`, `context_tokens_after`, `context_area_tokens`, `avoided_read_estimated_tokens`, `tool_output_estimated_tokens`, `metric_sources`, `metric_quality` |
-| `OperationalReality` | `tool_surfaces`, `retrieval_packs`, `route_kinds`, `routed_lookup_count`, `raw_file_read_count`, `raw_search_count`, `avoided_file_read_count`, `tool_output_bytes`, `expected_tool_count`, `observed_expected_tool_count`, `missing_expected_tool_count`, `expected_tool_counts`, `observed_tool_counts`, `missing_expected_tool_counts`, `degraded_tool_count`, `stale_or_unavailable_index_count` |
+| `OperationalReality` | `tool_surfaces`, `retrieval_packs`, `route_kind_counts`, `routed_lookup_count`, `raw_file_read_count`, `raw_search_count`, `avoided_file_read_count`, `tool_output_bytes`, `expected_tool_count`, `observed_expected_tool_count`, `missing_expected_tool_count`, `expected_tool_counts`, `observed_tool_counts`, `missing_expected_tool_counts`, `degraded_tool_count`, `stale_or_unavailable_index_count` |
 | `AbsoluteOutcome` | `tool_failure_count`, `tool_degraded_count`, `tool_gap_count` |
 | `RouteConfiguration` | `route_kinds` and optional `primary_route_kind` derived from the first route kind |
 
@@ -212,19 +214,26 @@ Roll-up rules:
    fallback events. An expected-but-never-invoked tool increments
    `expected_tool_count` and `missing_expected_tool_count` even when no tool event
    exists.
-5. Preserve per-tool maps so reports can compute `gap_rate =
+5. Scalar/map invariants are required:
+   `expected_tool_count = sum(expected_tool_counts.values())`,
+   `observed_expected_tool_count = sum(observed_tool_counts.values())`,
+   `missing_expected_tool_count = sum(missing_expected_tool_counts.values())`, and
+   `tool_gap_count = missing_expected_tool_count`.
+6. Preserve per-tool maps so reports can compute `gap_rate =
    missing_expected_tool_counts[tool] / expected_tool_counts[tool]` over time.
-6. Count **offload** only when there is positive routed/indexed evidence such as
+7. Count **offload** only when there is positive routed/indexed evidence such as
    `routed_lookup_count > 0`, `avoided_file_read_count > 0`, or
    `avoided_read_estimated_tokens > 0`.
-7. Report deterministic efficiency metrics from persisted epoch fields:
+8. Report deterministic efficiency metrics from persisted epoch fields:
    `net_offload_tokens = avoided_read_estimated_tokens -
    tool_output_estimated_tokens`, `consumption_generation_ratio = input_tokens /
    max(output_tokens, 1)`, `gap_rate`, and `cost_per_successful_epoch` (or
    cost-per-nonblocked/outcome denominator when a report declares another
    deterministic denominator).
-8. Do not persist raw tool output in the epoch. Store only counts, safe IDs,
-   estimates, and sanitized evidence paths.
+9. Do not persist raw tool output in the epoch. Epoch records store only counts,
+   maps, and estimates. Sanitized `evidence_path` / `artifact_refs` remain in the
+   forward `ToolTelemetryEvent` contract and are not part of the 079-F epoch
+   roll-up.
 
 ## Reporting and aggregation ownership
 
@@ -308,6 +317,8 @@ The extension is contractual, not an import-boundary change:
   `src/autoharness/schema_contracts.py` registration must stay in sync.
 * Time-series reports must work from local epoch SQLite/JSONL without an external
   service or queryable event store.
+* CLI exposure for telemetry reports is out of scope for shipment 092-S; 079-F
+  delivers the reporting library and docs, not a report subcommand.
 * Tests must preserve telemetry import boundaries and the one-way eval →
   telemetry flow.
 * Backlogit remains a correlation source and shipment/task registry, not the
