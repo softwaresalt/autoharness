@@ -1,7 +1,7 @@
 ---
 title: "Telemetry Metrics Reporting Ownership"
 date: "2026-07-13"
-description: "Ratified architecture decision for 079-F: the cross-pack tool-event schema, autoharness-owned time-series reporting, and the retained agent-engram structural-authority boundary."
+description: "Ratified architecture decision for 079-F: tool-event schema, autoharness-owned time-series reporting, work-sizing snapshots, and the retained agent-engram boundary."
 topic: "Who owns telemetry reporting and what contract makes token economics, tool offload, trend reporting, and evals measurable?"
 depth: "decision"
 decision_status: "ratified"
@@ -39,25 +39,34 @@ tags:
 
 ## Status
 
-**RATIFIED for 079-F.** The operator unblocked 079-F with explicit direction to
-make telemetry useful for token economics, time-series trend measurement, gap
+**RATIFIED for 079-F, including the 2026-07-14 hierarchical sizing
+amendment.** The operator unblocked 079-F with explicit direction to make
+telemetry useful for token economics, time-series trend measurement, gap
 detection, eval enablement, usage consistency, cost effectiveness, and
-efficiency. This decision extends the existing `ExecutionEpoch` telemetry model;
-it does not replace the shipped telemetry package, the one-way eval → telemetry
-flow, or the agent-engram structural-authority boundary.
+efficiency, then ratified the dual sizing model: planned size + derived
+composition + observed execution. This decision extends the existing
+`ExecutionEpoch` telemetry model; it does not replace the shipped telemetry
+package, the one-way eval → telemetry flow, backlogit's work-state authority, or
+the agent-engram structural-authority boundary.
 
 ## Decision summary
 
 1. **Schema:** scope 079-F core to additive `ExecutionEpoch` v1.1.0
    **epoch-level roll-up aggregates** for token consumption, generation,
-   cumulative context area, correlation, tool offload, and expected-vs-actual
-   tool usage gaps. Publish `ToolTelemetryEvent` v1.0 as a forward contract only.
+   cumulative context area, correlation, tool offload, expected-vs-actual tool
+   usage gaps, and immutable work-sizing snapshots. Publish `ToolTelemetryEvent`
+   v1.0 as a forward contract only.
 2. **Ownership:** autoharness owns the local epoch time-series telemetry store and
-   reporting/aggregation surface. Backlogit remains the work-state and
-   traceability system; other packs may expose adapters or views.
+   reporting/aggregation surface. Backlogit remains the work-state,
+   planned-sizing, hierarchy/membership, and traceability system; other packs may
+   expose adapters or views.
 3. **agent-engram boundary:** retain and extend agent-engram as the single
    structural/graph authority and downstream ingestion consumer. Do not add a
    second graph stack or move CozoDB ingestion into `src/autoharness/telemetry/`.
+4. **Sizing amendment:** backlogit is the source of truth for level-relative
+   planned `size` labels and work hierarchy; autoharness snapshots those labels
+   and composition facts at epoch close, then reports trends without treating
+   ordinal labels as arithmetic values unless a named/versioned mapping exists.
 
 ## Research gap filled by this ratification
 
@@ -113,6 +122,87 @@ emitter, event sink, event→epoch composer, or per-event query store. Those liv
 emission and composition tasks are deferred to **084-F**, which implements
 token-efficiency metric emission against this contract.
 
+## Ratified sizing amendment
+
+The operator ratified the dual sizing model on 2026-07-14. This amendment is part
+of the 079-F contract and must be implemented before shipment 092-S is considered
+shippable.
+
+### Sizing ownership and semantics
+
+Backlogit remains the source of truth for planned work sizing and work hierarchy:
+work item IDs, parent/child relationships, shipment manifests, and level-relative
+`size` frontmatter. The released backlogit hierarchical-sizing capability must
+expose optional `size` frontmatter on task, feature, and shipment artifacts with
+documented semantics and stable CLI/read behavior before autoharness implements
+live hierarchical-size snapshotting.
+
+Autoharness owns immutable execution-time telemetry snapshots and reports over
+those snapshots. It does not become the source of truth for backlog state or
+retroactively recompute historical epoch records from the current backlog.
+
+Sizing has three distinct measures:
+
+| Measure | When known | Owner | 079-F handling |
+|---|---|---|---|
+| Pre-decomposition planned size | Before or during planning, as artifact-level `size` labels | backlogit | Snapshot level-qualified labels when an epoch closes. |
+| Post-decomposition composition | After children or shipment membership exist | backlogit hierarchy/read API, snapshotted by autoharness | Snapshot child/manifest counts, size histograms, and membership hashes. |
+| Observed execution costs/outcomes | During or after Ship execution | autoharness telemetry | Report tokens, cost, duration, failures, review/retry, and gaps by the captured size labels/composition facts. |
+
+`XS`, `S`, `M`, `L`, and `XL` are **ordinal and level-relative**. A task `M`, a
+feature `M`, and a shipment `M` are not the same quantum. Labels MUST NOT be
+summed, averaged, converted to points, or compared as numeric distances unless a
+named/versioned mapping is present in the record or report configuration. 079-F
+must not invent fake point values.
+
+The current task `size` written by `autoharness gate size` is a deterministic
+metadata complexity/scope bucket, not elapsed time. The 2-hour rule remains a
+separate task-scope ceiling: it limits task granularity but does not prove that
+`XS`/`S`/`M`/`L`/`XL` are calibrated hours.
+
+Snapshot boundary: 079-F records work-sizing data at **epoch close**, immediately
+before `record_epoch` serializes the `ExecutionEpoch`. This matches the existing
+host-supplied epoch architecture. Later backlogit edits, re-estimates, or shipment
+membership changes MUST NOT rewrite historical telemetry; new epochs receive new
+snapshots with their own `snapshot_at`, source, and ruleset/contract metadata.
+
+### WorkSizingSnapshot payload
+
+079-F uses a nested `WorkSizingSnapshot` payload rather than scattering many
+level-specific root fields. This follows the existing `ExecutionEpoch` convention
+of nested payload classes (`route`, `economics`, `operations`, `outcome`) while
+keeping root fields for identity/correlation.
+
+`WorkSizingSnapshot` is optional when backlogit hierarchical sizing is unavailable
+and must degrade to explicit `null`/`unavailable` values. It contains no point
+fields and no label-to-weight mapping.
+
+| Field | Type | Semantics |
+|---|---:|---|
+| `snapshot_at` | ISO-8601 string or null | Time the sizing snapshot was captured, normally epoch close. |
+| `snapshot_boundary` | string | `epoch_close` for 079-F; future values require a schema bump or extension rule. |
+| `task_size_label` | `XS`/`S`/`M`/`L`/`XL` or null | Planned task-level size label known at snapshot time. |
+| `feature_planned_size_label` | `XS`/`S`/`M`/`L`/`XL` or null | Planned feature-level size label known at snapshot time. |
+| `shipment_planned_size_label` | `XS`/`S`/`M`/`L`/`XL` or null | Planned shipment-level size/capacity label known at snapshot time. |
+| `sizing_sources` | object | Per-level source map with keys `task`, `feature`, and `shipment`; values such as `backlogit`, `autoharness_gate_size`, `operator`, `unavailable`, or `not_applicable`. |
+| `sizing_ruleset_versions` | object | Per-level ruleset/contract map with keys `task`, `feature`, and `shipment`; values name the backlogit release/contract or autoharness sizing ruleset used. |
+| `feature_planned_child_task_count` | integer or null | Count of known/planned task children under `feature_id` at snapshot time. |
+| `feature_planned_child_size_histogram` | object | Count of feature child tasks by `XS`/`S`/`M`/`L`/`XL`/`unavailable`; labels are buckets only, not numeric weights. |
+| `feature_child_membership_hash` | string or null | Stable hash/fingerprint of the feature child task ID set used for the snapshot. |
+| `shipment_manifest_task_count` | integer or null | Count of task IDs in the shipment manifest at snapshot time. |
+| `shipment_manifest_size_histogram` | object | Count of shipment task IDs by task `size` label plus `unavailable`. |
+| `shipment_membership_hash` | string or null | Stable hash/fingerprint of the shipment task ID set used for the snapshot. |
+
+The corresponding root `ExecutionEpoch` correlation vocabulary includes
+`feature_id` in addition to the existing task/backlog item and shipment IDs. The
+root ID fields identify the epoch; `WorkSizingSnapshot` captures the immutable
+sizing/composition facts associated with those IDs.
+
+Shipment 092-S is therefore fail-closed on the released backlogit
+hierarchical-sizing capability. The blocked child task `079.013-T` represents
+that external dependency inside the shipment; no source implementation may begin
+for that adapter until the released backlogit contract exists.
+
 ## Forward ToolTelemetryEvent v1.0 contract
 
 `ToolTelemetryEvent` is the future granular record shape that capability-pack
@@ -149,7 +239,8 @@ intentionally signed derived metrics like `net_offload_tokens`.
 | Correlation | `workspace_id` | string or null | Stable local workspace identifier if configured. |
 | Correlation | `repo`, `branch`, `commit_sha` | strings or null | Git correlation without requiring a remote. |
 | Correlation | `session_id`, `agent_role`, `phase` | strings or null | Agent/session/phase correlation. |
-| Correlation | `backlog_item_id`, `shipment_id` | strings or null | Work traceability supplied by backlogit or the operator. |
+| Correlation | `backlog_item_id`, `feature_id`, `shipment_id` | strings or null | Work traceability supplied by backlogit or the operator. |
+| Sizing | `work_sizing_snapshot` | object or null | Optional immutable sizing snapshot using the `WorkSizingSnapshot` vocabulary when known; omitted or null when unavailable. |
 | Tool | `tool_surface` | enum | `mcp`, `cli`, `shell`, `builtin`, `api`, or `unknown`. |
 | Tool | `server_name` | string or null | MCP server/pack identity when applicable; null for `cli`, `shell`, `builtin`, and direct `api` events. |
 | Tool | `tool_name`, `operation` | strings | Tool identity and operation name. |
@@ -224,11 +315,19 @@ move fields between payloads.
 
 | Shape | Additive fields |
 |---|---|
-| Root `ExecutionEpoch` | `workspace_id`, `session_id`, `agent_role`, `phase`, `backlog_item_id`, `shipment_id`, `branch`, `commit_sha` |
+| Root `ExecutionEpoch` | `workspace_id`, `session_id`, `agent_role`, `phase`, `backlog_item_id`, `feature_id`, `shipment_id`, `branch`, `commit_sha` |
+| `WorkSizingSnapshot` | `snapshot_at`, `snapshot_boundary`, `task_size_label`, `feature_planned_size_label`, `shipment_planned_size_label`, `sizing_sources`, `sizing_ruleset_versions`, `feature_planned_child_task_count`, `feature_planned_child_size_histogram`, `feature_child_membership_hash`, `shipment_manifest_task_count`, `shipment_manifest_size_histogram`, `shipment_membership_hash` |
 | `EconomicPayload` | `cached_input_tokens`, `cumulative_input_tokens`, `cumulative_output_tokens`, `context_tokens_before`, `context_tokens_after`, `context_area_tokens`, `avoided_read_estimated_tokens`, `tool_output_estimated_tokens`, `metric_sources`, `metric_quality` |
 | `OperationalReality` | `tool_surfaces`, `retrieval_packs`, `route_kind_counts`, `routed_lookup_count`, `raw_file_read_count`, `raw_search_count`, `avoided_file_read_count`, `tool_output_bytes`, `expected_tool_count`, `observed_expected_tool_count`, `missing_expected_tool_count`, `expected_tool_counts`, `observed_tool_counts`, `missing_expected_tool_counts`, `degraded_tool_count`, `stale_or_unavailable_index_count` |
 | `AbsoluteOutcome` | `tool_failure_count`, `tool_degraded_count`, `tool_gap_count` |
 | `RouteConfiguration` | `route_kinds` and optional `primary_route_kind` derived from the first route kind |
+
+`WorkSizingSnapshot` is the only epoch-level home for planned-size labels and
+composition evidence. Token/cost/duration metrics remain in `EconomicPayload`;
+route/tool counts remain in `OperationalReality`; success/failure/gap outcomes
+remain in `AbsoluteOutcome`. Implementations must not duplicate size labels across
+multiple payloads, and must not add numeric point fields unless a future schema
+version includes an explicit named/versioned label-to-point mapping.
 
 Degraded-count ownership is intentionally split: `OperationalReality.degraded_tool_count` is a routing/offload diagnostic for expected or routed tools that were invoked only through degraded fallback behavior, while `AbsoluteOutcome.tool_degraded_count` counts tool operations whose execution outcome status is `degraded`. They are not aliases and no equality invariant is required; reports may show both side by side, but implementation tests must keep them in their assigned payloads and must not sum either field into `tool_gap_count`.
 
@@ -305,14 +404,19 @@ Autoharness owns:
 
 * the `ExecutionEpoch` and `ToolTelemetryEvent` schemas;
 * local epoch time-series persistence under `.autoharness/metrics/`;
-* deterministic trend, cost, usage-consistency, gap, and efficiency reports;
+* immutable work-sizing snapshots copied from backlogit at epoch close;
+* deterministic trend, cost, usage-consistency, gap, size-distribution, and
+  efficiency reports;
 * eval-facing summary inputs and fail-open emission;
 * safe redaction/sensitivity rules for telemetry records.
 
 Backlogit owns:
 
-* backlog IDs, statuses, dependencies, shipment manifests, comments, and
-  traceability links;
+* backlog IDs, statuses, dependencies, hierarchy/membership, shipment manifests,
+  comments, and traceability links;
+* planned `size` labels on task/feature/shipment once the released
+  hierarchical-sizing contract exists;
+* stable CLI/read behavior for those labels and membership facts;
 * optional links from work items or shipments to autoharness reports.
 
 Capability packs own:
@@ -322,6 +426,36 @@ Capability packs own:
 
 External stores may consume exported JSONL/SQLite data later, but are not the
 core owner for 079-F.
+
+### Sizing and decomposition reporting rules
+
+Reports may group and slice cost, token, duration, failure, retry, review, and
+expected-tool gap measures by `task_size_label`, `feature_planned_size_label`, and
+`shipment_planned_size_label` from `WorkSizingSnapshot`.
+
+Reports must also show size distributions and within-size dispersion, such as
+count/range/median-like summaries per ordinal bucket where supported by the local
+implementation. They may inspect monotonicity trends across ordered labels
+(`XS`→`XL`) as an observational signal, but they must not treat the distance
+between adjacent labels as numeric.
+
+Planned-vs-composition comparisons and `cost_per_size_point` are reported as
+`unavailable` unless the record or report configuration supplies a
+named/versioned label-to-point mapping. When no mapping exists, reports may still
+show non-arithmetic comparisons: child counts, manifest counts, histograms,
+within-label variance, and whether larger labels tend to have higher observed
+cost/duration/token distributions.
+
+Parent and child costs must not be double counted. A report either aggregates
+observed epoch costs at the task/epoch level, or attributes those costs upward to
+feature/shipment groups; it must not add parent planned labels and child actual
+costs as if both were independent work units.
+
+Decomposition analyses are hypotheses, not causal truth. Metrics such as optimal
+task count, child-size distribution, oversized-task frequency, or shipment mix may
+identify likely decomposition quality issues, but they cannot alone prove whether
+estimation, decomposition, model routing, code complexity, or implementation
+execution caused a cost/time/tokens outcome.
 
 ## agent-engram boundary
 
@@ -344,6 +478,11 @@ The extension is contractual, not an import-boundary change:
 
 ## Cross-pack sequencing
 
+* **Backlogit hierarchical sizing release gate** is fail-closed for shipment
+  092-S. `079.013-T` remains blocked until a released backlogit contract/version
+  exposes optional `size` frontmatter on task, feature, and shipment artifacts
+  with documented level-relative semantics and stable CLI/read behavior. 079-F is
+  not complete until that task is unblocked and shipped with 092-S.
 * **082-F** is the evidence-gathering follow-up for real pack surfaces. It should
   map Engram, backlogit, graphtor-docs, and agent-intercom records to this
   ratified contract before broad capability-pack adapter implementation. 082-F is
@@ -363,8 +502,10 @@ The extension is contractual, not an import-boundary change:
 
 ## Consequences
 
-* 079-F implementation is now unblocked for the autoharness-owned epoch-level
-  core contract and reporting surface.
+* 079-F implementation is unblocked for the autoharness-owned epoch-level core
+  contract and reporting surface, except shipment 092-S remains fail-closed on the
+  released backlogit hierarchical-sizing contract represented by blocked task
+  079.013-T.
 * Schema work must be versioned and mirrored: root schema, versioned schema, and
   `src/autoharness/schema_contracts.py` registration must stay in sync.
 * Time-series reports must work from both local epoch SQLite and JSONL sinks
@@ -374,5 +515,7 @@ The extension is contractual, not an import-boundary change:
   delivers the reporting library and docs, not a report subcommand.
 * Tests must preserve telemetry import boundaries and the one-way eval →
   telemetry flow.
-* Backlogit remains a correlation source and shipment/task registry, not the
-  metric store.
+* Backlogit remains the planned-sizing, hierarchy/membership, correlation, and
+  shipment/task registry source of truth, not the metric store.
+* Historical telemetry records are immutable snapshots: later backlogit size or
+  membership edits do not rewrite previously recorded epochs.
