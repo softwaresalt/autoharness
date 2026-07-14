@@ -169,7 +169,7 @@ already-captured snapshot into the `ExecutionEpoch` record emitted at epoch clos
 079-F must not re-read mutable backlogit state at close and call it planned.
 Later backlogit edits, re-estimates, or shipment membership changes MUST NOT
 rewrite historical telemetry; new epochs receive new snapshots with their own
-`snapshot_at`, source, and ruleset/contract metadata.
+`snapshot_at`, source, planned-estimate revision, and ruleset/contract metadata.
 
 If backlogit permits re-estimation, its released contract/history must
 distinguish the original/planned estimate or revision from later revisions well
@@ -196,6 +196,7 @@ fields and no label-to-weight mapping.
 | `feature_planned_size_label` | `XS`/`S`/`M`/`L`/`XL` or null | Planned feature-level size label known at snapshot time. |
 | `shipment_planned_size_label` | `XS`/`S`/`M`/`L`/`XL` or null | Planned shipment-level size/capacity label known at snapshot time. |
 | `sizing_sources` | object | Per-level source map with keys `task`, `feature`, and `shipment`; values such as `backlogit`, `autoharness_gate_size`, `operator`, `unavailable`, or `not_applicable`. |
+| `sizing_source_revisions` | object | Per-level planned-estimate revision map with keys `task`, `feature`, and `shipment`; values identify the backlogit/history/source revision captured at pre-execution, or `unavailable`/`not_applicable` when the released source has no revision. |
 | `sizing_ruleset_versions` | object | Per-level ruleset/contract map with keys `task`, `feature`, and `shipment`; values name the backlogit release/contract or autoharness sizing ruleset used. |
 | `feature_planned_child_task_count` | integer or null | Count of known/planned task children under `feature_id` at snapshot time. |
 | `feature_planned_child_size_histogram` | object | Count of feature child tasks by `XS`/`S`/`M`/`L`/`XL`/`unavailable`; labels are buckets only, not numeric weights. |
@@ -205,8 +206,12 @@ fields and no label-to-weight mapping.
 | `shipment_membership_hash` | string or null | Stable hash/fingerprint of the shipment task ID set used for the snapshot. |
 
 The corresponding root `ExecutionEpoch` correlation vocabulary includes
-`feature_id` in addition to the existing task/backlog item and shipment IDs. The
-root ID fields identify the epoch; `WorkSizingSnapshot` captures the immutable
+`feature_id` in addition to the existing task/backlog item and shipment IDs.
+`task_id` remains the required task-epoch identity already serialized by the
+model. For task epochs, `backlog_item_id` MUST equal `task_id`; legacy v1.0
+normalization copies `task_id` into `backlog_item_id` when the new field is
+absent. Feature and shipment IDs stay separate correlation fields. The root ID
+fields identify the epoch; `WorkSizingSnapshot` captures the immutable
 sizing/composition facts associated with those IDs.
 
 Shipment 092-S is therefore fail-closed on the released backlogit
@@ -324,6 +329,12 @@ additive v1.1 fields — marked `unavailable`; a numeric `0` default must never 
 reported as observed. Implementations must not emit a hybrid record that keeps
 `schema_version: 1.0.0` while adding v1.1 fields.
 
+The serialized `ExecutionEpoch` v1.1 schema required set is `schema_version`,
+`epoch_id`, `task_id`, `timestamp`, `route`, `economics`, `operations`, and
+`outcome`. CLI or reader input helpers may accept a looser construction shape
+that fills defaults such as `epoch_id` or `timestamp`, but schema mirrors and
+parity tests validate the complete serialized record shape.
+
 The matrix below is the canonical field-to-payload assignment for 079-F. Each
 additive epoch field appears in exactly one owner; implementation tasks must not
 move fields between payloads.
@@ -331,7 +342,7 @@ move fields between payloads.
 | Shape | Additive fields |
 |---|---|
 | Root `ExecutionEpoch` | `workspace_id`, `session_id`, `agent_role`, `phase`, `backlog_item_id`, `feature_id`, `shipment_id`, `branch`, `commit_sha` |
-| `WorkSizingSnapshot` | `snapshot_at`, `snapshot_boundary`, `task_size_label`, `feature_planned_size_label`, `shipment_planned_size_label`, `sizing_sources`, `sizing_ruleset_versions`, `feature_planned_child_task_count`, `feature_planned_child_size_histogram`, `feature_child_membership_hash`, `shipment_manifest_task_count`, `shipment_manifest_size_histogram`, `shipment_membership_hash` |
+| `WorkSizingSnapshot` | `snapshot_at`, `snapshot_boundary`, `task_size_label`, `feature_planned_size_label`, `shipment_planned_size_label`, `sizing_sources`, `sizing_source_revisions`, `sizing_ruleset_versions`, `feature_planned_child_task_count`, `feature_planned_child_size_histogram`, `feature_child_membership_hash`, `shipment_manifest_task_count`, `shipment_manifest_size_histogram`, `shipment_membership_hash` |
 | `EconomicPayload` | `cached_input_tokens`, `cumulative_input_tokens`, `cumulative_output_tokens`, `context_tokens_before`, `context_tokens_after`, `context_area_tokens`, `avoided_read_estimated_tokens`, `tool_output_estimated_tokens`, `metric_sources`, `metric_quality` |
 | `OperationalReality` | `tool_surfaces`, `retrieval_packs`, `route_kind_counts`, `routed_lookup_count`, `raw_file_read_count`, `raw_search_count`, `avoided_file_read_count`, `tool_output_bytes`, `expected_tool_count`, `observed_expected_tool_count`, `missing_expected_tool_count`, `expected_tool_counts`, `observed_tool_counts`, `missing_expected_tool_counts`, `degraded_tool_count`, `stale_or_unavailable_index_count` |
 | `AbsoluteOutcome` | `tool_failure_count`, `tool_degraded_count`, `tool_gap_count` |

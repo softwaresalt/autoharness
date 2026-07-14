@@ -201,9 +201,11 @@ The final decision is recorded in
   authority and downstream CozoDB ingestion consumer; do not add a second graph
   stack or CozoDB ingestion code under `src/autoharness/telemetry/`.
 
-079-F implementation can now proceed for the autoharness-owned core contract and
-reporting surface. Capability-pack adapters remain sequenced behind 082-F
-evidence gathering so real pack telemetry surfaces are mapped rather than guessed.
+079-F planning is ratified, but implementation is paused until the released
+backlogit hierarchical-sizing contract unblocks 079.013-T and shipment 092-S.
+After that gate clears, the autoharness-owned core contract and reporting surface
+can proceed. Capability-pack adapters remain sequenced behind 082-F evidence
+gathering so real pack telemetry surfaces are mapped rather than guessed.
 
 ## Remaining follow-up questions
 
