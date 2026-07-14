@@ -64,8 +64,9 @@ the agent-engram structural-authority boundary.
    structural/graph authority and downstream ingestion consumer. Do not add a
    second graph stack or move CozoDB ingestion into `src/autoharness/telemetry/`.
 4. **Sizing amendment:** backlogit is the source of truth for level-relative
-   planned `size` labels and work hierarchy; autoharness snapshots those labels
-   and composition facts at epoch close, then reports trends without treating
+   planned `size` labels and work hierarchy; the host captures those labels and
+   composition facts once at the pre-execution boundary, autoharness carries that
+   snapshot into the epoch record emitted at close, and reports never treat
    ordinal labels as arithmetic values unless a named/versioned mapping exists.
 
 ## Research gap filled by this ratification
@@ -135,7 +136,7 @@ work item IDs, parent/child relationships, shipment manifests, and level-relativ
 `size` frontmatter. The released backlogit hierarchical-sizing capability must
 expose optional `size` frontmatter on task, feature, and shipment artifacts with
 documented semantics and stable CLI/read behavior before autoharness implements
-live hierarchical-size snapshotting.
+hierarchical-size snapshotting.
 
 Autoharness owns immutable execution-time telemetry snapshots and reports over
 those snapshots. It does not become the source of truth for backlog state or
@@ -145,7 +146,7 @@ Sizing has three distinct measures:
 
 | Measure | When known | Owner | 079-F handling |
 |---|---|---|---|
-| Pre-decomposition planned size | Before or during planning, as artifact-level `size` labels | backlogit | Snapshot level-qualified labels when an epoch closes. |
+| Pre-decomposition planned size | Before implementation/tool work begins, as artifact-level `size` labels | backlogit | Snapshot level-qualified labels at the pre-execution boundary and carry that frozen snapshot into the epoch emitted later. |
 | Post-decomposition composition | After children or shipment membership exist | backlogit hierarchy/read API, snapshotted by autoharness | Snapshot child/manifest counts, size histograms, and membership hashes. |
 | Observed execution costs/outcomes | During or after Ship execution | autoharness telemetry | Report tokens, cost, duration, failures, review/retry, and gaps by the captured size labels/composition facts. |
 
@@ -160,11 +161,21 @@ metadata complexity/scope bucket, not elapsed time. The 2-hour rule remains a
 separate task-scope ceiling: it limits task granularity but does not prove that
 `XS`/`S`/`M`/`L`/`XL` are calibrated hours.
 
-Snapshot boundary: 079-F records work-sizing data at **epoch close**, immediately
-before `record_epoch` serializes the `ExecutionEpoch`. This matches the existing
-host-supplied epoch architecture. Later backlogit edits, re-estimates, or shipment
-membership changes MUST NOT rewrite historical telemetry; new epochs receive new
-snapshots with their own `snapshot_at`, source, and ruleset/contract metadata.
+Snapshot boundary: the host captures `WorkSizingSnapshot` exactly once at
+**pre-execution**, after planning/decomposition and shipment manifest assembly,
+but before implementation, tool work, review feedback, outcome signals, or
+post-hoc re-estimation can influence the value. The host then carries that
+already-captured snapshot into the `ExecutionEpoch` record emitted at epoch close.
+079-F must not re-read mutable backlogit state at close and call it planned.
+Later backlogit edits, re-estimates, or shipment membership changes MUST NOT
+rewrite historical telemetry; new epochs receive new snapshots with their own
+`snapshot_at`, source, and ruleset/contract metadata.
+
+If backlogit permits re-estimation, its released contract/history must
+distinguish the original/planned estimate or revision from later revisions well
+enough for telemetry to record which revision it captured. Without that
+distinction, the sizing adapter remains blocked rather than silently treating a
+post-decomposition or post-outcome value as planned.
 
 ### WorkSizingSnapshot payload
 
@@ -179,8 +190,8 @@ fields and no label-to-weight mapping.
 
 | Field | Type | Semantics |
 |---|---:|---|
-| `snapshot_at` | ISO-8601 string or null | Time the sizing snapshot was captured, normally epoch close. |
-| `snapshot_boundary` | string | `epoch_close` for 079-F; future values require a schema bump or extension rule. |
+| `snapshot_at` | ISO-8601 string or null | Time the sizing snapshot was captured at the pre-execution boundary. |
+| `snapshot_boundary` | string | `pre_execution` for 079-F; future values require a schema bump or extension rule. |
 | `task_size_label` | `XS`/`S`/`M`/`L`/`XL` or null | Planned task-level size label known at snapshot time. |
 | `feature_planned_size_label` | `XS`/`S`/`M`/`L`/`XL` or null | Planned feature-level size label known at snapshot time. |
 | `shipment_planned_size_label` | `XS`/`S`/`M`/`L`/`XL` or null | Planned shipment-level size/capacity label known at snapshot time. |
@@ -283,6 +294,10 @@ intentionally signed derived metrics like `net_offload_tokens`.
 | Safety | `sensitivity` | enum | `public`, `internal`, or `ambiguous`. Ambiguous defaults to internal handling. |
 | Safety | `redaction_applied` | boolean | True when sensitive fields were redacted. |
 | Safety | `secret_scan_status` | enum or null | `not_run`, `passed`, `flagged`, or `unavailable`. |
+
+When a future `ToolTelemetryEvent` includes `work_sizing_snapshot`, it reuses the
+same pre-execution snapshot carried by the parent epoch. Event emitters must not
+re-read backlogit later and attach a post-outcome size or membership state.
 
 `route_kind` and `freshness_state` schema definitions encode extension safety as `oneOf: [ {enum: [...well-known values...]}, {type: string, pattern: "^x-[a-z0-9-]+$"} ]` (plus `null` where the field is optional) so pack adapters can emit namespaced extensions without weakening the well-known contract.
 
@@ -404,7 +419,7 @@ Autoharness owns:
 
 * the `ExecutionEpoch` and `ToolTelemetryEvent` schemas;
 * local epoch time-series persistence under `.autoharness/metrics/`;
-* immutable work-sizing snapshots copied from backlogit at epoch close;
+* immutable pre-execution work-sizing snapshots carried into epoch-close records;
 * deterministic trend, cost, usage-consistency, gap, size-distribution, and
   efficiency reports;
 * eval-facing summary inputs and fail-open emission;
@@ -481,8 +496,12 @@ The extension is contractual, not an import-boundary change:
 * **Backlogit hierarchical sizing release gate** is fail-closed for shipment
   092-S. `079.013-T` remains blocked until a released backlogit contract/version
   exposes optional `size` frontmatter on task, feature, and shipment artifacts
-  with documented level-relative semantics and stable CLI/read behavior. 079-F is
-  not complete until that task is unblocked and shipped with 092-S.
+  with documented level-relative semantics, stable CLI/read behavior, a way to
+  retrieve/snapshot the planned label before execution, stable hierarchy and
+  shipment membership at that boundary, and re-estimation history/revision
+  semantics that distinguish the originally captured planned estimate from later
+  changes. 079-F is not complete until that task is unblocked and shipped with
+  092-S.
 * **082-F** is the evidence-gathering follow-up for real pack surfaces. It should
   map Engram, backlogit, graphtor-docs, and agent-intercom records to this
   ratified contract before broad capability-pack adapter implementation. 082-F is
@@ -502,10 +521,9 @@ The extension is contractual, not an import-boundary change:
 
 ## Consequences
 
-* 079-F implementation is unblocked for the autoharness-owned epoch-level core
-  contract and reporting surface, except shipment 092-S remains fail-closed on the
-  released backlogit hierarchical-sizing contract represented by blocked task
-  079.013-T.
+* 079-F planning is ratified, but implementation is paused until the released
+  backlogit hierarchical-sizing contract represented by blocked task 079.013-T is
+  available and the task is unblocked.
 * Schema work must be versioned and mirrored: root schema, versioned schema, and
   `src/autoharness/schema_contracts.py` registration must stay in sync.
 * Time-series reports must work from both local epoch SQLite and JSONL sinks
