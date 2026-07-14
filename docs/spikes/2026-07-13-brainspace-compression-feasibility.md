@@ -11,7 +11,7 @@ tokenmasterx_revision: "9b86c8ac22d8145e751966d92336aa302f4261f9"
 backlog_items:
   - "086-F"
 linked_artifacts:
-  - ".backlogit/queue/086-F.md"
+  - ".backlogit/archive/086-F.md"
   - "docs/decisions/2026-07-13-tokenmasterx-integration-spike.md"
   - "docs/spikes/058.001-reference-adoption-evaluation.md"
   - "https://github.com/All-The-Vibes/TokenMasterX/blob/9b86c8ac22d8145e751966d92336aa302f4261f9/README.md"
