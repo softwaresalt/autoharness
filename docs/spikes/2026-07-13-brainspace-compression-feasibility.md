@@ -138,8 +138,9 @@ risk surface. Raw tool outputs often contain:
 * one-time operational evidence such as gate verdicts, stack traces, failing job
   names, and review findings.
 
-The local TokenMasterX CCR implementation stores exact originals in a SQLite file
-as zlib-compressed blobs. It does not encrypt content, does not implement
+The local TokenMasterX CCR implementation stores UTF-8-encoded tool-output
+strings in a SQLite file as zlib-compressed blobs. It does not encrypt content,
+does not implement
 per-entry access control, and does not automatically expire entries. Its LRU
 `gc(max_bytes=500 * 1024 * 1024)` is opt-in and is intentionally not called
 mid-request because evicting a live placeholder strands the model without the
