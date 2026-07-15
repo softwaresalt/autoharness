@@ -52,7 +52,7 @@ until every required item below is complete.
 - [ ] any new MCP tools have stable names and documented parameters
 - [ ] any new CLI commands have stable names and documented behavior
 - [ ] any new artifact types have stable frontmatter and lifecycle semantics (shipment envelopes are graduated — see §1)
-- [ ] any new status values are represented in the metadata catalog and are intended to be durable (shipment uses standard statuses plus `archived`; shipment-specific lifecycle: queued → active → shipped/abandoned)
+- [ ] any new status values are represented in the metadata catalog and are intended to be durable (shipment statuses are `queued`, `blocked`, `active`, `shipped`, `abandoned`; archive is a file-location move after shipped/abandoned, not `status: archived`)
 - [ ] autoharness can describe the new behavior in registry, discovery, and overlay terms without depending on backlogit-internal implementation details
 
 ## 3. Validation inside backlogit

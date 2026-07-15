@@ -108,13 +108,13 @@ updated_at: 2026-04-12T19:52:22Z
 ---
 ```
 
-Archived shipment (moved to `archive/`):
+Archived shipment (moved to `archive/`; status remains a valid shipment terminal state):
 
 ```yaml
 ---
 artifact_type: shipment
 id: 013-S
-status: archived
+status: shipped
 archived_from: .backlogit/queue/013-S.md
 commit: aeee58e
 title: Correctness & Safety Fixes
