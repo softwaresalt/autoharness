@@ -136,14 +136,14 @@ Key implications:
 * `suffix_map` includes `shipment: "S"` because it uses the standard ID
   hierarchy and lives in the queue directory
 * Shipment references its wrapped work items via `custom_fields.items`
-* Shipment uses the following lifecycle statuses: `queued` (created, waiting
+* Shipment uses the following valid `status:` values: `queued` (created, waiting
   to be claimed), `blocked` (machine-readable external/dependency gate; not
   claimable until returned to `queued`), `active` (claimed, work in progress),
-  `shipped` (PR merged, closure complete), `abandoned` (cancelled before
-  shipping), and `archived` (moved from `queue/` to `archive/` after shipping or
-  abandonment)
-* Archived shipments gain `archived_from` (origin path) and may carry a
-  `commit` field linking the shipment to its final merge commit
+  `shipped` (PR merged, closure complete), and `abandoned` (cancelled before
+  shipping)
+* After shipping or abandonment, a shipment may be archived by moving it from
+  `queue/` to `archive/`; archived shipments gain `archived_from` (origin path)
+  and may carry a `commit` field linking the shipment to its final merge commit
 * Note: the `done` status visible in some early shipment artifacts is
   equivalent to `shipped` — backlogit normalizes both to the same terminal state
 * Ship agent creates and manages shipments; Stage agent does not
@@ -158,7 +158,7 @@ subcommand), `backlogit_return_blocked`.
 Stable CLI subcommands (6): `backlogit shipment create`, `get`, `list`,
 `claim`, `ship`, `return-blocked`.
 
-Shipment lifecycle: `queued → blocked → queued` for claim-blocking gates, then `queued → active → shipped/abandoned → archived`.
+Shipment status lifecycle: `queued → blocked → queued` for claim-blocking gates, then `queued → active → shipped/abandoned`; archival is a later file-location move, not a shipment `status:` value.
 
 Error sentinels: `ErrShipmentNotFound`, `ErrShipmentConflict`,
 `ErrItemAlreadyAssigned`, `ErrCannotReturnItem`.
