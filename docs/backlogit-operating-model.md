@@ -137,9 +137,11 @@ Key implications:
   hierarchy and lives in the queue directory
 * Shipment references its wrapped work items via `custom_fields.items`
 * Shipment uses the following lifecycle statuses: `queued` (created, waiting
-  to be claimed), `active` (claimed, work in progress), `shipped` (PR merged,
-  closure complete), `abandoned` (cancelled before shipping), and `archived`
-  (moved from `queue/` to `archive/` after shipping or abandonment)
+  to be claimed), `blocked` (machine-readable external/dependency gate; not
+  claimable until returned to `queued`), `active` (claimed, work in progress),
+  `shipped` (PR merged, closure complete), `abandoned` (cancelled before
+  shipping), and `archived` (moved from `queue/` to `archive/` after shipping or
+  abandonment)
 * Archived shipments gain `archived_from` (origin path) and may carry a
   `commit` field linking the shipment to its final merge commit
 * Note: the `done` status visible in some early shipment artifacts is
@@ -156,7 +158,7 @@ subcommand), `backlogit_return_blocked`.
 Stable CLI subcommands (6): `backlogit shipment create`, `get`, `list`,
 `claim`, `ship`, `return-blocked`.
 
-Shipment lifecycle: `queued → active → shipped/abandoned → archived`.
+Shipment lifecycle: `queued → blocked → queued` for claim-blocking gates, then `queued → active → shipped/abandoned → archived`.
 
 Error sentinels: `ErrShipmentNotFound`, `ErrShipmentConflict`,
 `ErrItemAlreadyAssigned`, `ErrCannotReturnItem`.

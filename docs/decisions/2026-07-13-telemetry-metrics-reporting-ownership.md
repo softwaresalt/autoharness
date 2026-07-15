@@ -371,7 +371,7 @@ intentionally signed derived metrics like `net_offload_tokens`.
 | Group | Field | Type | Semantics |
 |---|---|---:|---|
 | Identity | `schema_version` | string | Tool-event schema version, initially `1.0.0`. |
-| Identity | `event_id` | string | Stable event identifier. |
+| Identity | `event_id` | string | Stable event identifier; required and constrained to a non-empty, non-whitespace string. |
 | Identity | `epoch_id` | string or null | Parent epoch identifier when known. |
 | Identity | `parent_event_id` | string or null | Correlates retries, fallbacks, or nested operations. |
 | Identity | `timestamp` | ISO-8601 string | Event creation time. |
@@ -428,6 +428,8 @@ same pre-execution snapshot carried by the parent epoch. Event emitters must not
 re-read backlogit later and attach a post-outcome size or membership state.
 
 `route_kind` and `freshness_state` schema definitions encode extension safety as `oneOf: [ {enum: [...well-known values...]}, {type: string, pattern: "^x-[a-z0-9-]+$"} ]` (plus `null` where the field is optional) so pack adapters can emit namespaced extensions without weakening the well-known contract.
+
+Required `event_id` values must be non-empty and contain at least one non-whitespace character (`minLength: 1` plus a `\S` pattern or stronger ID rule); empty and whitespace-only event IDs are invalid.
 
 The `ToolTelemetryEvent` schema has a fixed minimum `required` set:
 `schema_version`, `event_id`, `timestamp`, `tool_surface`, `server_name`,
