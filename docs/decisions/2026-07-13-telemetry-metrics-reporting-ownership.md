@@ -68,6 +68,11 @@ the agent-engram structural-authority boundary.
    composition facts once at the pre-execution boundary, autoharness carries that
    snapshot into the epoch record emitted at close, and reports never treat
    ordinal labels as arithmetic values unless a named/versioned mapping exists.
+5. **Execution identity:** task-close telemetry is replay-safe only when it uses
+   a caller-stable, non-empty `epoch_id` created or accepted at a pre-execution
+   `telemetry begin` boundary. Identical retries are idempotent, conflicting
+   retries are rejected/diagnosed, and no sink may replace an immutable epoch
+   with a later payload.
 
 ## Research gap filled by this ratification
 
@@ -116,7 +121,10 @@ Therefore 079-F must implement:
 * root/versioned JSON schemas for `ExecutionEpoch` v1.1.0;
 * a root/versioned JSON schema for `ToolTelemetryEvent` v1.0.0 as a **forward
   contract only**;
-* local epoch-level SQLite/JSONL persistence and epoch-level trend reporting.
+* a workspace-contained pre-execution telemetry context lifecycle that creates
+  or accepts the stable epoch identity before task implementation begins;
+* local epoch-level SQLite/JSONL persistence, idempotent replay handling, and
+  epoch-level trend reporting.
 
 079-F must **not** implement a live `ToolTelemetryEvent` Python model, event
 emitter, event sink, event→epoch composer, or per-event query store. Those live
@@ -235,6 +243,76 @@ released backlogit hierarchical-sizing capability exists. The blocked child task
 implementation may begin for that adapter until the released backlogit contract
 exists.
 
+## Stable execution context and idempotent record lifecycle
+
+079-F adds a host-agnostic pre-execution telemetry context boundary so task-close
+records can be replayed without manufacturing new identities. The production API
+contract is a new CLI/library operation such as `autoharness telemetry begin`
+that runs after shipment/task planning and claim validation, but before
+implementation, tool work, review feedback, or close-time outcome signals.
+
+`telemetry begin` creates or accepts a caller-stable, non-empty `epoch_id` and
+writes a workspace-contained context artifact under the configured telemetry
+area. With the default configuration the artifact path is
+`.autoharness/metrics/contexts/{epoch_id}.json`; when `TelemetryConfig` points at
+a custom workspace-contained `database_path`, the context directory is colocated
+under that database directory as `contexts/{epoch_id}.json`. The command returns
+at least the stable `epoch_id`, the repo-local `context_ref`, and a canonical
+context digest so the host can persist the reference safely.
+
+The context artifact contains only safe execution metadata: context schema
+version, stable `epoch_id`, workspace/session/agent/phase correlation, task and
+backlog item IDs, `feature_id`, `shipment_id`, branch/commit when known,
+`captured_at`, `snapshot_boundary = pre_execution`, the frozen
+`WorkSizingSnapshot` when available, source/ruleset/version metadata, and a
+canonical digest. It must not contain raw tool output, prompts, stderr bodies,
+secrets, credentials, or unredacted command arguments.
+
+At task close, the host passes the same context reference or an embedded frozen
+context to `autoharness telemetry record` along with the close-time roll-up
+metrics. `record` merges the frozen identity/correlation/sizing context with the
+close metrics, constructs the `ExecutionEpoch`, and calls the existing record
+path (`ExecutionEpoch.from_mapping` -> `record_epoch` -> SQLite/JSONL sinks).
+The close path must not re-read backlogit size, hierarchy, or shipment state, and
+must not generate a fresh UUID when the payload is a replayable task-close
+record. `RecordSummary`/CLI JSON output must include the stable `epoch_id`,
+`context_ref` when supplied, a canonical payload digest, and an idempotency
+outcome such as `created`, `idempotent_replay`, `partial_repaired`,
+`conflict_rejected`, or `disabled`.
+
+The concrete production host integration target is the generated Ship lifecycle
+surface: `templates/agents/.ship.agent.md.tmpl` around task claim, build-feature
+execution, and task completion, plus the dogfood installed mirror
+`.github/agents/.ship.agent.md`. The future wiring task must invoke
+`telemetry begin` immediately after a task is claimed and before pre-build
+knowledge retrieval or implementation tool work; carry the returned
+`context_ref` through the task loop; and call `telemetry record` at task close
+with that same context before marking the task done. If the `build-feature`
+skill needs the context reference in its inputs, that template/mirror parity work
+belongs in the same wiring task or must be split before implementation to
+preserve the 2-hour rule.
+
+Idempotency rules are fail-closed for identity and immutable for accepted epoch
+content:
+
+1. A replayable task-close record must provide a non-empty, non-whitespace
+   `epoch_id` directly or through the pre-execution context. Missing, empty, or
+   whitespace-only IDs are invalid rather than silently replaced with a fresh UUID.
+2. The first successfully accepted payload for an `epoch_id` is immutable. Sinks
+   store or derive a canonical payload digest from `ExecutionEpoch.to_record`
+   serialized with deterministic key ordering and compact JSON separators.
+3. An identical replay for the same `epoch_id` and digest is idempotent success:
+   no duplicate JSONL append, no SQLite replacement, and no metric double count.
+4. A conflicting replay for the same `epoch_id` and a different digest is
+   rejected or explicitly diagnosed while preserving the first accepted payload.
+   It must never use last-write-wins or `INSERT OR REPLACE` semantics.
+5. If one sink accepted the first payload and another sink failed fail-open, a
+   retry with the same `epoch_id` repairs only the missing sink when the digest
+   matches. A retry with a different digest after any sink accepted the epoch is a
+   conflict and must not write the missing sink with divergent content.
+6. If no sink accepted the payload, there is no immutable epoch yet; the host may
+   retry with the same pre-execution context and `epoch_id`.
+
 ## Forward ToolTelemetryEvent v1.0 contract
 
 `ToolTelemetryEvent` is the future granular record shape that capability-pack
@@ -333,13 +411,15 @@ be omitted or present with `null`; omitted nullable metrics never imply `0` or
 false precision.
 
 Every `ToolTelemetryEvent` valid under this contract MUST have at least one
-non-null deterministic correlation key: `epoch_id` **or** `backlog_item_id`.
+non-empty deterministic correlation key: `epoch_id` **or** `backlog_item_id`.
 Both fields remain individually nullable, but the schema must enforce an
-`anyOf`-equivalent assertion requiring one of them to be present and non-null. If
-`backlog_item_id` is used for event→epoch composition, it identifies the task or
-subtask work unit whose epoch will receive the composed roll-up. Events with
-neither key are uncorrelated and schema-invalid; 079-F does not define an
-uncorrelated event mode.
+`anyOf`-equivalent assertion requiring one of them to be present as a string with
+`minLength: 1` and at least one non-whitespace character (for example a `\S`
+pattern or a stronger existing ID rule). If `backlog_item_id` is used for
+event→epoch composition, it identifies the task or subtask work unit whose epoch
+will receive the composed roll-up. Events with neither key, an empty string, or a
+whitespace-only string are uncorrelated and schema-invalid; 079-F does not define
+an uncorrelated event mode.
 
 ## ExecutionEpoch v1.1 roll-up
 
@@ -356,9 +436,11 @@ reported as observed. Implementations must not emit a hybrid record that keeps
 
 The serialized `ExecutionEpoch` v1.1 schema required set is `schema_version`,
 `epoch_id`, `task_id`, `backlog_item_id`, `timestamp`, `route`, `economics`,
-`operations`, and `outcome`. CLI or reader input helpers may accept a looser construction shape
-that fills defaults such as `epoch_id` or `timestamp`, but schema mirrors and
-parity tests validate the complete serialized record shape.
+`operations`, and `outcome`. For replayable task-close records, CLI/library input
+must obtain a non-empty, non-whitespace `epoch_id` from the pre-execution context
+or a caller-supplied value; task-close helpers must not silently fill a fresh UUID
+when the ID is omitted. Schema mirrors and parity tests validate the complete
+serialized record shape, including the non-empty identity rule.
 
 The matrix below is the canonical field-to-payload assignment for 079-F. Each
 additive epoch field appears in exactly one owner; implementation tasks must not
@@ -461,6 +543,8 @@ Autoharness owns:
 
 * the `ExecutionEpoch` and `ToolTelemetryEvent` schemas;
 * local epoch time-series persistence under `.autoharness/metrics/`;
+* the pre-execution telemetry context API/artifact and replay-safe record
+  lifecycle;
 * immutable pre-execution work-sizing snapshots carried into epoch-close records;
 * deterministic trend, cost, usage-consistency, gap, size-distribution, and
   efficiency reports;
@@ -509,13 +593,16 @@ feature/shipment groups; it must not add parent planned labels and child actual
 costs as if both were independent work units.
 
 Readers and aggregators must deduplicate by `epoch_id` before computing any
-totals. SQLite is already authoritative per `epoch_id` because the sink uses
-`INSERT OR REPLACE`. JSONL is append-only, so when repeated valid JSONL records
-share an `epoch_id`, the last valid occurrence in file order wins. When a report
-uses both SQLite and JSONL, it either selects one configured source, or, in a
-combined-source mode, applies fixed precedence of SQLite over JSONL for matching
-`epoch_id` values and surfaces conflicting duplicates diagnostically. Mirrored
-SQLite/JSONL rows and JSONL retry appends must count each epoch exactly once.
+totals. The persistence contract is first-write immutable, not last-write-wins:
+SQLite must not use `INSERT OR REPLACE` for conflicting epochs, and JSONL retry
+handling must treat the first valid accepted payload for an `epoch_id` as the
+canonical record. Later identical replays collapse to idempotent success with no
+duplicate contribution; later conflicting records are surfaced diagnostically and
+ignored for totals. When a report uses both SQLite and JSONL, it either selects
+one configured source, or, in a combined-source mode, applies fixed read
+precedence of SQLite over JSONL for matching `epoch_id` values while still
+surfacing digest conflicts. Mirrored SQLite/JSONL rows, partial-sink retries, and
+JSONL retry appends must count each epoch exactly once.
 
 Decomposition analyses are hypotheses, not causal truth. Metrics such as optimal
 task count, child-size distribution, oversized-task frequency, or shipment mix may
@@ -551,8 +638,10 @@ The extension is contractual, not an import-boundary change:
   retrieve/snapshot the planned label before execution, stable hierarchy and
   shipment membership at that boundary, and re-estimation history/revision
   semantics that distinguish the originally captured planned estimate from later
-  changes. 079-F is not complete until that task is unblocked and shipped with
-  092-S.
+  changes. 092-S also includes the execution-context (`079.014-T`) and Ship
+  lifecycle handoff (`079.015-T`) tasks so the sizing snapshot is captured through
+  a real production host path. 079-F is not complete until every 092-S child task
+  is completed and shipped.
 * **082-F** is the evidence-gathering follow-up for real pack surfaces. It should
   map Engram, backlogit, graphtor-docs, and agent-intercom records to this
   ratified contract before broad capability-pack adapter implementation. 082-F is
@@ -572,9 +661,11 @@ The extension is contractual, not an import-boundary change:
 
 ## Consequences
 
-* 079-F planning is ratified, but implementation is paused until the released
-  backlogit hierarchical-sizing contract represented by blocked task 079.013-T is
-  available and the task is unblocked.
+* 079-F planning is ratified, but implementation is paused while shipment 092-S
+  remains blocked on the released backlogit hierarchical-sizing contract
+  represented by blocked task 079.013-T. The stable execution-context task
+  (079.014-T) and Ship lifecycle handoff task (079.015-T) are part of that same
+  shipment and must complete before 079-F can be marked done.
 * Schema work must be versioned and mirrored: root schema, versioned schema, and
   `src/autoharness/schema_contracts.py` registration must stay in sync.
 * Time-series reports must work from both local epoch SQLite and JSONL sinks
