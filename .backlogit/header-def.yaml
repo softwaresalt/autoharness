@@ -170,6 +170,7 @@ types:
                 type: enum
                 values:
                     - queued
+                    - blocked
                     - active
                     - shipped
                     - abandoned

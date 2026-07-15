@@ -4,7 +4,7 @@ date: "2026-07-13"
 description: "Deliberation on moving harness metrics/reporting/evals ownership out of backlogit, preserving backlog traceability, and sketching a standardized tool-telemetry data contract for tool usage and token-efficiency measurement."
 topic: "Where should autoharness metrics, reporting, evals, and tool telemetry live, and what data contract should tools emit so token efficiency can be measured consistently?"
 depth: "deliberation"
-decision_status: "proposed"
+decision_status: "ratified"
 doc_type: decision
 source: docs/decisions/2026-07-13-harness-telemetry-data-contract-deliberation.md
 source_stash_ids:
@@ -39,12 +39,16 @@ tags:
 
 ## Status
 
-**PROPOSED — operator architecture decision required before implementation.** This
-deliberation does not move metrics, reporting, or eval code. It records the
-current telemetry boundary, the coupling question raised by the stash, and a
-candidate data-contract shape. It is linked to **082-F**, which asks for a
-cross-pack measurability session with read access to external capability-pack
-workspaces.
+**RATIFIED by
+`docs/decisions/2026-07-13-telemetry-metrics-reporting-ownership.md`.** This
+deliberation remains as the research and option record for 079-F. The operator
+unblocked the feature with direction to prioritize token economics, time-series
+trend measurement, tool-usage gap detection, and eval enablement. The ratified
+decision extends the existing `ExecutionEpoch` model with epoch-level roll-ups,
+publishes `ToolTelemetryEvent` as a forward contract only, assigns local
+epoch time-series reporting/aggregation ownership to autoharness, and retains
+agent-engram as the single structural/graph authority and downstream ingestion
+consumer.
 
 ## Problem (stash 6C5B3463)
 
@@ -135,23 +139,32 @@ Engram-like analytics workspace or a data warehouse) ingests and reports.
 
 ### Option D — Hybrid contract + adapters
 
-Autoharness would own the candidate contract and emitters pending operator
-ratification. Backlogit, Engram, graphtor-docs, and agent-intercom could each
-provide adapters or views that project the same event contract into their local UX
-without owning the canonical schema.
+Autoharness would own the contract and emitters. Backlogit, Engram,
+graphtor-docs, and agent-intercom could each provide adapters or views that
+project the same event contract into their local UX without owning the canonical
+schema. This was the pre-ratification option record;
+the ratified decision now scopes 079-F implementation to epoch-level roll-ups and
+defers live event emission to 084-F.
 
 * **Pros:** Separates source-of-truth responsibilities while preserving local UX;
   best path to cross-pack measurability.
 * **Cons:** More coordination work and needs read access to those pack workspaces
   to avoid designing in a vacuum (see 082-F).
 
-## Proposed tool-telemetry data-contract sketch
+## Prior candidate tool-telemetry data-contract sketch
+
+The sketch below is retained as pre-ratification research context. It is
+superseded by
+`docs/decisions/2026-07-13-telemetry-metrics-reporting-ownership.md`, which
+scopes 079-F core to epoch-level `ExecutionEpoch` v1.1 roll-ups and publishes
+`ToolTelemetryEvent` v1.0 as a forward contract only.
 
 The existing `ExecutionEpoch` is a good **task-completion** record and already
 has an agent-engram ingestion design. Tool-level measurability needs a more
-granular candidate event stream that can roll up into epochs without replacing
-the existing eval -> telemetry and JSONL -> agent-engram boundaries unless the
-operator explicitly chooses to supersede them. A candidate v1 event shape:
+granular candidate event vocabulary that can later roll up into epochs without
+replacing the existing eval -> telemetry and JSONL -> agent-engram boundaries.
+The ratified decision publishes this as a forward schema contract only in 079-F
+and defers live event storage/emission to 084-F. The prior candidate v1 shape:
 
 | Field group | Candidate fields | Purpose |
 |---|---|---|
@@ -164,44 +177,50 @@ operator explicitly chooses to supersede them. A candidate v1 event shape:
 | Artifacts/gates | `artifacts_read`, `artifacts_written`, `gate_names`, `gate_exit_codes`, `evidence_path`, `policy_ids` | Link tool actions to validation and policy evidence. |
 | Sensitivity | `sensitivity` (`public`, `internal`, `ambiguous`), `redaction_applied`, `secret_scan_status` | Prevent observability from becoming an exfiltration path. |
 
-Candidate roll-up rule: **tool events compose into an `ExecutionEpoch`**, not
-the other way around. Epochs remain the stable completion summary; tool events
-provide detail for reports and token-efficiency analysis. The operator must decide
-whether that roll-up feeds the existing agent-engram CozoDB ingestion path, a new
-reporting store, backlogit views, or multiple adapters.
+Historical candidate roll-up rule: **tool events compose into an
+`ExecutionEpoch`**, not the other way around. Epochs remain the stable completion
+summary; tool events provide detail for reports and token-efficiency analysis.
+Before ratification, the open ownership question was whether that roll-up fed the
+existing agent-engram CozoDB ingestion path, a new reporting store, backlogit
+views, or multiple adapters.
 
-## Recommendation
+## Ratified decision
 
-Treat **Option D** as the recommended candidate, pending operator ratification:
-autoharness would continue owning its existing ExecutionEpoch/eval emitters and
-would propose the cross-pack tool-event contract; backlogit would remain the
-canonical work-state and traceability tool; capability packs would expose adapters
-or views as needed. This is a recommendation, not a decision. Do not move
-implementation until the operator decides the cross-pack schema, reporting/
-aggregation ownership, and whether the existing agent-engram ingestion boundary is
-retained or superseded.
+The final decision is recorded in
+`docs/decisions/2026-07-13-telemetry-metrics-reporting-ownership.md`:
 
-## Operator Decision Required
+* **Schema:** scope 079-F core to additive `ExecutionEpoch` v1.1.0 epoch-level
+  roll-ups for token consumption, token generation, cumulative context area,
+  correlation, offload evidence, and expected-vs-actual tool gaps. Publish
+  `ToolTelemetryEvent` v1.0 as a forward contract only; live event emission,
+  event sinks, and event→epoch composition are deferred to 084-F.
+* **Ownership:** autoharness owns the local time-series store and reporting/
+  aggregation surface for epoch records; backlogit remains the work-state and
+  traceability system.
+* **agent-engram boundary:** retain and extend agent-engram as the single graph
+  authority and downstream CozoDB ingestion consumer; do not add a second graph
+  stack or CozoDB ingestion code under `src/autoharness/telemetry/`.
 
-The operator must decide the **narrow remaining architecture questions**: the
-cross-pack tool-event schema, reporting/aggregation ownership, and whether the
-existing agent-engram ExecutionEpoch/CozoDB ingestion boundary is retained,
-extended, or superseded. The operator must also ratify token-efficiency fields,
-redaction/sensitivity rules, and whether backlogit is only a correlation source
-or a reporting surface.
+079-F planning is ratified, but implementation is paused until the released
+backlogit hierarchical-sizing contract unblocks 079.013-T and shipment 092-S.
+After that gate clears, the autoharness-owned core contract and reporting surface
+can proceed. Capability-pack adapters remain sequenced behind 082-F evidence
+gathering so real pack telemetry surfaces are mapped rather than guessed.
 
-## Open questions
+## Remaining follow-up questions
 
 1. Should backlogit display metric summaries, or only link to autoharness-owned
-   telemetry reports?
+   telemetry reports? **Default:** link to reports unless a later adapter task
+   proves a low-coupling view.
 2. Which token metrics can the host reliably provide today, and which are estimates
-   that must be labeled as such?
+   that must be labeled as such? **Default:** emit per-metric `metric_sources`
+   and `metric_quality` provenance maps.
 3. Is per-tool telemetry always emitted locally, or only during eval/staging/ship
-   phases?
-4. What redaction policy applies to command arguments and tool outputs?
-5. Should `ExecutionEpoch` remain v1 while tool events get a separate schema, or
-   should the epoch schema evolve to embed summarized tool-event metrics?
-6. Does agent-engram remain the ingestion/reporting boundary for ExecutionEpoch and
-   tool-event roll-ups, or should another reporting/aggregation owner supersede it?
-7. What cross-pack fields are required by 082-F once external workspace evidence
-   is available?
+   phases? **Default:** implement the core local store/reporting first, with
+   phase filters in reports.
+4. What redaction policy applies to command arguments and tool outputs? **Default:**
+   store safe fingerprints, counts, and sanitized evidence paths, never raw
+   secret-bearing argv or tool output.
+5. What cross-pack fields are required by 082-F once external workspace evidence
+   is available? **Follow-up:** 082-F maps real pack surfaces to the ratified
+   contract before broad adapter implementation.
