@@ -24,6 +24,10 @@ Reclassify the `agent-intercom` capability pack:
   capability-pack overlay principle.
 - Reflect that agent-intercom **no longer supports an MCP server**. It operates over a
   non-MCP intercom/ACP tool surface, so it carries no `mcp_requirements`.
+- Ensure the scripted deploy wrappers honor the opt-in: an **omitted** pack selection
+  resolves to the selected preset's `default_in_preset` members only, while an **explicit**
+  `all` still deploys every registry pack (see "Additional required scope — deploy
+  wrappers").
 
 ## Durable artifact
 
@@ -41,7 +45,7 @@ git apply --3way docs/deferred/agent-intercom-opt-in-nonmcp.patch
 If `git apply` reports drift because base files moved, apply with fuzz or re-create the
 edits from the "Files changed" section below.
 
-## Files changed (13)
+## Files changed in the committed patch (13)
 
 | File | Change |
 |---|---|
@@ -77,8 +81,37 @@ edits from the "Files changed" section below.
    on-disk (CRLF) file, matching the existing manifest convention.
 4. Run dogfood `verify_workspace` to confirm 0 blockers and no unresolved
    `{{VARIABLE}}` placeholders.
-5. Open a dedicated PR for this change. Do **not** bundle it with the 079 telemetry
+5. Complete the deploy-wrapper scope in "Additional required scope — deploy wrappers"
+   below (it is **not** in the 13-file patch) and add its wrapper tests.
+6. Open a dedicated PR for this change. Do **not** bundle it with the 079 telemetry
    ship work.
+
+## Additional required scope — deploy wrappers (found in review)
+
+The 13-file patch above is **not sufficient** on its own to achieve the opt-in goal.
+Both deploy wrappers default omitted pack input to `all` and, for any non-`starter`
+preset, enumerate **every** registry pack — they never consult `default_in_preset`:
+
+- `scripts/deploy-harness.ps1` — `[string]$Packs = "all"` (line ~42); the
+  `elseif ($Packs -eq "all")` branch (lines ~258-269) calls `Get-RegistryPacks`, which
+  reads only `- id:` lines and ignores `default_in_preset`.
+- `scripts/deploy-harness.sh` — `PACKS="all"` (line ~45); the `elif [[ "$PACKS" == "all" ]]`
+  branch (lines ~221-225) enumerates via `registry_packs`, likewise ignoring
+  `default_in_preset`.
+
+Consequently a normal `full`/`standard` deploy with omitted `--packs`/`-Packs` still
+writes `agent-intercom` into `.autoharness/config.yaml` without an explicit operator
+selection, defeating the opt-in reclassification. The later shipment MUST also:
+
+1. Distinguish an **omitted** pack input from an **explicit** `all`. Change the default
+   sentinel (e.g. `preset` or empty) so omission is detectable rather than pre-set to `all`.
+2. When pack input is omitted, resolve packs to the selected preset's defaults — the
+   registry packs whose `default_in_preset` includes the chosen preset (so `agent-intercom`,
+   with `default_in_preset: []`, is excluded from every preset default).
+3. Keep an explicit `--packs all` / `-Packs all` meaning **all** registry packs.
+4. Teach the registry enumerators to parse `default_in_preset` (both scripts currently read
+   only `id:`), and add wrapper tests covering: omitted input on `full`/`standard` excludes
+   opt-in add-ons; explicit `all` includes them; `starter` stays empty.
 
 ## Notes
 
@@ -86,6 +119,8 @@ edits from the "Files changed" section below.
   because `.autoharness/config.yaml` explicitly opts in. Do not remove that weave.
 - `agent_engram` and `graphtor_docs` keep their `mcp_configured` fields — only
   `agent_intercom` loses MCP.
-- deploy-harness `-Packs all` enumerates every registry pack regardless of preset, so
-  the `default_in_preset` change does not alter deploy-harness behavior; the preset only
-  affects `starter` (no packs).
+- The deploy wrappers (`scripts/deploy-harness.{sh,ps1}`) currently default omitted pack
+  input to `all` and enumerate every registry pack for non-`starter` presets, so the
+  `default_in_preset: []` change alone does **not** stop a default `full`/`standard` deploy
+  from writing agent-intercom — see "Additional required scope — deploy wrappers" above.
+  This wrapper fix must ship together with the patch.
