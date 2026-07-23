@@ -227,17 +227,27 @@ conclusion:
   secret-detector hits.
 
 Note: Copilot CLI hooks **run locally in the same shell as the CLI** [CONFIRMED],
-which fits the local, containment-first model. (Copilot **cloud agent** has an
-ephemeral sandbox filesystem — a compression store there would not persist across
-turns the same way, so cloud agent is out of scope for the store design.)
+which fits the local, containment-first model. The Copilot **cloud agent** runs hooks
+inside an ephemeral Linux sandbox that is **provisioned per job and destroyed when the
+job ends** [CONFIRMED, hooks reference]. Because a session maps to a job (`sessionEnd`
+fires once per job), the sandbox filesystem **persists across turns within a job**, so a
+**job-scoped** reversible store is viable there — files a hook writes stay available to
+later turns in the same job. Only cross-**job** durability is unavailable, and the
+compressed transcript does not resume across jobs either, so cross-job durability is not
+required. The store design is therefore in scope for the cloud agent as a job-scoped
+store, not excluded.
 
 ## 6. Graceful cross-environment degradation
 
 * **Copilot CLI (primary):** transparent compression-on-write via `postToolUse` +
   MCP retrieval. [CONFIRMED feasible]
-* **Copilot cloud agent:** `postToolUse` fires, but the sandbox filesystem is
-  ephemeral, so treat as **degraded** (no durable reversible store across job
-  boundaries). [CONFIRMED sandbox constraints]
+* **Copilot cloud agent:** the sandbox is provisioned per job and destroyed at job end,
+  but its filesystem **persists across turns within a job**, so a **job-scoped** reversible
+  store works — there is no cross-job durability, which the transcript does not need since
+  it also does not resume across jobs. The genuine caveats are the reduced hook surface
+  (only a **subset of events** fires and only **bash/`command`** hook entries are honored)
+  and constrained network, so treat as **supported within a job, non-durable across jobs**
+  rather than degraded on persistence grounds. [CONFIRMED, hooks reference]
 * **VS Code + Copilot:** hooks support a "VS Code compatible" PascalCase payload
   format [CONFIRMED in reference], suggesting parity potential, but this spike
   did not verify the VS Code Copilot host end-to-end — treat as
