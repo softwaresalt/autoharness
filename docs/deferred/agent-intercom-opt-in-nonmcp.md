@@ -66,23 +66,26 @@ edits from the "Files changed" section below.
 ## Resume + verification steps
 
 1. Apply the patch on a fresh feature branch (see above).
-2. Re-run targeted tests:
+2. Complete the deploy-wrapper scope in "Additional required scope — deploy wrappers"
+   below (it is **not** in the 13-file patch) and add its wrapper tests. Do this
+   **before** the verification steps so the evidence below covers the full change.
+3. Run the targeted tests **and the new wrapper tests** (after the wrapper
+   implementation is in place):
 
    ```bash
    python -m pytest tests/test_capability_pack_registry.py \
      tests/test_graphtor_docs_full_suite.py \
      tests/test_manifest_capability_pack_enum.py -q
+   # plus the new deploy-wrapper tests added in step 2
    ```
 
-3. Refresh the 3 manifest-tracked checksums in `.autoharness/harness-manifest.yaml`
+4. Refresh the 3 manifest-tracked checksums in `.autoharness/harness-manifest.yaml`
    (`.github/instructions/agent-intercom.instructions.md`,
    `.github/skills/install-harness/SKILL.md`,
    `.github/skills/workspace-discovery/SKILL.md`) using raw-bytes `sha256` of the
    on-disk (CRLF) file, matching the existing manifest convention.
-4. Run dogfood `verify_workspace` to confirm 0 blockers and no unresolved
+5. Run dogfood `verify_workspace` to confirm 0 blockers and no unresolved
    `{{VARIABLE}}` placeholders.
-5. Complete the deploy-wrapper scope in "Additional required scope — deploy wrappers"
-   below (it is **not** in the 13-file patch) and add its wrapper tests.
 6. Open a dedicated PR for this change. Do **not** bundle it with the 079 telemetry
    ship work.
 
