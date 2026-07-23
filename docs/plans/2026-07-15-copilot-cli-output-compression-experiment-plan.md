@@ -120,7 +120,9 @@ model sees (evidence-integrity blast radius). Hardening measures:
 
 * **Safety/security lens:** APPROVED — decide-then-stash, containment resolver,
   secret-screen-before-store, and gitignore/staged-file guard directly address the
-  086 CCR risks; failure outputs are structurally out of reach.
+  086 CCR risks; failed tool *invocations* are out of reach, while failure text
+  inside a *successful* tool result is handled by the mandatory failure-content
+  decline detector.
 * **Evidence-integrity lens:** APPROVED — single `textResultForLlm` field plus the
   evidence oracle and conservative decline prevent the 086 "lose sibling failure
   fields" class; residual in-string elision risk is explicitly a decline case.

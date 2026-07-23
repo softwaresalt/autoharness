@@ -113,7 +113,7 @@ tool-output rewriting:
 | --- | --- | --- | --- |
 | **`postToolUse` hook** | **Yes.** Returns `modifiedResult.textResultForLlm` that **replaces** the tool result the model sees. Fires on the CLI surface for every successful tool call; optional `matcher` regex on `toolName`. | [CONFIRMED] hooks reference `postToolUse` output section. | **This is the compression-on-write surface.** It is exactly the PostToolUse-equivalent 086-F assumed Copilot CLI lacked. |
 | `preToolUse` hook | Rewrites tool **args** (`modifiedArgs`) and can allow/deny; does not see the result. | [CONFIRMED] `preToolUse` decision control. | Useful for pre-screening (e.g., forcing quiet flags), not for output compression. |
-| `postToolUseFailure` hook | Fires on tool **failure**; can only append `additionalContext` recovery guidance — **cannot** replace the result. | [CONFIRMED] event table + payload (`error: string`). | Failure outputs are structurally **out of reach** of compression — a safety win (see §3). |
+| `postToolUseFailure` hook | Fires on tool **invocation failure**; can only append `additionalContext` recovery guidance — **cannot** replace the result. | [CONFIRMED] event table + payload (`error: string`). | Failed tool *invocations* are out of reach of compression — a partial safety win. This does **not** cover a shell/CI command that fails *inside* a successful tool result, which still arrives via `postToolUse.textResultForLlm` and is rewritable; a failure-content detector is required (see §3). |
 | `preCompact` hook | Notification before context compaction (manual/auto). | [CONFIRMED] event table. | Relevant to Primitive 1 (state/context) but not to per-tool compression. |
 | MCP tool result | A retrieval MCP server can return byte-equivalent originals on demand. | [CONFIRMED] `/mcp`; autoharness already ships `.mcp.json`. | This is the **retrieval half** (expand a placeholder), not the compression-on-write half. |
 | Plugins | A plugin may contribute `hooks.json` (including `postToolUse`) plus MCP servers and skills. | [CONFIRMED] hooks reference "Hooks contributed by installed plugins". | **The clean packaging/distribution path**: ship the compression hook + retrieval MCP + decline policy as one optional plugin. |
@@ -184,9 +184,12 @@ Compression MUST be declined (return `{}`, pass original through) for:
 * **Unwritable / failed CCR** — if the store cannot durably hold the original,
   pass the output through byte-identically; never emit placeholder-free elision. [carried from 086]
 
-Failure outputs themselves (`postToolUseFailure`) are inherently excluded: the
-hook cannot rewrite them, so failing-command evidence cannot be hidden by this
-mechanism at all. [CONFIRMED]
+Tool-*invocation* failures (`postToolUseFailure`) are inherently excluded: the
+hook cannot rewrite them. This does **not** cover a shell/CI command that fails
+*inside* a successful tool result — that failure text arrives through
+`postToolUse.textResultForLlm` and is rewritable, so the failure-bearing-success
+decline above (a mandatory failure-content detector) is what keeps it verbatim.
+[CONFIRMED invocation-failure exclusion; detector required for in-result failures]
 
 ## 4. Lossless byte-equivalent retrieval
 
@@ -279,14 +282,15 @@ placeholder/footer overhead.
 
 ### 7.3 Benchmark corpus (reuse 086-§4 candidates on real autoharness commands)
 
-Compression-positive: `pytest -vv`; `backlogit doctor` (~62-finding baseline);
-large `git --no-pager diff`; failed `gh run view --log-failed`; verbose MCP JSON
+Compression-positive: `pytest -vv` (passing runs); `backlogit doctor` (~62-finding baseline);
+large `git --no-pager diff`; verbose MCP JSON
 (backlogit queue/list, GitHub check-runs); Engram/graphtor large search results;
 workspace file inventories.
 
 Decline / negative controls: tiny outputs; forced unwritable-CCR passthrough;
-secret-bearing output; gate-verdict/readiness blocks; active stack traces;
-operator/approval text.
+secret-bearing output; gate-verdict/readiness blocks; failure-bearing successes
+(e.g. failed `gh run view --log-failed`, non-zero-exit command output embedded in
+a successful tool result); active stack traces; operator/approval text.
 
 ### 7.4 Proof method — a result counts as a **safe win** only when
 
@@ -318,9 +322,11 @@ Rationale:
 * **The remaining risks are the measurement, evidence-preservation, and storage
   risks 086 already enumerated** — not an interception-surface gap. They are
   exactly what the experiment (§7) is designed to resolve.
-* **The failure path is safer than feared on Copilot CLI** — `postToolUse` fires
-  only on success and cannot rewrite failures, so failing-command evidence cannot
-  be hidden by this mechanism [CONFIRMED].
+* **The tool-invocation failure path is out of reach** — `postToolUse` fires only
+  on success, so failed tool *invocations* cannot be rewritten [CONFIRMED].
+  Failure text embedded in a *successful* tool result is still rewritable, so the
+  experiment must include a failure-content detector (§3) rather than assume all
+  failing-command evidence is safe by construction.
 * **Clean packaging exists** — a plugin can bundle the hook + retrieval MCP +
   decline policy as one optional, disabled-by-default capability pack [CONFIRMED
   plugin hook contribution].
