@@ -18,6 +18,7 @@ from typing import Any, Callable, Mapping
 
 from autoharness.eval.reviewer import ReviewMatrixResult
 from autoharness.eval.runner import EvalRunReport
+from autoharness.telemetry.aggregation import UNAVAILABLE, aggregate_epochs, derived_efficiency_metrics
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,13 @@ class ConfigSummary:
     total_tokens: int
     cogs_usd: float
     duration_seconds: float
+    context_area_tokens: int
+    net_offload_tokens: int | str
+    consumption_generation_ratio: float | str
+    expected_tool_gap_rate: float | str
+    task_size_label: str | None
+    feature_planned_size_label: str | None
+    shipment_planned_size_label: str | None
     gate_exit_codes: tuple[int, ...]
     blocked: bool
     quality_overall: float | None
@@ -47,6 +55,13 @@ class ConfigSummary:
             "total_tokens": self.total_tokens,
             "cogs_usd": self.cogs_usd,
             "duration_seconds": self.duration_seconds,
+            "context_area_tokens": self.context_area_tokens,
+            "net_offload_tokens": self.net_offload_tokens,
+            "consumption_generation_ratio": self.consumption_generation_ratio,
+            "expected_tool_gap_rate": self.expected_tool_gap_rate,
+            "task_size_label": self.task_size_label,
+            "feature_planned_size_label": self.feature_planned_size_label,
+            "shipment_planned_size_label": self.shipment_planned_size_label,
             "gate_exit_codes": list(self.gate_exit_codes),
             "blocked": self.blocked,
             "quality_overall": self.quality_overall,
@@ -72,6 +87,9 @@ class BaselineSummary:
     blocked_configs: tuple[str, ...]
     total_cogs_usd: float
     total_tokens: int
+    cost_per_successful_epoch: float | str
+    planned_vs_composition: str
+    cost_per_size_point: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -89,6 +107,9 @@ class BaselineSummary:
             "blocked_configs": list(self.blocked_configs),
             "total_cogs_usd": self.total_cogs_usd,
             "total_tokens": self.total_tokens,
+            "cost_per_successful_epoch": self.cost_per_successful_epoch,
+            "planned_vs_composition": self.planned_vs_composition,
+            "cost_per_size_point": self.cost_per_size_point,
         }
 
 
@@ -113,7 +134,13 @@ def _config_summary(
     review: ReviewMatrixResult | None,
 ) -> ConfigSummary:
     economics = epoch.economics
+    record = epoch.to_record()
+    derived = derived_efficiency_metrics([record])
+    sizing = epoch.sizing
     outcome = epoch.outcome
+    expected = epoch.operations.expected_tool_count
+    missing = epoch.operations.missing_expected_tool_count
+    gap_rate: float | str = UNAVAILABLE if expected == 0 else missing / expected
     quality_overall = review.overall if review is not None else None
     quality_dimensions = (
         {dim: score.score for dim, score in review.dimensions.items()}
@@ -129,6 +156,17 @@ def _config_summary(
         total_tokens=economics.total_tokens,
         cogs_usd=economics.cogs_usd,
         duration_seconds=economics.duration_seconds,
+        context_area_tokens=economics.context_area_tokens,
+        net_offload_tokens=derived["net_offload_tokens"],
+        consumption_generation_ratio=derived["consumption_generation_ratio"],
+        expected_tool_gap_rate=gap_rate,
+        task_size_label=sizing.task_size_label if sizing is not None else None,
+        feature_planned_size_label=(
+            sizing.feature_planned_size_label if sizing is not None else None
+        ),
+        shipment_planned_size_label=(
+            sizing.shipment_planned_size_label if sizing is not None else None
+        ),
         gate_exit_codes=outcome.gate_exit_codes,
         blocked=outcome.blocked,
         quality_overall=quality_overall,
@@ -155,6 +193,7 @@ def summarize_baseline(
 
     frozen = report.frozen_state
     blocked_configs = tuple(c.config_name for c in configs if c.blocked)
+    telemetry_aggregate = aggregate_epochs([epoch.to_record() for epoch in report.epochs])
 
     return BaselineSummary(
         frozen_base=frozen.base if frozen else None,
@@ -169,4 +208,7 @@ def summarize_baseline(
         blocked_configs=blocked_configs,
         total_cogs_usd=round(sum(c.cogs_usd for c in configs), 6),
         total_tokens=sum(c.total_tokens for c in configs),
+        cost_per_successful_epoch=telemetry_aggregate.derived["cost_per_successful_epoch"],
+        planned_vs_composition=UNAVAILABLE,
+        cost_per_size_point=UNAVAILABLE,
     )

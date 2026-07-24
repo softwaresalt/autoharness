@@ -17,6 +17,7 @@ from autoharness.telemetry.epoch import (
     ExecutionEpoch,
     OperationalReality,
     RouteConfiguration,
+    WorkSizingSnapshot,
 )
 from autoharness.telemetry.record import RecordSummary
 
@@ -169,6 +170,67 @@ class DeterminismTests(unittest.TestCase):
         self.assertEqual(summary.configs, ())
         self.assertIsNone(summary.cheapest_config)
         self.assertEqual(summary.total_tokens, 0)
+
+
+class TelemetryMetricFoldingTests(unittest.TestCase):
+    def test_eval_summary_exposes_ratified_telemetry_metrics(self) -> None:
+        epoch = ExecutionEpoch(
+            task_id="eval:telemetry",
+            route=RouteConfiguration(models=("m",)),
+            economics=EconomicPayload(
+                input_tokens=100,
+                output_tokens=25,
+                context_area_tokens=400,
+                avoided_read_estimated_tokens=80,
+                tool_output_estimated_tokens=20,
+                cogs_usd=2.0,
+                duration_seconds=8.0,
+            ),
+            operations=OperationalReality(
+                expected_tool_count=2,
+                observed_expected_tool_count=1,
+                missing_expected_tool_count=1,
+                expected_tool_counts={"engram.map_code": 2},
+                observed_tool_counts={"engram.map_code": 1},
+                missing_expected_tool_counts={"engram.map_code": 1},
+            ),
+            outcome=AbsoluteOutcome(gate_exit_codes=(0,), tool_gap_count=1),
+            sizing=WorkSizingSnapshot(
+                task_size_label="M",
+                feature_planned_size_label=None,
+                shipment_planned_size_label=None,
+            ),
+        )
+        report = EvalRunReport(None, (EvalRun("telemetry", epoch, RecordSummary(enabled=False)),))
+
+        summary = summarize_baseline(report)
+        config = summary.configs[0]
+
+        self.assertEqual(config.context_area_tokens, 400)
+        self.assertEqual(config.net_offload_tokens, 60)
+        self.assertEqual(config.consumption_generation_ratio, 4.0)
+        self.assertEqual(config.expected_tool_gap_rate, 0.5)
+        self.assertEqual(config.task_size_label, "M")
+        self.assertEqual(summary.cost_per_successful_epoch, 2.0)
+
+    def test_missing_metrics_are_unavailable_not_false_precision(self) -> None:
+        epoch = ExecutionEpoch(
+            task_id="eval:missing",
+            route=RouteConfiguration(models=("m",)),
+            economics=EconomicPayload(input_tokens=10, output_tokens=0, cogs_usd=1.0),
+            operations=OperationalReality(),
+            outcome=AbsoluteOutcome(gate_exit_codes=()),
+        )
+        summary = summarize_baseline(
+            EvalRunReport(None, (EvalRun("missing", epoch, RecordSummary(enabled=False)),))
+        )
+
+        config = summary.configs[0]
+        self.assertEqual(config.consumption_generation_ratio, "unavailable")
+        self.assertEqual(config.expected_tool_gap_rate, "unavailable")
+        self.assertEqual(summary.cost_per_successful_epoch, "unavailable")
+        self.assertEqual(summary.planned_vs_composition, "unavailable")
+        self.assertEqual(summary.cost_per_size_point, "unavailable")
 
 
 if __name__ == "__main__":
