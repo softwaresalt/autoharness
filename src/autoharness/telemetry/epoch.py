@@ -264,6 +264,7 @@ class OperationalReality:
                 0,
             )
             for key in sorted(keys)
+            if int(self.expected_tool_counts.get(key, 0)) > 0
         }
 
     def gap_invariants_hold(self) -> bool:

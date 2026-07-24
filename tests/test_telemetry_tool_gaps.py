@@ -57,6 +57,22 @@ class TelemetryToolGapTests(unittest.TestCase):
         self.assertEqual(summary.outcome.tool_gap_count, 1)
         self.assertEqual(summary.operations.raw_file_read_count, 1)
 
+    def test_observed_unexpected_tool_preserves_gap_invariants(self) -> None:
+        """Regression (local review P3): a tool observed but never expected must
+        not break gap-invariant validation of a legitimately built epoch. The
+        stored and derived missing-expected maps must agree on zero-key handling.
+        """
+        summary = summarize_tool_gaps(
+            expected_tool_counts={"engram.map_code": 1},
+            observed_tool_counts={"engram.map_code": 1, "grep": 3},
+        )
+
+        self.assertTrue(summary.operations.gap_invariants_hold())
+        self.assertEqual(
+            summary.operations.derived_missing_expected_tool_counts(),
+            dict(summary.operations.missing_expected_tool_counts),
+        )
+
     def test_stale_route_fallback_with_expected_tool_invoked_is_diagnostic_only(self) -> None:
         summary = summarize_tool_gaps(
             expected_tool_counts={"engram.map_code": 1},
