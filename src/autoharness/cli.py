@@ -624,7 +624,8 @@ Usage:
                               [--shipment-id <id>] [--workspace-id <id>]
                               [--session-id <id>] [--agent-role <role>]
                               [--phase <phase>] [--branch <name>]
-                              [--commit-sha <sha>]
+                              [--commit-sha <sha>] [--capture-backlogit-sizing]
+                              [--backlogit <path>]
   autoharness telemetry record [--from-json <path>] [--workspace <path>] [--json]
 
 Options:
@@ -663,6 +664,8 @@ def _parse_telemetry_begin_args(args: list[str]) -> dict:
         "phase": None,
         "branch": None,
         "commit_sha": None,
+        "capture_backlogit_sizing": False,
+        "backlogit": "backlogit",
     }
     value_flags = {
         "--task-id": "task_id",
@@ -687,6 +690,13 @@ def _parse_telemetry_begin_args(args: list[str]) -> dict:
             parsed["workspace"] = Path(args[index])
         elif arg == "--json":
             parsed["emit_json"] = True
+        elif arg == "--capture-backlogit-sizing":
+            parsed["capture_backlogit_sizing"] = True
+        elif arg == "--backlogit":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --backlogit")
+            parsed["backlogit"] = args[index]
         elif arg in value_flags:
             index += 1
             if index >= len(args):
@@ -767,6 +777,17 @@ def _telemetry_begin_command(rest: list[str]) -> None:
     from autoharness.telemetry.record import load_workspace_telemetry_config
 
     config = load_workspace_telemetry_config(parsed["workspace"])
+    sizing = None
+    if parsed["capture_backlogit_sizing"] and config.enabled:
+        from autoharness.telemetry.sizing import capture_work_sizing_snapshot
+
+        sizing = capture_work_sizing_snapshot(
+            workspace=parsed["workspace"],
+            task_id=parsed["task_id"],
+            feature_id=parsed["feature_id"],
+            shipment_id=parsed["shipment_id"],
+            backlogit_bin=parsed["backlogit"],
+        )
     try:
         result = begin_context(
             config,
@@ -782,6 +803,7 @@ def _telemetry_begin_command(rest: list[str]) -> None:
             phase=parsed["phase"],
             branch=parsed["branch"],
             commit_sha=parsed["commit_sha"],
+            sizing=sizing,
         )
     except TelemetryContextError as exc:
         print(f"Invalid telemetry begin context: {exc}", file=sys.stderr)
