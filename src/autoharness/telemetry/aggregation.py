@@ -203,21 +203,36 @@ def _bucket_records(records: list[dict[str, Any]], bucket: str) -> tuple[BucketS
 def _size_groups(records: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, Any]]]:
     output: dict[str, dict[str, dict[str, Any]]] = {}
     for field in _SIZE_FIELDS:
-        field_groups: dict[str, list[float]] = {}
+        # Copilot review t2: count every epoch in a label group, but only include
+        # a cogs value in the cost range when its metric_quality is available. An
+        # unavailable cost must never be coerced to a fabricated 0.0; a group with
+        # no measured cost surfaces an explicit unavailable range.
+        field_counts: dict[str, int] = {}
+        field_costs: dict[str, list[float]] = {}
         for record in records:
             sizing = record.get("sizing") or {}
             label = sizing.get(field) if isinstance(sizing, Mapping) else None
             if label is None:
                 continue
-            cogs = _number((record.get("economics") or {}).get("cogs_usd"))
-            field_groups.setdefault(str(label), []).append(float(cogs or 0))
+            key = str(label)
+            field_counts[key] = field_counts.get(key, 0) + 1
+            economics = record.get("economics") or {}
+            quality = (economics.get("metric_quality") or {}).get("cogs_usd")
+            if quality in ("unavailable", "not_applicable"):
+                continue
+            cogs = _number(economics.get("cogs_usd"))
+            if cogs is None:
+                continue
+            field_costs.setdefault(key, []).append(float(cogs))
         output[field] = {
             label: {
-                "count": len(values),
-                "cogs_usd_range": (min(values), max(values)) if values else (0.0, 0.0),
+                "count": field_counts[label],
+                "cogs_usd_range": (
+                    (min(costs), max(costs)) if (costs := field_costs.get(label)) else UNAVAILABLE
+                ),
                 "ordinal_only": True,
             }
-            for label, values in sorted(field_groups.items())
+            for label in sorted(field_counts)
         }
     return output
 

@@ -127,6 +127,10 @@ def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummar
             summary.sqlite_written = True
         except sqlite_sink.TelemetryConflictError as exc:
             summary.errors.append(f"sqlite sink conflict: {exc}")
+            # Copilot review t3: a conflict raised here (another writer inserted
+            # after preflight) still returns early, so finalize the documented
+            # conflict_rejected outcome before returning instead of leaving it unset.
+            summary.idempotency_outcome = "conflict_rejected"
             return summary
         except Exception as exc:  # fail-open: never block completion
             summary.errors.append(f"sqlite sink failed: {exc}")

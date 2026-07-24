@@ -235,7 +235,16 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
     existing = _column_names(conn)
     for column, definition in _MIGRATION_COLUMNS.items():
         if column not in existing:
-            conn.execute(f"ALTER TABLE execution_epochs ADD COLUMN {column} {definition}")
+            try:
+                conn.execute(f"ALTER TABLE execution_epochs ADD COLUMN {column} {definition}")
+            except sqlite3.OperationalError as exc:
+                # Copilot review t6: a concurrent initializer can add the same
+                # column between our snapshot and this ALTER, yielding a
+                # "duplicate column name" error. Treat that as already-migrated
+                # (idempotent) rather than dropping telemetry; re-raise anything
+                # else.
+                if "duplicate column name" not in str(exc).lower():
+                    raise
 
 
 def _connect(database_path: Path) -> sqlite3.Connection:

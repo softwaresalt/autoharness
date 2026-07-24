@@ -240,6 +240,21 @@ class ExecutionEpochV11Tests(unittest.TestCase):
         self.assertEqual(epoch.economics.input_tokens, 100)
         self.assertEqual(epoch.to_record()["schema_version"], "1.1.0")
 
+    def test_unknown_non_legacy_schema_version_rejected(self) -> None:
+        """Copilot review t9: a record declaring an unsupported non-legacy
+        schema_version (e.g. a future 2.0.0) must not be parsed with the v1.1
+        model and re-emitted unchanged. Only legacy 1.0.0 (or absent) is
+        normalized; anything else raises so we never emit a mislabeled record."""
+        rec = _full_epoch().to_record()
+        rec["schema_version"] = "2.0.0"
+        with self.assertRaises(EpochError):
+            ExecutionEpoch.from_mapping(rec)
+
+    def test_current_schema_version_still_round_trips(self) -> None:
+        rec = _full_epoch().to_record()
+        self.assertEqual(rec["schema_version"], "1.1.0")
+        self.assertEqual(ExecutionEpoch.from_mapping(rec).schema_version, "1.1.0")
+
     def test_empty_epoch_id_rejected_not_silently_replaced(self) -> None:
         rec = _full_epoch().to_record()
         rec["epoch_id"] = "   "
@@ -366,6 +381,30 @@ class WorkSizingSnapshotTests(unittest.TestCase):
             shipment_membership_hash=WorkSizingSnapshot.membership_hash(["a", "b"]),
         )
         self.assertEqual(WorkSizingSnapshot.from_mapping(snap.to_dict()), snap)
+
+    def test_skipped_ids_surfaced_and_round_trip(self) -> None:
+        """Copilot review t10 / 079.013-T AC: skipped/unresolved composition IDs
+        must be surfaced diagnostically (not silently dropped) and survive the
+        to_dict / from_mapping round trip."""
+        snap = WorkSizingSnapshot(
+            feature_planned_child_task_count=1,
+            feature_planned_child_size_histogram={"M": 1},
+            feature_skipped_ids=("079.404-T",),
+            shipment_manifest_task_count=1,
+            shipment_manifest_size_histogram={"S": 1},
+            shipment_skipped_ids=("missing", "orphan"),
+        )
+        payload = snap.to_dict()
+        self.assertEqual(payload["feature_skipped_ids"], ["079.404-T"])
+        self.assertEqual(payload["shipment_skipped_ids"], ["missing", "orphan"])
+        self.assertEqual(WorkSizingSnapshot.from_mapping(payload), snap)
+
+    def test_skipped_ids_default_empty(self) -> None:
+        snap = WorkSizingSnapshot()
+        self.assertEqual(snap.feature_skipped_ids, ())
+        self.assertEqual(snap.shipment_skipped_ids, ())
+        self.assertEqual(snap.to_dict()["feature_skipped_ids"], [])
+        self.assertEqual(snap.to_dict()["shipment_skipped_ids"], [])
 
 
 class OperationalGapRollupTests(unittest.TestCase):

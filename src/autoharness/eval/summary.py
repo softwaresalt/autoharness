@@ -33,7 +33,7 @@ class ConfigSummary:
     total_tokens: int
     cogs_usd: float
     duration_seconds: float
-    context_area_tokens: int
+    context_area_tokens: int | str
     net_offload_tokens: int | str
     consumption_generation_ratio: float | str
     expected_tool_gap_rate: float | str
@@ -156,7 +156,12 @@ def _config_summary(
         total_tokens=economics.total_tokens,
         cogs_usd=economics.cogs_usd,
         duration_seconds=economics.duration_seconds,
-        context_area_tokens=economics.context_area_tokens,
+        context_area_tokens=(
+            UNAVAILABLE
+            if economics.metric_quality.get("context_area_tokens")
+            in ("unavailable", "not_applicable")
+            else economics.context_area_tokens
+        ),
         net_offload_tokens=derived["net_offload_tokens"],
         consumption_generation_ratio=derived["consumption_generation_ratio"],
         expected_tool_gap_rate=gap_rate,

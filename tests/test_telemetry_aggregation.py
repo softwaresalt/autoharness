@@ -195,7 +195,29 @@ class TelemetryAggregationTests(unittest.TestCase):
         self.assertEqual(result.derived["cost_per_size_point"], "unavailable")
         self.assertEqual(result.derived["planned_vs_composition"], "unavailable")
 
-    def test_parent_child_costs_are_not_double_counted_in_feature_slices(self) -> None:
+    def test_size_group_cost_range_excludes_unavailable_cogs(self) -> None:
+        """Copilot review t2: an epoch whose cogs_usd is unavailable must not be
+        coerced to a fabricated 0.0 in the size-group cost range. The epoch is
+        still counted, but the range reflects only measured costs."""
+        measured = _record("a", "2026-07-24T00:00:00Z", task_size="M", cogs_usd=2.0)
+        unmeasured = _record("b", "2026-07-24T01:00:00Z", task_size="M", cogs_usd=0.0)
+        unmeasured["economics"]["metric_quality"] = {"cogs_usd": "unavailable"}
+
+        group = aggregate_epochs([measured, unmeasured]).size_groups["task_size_label"]["M"]
+
+        self.assertEqual(group["count"], 2)
+        self.assertEqual(group["cogs_usd_range"], (2.0, 2.0))
+
+    def test_size_group_cost_range_unavailable_when_no_measured_cogs(self) -> None:
+        """Copilot review t2: a group with no measured cogs surfaces an explicit
+        unavailable range rather than a fabricated (0.0, 0.0)."""
+        only = _record("a", "2026-07-24T00:00:00Z", task_size="L", cogs_usd=0.0)
+        only["economics"]["metric_quality"] = {"cogs_usd": "unavailable"}
+
+        group = aggregate_epochs([only]).size_groups["task_size_label"]["L"]
+
+        self.assertEqual(group["count"], 1)
+        self.assertEqual(group["cogs_usd_range"], "unavailable")
         result = aggregate_epochs(
             [
                 _record("child-a", "2026-07-24T00:00:00Z", feature_size="L", cogs_usd=2.0),

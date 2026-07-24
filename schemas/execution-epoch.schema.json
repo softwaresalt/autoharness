@@ -1543,6 +1543,13 @@
               ],
               "description": "SHA-256 hash of the canonical unique child task ID set, or null when membership is unavailable."
             },
+            "feature_skipped_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Diagnostic list of feature child IDs skipped/unresolved during composition (079.013-T). Excluded from the count and histogram but surfaced here; empty when none were skipped."
+            },
             "shipment_manifest_task_count": {
               "anyOf": [
                 {
@@ -1604,6 +1611,13 @@
                 }
               ],
               "description": "SHA-256 hash of the canonical unique shipment task ID set, or null when membership is unavailable."
+            },
+            "shipment_skipped_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Diagnostic list of shipment manifest IDs skipped/unresolved during composition (079.013-T). Excluded from the count and histogram but surfaced here; empty when none were skipped."
             }
           }
         },

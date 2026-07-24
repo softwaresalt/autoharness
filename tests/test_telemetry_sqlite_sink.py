@@ -375,5 +375,33 @@ class SqliteSinkTests(unittest.TestCase):
         self.assertEqual(rows[0][1], created.payload_digest)
 
 
+class SqliteMigrationRaceTests(unittest.TestCase):
+    """Copilot review t6: the check-then-ALTER migration must tolerate a
+    concurrent initializer adding the same column between the column snapshot and
+    the ALTER (``duplicate column name``) instead of dropping telemetry."""
+
+    def test_migrate_schema_tolerates_duplicate_column_race(self) -> None:
+        from unittest import mock
+
+        from autoharness.telemetry import sqlite_sink
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "execution_epochs.db"
+            ensure_schema(db_path)  # all migration columns now present
+            conn = sqlite_sink._connect(db_path)
+            try:
+                # Simulate a stale pre-migration snapshot: every migration column
+                # appears missing, so _migrate_schema will re-attempt each ALTER on
+                # a column that already exists (the concurrent-writer race).
+                with mock.patch.object(sqlite_sink, "_column_names", return_value=set()):
+                    sqlite_sink._migrate_schema(conn)  # must not raise
+                columns = {row[1] for row in conn.execute("PRAGMA table_info(execution_epochs)")}
+            finally:
+                conn.close()
+
+            for column in sqlite_sink._MIGRATION_COLUMNS:
+                self.assertIn(column, columns)
+
+
 if __name__ == "__main__":
     unittest.main()

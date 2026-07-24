@@ -405,8 +405,9 @@ class WorkSizingSnapshot:
     and shipment composition histograms use the size labels plus an ``unsized``
     bucket for known members without a resolvable size label; there is no
     ``unavailable`` bucket, and skipped/unresolved IDs are excluded from both the
-    count and the histogram. When membership is known, the count equals the sum
-    of the histogram bucket values.
+    count and the histogram but are surfaced diagnostically in the
+    ``feature_skipped_ids`` / ``shipment_skipped_ids`` fields (079.013-T AC). When
+    membership is known, the count equals the sum of the histogram bucket values.
     """
 
     snapshot_at: str | None = None
@@ -420,9 +421,11 @@ class WorkSizingSnapshot:
     feature_planned_child_task_count: int | None = None
     feature_planned_child_size_histogram: Mapping[str, int] = field(default_factory=dict)
     feature_child_membership_hash: str | None = None
+    feature_skipped_ids: tuple[str, ...] = ()
     shipment_manifest_task_count: int | None = None
     shipment_manifest_size_histogram: Mapping[str, int] = field(default_factory=dict)
     shipment_membership_hash: str | None = None
+    shipment_skipped_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         for label_field in (
@@ -493,9 +496,11 @@ class WorkSizingSnapshot:
             "feature_planned_child_task_count": self.feature_planned_child_task_count,
             "feature_planned_child_size_histogram": dict(self.feature_planned_child_size_histogram),
             "feature_child_membership_hash": self.feature_child_membership_hash,
+            "feature_skipped_ids": list(self.feature_skipped_ids),
             "shipment_manifest_task_count": self.shipment_manifest_task_count,
             "shipment_manifest_size_histogram": dict(self.shipment_manifest_size_histogram),
             "shipment_membership_hash": self.shipment_membership_hash,
+            "shipment_skipped_ids": list(self.shipment_skipped_ids),
         }
 
     @classmethod
@@ -514,11 +519,15 @@ class WorkSizingSnapshot:
                 data.get("feature_planned_child_size_histogram") or {}
             ),
             feature_child_membership_hash=data.get("feature_child_membership_hash"),
+            feature_skipped_ids=tuple(str(item) for item in (data.get("feature_skipped_ids") or ())),
             shipment_manifest_task_count=data.get("shipment_manifest_task_count"),
             shipment_manifest_size_histogram=dict(
                 data.get("shipment_manifest_size_histogram") or {}
             ),
             shipment_membership_hash=data.get("shipment_membership_hash"),
+            shipment_skipped_ids=tuple(
+                str(item) for item in (data.get("shipment_skipped_ids") or ())
+            ),
         )
 
 
@@ -629,6 +638,12 @@ class ExecutionEpoch:
 
         raw_version = data.get("schema_version")
         legacy = (not raw_version) or str(raw_version) == "1.0.0"
+        if not legacy and str(raw_version) != SCHEMA_VERSION:
+            raise EpochError(
+                f"Epoch payload declares unsupported schema_version {str(raw_version)!r}; "
+                f"this build parses schema {SCHEMA_VERSION} (legacy 1.0.0 is normalized). "
+                "Refusing to emit a record parsed with the wrong model."
+            )
 
         # Normalize every downstream shape/coercion failure (e.g. ``route: []``
         # raising AttributeError, or ``input_tokens: "abc"`` raising ValueError)

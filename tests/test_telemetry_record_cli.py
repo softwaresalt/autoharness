@@ -371,6 +371,31 @@ class RecordEpochFailOpenTests(unittest.TestCase):
             outcome=AbsoluteOutcome(),
         )
 
+    def test_sqlite_write_conflict_sets_conflict_rejected_outcome(self) -> None:
+        """Copilot review t3: a TelemetryConflictError raised by the sqlite sink
+        (another writer inserted after preflight passed) must still finalize the
+        documented ``conflict_rejected`` idempotency outcome instead of leaving it
+        unset by returning early."""
+        from autoharness.telemetry import sqlite_sink
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=False,
+            )
+            with mock.patch(
+                "autoharness.telemetry.record.sqlite_sink.write_epoch",
+                side_effect=sqlite_sink.TelemetryConflictError("post-preflight race"),
+            ):
+                summary = record_epoch(self._epoch(), config)
+
+            self.assertEqual(summary.idempotency_outcome, "conflict_rejected")
+            self.assertFalse(summary.sqlite_written)
+            self.assertTrue(any("conflict" in err.lower() for err in summary.errors))
+
     def test_sink_error_is_captured_not_raised(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             # Point the DB path *under an existing file* so directory creation

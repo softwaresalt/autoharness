@@ -13,10 +13,18 @@ from autoharness.telemetry.epoch import WorkSizingSnapshot
 _SIZE_LABELS = {"XS", "S", "M", "L", "XL"}
 _HISTOGRAM_LABELS = _SIZE_LABELS | {"unsized"}
 
+# Copilot review t7: a hung backlogit subprocess must not stall Ship indefinitely.
+# Every default-runner invocation is bounded; a timeout surfaces as
+# TimeoutExpired, which _safe_get / the sync try-except degrade to the existing
+# unavailable fallbacks (telemetry stays non-blocking).
+_DEFAULT_RUNNER_TIMEOUT_SECONDS = 30.0
+
 Runner = Callable[[tuple[str, ...], Path], str]
 
 
-def _default_runner(backlogit_bin: str) -> Runner:
+def _default_runner(
+    backlogit_bin: str, *, timeout: float = _DEFAULT_RUNNER_TIMEOUT_SECONDS
+) -> Runner:
     def run(argv: tuple[str, ...], cwd: Path) -> str:
         completed = subprocess.run(
             [backlogit_bin, "--cwd", str(cwd), *argv, "--no-update-check"],
@@ -24,6 +32,7 @@ def _default_runner(backlogit_bin: str) -> Runner:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            timeout=timeout,
         )
         return completed.stdout
 
@@ -73,18 +82,38 @@ def _revision(item: Mapping[str, Any] | None) -> str:
     return str(item.get("updated_at") or "unavailable")
 
 
+def _skipped_ids(comp: Mapping[str, Any]) -> tuple[str, ...]:
+    """Extract diagnostic skipped/unresolved member IDs from a size_composition.
+
+    079.013-T AC requires skipped IDs to be surfaced diagnostically rather than
+    silently dropped. Entries may be ``{"id": ...}`` mappings or bare IDs.
+    """
+    skipped = comp.get("skipped")
+    if not isinstance(skipped, list):
+        return ()
+    ids: list[str] = []
+    for entry in skipped:
+        if isinstance(entry, Mapping):
+            if entry.get("id"):
+                ids.append(str(entry["id"]))
+        elif entry:
+            ids.append(str(entry))
+    return tuple(sorted(set(ids)))
+
+
 def _composition(
     item: Mapping[str, Any] | None,
-) -> tuple[int | None, dict[str, int], str | None, str]:
+) -> tuple[int | None, dict[str, int], str | None, str, tuple[str, ...]]:
     if not isinstance(item, Mapping):
-        return None, {}, None, "unavailable"
+        return None, {}, None, "unavailable", ()
     comp = item.get("size_composition")
     if not isinstance(comp, Mapping):
-        return None, {}, None, "unavailable"
+        return None, {}, None, "unavailable", ()
 
+    skipped = _skipped_ids(comp)
     members = comp.get("members")
     if not isinstance(members, list):
-        return None, {}, None, str(comp.get("ruleset_version") or "unavailable")
+        return None, {}, None, str(comp.get("ruleset_version") or "unavailable"), skipped
     ids: list[str] = []
     for member in members:
         if isinstance(member, Mapping):
@@ -111,6 +140,7 @@ def _composition(
         histogram,
         WorkSizingSnapshot.membership_hash(unique_ids),
         str(comp.get("ruleset_version") or "unavailable"),
+        skipped,
     )
 
 
@@ -142,8 +172,16 @@ def capture_work_sizing_snapshot(
     shipment = _safe_get(run, cwd, shipment_id) if sync_ok else None
 
     task_label = _task_size(task)
-    feature_count, feature_histogram, feature_hash, feature_ruleset = _composition(feature)
-    shipment_count, shipment_histogram, shipment_hash, shipment_ruleset = _composition(shipment)
+    feature_count, feature_histogram, feature_hash, feature_ruleset, feature_skipped = _composition(
+        feature
+    )
+    (
+        shipment_count,
+        shipment_histogram,
+        shipment_hash,
+        shipment_ruleset,
+        shipment_skipped,
+    ) = _composition(shipment)
 
     return WorkSizingSnapshot(
         snapshot_at=snapshot_at or datetime.now(timezone.utc).isoformat(),
@@ -169,7 +207,9 @@ def capture_work_sizing_snapshot(
         feature_planned_child_task_count=feature_count,
         feature_planned_child_size_histogram=feature_histogram,
         feature_child_membership_hash=feature_hash,
+        feature_skipped_ids=feature_skipped,
         shipment_manifest_task_count=shipment_count,
         shipment_manifest_size_histogram=shipment_histogram,
         shipment_membership_hash=shipment_hash,
+        shipment_skipped_ids=shipment_skipped,
     )

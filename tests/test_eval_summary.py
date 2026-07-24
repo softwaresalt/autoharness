@@ -213,6 +213,30 @@ class TelemetryMetricFoldingTests(unittest.TestCase):
         self.assertEqual(config.task_size_label, "M")
         self.assertEqual(summary.cost_per_successful_epoch, 2.0)
 
+    def test_context_area_tokens_unavailable_is_not_false_precision(self) -> None:
+        """Copilot review t8: when the epoch marks ``context_area_tokens``
+        unavailable (as legacy/null normalization does), the summary must surface
+        ``unavailable`` rather than the numeric 0 placeholder (079.006-T)."""
+        epoch = ExecutionEpoch(
+            task_id="eval:ctx-unavailable",
+            route=RouteConfiguration(models=("m",)),
+            economics=EconomicPayload(
+                input_tokens=10,
+                output_tokens=5,
+                cogs_usd=1.0,
+                context_area_tokens=0,
+                metric_quality={"context_area_tokens": "unavailable"},
+            ),
+            operations=OperationalReality(),
+            outcome=AbsoluteOutcome(gate_exit_codes=(0,)),
+        )
+        summary = summarize_baseline(
+            EvalRunReport(None, (EvalRun("ctx", epoch, RecordSummary(enabled=False)),))
+        )
+        config = summary.configs[0]
+        self.assertEqual(config.context_area_tokens, "unavailable")
+        self.assertEqual(config.to_dict()["context_area_tokens"], "unavailable")
+
     def test_missing_metrics_are_unavailable_not_false_precision(self) -> None:
         epoch = ExecutionEpoch(
             task_id="eval:missing",

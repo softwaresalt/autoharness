@@ -6,6 +6,7 @@ import contextlib
 import io
 import json
 import shutil
+import subprocess
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -14,7 +15,7 @@ from autoharness.cli import main
 from autoharness.telemetry.config import load_telemetry_config
 from autoharness.telemetry.context import begin_context
 from autoharness.telemetry.epoch import WorkSizingSnapshot
-from autoharness.telemetry.sizing import capture_work_sizing_snapshot
+from autoharness.telemetry.sizing import _default_runner, capture_work_sizing_snapshot
 
 _ROOT = Path(__file__).resolve().parents[1]
 _TEST_OUTPUT = _ROOT / ".test-output" / "telemetry-backlogit-sizing"
@@ -325,6 +326,94 @@ class BacklogitSizingSnapshotTests(unittest.TestCase):
 
         self.assertEqual(payload["sizing"]["task_size_label"], "M")
         self.assertEqual(payload["sizing"]["feature_planned_child_task_count"], 1)
+
+    def test_composition_skipped_ids_surfaced_diagnostically(self) -> None:
+        """Copilot review t10 / 079.013-T AC: size_composition.skipped IDs must be
+        surfaced on the snapshot (feature/shipment skipped-ID fields) rather than
+        silently dropped from both the count and the histogram."""
+        runner = FakeBacklogitRunner(
+            {
+                "079.013-T": _task("079.013-T", "M"),
+                "079-F": _rollup(
+                    "079-F",
+                    [{"id": "079.001-T", "artifact_type": "task"}],
+                    histogram={"M": 1},
+                    skipped=[{"id": "079.404-T", "reason": "unresolved"}],
+                ),
+                "092-S": _rollup(
+                    "092-S",
+                    [{"id": "079.001-T", "artifact_type": "task"}],
+                    histogram={"M": 1},
+                    skipped=[{"id": "missing", "reason": "unresolved"}, "orphan"],
+                ),
+            }
+        )
+
+        snapshot = capture_work_sizing_snapshot(
+            workspace=self.workspace,
+            task_id="079.013-T",
+            feature_id="079-F",
+            shipment_id="092-S",
+            runner=runner,
+            snapshot_at="2026-07-24T03:37:49Z",
+        )
+
+        self.assertEqual(snapshot.feature_skipped_ids, ("079.404-T",))
+        self.assertEqual(snapshot.shipment_skipped_ids, ("missing", "orphan"))
+        # Skipped IDs stay out of the count/histogram but are visible in to_dict.
+        self.assertEqual(snapshot.feature_planned_child_task_count, 1)
+        self.assertEqual(snapshot.to_dict()["shipment_skipped_ids"], ["missing", "orphan"])
+
+    def test_no_skipped_ids_defaults_to_empty(self) -> None:
+        runner = FakeBacklogitRunner(
+            {
+                "079.013-T": _task("079.013-T", "M"),
+                "079-F": _rollup("079-F", [{"id": "079.001-T", "artifact_type": "task"}], histogram={"M": 1}),
+            }
+        )
+        snapshot = capture_work_sizing_snapshot(
+            workspace=self.workspace,
+            task_id="079.013-T",
+            feature_id="079-F",
+            runner=runner,
+            snapshot_at="2026-07-24T03:37:49Z",
+        )
+        self.assertEqual(snapshot.feature_skipped_ids, ())
+        self.assertEqual(snapshot.shipment_skipped_ids, ())
+
+    def test_runner_timeout_degrades_to_unavailable_without_blocking(self) -> None:
+        """Copilot review t7: a hung backlogit invocation (TimeoutExpired) must
+        degrade sizing composition to unavailable rather than stalling Ship;
+        telemetry still emits non-blocking."""
+
+        def timing_out_runner(argv: tuple[str, ...], cwd: Path) -> str:
+            raise subprocess.TimeoutExpired(cmd="backlogit", timeout=30.0)
+
+        snapshot = capture_work_sizing_snapshot(
+            workspace=self.workspace,
+            task_id="079.013-T",
+            feature_id="079-F",
+            shipment_id="092-S",
+            runner=timing_out_runner,
+            snapshot_at="2026-07-24T03:37:49Z",
+        )
+
+        self.assertEqual(snapshot.snapshot_boundary, "pre_execution")
+        self.assertIsNone(snapshot.task_size_label)
+        self.assertIsNone(snapshot.feature_planned_child_task_count)
+        self.assertEqual(snapshot.sizing_sources["task"], "unavailable")
+        self.assertEqual(snapshot.sizing_sources["feature"], "unavailable")
+        self.assertEqual(snapshot.sizing_sources["shipment"], "unavailable")
+
+    def test_default_runner_passes_timeout_to_subprocess(self) -> None:
+        """Copilot review t7: the default runner must bound every backlogit
+        subprocess with a timeout so a hung process cannot stall indefinitely."""
+        run = _default_runner("backlogit", timeout=12.0)
+        with mock.patch("autoharness.telemetry.sizing.subprocess.run") as mocked:
+            mocked.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="{}")
+            run(("sync",), self.workspace)
+
+        self.assertEqual(mocked.call_args.kwargs["timeout"], 12.0)
 
 
 if __name__ == "__main__":
