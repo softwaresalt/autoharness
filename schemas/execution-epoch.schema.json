@@ -1,0 +1,1631 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/softwaresalt/autoharness/schemas/execution-epoch.schema.json",
+  "title": "ExecutionEpoch",
+  "description": "ExecutionEpoch v1.1 serialized epoch record. This schema describes root correlation fields including feature_id, token-economics fields, provenance maps, route/operation/outcome roll-ups, per-tool gap maps, and the nullable WorkSizingSnapshot payload. Null/unavailable values distinguish missing metrics from observed zero counts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "epoch_id",
+    "task_id",
+    "backlog_item_id",
+    "timestamp",
+    "route",
+    "economics",
+    "operations",
+    "outcome"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.1.0",
+      "description": "ExecutionEpoch schema version."
+    },
+    "epoch_id": {
+      "type": "string",
+      "minLength": 32,
+      "maxLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "Canonical lowercase UUID hex execution epoch ID captured before task-close replay."
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "Task ID for the task epoch."
+    },
+    "backlog_item_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "Backlog work item ID; for task epochs this is the task_id."
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO-8601 epoch close timestamp."
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Workspace correlation ID, or null when unavailable."
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Agent/session correlation ID, or null when unavailable."
+    },
+    "agent_role": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Agent role correlation such as ship, or null when unavailable."
+    },
+    "phase": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Lifecycle phase correlation, or null when unavailable."
+    },
+    "feature_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Feature correlation ID supplied by backlogit/operator, or null when unavailable."
+    },
+    "shipment_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Shipment correlation ID supplied by backlogit/operator, or null when unavailable."
+    },
+    "branch": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Git branch correlation, or null when unavailable."
+    },
+    "commit_sha": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Git commit correlation, or null when unavailable."
+    },
+    "route": {
+      "type": "object",
+      "description": "RouteConfiguration payload: model route and route-kind roll-up fields.",
+      "additionalProperties": false,
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Models used during the epoch."
+        },
+        "route_kinds": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "enum": [
+                  "structural_graph",
+                  "doc_index",
+                  "backlog_index",
+                  "intercom",
+                  "raw_search",
+                  "raw_read",
+                  "none"
+                ]
+              },
+              {
+                "type": "string",
+                "pattern": "^x-[a-z0-9-]+$"
+              }
+            ],
+            "description": "Route kind value."
+          },
+          "description": "Route kinds used during the epoch for tool-offload reporting."
+        },
+        "primary_route_kind": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "enum": [
+                    "structural_graph",
+                    "doc_index",
+                    "backlog_index",
+                    "intercom",
+                    "raw_search",
+                    "raw_read",
+                    "none"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "pattern": "^x-[a-z0-9-]+$"
+                }
+              ],
+              "description": "First/primary route kind derived from route_kinds when known, otherwise null."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First/primary route kind derived from route_kinds when known, otherwise null."
+        }
+      }
+    },
+    "economics": {
+      "type": "object",
+      "description": "EconomicPayload token, cost, duration, estimate, and provenance metrics. Null means unavailable; zero means an observed zero count.",
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Input token consumption for the epoch."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Input token consumption for the epoch."
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Output token generation for the epoch."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Output token generation for the epoch."
+        },
+        "cached_input_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Host-reported cached input tokens."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Host-reported cached input tokens."
+        },
+        "cumulative_input_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Final cumulative input-token total; do not sum across turns."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Final cumulative input-token total; do not sum across turns."
+        },
+        "cumulative_output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Final cumulative output-token total; do not sum across turns."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Final cumulative output-token total; do not sum across turns."
+        },
+        "context_tokens_before": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Context tokens before the epoch/turn when available."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Context tokens before the epoch/turn when available."
+        },
+        "context_tokens_after": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Context tokens after the epoch/turn when available."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Context tokens after the epoch/turn when available."
+        },
+        "context_area_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Estimated area-under-context tokens for the epoch."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Estimated area-under-context tokens for the epoch."
+        },
+        "avoided_read_estimated_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Estimated tokens avoided through tool offload."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Estimated tokens avoided through tool offload."
+        },
+        "tool_output_estimated_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Estimated tokens introduced by tool output."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Estimated tokens introduced by tool output."
+        },
+        "cogs_usd": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Cost of goods sold in USD for the epoch."
+        },
+        "duration_seconds": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Wall-clock duration in seconds."
+        },
+        "metric_sources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "host_reported",
+              "estimated",
+              "derived",
+              "unavailable",
+              "not_applicable",
+              "host",
+              "backlogit",
+              "operator"
+            ]
+          },
+          "description": "Map from populated metric field name to its source. Use unavailable or not_applicable for legacy or unavailable metrics so zero counts and nullable estimates never imply precision."
+        },
+        "metric_quality": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "estimated",
+              "derived",
+              "unavailable",
+              "not_applicable"
+            ]
+          },
+          "description": "Map from populated metric field name to metric quality. Use unavailable or not_applicable for legacy/unavailable values so estimates and zero counts never imply false precision."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "input_tokens": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "input_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "input_tokens"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "input_tokens"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "output_tokens": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "output_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "output_tokens"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "output_tokens"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cached_input_tokens": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "cached_input_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "cached_input_tokens"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "cached_input_tokens"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cumulative_input_tokens": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "cumulative_input_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "cumulative_input_tokens"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "cumulative_input_tokens"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cumulative_output_tokens": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "cumulative_output_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "cumulative_output_tokens"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "cumulative_output_tokens"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "context_tokens_before": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "context_tokens_before"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "context_tokens_before"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "context_tokens_before"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "context_tokens_after": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "context_tokens_after"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "context_tokens_after"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "context_tokens_after"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "context_area_tokens": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "context_area_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "context_area_tokens"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "context_area_tokens"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "avoided_read_estimated_tokens": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "avoided_read_estimated_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "avoided_read_estimated_tokens"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "avoided_read_estimated_tokens"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "tool_output_estimated_tokens": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "tool_output_estimated_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "tool_output_estimated_tokens"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "tool_output_estimated_tokens"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cogs_usd": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "cogs_usd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "cogs_usd"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "cogs_usd"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "duration_seconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "duration_seconds"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "duration_seconds"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "duration_seconds"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "operations": {
+      "type": "object",
+      "description": "OperationalReality payload: CLI/tool usage, route counts, offload counts, and expected-vs-observed gap maps.",
+      "additionalProperties": false,
+      "properties": {
+        "cli_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "CLI tools used during the epoch."
+        },
+        "tool_surfaces": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "mcp",
+              "cli",
+              "shell",
+              "builtin",
+              "api",
+              "unknown"
+            ]
+          },
+          "description": "Tool surfaces observed during the epoch."
+        },
+        "retrieval_packs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Capability packs used for retrieval/offload."
+        },
+        "route_kind_counts": {
+          "type": "object",
+          "description": "Counts by route kind for epoch-level offload reporting.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count for this key; zero means an observed zero count."
+          }
+        },
+        "routed_lookup_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of routed/indexed lookups."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Count of routed/indexed lookups."
+        },
+        "raw_file_read_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of raw file reads."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Count of raw file reads."
+        },
+        "raw_search_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of raw grep/glob/search fallbacks."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Count of raw grep/glob/search fallbacks."
+        },
+        "avoided_file_read_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Estimated count of raw file reads avoided by offload."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Estimated count of raw file reads avoided by offload."
+        },
+        "tool_output_bytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Bytes returned by tools after redaction/truncation."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Bytes returned by tools after redaction/truncation."
+        },
+        "expected_tool_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total expected tool invocations."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Total expected tool invocations."
+        },
+        "observed_expected_tool_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Observed invocations of expected tools."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Observed invocations of expected tools."
+        },
+        "missing_expected_tool_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Expected tool invocations not observed."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Expected tool invocations not observed."
+        },
+        "expected_tool_counts": {
+          "type": "object",
+          "description": "Per-tool expected invocation counts.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count for this key; zero means an observed zero count."
+          }
+        },
+        "observed_tool_counts": {
+          "type": "object",
+          "description": "Per-tool observed expected-tool invocation counts.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count for this key; zero means an observed zero count."
+          }
+        },
+        "missing_expected_tool_counts": {
+          "type": "object",
+          "description": "Per-tool expected-minus-observed gap counts.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count for this key; zero means an observed zero count."
+          }
+        },
+        "degraded_tool_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Routing/offload diagnostic count for tools invoked through degraded fallback behavior."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Routing/offload diagnostic count for tools invoked through degraded fallback behavior."
+        },
+        "stale_or_unavailable_index_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of stale or unavailable index conditions observed for routed tools."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Count of stale or unavailable index conditions observed for routed tools."
+        },
+        "metric_sources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "host_reported",
+              "estimated",
+              "derived",
+              "unavailable",
+              "not_applicable",
+              "host",
+              "backlogit",
+              "operator"
+            ]
+          },
+          "description": "Map from populated metric field name to its source. Use unavailable or not_applicable for legacy or unavailable metrics so zero counts and nullable estimates never imply precision."
+        },
+        "metric_quality": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "estimated",
+              "derived",
+              "unavailable",
+              "not_applicable"
+            ]
+          },
+          "description": "Map from populated metric field name to metric quality. Use unavailable or not_applicable for legacy/unavailable values so estimates and zero counts never imply false precision."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "routed_lookup_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "routed_lookup_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "routed_lookup_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "routed_lookup_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "raw_file_read_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "raw_file_read_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "raw_file_read_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "raw_file_read_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "raw_search_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "raw_search_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "raw_search_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "raw_search_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "avoided_file_read_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "avoided_file_read_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "avoided_file_read_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "avoided_file_read_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "tool_output_bytes": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "tool_output_bytes"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "tool_output_bytes"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "tool_output_bytes"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "expected_tool_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "expected_tool_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "expected_tool_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "expected_tool_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "observed_expected_tool_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "observed_expected_tool_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "observed_expected_tool_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "observed_expected_tool_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "missing_expected_tool_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "missing_expected_tool_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "missing_expected_tool_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "missing_expected_tool_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "degraded_tool_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "degraded_tool_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "degraded_tool_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "degraded_tool_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stale_or_unavailable_index_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "stale_or_unavailable_index_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "stale_or_unavailable_index_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "stale_or_unavailable_index_count"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "outcome": {
+      "type": "object",
+      "description": "AbsoluteOutcome payload: gate exit codes and execution-status roll-up counts.",
+      "additionalProperties": false,
+      "properties": {
+        "gate_exit_codes": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Signed gate/process exit codes; negative values are intentionally allowed."
+        },
+        "tool_failure_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of tool operations whose execution outcome failed."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Count of tool operations whose execution outcome failed."
+        },
+        "tool_degraded_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of tool operations whose execution outcome status was degraded."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Count of tool operations whose execution outcome status was degraded."
+        },
+        "tool_gap_count": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Count of missing expected-tool invocation gaps; equals missing_expected_tool_count by model/report invariant."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Count of missing expected-tool invocation gaps; equals missing_expected_tool_count by model/report invariant."
+        },
+        "metric_sources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "host_reported",
+              "estimated",
+              "derived",
+              "unavailable",
+              "not_applicable",
+              "host",
+              "backlogit",
+              "operator"
+            ]
+          },
+          "description": "Map from populated metric field name to its source. Use unavailable or not_applicable for legacy or unavailable metrics so zero counts and nullable estimates never imply precision."
+        },
+        "metric_quality": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "estimated",
+              "derived",
+              "unavailable",
+              "not_applicable"
+            ]
+          },
+          "description": "Map from populated metric field name to metric quality. Use unavailable or not_applicable for legacy/unavailable values so estimates and zero counts never imply false precision."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "tool_failure_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "tool_failure_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "tool_failure_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "tool_failure_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "tool_degraded_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "tool_degraded_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "tool_degraded_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "tool_degraded_count"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "tool_gap_count": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "tool_gap_count"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metric_sources": {
+                "required": [
+                  "tool_gap_count"
+                ]
+              },
+              "metric_quality": {
+                "required": [
+                  "tool_gap_count"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "sizing": {
+      "anyOf": [
+        {
+          "type": "object",
+          "description": "Nullable WorkSizingSnapshot captured at the pre_execution boundary. It stores level-relative labels, source/revision/ruleset metadata, child/manifest composition counts, histograms, and membership hashes. It has no numeric point fields or implicit label arithmetic; null/unavailable values mean the planned metric was unavailable and must not imply precision.",
+          "additionalProperties": false,
+          "properties": {
+            "snapshot_at": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO-8601 capture time, or null when unavailable."
+            },
+            "snapshot_boundary": {
+              "const": "pre_execution",
+              "description": "The ratified 079-F snapshot boundary."
+            },
+            "task_size_label": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "XS",
+                    "S",
+                    "M",
+                    "L",
+                    "XL"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Task-level planned size label, or null when unavailable."
+            },
+            "feature_planned_size_label": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "XS",
+                    "S",
+                    "M",
+                    "L",
+                    "XL"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Feature-level planned size label, or null when unavailable."
+            },
+            "shipment_planned_size_label": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "XS",
+                    "S",
+                    "M",
+                    "L",
+                    "XL"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Shipment-level planned size label, or null when unavailable."
+            },
+            "sizing_sources": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Per-level sizing source map; unavailable/not_applicable values preserve missing-source semantics."
+            },
+            "sizing_source_revisions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Per-level planned-estimate revision captured at pre_execution."
+            },
+            "sizing_ruleset_versions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Per-level ruleset or source contract version metadata."
+            },
+            "feature_planned_child_task_count": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Known unique feature child task count, or null when membership is unavailable."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Known unique feature child task count, or null when membership is unavailable."
+            },
+            "feature_planned_child_size_histogram": {
+              "type": "object",
+              "description": "Feature child task count by size label plus unsized; there is no unavailable bucket.",
+              "additionalProperties": false,
+              "properties": {
+                "XS": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for XS."
+                },
+                "S": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for S."
+                },
+                "M": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for M."
+                },
+                "L": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for L."
+                },
+                "XL": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for XL."
+                },
+                "unsized": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for unsized."
+                }
+              }
+            },
+            "feature_child_membership_hash": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "SHA-256 hash of the canonical unique child task ID set, or null when membership is unavailable."
+            },
+            "feature_skipped_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Diagnostic list of feature child IDs skipped/unresolved during composition (079.013-T). Excluded from the count and histogram but surfaced here; empty when none were skipped."
+            },
+            "shipment_manifest_task_count": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Known unique shipment task count, or null when membership is unavailable."
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Known unique shipment task count, or null when membership is unavailable."
+            },
+            "shipment_manifest_size_histogram": {
+              "type": "object",
+              "description": "Shipment task count by size label plus unsized; there is no unavailable bucket.",
+              "additionalProperties": false,
+              "properties": {
+                "XS": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for XS."
+                },
+                "S": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for S."
+                },
+                "M": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for M."
+                },
+                "L": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for L."
+                },
+                "XL": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for XL."
+                },
+                "unsized": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Count for unsized."
+                }
+              }
+            },
+            "shipment_membership_hash": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "SHA-256 hash of the canonical unique shipment task ID set, or null when membership is unavailable."
+            },
+            "shipment_skipped_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Diagnostic list of shipment manifest IDs skipped/unresolved during composition (079.013-T). Excluded from the count and histogram but surfaced here; empty when none were skipped."
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Nullable nested WorkSizingSnapshot payload."
+    }
+  }
+}

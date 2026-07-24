@@ -41,6 +41,7 @@ Usage:
   autoharness gate check        Run deterministic validation gates on modified files
   autoharness gate size         Estimate a task's T-shirt size and write it back
   autoharness gate copilot-review  Fail-closed pre-merge gate: Copilot review complete + threads resolved
+  autoharness telemetry begin   Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
@@ -614,12 +615,22 @@ def _gate_copilot_review_command(rest: list[str]) -> None:
 
 
 TELEMETRY_USAGE = """\
-autoharness telemetry record — record an execution epoch to the configured sink(s)
+autoharness telemetry — pre-execution context and epoch recording
 
 Usage:
+  autoharness telemetry begin --task-id <id> [--epoch-id <uuid>]
+                              [--workspace <path>] [--json]
+                              [--backlog-item-id <id>] [--feature-id <id>]
+                              [--shipment-id <id>] [--workspace-id <id>]
+                              [--session-id <id>] [--agent-role <role>]
+                              [--phase <phase>] [--branch <name>]
+                              [--commit-sha <sha>] [--capture-backlogit-sizing]
+                              [--backlogit <path>]
   autoharness telemetry record [--from-json <path>] [--workspace <path>] [--json]
 
 Options:
+  begin creates a stable pre-execution context artifact and returns a repo-local
+  context_ref. When telemetry is disabled it is a structured no-op.
   --from-json <path>  Read the epoch payload (a JSON object) from a file.
                       When omitted, the payload is read from stdin.
   --workspace, -w     Workspace root containing .autoharness/config.yaml. Default: .
@@ -638,8 +649,74 @@ Exit codes:
 """
 
 
+def _parse_telemetry_begin_args(args: list[str]) -> dict:
+    parsed: dict = {
+        "task_id": None,
+        "epoch_id": None,
+        "workspace": Path("."),
+        "emit_json": False,
+        "backlog_item_id": None,
+        "feature_id": None,
+        "shipment_id": None,
+        "workspace_id": None,
+        "session_id": None,
+        "agent_role": None,
+        "phase": None,
+        "branch": None,
+        "commit_sha": None,
+        "capture_backlogit_sizing": False,
+        "backlogit": "backlogit",
+    }
+    value_flags = {
+        "--task-id": "task_id",
+        "--epoch-id": "epoch_id",
+        "--backlog-item-id": "backlog_item_id",
+        "--feature-id": "feature_id",
+        "--shipment-id": "shipment_id",
+        "--workspace-id": "workspace_id",
+        "--session-id": "session_id",
+        "--agent-role": "agent_role",
+        "--phase": "phase",
+        "--branch": "branch",
+        "--commit-sha": "commit_sha",
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        elif arg == "--capture-backlogit-sizing":
+            parsed["capture_backlogit_sizing"] = True
+        elif arg == "--backlogit":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --backlogit")
+            parsed["backlogit"] = args[index]
+        elif arg in value_flags:
+            index += 1
+            if index >= len(args):
+                raise ValueError(f"Missing value for {arg}")
+            parsed[value_flags[arg]] = args[index]
+        else:
+            raise ValueError(f"Unknown telemetry begin argument: {arg}")
+        index += 1
+    if parsed["task_id"] is None:
+        raise ValueError("telemetry begin requires --task-id <id>")
+    return parsed
+
+
 def _parse_telemetry_record_args(args: list[str]) -> dict:
-    parsed: dict = {"from_json": None, "workspace": Path("."), "emit_json": False}
+    parsed: dict = {
+        "from_json": None,
+        "workspace": Path("."),
+        "emit_json": False,
+        "context_ref": None,
+    }
     index = 0
     while index < len(args):
         arg = args[index]
@@ -655,6 +732,11 @@ def _parse_telemetry_record_args(args: list[str]) -> dict:
             parsed["workspace"] = Path(args[index])
         elif arg == "--json":
             parsed["emit_json"] = True
+        elif arg == "--context-ref":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --context-ref")
+            parsed["context_ref"] = args[index]
         else:
             raise ValueError(f"Unknown telemetry record argument: {arg}")
         index += 1
@@ -668,7 +750,7 @@ def _telemetry_command(args: list[str]) -> None:
         return
 
     subcommand = args[0]
-    if subcommand != "record":
+    if subcommand not in ("begin", "record"):
         print(f"Unknown telemetry subcommand: {subcommand}", file=sys.stderr)
         print(TELEMETRY_USAGE, file=sys.stderr)
         sys.exit(2)
@@ -677,14 +759,149 @@ def _telemetry_command(args: list[str]) -> None:
         print(TELEMETRY_USAGE)
         return
 
+    if subcommand == "begin":
+        _telemetry_begin_command(args[1:])
+    else:
+        _telemetry_record_command(args[1:])
+
+
+def _telemetry_begin_command(rest: list[str]) -> None:
     try:
-        parsed = _parse_telemetry_record_args(args[1:])
+        parsed = _parse_telemetry_begin_args(rest)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(TELEMETRY_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.telemetry.context import TelemetryContextError, begin_context
+    from autoharness.telemetry.record import load_workspace_telemetry_config
+
+    config = load_workspace_telemetry_config(parsed["workspace"])
+    sizing = None
+    if parsed["capture_backlogit_sizing"] and config.enabled:
+        from autoharness.telemetry.sizing import capture_work_sizing_snapshot
+
+        sizing = capture_work_sizing_snapshot(
+            workspace=parsed["workspace"],
+            task_id=parsed["task_id"],
+            feature_id=parsed["feature_id"],
+            shipment_id=parsed["shipment_id"],
+            backlogit_bin=parsed["backlogit"],
+        )
+    try:
+        result = begin_context(
+            config,
+            parsed["workspace"],
+            task_id=parsed["task_id"],
+            epoch_id=parsed["epoch_id"],
+            backlog_item_id=parsed["backlog_item_id"],
+            feature_id=parsed["feature_id"],
+            shipment_id=parsed["shipment_id"],
+            workspace_id=parsed["workspace_id"],
+            session_id=parsed["session_id"],
+            agent_role=parsed["agent_role"],
+            phase=parsed["phase"],
+            branch=parsed["branch"],
+            commit_sha=parsed["commit_sha"],
+            sizing=sizing,
+        )
+    except TelemetryContextError as exc:
+        print(f"Invalid telemetry begin context: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    if parsed["emit_json"]:
+        print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    elif not result.enabled:
+        print("Telemetry disabled (mode: none or absent); context not created.")
+    else:
+        print(f"Telemetry context {result.status}: {result.context_ref}")
+
+
+def _validate_record_epoch_id(value: object) -> str:
+    import uuid
+
+    if value is None or not str(value).strip():
+        from autoharness.telemetry.epoch import EpochError
+
+        raise EpochError(
+            "Replayable task-close payload is missing required canonical epoch_id; "
+            "use telemetry begin or supply a pre-existing UUID hex ID."
+        )
+    try:
+        canonical = uuid.UUID(str(value)).hex
+    except (TypeError, ValueError) as exc:
+        from autoharness.telemetry.epoch import EpochError
+
+        raise EpochError("Replayable task-close epoch_id must be parseable as UUID.") from exc
+    if str(value) != canonical:
+        from autoharness.telemetry.epoch import EpochError
+
+        raise EpochError("Replayable task-close epoch_id must be canonical lowercase UUID hex.")
+    return canonical
+
+
+def _merge_telemetry_context_payload(payload: object, context_payload: dict) -> dict:
+    from autoharness.telemetry.epoch import EpochError
+
+    if not isinstance(payload, dict):
+        raise EpochError("Epoch payload must be a JSON object (mapping).")
+    context_epoch_id = _validate_record_epoch_id(context_payload.get("epoch_id"))
+    if payload.get("epoch_id") is not None:
+        supplied = _validate_record_epoch_id(payload.get("epoch_id"))
+        if supplied != context_epoch_id:
+            raise EpochError("Payload epoch_id disagrees with telemetry context epoch_id.")
+    merged = dict(payload)
+    # Stable task-identity anchors are always frozen from the pre-execution
+    # context so a replayable close cannot disagree with the claimed identity.
+    for name in ("epoch_id", "task_id", "backlog_item_id"):
+        if name in context_payload:
+            merged[name] = context_payload[name]
+    # Optional correlation fields are only overridden when the context actually
+    # captured a value. _build_context_payload always emits these keys (as null
+    # when absent), so a plain `name in context_payload` check would erase
+    # branch/commit_sha/session/agent/phase/feature/shipment values supplied at
+    # close time whenever Ship did not pass them to `telemetry begin`.
+    for name in (
+        "workspace_id",
+        "session_id",
+        "agent_role",
+        "phase",
+        "feature_id",
+        "shipment_id",
+        "branch",
+        "commit_sha",
+    ):
+        value = context_payload.get(name)
+        if value is not None:
+            merged[name] = value
+    if "sizing" in context_payload:
+        merged["sizing"] = context_payload["sizing"]
+    # `captured_at` is the pre-execution (begin) timestamp. It is used as the
+    # epoch-close `timestamp` ONLY as a deterministic fallback when the close
+    # payload omits its own timestamp: a context-replayable close MUST hash to a
+    # stable digest across retries (see the ratified idempotency contract in
+    # test_record_context_idempotency_and_conflict_outcomes), and `captured_at`
+    # is the only close-invariant time persisted in the context. When close-time
+    # accuracy matters, the harness supplies an explicit `timestamp` in the close
+    # payload, which always takes precedence over this fallback.
+    if not merged.get("timestamp") and context_payload.get("captured_at"):
+        merged["timestamp"] = context_payload["captured_at"]
+    return merged
+
+
+def _telemetry_record_command(rest: list[str]) -> None:
+    try:
+        parsed = _parse_telemetry_record_args(rest)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         print(TELEMETRY_USAGE, file=sys.stderr)
         sys.exit(2)
 
     from autoharness.telemetry.epoch import EpochError, ExecutionEpoch
+    from autoharness.telemetry.context import (
+        TelemetryContextError,
+        load_context_ref,
+    )
     from autoharness.telemetry.record import (
         RecordSummary,
         load_workspace_telemetry_config,
@@ -726,12 +943,24 @@ def _telemetry_command(args: list[str]) -> None:
 
     # All payload shape/coercion failures are normalized to EpochError → exit 2.
     try:
+        context_payload = None
+        if parsed["context_ref"] is not None:
+            context_payload = load_context_ref(config, parsed["workspace"], parsed["context_ref"])
+            payload = _merge_telemetry_context_payload(payload, context_payload)
+        else:
+            _validate_record_epoch_id(payload.get("epoch_id") if isinstance(payload, dict) else None)
         epoch = ExecutionEpoch.from_mapping(payload)
+    except TelemetryContextError as exc:
+        print(f"Invalid telemetry context: {exc}", file=sys.stderr)
+        sys.exit(2)
     except EpochError as exc:
         print(f"Invalid epoch payload: {exc}", file=sys.stderr)
         sys.exit(2)
 
     summary = record_epoch(epoch, config)
+    if parsed["context_ref"] is not None and context_payload is not None:
+        summary.context_ref = parsed["context_ref"]
+        summary.context_digest = context_payload.get("context_digest")
 
     if parsed["emit_json"]:
         print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))

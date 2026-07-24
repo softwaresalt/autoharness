@@ -161,8 +161,9 @@ When `shipment_id` is provided as input (as produced by Stage), validate it befo
 build work begins:
 
 1. Load the shipment using `{{OP_GET_SHIPMENT_MCP}}`. Confirm it is in `{{STATUS_QUEUED}}` or `{{STATUS_ACTIVE}}` status.
-2. Confirm the shipment has explicit item membership (feature + tasks).
-3. Verify no item in the shipment is missing a covering feature parent.
+2. Confirm the shipment has explicit task item membership. Task-only manifests are valid; task-only manifests are accepted by resolving the covering feature through each task's `parent_id` instead of requiring the parent feature to appear as a shipment item.
+3. Verify no task item in the shipment is missing a covering feature parent.
+3a. For shipments that include sizing/context tasks (for example 092-S), do not treat the shipment as execution-ready while the backlogit sizing adapter task (`079.013-T`) or the Ship telemetry handoff task (`079.015-T`) remains incomplete. These tasks are dependency-ordered through `dependencies`, not `blocked-on-external`.
 3a. **Branch Creation Gate (P-011, NON-NEGOTIABLE) + Worktree Topology Gate (P-016, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active and no prohibited parallel worktree is attached:
     - Check current branch:
       `git branch --show-current`
@@ -277,6 +278,23 @@ Update task status to `{{STATUS_ACTIVE}}` using the backlog tool's move operatio
 
 When the `agent-intercom` capability pack is installed, broadcast the task claim and current task ID.
 
+#### Step 4.1a: Begin Telemetry Context
+
+Immediately after claim and before Pre-build knowledge retrieval, build-feature delegation,
+implementation tool work, or review feedback, start a stable telemetry context:
+
+```text
+autoharness telemetry begin --task-id {item_id} --backlog-item-id {item_id} \
+  --feature-id {parent_id} --shipment-id {shipment_id} --capture-backlogit-sizing --json
+```
+
+* Parse the structured result and carry `context_ref` plus the stable `epoch_id`
+  through the task loop.
+* If the result is `disabled`, skip context carry/record close for this task
+  without failing the lifecycle or creating telemetry artifacts.
+* Do not re-read backlogit size, hierarchy, or shipment membership after this
+  pre-execution capture; the context's `WorkSizingSnapshot` is immutable.
+
 #### Step 4.2: Delegate to Build Feature
 
 When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoking build-feature for {item_id}` before delegating.
@@ -326,11 +344,17 @@ When the `adversarial-review` capability pack is installed, Ship invokes the **a
 #### Step 4.5: Complete Task
 
 1. Commit changes with a conventional commit message
-2. Update task status to `{{STATUS_DONE}}` using the backlog tool's complete operation
-3. If the `backlogit` capability pack is installed and commit-tracking is supported, associate the commit with the task
-4. Write a memory checkpoint to `{{DOCS_MEMORY}}/`
-5. If the task required 3+ attempts, invoke the compound skill to capture learnings
-6. When the `continuous-learning` capability pack is installed, invoke the **observe** skill for any recurring patterns encountered during the task — repeated review findings, recurring build failures, operator corrections, or workarounds that kept appearing. Skip if the task was routine.
+2. If telemetry begin returned an enabled `context_ref`, create a close-time
+   epoch payload from the task roll-up metrics and record it before marking the
+   task done:
+   `autoharness telemetry record --context-ref {context_ref} --from-json {epoch_payload_path} --json`.
+   The record path must preserve the same stable epoch_id and must not re-read
+   backlogit size, hierarchy, or shipment membership at close.
+3. Move the task to done by updating status to `{{STATUS_DONE}}` using the backlog tool's complete operation
+4. If the `backlogit` capability pack is installed and commit-tracking is supported, associate the commit with the task
+5. Write a memory checkpoint to `{{DOCS_MEMORY}}/`
+6. If the task required 3+ attempts, invoke the compound skill to capture learnings
+7. When the `continuous-learning` capability pack is installed, invoke the **observe** skill for any recurring patterns encountered during the task — repeated review findings, recurring build failures, operator corrections, or workarounds that kept appearing. Skip if the task was routine.
 
 If the `agent-intercom` capability pack is installed, broadcast task completion and any blocked / retry conditions.
 

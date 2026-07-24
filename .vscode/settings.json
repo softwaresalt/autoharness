@@ -1,7 +1,6 @@
 {
     "chat.agentFilesLocations": [
-        ".github/agents",
-        ".github/local-agents"
+        ".github/agents"
     ],
     "chat.tools.terminal.autoApprove": {
         "/^cargo (build|test|run|clippy|fmt|check|doc|update|install|search|publish|login|logout|new|init|add|upgrade|version|help|bench)(\\s[^;|&`]*)?(\\s*(>|>>|2>&1|\\|\\s*(Out-File|Set-Content|Out-String))\\s*[^;|&`]*)*$/": {
@@ -25,18 +24,6 @@
             "matchCommandLine": true
         },
         "/^cmd /c \"cargo (test|check|clippy|fmt|build|doc|bench)(\\s[^;|&`]*)?\"(\\s*[;&|]+\\s*echo\\s.*)?$/": {
-            "approve": true,
-            "matchCommandLine": true
-        },
-        "/^pwsh -File \\.specify/scripts/powershell/check-prerequisites\\.ps1 -Json -RequireTasks -IncludeTasks$/": {
-            "approve": true,
-            "matchCommandLine": true
-        },
-        "/^pwsh -NoProfile -File \\.specify/scripts/powershell/check-prerequisites\\.ps1 -Json -RequireTasks -IncludeTasks$/": {
-            "approve": true,
-            "matchCommandLine": true
-        },
-        "/^pwsh -NoProfile -File \\.specify/scripts/powershell/check-prerequisites\\.ps1 -Json$/": {
             "approve": true,
             "matchCommandLine": true
         }
