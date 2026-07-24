@@ -14,6 +14,16 @@
       "env": {"ENGRAM_WORKSPACE": "${workspace_folder}"},
       "tools": ["*"]
     },
+    "graphtor-docs": {
+      "type": "stdio",
+      "command": "graphtor-docs",
+      "args": ["serve"],
+      "env": {
+        "GRAPHTOR_DB_PATH": "${workspace_folder}/.graphtor/graph.db",
+        "GRAPHTOR_SOURCES": "${workspace_folder}/.graphtor/config/sources.yaml"
+      },
+      "tools": ["*"]
+    },
     "context7": {
       "type": "stdio",
       "command": "bunx",
