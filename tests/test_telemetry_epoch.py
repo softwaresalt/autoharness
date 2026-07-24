@@ -103,6 +103,43 @@ class ExecutionEpochTests(unittest.TestCase):
         # Explicitly provided provenance for populated metrics is preserved.
         self.assertEqual(payload.metric_quality["input_tokens"], "observed")
 
+    def test_economics_from_mapping_rejects_negative(self) -> None:
+        """Regression (Copilot review r3 B3): the v1.1 economics contract sets
+        ``minimum: 0``. A negative value (e.g. ``input_tokens: -1``) must be
+        rejected rather than accepted, persisted, and subtracted from aggregate
+        totals."""
+        with self.assertRaises(EpochError):
+            EconomicPayload.from_mapping({"input_tokens": -1})
+
+    def test_operations_from_mapping_tolerates_null_and_rejects_negative(self) -> None:
+        """Regression (Copilot review r3 B1): the operation counts are
+        ``anyOf integer|null`` with ``minimum: 0``. Null coerces to an unavailable
+        placeholder (never ``int(None)`` crash) and negatives are rejected."""
+        payload = OperationalReality.from_mapping(
+            {"cli_tools": ["git"], "raw_search_count": None, "routed_lookup_count": 4}
+        )
+        self.assertEqual(payload.raw_search_count, 0)
+        self.assertEqual(payload.metric_quality["raw_search_count"], "unavailable")
+        self.assertEqual(payload.metric_sources["raw_search_count"], "unavailable")
+        self.assertEqual(payload.routed_lookup_count, 4)
+
+        with self.assertRaises(EpochError):
+            OperationalReality.from_mapping({"raw_file_read_count": -3})
+
+    def test_outcome_from_mapping_tolerates_null_and_rejects_negative(self) -> None:
+        """Regression (Copilot review r3 B2): the outcome rollup counts are
+        ``anyOf integer|null`` with ``minimum: 0``. Null coerces to an unavailable
+        placeholder and negatives are rejected."""
+        payload = AbsoluteOutcome.from_mapping(
+            {"gate_exit_codes": [0], "tool_failure_count": None, "tool_gap_count": 2}
+        )
+        self.assertEqual(payload.tool_failure_count, 0)
+        self.assertEqual(payload.metric_quality["tool_failure_count"], "unavailable")
+        self.assertEqual(payload.tool_gap_count, 2)
+
+        with self.assertRaises(EpochError):
+            AbsoluteOutcome.from_mapping({"gate_exit_codes": [0], "tool_degraded_count": -1})
+
     def test_missing_required_payload_class_raises(self) -> None:
         record = _full_epoch().to_record()
         del record["outcome"]

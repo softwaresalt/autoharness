@@ -126,7 +126,7 @@ artifacts:
   - path: "start.ps1"
     primitive: 1
     template: "scripts/start.ps1.tmpl"
-    checksum: "3528f7d51afdf65350b012db0ce312aa88b38d02cd7b1ecaa00fdddd4bbe369b"
+    checksum: "4d4649da9aed780bd526b6836584a2fd1522fdcb197457e40603c03af5071442"
     note: "pre-existing, custom self-install version with agent injection"
   - path: "AGENTS.md"
     primitive: 9

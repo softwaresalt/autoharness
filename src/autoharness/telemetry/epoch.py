@@ -95,6 +95,36 @@ def _as_tuple(value: Any, field: str) -> tuple:
     return tuple(value)
 
 
+def _coerce_nonneg_metric(
+    data: Mapping[str, Any],
+    name: str,
+    caster: Any,
+    default: Any,
+    sources: dict[str, str],
+    quality: dict[str, str],
+) -> Any:
+    """Coerce a nullable, non-negative telemetry count from ``data``.
+
+    The v1.1 schema declares these counts ``anyOf [{integer|number, minimum: 0},
+    null]``. An explicit ``null`` means the metric is unavailable (distinct from an
+    observed zero per the telemetry-reference contract), so it is coerced to a
+    placeholder default and marked ``unavailable`` via provenance rather than
+    crashing on ``int(None)`` / ``float(None)``. A value below zero violates the
+    schema ``minimum: 0`` contract and is rejected as a controlled
+    :class:`EpochError` so negative telemetry cannot be persisted and subtracted
+    from aggregate totals.
+    """
+    raw = data.get(name, default)
+    if raw is None:
+        sources.setdefault(name, "unavailable")
+        quality.setdefault(name, "unavailable")
+        return default
+    value = caster(raw)
+    if value < 0:
+        raise EpochError(f"'{name}' must be >= 0 per schema (minimum: 0); got {value!r}.")
+    return value
+
+
 def _metric_is_populated(value: Any) -> bool:
     if isinstance(value, Mapping):
         return bool(value)
@@ -215,18 +245,15 @@ class EconomicPayload:
                 quality.setdefault(name, "unavailable")
 
         def _metric(name: str, caster: Any, default: Any) -> Any:
-            # Copilot review c4: the schema declares every economics metric
-            # ``anyOf integer|null``. An explicit null means the value is
-            # unavailable (distinct from an observed zero per the telemetry-reference
-            # contract), so coerce it to a zero placeholder and mark it unavailable
-            # via provenance instead of crashing on ``int(None)`` / ``float(None)``,
-            # mirroring the legacy normalization above.
-            raw = data.get(name, default)
-            if raw is None:
-                sources.setdefault(name, "unavailable")
-                quality.setdefault(name, "unavailable")
-                return default
-            return caster(raw)
+            # Copilot review c4 (nulls) + r3 B3 (negatives): the schema declares
+            # every economics metric ``anyOf integer|null`` with ``minimum: 0``.
+            # A null means the value is unavailable (distinct from an observed zero
+            # per the telemetry-reference contract), so coerce it to a zero
+            # placeholder and mark it unavailable via provenance instead of
+            # crashing on ``int(None)`` / ``float(None)``; a negative value violates
+            # ``minimum: 0`` and is rejected rather than persisted and subtracted
+            # from aggregate totals.
+            return _coerce_nonneg_metric(data, name, caster, default, sources, quality)
 
         return cls(
             input_tokens=_metric("input_tokens", int, 0),
@@ -325,28 +352,35 @@ class OperationalReality:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "OperationalReality":
+        # Copilot review r3 B1: the operation counts are ``anyOf integer|null``
+        # with ``minimum: 0``; normalize nulls to unavailable provenance and reject
+        # negatives instead of letting ``int(None)`` crash or negatives persist.
+        sources = dict(data.get("metric_sources") or {})
+        quality = dict(data.get("metric_quality") or {})
+
+        def _count(name: str) -> int:
+            return _coerce_nonneg_metric(data, name, int, 0, sources, quality)
+
         return cls(
             cli_tools=_as_tuple(data.get("cli_tools"), "operations.cli_tools"),
             tool_surfaces=_as_tuple(data.get("tool_surfaces"), "operations.tool_surfaces"),
             retrieval_packs=_as_tuple(data.get("retrieval_packs"), "operations.retrieval_packs"),
             route_kind_counts=dict(data.get("route_kind_counts") or {}),
-            routed_lookup_count=int(data.get("routed_lookup_count", 0)),
-            raw_file_read_count=int(data.get("raw_file_read_count", 0)),
-            raw_search_count=int(data.get("raw_search_count", 0)),
-            avoided_file_read_count=int(data.get("avoided_file_read_count", 0)),
-            tool_output_bytes=int(data.get("tool_output_bytes", 0)),
-            expected_tool_count=int(data.get("expected_tool_count", 0)),
-            observed_expected_tool_count=int(data.get("observed_expected_tool_count", 0)),
-            missing_expected_tool_count=int(data.get("missing_expected_tool_count", 0)),
+            routed_lookup_count=_count("routed_lookup_count"),
+            raw_file_read_count=_count("raw_file_read_count"),
+            raw_search_count=_count("raw_search_count"),
+            avoided_file_read_count=_count("avoided_file_read_count"),
+            tool_output_bytes=_count("tool_output_bytes"),
+            expected_tool_count=_count("expected_tool_count"),
+            observed_expected_tool_count=_count("observed_expected_tool_count"),
+            missing_expected_tool_count=_count("missing_expected_tool_count"),
             expected_tool_counts=dict(data.get("expected_tool_counts") or {}),
             observed_tool_counts=dict(data.get("observed_tool_counts") or {}),
             missing_expected_tool_counts=dict(data.get("missing_expected_tool_counts") or {}),
-            degraded_tool_count=int(data.get("degraded_tool_count", 0)),
-            stale_or_unavailable_index_count=int(
-                data.get("stale_or_unavailable_index_count", 0)
-            ),
-            metric_sources=dict(data.get("metric_sources") or {}),
-            metric_quality=dict(data.get("metric_quality") or {}),
+            degraded_tool_count=_count("degraded_tool_count"),
+            stale_or_unavailable_index_count=_count("stale_or_unavailable_index_count"),
+            metric_sources=sources,
+            metric_quality=quality,
         )
 
 
@@ -378,14 +412,23 @@ class AbsoluteOutcome:
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AbsoluteOutcome":
+        # Copilot review r3 B2: the outcome rollup counts are ``anyOf integer|null``
+        # with ``minimum: 0``; normalize nulls to unavailable provenance and reject
+        # negatives, mirroring the economic-metric normalization.
+        sources = dict(data.get("metric_sources") or {})
+        quality = dict(data.get("metric_quality") or {})
         codes = _as_tuple(data.get("gate_exit_codes"), "outcome.gate_exit_codes")
+
+        def _count(name: str) -> int:
+            return _coerce_nonneg_metric(data, name, int, 0, sources, quality)
+
         return cls(
             gate_exit_codes=tuple(int(c) for c in codes),
-            tool_failure_count=int(data.get("tool_failure_count", 0)),
-            tool_degraded_count=int(data.get("tool_degraded_count", 0)),
-            tool_gap_count=int(data.get("tool_gap_count", 0)),
-            metric_sources=dict(data.get("metric_sources") or {}),
-            metric_quality=dict(data.get("metric_quality") or {}),
+            tool_failure_count=_count("tool_failure_count"),
+            tool_degraded_count=_count("tool_degraded_count"),
+            tool_gap_count=_count("tool_gap_count"),
+            metric_sources=sources,
+            metric_quality=quality,
         )
 
     def missing_provenance(self) -> tuple[str, ...]:

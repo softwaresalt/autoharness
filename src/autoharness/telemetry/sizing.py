@@ -127,7 +127,22 @@ def _composition(
     if isinstance(histogram_raw, Mapping):
         for key, value in histogram_raw.items():
             if key in _SIZE_LABELS:
-                histogram[str(key)] = max(int(value), 0)
+                try:
+                    histogram[str(key)] = max(int(value), 0)
+                except (TypeError, ValueError, OverflowError):
+                    # Copilot review r3 B4: a malformed external histogram value
+                    # (null, non-numeric string, infinity) must not let
+                    # `telemetry begin` escape with an unhandled exception. Degrade
+                    # the whole composition to unavailable to preserve the
+                    # documented non-blocking sizing behavior, keeping the resolved
+                    # ruleset version and skipped IDs for diagnostics.
+                    return (
+                        None,
+                        {},
+                        None,
+                        str(comp.get("ruleset_version") or "unavailable"),
+                        skipped,
+                    )
     sized_count = sum(histogram.values())
     unsized = max(len(unique_ids) - sized_count, 0)
     if unsized:

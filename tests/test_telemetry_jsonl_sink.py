@@ -15,7 +15,11 @@ from autoharness.telemetry.epoch import (
     RouteConfiguration,
     WorkSizingSnapshot,
 )
-from autoharness.telemetry.jsonl_sink import TelemetryConflictError, append_epoch
+from autoharness.telemetry.jsonl_sink import (
+    TelemetryConflictError,
+    append_epoch,
+    find_epoch_digest,
+)
 
 
 def _epoch(task_id: str) -> ExecutionEpoch:
@@ -154,6 +158,26 @@ class JsonlSinkTests(unittest.TestCase):
         self.assertEqual(idempotent.status, "idempotent_replay")
         self.assertEqual(len(lines), 1)
         self.assertEqual(json.loads(lines[0])["economics"]["input_tokens"], 10)
+
+    def test_corrupt_historical_line_does_not_disable_emission(self) -> None:
+        """Regression (Copilot review r3 B5): every append preflights the whole
+        file via find_epoch_digest. A single corrupt historical line must not
+        raise JSONDecodeError and permanently disable future JSONL emission — the
+        scan skips malformed lines and keeps going, and appends still succeed."""
+        self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+        valid_line = json.dumps({"epoch_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "x": 1})
+        self.jsonl_path.write_text(
+            "{ this is not valid json\n" + valid_line + "\n", encoding="utf-8"
+        )
+
+        # The scan must find the well-formed record past the corrupt line.
+        self.assertIsNotNone(
+            find_epoch_digest(self.jsonl_path, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+        )
+
+        # A new append must still succeed despite the corrupt historical line.
+        result = append_epoch(_epoch("051.099-T"), self.jsonl_path)
+        self.assertEqual(result.status, "created")
 
 
 if __name__ == "__main__":

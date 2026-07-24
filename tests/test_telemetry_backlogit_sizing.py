@@ -183,6 +183,36 @@ class BacklogitSizingSnapshotTests(unittest.TestCase):
         self.assertIsNone(snapshot.feature_child_membership_hash)
         self.assertIsNone(snapshot.shipment_membership_hash)
 
+    def test_malformed_histogram_value_degrades_to_unavailable_without_raising(self) -> None:
+        """Regression (Copilot review r3 B4): a malformed external histogram value
+        (null, non-numeric string, infinity) must not let `telemetry begin` escape
+        with an unhandled exception from `int(value)`. The affected composition
+        degrades to unavailable while the non-blocking sizing contract holds and
+        other reads (the task label) remain intact."""
+        runner = FakeBacklogitRunner(
+            {
+                "079.013-T": _task("079.013-T", "M"),
+                "079-F": _rollup(
+                    "079-F",
+                    [{"id": "079.001-T", "artifact_type": "task"}],
+                    histogram={"M": "not-a-number"},
+                ),
+            }
+        )
+
+        snapshot = capture_work_sizing_snapshot(
+            workspace=self.workspace,
+            task_id="079.013-T",
+            feature_id="079-F",
+            runner=runner,
+            snapshot_at="2026-07-24T03:37:49Z",
+        )
+
+        self.assertEqual(snapshot.task_size_label, "M")
+        self.assertIsNone(snapshot.feature_planned_child_task_count)
+        self.assertEqual(snapshot.feature_planned_child_size_histogram, {})
+        self.assertIsNone(snapshot.feature_child_membership_hash)
+
     def test_reported_unsized_below_derived_keeps_composition_consistent(self) -> None:
         """Regression (Copilot review c6): the ``unsized`` bucket must derive
         purely from the canonical unique task-ID set so that count equals the sum

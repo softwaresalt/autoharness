@@ -59,7 +59,14 @@ def find_epoch_digest(jsonl_path: Path, epoch_id: str) -> str | None:
         for line in handle:
             if not line.strip():
                 continue
-            record = json.loads(line)
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                # Copilot review r3 B5: a single corrupt historical line must not
+                # raise and permanently disable future JSONL emission (every append
+                # runs this preflight scan). The reader already skips malformed
+                # lines; mirror that resilience here and keep scanning.
+                continue
             if isinstance(record, dict) and record.get("epoch_id") == epoch_id:
                 return _digest_record(record)
     return None
