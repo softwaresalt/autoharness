@@ -125,6 +125,34 @@ def _coerce_nonneg_metric(
     return value
 
 
+def _coerce_nonneg_count_map(value: Any, field_name: str) -> dict[str, int]:
+    """Validate a per-key telemetry count map has non-negative integer values.
+
+    The v1.1 schema declares these maps (route-kind and expected/observed/missing
+    per-tool counts) with non-negative integer values, but they were copied raw. A
+    negative entry such as ``{"engram.map_code": -1}`` would persist and subtract
+    from aggregate gap totals. Reject negatives and non-integers as a controlled
+    :class:`EpochError`, mirroring the scalar-count contract enforced by
+    :func:`_coerce_nonneg_metric`, so corrupt map telemetry cannot be stored.
+    """
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise EpochError(f"'{field_name}' must be a mapping of counts; got {type(value).__name__}.")
+    coerced: dict[str, int] = {}
+    for key, raw in value.items():
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise EpochError(
+                f"'{field_name}[{key!r}]' must be a non-negative integer per schema; got {raw!r}."
+            )
+        if raw < 0:
+            raise EpochError(
+                f"'{field_name}[{key!r}]' must be >= 0 per schema (minimum: 0); got {raw!r}."
+            )
+        coerced[str(key)] = raw
+    return coerced
+
+
 def _metric_is_populated(value: Any) -> bool:
     if isinstance(value, Mapping):
         return bool(value)
@@ -372,7 +400,9 @@ class OperationalReality:
             cli_tools=_as_tuple(data.get("cli_tools"), "operations.cli_tools"),
             tool_surfaces=_as_tuple(data.get("tool_surfaces"), "operations.tool_surfaces"),
             retrieval_packs=_as_tuple(data.get("retrieval_packs"), "operations.retrieval_packs"),
-            route_kind_counts=dict(data.get("route_kind_counts") or {}),
+            route_kind_counts=_coerce_nonneg_count_map(
+                data.get("route_kind_counts"), "operations.route_kind_counts"
+            ),
             routed_lookup_count=_count("routed_lookup_count"),
             raw_file_read_count=_count("raw_file_read_count"),
             raw_search_count=_count("raw_search_count"),
@@ -381,9 +411,15 @@ class OperationalReality:
             expected_tool_count=_count("expected_tool_count"),
             observed_expected_tool_count=_count("observed_expected_tool_count"),
             missing_expected_tool_count=_count("missing_expected_tool_count"),
-            expected_tool_counts=dict(data.get("expected_tool_counts") or {}),
-            observed_tool_counts=dict(data.get("observed_tool_counts") or {}),
-            missing_expected_tool_counts=dict(data.get("missing_expected_tool_counts") or {}),
+            expected_tool_counts=_coerce_nonneg_count_map(
+                data.get("expected_tool_counts"), "operations.expected_tool_counts"
+            ),
+            observed_tool_counts=_coerce_nonneg_count_map(
+                data.get("observed_tool_counts"), "operations.observed_tool_counts"
+            ),
+            missing_expected_tool_counts=_coerce_nonneg_count_map(
+                data.get("missing_expected_tool_counts"), "operations.missing_expected_tool_counts"
+            ),
             degraded_tool_count=_count("degraded_tool_count"),
             stale_or_unavailable_index_count=_count("stale_or_unavailable_index_count"),
             metric_sources=sources,

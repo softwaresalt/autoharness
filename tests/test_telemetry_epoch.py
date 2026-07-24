@@ -126,6 +126,34 @@ class ExecutionEpochTests(unittest.TestCase):
         with self.assertRaises(EpochError):
             OperationalReality.from_mapping({"raw_file_read_count": -3})
 
+    def test_operations_from_mapping_rejects_negative_count_map_values(self) -> None:
+        """Regression (Copilot review r3c batch-E E1): the per-key operation count
+        maps (route_kind_counts and expected/observed/missing tool counts) are
+        non-negative-integer maps in the v1.1 schema, but were copied raw. A
+        negative entry would persist and subtract from aggregate gap totals, so it
+        must be rejected as a controlled ``EpochError`` — the same contract the
+        scalar counts already enforce. Valid non-negative maps are preserved."""
+        payload = OperationalReality.from_mapping(
+            {
+                "cli_tools": ["git"],
+                "expected_tool_counts": {"engram.map_code": 2},
+                "observed_tool_counts": {"engram.map_code": 1},
+                "missing_expected_tool_counts": {"engram.map_code": 1},
+                "route_kind_counts": {"structural_graph": 3},
+            }
+        )
+        self.assertEqual(payload.missing_expected_tool_counts, {"engram.map_code": 1})
+        self.assertEqual(payload.route_kind_counts, {"structural_graph": 3})
+
+        for bad in (
+            {"missing_expected_tool_counts": {"engram.map_code": -1}},
+            {"expected_tool_counts": {"engram.map_code": -2}},
+            {"observed_tool_counts": {"engram.map_code": -1}},
+            {"route_kind_counts": {"structural_graph": -1}},
+        ):
+            with self.assertRaises(EpochError):
+                OperationalReality.from_mapping(bad)
+
     def test_outcome_from_mapping_tolerates_null_and_rejects_negative(self) -> None:
         """Regression (Copilot review r3 B2): the outcome rollup counts are
         ``anyOf integer|null`` with ``minimum: 0``. Null coerces to an unavailable
