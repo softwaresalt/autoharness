@@ -4,14 +4,14 @@
       "type": "stdio",
       "command": "backlogit",
       "args": ["mcp"],
-      "env": {"BACKLOGIT_WORKSPACE": "${workspace_folder}"},
+      "env": {"BACKLOGIT_WORKSPACE": "${workspaceFolder}"},
       "tools": ["*"]
     },
     "engram": {
       "type": "stdio",
       "command": "engram",
       "args": ["shim"],
-      "env": {"ENGRAM_WORKSPACE": "${workspace_folder}"},
+      "env": {"ENGRAM_WORKSPACE": "${workspaceFolder}"},
       "tools": ["*"]
     },
     "graphtor-docs": {
@@ -19,8 +19,8 @@
       "command": "graphtor-docs",
       "args": ["serve"],
       "env": {
-        "GRAPHTOR_DB_PATH": "${workspace_folder}/.graphtor/graph.db",
-        "GRAPHTOR_SOURCES": "${workspace_folder}/.graphtor/config/sources.yaml"
+        "GRAPHTOR_DB_PATH": "${workspaceFolder}/.graphtor/graph.db",
+        "GRAPHTOR_SOURCES": "${workspaceFolder}/.graphtor/config/sources.yaml"
       },
       "tools": ["*"]
     },
