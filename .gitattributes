@@ -1,3 +1,9 @@
 *.md linguist-detectable=true
 *.md.tmpl linguist-language=Markdown linguist-detectable=true
 *.patch -text
+
+# The dogfood harness manifest records byte-exact SHA-256 checksums of installed
+# artifacts, verified against raw file bytes by autoharness verify. Pin the
+# checksummed Ship agent mirror to LF so its manifest checksum is portable across
+# platforms (a CRLF working tree on Windows must not diverge from LF on CI).
+.github/agents/.ship.agent.md text eol=lf
