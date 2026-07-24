@@ -65,9 +65,18 @@ def summarize_tool_gaps(
     route_kind_counts = dict(route_kind_counts or {})
     expected_tool_counts = dict(expected_tool_counts)
     observed_tool_counts = dict(observed_tool_counts)
+    # Copilot review c7: observed_expected_tool_count counts invocations of EXPECTED
+    # tools only. Restrict the stored observed map (and its scalar roll-up) to keys
+    # with a positive expectation so unexpected tools (e.g. raw grep) do not inflate
+    # expected-tool accounting; unexpected usage is recorded via the raw_* counts.
+    observed_expected_only = {
+        key: int(count)
+        for key, count in observed_tool_counts.items()
+        if int(expected_tool_counts.get(key, 0)) > 0
+    }
     missing_expected_tool_counts = _missing_counts(expected_tool_counts, observed_tool_counts)
     expected_total = _count_sum(expected_tool_counts)
-    observed_total = _count_sum(observed_tool_counts)
+    observed_total = _count_sum(observed_expected_only)
     missing_total = _count_sum(missing_expected_tool_counts)
 
     operations_sources = {
@@ -116,7 +125,7 @@ def summarize_tool_gaps(
         observed_expected_tool_count=observed_total,
         missing_expected_tool_count=missing_total,
         expected_tool_counts=expected_tool_counts,
-        observed_tool_counts=observed_tool_counts,
+        observed_tool_counts=observed_expected_only,
         missing_expected_tool_counts=missing_expected_tool_counts,
         degraded_tool_count=int(degraded_tool_count),
         stale_or_unavailable_index_count=int(stale_or_unavailable_index_count),

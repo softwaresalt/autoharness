@@ -164,6 +164,23 @@ class TelemetryAggregationTests(unittest.TestCase):
         missing = derived_efficiency_metrics([_record("missing", "2026-07-24T00:00:00Z", avoided_tokens=None)])
         self.assertEqual(missing["net_offload_tokens"], "unavailable")
 
+    def test_metric_quality_unavailable_excludes_value_from_aggregate(self) -> None:
+        """Regression (Copilot review c8): a numeric metric whose metric_quality is
+        'unavailable' (e.g. a normalized legacy row retaining its raw value) must be
+        treated as a missing operand. Aggregate totals and derived metrics over it
+        become unavailable rather than summing it as if it were observed precision.
+        """
+        observed = _record("obs", "2026-07-24T00:00:00Z", input_tokens=100, output_tokens=50)
+        legacy = _record("legacy", "2026-07-24T01:00:00Z", input_tokens=999, output_tokens=1)
+        legacy["economics"]["metric_quality"] = {"input_tokens": "unavailable"}
+
+        result = aggregate_epochs([observed, legacy])
+
+        self.assertEqual(result.totals["input_tokens"], "unavailable")
+        self.assertEqual(result.derived["consumption_generation_ratio"], "unavailable")
+        # A field without an unavailable-quality entry still aggregates normally.
+        self.assertEqual(result.totals["output_tokens"], 51)
+
     def test_size_label_groups_are_ordinal_with_no_cost_per_point(self) -> None:
         result = aggregate_epochs(
             [

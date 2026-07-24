@@ -62,11 +62,24 @@ def _number(value: Any) -> float | int | None:
 def _sum_field(records: Iterable[dict[str, Any]], section: str, field: str) -> float | int | None:
     total: float | int = 0
     for record in records:
-        value = _number((record.get(section) or {}).get(field))
+        sec = record.get(section) or {}
+        # Copilot review c8: honor metric_quality. A metric marked unavailable or
+        # not_applicable is a missing operand even when a raw numeric value is
+        # retained (e.g. normalized legacy rows), so the aggregate is unavailable
+        # rather than implying false precision (telemetry-reference contract).
+        quality = (sec.get("metric_quality") or {}).get(field)
+        if quality in ("unavailable", "not_applicable"):
+            return None
+        value = _number(sec.get(field))
         if value is None:
             return None
         total += value
     return total
+
+
+def _economic_total(records: Iterable[dict[str, Any]], field: str) -> float | int | str:
+    value = _sum_field(records, "economics", field)
+    return UNAVAILABLE if value is None else value
 
 
 def _operation_sum(records: Iterable[dict[str, Any]], field: str) -> int:
@@ -158,13 +171,13 @@ def _per_tool_rates(records: Iterable[dict[str, Any]]) -> dict[str, float | None
 
 def _totals(records: list[dict[str, Any]]) -> dict[str, Any]:
     return {
-        "input_tokens": _sum_field(records, "economics", "input_tokens") or 0,
-        "output_tokens": _sum_field(records, "economics", "output_tokens") or 0,
-        "context_area_tokens": _sum_field(records, "economics", "context_area_tokens") or 0,
-        "avoided_read_estimated_tokens": _sum_field(records, "economics", "avoided_read_estimated_tokens") or 0,
-        "tool_output_estimated_tokens": _sum_field(records, "economics", "tool_output_estimated_tokens") or 0,
-        "cogs_usd": _sum_field(records, "economics", "cogs_usd") or 0,
-        "duration_seconds": _sum_field(records, "economics", "duration_seconds") or 0,
+        "input_tokens": _economic_total(records, "input_tokens"),
+        "output_tokens": _economic_total(records, "output_tokens"),
+        "context_area_tokens": _economic_total(records, "context_area_tokens"),
+        "avoided_read_estimated_tokens": _economic_total(records, "avoided_read_estimated_tokens"),
+        "tool_output_estimated_tokens": _economic_total(records, "tool_output_estimated_tokens"),
+        "cogs_usd": _economic_total(records, "cogs_usd"),
+        "duration_seconds": _economic_total(records, "duration_seconds"),
         "expected_tool_count": _operation_sum(records, "expected_tool_count"),
         "observed_expected_tool_count": _operation_sum(records, "observed_expected_tool_count"),
         "missing_expected_tool_count": _operation_sum(records, "missing_expected_tool_count"),

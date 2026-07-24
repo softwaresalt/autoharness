@@ -213,19 +213,34 @@ class EconomicPayload:
             for name in _ECONOMIC_METRICS:
                 sources.setdefault(name, "unavailable")
                 quality.setdefault(name, "unavailable")
+
+        def _metric(name: str, caster: Any, default: Any) -> Any:
+            # Copilot review c4: the schema declares every economics metric
+            # ``anyOf integer|null``. An explicit null means the value is
+            # unavailable (distinct from an observed zero per the telemetry-reference
+            # contract), so coerce it to a zero placeholder and mark it unavailable
+            # via provenance instead of crashing on ``int(None)`` / ``float(None)``,
+            # mirroring the legacy normalization above.
+            raw = data.get(name, default)
+            if raw is None:
+                sources.setdefault(name, "unavailable")
+                quality.setdefault(name, "unavailable")
+                return default
+            return caster(raw)
+
         return cls(
-            input_tokens=int(data.get("input_tokens", 0)),
-            output_tokens=int(data.get("output_tokens", 0)),
-            cogs_usd=float(data.get("cogs_usd", 0.0)),
-            duration_seconds=float(data.get("duration_seconds", 0.0)),
-            cached_input_tokens=int(data.get("cached_input_tokens", 0)),
-            cumulative_input_tokens=int(data.get("cumulative_input_tokens", 0)),
-            cumulative_output_tokens=int(data.get("cumulative_output_tokens", 0)),
-            context_tokens_before=int(data.get("context_tokens_before", 0)),
-            context_tokens_after=int(data.get("context_tokens_after", 0)),
-            context_area_tokens=int(data.get("context_area_tokens", 0)),
-            avoided_read_estimated_tokens=int(data.get("avoided_read_estimated_tokens", 0)),
-            tool_output_estimated_tokens=int(data.get("tool_output_estimated_tokens", 0)),
+            input_tokens=_metric("input_tokens", int, 0),
+            output_tokens=_metric("output_tokens", int, 0),
+            cogs_usd=_metric("cogs_usd", float, 0.0),
+            duration_seconds=_metric("duration_seconds", float, 0.0),
+            cached_input_tokens=_metric("cached_input_tokens", int, 0),
+            cumulative_input_tokens=_metric("cumulative_input_tokens", int, 0),
+            cumulative_output_tokens=_metric("cumulative_output_tokens", int, 0),
+            context_tokens_before=_metric("context_tokens_before", int, 0),
+            context_tokens_after=_metric("context_tokens_after", int, 0),
+            context_area_tokens=_metric("context_area_tokens", int, 0),
+            avoided_read_estimated_tokens=_metric("avoided_read_estimated_tokens", int, 0),
+            tool_output_estimated_tokens=_metric("tool_output_estimated_tokens", int, 0),
             metric_sources=sources,
             metric_quality=quality,
         )

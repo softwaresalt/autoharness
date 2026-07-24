@@ -88,6 +88,22 @@ class TelemetryReportTests(unittest.TestCase):
         self.assertIn("planned_vs_composition: unavailable", text)
         self.assertIn("cost_per_size_point: unavailable", text)
 
+    def test_quality_label_is_order_independent_least_certain(self) -> None:
+        """Regression (Copilot review c9): multi-record quality labeling must be
+        deterministic. It degrades to the least-certain quality across records
+        rather than returning whichever record happens to be first in the slice.
+        """
+        from autoharness.telemetry.report import _quality
+
+        observed = _record("obs", metric_quality="observed")
+        unavailable = _record("unavail", metric_quality="unavailable")
+        estimated = _record("est", metric_quality="estimated")
+
+        self.assertEqual(_quality((observed, unavailable), "context_area_tokens"), "unavailable")
+        self.assertEqual(_quality((unavailable, observed), "context_area_tokens"), "unavailable")
+        self.assertEqual(_quality((observed, estimated), "context_area_tokens"), "estimated")
+        self.assertEqual(_quality((estimated, observed), "context_area_tokens"), "estimated")
+
     def test_degraded_inputs_render_gracefully(self) -> None:
         for status in ("disabled", "unavailable", "empty"):
             text = render_report(TelemetryReadResult(status, (), ("missing input",)))

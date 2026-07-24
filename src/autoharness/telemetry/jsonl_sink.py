@@ -124,10 +124,17 @@ def _win_atomic_append(path: Path, data: bytes) -> None:
 
 
 def append_epoch(epoch: ExecutionEpoch, jsonl_path: Path) -> SinkWriteResult:
-    """Append one epoch as a single atomic JSON line, concurrent-writer safe.
+    """Append one epoch as a single atomic JSON line to the JSONL mirror.
 
-    Each record is written with a single atomic append of the complete line so
-    concurrent writers never interleave, split, or overwrite each other's lines.
+    Each record is written with a single atomic append of the complete line, so a
+    line is never interleaved, split, or partially written even under concurrent
+    writers. The idempotent-replay digest check and the append are NOT a single
+    atomic transaction, however: two processes writing the same ``epoch_id``
+    concurrently can each pass the check and produce a duplicate line. That is
+    benign by design — JSONL is a best-effort human-readable mirror, while SQLite
+    is the authoritative first-write-immutable store. Readers deduplicate by
+    ``epoch_id`` and apply SQLite-over-JSONL precedence, so duplicate mirror lines
+    are reconciled on read rather than by locking this secondary sink.
     """
     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
     digest = payload_digest(epoch)

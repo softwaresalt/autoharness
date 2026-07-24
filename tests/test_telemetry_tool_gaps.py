@@ -73,6 +73,22 @@ class TelemetryToolGapTests(unittest.TestCase):
             dict(summary.operations.missing_expected_tool_counts),
         )
 
+    def test_observed_expected_tool_count_excludes_unexpected_tools(self) -> None:
+        """Regression (Copilot review c7): observed_expected_tool_count counts
+        invocations of EXPECTED tools only. An unexpected observed tool (e.g. grep)
+        must not inflate the scalar or the stored observed_tool_counts map, and the
+        gap invariants must still hold.
+        """
+        summary = summarize_tool_gaps(
+            expected_tool_counts={"engram.map_code": 1},
+            observed_tool_counts={"engram.map_code": 1, "grep": 3},
+        )
+
+        self.assertEqual(summary.operations.observed_expected_tool_count, 1)
+        self.assertNotIn("grep", summary.operations.observed_tool_counts)
+        self.assertEqual(dict(summary.operations.observed_tool_counts), {"engram.map_code": 1})
+        self.assertTrue(summary.operations.gap_invariants_hold())
+
     def test_stale_route_fallback_with_expected_tool_invoked_is_diagnostic_only(self) -> None:
         summary = summarize_tool_gaps(
             expected_tool_counts={"engram.map_code": 1},

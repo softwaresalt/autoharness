@@ -86,11 +86,32 @@ def summarize_report(
     )
 
 
+_QUALITY_RANK = {
+    "observed": 0,
+    "derived": 1,
+    "estimated": 2,
+    "not_applicable": 3,
+    "unavailable": 4,
+}
+
+
 def _quality(records: tuple[dict[str, Any], ...], field: str) -> str:
+    # Copilot review c9: aggregate quality deterministically across records by
+    # degrading to the least-certain (highest-rank) quality present, so multi-epoch
+    # slices never imply false precision or depend on record ordering.
+    worst: str | None = None
+    worst_rank = -1
     for record in records:
         quality = (record.get("economics") or {}).get("metric_quality") or {}
-        if field in quality:
-            return str(quality[field])
+        label = quality.get(field)
+        if label is None:
+            continue
+        rank = _QUALITY_RANK.get(str(label), _QUALITY_RANK["unavailable"])
+        if rank > worst_rank:
+            worst_rank = rank
+            worst = str(label)
+    if worst is not None:
+        return worst
     return "unavailable" if field in _unavailable_metrics(records) else "observed"
 
 

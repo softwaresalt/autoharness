@@ -21,14 +21,23 @@ _TEST_OUTPUT = _ROOT / ".test-output" / "telemetry-backlogit-sizing"
 
 
 class FakeBacklogitRunner:
-    def __init__(self, responses: dict[str, dict], *, sync_updates: dict[str, dict] | None = None):
+    def __init__(
+        self,
+        responses: dict[str, dict],
+        *,
+        sync_updates: dict[str, dict] | None = None,
+        sync_raises: bool = False,
+    ):
         self.responses = responses
         self.sync_updates = sync_updates or {}
+        self.sync_raises = sync_raises
         self.calls: list[tuple[str, ...]] = []
 
     def __call__(self, argv: tuple[str, ...], cwd: Path) -> str:
         self.calls.append(tuple(argv))
         if argv[0] == "sync":
+            if self.sync_raises:
+                raise RuntimeError("sync failed")
             self.responses.update(self.sync_updates)
             return "synced"
         if argv[:2] == ("get", argv[1]) and "--format" in argv:
@@ -172,6 +181,76 @@ class BacklogitSizingSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot.sizing_sources["shipment"], "unavailable")
         self.assertIsNone(snapshot.feature_child_membership_hash)
         self.assertIsNone(snapshot.shipment_membership_hash)
+
+    def test_reported_unsized_below_derived_keeps_composition_consistent(self) -> None:
+        """Regression (Copilot review c6): the ``unsized`` bucket must derive
+        purely from the canonical unique task-ID set so that count equals the sum
+        of the histogram buckets. A smaller ``unsized`` reported by the rollup must
+        not override the derived value and break ``feature_composition_consistent``.
+        """
+        runner = FakeBacklogitRunner(
+            {
+                "079.013-T": _task("079.013-T", "M"),
+                "079-F": _rollup(
+                    "079-F",
+                    [
+                        {"id": "a-T", "artifact_type": "task"},
+                        {"id": "b-T", "artifact_type": "task"},
+                        {"id": "c-T", "artifact_type": "task"},
+                    ],
+                    histogram={"M": 1},
+                    unsized=1,  # rollup under-reports; derived unsized is 2
+                ),
+            }
+        )
+
+        snapshot = capture_work_sizing_snapshot(
+            workspace=self.workspace,
+            task_id="079.013-T",
+            feature_id="079-F",
+            runner=runner,
+            snapshot_at="2026-07-24T03:37:49Z",
+        )
+
+        self.assertEqual(snapshot.feature_planned_child_task_count, 3)
+        self.assertEqual(snapshot.feature_planned_child_size_histogram, {"M": 1, "unsized": 2})
+        self.assertTrue(snapshot.feature_composition_consistent())
+
+    def test_sync_failure_degrades_composition_without_consuming_stale_index(self) -> None:
+        """Regression (Copilot review c10 / C50F24DD, 079.013-T freshness AC): a
+        failed pre-capture freshness sync must degrade feature/shipment composition
+        to explicit unavailable rather than silently reading a potentially stale
+        cached index. Telemetry must still emit (non-blocking).
+        """
+        runner = FakeBacklogitRunner(
+            {
+                "079.013-T": _task("079.013-T", "M"),
+                "079-F": _rollup("079-F", [{"id": "stale-T", "artifact_type": "task"}], histogram={"M": 1}),
+                "092-S": _rollup("092-S", [{"id": "stale-T", "artifact_type": "task"}], histogram={"M": 1}),
+            },
+            sync_raises=True,
+        )
+
+        snapshot = capture_work_sizing_snapshot(
+            workspace=self.workspace,
+            task_id="079.013-T",
+            feature_id="079-F",
+            shipment_id="092-S",
+            runner=runner,
+            snapshot_at="2026-07-24T03:37:49Z",
+        )
+
+        # Snapshot still emitted — a failed sync does not block telemetry.
+        self.assertEqual(snapshot.snapshot_boundary, "pre_execution")
+        self.assertEqual(snapshot.task_size_label, "M")
+        # Composition degraded to unavailable rather than read from a stale index.
+        self.assertIsNone(snapshot.feature_planned_child_task_count)
+        self.assertIsNone(snapshot.feature_child_membership_hash)
+        self.assertEqual(snapshot.feature_planned_child_size_histogram, {})
+        self.assertIsNone(snapshot.shipment_manifest_task_count)
+        self.assertIsNone(snapshot.shipment_membership_hash)
+        self.assertEqual(snapshot.sizing_sources["feature"], "unavailable")
+        self.assertEqual(snapshot.sizing_sources["shipment"], "unavailable")
 
     def test_capture_once_context_remains_immutable_after_backlogit_mutation(self) -> None:
         runner = FakeBacklogitRunner(

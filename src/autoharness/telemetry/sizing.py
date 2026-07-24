@@ -100,10 +100,7 @@ def _composition(
             if key in _SIZE_LABELS:
                 histogram[str(key)] = max(int(value), 0)
     sized_count = sum(histogram.values())
-    reported_unsized = int(comp.get("unsized") or 0)
     unsized = max(len(unique_ids) - sized_count, 0)
-    if reported_unsized and reported_unsized < unsized:
-        unsized = reported_unsized
     if unsized:
         histogram["unsized"] = unsized
     unsupported = set(histogram) - _HISTOGRAM_LABELS
@@ -130,15 +127,19 @@ def capture_work_sizing_snapshot(
     """Capture a single immutable pre-execution WorkSizingSnapshot from backlogit."""
     cwd = Path(workspace)
     run = runner or _default_runner(backlogit_bin)
+    sync_ok = True
     try:
         run(("sync",), cwd)
     except Exception:
-        # Unavailable backlogit reads degrade to explicit unavailable values.
-        pass
+        # 079.013-T freshness contract: a failed pre-capture sync means we cannot
+        # guarantee the index reflects current on-disk membership, so degrade
+        # feature/shipment composition to explicit unavailable instead of reading a
+        # potentially stale cached composition. Telemetry still emits (non-blocking).
+        sync_ok = False
 
     task = _safe_get(run, cwd, task_id)
-    feature = _safe_get(run, cwd, feature_id)
-    shipment = _safe_get(run, cwd, shipment_id)
+    feature = _safe_get(run, cwd, feature_id) if sync_ok else None
+    shipment = _safe_get(run, cwd, shipment_id) if sync_ok else None
 
     task_label = _task_size(task)
     feature_count, feature_histogram, feature_hash, feature_ruleset = _composition(feature)

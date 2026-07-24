@@ -75,6 +75,34 @@ class ExecutionEpochTests(unittest.TestCase):
         self.assertEqual(rebuilt.epoch_id, epoch.epoch_id)
         self.assertEqual(rebuilt.timestamp, epoch.timestamp)
 
+    def test_from_mapping_tolerates_null_metric_as_unavailable(self) -> None:
+        """Regression (Copilot review c4): the schema declares every economics
+        metric ``anyOf integer|null``. A schema-valid null means the value is
+        unavailable (distinct from an observed zero per the telemetry-reference
+        contract), so ``from_mapping`` must read it without crashing on
+        ``int(None)`` — coercing to a zero placeholder and marking it unavailable
+        via provenance, mirroring how legacy v1.0 rows are normalized.
+        """
+        payload = EconomicPayload.from_mapping(
+            {
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "context_area_tokens": None,
+                "cogs_usd": None,
+                "metric_sources": {"input_tokens": "host", "output_tokens": "host"},
+                "metric_quality": {"input_tokens": "observed", "output_tokens": "observed"},
+            }
+        )
+
+        self.assertEqual(payload.input_tokens, 100)
+        self.assertEqual(payload.context_area_tokens, 0)
+        self.assertEqual(payload.cogs_usd, 0.0)
+        self.assertEqual(payload.metric_quality["context_area_tokens"], "unavailable")
+        self.assertEqual(payload.metric_sources["context_area_tokens"], "unavailable")
+        self.assertEqual(payload.metric_quality["cogs_usd"], "unavailable")
+        # Explicitly provided provenance for populated metrics is preserved.
+        self.assertEqual(payload.metric_quality["input_tokens"], "observed")
+
     def test_missing_required_payload_class_raises(self) -> None:
         record = _full_epoch().to_record()
         del record["outcome"]
