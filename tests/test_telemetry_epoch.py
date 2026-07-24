@@ -139,6 +139,21 @@ class ExecutionEpochTests(unittest.TestCase):
         self.assertEqual(ok.cogs_usd, 2.0)
         self.assertEqual(ok.duration_seconds, 1.5)
 
+    def test_economics_from_mapping_rejects_non_finite_numbers(self) -> None:
+        """Regression (Copilot review r6 #2): Python's ``json`` accepts the
+        non-standard ``NaN``/``Infinity``/``-Infinity`` literals, and both pass a
+        naive ``value < 0`` check (``NaN`` comparisons are always false). A
+        non-finite ``cogs_usd``/``duration_seconds`` would then reach SQLite and
+        canonical JSON, producing schema-invalid, unusable aggregate values.
+        Reject non-finite numeric metrics before returning the coerced value."""
+        for bad in (
+            {"cogs_usd": float("nan")},
+            {"cogs_usd": float("inf")},
+            {"duration_seconds": float("-inf")},
+        ):
+            with self.assertRaises(EpochError):
+                EconomicPayload.from_mapping(bad)
+
     def test_operations_from_mapping_tolerates_null_and_rejects_negative(self) -> None:
         """Regression (Copilot review r3 B1): the operation counts are
         ``anyOf integer|null`` with ``minimum: 0``. Null coerces to an unavailable

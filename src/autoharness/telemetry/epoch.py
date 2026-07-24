@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -140,6 +141,13 @@ def _coerce_nonneg_metric(
             f"'{name}' must be a JSON number per schema; got {type(raw).__name__} {raw!r}."
         )
     value = caster(raw)
+    # Python's ``json`` accepts the non-standard ``NaN``/``Infinity`` literals; a
+    # non-finite float passes ``value < 0`` (NaN comparisons are always false) and
+    # would reach SQLite and canonical JSON as schema-invalid, unusable telemetry.
+    # Integer fields already reject these at the type check above; guard the number
+    # fields (cogs_usd/duration_seconds) here.
+    if isinstance(value, float) and not math.isfinite(value):
+        raise EpochError(f"'{name}' must be a finite number per schema; got {value!r}.")
     if value < 0:
         raise EpochError(f"'{name}' must be >= 0 per schema (minimum: 0); got {value!r}.")
     return value
