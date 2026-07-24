@@ -13,8 +13,9 @@ from autoharness.telemetry.epoch import (
     ExecutionEpoch,
     OperationalReality,
     RouteConfiguration,
+    WorkSizingSnapshot,
 )
-from autoharness.telemetry.jsonl_sink import append_epoch
+from autoharness.telemetry.jsonl_sink import TelemetryConflictError, append_epoch
 
 
 def _epoch(task_id: str) -> ExecutionEpoch:
@@ -24,6 +25,45 @@ def _epoch(task_id: str) -> ExecutionEpoch:
         economics=EconomicPayload(input_tokens=10, output_tokens=5),
         operations=OperationalReality(cli_tools=("git",)),
         outcome=AbsoluteOutcome(gate_exit_codes=(0,)),
+    )
+
+
+def _sized_epoch(epoch_id: str = "cccccccccccccccccccccccccccccccc") -> ExecutionEpoch:
+    return ExecutionEpoch(
+        epoch_id=epoch_id,
+        task_id="079.003-T",
+        route=RouteConfiguration(models=("gpt-5.4",), route_kinds=("structural_graph",)),
+        economics=EconomicPayload(
+            input_tokens=10,
+            output_tokens=5,
+            cached_input_tokens=2,
+            cumulative_input_tokens=100,
+            cumulative_output_tokens=50,
+            context_area_tokens=200,
+            avoided_read_estimated_tokens=80,
+            tool_output_estimated_tokens=12,
+        ),
+        operations=OperationalReality(
+            cli_tools=("git",),
+            tool_surfaces=("mcp",),
+            retrieval_packs=("agent-engram",),
+            route_kind_counts={"structural_graph": 1},
+            routed_lookup_count=1,
+            expected_tool_count=1,
+            observed_expected_tool_count=0,
+            missing_expected_tool_count=1,
+            expected_tool_counts={"engram.map_code": 1},
+            observed_tool_counts={"engram.map_code": 0},
+            missing_expected_tool_counts={"engram.map_code": 1},
+        ),
+        outcome=AbsoluteOutcome(gate_exit_codes=(0,), tool_gap_count=1),
+        sizing=WorkSizingSnapshot(
+            snapshot_at="2026-07-24T03:07:22Z",
+            task_size_label="M",
+            feature_planned_child_task_count=1,
+            feature_planned_child_size_histogram={"M": 1},
+            feature_child_membership_hash=WorkSizingSnapshot.membership_hash(["079.003-T"]),
+        ),
     )
 
 
@@ -82,6 +122,38 @@ class JsonlSinkTests(unittest.TestCase):
         self.assertEqual(len(lines), n_threads * m_records)
         for line in lines:
             json.loads(line)  # every line must be valid, complete JSON
+
+    def test_v11_record_is_written_exactly_with_sizing_and_no_event_body(self) -> None:
+        epoch = _sized_epoch()
+        append_epoch(epoch, self.jsonl_path)
+
+        payload = json.loads(self.jsonl_path.read_text(encoding="utf-8").splitlines()[0])
+        self.assertEqual(payload, epoch.to_record())
+        self.assertEqual(payload["sizing"]["task_size_label"], "M")
+        self.assertEqual(payload["operations"]["expected_tool_counts"], {"engram.map_code": 1})
+        self.assertNotIn("raw_tool_output", payload)
+        self.assertNotIn("tool_events", payload)
+
+    def test_identical_replay_is_not_appended_and_conflict_is_diagnosed(self) -> None:
+        first = _sized_epoch("dddddddddddddddddddddddddddddddd")
+        append_epoch(first, self.jsonl_path)
+        idempotent = append_epoch(first, self.jsonl_path)
+        conflict = ExecutionEpoch(
+            epoch_id=first.epoch_id,
+            task_id="079.003-T",
+            route=first.route,
+            economics=EconomicPayload(input_tokens=999),
+            operations=first.operations,
+            outcome=first.outcome,
+        )
+
+        with self.assertRaises(TelemetryConflictError):
+            append_epoch(conflict, self.jsonl_path)
+
+        lines = self.jsonl_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(idempotent.status, "idempotent_replay")
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(json.loads(lines[0])["economics"]["input_tokens"], 10)
 
 
 if __name__ == "__main__":

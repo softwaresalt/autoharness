@@ -14,9 +14,55 @@ from __future__ import annotations
 import json
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from autoharness.telemetry.epoch import ExecutionEpoch
+
+
+class TelemetryConflictError(RuntimeError):
+    """Raised when a JSONL epoch replay conflicts with first-write content."""
+
+
+@dataclass(frozen=True)
+class SinkWriteResult:
+    status: str
+    payload_digest: str
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def canonical_payload_json(epoch: ExecutionEpoch) -> str:
+    return _canonical_json(epoch.to_record())
+
+
+def payload_digest(epoch: ExecutionEpoch) -> str:
+    import hashlib
+
+    return hashlib.sha256(canonical_payload_json(epoch).encode("utf-8")).hexdigest()
+
+
+def _digest_record(record: dict[str, Any]) -> str:
+    import hashlib
+
+    return hashlib.sha256(_canonical_json(record).encode("utf-8")).hexdigest()
+
+
+def find_epoch_digest(jsonl_path: Path, epoch_id: str) -> str | None:
+    """Return the digest for the first accepted JSONL record with ``epoch_id``."""
+    if not jsonl_path.exists():
+        return None
+    with jsonl_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if isinstance(record, dict) and record.get("epoch_id") == epoch_id:
+                return _digest_record(record)
+    return None
 
 
 def _atomic_append_bytes(path: Path, data: bytes) -> None:
@@ -77,12 +123,22 @@ def _win_atomic_append(path: Path, data: bytes) -> None:
         kernel32.CloseHandle(handle)
 
 
-def append_epoch(epoch: ExecutionEpoch, jsonl_path: Path) -> None:
+def append_epoch(epoch: ExecutionEpoch, jsonl_path: Path) -> SinkWriteResult:
     """Append one epoch as a single atomic JSON line, concurrent-writer safe.
 
     Each record is written with a single atomic append of the complete line so
     concurrent writers never interleave, split, or overwrite each other's lines.
     """
     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+    digest = payload_digest(epoch)
+    existing_digest = find_epoch_digest(jsonl_path, epoch.epoch_id)
+    if existing_digest == digest:
+        return SinkWriteResult(status="idempotent_replay", payload_digest=digest)
+    if existing_digest is not None:
+        raise TelemetryConflictError(
+            f"conflicting immutable replay for epoch_id {epoch.epoch_id}: "
+            f"existing digest {existing_digest} != {digest}"
+        )
     line = json.dumps(epoch.to_record(), separators=(",", ":")) + "\n"
     _atomic_append_bytes(jsonl_path, line.encode("utf-8"))
+    return SinkWriteResult(status="created", payload_digest=digest)

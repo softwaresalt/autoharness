@@ -29,6 +29,9 @@ class RecordSummary:
     enabled: bool = False
     sqlite_written: bool = False
     jsonl_written: bool = False
+    sqlite_status: str | None = None
+    jsonl_status: str | None = None
+    payload_digest: str | None = None
     errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -36,8 +39,45 @@ class RecordSummary:
             "enabled": self.enabled,
             "sqlite_written": self.sqlite_written,
             "jsonl_written": self.jsonl_written,
+            "sqlite_status": self.sqlite_status,
+            "jsonl_status": self.jsonl_status,
+            "payload_digest": self.payload_digest,
             "errors": list(self.errors),
         }
+
+
+def _preflight_conflict(epoch: ExecutionEpoch, config: TelemetryConfig, summary: RecordSummary) -> bool:
+    digest = sqlite_sink.payload_digest(epoch)
+    summary.payload_digest = digest
+    observed: list[tuple[str, str]] = []
+
+    if config.database_path is not None:
+        try:
+            existing = sqlite_sink.find_epoch_digest(config.database_path, epoch.epoch_id)
+            if existing is not None:
+                observed.append(("sqlite", existing))
+        except Exception as exc:
+            summary.errors.append(f"sqlite sink preflight failed: {exc}")
+
+    if config.emit_jsonl and config.jsonl_path is not None:
+        try:
+            existing = jsonl_sink.find_epoch_digest(config.jsonl_path, epoch.epoch_id)
+            if existing is not None:
+                observed.append(("jsonl", existing))
+        except Exception as exc:
+            summary.errors.append(f"jsonl sink preflight failed: {exc}")
+
+    conflicts = [
+        f"{name} digest {existing} != {digest}"
+        for name, existing in observed
+        if existing != digest
+    ]
+    if conflicts:
+        summary.errors.append(
+            f"immutable epoch conflict for {epoch.epoch_id}: " + "; ".join(conflicts)
+        )
+        return True
+    return False
 
 
 def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummary:
@@ -46,17 +86,29 @@ def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummar
     if not config.enabled:
         return summary
 
+    if _preflight_conflict(epoch, config, summary):
+        return summary
+
     if config.database_path is not None:
         try:
-            sqlite_sink.write_epoch(epoch, config.database_path)
+            sqlite_result = sqlite_sink.write_epoch(epoch, config.database_path)
+            summary.sqlite_status = sqlite_result.status
+            summary.payload_digest = sqlite_result.payload_digest
             summary.sqlite_written = True
+        except sqlite_sink.TelemetryConflictError as exc:
+            summary.errors.append(f"sqlite sink conflict: {exc}")
+            return summary
         except Exception as exc:  # fail-open: never block completion
             summary.errors.append(f"sqlite sink failed: {exc}")
 
     if config.emit_jsonl and config.jsonl_path is not None:
         try:
-            jsonl_sink.append_epoch(epoch, config.jsonl_path)
+            jsonl_result = jsonl_sink.append_epoch(epoch, config.jsonl_path)
+            summary.jsonl_status = jsonl_result.status
+            summary.payload_digest = jsonl_result.payload_digest
             summary.jsonl_written = True
+        except jsonl_sink.TelemetryConflictError as exc:
+            summary.errors.append(f"jsonl sink conflict: {exc}")
         except Exception as exc:  # fail-open: never block completion
             summary.errors.append(f"jsonl sink failed: {exc}")
 

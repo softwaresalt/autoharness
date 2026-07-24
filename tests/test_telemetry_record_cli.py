@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from autoharness.cli import main
 from autoharness.telemetry.config import TelemetryConfig
@@ -233,6 +234,100 @@ class RecordEpochFailOpenTests(unittest.TestCase):
             self.assertTrue(summary.enabled)
             self.assertFalse(summary.sqlite_written)
             self.assertTrue(summary.errors)
+
+    def test_partial_sink_failure_repairs_missing_jsonl_on_identical_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            db_path = workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=True,
+                jsonl_path=db_path.parent / "execution_epochs.jsonl",
+            )
+            epoch = self._epoch()
+            with mock.patch(
+                "autoharness.telemetry.record.jsonl_sink.append_epoch",
+                side_effect=OSError("jsonl unavailable"),
+            ):
+                first = record_epoch(epoch, config)
+            retry = record_epoch(epoch, config)
+
+            self.assertTrue(first.sqlite_written)
+            self.assertFalse(first.jsonl_written)
+            self.assertTrue(first.errors)
+            self.assertTrue(retry.sqlite_written)
+            self.assertTrue(retry.jsonl_written)
+            self.assertEqual(len(config.jsonl_path.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_conflicting_retry_after_partial_sqlite_success_writes_no_missing_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            db_path = workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=True,
+                jsonl_path=db_path.parent / "execution_epochs.jsonl",
+            )
+            epoch = self._epoch()
+            with mock.patch(
+                "autoharness.telemetry.record.jsonl_sink.append_epoch",
+                side_effect=OSError("jsonl unavailable"),
+            ):
+                record_epoch(epoch, config)
+            conflict = ExecutionEpoch(
+                epoch_id=epoch.epoch_id,
+                task_id=epoch.task_id,
+                route=epoch.route,
+                economics=EconomicPayload(input_tokens=999),
+                operations=epoch.operations,
+                outcome=epoch.outcome,
+            )
+
+            summary = record_epoch(conflict, config)
+
+            self.assertFalse(summary.sqlite_written)
+            self.assertFalse(summary.jsonl_written)
+            self.assertTrue(any("conflict" in err.lower() for err in summary.errors))
+            self.assertFalse(config.jsonl_path.exists())
+
+    def test_conflicting_retry_after_partial_jsonl_success_writes_no_missing_sqlite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            db_path = workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=True,
+                jsonl_path=db_path.parent / "execution_epochs.jsonl",
+            )
+            epoch = self._epoch()
+            with mock.patch(
+                "autoharness.telemetry.record.sqlite_sink.write_epoch",
+                side_effect=OSError("sqlite unavailable"),
+            ):
+                first = record_epoch(epoch, config)
+            conflict = ExecutionEpoch(
+                epoch_id=epoch.epoch_id,
+                task_id=epoch.task_id,
+                route=epoch.route,
+                economics=EconomicPayload(input_tokens=999),
+                operations=epoch.operations,
+                outcome=epoch.outcome,
+            )
+
+            summary = record_epoch(conflict, config)
+
+            self.assertFalse(first.sqlite_written)
+            self.assertTrue(first.jsonl_written)
+            self.assertFalse(summary.sqlite_written)
+            self.assertFalse(summary.jsonl_written)
+            self.assertTrue(any("conflict" in err.lower() for err in summary.errors))
+            self.assertFalse(db_path.exists())
 
 
 if __name__ == "__main__":
