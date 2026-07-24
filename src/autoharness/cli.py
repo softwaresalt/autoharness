@@ -41,6 +41,7 @@ Usage:
   autoharness gate check        Run deterministic validation gates on modified files
   autoharness gate size         Estimate a task's T-shirt size and write it back
   autoharness gate copilot-review  Fail-closed pre-merge gate: Copilot review complete + threads resolved
+  autoharness telemetry begin   Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
@@ -614,12 +615,21 @@ def _gate_copilot_review_command(rest: list[str]) -> None:
 
 
 TELEMETRY_USAGE = """\
-autoharness telemetry record — record an execution epoch to the configured sink(s)
+autoharness telemetry — pre-execution context and epoch recording
 
 Usage:
+  autoharness telemetry begin --task-id <id> [--epoch-id <uuid>]
+                              [--workspace <path>] [--json]
+                              [--backlog-item-id <id>] [--feature-id <id>]
+                              [--shipment-id <id>] [--workspace-id <id>]
+                              [--session-id <id>] [--agent-role <role>]
+                              [--phase <phase>] [--branch <name>]
+                              [--commit-sha <sha>]
   autoharness telemetry record [--from-json <path>] [--workspace <path>] [--json]
 
 Options:
+  begin creates a stable pre-execution context artifact and returns a repo-local
+  context_ref. When telemetry is disabled it is a structured no-op.
   --from-json <path>  Read the epoch payload (a JSON object) from a file.
                       When omitted, the payload is read from stdin.
   --workspace, -w     Workspace root containing .autoharness/config.yaml. Default: .
@@ -636,6 +646,58 @@ Exit codes:
   0  epoch recorded, or telemetry disabled (no-op), or sink failed (fail-open).
   2  invalid arguments or an invalid/malformed epoch payload.
 """
+
+
+def _parse_telemetry_begin_args(args: list[str]) -> dict:
+    parsed: dict = {
+        "task_id": None,
+        "epoch_id": None,
+        "workspace": Path("."),
+        "emit_json": False,
+        "backlog_item_id": None,
+        "feature_id": None,
+        "shipment_id": None,
+        "workspace_id": None,
+        "session_id": None,
+        "agent_role": None,
+        "phase": None,
+        "branch": None,
+        "commit_sha": None,
+    }
+    value_flags = {
+        "--task-id": "task_id",
+        "--epoch-id": "epoch_id",
+        "--backlog-item-id": "backlog_item_id",
+        "--feature-id": "feature_id",
+        "--shipment-id": "shipment_id",
+        "--workspace-id": "workspace_id",
+        "--session-id": "session_id",
+        "--agent-role": "agent_role",
+        "--phase": "phase",
+        "--branch": "branch",
+        "--commit-sha": "commit_sha",
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        elif arg in value_flags:
+            index += 1
+            if index >= len(args):
+                raise ValueError(f"Missing value for {arg}")
+            parsed[value_flags[arg]] = args[index]
+        else:
+            raise ValueError(f"Unknown telemetry begin argument: {arg}")
+        index += 1
+    if parsed["task_id"] is None:
+        raise ValueError("telemetry begin requires --task-id <id>")
+    return parsed
 
 
 def _parse_telemetry_record_args(args: list[str]) -> dict:
@@ -668,7 +730,7 @@ def _telemetry_command(args: list[str]) -> None:
         return
 
     subcommand = args[0]
-    if subcommand != "record":
+    if subcommand not in ("begin", "record"):
         print(f"Unknown telemetry subcommand: {subcommand}", file=sys.stderr)
         print(TELEMETRY_USAGE, file=sys.stderr)
         sys.exit(2)
@@ -677,8 +739,55 @@ def _telemetry_command(args: list[str]) -> None:
         print(TELEMETRY_USAGE)
         return
 
+    if subcommand == "begin":
+        _telemetry_begin_command(args[1:])
+    else:
+        _telemetry_record_command(args[1:])
+
+
+def _telemetry_begin_command(rest: list[str]) -> None:
     try:
-        parsed = _parse_telemetry_record_args(args[1:])
+        parsed = _parse_telemetry_begin_args(rest)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(TELEMETRY_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.telemetry.context import TelemetryContextError, begin_context
+    from autoharness.telemetry.record import load_workspace_telemetry_config
+
+    config = load_workspace_telemetry_config(parsed["workspace"])
+    try:
+        result = begin_context(
+            config,
+            parsed["workspace"],
+            task_id=parsed["task_id"],
+            epoch_id=parsed["epoch_id"],
+            backlog_item_id=parsed["backlog_item_id"],
+            feature_id=parsed["feature_id"],
+            shipment_id=parsed["shipment_id"],
+            workspace_id=parsed["workspace_id"],
+            session_id=parsed["session_id"],
+            agent_role=parsed["agent_role"],
+            phase=parsed["phase"],
+            branch=parsed["branch"],
+            commit_sha=parsed["commit_sha"],
+        )
+    except TelemetryContextError as exc:
+        print(f"Invalid telemetry begin context: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    if parsed["emit_json"]:
+        print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    elif not result.enabled:
+        print("Telemetry disabled (mode: none or absent); context not created.")
+    else:
+        print(f"Telemetry context {result.status}: {result.context_ref}")
+
+
+def _telemetry_record_command(rest: list[str]) -> None:
+    try:
+        parsed = _parse_telemetry_record_args(rest)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         print(TELEMETRY_USAGE, file=sys.stderr)
