@@ -351,12 +351,19 @@ class OperationalReality:
         }
 
     @classmethod
-    def from_mapping(cls, data: Mapping[str, Any]) -> "OperationalReality":
+    def from_mapping(cls, data: Mapping[str, Any], *, legacy: bool = False) -> "OperationalReality":
         # Copilot review r3 B1: the operation counts are ``anyOf integer|null``
         # with ``minimum: 0``; normalize nulls to unavailable provenance and reject
         # negatives instead of letting ``int(None)`` crash or negatives persist.
         sources = dict(data.get("metric_sources") or {})
         quality = dict(data.get("metric_quality") or {})
+        if legacy:
+            # Copilot review r3c C3: v1.0 records carried no operational provenance
+            # and omit the v1.1 operational fields, so mark every operational metric
+            # ``unavailable``; absent fields must not be mistaken for observed zeros.
+            for name in _OPERATIONAL_METRICS:
+                sources.setdefault(name, "unavailable")
+                quality.setdefault(name, "unavailable")
 
         def _count(name: str) -> int:
             return _coerce_nonneg_metric(data, name, int, 0, sources, quality)
@@ -411,12 +418,19 @@ class AbsoluteOutcome:
         }
 
     @classmethod
-    def from_mapping(cls, data: Mapping[str, Any]) -> "AbsoluteOutcome":
+    def from_mapping(cls, data: Mapping[str, Any], *, legacy: bool = False) -> "AbsoluteOutcome":
         # Copilot review r3 B2: the outcome rollup counts are ``anyOf integer|null``
         # with ``minimum: 0``; normalize nulls to unavailable provenance and reject
         # negatives, mirroring the economic-metric normalization.
         sources = dict(data.get("metric_sources") or {})
         quality = dict(data.get("metric_quality") or {})
+        if legacy:
+            # Copilot review r3c C3: v1.0 records carried no outcome provenance and
+            # omit the v1.1 outcome rollups, so mark every outcome metric
+            # ``unavailable``; absent fields must not be mistaken for observed zeros.
+            for name in _OUTCOME_METRICS:
+                sources.setdefault(name, "unavailable")
+                quality.setdefault(name, "unavailable")
         codes = _as_tuple(data.get("gate_exit_codes"), "outcome.gate_exit_codes")
 
         def _count(name: str) -> int:
@@ -624,8 +638,18 @@ class ExecutionEpoch:
             )
         # For task epochs the backlog item IS the task; default the correlation
         # field to task_id so every reporting slice is backed by a persisted field.
+        # A non-null value that disagrees with task_id violates the ratified v1.1
+        # identity contract (2026-07-13 telemetry-metrics-reporting-ownership
+        # decision: "for task epochs, backlog_item_id MUST equal task_id"), so it
+        # is rejected rather than persisted as a silent mis-correlation.
         if self.backlog_item_id is None:
             object.__setattr__(self, "backlog_item_id", self.task_id)
+        elif self.backlog_item_id != self.task_id:
+            raise EpochError(
+                f"ExecutionEpoch.backlog_item_id {self.backlog_item_id!r} must equal "
+                f"task_id {self.task_id!r} for task epochs per the v1.1 identity "
+                "contract; refusing to persist a mismatched correlation."
+            )
 
     def to_record(self) -> dict[str, Any]:
         """Return the stable serialized shape shared by every sink."""
@@ -696,8 +720,8 @@ class ExecutionEpoch:
                 "task_id": str(data["task_id"]),
                 "route": RouteConfiguration.from_mapping(data["route"]),
                 "economics": EconomicPayload.from_mapping(data["economics"], legacy=legacy),
-                "operations": OperationalReality.from_mapping(data["operations"]),
-                "outcome": AbsoluteOutcome.from_mapping(data["outcome"]),
+                "operations": OperationalReality.from_mapping(data["operations"], legacy=legacy),
+                "outcome": AbsoluteOutcome.from_mapping(data["outcome"], legacy=legacy),
                 "schema_version": SCHEMA_VERSION if legacy else str(raw_version),
             }
             if "epoch_id" in data:

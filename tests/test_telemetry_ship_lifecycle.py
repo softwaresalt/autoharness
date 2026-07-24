@@ -37,7 +37,10 @@ class ShipTelemetryLifecycleTests(unittest.TestCase):
             self.assertIn("--capture-backlogit-sizing", content)
             self.assertIn("context_ref", content)
             self.assertIn("stable epoch_id", content)
-            self.assertIn("skip context carry/record close", content)
+            # Copilot review r3c C6/C7: carry/close only on created/idempotent_begin
+            # and skip conflict (enabled=true but different-keyed context).
+            self.assertIn("`created` or `idempotent_begin`", content)
+            self.assertIn("conflict", content)
 
     def test_manifest_tracks_dogfood_ship_agent_checksum(self) -> None:
         manifest = yaml.safe_load((_ROOT / ".autoharness" / "harness-manifest.yaml").read_text(encoding="utf-8"))

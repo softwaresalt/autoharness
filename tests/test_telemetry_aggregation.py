@@ -127,6 +127,50 @@ class TelemetryAggregationTests(unittest.TestCase):
         self.assertEqual(result.totals["missing_expected_tool_count"], 2)
         self.assertEqual(result.totals["tool_gap_count"], 2)
 
+    def test_per_tool_gap_rate_uses_stored_missing_not_cross_epoch_subtraction(self) -> None:
+        """Regression (Copilot review r3c C2): the per-tool gap rate must use the
+        accumulated stored per-key ``missing`` counts. Deriving the numerator from
+        ``max(sum(expected) - sum(observed), 0)`` lets an over-observation of a
+        tool in one epoch cancel a genuine gap of the same tool in another epoch,
+        under-reporting the aggregate gap rate.
+        """
+        result = aggregate_epochs(
+            [
+                _record(
+                    "over-observed",
+                    "2026-07-24T00:00:00Z",
+                    expected={"engram.map_code": 1},
+                    observed={"engram.map_code": 3},
+                    missing={"engram.map_code": 0},
+                ),
+                _record(
+                    "full-gap",
+                    "2026-07-24T01:00:00Z",
+                    expected={"engram.map_code": 3},
+                    observed={"engram.map_code": 0},
+                    missing={"engram.map_code": 3},
+                ),
+            ]
+        )
+
+        # Stored missing = 0 + 3 = 3 over expected = 1 + 3 = 4 -> 0.75.
+        # The buggy max(sum(expected) - sum(observed), 0)/sum(expected) formula
+        # would compute max(4 - 3, 0)/4 = 0.25, hiding two-thirds of the gap.
+        self.assertEqual(result.tool_gap_rates["engram.map_code"], 3 / 4)
+
+    def test_totals_include_avoided_read_and_raw_search_counts(self) -> None:
+        """Regression (Copilot review r3c C4 / NEW-2): avoided-read and raw-search
+        counts must be aggregated into ``_totals`` so the report contract can
+        surface them.
+        """
+        record = _record("counts", "2026-07-24T00:00:00Z")
+        record["operations"]["avoided_file_read_count"] = 5
+        record["operations"]["raw_search_count"] = 4
+        result = aggregate_epochs([record])
+
+        self.assertEqual(result.totals["avoided_file_read_count"], 5)
+        self.assertEqual(result.totals["raw_search_count"], 4)
+
     def test_derived_metrics_use_aggregate_totals_not_average_of_epoch_ratios(self) -> None:
         result = aggregate_epochs(
             [

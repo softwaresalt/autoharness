@@ -118,6 +118,25 @@ class TelemetryReportTests(unittest.TestCase):
         self.assertEqual(report.derived["net_offload_tokens"], 60)
         self.assertIn("context_area_tokens", report.unavailable_metrics)
 
+    def test_report_surfaces_avoided_read_and_raw_search_totals(self) -> None:
+        """Regression (Copilot review r3c C4 / NEW-2): the 079.012-T report
+        contract requires avoided-read counts, raw-search counts, and token
+        estimates to be aggregated into totals and rendered — they were summed
+        elsewhere but omitted from ``_totals`` and the rendered surface.
+        """
+        record = _record("a")
+        record["operations"]["raw_search_count"] = 3
+        report = summarize_report(TelemetryReadResult("ok", (record,)))
+
+        self.assertEqual(report.totals["avoided_file_read_count"], 2)
+        self.assertEqual(report.totals["raw_search_count"], 3)
+
+        text = render_report(report)
+        self.assertIn("raw_searches=3", text)
+        self.assertIn("Avoided reads: count=2", text)
+        self.assertIn("est_tokens=80", text)
+        self.assertIn("Tool-output estimate: est_tokens=20", text)
+
 
 if __name__ == "__main__":
     unittest.main()

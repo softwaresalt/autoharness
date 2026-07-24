@@ -133,7 +133,19 @@ def render_report(report: TelemetryReportSummary) -> str:
         (
             "Routed/raw usage: "
             f"routed={report.totals.get('routed_lookup_count', 0)}, "
-            f"raw_reads={report.totals.get('raw_file_read_count', 0)}"
+            f"raw_reads={report.totals.get('raw_file_read_count', 0)}, "
+            f"raw_searches={report.totals.get('raw_search_count', 0)}"
+        ),
+        (
+            "Avoided reads: "
+            f"count={report.totals.get('avoided_file_read_count', 0)}, "
+            f"est_tokens={report.totals.get('avoided_read_estimated_tokens', 0)} "
+            f"({_quality(report.records, 'avoided_read_estimated_tokens')})"
+        ),
+        (
+            "Tool-output estimate: "
+            f"est_tokens={report.totals.get('tool_output_estimated_tokens', 0)} "
+            f"({_quality(report.records, 'tool_output_estimated_tokens')})"
         ),
         (
             "Expected/observed/missing: "

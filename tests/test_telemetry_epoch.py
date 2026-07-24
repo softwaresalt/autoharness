@@ -257,6 +257,24 @@ class ExecutionEpochV11Tests(unittest.TestCase):
         )
         self.assertEqual(epoch.backlog_item_id, "079.002-T")
 
+    def test_backlog_item_id_must_equal_task_id_for_task_epochs(self) -> None:
+        """Regression (Copilot review r3c C1): the ratified v1.1 identity contract
+        (2026-07-13 telemetry-metrics-reporting-ownership decision) requires
+        ``backlog_item_id`` to equal ``task_id`` for task epochs. A non-null value
+        that disagrees must be rejected rather than persisted as a silent
+        mis-correlation, both on direct construction and via ``from_mapping``.
+        """
+        with self.assertRaises(EpochError):
+            ExecutionEpoch(
+                task_id="079.003-T", backlog_item_id="079.999-T",
+                route=RouteConfiguration(), economics=EconomicPayload(),
+                operations=OperationalReality(), outcome=AbsoluteOutcome(),
+            )
+        rec = _full_epoch().to_record()
+        rec["backlog_item_id"] = rec["task_id"] + "-different"
+        with self.assertRaises(EpochError):
+            ExecutionEpoch.from_mapping(rec)
+
     def test_legacy_v1_0_record_normalizes_to_v1_1(self) -> None:
         legacy = {
             "epoch_id": "abc", "schema_version": "1.0.0", "task_id": "051.001-T",
@@ -276,6 +294,14 @@ class ExecutionEpochV11Tests(unittest.TestCase):
         # observed values are retained even though provenance cannot be established.
         self.assertEqual(epoch.economics.input_tokens, 100)
         self.assertEqual(epoch.to_record()["schema_version"], "1.1.0")
+        # Copilot review r3c C3: legacy operational and outcome metrics must also be
+        # marked unavailable — absent v1.1 fields must not be read as observed zeros.
+        for name in ("avoided_file_read_count", "raw_search_count", "missing_expected_tool_count"):
+            self.assertEqual(epoch.operations.metric_quality[name], "unavailable")
+            self.assertEqual(epoch.operations.metric_sources[name], "unavailable")
+        for name in ("tool_failure_count", "tool_degraded_count", "tool_gap_count"):
+            self.assertEqual(epoch.outcome.metric_quality[name], "unavailable")
+            self.assertEqual(epoch.outcome.metric_sources[name], "unavailable")
 
     def test_unknown_non_legacy_schema_version_rejected(self) -> None:
         """Copilot review t9: a record declaring an unsupported non-legacy

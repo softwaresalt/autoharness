@@ -123,6 +123,10 @@ class TelemetryReaderTests(unittest.TestCase):
         self.assertEqual(record["backlog_item_id"], "legacy-task")
         self.assertEqual(record["economics"]["metric_sources"]["input_tokens"], "unavailable")
         self.assertEqual(record["economics"]["metric_quality"]["duration_seconds"], "unavailable")
+        # Copilot review r3c C3: legacy operational + outcome metrics must also be
+        # marked unavailable so absent v1.1 fields are not read as observed zeros.
+        self.assertEqual(record["operations"]["metric_quality"]["avoided_file_read_count"], "unavailable")
+        self.assertEqual(record["outcome"]["metric_quality"]["tool_gap_count"], "unavailable")
 
     def test_missing_disabled_or_absent_inputs_return_empty_unavailable_result(self) -> None:
         disabled = load_telemetry_config(None, workspace_root=self.workspace)
@@ -218,6 +222,15 @@ class TelemetryReaderTests(unittest.TestCase):
         self.assertEqual(result.records[0]["schema_version"], "1.1.0")
         self.assertEqual(result.records[0]["backlog_item_id"], "legacy-sqlite")
         self.assertEqual(result.records[0]["sizing"], None)
+        # Copilot review r3c C3 / NEW-1: legacy SQLite rows omit the v1.1 metric
+        # columns. Reconstructing them with ``0`` defaults masked the absence as an
+        # observed zero; ``None`` defaults + legacy normalization must instead mark
+        # the operational and outcome metrics unavailable.
+        operations = result.records[0]["operations"]
+        outcome = result.records[0]["outcome"]
+        self.assertEqual(operations["metric_quality"]["avoided_file_read_count"], "unavailable")
+        self.assertEqual(operations["metric_quality"]["raw_search_count"], "unavailable")
+        self.assertEqual(outcome["metric_quality"]["tool_gap_count"], "unavailable")
 
 
 if __name__ == "__main__":

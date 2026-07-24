@@ -157,15 +157,19 @@ def _per_tool_rates(records: Iterable[dict[str, Any]]) -> dict[str, float | None
             observed[key] = observed.get(key, 0) + int(value)
         for key, value in (ops.get("missing_expected_tool_counts") or {}).items():
             missing[key] = missing.get(key, 0) + int(value)
-    # Derive missing from expected/observed for invariant checking; stored missing
-    # remains in totals, but rates use the same max(expected-observed, 0) rule.
+    # Copilot review r3c C2: the per-tool gap rate is the accumulated per-key
+    # ``missing`` count over the accumulated per-key ``expected`` count. Deriving
+    # the numerator from ``max(sum(expected) - sum(observed), 0)`` cancels gaps
+    # across epochs (an over-observation of one tool masks an under-observation of
+    # the same tool in another epoch), so use the stored per-key missing counts —
+    # the same authoritative field the totals and invariant checks rely on.
     rates: dict[str, float | None] = {}
     for key in sorted(set(expected) | set(observed) | set(missing)):
         expected_count = expected.get(key, 0)
         if expected_count == 0:
             rates[key] = None
         else:
-            rates[key] = max(expected_count - observed.get(key, 0), 0) / expected_count
+            rates[key] = missing.get(key, 0) / expected_count
     return rates
 
 
@@ -183,6 +187,8 @@ def _totals(records: list[dict[str, Any]]) -> dict[str, Any]:
         "missing_expected_tool_count": _operation_sum(records, "missing_expected_tool_count"),
         "tool_gap_count": _outcome_sum(records, "tool_gap_count"),
         "raw_file_read_count": _operation_sum(records, "raw_file_read_count"),
+        "raw_search_count": _operation_sum(records, "raw_search_count"),
+        "avoided_file_read_count": _operation_sum(records, "avoided_file_read_count"),
         "routed_lookup_count": _operation_sum(records, "routed_lookup_count"),
     }
 
