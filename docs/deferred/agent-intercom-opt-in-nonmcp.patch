@@ -1,0 +1,385 @@
+diff --git a/.autoharness/harness-manifest.yaml b/.autoharness/harness-manifest.yaml
+index 4ea3c74..545384f 100644
+--- a/.autoharness/harness-manifest.yaml
++++ b/.autoharness/harness-manifest.yaml
+@@ -32,7 +32,7 @@ capability_pack_overlays:
+       - "pipeline-agents"
+       - "long-running-skills"
+     verification_checks:
+-      - "agent-intercom MCP configured in .vscode/mcp.json (or .cursor/mcp.json / .mcp.json)"
++      - "agent-intercom is an opt-in add-on (no MCP server; non-MCP intercom/ACP tool surface) — enabled via explicit capability-pack selection"
+       - "agent-intercom.instructions.md installed at .github/instructions/"
+   - pack: "backlogit"
+     overlay_targets:
+@@ -95,7 +95,7 @@ artifacts:
+   - path: ".autoharness/workspace-profile.yaml"
+     primitive: 1
+     template: "workspace-discovery output"
+-    checksum: "446b4fb2fbab1b350bfd3dbce818600b503f6ef3c2a51c5141b6032c5c0bd6b1"
++    checksum: "e5a71cf20952b26d42c5f8ca627c7a2e54c7744053e65268505399ea22913071"
+   - path: ".autoharness/config.yaml"
+     primitive: 1
+     template: "harness-config.yaml.tmpl"
+@@ -156,7 +156,7 @@ artifacts:
+   - path: ".github/skills/install-harness/SKILL.md"
+     primitive: 4
+     template: "global skill definition"
+-    checksum: "8e6603f5da7baf044bd4537ec3bb4a434fff05ddb6e64e42714898d06c6bcf7c"
++    checksum: "98a1b5883a323b8eafddfd11724f462f9f76b899ae4962843daf67a77720afa6"
+     note: "pre-existing, source-controlled global artifact"
+   - path: ".github/skills/tune-harness/SKILL.md"
+     primitive: 4
+@@ -166,7 +166,7 @@ artifacts:
+   - path: ".github/skills/workspace-discovery/SKILL.md"
+     primitive: 1
+     template: "global skill definition"
+-    checksum: "2c172b54cac0bcb92eabd95965fd2abb84d3fe641288d7a0ef9c3b5ec66ad8c8"
++    checksum: "24657cadf459b6808933da1d15fe2968fbd1076fc21b1cb69c30fe553d2a9eed"
+     note: "pre-existing, source-controlled global artifact"
+   - path: ".github/skills/verify-harness/SKILL.md"
+     primitive: 7
+@@ -191,7 +191,7 @@ artifacts:
+   - path: ".github/instructions/agent-intercom.instructions.md"
+     primitive: 4
+     template: "instructions/agent-intercom.instructions.md.tmpl"
+-    checksum: "82e319dd0bb4fd38a16ffd2535601da3d64558626c5853d703b38b436b1a113a"
++    checksum: "3b8573246a426964e1a73ce962f5acb022ef83b882c68cfd4f42a6941fb88468"
+     note: "agent-intercom capability pack overlay instruction"
+   - path: ".github/instructions/graphtor-docs.instructions.md"
+     primitive: 1
+diff --git a/.autoharness/workspace-profile.yaml b/.autoharness/workspace-profile.yaml
+index 2e54158..4a90dc9 100644
+--- a/.autoharness/workspace-profile.yaml
++++ b/.autoharness/workspace-profile.yaml
+@@ -135,9 +135,9 @@ harness_recommendations:
+       - "autoharness is the harness framework itself — full preset ensures all primitives are exercised"
+     capability_packs:
+       - item: "agent-intercom"
+-        because: "MCP server configured in .vscode/mcp.json"
++        because: "explicit opt-in: the dogfood harness weaves the intercom workflow (heartbeat, broadcast, approval routing); agent-intercom is an opt-in add-on with no MCP server"
+         signals:
+-          - ".vscode/mcp.json"
++          - ".github/instructions/agent-intercom.instructions.md"
+       - item: "backlogit"
+         because: "MCP server configured and .backlogit/ directory present with full config"
+         signals:
+@@ -158,9 +158,7 @@ harness_recommendations:
+ 
+ agent_intercom:
+   detected: true
+-  mcp_configured: true
+-  config_paths:
+-    - ".vscode/mcp.json"
++  config_paths: []
+   instruction_markers: []
+   recommended: true
+ 
+diff --git a/.github/instructions/agent-intercom.instructions.md b/.github/instructions/agent-intercom.instructions.md
+index 481d147..86da41c 100644
+--- a/.github/instructions/agent-intercom.instructions.md
++++ b/.github/instructions/agent-intercom.instructions.md
+@@ -7,7 +7,8 @@ applyTo: '**'
+ 
+ Use these rules when the workspace has enabled the `agent-intercom` capability pack. This pack is not a
+ single bolt-on step. It weaves remote operator visibility and approval routing through the harness
+-workflow.
++workflow. agent-intercom is an opt-in add-on with no MCP server; it operates over a non-MCP
++intercom/ACP tool surface exposed by the workspace.
+ 
+ ## Required Tool Surface
+ 
+diff --git a/.github/skills/install-harness/SKILL.md b/.github/skills/install-harness/SKILL.md
+index cbaf92b..0df2e24 100644
+--- a/.github/skills/install-harness/SKILL.md
++++ b/.github/skills/install-harness/SKILL.md
+@@ -461,7 +461,7 @@ the `auto-mergeinstall` agent.
+ |---|---|---|---|
+ | `{{AGENT_INTERCOM_ENABLED}}` | `capability_packs` contains `agent-intercom` | `true` | `false` |
+ | `{{AGENT_INTERCOM_DETECTED}}` | `agent_intercom.detected` | `true` | `false` |
+-| `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.mcp.json, .intercom/settings.json` | empty |
++| `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.intercom/settings.json` | empty |
+ | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
+ | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
+ | `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.mcp.json, .engram/config.toml` | empty |
+@@ -540,9 +540,13 @@ Preset defaults:
+ |---|---|---|---|
+ | `starter` | 1, 2, 4, 5, 6, 8, 9 | none | First-time adoption, smaller repos |
+ | `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review` | Most repositories |
+-| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `graphtor-docs` | Higher-operational-maturity teams |
++| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-engram`, `backlogit`, `browser-verification`, `graphtor-docs` | Higher-operational-maturity teams |
+ 
+-If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, and `graphtor-docs`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs.
++`agent-intercom` is an **opt-in extra add-on**: it is never installed by any
++preset default (including `full`) and no longer ships an MCP server. Enable it
++only via explicit `capability_packs` selection.
++
++If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-engram`, `backlogit`, `browser-verification`, and `graphtor-docs`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs. `agent-intercom` is only installed when it appears in an explicit `capability_packs` list.
+ 
+ Additive stack packs are descriptive composition inputs rather than substitute
+ architectures. They capture multiple concurrent workspace shapes such as
+@@ -727,12 +731,17 @@ Example overlay target map for `agent-engram`:
+ 
+ #### Formal Overlay Contract: `agent-intercom`
+ 
++`agent-intercom` is an **opt-in extra add-on** with **no MCP server**. It is
++never enabled by preset default; recommend it only when intercom markers are
++present or the operator explicitly opts in. It operates over a non-MCP
++intercom/ACP tool surface.
++
+ **Eligibility signals** (when to recommend agent-intercom):
+-* `.mcp.json` (root, canonical shared config) references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`)
+-* legacy editor-local MCP settings still reference intercom tool names (compatibility fallback only)
+-* `AGENTS.md` or agent files contain intercom tool names or `<!-- intercom:start -->` marker
++* `.intercom/settings.json` exists (explicit intercom policy/configuration markers)
++* `AGENTS.md` or agent files contain intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) or the `<!-- intercom:start -->` marker
++* operator explicitly opts in to remote milestone visibility and approval routing
+ 
+-**Recommendation logic**: Recommend when `agent_intercom.mcp_configured: true` OR `agent_intercom.detected: true` in the workspace profile.
++**Recommendation logic**: Recommend when `agent_intercom.detected: true` in the workspace profile. Because agent-intercom has no MCP server and is an opt-in add-on, it is never enabled by preset default and must be requested explicitly.
+ 
+ **Overlay targets**:
+ * `agent-intercom.instructions.md` — primary instruction file installed at `.github/instructions/`
+@@ -758,7 +767,7 @@ Example overlay target map for `agent-engram`:
+ **Tuning drift checks**:
+ * `agent-intercom.instructions.md` checksum vs. template checksum in harness-manifest
+ * .stage.agent.md and .ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
+-* MCP config path in manifest should normally resolve to `.mcp.json`; legacy editor-local config paths may still appear when tuning older workspaces
++* Intercom config path in the manifest normally resolves to `.intercom/settings.json`; agent-intercom has no MCP server, so a `.mcp.json` intercom entry is not expected
+ 
+ #### Formal Overlay Contract: `graphtor-docs`
+ 
+diff --git a/.github/skills/workspace-discovery/SKILL.md b/.github/skills/workspace-discovery/SKILL.md
+index ac375ac..f4732ab 100644
+--- a/.github/skills/workspace-discovery/SKILL.md
++++ b/.github/skills/workspace-discovery/SKILL.md
+@@ -210,21 +210,19 @@ runtime_validation:
+ 
+ #### Step 1.5c: Agent-Intercom Detection
+ 
+-Detect whether the workspace is already configured for agent-intercom or a closely related remote-operator workflow:
++Detect whether the workspace is already configured for agent-intercom or a closely related remote-operator workflow. `agent-intercom` is an **opt-in extra add-on** with **no MCP server**, so detection relies on explicit intercom configuration/markers and operator opt-in — not on `.mcp.json`:
+ 
+ | Signal | Meaning |
+ |--------|---------|
+ | `.intercom/settings.json` exists | Workspace has explicit intercom policy/configuration markers |
+-| `.mcp.json` (workspace root, canonical shared config) or legacy editor settings reference `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | MCP server likely configured for the workspace |
+-| Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows; or contains `<!-- intercom:start -->` / `<!-- intercom:end -->` markers | Harness may already be partially woven for intercom |
++| Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows; or contains `<!-- intercom:start -->` / `<!-- intercom:end -->` markers; or agent files use intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | Harness may already be partially woven for intercom |
+ 
+ Record: `agent_intercom{}` with the following structure:
+ 
+ ```yaml
+ agent_intercom:
+   detected: true|false
+-  mcp_configured: true|false
+-  config_paths: []          # paths where intercom MCP config was found (normally .mcp.json)
++  config_paths: []          # paths where intercom config was found (e.g. .intercom/settings.json)
+   instruction_markers: []   # matched markers from AGENTS.md / copilot-instructions.md (e.g. <!-- intercom:start -->)
+   recommended: true|false
+ ```
+@@ -640,7 +638,6 @@ harness_recommendations:
+ 
+ agent_intercom:
+   detected: false
+-  mcp_configured: false
+   config_paths: []
+   instruction_markers: []
+   recommended: false
+@@ -730,7 +727,7 @@ The summary MUST include:
+ * Recommended install layers derived from preset, stack packs, runtime surfaces, and overlays
+ * Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true` and browser tooling is present)
+ * Runtime validator expectations — which surfaces are expected, which probe hints were detected, and whether releasability evidence is required before Ship treats runtime validation as complete
+-* Whether the `agent-intercom` pack is recommended because intercom markers or remote-operator workflow signals were detected
++* Whether the `agent-intercom` opt-in add-on is recommended because intercom markers or remote-operator workflow signals were detected (or the operator opted in). agent-intercom has no MCP server and is never recommended by preset default
+ * Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
+ * Whether the `graphtor-docs` pack is recommended because graphtor markers or indexed local-documentation workflow signals were detected
+ * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available
+diff --git a/docs/capability-packs.md b/docs/capability-packs.md
+index 6c69fe4..c40e92d 100644
+--- a/docs/capability-packs.md
++++ b/docs/capability-packs.md
+@@ -231,12 +231,17 @@ This pack does not replace general search guidance. It deepens it when a workspa
+ 
+ `agent-intercom` is the clearest example of why the overlay pattern exists.
+ 
++> **agent-intercom is an opt-in extra add-on.** It is not a default member of any
++> preset (including `full`) and no longer ships an MCP server — it operates over a
++> non-MCP intercom/ACP tool surface. Enable it only via explicit capability-pack
++> selection. When enabled it is still a woven overlay, not a detached single-file
++> add-on.
++
+ ### Eligibility signals
+ 
+ * `.intercom/settings.json`
+-* `.mcp.json` references intercom tools
+-* legacy editor settings still reference intercom tools (compatibility fallback only)
+-* existing docs already describing remote approval or operator steering
++* existing `AGENTS.md` / `copilot-instructions.md` describing intercom heartbeat, remote approval, or operator steering (including `<!-- intercom:start -->` markers)
++* operator explicitly opts in to remote visibility and approval routing
+ 
+ ### Overlay targets
+ 
+diff --git a/docs/getting-started.md b/docs/getting-started.md
+index 76a010a..7a4f251 100644
+--- a/docs/getting-started.md
++++ b/docs/getting-started.md
+@@ -442,7 +442,7 @@ If you want to drive the lifecycle manually instead of using the workflow entryp
+ 8. If the feature or chore changes runtime behavior, ship runs `runtime-verification`
+ 9. Ship captures release readiness and follow-up monitoring with `operational-closure`
+ 10. After merge, ship can invoke `compound-refresh` when shipped work supersedes, duplicates, or invalidates existing learnings in `docs/compound/`
+-11. If the workspace enabled `agent-intercom`, confirm the server is reachable before relying on remote approval or operator steering flows
++11. If the workspace enabled the opt-in `agent-intercom` add-on, confirm the intercom tool surface / path is reachable before relying on remote approval or operator steering flows (agent-intercom has no MCP server)
+ 12. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
+ 13. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, checkpoint, YAML/frontmatter, or source-artifact-cleanup workflows
+ 14. If the workspace enabled `graphtor-docs`, confirm the graphtor-docs server / MCP path is reachable and sources are indexed before relying on indexed documentation retrieval
+diff --git a/schemas/workspace-profile.schema.json b/schemas/workspace-profile.schema.json
+index 2b4f34a..60fe0b3 100644
+--- a/schemas/workspace-profile.schema.json
++++ b/schemas/workspace-profile.schema.json
+@@ -741,9 +741,6 @@
+         "detected": {
+           "type": "boolean"
+         },
+-        "mcp_configured": {
+-          "type": "boolean"
+-        },
+         "config_paths": {
+           "type": "array",
+           "items": {
+diff --git a/schemas/workspace-profile/1.0.0.schema.json b/schemas/workspace-profile/1.0.0.schema.json
+index 0bb648e..570e22f 100644
+--- a/schemas/workspace-profile/1.0.0.schema.json
++++ b/schemas/workspace-profile/1.0.0.schema.json
+@@ -741,9 +741,6 @@
+         "detected": {
+           "type": "boolean"
+         },
+-        "mcp_configured": {
+-          "type": "boolean"
+-        },
+         "config_paths": {
+           "type": "array",
+           "items": {
+diff --git a/templates/instructions/agent-intercom.instructions.md.tmpl b/templates/instructions/agent-intercom.instructions.md.tmpl
+index 8c32ca2..82b65e7 100644
+--- a/templates/instructions/agent-intercom.instructions.md.tmpl
++++ b/templates/instructions/agent-intercom.instructions.md.tmpl
+@@ -7,7 +7,8 @@ applyTo: '**'
+ 
+ Use these rules when the workspace enabled the `agent-intercom` capability pack. This pack is not a
+ single bolt-on step. It weaves remote operator visibility and approval routing through the harness
+-workflow.
++workflow. agent-intercom is an opt-in add-on with no MCP server; it operates over a non-MCP
++intercom/ACP tool surface exposed by the workspace.
+ 
+ ## Required Tool Surface
+ 
+diff --git a/templates/packs/capability-pack-registry.yaml b/templates/packs/capability-pack-registry.yaml
+index 5da1f64..11d7283 100644
+--- a/templates/packs/capability-pack-registry.yaml
++++ b/templates/packs/capability-pack-registry.yaml
+@@ -23,17 +23,20 @@
+ schema_version: "1.0.0"
+ 
+ packs:
++  # agent-intercom is an OPT-IN extra add-on. It is intentionally NOT a default
++  # member of any preset (default_in_preset: []) and no longer ships an MCP
++  # server (mcp_requirements: []) — it operates over a non-MCP intercom/ACP tool
++  # surface. Enable it only via explicit capability-pack selection.
+   - id: "agent-intercom"
+     title: "Agent Intercom"
+     purpose: "Remote operator visibility, approval routing, and standby handoffs"
+     primitive_impact: [4, 5, 6, 7, 10]
+     eligibility_signals:
+-      - ".mcp.json (workspace root) or legacy editor settings reference agent-intercom or a remote-operator intercom tool surface"
+-      - "existing AGENTS.md / copilot-instructions.md describe heartbeat, broadcast, approval routing, or operator standby flows"
+-      - "operator works AFK and needs remote milestone visibility and approval routing"
++      - ".intercom/settings.json exists, or existing AGENTS.md / copilot-instructions.md describe heartbeat, broadcast, approval routing, or operator standby flows"
++      - "operator works AFK and explicitly opts in to remote milestone visibility and approval routing"
+     overlay_instruction: "templates/instructions/agent-intercom.instructions.md.tmpl"
+-    mcp_requirements: ["agent-intercom"]
+-    default_in_preset: ["full"]
++    mcp_requirements: []
++    default_in_preset: []
+ 
+   - id: "agent-engram"
+     title: "Agent Engram"
+diff --git a/tests/test_capability_pack_registry.py b/tests/test_capability_pack_registry.py
+index d224e5d..8bd9c52 100644
+--- a/tests/test_capability_pack_registry.py
++++ b/tests/test_capability_pack_registry.py
+@@ -91,6 +91,21 @@ class CapabilityPackRegistryTests(unittest.TestCase):
+         for pack in self.data["packs"]:
+             self.assertTrue(set(pack["default_in_preset"]).issubset(allowed))
+ 
++    def test_agent_intercom_is_opt_in_add_on(self) -> None:
++        intercom = next(
++            p for p in self.data["packs"] if p["id"] == "agent-intercom"
++        )
++        self.assertEqual(
++            intercom["default_in_preset"],
++            [],
++            "agent-intercom is an opt-in add-on: it must not default into any preset",
++        )
++        self.assertEqual(
++            intercom["mcp_requirements"],
++            [],
++            "agent-intercom no longer ships an MCP server: mcp_requirements must be empty",
++        )
++
+     def test_retrieval_enforced_is_optional_boolean(self) -> None:
+         pack_props = self.schema["definitions"]["pack"]["properties"]
+         self.assertIn(
+diff --git a/tests/test_graphtor_docs_full_suite.py b/tests/test_graphtor_docs_full_suite.py
+index b160576..0803563 100644
+--- a/tests/test_graphtor_docs_full_suite.py
++++ b/tests/test_graphtor_docs_full_suite.py
+@@ -8,7 +8,8 @@ These tests fail until graphtor-docs is completed to agent-engram parity:
+ * a ``full`` config enabling graphtor-docs must validate against the versioned
+   config schema;
+ * every registered capability pack (including graphtor-docs) must default into the
+-  ``full`` preset.
++  ``full`` preset, EXCEPT opt-in extra add-ons such as ``agent-intercom`` which
++  are enabled only by explicit selection.
+ """
+ 
+ from __future__ import annotations
+@@ -92,20 +93,36 @@ class GraphtorDocsSchemaParityTests(unittest.TestCase):
+ 
+ 
+ class GraphtorDocsFullPresetMembershipTests(unittest.TestCase):
+-    """Every registered pack must be a default member of the ``full`` preset."""
++    """Every registered pack defaults into the ``full`` preset, except opt-in
++    extra add-ons (``agent-intercom``) enabled only by explicit selection."""
++
++    # agent-intercom is an opt-in extra add-on (no MCP server); it is
++    # intentionally NOT a default member of the full preset.
++    _OPT_IN_ADD_ONS = {"agent-intercom"}
+ 
+     @classmethod
+     def setUpClass(cls) -> None:
+         cls.packs = yaml.safe_load(_REGISTRY.read_text(encoding="utf-8"))["packs"]
+ 
+-    def test_every_pack_defaults_into_full_preset(self) -> None:
++    def test_every_non_opt_in_pack_defaults_into_full_preset(self) -> None:
+         for pack in self.packs:
++            if pack["id"] in self._OPT_IN_ADD_ONS:
++                continue
+             self.assertIn(
+                 "full",
+                 pack["default_in_preset"],
+                 f"pack {pack['id']!r} is not a default of the full preset",
+             )
+ 
++    def test_opt_in_add_ons_are_not_full_defaults(self) -> None:
++        for pack in self.packs:
++            if pack["id"] in self._OPT_IN_ADD_ONS:
++                self.assertEqual(
++                    pack["default_in_preset"],
++                    [],
++                    f"opt-in add-on {pack['id']!r} must not default into any preset",
++                )
++
+     def test_graphtor_docs_defaults_into_full_preset(self) -> None:
+         graphtor = next(p for p in self.packs if p["id"] == "graphtor-docs")
+         self.assertIn("full", graphtor["default_in_preset"])
