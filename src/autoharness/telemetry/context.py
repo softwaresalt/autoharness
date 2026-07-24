@@ -241,32 +241,53 @@ def begin_context(
             errors=("context already exists with different canonical content",),
         )
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.parent.resolve() != _context_dir(config, workspace_root):
-        raise TelemetryContextError("telemetry context directory changed during creation.")
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.parent.resolve() != _context_dir(config, workspace_root):
+            raise TelemetryContextError("telemetry context directory changed during creation.")
         with path.open("x", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n")
     except FileExistsError:
-        return begin_context(
-            config,
-            workspace_root,
-            task_id=task_id,
+        # A concurrent writer created the context file between our existence check
+        # and the exclusive open. Re-read once (bounded — never recurse) and
+        # reconcile against our canonical payload. Recursing here would spin to
+        # RecursionError when the racing file is malformed or still partially
+        # written (both make _read_context return None, so the existence check
+        # keeps missing it while the exclusive open keeps failing).
+        raced = _read_context(path)
+        if raced == payload:
+            return TelemetryBeginResult(
+                enabled=True,
+                status="idempotent_begin",
+                epoch_id=canonical_id,
+                context_ref=context_ref,
+                context_path=path,
+                context_digest=str(payload.get("context_digest")),
+            )
+        raced_digest = raced.get("context_digest") if isinstance(raced, dict) else None
+        return TelemetryBeginResult(
+            enabled=True,
+            status="conflict",
             epoch_id=canonical_id,
-            backlog_item_id=backlog_item_id,
-            feature_id=feature_id,
-            shipment_id=shipment_id,
-            workspace_id=workspace_id,
-            session_id=session_id,
-            agent_role=agent_role,
-            phase=phase,
-            branch=branch,
-            commit_sha=commit_sha,
-            captured_at=effective_captured_at,
-            sizing=sizing,
-            source_metadata=source_metadata,
-            ruleset_metadata=ruleset_metadata,
-            version_metadata=version_metadata,
+            context_ref=context_ref,
+            context_path=path,
+            context_digest=str(raced_digest) if raced_digest else None,
+            errors=("context already exists with different or unreadable content",),
+        )
+    except TelemetryContextError:
+        raise
+    except OSError as exc:
+        # Fail-open contract (telemetry/__init__.py): a filesystem failure while
+        # creating the context (read-only workspace, permission denial, disk full)
+        # must not halt the Ship task immediately after claim. Degrade to an
+        # unavailable begin so Ship skips telemetry rather than leaking an OSError.
+        return TelemetryBeginResult(
+            enabled=False,
+            status="unavailable",
+            epoch_id=canonical_id,
+            context_ref=context_ref,
+            context_path=path,
+            errors=(f"telemetry context write failed: {exc}",),
         )
 
     return TelemetryBeginResult(

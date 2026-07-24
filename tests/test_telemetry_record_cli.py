@@ -359,6 +359,76 @@ class TelemetryRecordCliTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 2)
 
 
+class MergeTelemetryContextPayloadTests(unittest.TestCase):
+    """Copilot review r3 (cli.py:868/872): context/close payload merge semantics."""
+
+    def _ctx(self, **overrides: object) -> dict:
+        base = {
+            "epoch_id": "22222222222242228222222222222222",
+            "task_id": "079.016-T",
+            "backlog_item_id": "079.016-T",
+            "feature_id": None,
+            "shipment_id": None,
+            "workspace_id": None,
+            "session_id": None,
+            "agent_role": None,
+            "phase": None,
+            "branch": None,
+            "commit_sha": None,
+            "captured_at": "2026-07-24T03:07:22Z",
+        }
+        base.update(overrides)
+        return base
+
+    def test_captured_at_is_deterministic_timestamp_fallback(self) -> None:
+        # r3-1: a context-replayable close MUST hash to a stable digest across
+        # retries, so when the close payload omits a timestamp the merge falls
+        # back to the close-invariant captured_at rather than a non-deterministic
+        # "now". (Leaving it unset would let ExecutionEpoch stamp _utc_now_iso()
+        # per call and break idempotent replay / conflict detection.)
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        merged = _merge_telemetry_context_payload({}, self._ctx())
+        self.assertEqual(merged["timestamp"], "2026-07-24T03:07:22Z")
+
+    def test_explicit_close_timestamp_is_preserved(self) -> None:
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        merged = _merge_telemetry_context_payload(
+            {"timestamp": "2026-07-24T09:00:00Z"}, self._ctx()
+        )
+        self.assertEqual(merged["timestamp"], "2026-07-24T09:00:00Z")
+
+    def test_null_context_correlation_does_not_erase_close_values(self) -> None:
+        # r3-2: optional correlation fields captured as null must not clobber
+        # values supplied at close time.
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        close = {"branch": "feat/x", "commit_sha": "abc123", "feature_id": "079-F"}
+        merged = _merge_telemetry_context_payload(close, self._ctx())
+        self.assertEqual(merged["branch"], "feat/x")
+        self.assertEqual(merged["commit_sha"], "abc123")
+        self.assertEqual(merged["feature_id"], "079-F")
+
+    def test_captured_context_correlation_overrides_close(self) -> None:
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        close = {"feature_id": "wrong", "branch": "close-branch"}
+        merged = _merge_telemetry_context_payload(
+            close, self._ctx(feature_id="079-F", branch="ctx-branch")
+        )
+        self.assertEqual(merged["feature_id"], "079-F")
+        self.assertEqual(merged["branch"], "ctx-branch")
+
+    def test_stable_identity_is_frozen_from_context(self) -> None:
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        close = {"task_id": "will-be-overridden"}
+        merged = _merge_telemetry_context_payload(close, self._ctx())
+        self.assertEqual(merged["task_id"], "079.016-T")
+        self.assertEqual(merged["epoch_id"], "22222222222242228222222222222222")
+
+
 class RecordEpochFailOpenTests(unittest.TestCase):
     """A failing sink must never propagate a completion-blocking signal (P2-1)."""
 

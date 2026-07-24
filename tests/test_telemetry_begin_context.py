@@ -10,6 +10,7 @@ import shutil
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 
 from autoharness.cli import main
 from autoharness.telemetry.config import load_telemetry_config
@@ -284,6 +285,48 @@ class TelemetryBeginContextTests(unittest.TestCase):
         self.assertEqual(result["status"], "created")
         self.assertEqual(result["epoch_id"], "77777777777747778777777777777777")
         self.assertTrue((self.workspace / result["context_ref"]).exists())
+
+    def test_begin_does_not_recurse_on_malformed_existing_context(self) -> None:
+        """Copilot review r3 (context.py:251): when the target context file exists
+        but is malformed/partial, _read_context returns None and the exclusive
+        open raises FileExistsError. The old code recursed indefinitely to
+        RecursionError. It must instead return a controlled conflict."""
+        config = self._config()
+        epoch_id = "88888888-8888-4888-8888-888888888888"
+        first = begin_context(
+            config, self.workspace, task_id="079.014-T", epoch_id=epoch_id,
+            captured_at="2026-07-24T03:07:22Z",
+        )
+        first.context_path.write_text("{ not valid json", encoding="utf-8")
+
+        result = begin_context(
+            config, self.workspace, task_id="079.014-T", epoch_id=epoch_id,
+            captured_at="2026-07-24T03:07:22Z",
+        )
+
+        self.assertEqual(result.status, "conflict")
+        self.assertTrue(result.enabled)
+
+    def test_begin_is_fail_open_on_filesystem_write_error(self) -> None:
+        """Copilot review r3 (context.py:249): a filesystem failure (read-only
+        workspace, permission denial, disk full) raises a raw OSError. The CLI
+        catches only TelemetryContextError, so an unhandled OSError would halt the
+        Ship task, violating the fail-open contract. begin_context must degrade to
+        an unavailable begin instead."""
+        config = self._config()
+        with mock.patch(
+            "autoharness.telemetry.context.Path.open",
+            side_effect=PermissionError("read-only workspace"),
+        ):
+            result = begin_context(
+                config, self.workspace, task_id="079.014-T",
+                epoch_id="99999999-9999-4999-8999-999999999999",
+                captured_at="2026-07-24T03:07:22Z",
+            )
+
+        self.assertFalse(result.enabled)
+        self.assertEqual(result.status, "unavailable")
+        self.assertTrue(result.errors)
 
 
 if __name__ == "__main__":

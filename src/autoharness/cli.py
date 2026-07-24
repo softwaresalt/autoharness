@@ -851,10 +851,17 @@ def _merge_telemetry_context_payload(payload: object, context_payload: dict) -> 
         if supplied != context_epoch_id:
             raise EpochError("Payload epoch_id disagrees with telemetry context epoch_id.")
     merged = dict(payload)
+    # Stable task-identity anchors are always frozen from the pre-execution
+    # context so a replayable close cannot disagree with the claimed identity.
+    for name in ("epoch_id", "task_id", "backlog_item_id"):
+        if name in context_payload:
+            merged[name] = context_payload[name]
+    # Optional correlation fields are only overridden when the context actually
+    # captured a value. _build_context_payload always emits these keys (as null
+    # when absent), so a plain `name in context_payload` check would erase
+    # branch/commit_sha/session/agent/phase/feature/shipment values supplied at
+    # close time whenever Ship did not pass them to `telemetry begin`.
     for name in (
-        "epoch_id",
-        "task_id",
-        "backlog_item_id",
         "workspace_id",
         "session_id",
         "agent_role",
@@ -864,10 +871,19 @@ def _merge_telemetry_context_payload(payload: object, context_payload: dict) -> 
         "branch",
         "commit_sha",
     ):
-        if name in context_payload:
-            merged[name] = context_payload[name]
+        value = context_payload.get(name)
+        if value is not None:
+            merged[name] = value
     if "sizing" in context_payload:
         merged["sizing"] = context_payload["sizing"]
+    # `captured_at` is the pre-execution (begin) timestamp. It is used as the
+    # epoch-close `timestamp` ONLY as a deterministic fallback when the close
+    # payload omits its own timestamp: a context-replayable close MUST hash to a
+    # stable digest across retries (see the ratified idempotency contract in
+    # test_record_context_idempotency_and_conflict_outcomes), and `captured_at`
+    # is the only close-invariant time persisted in the context. When close-time
+    # accuracy matters, the harness supplies an explicit `timestamp` in the close
+    # payload, which always takes precedence over this fallback.
     if not merged.get("timestamp") and context_payload.get("captured_at"):
         merged["timestamp"] = context_payload["captured_at"]
     return merged
