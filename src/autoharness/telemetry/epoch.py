@@ -119,6 +119,26 @@ def _coerce_nonneg_metric(
         sources.setdefault(name, "unavailable")
         quality.setdefault(name, "unavailable")
         return default
+    # Validate the JSON type before coercion. Casting first would silently accept
+    # schema-invalid input: ``int(1.9) -> 1``, ``int(True) -> 1``, ``int("5") -> 5``,
+    # each persisting content different from the submitted payload. The v1.1 schema
+    # declares integer counts as JSON integers and cost/duration as JSON numbers;
+    # ``bool`` is never a valid JSON number here. Mirror the strict map-count
+    # validator so scalar and map counts enforce the same contract.
+    if isinstance(raw, bool):
+        raise EpochError(
+            f"'{name}' must be a non-negative "
+            f"{'integer' if caster is int else 'number'} per schema; got bool {raw!r}."
+        )
+    if caster is int:
+        if not isinstance(raw, int):
+            raise EpochError(
+                f"'{name}' must be a JSON integer per schema; got {type(raw).__name__} {raw!r}."
+            )
+    elif not isinstance(raw, (int, float)):
+        raise EpochError(
+            f"'{name}' must be a JSON number per schema; got {type(raw).__name__} {raw!r}."
+        )
     value = caster(raw)
     if value < 0:
         raise EpochError(f"'{name}' must be >= 0 per schema (minimum: 0); got {value!r}.")
@@ -536,12 +556,35 @@ class WorkSizingSnapshot:
             "feature_planned_child_size_histogram",
             "shipment_manifest_size_histogram",
         ):
-            unsupported = set(getattr(self, hist_field)) - _HISTOGRAM_KEYS
+            histogram = getattr(self, hist_field)
+            unsupported = set(histogram) - _HISTOGRAM_KEYS
             if unsupported:
                 raise EpochError(
                     f"WorkSizingSnapshot.{hist_field} has unsupported buckets "
                     f"{sorted(unsupported)}; allowed {sorted(_HISTOGRAM_KEYS)} "
                     f"(there is no 'unavailable' bucket)."
+                )
+            # Copilot review r5 R2: validate bucket VALUES, not just keys. A
+            # negative or non-integer count would persist a schema-invalid
+            # snapshot (and a count/-histogram pair that agree, e.g. count -1 with
+            # {"M": -1}, would even pass ``feature_composition_consistent``).
+            for bucket, count in histogram.items():
+                if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                    raise EpochError(
+                        f"WorkSizingSnapshot.{hist_field}[{bucket!r}] must be a "
+                        f"non-negative integer per schema; got {count!r}."
+                    )
+        for count_field in (
+            "feature_planned_child_task_count",
+            "shipment_manifest_task_count",
+        ):
+            count = getattr(self, count_field)
+            if count is not None and (
+                isinstance(count, bool) or not isinstance(count, int) or count < 0
+            ):
+                raise EpochError(
+                    f"WorkSizingSnapshot.{count_field} must be a non-negative "
+                    f"integer or null; got {count!r}."
                 )
 
     @staticmethod

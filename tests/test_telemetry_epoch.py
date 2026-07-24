@@ -111,6 +111,34 @@ class ExecutionEpochTests(unittest.TestCase):
         with self.assertRaises(EpochError):
             EconomicPayload.from_mapping({"input_tokens": -1})
 
+    def test_economics_from_mapping_rejects_non_numeric_scalar_types(self) -> None:
+        """Regression (Copilot review r5 R5): the v1.1 economics metrics are
+        ``anyOf {integer|number, minimum: 0} | null``. Casting before validating
+        the JSON type silently accepts schema-invalid scalars — ``input_tokens:
+        1.9`` and ``input_tokens: True`` both truncate to ``1`` and a numeric
+        string ``"5"`` is coerced — persisting content different from the
+        submitted payload. Validate the JSON type before coercion, matching the
+        strict map-count validator."""
+        for bad in (
+            {"input_tokens": 1.9},        # float for an integer field
+            {"input_tokens": True},       # bool masquerading as an integer
+            {"input_tokens": "5"},        # numeric string
+            {"output_tokens": 2.5},
+            {"cogs_usd": "0.10"},         # numeric string for a number field
+            {"duration_seconds": True},   # bool for a number field
+        ):
+            with self.assertRaises(EpochError):
+                EconomicPayload.from_mapping(bad)
+
+        # Valid JSON types are preserved: integers for integer fields, JSON
+        # numbers (int or float) for number fields.
+        ok = EconomicPayload.from_mapping(
+            {"input_tokens": 100, "cogs_usd": 2, "duration_seconds": 1.5}
+        )
+        self.assertEqual(ok.input_tokens, 100)
+        self.assertEqual(ok.cogs_usd, 2.0)
+        self.assertEqual(ok.duration_seconds, 1.5)
+
     def test_operations_from_mapping_tolerates_null_and_rejects_negative(self) -> None:
         """Regression (Copilot review r3 B1): the operation counts are
         ``anyOf integer|null`` with ``minimum: 0``. Null coerces to an unavailable
@@ -417,6 +445,34 @@ class WorkSizingSnapshotTests(unittest.TestCase):
             WorkSizingSnapshot(feature_planned_child_size_histogram={"unavailable": 2})
         with self.assertRaises(EpochError):
             WorkSizingSnapshot(shipment_manifest_size_histogram={"unavailable": 1})
+
+    def test_histogram_and_count_reject_negative_and_non_integer(self) -> None:
+        """Regression (Copilot review r5 R2): only histogram *keys* were
+        validated, so negative or non-integer histogram values and negative
+        membership counts could persist a schema-invalid snapshot. A snapshot
+        with count ``-1`` and ``{"M": -1}`` even reports
+        ``feature_composition_consistent`` because both sides agree. Enforce
+        non-negative integer histogram values and non-negative nullable counts
+        during construction."""
+        with self.assertRaises(EpochError):
+            WorkSizingSnapshot(
+                feature_planned_child_task_count=-1,
+                feature_planned_child_size_histogram={"M": -1},
+            )
+        with self.assertRaises(EpochError):
+            WorkSizingSnapshot(feature_planned_child_size_histogram={"M": -2})
+        with self.assertRaises(EpochError):
+            WorkSizingSnapshot(shipment_manifest_size_histogram={"S": 1.5})
+        with self.assertRaises(EpochError):
+            WorkSizingSnapshot(shipment_manifest_size_histogram={"S": True})
+        with self.assertRaises(EpochError):
+            WorkSizingSnapshot(shipment_manifest_task_count=-3)
+
+        ok = WorkSizingSnapshot(
+            feature_planned_child_task_count=3,
+            feature_planned_child_size_histogram={"M": 2, "unsized": 1},
+        )
+        self.assertTrue(ok.feature_composition_consistent())
 
     def test_histogram_allows_unsized_bucket(self) -> None:
         snap = WorkSizingSnapshot(
