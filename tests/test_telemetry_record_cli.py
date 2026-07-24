@@ -84,6 +84,27 @@ class TelemetryRecordCliTests(unittest.TestCase):
         line = jsonl_path.read_text(encoding="utf-8").splitlines()[0]
         self.assertEqual(json.loads(line)["task_id"], "051.001-T")
 
+    def test_non_ascii_payload_replays_idempotently_across_sinks(self) -> None:
+        """Regression (local review P2): the SQLite and JSONL payload-digest
+        canonicalization must agree for non-ASCII payloads so an identical
+        replay is idempotent rather than a false cross-sink immutable conflict.
+        """
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        payload = dict(_PAYLOAD)
+        payload["epoch_id"] = "22222222222242228222222222222222"
+        payload["branch"] = "feat/t\u00ebst-\u03a9"  # non-ASCII correlation value
+        epoch = ExecutionEpoch.from_mapping(payload)
+
+        first = record_epoch(epoch, config)
+        second = record_epoch(epoch, config)
+
+        self.assertEqual(first.idempotency_outcome, "created")
+        self.assertEqual(second.idempotency_outcome, "idempotent_replay")
+        self.assertEqual(second.errors, [])
+
     def test_record_rejects_missing_epoch_id_without_context(self) -> None:
         self._write_config(_ENABLED_CONFIG)
         payload = dict(_PAYLOAD)

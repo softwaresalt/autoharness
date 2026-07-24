@@ -214,7 +214,7 @@ _INSERT_COLUMNS = (
 
 
 def _json(value: Any) -> str:
-    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+    return json.dumps(value, separators=(",", ":"), sort_keys=True, ensure_ascii=False)
 
 
 def canonical_payload_json(epoch: ExecutionEpoch) -> str:
