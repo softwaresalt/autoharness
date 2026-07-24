@@ -340,5 +340,182 @@ class WorkSizingSnapshotTests(unittest.TestCase):
         self.assertEqual(WorkSizingSnapshot.from_mapping(snap.to_dict()), snap)
 
 
+class OperationalGapRollupTests(unittest.TestCase):
+    def test_route_kind_serializes_and_primary_route_kind_is_first(self) -> None:
+        route = RouteConfiguration(
+            models=("gpt-5.4-mini",),
+            route_kinds=("structural_graph", "doc_index"),
+        )
+
+        self.assertEqual(route.primary_route_kind, "structural_graph")
+        self.assertEqual(
+            route.to_dict(),
+            {
+                "models": ["gpt-5.4-mini"],
+                "route_kinds": ["structural_graph", "doc_index"],
+            },
+        )
+        self.assertEqual(RouteConfiguration.from_mapping(route.to_dict()), route)
+
+    def test_operational_offload_counts_round_trip(self) -> None:
+        ops = OperationalReality(
+            cli_tools=("git",),
+            tool_surfaces=("mcp", "cli"),
+            retrieval_packs=("agent-engram", "graphtor-docs"),
+            route_kind_counts={"structural_graph": 2, "doc_index": 1},
+            routed_lookup_count=3,
+            raw_file_read_count=1,
+            raw_search_count=2,
+            avoided_file_read_count=4,
+            tool_output_bytes=4096,
+            degraded_tool_count=1,
+            stale_or_unavailable_index_count=2,
+            metric_sources={
+                "route_kind_counts": "host",
+                "routed_lookup_count": "host",
+                "raw_file_read_count": "host",
+                "raw_search_count": "host",
+                "avoided_file_read_count": "estimated",
+                "tool_output_bytes": "host",
+                "degraded_tool_count": "host",
+                "stale_or_unavailable_index_count": "host",
+            },
+            metric_quality={
+                "route_kind_counts": "observed",
+                "routed_lookup_count": "observed",
+                "raw_file_read_count": "observed",
+                "raw_search_count": "observed",
+                "avoided_file_read_count": "estimated",
+                "tool_output_bytes": "observed",
+                "degraded_tool_count": "observed",
+                "stale_or_unavailable_index_count": "observed",
+            },
+        )
+
+        d = ops.to_dict()
+        self.assertEqual(d["tool_surfaces"], ["mcp", "cli"])
+        self.assertEqual(d["retrieval_packs"], ["agent-engram", "graphtor-docs"])
+        self.assertEqual(d["route_kind_counts"]["structural_graph"], 2)
+        self.assertEqual(d["tool_output_bytes"], 4096)
+        self.assertEqual(OperationalReality.from_mapping(d), ops)
+        self.assertTrue(ops.has_complete_provenance)
+
+    def test_expected_tool_gap_counts_represent_missing_events(self) -> None:
+        ops = OperationalReality(
+            expected_tool_count=2,
+            observed_expected_tool_count=1,
+            missing_expected_tool_count=1,
+            expected_tool_counts={"engram.map_code": 1, "backlogit.get_item": 1},
+            observed_tool_counts={"engram.map_code": 0, "backlogit.get_item": 1},
+            missing_expected_tool_counts={"engram.map_code": 1, "backlogit.get_item": 0},
+            metric_sources={
+                "expected_tool_count": "host",
+                "observed_expected_tool_count": "host",
+                "missing_expected_tool_count": "derived",
+                "expected_tool_counts": "host",
+                "observed_tool_counts": "host",
+                "missing_expected_tool_counts": "derived",
+            },
+            metric_quality={
+                "expected_tool_count": "observed",
+                "observed_expected_tool_count": "observed",
+                "missing_expected_tool_count": "derived",
+                "expected_tool_counts": "observed",
+                "observed_tool_counts": "observed",
+                "missing_expected_tool_counts": "derived",
+            },
+        )
+
+        self.assertEqual(ops.missing_expected_tool_counts["engram.map_code"], 1)
+        self.assertEqual(
+            ops.derived_missing_expected_tool_counts(),
+            {"backlogit.get_item": 0, "engram.map_code": 1},
+        )
+        self.assertTrue(ops.gap_invariants_hold())
+
+    def test_expected_tool_over_observation_clamps_missing_to_zero(self) -> None:
+        ops = OperationalReality(
+            expected_tool_count=1,
+            observed_expected_tool_count=2,
+            missing_expected_tool_count=0,
+            expected_tool_counts={"engram.map_code": 1},
+            observed_tool_counts={"engram.map_code": 2},
+            missing_expected_tool_counts={"engram.map_code": 0},
+        )
+
+        self.assertEqual(ops.derived_missing_expected_tool_counts(), {"engram.map_code": 0})
+        self.assertTrue(ops.gap_invariants_hold())
+
+    def test_gap_invariants_detect_bad_scalar_or_map_totals(self) -> None:
+        bad = OperationalReality(
+            expected_tool_count=2,
+            observed_expected_tool_count=1,
+            missing_expected_tool_count=2,
+            expected_tool_counts={"engram.map_code": 1},
+            observed_tool_counts={"engram.map_code": 0},
+            missing_expected_tool_counts={"engram.map_code": 1},
+        )
+
+        self.assertFalse(bad.gap_invariants_hold())
+
+    def test_distinct_outcome_gap_degraded_failure_counts_round_trip(self) -> None:
+        outcome = AbsoluteOutcome(
+            gate_exit_codes=(0,),
+            tool_failure_count=2,
+            tool_degraded_count=3,
+            tool_gap_count=1,
+            metric_sources={
+                "tool_failure_count": "host",
+                "tool_degraded_count": "host",
+                "tool_gap_count": "derived",
+            },
+            metric_quality={
+                "tool_failure_count": "observed",
+                "tool_degraded_count": "observed",
+                "tool_gap_count": "derived",
+            },
+        )
+
+        d = outcome.to_dict()
+        self.assertEqual(d["tool_failure_count"], 2)
+        self.assertEqual(d["tool_degraded_count"], 3)
+        self.assertEqual(d["tool_gap_count"], 1)
+        self.assertEqual(AbsoluteOutcome.from_mapping(d), outcome)
+        self.assertTrue(outcome.has_complete_provenance)
+
+    def test_operation_and_outcome_provenance_flags_populated_counts(self) -> None:
+        ops = OperationalReality(routed_lookup_count=1, expected_tool_counts={"engram.map_code": 1})
+        outcome = AbsoluteOutcome(tool_failure_count=1, tool_degraded_count=1, tool_gap_count=1)
+
+        self.assertEqual(
+            set(ops.missing_provenance()),
+            {"routed_lookup_count", "expected_tool_counts"},
+        )
+        self.assertEqual(
+            set(outcome.missing_provenance()),
+            {"tool_failure_count", "tool_degraded_count", "tool_gap_count"},
+        )
+
+    def test_epoch_gap_rollup_consistency_compares_operation_gap_to_outcome(self) -> None:
+        epoch = ExecutionEpoch(
+            task_id="079.009-T",
+            route=RouteConfiguration(route_kinds=("structural_graph",)),
+            economics=EconomicPayload(),
+            operations=OperationalReality(
+                expected_tool_count=1,
+                observed_expected_tool_count=0,
+                missing_expected_tool_count=1,
+                expected_tool_counts={"engram.map_code": 1},
+                observed_tool_counts={"engram.map_code": 0},
+                missing_expected_tool_counts={"engram.map_code": 1},
+            ),
+            outcome=AbsoluteOutcome(tool_failure_count=0, tool_degraded_count=5, tool_gap_count=1),
+        )
+
+        self.assertTrue(epoch.gap_rollups_consistent())
+        changed_outcome = dataclasses.replace(epoch.outcome, tool_gap_count=0)
+        self.assertFalse(dataclasses.replace(epoch, outcome=changed_outcome).gap_rollups_consistent())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -43,6 +43,29 @@ _ECONOMIC_METRICS: tuple[str, ...] = (
     "duration_seconds",
 )
 
+_OPERATIONAL_METRICS: tuple[str, ...] = (
+    "route_kind_counts",
+    "routed_lookup_count",
+    "raw_file_read_count",
+    "raw_search_count",
+    "avoided_file_read_count",
+    "tool_output_bytes",
+    "expected_tool_count",
+    "observed_expected_tool_count",
+    "missing_expected_tool_count",
+    "expected_tool_counts",
+    "observed_tool_counts",
+    "missing_expected_tool_counts",
+    "degraded_tool_count",
+    "stale_or_unavailable_index_count",
+)
+
+_OUTCOME_METRICS: tuple[str, ...] = (
+    "tool_failure_count",
+    "tool_degraded_count",
+    "tool_gap_count",
+)
+
 # Ordinal planned-size labels. There are no numeric points and no implicit
 # label-to-weight mapping.
 _SIZE_LABELS = frozenset({"XS", "S", "M", "L", "XL"})
@@ -72,22 +95,51 @@ def _as_tuple(value: Any, field: str) -> tuple:
     return tuple(value)
 
 
+def _metric_is_populated(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return bool(value)
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return value is not None
+
+
+def _missing_metric_provenance(owner: Any, metric_names: tuple[str, ...]) -> tuple[str, ...]:
+    sources = getattr(owner, "metric_sources", {})
+    quality = getattr(owner, "metric_quality", {})
+    return tuple(
+        name
+        for name in metric_names
+        if _metric_is_populated(getattr(owner, name))
+        and (name not in sources or name not in quality)
+    )
+
+
 @dataclass(frozen=True)
 class RouteConfiguration:
     """Route configuration — the models used during the epoch."""
 
     models: tuple[str, ...] = ()
+    route_kinds: tuple[str, ...] = ()
 
     @property
     def primary_model(self) -> str | None:
         return self.models[0] if self.models else None
 
+    @property
+    def primary_route_kind(self) -> str | None:
+        return self.route_kinds[0] if self.route_kinds else None
+
     def to_dict(self) -> dict[str, Any]:
-        return {"models": list(self.models)}
+        return {"models": list(self.models), "route_kinds": list(self.route_kinds)}
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "RouteConfiguration":
-        return cls(models=_as_tuple(data.get("models"), "route.models"))
+        return cls(
+            models=_as_tuple(data.get("models"), "route.models"),
+            route_kinds=_as_tuple(data.get("route_kinds"), "route.route_kinds"),
+        )
 
 
 @dataclass(frozen=True)
@@ -126,12 +178,7 @@ class EconomicPayload:
         A metric is "populated" when its value is non-zero. Zero-valued metrics
         are treated as unobserved and require no provenance entry.
         """
-        return tuple(
-            name
-            for name in _ECONOMIC_METRICS
-            if getattr(self, name)
-            and (name not in self.metric_sources or name not in self.metric_quality)
-        )
+        return _missing_metric_provenance(self, _ECONOMIC_METRICS)
 
     @property
     def has_complete_provenance(self) -> bool:
@@ -189,13 +236,102 @@ class OperationalReality:
     """Operational reality — the CLI tools actually used during the epoch."""
 
     cli_tools: tuple[str, ...] = ()
+    tool_surfaces: tuple[str, ...] = ()
+    retrieval_packs: tuple[str, ...] = ()
+    route_kind_counts: Mapping[str, int] = field(default_factory=dict)
+    routed_lookup_count: int = 0
+    raw_file_read_count: int = 0
+    raw_search_count: int = 0
+    avoided_file_read_count: int = 0
+    tool_output_bytes: int = 0
+    expected_tool_count: int = 0
+    observed_expected_tool_count: int = 0
+    missing_expected_tool_count: int = 0
+    expected_tool_counts: Mapping[str, int] = field(default_factory=dict)
+    observed_tool_counts: Mapping[str, int] = field(default_factory=dict)
+    missing_expected_tool_counts: Mapping[str, int] = field(default_factory=dict)
+    degraded_tool_count: int = 0
+    stale_or_unavailable_index_count: int = 0
+    metric_sources: Mapping[str, str] = field(default_factory=dict)
+    metric_quality: Mapping[str, str] = field(default_factory=dict)
+
+    def derived_missing_expected_tool_counts(self) -> dict[str, int]:
+        keys = set(self.expected_tool_counts) | set(self.observed_tool_counts)
+        return {
+            key: max(
+                int(self.expected_tool_counts.get(key, 0))
+                - int(self.observed_tool_counts.get(key, 0)),
+                0,
+            )
+            for key in sorted(keys)
+        }
+
+    def gap_invariants_hold(self) -> bool:
+        return (
+            self.expected_tool_count == sum(int(v) for v in self.expected_tool_counts.values())
+            and self.observed_expected_tool_count
+            == sum(int(v) for v in self.observed_tool_counts.values())
+            and self.missing_expected_tool_count
+            == sum(int(v) for v in self.missing_expected_tool_counts.values())
+            and dict(self.missing_expected_tool_counts)
+            == self.derived_missing_expected_tool_counts()
+        )
+
+    def missing_provenance(self) -> tuple[str, ...]:
+        return _missing_metric_provenance(self, _OPERATIONAL_METRICS)
+
+    @property
+    def has_complete_provenance(self) -> bool:
+        return not self.missing_provenance()
 
     def to_dict(self) -> dict[str, Any]:
-        return {"cli_tools": list(self.cli_tools)}
+        return {
+            "cli_tools": list(self.cli_tools),
+            "tool_surfaces": list(self.tool_surfaces),
+            "retrieval_packs": list(self.retrieval_packs),
+            "route_kind_counts": dict(self.route_kind_counts),
+            "routed_lookup_count": self.routed_lookup_count,
+            "raw_file_read_count": self.raw_file_read_count,
+            "raw_search_count": self.raw_search_count,
+            "avoided_file_read_count": self.avoided_file_read_count,
+            "tool_output_bytes": self.tool_output_bytes,
+            "expected_tool_count": self.expected_tool_count,
+            "observed_expected_tool_count": self.observed_expected_tool_count,
+            "missing_expected_tool_count": self.missing_expected_tool_count,
+            "expected_tool_counts": dict(self.expected_tool_counts),
+            "observed_tool_counts": dict(self.observed_tool_counts),
+            "missing_expected_tool_counts": dict(self.missing_expected_tool_counts),
+            "degraded_tool_count": self.degraded_tool_count,
+            "stale_or_unavailable_index_count": self.stale_or_unavailable_index_count,
+            "metric_sources": dict(self.metric_sources),
+            "metric_quality": dict(self.metric_quality),
+        }
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "OperationalReality":
-        return cls(cli_tools=_as_tuple(data.get("cli_tools"), "operations.cli_tools"))
+        return cls(
+            cli_tools=_as_tuple(data.get("cli_tools"), "operations.cli_tools"),
+            tool_surfaces=_as_tuple(data.get("tool_surfaces"), "operations.tool_surfaces"),
+            retrieval_packs=_as_tuple(data.get("retrieval_packs"), "operations.retrieval_packs"),
+            route_kind_counts=dict(data.get("route_kind_counts") or {}),
+            routed_lookup_count=int(data.get("routed_lookup_count", 0)),
+            raw_file_read_count=int(data.get("raw_file_read_count", 0)),
+            raw_search_count=int(data.get("raw_search_count", 0)),
+            avoided_file_read_count=int(data.get("avoided_file_read_count", 0)),
+            tool_output_bytes=int(data.get("tool_output_bytes", 0)),
+            expected_tool_count=int(data.get("expected_tool_count", 0)),
+            observed_expected_tool_count=int(data.get("observed_expected_tool_count", 0)),
+            missing_expected_tool_count=int(data.get("missing_expected_tool_count", 0)),
+            expected_tool_counts=dict(data.get("expected_tool_counts") or {}),
+            observed_tool_counts=dict(data.get("observed_tool_counts") or {}),
+            missing_expected_tool_counts=dict(data.get("missing_expected_tool_counts") or {}),
+            degraded_tool_count=int(data.get("degraded_tool_count", 0)),
+            stale_or_unavailable_index_count=int(
+                data.get("stale_or_unavailable_index_count", 0)
+            ),
+            metric_sources=dict(data.get("metric_sources") or {}),
+            metric_quality=dict(data.get("metric_quality") or {}),
+        )
 
 
 @dataclass(frozen=True)
@@ -203,6 +339,11 @@ class AbsoluteOutcome:
     """Absolute outcome — the gate exit code(s) recorded for the epoch."""
 
     gate_exit_codes: tuple[int, ...] = ()
+    tool_failure_count: int = 0
+    tool_degraded_count: int = 0
+    tool_gap_count: int = 0
+    metric_sources: Mapping[str, str] = field(default_factory=dict)
+    metric_quality: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def blocked(self) -> bool:
@@ -210,12 +351,33 @@ class AbsoluteOutcome:
         return any(code != 0 for code in self.gate_exit_codes)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"gate_exit_codes": list(self.gate_exit_codes)}
+        return {
+            "gate_exit_codes": list(self.gate_exit_codes),
+            "tool_failure_count": self.tool_failure_count,
+            "tool_degraded_count": self.tool_degraded_count,
+            "tool_gap_count": self.tool_gap_count,
+            "metric_sources": dict(self.metric_sources),
+            "metric_quality": dict(self.metric_quality),
+        }
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AbsoluteOutcome":
         codes = _as_tuple(data.get("gate_exit_codes"), "outcome.gate_exit_codes")
-        return cls(gate_exit_codes=tuple(int(c) for c in codes))
+        return cls(
+            gate_exit_codes=tuple(int(c) for c in codes),
+            tool_failure_count=int(data.get("tool_failure_count", 0)),
+            tool_degraded_count=int(data.get("tool_degraded_count", 0)),
+            tool_gap_count=int(data.get("tool_gap_count", 0)),
+            metric_sources=dict(data.get("metric_sources") or {}),
+            metric_quality=dict(data.get("metric_quality") or {}),
+        )
+
+    def missing_provenance(self) -> tuple[str, ...]:
+        return _missing_metric_provenance(self, _OUTCOME_METRICS)
+
+    @property
+    def has_complete_provenance(self) -> bool:
+        return not self.missing_provenance()
 
 
 @dataclass(frozen=True)
@@ -419,6 +581,12 @@ class ExecutionEpoch:
             "outcome": self.outcome.to_dict(),
             "sizing": self.sizing.to_dict() if self.sizing is not None else None,
         }
+
+    def gap_rollups_consistent(self) -> bool:
+        return (
+            self.operations.gap_invariants_hold()
+            and self.outcome.tool_gap_count == self.operations.missing_expected_tool_count
+        )
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "ExecutionEpoch":
