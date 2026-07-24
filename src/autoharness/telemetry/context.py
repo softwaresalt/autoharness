@@ -102,6 +102,12 @@ def _with_digest(payload: dict[str, Any]) -> dict[str, Any]:
     return body
 
 
+def canonical_context_digest(payload: Mapping[str, Any]) -> str:
+    body = dict(payload)
+    body.pop("context_digest", None)
+    return hashlib.sha256(_canonical_bytes(body)).hexdigest()
+
+
 def _read_context(path: Path) -> dict[str, Any] | None:
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
@@ -299,3 +305,28 @@ def resolve_context_ref(
     if not _is_within(context_dir, candidate) or not _is_within(root, candidate):
         raise TelemetryContextError("context_ref escapes the workspace or context directory.")
     return candidate
+
+
+def load_context_ref(
+    config: TelemetryConfig,
+    workspace_root: Path | str,
+    context_ref: str | Path | None,
+) -> dict[str, Any]:
+    """Load and validate a repo-local context artifact for task-close recording."""
+    path = resolve_context_ref(config, workspace_root, context_ref)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise TelemetryContextError(f"could not read context_ref: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise TelemetryContextError("context artifact must be a JSON object.")
+    epoch_id = payload.get("epoch_id")
+    if not isinstance(epoch_id, str) or epoch_id != path.stem:
+        raise TelemetryContextError("context filename and stored epoch_id must match.")
+    if _normalize_epoch_id(epoch_id) != epoch_id:
+        raise TelemetryContextError("context epoch_id must be canonical UUID hex.")
+    stored_digest = payload.get("context_digest")
+    actual_digest = canonical_context_digest(payload)
+    if stored_digest != actual_digest:
+        raise TelemetryContextError("context digest mismatch; refusing tampered context.")
+    return payload

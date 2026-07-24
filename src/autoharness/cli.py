@@ -701,7 +701,12 @@ def _parse_telemetry_begin_args(args: list[str]) -> dict:
 
 
 def _parse_telemetry_record_args(args: list[str]) -> dict:
-    parsed: dict = {"from_json": None, "workspace": Path("."), "emit_json": False}
+    parsed: dict = {
+        "from_json": None,
+        "workspace": Path("."),
+        "emit_json": False,
+        "context_ref": None,
+    }
     index = 0
     while index < len(args):
         arg = args[index]
@@ -717,6 +722,11 @@ def _parse_telemetry_record_args(args: list[str]) -> dict:
             parsed["workspace"] = Path(args[index])
         elif arg == "--json":
             parsed["emit_json"] = True
+        elif arg == "--context-ref":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --context-ref")
+            parsed["context_ref"] = args[index]
         else:
             raise ValueError(f"Unknown telemetry record argument: {arg}")
         index += 1
@@ -785,6 +795,62 @@ def _telemetry_begin_command(rest: list[str]) -> None:
         print(f"Telemetry context {result.status}: {result.context_ref}")
 
 
+def _validate_record_epoch_id(value: object) -> str:
+    import uuid
+
+    if value is None or not str(value).strip():
+        from autoharness.telemetry.epoch import EpochError
+
+        raise EpochError(
+            "Replayable task-close payload is missing required canonical epoch_id; "
+            "use telemetry begin or supply a pre-existing UUID hex ID."
+        )
+    try:
+        canonical = uuid.UUID(str(value)).hex
+    except (TypeError, ValueError) as exc:
+        from autoharness.telemetry.epoch import EpochError
+
+        raise EpochError("Replayable task-close epoch_id must be parseable as UUID.") from exc
+    if str(value) != canonical:
+        from autoharness.telemetry.epoch import EpochError
+
+        raise EpochError("Replayable task-close epoch_id must be canonical lowercase UUID hex.")
+    return canonical
+
+
+def _merge_telemetry_context_payload(payload: object, context_payload: dict) -> dict:
+    from autoharness.telemetry.epoch import EpochError
+
+    if not isinstance(payload, dict):
+        raise EpochError("Epoch payload must be a JSON object (mapping).")
+    context_epoch_id = _validate_record_epoch_id(context_payload.get("epoch_id"))
+    if payload.get("epoch_id") is not None:
+        supplied = _validate_record_epoch_id(payload.get("epoch_id"))
+        if supplied != context_epoch_id:
+            raise EpochError("Payload epoch_id disagrees with telemetry context epoch_id.")
+    merged = dict(payload)
+    for name in (
+        "epoch_id",
+        "task_id",
+        "backlog_item_id",
+        "workspace_id",
+        "session_id",
+        "agent_role",
+        "phase",
+        "feature_id",
+        "shipment_id",
+        "branch",
+        "commit_sha",
+    ):
+        if name in context_payload:
+            merged[name] = context_payload[name]
+    if "sizing" in context_payload:
+        merged["sizing"] = context_payload["sizing"]
+    if not merged.get("timestamp") and context_payload.get("captured_at"):
+        merged["timestamp"] = context_payload["captured_at"]
+    return merged
+
+
 def _telemetry_record_command(rest: list[str]) -> None:
     try:
         parsed = _parse_telemetry_record_args(rest)
@@ -794,6 +860,10 @@ def _telemetry_record_command(rest: list[str]) -> None:
         sys.exit(2)
 
     from autoharness.telemetry.epoch import EpochError, ExecutionEpoch
+    from autoharness.telemetry.context import (
+        TelemetryContextError,
+        load_context_ref,
+    )
     from autoharness.telemetry.record import (
         RecordSummary,
         load_workspace_telemetry_config,
@@ -835,12 +905,24 @@ def _telemetry_record_command(rest: list[str]) -> None:
 
     # All payload shape/coercion failures are normalized to EpochError → exit 2.
     try:
+        context_payload = None
+        if parsed["context_ref"] is not None:
+            context_payload = load_context_ref(config, parsed["workspace"], parsed["context_ref"])
+            payload = _merge_telemetry_context_payload(payload, context_payload)
+        else:
+            _validate_record_epoch_id(payload.get("epoch_id") if isinstance(payload, dict) else None)
         epoch = ExecutionEpoch.from_mapping(payload)
+    except TelemetryContextError as exc:
+        print(f"Invalid telemetry context: {exc}", file=sys.stderr)
+        sys.exit(2)
     except EpochError as exc:
         print(f"Invalid epoch payload: {exc}", file=sys.stderr)
         sys.exit(2)
 
     summary = record_epoch(epoch, config)
+    if parsed["context_ref"] is not None and context_payload is not None:
+        summary.context_ref = parsed["context_ref"]
+        summary.context_digest = context_payload.get("context_digest")
 
     if parsed["emit_json"]:
         print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))

@@ -11,6 +11,7 @@ from unittest import mock
 
 from autoharness.cli import main
 from autoharness.telemetry.config import TelemetryConfig
+from autoharness.telemetry.context import begin_context
 from autoharness.telemetry.epoch import (
     AbsoluteOutcome,
     EconomicPayload,
@@ -35,6 +36,7 @@ telemetry:
 """
 
 _PAYLOAD = {
+    "epoch_id": "11111111111141118111111111111111",
     "task_id": "051.001-T",
     "route": {"models": ["claude-opus-4.6"]},
     "economics": {"input_tokens": 100, "output_tokens": 50, "cogs_usd": 0.01, "duration_seconds": 12.0},
@@ -81,6 +83,138 @@ class TelemetryRecordCliTests(unittest.TestCase):
 
         line = jsonl_path.read_text(encoding="utf-8").splitlines()[0]
         self.assertEqual(json.loads(line)["task_id"], "051.001-T")
+
+    def test_record_rejects_missing_epoch_id_without_context(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        payload = dict(_PAYLOAD)
+        del payload["epoch_id"]
+        self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_record_context_ref_merges_frozen_identity_and_reports_digests(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        begin = begin_context(
+            config,
+            self.workspace,
+            task_id="079.016-T",
+            backlog_item_id="079.016-T",
+            feature_id="079-F",
+            shipment_id="092-S",
+            epoch_id="22222222-2222-4222-8222-222222222222",
+            captured_at="2026-07-24T03:37:49Z",
+        )
+        close_payload = dict(_PAYLOAD)
+        close_payload.pop("epoch_id")
+        close_payload["task_id"] = "will-be-overridden"
+        self.payload_path.write_text(json.dumps(close_payload), encoding="utf-8")
+
+        import contextlib
+        import io
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+        result = json.loads(stdout.getvalue())
+
+        self.assertEqual(result["epoch_id"], "22222222222242228222222222222222")
+        self.assertEqual(result["context_ref"], begin.context_ref)
+        self.assertEqual(result["context_digest"], begin.context_digest)
+        self.assertRegex(result["payload_digest"], r"^[0-9a-f]{64}$")
+        self.assertNotEqual(result["payload_digest"], result["context_digest"])
+        self.assertEqual(result["idempotency_outcome"], "created")
+
+        conn = sqlite3.connect(str(self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"))
+        try:
+            row = conn.execute(
+                "SELECT task_id, feature_id, shipment_id FROM execution_epochs WHERE epoch_id=?",
+                ("22222222222242228222222222222222",),
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(row, ("079.016-T", "079-F", "092-S"))
+
+    def test_record_context_ref_rejects_unsafe_refs_mismatch_and_tamper(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        begin = begin_context(
+            config,
+            self.workspace,
+            task_id="079.016-T",
+            epoch_id="33333333-3333-4333-8333-333333333333",
+            captured_at="2026-07-24T03:37:49Z",
+        )
+
+        for bad_ref in (str(begin.context_path), "..\\escape.json"):
+            with self.assertRaises(SystemExit) as ctx:
+                self._run("--context-ref", bad_ref)
+            self.assertEqual(ctx.exception.code, 2)
+
+        mismatched = dict(_PAYLOAD)
+        mismatched["epoch_id"] = "44444444444444448444444444444444"
+        self.payload_path.write_text(json.dumps(mismatched), encoding="utf-8")
+        with self.assertRaises(SystemExit) as mismatch_ctx:
+            self._run("--context-ref", begin.context_ref)
+        self.assertEqual(mismatch_ctx.exception.code, 2)
+
+        payload = json.loads(begin.context_path.read_text(encoding="utf-8"))
+        payload["task_id"] = "tampered"
+        begin.context_path.write_text(json.dumps(payload), encoding="utf-8")
+        close_payload = dict(_PAYLOAD)
+        close_payload["epoch_id"] = begin.epoch_id
+        self.payload_path.write_text(json.dumps(close_payload), encoding="utf-8")
+        with self.assertRaises(SystemExit) as tamper_ctx:
+            self._run("--context-ref", begin.context_ref)
+        self.assertEqual(tamper_ctx.exception.code, 2)
+
+    def test_record_context_idempotency_and_conflict_outcomes(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        begin = begin_context(
+            config,
+            self.workspace,
+            task_id="079.016-T",
+            epoch_id="55555555-5555-4555-8555-555555555555",
+            captured_at="2026-07-24T03:37:49Z",
+        )
+        close_payload = dict(_PAYLOAD)
+        close_payload.pop("epoch_id")
+        close_payload["economics"] = {"input_tokens": 1, "output_tokens": 1}
+        self.payload_path.write_text(json.dumps(close_payload), encoding="utf-8")
+
+        import contextlib
+        import io
+
+        first_stdout = io.StringIO()
+        with contextlib.redirect_stdout(first_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+        second_stdout = io.StringIO()
+        with contextlib.redirect_stdout(second_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+
+        conflict_payload = dict(close_payload)
+        conflict_payload["economics"] = {"input_tokens": 999, "output_tokens": 1}
+        self.payload_path.write_text(json.dumps(conflict_payload), encoding="utf-8")
+        conflict_stdout = io.StringIO()
+        with contextlib.redirect_stdout(conflict_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+
+        self.assertEqual(json.loads(first_stdout.getvalue())["idempotency_outcome"], "created")
+        self.assertEqual(json.loads(second_stdout.getvalue())["idempotency_outcome"], "idempotent_replay")
+        conflict = json.loads(conflict_stdout.getvalue())
+        self.assertEqual(conflict["idempotency_outcome"], "conflict_rejected")
+        self.assertFalse(conflict["sqlite_written"])
+        self.assertFalse(conflict["jsonl_written"])
 
     def test_disabled_telemetry_is_noop_success(self) -> None:
         self._write_config(_DISABLED_CONFIG)
