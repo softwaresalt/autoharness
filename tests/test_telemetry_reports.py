@@ -137,6 +137,28 @@ class TelemetryReportTests(unittest.TestCase):
         self.assertIn("est_tokens=80", text)
         self.assertIn("Tool-output estimate: est_tokens=20", text)
 
+    def test_primary_economic_metrics_carry_quality_labels(self) -> None:
+        """Regression (Copilot review r3c batch-D D3): the 079.012-T report
+        contract requires every primary economic metric to expose provenance,
+        not just ``context_area_tokens``. Token consumption/generation, COGS,
+        and duration must each render their quality label so observed values are
+        not confused with estimated or unavailable ones.
+        """
+        record = _record("a")
+        record["economics"]["metric_quality"] = {
+            "input_tokens": "observed",
+            "output_tokens": "observed",
+            "cogs_usd": "estimated",
+            "duration_seconds": "estimated",
+            "context_area_tokens": "estimated",
+        }
+        text = render_report(summarize_report(TelemetryReadResult("ok", (record,))))
+
+        self.assertIn("Token consumption: 100 (observed)", text)
+        self.assertIn("Token generation: 25 (observed)", text)
+        self.assertIn("COGS: 2.0 (estimated)", text)
+        self.assertIn("duration: 8.0 (estimated)", text)
+
 
 if __name__ == "__main__":
     unittest.main()

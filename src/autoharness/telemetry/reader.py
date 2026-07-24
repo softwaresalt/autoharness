@@ -6,6 +6,7 @@ import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Literal
 
@@ -31,8 +32,28 @@ def _digest(record: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(record).encode("utf-8")).hexdigest()
 
 
+def _validate_record_timestamp(value: Any) -> None:
+    # Copilot review r3c batch-D D5: the reader contract skips malformed rows.
+    # ``ExecutionEpoch.from_mapping`` accepts any string timestamp, so an invalid
+    # ISO-8601 instant would pass through here and only detonate later in
+    # aggregation's ``_parse_instant`` (report/aggregate raising instead of the
+    # reader skipping). Validate at normalization (mirroring that parser's ``Z``
+    # handling) so a bad timestamp is a controlled ``ValueError`` the caller's
+    # existing skip-and-diagnose path already catches.
+    if not isinstance(value, str):
+        raise ValueError(f"telemetry record timestamp must be a string; got {type(value).__name__}")
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(
+            f"telemetry record timestamp {value!r} is not a valid ISO-8601 instant: {exc}"
+        ) from exc
+
+
 def _normalize_record(raw: Any) -> dict[str, Any]:
-    return ExecutionEpoch.from_mapping(raw).to_record()
+    record = ExecutionEpoch.from_mapping(raw).to_record()
+    _validate_record_timestamp(record.get("timestamp"))
+    return record
 
 
 def _loads(value: Any, default: Any) -> Any:

@@ -232,6 +232,27 @@ class TelemetryReaderTests(unittest.TestCase):
         self.assertEqual(operations["metric_quality"]["raw_search_count"], "unavailable")
         self.assertEqual(outcome["metric_quality"]["tool_gap_count"], "unavailable")
 
+    def test_malformed_timestamp_rows_are_skipped_with_diagnostic(self) -> None:
+        """Regression (Copilot review r3c batch-D D5): a record whose timestamp
+        is not a valid ISO-8601 instant must be skipped with a diagnostic during
+        reading — honoring the reader's skip-malformed contract — instead of
+        passing through and later crashing aggregation's timestamp parsing.
+        """
+        config = _config(self.workspace)
+        good = _epoch("aaaa1111aaaa4aaa8aaaaaaaaaaaaaaa", "good-task").to_record()
+        bad = _epoch("bbbb2222bbbb4bbb8bbbbbbbbbbbbbbb", "bad-task").to_record()
+        bad["timestamp"] = "not-a-real-timestamp"
+        config.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+        config.jsonl_path.write_text(
+            "\n".join(json.dumps(item, separators=(",", ":")) for item in (good, bad)) + "\n",
+            encoding="utf-8",
+        )
+
+        result = read_epoch_records(config, source="jsonl")
+
+        self.assertEqual([record["task_id"] for record in result.records], ["good-task"])
+        self.assertTrue(any("timestamp" in item.lower() for item in result.diagnostics))
+
 
 if __name__ == "__main__":
     unittest.main()

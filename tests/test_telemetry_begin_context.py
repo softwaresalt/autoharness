@@ -256,6 +256,50 @@ class TelemetryBeginContextTests(unittest.TestCase):
         }
         self.assertTrue(forbidden.isdisjoint(payload))
 
+    def test_begin_reuses_frozen_sizing_so_recaptured_snapshot_is_idempotent(self) -> None:
+        """Regression (Copilot review r3c batch-D D1): a same-``epoch_id`` retry
+        recaptures the work-sizing snapshot with a fresh ``snapshot_at``. That
+        volatile provenance timestamp must not turn an idempotent retry into a
+        false ``conflict`` — the frozen sizing from the first begin is
+        authoritative, mirroring the existing ``captured_at`` reuse.
+        """
+        config = self._config()
+        epoch_id = "77777777-7777-4777-8777-777777777777"
+
+        def _sizing(snapshot_at: str) -> WorkSizingSnapshot:
+            return WorkSizingSnapshot(
+                snapshot_at=snapshot_at,
+                task_size_label="M",
+                sizing_sources={"task": "backlogit"},
+                sizing_source_revisions={"task": "rev-1"},
+                sizing_ruleset_versions={"task": "backlogit-1.2.3"},
+            )
+
+        first = begin_context(
+            config,
+            self.workspace,
+            task_id="079.014-T",
+            epoch_id=epoch_id,
+            sizing=_sizing("2026-07-24T03:07:22Z"),
+            captured_at="2026-07-24T03:07:22Z",
+        )
+        self.assertEqual(first.status, "created")
+
+        # Identical logical sizing, later capture instant only.
+        second = begin_context(
+            config,
+            self.workspace,
+            task_id="079.014-T",
+            epoch_id=epoch_id,
+            sizing=_sizing("2026-07-24T09:59:59Z"),
+            captured_at="2026-07-24T03:07:22Z",
+        )
+        self.assertEqual(second.status, "idempotent_begin")
+        self.assertEqual(first.context_digest, second.context_digest)
+
+        stored = json.loads(first.context_path.read_text(encoding="utf-8"))
+        self.assertEqual(stored["sizing"]["snapshot_at"], "2026-07-24T03:07:22Z")
+
     def test_cli_begin_emits_json_result_and_writes_context(self) -> None:
         self._write_config(
             'schema_version: "1.0.0"\n'

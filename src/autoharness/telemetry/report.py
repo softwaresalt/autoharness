@@ -125,11 +125,11 @@ def render_report(report: TelemetryReportSummary) -> str:
         f"Status: {report.status}",
         f"Filters: {dict(report.filters) if report.filters else 'none'}",
         f"Epochs: {len(report.records)}",
-        f"Token consumption: {report.totals.get('input_tokens', 0)}",
-        f"Token generation: {report.totals.get('output_tokens', 0)}",
+        f"Token consumption: {report.totals.get('input_tokens', 0)} ({_quality(report.records, 'input_tokens')})",
+        f"Token generation: {report.totals.get('output_tokens', 0)} ({_quality(report.records, 'output_tokens')})",
         f"context-area estimates: {report.totals.get('context_area_tokens', 0)} ({_quality(report.records, 'context_area_tokens')})",
-        f"COGS: {report.totals.get('cogs_usd', 0)}",
-        f"duration: {report.totals.get('duration_seconds', 0)}",
+        f"COGS: {report.totals.get('cogs_usd', 0)} ({_quality(report.records, 'cogs_usd')})",
+        f"duration: {report.totals.get('duration_seconds', 0)} ({_quality(report.records, 'duration_seconds')})",
         (
             "Routed/raw usage: "
             f"routed={report.totals.get('routed_lookup_count', 0)}, "

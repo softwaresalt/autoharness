@@ -198,26 +198,34 @@ def begin_context(
         existing_captured_at = existing.get("captured_at")
         if isinstance(existing_captured_at, str):
             effective_captured_at = existing_captured_at
-    payload = _with_digest(
-        _build_context_payload(
-            epoch_id=canonical_id,
-            task_id=task_id,
-            backlog_item_id=backlog_item_id,
-            feature_id=feature_id,
-            shipment_id=shipment_id,
-            workspace_id=workspace_id,
-            session_id=session_id,
-            agent_role=agent_role,
-            phase=phase,
-            branch=branch,
-            commit_sha=commit_sha,
-            captured_at=effective_captured_at,
-            sizing=sizing,
-            source_metadata=source_metadata,
-            ruleset_metadata=ruleset_metadata,
-            version_metadata=version_metadata,
-        )
+    raw_payload = _build_context_payload(
+        epoch_id=canonical_id,
+        task_id=task_id,
+        backlog_item_id=backlog_item_id,
+        feature_id=feature_id,
+        shipment_id=shipment_id,
+        workspace_id=workspace_id,
+        session_id=session_id,
+        agent_role=agent_role,
+        phase=phase,
+        branch=branch,
+        commit_sha=commit_sha,
+        captured_at=effective_captured_at,
+        sizing=sizing,
+        source_metadata=source_metadata,
+        ruleset_metadata=ruleset_metadata,
+        version_metadata=version_metadata,
     )
+    # D1 (Copilot review r3c batch-D): the work-sizing snapshot is frozen at the
+    # first begin. A same-epoch_id retry recaptures sizing with a fresh
+    # ``snapshot_at`` (sizing.capture stamps wall-clock time), so reuse the
+    # existing frozen sizing verbatim — mirroring the ``captured_at`` reuse above
+    # — so that volatile capture instant cannot turn an idempotent retry into a
+    # false ``conflict``. Genuine identity changes (task_id, feature_id, …) still
+    # differ elsewhere in the body and are preserved as conflicts.
+    if existing is not None and "sizing" in existing:
+        raw_payload["sizing"] = existing["sizing"]
+    payload = _with_digest(raw_payload)
     context_ref = _repo_local_ref(workspace_root, path)
 
     if existing is not None:
