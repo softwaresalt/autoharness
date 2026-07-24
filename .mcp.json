@@ -4,54 +4,32 @@
       "type": "stdio",
       "command": "backlogit",
       "args": ["mcp"],
-      "env": {
-        "BACKLOGIT_WORKSPACE": "${workspaceFolder}"
-      },
+      "env": {"BACKLOGIT_WORKSPACE": "${workspace_folder}"},
       "tools": ["*"]
     },
     "engram": {
       "type": "stdio",
       "command": "engram",
       "args": ["shim"],
-      "env": {
-        "ENGRAM_WORKSPACE": "${workspaceFolder}"
-      },
-      "tools": ["*"]
-    },
-    "graphtor-docs": {
-      "type": "stdio",
-      "command": "graphtor-docs",
-      "args": ["serve"],
-      "env": {
-        "GRAPHTOR_DB_PATH": "${workspaceFolder}/.graphtor/graph.db",
-        "GRAPHTOR_SOURCES": "${workspaceFolder}/.graphtor/config/sources.yaml"
-      },
+      "env": {"ENGRAM_WORKSPACE": "${workspace_folder}"},
       "tools": ["*"]
     },
     "context7": {
       "type": "stdio",
       "command": "bunx",
-      "args": ["--bun", "@upstash/context7-mcp"],
+      "args": ["@upstash/context7-mcp"],
       "tools": ["*"]
     },
     "tavily": {
       "type": "stdio",
-      "command": "pwsh",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "if ([string]::IsNullOrWhiteSpace($env:TAVILY_API_KEY)) { throw 'TAVILY_API_KEY is not set.' }; bunx tavily-mcp@latest"
-      ],
+      "command": "bunx",
+      "args": ["tavily-mcp"],
       "tools": ["*"]
     },
     "github": {
       "type": "stdio",
-      "command": "pwsh",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "$env:GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token); bunx --bun @modelcontextprotocol/server-github"
-      ],
+      "command": "github-mcp-server.exe",
+      "args": ["stdio"],
       "tools": ["*"]
     }
   }
