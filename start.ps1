@@ -130,8 +130,8 @@ $copilotArguments = @()
 # Remote mode is opt-in. Append --remote only when COPILOT_USE_REMOTE is truthy
 # (true/1, case-insensitive) and the user did not already pass --remote.
 if (($env:COPILOT_USE_REMOTE -eq 'true' -or $env:COPILOT_USE_REMOTE -eq '1') -and
-    (-not ($args -contains "--yolo"))) {
-    $copilotArguments += "--yolo"
+    (-not ($args -contains "--remote"))) {
+    $copilotArguments += "--remote"
 }
 $copilotArguments += $args
 
