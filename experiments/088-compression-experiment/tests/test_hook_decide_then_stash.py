@@ -107,6 +107,38 @@ def test_store_error_falls_back_to_byte_identical_passthrough(store, monkeypatch
     assert result == {}  # fail-safe passthrough, never partial elision
 
 
+def test_gate_readiness_verdict_declines_before_store(store):
+    text = "P-014 GATE PASSED: local readiness verified at HEAD=abc123\n" + (
+        "padding\n" * 60
+    )
+    result = process_post_tool_use(_payload("bash", text), store)
+    assert result == {}
+    assert store.row_count() == 0
+
+
+def test_active_stack_trace_declines_before_store(store):
+    text = "Traceback (most recent call last):\n" + ("  File x, line y\n" * 60)
+    result = process_post_tool_use(_payload("bash", text), store)
+    assert result == {}
+    assert store.row_count() == 0
+
+
+def test_failure_bearing_output_declines_before_store(store):
+    text = "command output\nexit code: 1\nstderr: something went wrong\n" + (
+        "padding\n" * 60
+    )
+    result = process_post_tool_use(_payload("bash", text), store)
+    assert result == {}
+    assert store.row_count() == 0
+
+
+def test_operator_approval_text_declines_before_store(store):
+    text = "Do you approve this destructive operation? (y/n)\n" + ("padding\n" * 60)
+    result = process_post_tool_use(_payload("bash", text), store)
+    assert result == {}
+    assert store.row_count() == 0
+
+
 def test_post_tool_use_failure_is_never_rewritten(store):
     payload = {
         "sessionId": "s1",

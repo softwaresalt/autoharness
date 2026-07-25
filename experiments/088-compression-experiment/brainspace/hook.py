@@ -1,10 +1,13 @@
-"""postToolUse compression hook prototype (088.002-T).
+"""postToolUse compression hook prototype (088.002-T / 088.004-T).
 
-Pipeline: matcher scope -> secret/PII pre-screen -> type router (implicit in
-``_compress_view``) -> never-expand token+char guard -> DECIDE-THEN-STASH
-(screen + never-expand decision BEFORE any durable write) -> write original
-to the store -> return ``modifiedResult`` with a compressed view plus a
-compact deterministic handle, else return ``{}`` to pass through unchanged.
+Pipeline: matcher scope -> decline-case policy pre-screen (secrets, tiny
+output, gate/readiness verdicts, active stack traces, failure-bearing
+output, operator-approval text; see ``brainspace.policy``) -> type router
+(implicit in ``_compress_view``) -> never-expand token+char guard ->
+DECIDE-THEN-STASH (policy + never-expand decision BEFORE any durable write)
+-> write original to the store -> return ``modifiedResult`` with a
+compressed view plus a compact deterministic handle, else return ``{}`` to
+pass through unchanged.
 
 Fail-safe: on ANY error (store, screen, guard, or unexpected payload shape),
 return ``{}`` so the original passes through byte-identically. This never
@@ -18,7 +21,7 @@ replace them anyway; this is documented explicitly here for clarity).
 import re
 
 from brainspace import config
-from brainspace.secret_screen import contains_secret
+from brainspace.policy import classify_decline_reason
 
 _MATCHER_RE = re.compile(rf"^(?:{config.DEFAULT_MATCHER})$")
 
@@ -68,14 +71,11 @@ def process_post_tool_use(payload, store):
         if not _matches_scope(tool_name):
             return {}
 
-        # Secret/PII pre-screen — a detector hit forces decline BEFORE any
-        # durable write, unconditionally.
-        if contains_secret(text):
-            return {}
-
-        # Never-expand guard (pre-compression): tiny outputs always lose the
-        # placeholder + footer overhead check.
-        if len(text) < config.NEVER_EXPAND_MIN_CHARS:
+        # Decline-case policy pre-screen — secrets, tiny outputs, gate/
+        # readiness verdicts, active stack traces, failure-bearing output,
+        # and operator-approval text all decline BEFORE any durable write,
+        # unconditionally (088.004-T).
+        if classify_decline_reason(text) is not None:
             return {}
 
         compressed = _compress_view(text)
