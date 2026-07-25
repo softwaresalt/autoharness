@@ -104,8 +104,28 @@ run:
 | Staged-file guard fails if store sidecars are staged | `staged_guard.py` | `test_staged_file_guard.py` |
 | Evidence oracle catches dropped required facts | `evidence_oracle.py` | `test_evidence_oracle.py` |
 
-All 108 experiment tests pass (`python -m pytest
+All 110 experiment tests pass (`python -m pytest
 experiments/088-compression-experiment/tests -q`).
+
+**Two findings from local adversarial review were fixed before this memo was
+finalized** (see the shipment's Step 3 review record):
+
+* **P0 (containment/gitignore gap):** the store is anchored to the Copilot
+  CLI session `cwd`, which may be any subdirectory of the repo, not just the
+  repo root. The original `.gitignore` patterns and `staged_guard.py`'s
+  matcher only recognized a repo-root-relative store path, so a store
+  nested under a subdirectory could be gitignore-missed and git-staged
+  undetected. Fixed by making both the gitignore patterns (`**/` prefix) and
+  `staged_guard.find_staged_store_violations` match the store directory at
+  any nesting depth; verified live against the exact reproduction the
+  reviewer supplied.
+* **P1 (TTL silently extended on dedup):** `BrainspaceStore.put()` used
+  `INSERT OR REPLACE`, which reset `stored_at` on every re-put of identical
+  content — contradicting the store's own documented retention invariant
+  ("never silently extended on dedup/access", carried forward from 086-F).
+  Fixed by switching to `INSERT OR IGNORE` so a dedup re-put is a true no-op
+  on the existing row's timestamp. A regression test
+  (`test_dedup_put_does_not_extend_ttl_clock`) now proves this.
 
 ### Benchmark corpus results
 
@@ -119,12 +139,18 @@ negative-controls, applying all six spike proof-method criteria
 
 | Case | Provenance | Raw tokens (fallback) | Compressed tokens (fallback) | Net savings | Verdict |
 |---|---|---:|---:|---:|---|
-| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 3,717 | 218 | 3,499 (94%) | SAFE WIN |
+| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 3,782 | 218 | 3,564 (94%) | SAFE WIN |
 | `backlogit-doctor-findings` | live (`backlogit doctor`) | 3,654 | 401 | 3,253 (89%) | SAFE WIN |
-| `git-log-stat-history` | live (`git --no-pager log --stat -20`) | 7,645 | 161 | 7,484 (98%) | **NOT a safe win** — evidence oracle fails |
+| `git-log-stat-history` | live (`git --no-pager log --stat -20`) | 6,258 | 150 | 6,108 (98%) | **NOT a safe win** — evidence oracle fails |
 | `backlogit-list-json-mcp-shaped` | live (`backlogit list --json`, truncated to 60 KB) | 15,000 | 250 | 14,750 (98%) | SAFE WIN |
-| `workspace-file-inventory` | live (`git ls-files`) | 13,070 | 118 | 12,952 (99%) | SAFE WIN |
+| `workspace-file-inventory` | live (`git ls-files`) | 13,224 | 118 | 13,106 (99%) | SAFE WIN |
 | `graphtor-search-results-representative` | **synthetic-representative** (no live Engram/graphtor MCP index in this benchmark run) | 8,827 | 323 | 8,504 (96%) | SAFE WIN (representative only) |
+
+*Exact token counts drift slightly between benchmark runs because several
+cases capture genuinely live command output (test counts, git history
+length, file inventory) that changes as the repository itself changes — the
+percentages and safe-win/not-safe-win verdicts are stable across runs.
+Numbers above match `reports/benchmark-report.json` as of the reviewed HEAD.*
 
 **The one honest negative finding matters most:** `git-log-stat-history`
 fails the evidence oracle because the naive head/tail compressor

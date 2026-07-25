@@ -39,3 +39,15 @@ def test_empty_staged_list_returns_no_violations():
 def test_handles_windows_style_backslash_paths():
     staged = [".autoharness\\cache\\brainspace\\ccr.sqlite3"]
     assert find_staged_store_violations(staged) != []
+
+
+def test_flags_store_files_nested_under_a_subdirectory():
+    # The store is anchored to the Copilot CLI session cwd (hook_cli.py),
+    # which may be any subdirectory of the repo, not only the repo root.
+    # A store nested under a subdirectory must still be flagged.
+    staged = [
+        "subdir/.autoharness/cache/brainspace/ccr.sqlite3",
+        "deeply/nested/path/.autoharness/cache/brainspace/ccr.sqlite3-wal",
+    ]
+    violations = find_staged_store_violations(staged)
+    assert len(violations) == 2

@@ -16,10 +16,10 @@
         "lower_tokens_both": true,
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
-        "raw_tokens_fallback": 3717,
+        "raw_tokens_fallback": 3782,
         "compressed_tokens_fallback": 218,
-        "net_savings_tokens_fallback": 3499,
-        "projected_savings_10_turns_fallback": 34990
+        "net_savings_tokens_fallback": 3564,
+        "projected_savings_10_turns_fallback": 35640
       },
       "notes": "model tokenizer unavailable; fallback-only, reported honestly"
     },
@@ -54,10 +54,10 @@
         "lower_tokens_both": true,
         "evidence_oracle_passes": false,
         "task_answerable_from_compressed_view": true,
-        "raw_tokens_fallback": 7645,
-        "compressed_tokens_fallback": 161,
-        "net_savings_tokens_fallback": 7484,
-        "projected_savings_10_turns_fallback": 74840
+        "raw_tokens_fallback": 6258,
+        "compressed_tokens_fallback": 150,
+        "net_savings_tokens_fallback": 6108,
+        "projected_savings_10_turns_fallback": 61080
       },
       "notes": "model tokenizer unavailable; fallback-only, reported honestly"
     },
@@ -92,10 +92,10 @@
         "lower_tokens_both": true,
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
-        "raw_tokens_fallback": 13070,
+        "raw_tokens_fallback": 13224,
         "compressed_tokens_fallback": 118,
-        "net_savings_tokens_fallback": 12952,
-        "projected_savings_10_turns_fallback": 129520
+        "net_savings_tokens_fallback": 13106,
+        "projected_savings_10_turns_fallback": 131060
       },
       "notes": "model tokenizer unavailable; fallback-only, reported honestly"
     },

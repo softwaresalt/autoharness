@@ -17,6 +17,14 @@ _SIDECAR_SUFFIXES = ("", "-wal", "-shm")
 def find_staged_store_violations(staged_paths):
     """Return the subset of ``staged_paths`` that are store files.
 
+    The store is anchored to the Copilot CLI session ``cwd`` (see
+    ``hook_cli.py``), which may be any subdirectory of the repository, not
+    only the repository root. A staged path is a violation whenever its
+    directory *ends with* the store's relative marker
+    (``.autoharness/cache/brainspace``) at any nesting depth -- matching
+    only the exact top-level path would silently miss a store nested under
+    a subdirectory.
+
     Args:
         staged_paths: iterable of path strings (as returned by
             ``git diff --cached --name-only``), forward- or back-slash.
@@ -24,12 +32,14 @@ def find_staged_store_violations(staged_paths):
     Returns:
         list[str]: the offending paths, in input order.
     """
+    marker_parts = tuple(_STORE_MARKER.split("/"))
     violations = []
     for raw_path in staged_paths:
         normalized = raw_path.replace("\\", "/")
-        directory = "/".join(normalized.split("/")[:-1])
-        filename = normalized.split("/")[-1]
-        if directory != _STORE_MARKER:
+        parts = normalized.split("/")
+        directory_parts = tuple(parts[:-1])
+        filename = parts[-1]
+        if directory_parts[-len(marker_parts):] != marker_parts:
             continue
         if any(filename == f"{_DB_BASENAME}{suffix}" for suffix in _SIDECAR_SUFFIXES):
             violations.append(raw_path)

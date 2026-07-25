@@ -38,6 +38,23 @@ def test_handle_contains_no_mutable_counter_pattern(store):
     assert len(handle) >= 8
 
 
+def test_dedup_put_does_not_extend_ttl_clock(tmp_path):
+    # 086-F carried-forward invariant: retention is a short TTL + size cap
+    # that is never silently extended on dedup/access. Re-putting identical
+    # content (same content-derived handle) must not reset stored_at.
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=10_000)
+    try:
+        text = "repeated status output, polled multiple times"
+        handle = s.put(text)
+        time.sleep(0.6)
+        s.put(text)  # dedup re-put of identical content, well before TTL
+        time.sleep(0.6)  # now ~1.2s since the ORIGINAL put -> past the 1s TTL
+        assert s.get(handle) is None
+        assert s.row_count() == 0
+    finally:
+        s.close()
+
+
 def test_get_missing_handle_returns_none(store):
     assert store.get("does-not-exist") is None
 

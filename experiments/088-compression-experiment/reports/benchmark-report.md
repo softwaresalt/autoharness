@@ -31,10 +31,10 @@
 - `lower_tokens_both`: True
 - `evidence_oracle_passes`: True
 - `task_answerable_from_compressed_view`: True
-- `raw_tokens_fallback`: 3717
+- `raw_tokens_fallback`: 3782
 - `compressed_tokens_fallback`: 218
-- `net_savings_tokens_fallback`: 3499
-- `projected_savings_10_turns_fallback`: 34990
+- `net_savings_tokens_fallback`: 3564
+- `projected_savings_10_turns_fallback`: 35640
 
 ### backlogit-doctor-findings (compression_positive)
 - `byte_equivalent_retrieval`: True
@@ -57,10 +57,10 @@
 - `lower_tokens_both`: True
 - `evidence_oracle_passes`: False
 - `task_answerable_from_compressed_view`: True
-- `raw_tokens_fallback`: 7645
-- `compressed_tokens_fallback`: 161
-- `net_savings_tokens_fallback`: 7484
-- `projected_savings_10_turns_fallback`: 74840
+- `raw_tokens_fallback`: 6258
+- `compressed_tokens_fallback`: 150
+- `net_savings_tokens_fallback`: 6108
+- `projected_savings_10_turns_fallback`: 61080
 
 ### backlogit-list-json-mcp-shaped (compression_positive)
 - `byte_equivalent_retrieval`: True
@@ -83,10 +83,10 @@
 - `lower_tokens_both`: True
 - `evidence_oracle_passes`: True
 - `task_answerable_from_compressed_view`: True
-- `raw_tokens_fallback`: 13070
+- `raw_tokens_fallback`: 13224
 - `compressed_tokens_fallback`: 118
-- `net_savings_tokens_fallback`: 12952
-- `projected_savings_10_turns_fallback`: 129520
+- `net_savings_tokens_fallback`: 13106
+- `projected_savings_10_turns_fallback`: 131060
 
 ### graphtor-search-results-representative (compression_positive)
 - `byte_equivalent_retrieval`: True

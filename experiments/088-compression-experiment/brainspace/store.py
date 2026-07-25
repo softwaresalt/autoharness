@@ -51,13 +51,20 @@ class BrainspaceStore:
         return digest[:16]
 
     def put(self, text: str) -> str:
-        """Durably store ``text`` and return its deterministic handle."""
+        """Durably store ``text`` and return its deterministic handle.
+
+        Dedup is a no-op on ``stored_at``: since ``handle`` is a
+        content-derived hash, re-putting identical content never changes
+        what is stored, so the TTL clock must not be silently extended by
+        repeated access. ``INSERT OR IGNORE`` leaves an existing row (and
+        its original ``stored_at``) untouched on conflict.
+        """
         handle = self.compute_handle(text)
         blob = encode_lossless(text)
         size = len(blob)
         now = time.time()
         self._conn.execute(
-            "INSERT OR REPLACE INTO entries (handle, content, size_bytes, stored_at) "
+            "INSERT OR IGNORE INTO entries (handle, content, size_bytes, stored_at) "
             "VALUES (?, ?, ?, ?)",
             (handle, blob, size, now),
         )
