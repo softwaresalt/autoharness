@@ -11,6 +11,12 @@
 .backlogit/hooks_queue.jsonl
 .backlogit/*.db-shm
 .backlogit/*.db-wal
+
+# 088-F throwaway compression experiment — brainspace CCR store (never
+# committed; see experiments/088-compression-experiment/README.md)
+.autoharness/cache/brainspace/*.sqlite3
+.autoharness/cache/brainspace/*.sqlite3-wal
+.autoharness/cache/brainspace/*.sqlite3-shm
 src/autoharness/__pycache__/*.pyc
 .*.lock
 **/.*.lock
