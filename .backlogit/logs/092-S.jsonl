@@ -11,3 +11,7 @@
 {"timestamp":"2026-07-14T17:59:23.200-07:00","actor":"backlogit","item_id":"092-S","event_type":"shipment_item_added","delta":{"item_id":"079.015-T"}}
 {"timestamp":"2026-07-23T11:31:42.3920244-07:00","actor":"orchestrator","item_id":"092-S","event_type":"comment","delta":{"comment":"Shipment external gate cleared. Preconditions met: released backlogit hierarchical-sizing contract available and verified; 079.013-T unblocked and queued; 079.014-T/079.016-T/079.015-T queued. Per shipment DoD, 092-S returns to queued and is now claimable by Ship."}}
 {"timestamp":"2026-07-23T19:08:58.2471129-07:00","actor":"backlogit","item_id":"092-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-24T23:53:46.1470293-07:00","actor":"backlogit","item_id":"092-S","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-07-24T23:53:47.0783348-07:00","actor":"backlogit","item_id":"092-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-07-24T23:53:47.8345366-07:00","actor":"backlogit","item_id":"092-S","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"cb6ff3a8c64da07099efb3d121495b0fe9ecd828","message":"Merge pull request #227 from softwaresalt/feat/079-telemetry-metrics-core"}}
+{"timestamp":"2026-07-24T23:54:12.7854574-07:00","actor":"backlogit","item_id":"092-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/092-S.md"}}
