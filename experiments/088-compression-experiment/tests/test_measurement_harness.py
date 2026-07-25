@@ -105,3 +105,24 @@ def test_measure_is_safe_win_requires_positive_net_and_cap_compliance():
     )
     result = measurement.measure(original, compressed, footer)
     assert result.is_safe_win is True
+
+
+def test_measure_dual_reports_fallback_and_model_results_separately():
+    original = "repeated noisy log line\n" * 200
+    compressed = "head...\n[190 lines omitted]\n...tail"
+    footer = (
+        '\n\n[compressed by 088-F experiment; retrieve full output with '
+        'output_retrieve(handle="abc123")]'
+    )
+    dual = measurement.measure_dual(original, compressed, footer)
+    assert set(dual.keys()) == {"fallback", "model"}
+    assert dual["fallback"].compressed_tokens < dual["fallback"].raw_tokens
+
+
+def test_measure_dual_reports_none_for_model_when_tokenizer_unavailable(monkeypatch):
+    monkeypatch.setattr(measurement, "_load_model_tokenizer", lambda: None)
+    original = "repeated noisy log line\n" * 200
+    compressed = "head...\n[190 lines omitted]\n...tail"
+    footer = "footer"
+    dual = measurement.measure_dual(original, compressed, footer)
+    assert dual["model"] is None

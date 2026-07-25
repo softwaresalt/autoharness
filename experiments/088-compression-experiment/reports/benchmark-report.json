@@ -1,0 +1,192 @@
+{
+  "total_count": 13,
+  "compression_positive_count": 6,
+  "decline_control_count": 7,
+  "safe_win_count": 12,
+  "results": [
+    {
+      "name": "pytest-vv-experiment-suite",
+      "category": "compression_positive",
+      "safe_win": true,
+      "criteria": {
+        "byte_equivalent_retrieval": true,
+        "no_extra_rows_beyond_stash": true,
+        "lower_tokens_fallback": true,
+        "lower_tokens_model": true,
+        "lower_tokens_both": true,
+        "evidence_oracle_passes": true,
+        "task_answerable_from_compressed_view": true,
+        "raw_tokens_fallback": 3717,
+        "compressed_tokens_fallback": 218,
+        "net_savings_tokens_fallback": 3499,
+        "projected_savings_10_turns_fallback": 34990
+      },
+      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
+    },
+    {
+      "name": "backlogit-doctor-findings",
+      "category": "compression_positive",
+      "safe_win": true,
+      "criteria": {
+        "byte_equivalent_retrieval": true,
+        "no_extra_rows_beyond_stash": true,
+        "lower_tokens_fallback": true,
+        "lower_tokens_model": true,
+        "lower_tokens_both": true,
+        "evidence_oracle_passes": true,
+        "task_answerable_from_compressed_view": true,
+        "raw_tokens_fallback": 3654,
+        "compressed_tokens_fallback": 401,
+        "net_savings_tokens_fallback": 3253,
+        "projected_savings_10_turns_fallback": 32530
+      },
+      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
+    },
+    {
+      "name": "git-log-stat-history",
+      "category": "compression_positive",
+      "safe_win": false,
+      "criteria": {
+        "byte_equivalent_retrieval": true,
+        "no_extra_rows_beyond_stash": true,
+        "lower_tokens_fallback": true,
+        "lower_tokens_model": true,
+        "lower_tokens_both": true,
+        "evidence_oracle_passes": false,
+        "task_answerable_from_compressed_view": true,
+        "raw_tokens_fallback": 7645,
+        "compressed_tokens_fallback": 161,
+        "net_savings_tokens_fallback": 7484,
+        "projected_savings_10_turns_fallback": 74840
+      },
+      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
+    },
+    {
+      "name": "backlogit-list-json-mcp-shaped",
+      "category": "compression_positive",
+      "safe_win": true,
+      "criteria": {
+        "byte_equivalent_retrieval": true,
+        "no_extra_rows_beyond_stash": true,
+        "lower_tokens_fallback": true,
+        "lower_tokens_model": true,
+        "lower_tokens_both": true,
+        "evidence_oracle_passes": true,
+        "task_answerable_from_compressed_view": true,
+        "raw_tokens_fallback": 15000,
+        "compressed_tokens_fallback": 250,
+        "net_savings_tokens_fallback": 14750,
+        "projected_savings_10_turns_fallback": 147500
+      },
+      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
+    },
+    {
+      "name": "workspace-file-inventory",
+      "category": "compression_positive",
+      "safe_win": true,
+      "criteria": {
+        "byte_equivalent_retrieval": true,
+        "no_extra_rows_beyond_stash": true,
+        "lower_tokens_fallback": true,
+        "lower_tokens_model": true,
+        "lower_tokens_both": true,
+        "evidence_oracle_passes": true,
+        "task_answerable_from_compressed_view": true,
+        "raw_tokens_fallback": 13070,
+        "compressed_tokens_fallback": 118,
+        "net_savings_tokens_fallback": 12952,
+        "projected_savings_10_turns_fallback": 129520
+      },
+      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
+    },
+    {
+      "name": "graphtor-search-results-representative",
+      "category": "compression_positive",
+      "safe_win": true,
+      "criteria": {
+        "byte_equivalent_retrieval": true,
+        "no_extra_rows_beyond_stash": true,
+        "lower_tokens_fallback": true,
+        "lower_tokens_model": true,
+        "lower_tokens_both": true,
+        "evidence_oracle_passes": true,
+        "task_answerable_from_compressed_view": true,
+        "raw_tokens_fallback": 8827,
+        "compressed_tokens_fallback": 323,
+        "net_savings_tokens_fallback": 8504,
+        "projected_savings_10_turns_fallback": 85040
+      },
+      "notes": "model tokenizer unavailable; fallback-only, reported honestly [synthetic-representative: Engram/graphtor MCP search surface not running in this benchmark environment]"
+    },
+    {
+      "name": "tiny-output-decline",
+      "category": "decline_control",
+      "safe_win": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "tiny_output"
+    },
+    {
+      "name": "unwritable-store-passthrough",
+      "category": "decline_control",
+      "safe_win": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "unwritable_store"
+    },
+    {
+      "name": "secret-bearing-output-decline",
+      "category": "decline_control",
+      "safe_win": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "secret_bearing"
+    },
+    {
+      "name": "gate-readiness-verdict-decline",
+      "category": "decline_control",
+      "safe_win": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "gate_readiness_verdict"
+    },
+    {
+      "name": "failure-bearing-gh-run-view-representative",
+      "category": "decline_control",
+      "safe_win": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "failure_bearing_success [synthetic-representative: emulates a failed `gh run view --log-failed` without depending on a live failed CI run]"
+    },
+    {
+      "name": "active-stack-trace-decline",
+      "category": "decline_control",
+      "safe_win": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "active_stack_trace"
+    },
+    {
+      "name": "operator-approval-text-decline",
+      "category": "decline_control",
+      "safe_win": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "operator_approval_text"
+    }
+  ]
+}

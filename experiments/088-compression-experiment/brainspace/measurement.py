@@ -66,16 +66,25 @@ class MeasurementResult:
     is_safe_win: bool = False
 
 
-def measure(original: str, compressed_view: str, footer: str) -> MeasurementResult:
+def measure(
+    original: str, compressed_view: str, footer: str, token_counter=None
+) -> MeasurementResult:
     """Measure raw vs compressed tokens and project net AUC savings.
 
     ``compressed_view`` and ``footer`` are measured together (the
     additionalContext actually sent to the model is the compressed view
     plus the retrieval footer), and compared against the raw original.
+
+    ``token_counter`` optionally overrides the token-counting function
+    (defaults to :func:`count_tokens`). The benchmark runner uses this to
+    force a specific tokenizer so it can prove "lower tokens under both
+    tokenizers" (spike proof-method criterion 1) rather than whichever one
+    :func:`count_tokens` happens to pick.
     """
+    counter = token_counter or count_tokens
     additional_context = compressed_view + footer
-    raw_tokens = count_tokens(original)
-    compressed_tokens = count_tokens(additional_context)
+    raw_tokens = counter(original)
+    compressed_tokens = counter(additional_context)
     net_savings_tokens = raw_tokens - compressed_tokens
 
     exceeds_cap = len(additional_context.encode("utf-8", errors="surrogatepass")) > (
@@ -96,3 +105,26 @@ def measure(original: str, compressed_view: str, footer: str) -> MeasurementResu
         exceeds_additional_context_cap=exceeds_cap,
         is_safe_win=is_safe_win,
     )
+
+
+def measure_dual(original: str, compressed_view: str, footer: str) -> dict:
+    """Measure under BOTH the cheap fallback estimator and the model
+    tokenizer (when available), so callers can prove lower-tokens-under-
+    both-tokenizers independently of whichever one :func:`count_tokens`
+    would have auto-selected.
+
+    Returns ``{"fallback": MeasurementResult, "model": MeasurementResult | None}``.
+    ``model`` is ``None`` when no model tokenizer is importable/available —
+    callers must report this honestly rather than silently substituting
+    the fallback result as if it were the model result.
+    """
+    fallback_result = measure(
+        original, compressed_view, footer, token_counter=estimate_tokens
+    )
+    model_tokenizer = _load_model_tokenizer()
+    model_result = None
+    if model_tokenizer is not None:
+        model_result = measure(
+            original, compressed_view, footer, token_counter=model_tokenizer
+        )
+    return {"fallback": fallback_result, "model": model_result}
