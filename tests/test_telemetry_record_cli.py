@@ -7,9 +7,11 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from autoharness.cli import main
 from autoharness.telemetry.config import TelemetryConfig
+from autoharness.telemetry.context import begin_context
 from autoharness.telemetry.epoch import (
     AbsoluteOutcome,
     EconomicPayload,
@@ -34,6 +36,7 @@ telemetry:
 """
 
 _PAYLOAD = {
+    "epoch_id": "11111111111141118111111111111111",
     "task_id": "051.001-T",
     "route": {"models": ["claude-opus-4.6"]},
     "economics": {"input_tokens": 100, "output_tokens": 50, "cogs_usd": 0.01, "duration_seconds": 12.0},
@@ -80,6 +83,159 @@ class TelemetryRecordCliTests(unittest.TestCase):
 
         line = jsonl_path.read_text(encoding="utf-8").splitlines()[0]
         self.assertEqual(json.loads(line)["task_id"], "051.001-T")
+
+    def test_non_ascii_payload_replays_idempotently_across_sinks(self) -> None:
+        """Regression (local review P2): the SQLite and JSONL payload-digest
+        canonicalization must agree for non-ASCII payloads so an identical
+        replay is idempotent rather than a false cross-sink immutable conflict.
+        """
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        payload = dict(_PAYLOAD)
+        payload["epoch_id"] = "22222222222242228222222222222222"
+        payload["branch"] = "feat/t\u00ebst-\u03a9"  # non-ASCII correlation value
+        epoch = ExecutionEpoch.from_mapping(payload)
+
+        first = record_epoch(epoch, config)
+        second = record_epoch(epoch, config)
+
+        self.assertEqual(first.idempotency_outcome, "created")
+        self.assertEqual(second.idempotency_outcome, "idempotent_replay")
+        self.assertEqual(second.errors, [])
+
+    def test_record_rejects_missing_epoch_id_without_context(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        payload = dict(_PAYLOAD)
+        del payload["epoch_id"]
+        self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_record_context_ref_merges_frozen_identity_and_reports_digests(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        begin = begin_context(
+            config,
+            self.workspace,
+            task_id="079.016-T",
+            backlog_item_id="079.016-T",
+            feature_id="079-F",
+            shipment_id="092-S",
+            epoch_id="22222222-2222-4222-8222-222222222222",
+            captured_at="2026-07-24T03:37:49Z",
+        )
+        close_payload = dict(_PAYLOAD)
+        close_payload.pop("epoch_id")
+        close_payload["task_id"] = "will-be-overridden"
+        self.payload_path.write_text(json.dumps(close_payload), encoding="utf-8")
+
+        import contextlib
+        import io
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+        result = json.loads(stdout.getvalue())
+
+        self.assertEqual(result["epoch_id"], "22222222222242228222222222222222")
+        self.assertEqual(result["context_ref"], begin.context_ref)
+        self.assertEqual(result["context_digest"], begin.context_digest)
+        self.assertRegex(result["payload_digest"], r"^[0-9a-f]{64}$")
+        self.assertNotEqual(result["payload_digest"], result["context_digest"])
+        self.assertEqual(result["idempotency_outcome"], "created")
+
+        conn = sqlite3.connect(str(self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"))
+        try:
+            row = conn.execute(
+                "SELECT task_id, feature_id, shipment_id FROM execution_epochs WHERE epoch_id=?",
+                ("22222222222242228222222222222222",),
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(row, ("079.016-T", "079-F", "092-S"))
+
+    def test_record_context_ref_rejects_unsafe_refs_mismatch_and_tamper(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        begin = begin_context(
+            config,
+            self.workspace,
+            task_id="079.016-T",
+            epoch_id="33333333-3333-4333-8333-333333333333",
+            captured_at="2026-07-24T03:37:49Z",
+        )
+
+        for bad_ref in (str(begin.context_path), "..\\escape.json"):
+            with self.assertRaises(SystemExit) as ctx:
+                self._run("--context-ref", bad_ref)
+            self.assertEqual(ctx.exception.code, 2)
+
+        mismatched = dict(_PAYLOAD)
+        mismatched["epoch_id"] = "44444444444444448444444444444444"
+        self.payload_path.write_text(json.dumps(mismatched), encoding="utf-8")
+        with self.assertRaises(SystemExit) as mismatch_ctx:
+            self._run("--context-ref", begin.context_ref)
+        self.assertEqual(mismatch_ctx.exception.code, 2)
+
+        payload = json.loads(begin.context_path.read_text(encoding="utf-8"))
+        payload["task_id"] = "tampered"
+        begin.context_path.write_text(json.dumps(payload), encoding="utf-8")
+        close_payload = dict(_PAYLOAD)
+        close_payload["epoch_id"] = begin.epoch_id
+        self.payload_path.write_text(json.dumps(close_payload), encoding="utf-8")
+        with self.assertRaises(SystemExit) as tamper_ctx:
+            self._run("--context-ref", begin.context_ref)
+        self.assertEqual(tamper_ctx.exception.code, 2)
+
+    def test_record_context_idempotency_and_conflict_outcomes(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        begin = begin_context(
+            config,
+            self.workspace,
+            task_id="079.016-T",
+            epoch_id="55555555-5555-4555-8555-555555555555",
+            captured_at="2026-07-24T03:37:49Z",
+        )
+        close_payload = dict(_PAYLOAD)
+        close_payload.pop("epoch_id")
+        close_payload["economics"] = {"input_tokens": 1, "output_tokens": 1}
+        self.payload_path.write_text(json.dumps(close_payload), encoding="utf-8")
+
+        import contextlib
+        import io
+
+        first_stdout = io.StringIO()
+        with contextlib.redirect_stdout(first_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+        second_stdout = io.StringIO()
+        with contextlib.redirect_stdout(second_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+
+        conflict_payload = dict(close_payload)
+        conflict_payload["economics"] = {"input_tokens": 999, "output_tokens": 1}
+        self.payload_path.write_text(json.dumps(conflict_payload), encoding="utf-8")
+        conflict_stdout = io.StringIO()
+        with contextlib.redirect_stdout(conflict_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+
+        self.assertEqual(json.loads(first_stdout.getvalue())["idempotency_outcome"], "created")
+        self.assertEqual(json.loads(second_stdout.getvalue())["idempotency_outcome"], "idempotent_replay")
+        conflict = json.loads(conflict_stdout.getvalue())
+        self.assertEqual(conflict["idempotency_outcome"], "conflict_rejected")
+        self.assertFalse(conflict["sqlite_written"])
+        self.assertFalse(conflict["jsonl_written"])
 
     def test_disabled_telemetry_is_noop_success(self) -> None:
         self._write_config(_DISABLED_CONFIG)
@@ -203,6 +359,76 @@ class TelemetryRecordCliTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 2)
 
 
+class MergeTelemetryContextPayloadTests(unittest.TestCase):
+    """Copilot review r3 (cli.py:868/872): context/close payload merge semantics."""
+
+    def _ctx(self, **overrides: object) -> dict:
+        base = {
+            "epoch_id": "22222222222242228222222222222222",
+            "task_id": "079.016-T",
+            "backlog_item_id": "079.016-T",
+            "feature_id": None,
+            "shipment_id": None,
+            "workspace_id": None,
+            "session_id": None,
+            "agent_role": None,
+            "phase": None,
+            "branch": None,
+            "commit_sha": None,
+            "captured_at": "2026-07-24T03:07:22Z",
+        }
+        base.update(overrides)
+        return base
+
+    def test_captured_at_is_deterministic_timestamp_fallback(self) -> None:
+        # r3-1: a context-replayable close MUST hash to a stable digest across
+        # retries, so when the close payload omits a timestamp the merge falls
+        # back to the close-invariant captured_at rather than a non-deterministic
+        # "now". (Leaving it unset would let ExecutionEpoch stamp _utc_now_iso()
+        # per call and break idempotent replay / conflict detection.)
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        merged = _merge_telemetry_context_payload({}, self._ctx())
+        self.assertEqual(merged["timestamp"], "2026-07-24T03:07:22Z")
+
+    def test_explicit_close_timestamp_is_preserved(self) -> None:
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        merged = _merge_telemetry_context_payload(
+            {"timestamp": "2026-07-24T09:00:00Z"}, self._ctx()
+        )
+        self.assertEqual(merged["timestamp"], "2026-07-24T09:00:00Z")
+
+    def test_null_context_correlation_does_not_erase_close_values(self) -> None:
+        # r3-2: optional correlation fields captured as null must not clobber
+        # values supplied at close time.
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        close = {"branch": "feat/x", "commit_sha": "abc123", "feature_id": "079-F"}
+        merged = _merge_telemetry_context_payload(close, self._ctx())
+        self.assertEqual(merged["branch"], "feat/x")
+        self.assertEqual(merged["commit_sha"], "abc123")
+        self.assertEqual(merged["feature_id"], "079-F")
+
+    def test_captured_context_correlation_overrides_close(self) -> None:
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        close = {"feature_id": "wrong", "branch": "close-branch"}
+        merged = _merge_telemetry_context_payload(
+            close, self._ctx(feature_id="079-F", branch="ctx-branch")
+        )
+        self.assertEqual(merged["feature_id"], "079-F")
+        self.assertEqual(merged["branch"], "ctx-branch")
+
+    def test_stable_identity_is_frozen_from_context(self) -> None:
+        from autoharness.cli import _merge_telemetry_context_payload
+
+        close = {"task_id": "will-be-overridden"}
+        merged = _merge_telemetry_context_payload(close, self._ctx())
+        self.assertEqual(merged["task_id"], "079.016-T")
+        self.assertEqual(merged["epoch_id"], "22222222222242228222222222222222")
+
+
 class RecordEpochFailOpenTests(unittest.TestCase):
     """A failing sink must never propagate a completion-blocking signal (P2-1)."""
 
@@ -214,6 +440,31 @@ class RecordEpochFailOpenTests(unittest.TestCase):
             operations=OperationalReality(),
             outcome=AbsoluteOutcome(),
         )
+
+    def test_sqlite_write_conflict_sets_conflict_rejected_outcome(self) -> None:
+        """Copilot review t3: a TelemetryConflictError raised by the sqlite sink
+        (another writer inserted after preflight passed) must still finalize the
+        documented ``conflict_rejected`` idempotency outcome instead of leaving it
+        unset by returning early."""
+        from autoharness.telemetry import sqlite_sink
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=False,
+            )
+            with mock.patch(
+                "autoharness.telemetry.record.sqlite_sink.write_epoch",
+                side_effect=sqlite_sink.TelemetryConflictError("post-preflight race"),
+            ):
+                summary = record_epoch(self._epoch(), config)
+
+            self.assertEqual(summary.idempotency_outcome, "conflict_rejected")
+            self.assertFalse(summary.sqlite_written)
+            self.assertTrue(any("conflict" in err.lower() for err in summary.errors))
 
     def test_sink_error_is_captured_not_raised(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -233,6 +484,100 @@ class RecordEpochFailOpenTests(unittest.TestCase):
             self.assertTrue(summary.enabled)
             self.assertFalse(summary.sqlite_written)
             self.assertTrue(summary.errors)
+
+    def test_partial_sink_failure_repairs_missing_jsonl_on_identical_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            db_path = workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=True,
+                jsonl_path=db_path.parent / "execution_epochs.jsonl",
+            )
+            epoch = self._epoch()
+            with mock.patch(
+                "autoharness.telemetry.record.jsonl_sink.append_epoch",
+                side_effect=OSError("jsonl unavailable"),
+            ):
+                first = record_epoch(epoch, config)
+            retry = record_epoch(epoch, config)
+
+            self.assertTrue(first.sqlite_written)
+            self.assertFalse(first.jsonl_written)
+            self.assertTrue(first.errors)
+            self.assertTrue(retry.sqlite_written)
+            self.assertTrue(retry.jsonl_written)
+            self.assertEqual(len(config.jsonl_path.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_conflicting_retry_after_partial_sqlite_success_writes_no_missing_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            db_path = workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=True,
+                jsonl_path=db_path.parent / "execution_epochs.jsonl",
+            )
+            epoch = self._epoch()
+            with mock.patch(
+                "autoharness.telemetry.record.jsonl_sink.append_epoch",
+                side_effect=OSError("jsonl unavailable"),
+            ):
+                record_epoch(epoch, config)
+            conflict = ExecutionEpoch(
+                epoch_id=epoch.epoch_id,
+                task_id=epoch.task_id,
+                route=epoch.route,
+                economics=EconomicPayload(input_tokens=999),
+                operations=epoch.operations,
+                outcome=epoch.outcome,
+            )
+
+            summary = record_epoch(conflict, config)
+
+            self.assertFalse(summary.sqlite_written)
+            self.assertFalse(summary.jsonl_written)
+            self.assertTrue(any("conflict" in err.lower() for err in summary.errors))
+            self.assertFalse(config.jsonl_path.exists())
+
+    def test_conflicting_retry_after_partial_jsonl_success_writes_no_missing_sqlite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            db_path = workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=True,
+                jsonl_path=db_path.parent / "execution_epochs.jsonl",
+            )
+            epoch = self._epoch()
+            with mock.patch(
+                "autoharness.telemetry.record.sqlite_sink.write_epoch",
+                side_effect=OSError("sqlite unavailable"),
+            ):
+                first = record_epoch(epoch, config)
+            conflict = ExecutionEpoch(
+                epoch_id=epoch.epoch_id,
+                task_id=epoch.task_id,
+                route=epoch.route,
+                economics=EconomicPayload(input_tokens=999),
+                operations=epoch.operations,
+                outcome=epoch.outcome,
+            )
+
+            summary = record_epoch(conflict, config)
+
+            self.assertFalse(first.sqlite_written)
+            self.assertTrue(first.jsonl_written)
+            self.assertFalse(summary.sqlite_written)
+            self.assertFalse(summary.jsonl_written)
+            self.assertTrue(any("conflict" in err.lower() for err in summary.errors))
+            self.assertFalse(db_path.exists())
 
 
 if __name__ == "__main__":

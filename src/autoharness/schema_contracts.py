@@ -27,6 +27,22 @@ LEGACY_DRIFT_CATEGORIES = {
 }
 
 SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
+    "execution-epoch": {
+        "contract_name": "execution-epoch",
+        "schema_file": "execution-epoch.schema.json",
+        "versioned_schema_dir": "execution-epoch",
+        "current_version": "1.1.0",
+        "known_versions": ("1.1.0",),
+        "compatibility_model": "versioned-contract",
+    },
+    "tool-telemetry-event": {
+        "contract_name": "tool-telemetry-event",
+        "schema_file": "tool-telemetry-event.schema.json",
+        "versioned_schema_dir": "tool-telemetry-event",
+        "current_version": "1.0.0",
+        "known_versions": ("1.0.0",),
+        "compatibility_model": "versioned-contract",
+    },
     "manifest": {
         "contract_name": "harness-manifest",
         "schema_file": "harness-manifest.schema.json",

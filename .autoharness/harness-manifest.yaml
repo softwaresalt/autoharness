@@ -112,7 +112,7 @@ artifacts:
   - path: ".github/agents/.ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "e17ea2a6b3bae56240eaf3aa4e7eed070dfdb96d6947265f8235c33419c334f7"
+    checksum: "644eaf29a63b796122b411947bbb23a2f98237d0f6a5901af1e69a99f9c9b28d"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
@@ -126,7 +126,7 @@ artifacts:
   - path: "start.ps1"
     primitive: 1
     template: "scripts/start.ps1.tmpl"
-    checksum: "3528f7d51afdf65350b012db0ce312aa88b38d02cd7b1ecaa00fdddd4bbe369b"
+    checksum: "ca916a9da92b7d840b7c28843fff8fabb227d2988ab5efe6d1fd1195849ecb36"
     note: "pre-existing, custom self-install version with agent injection"
   - path: "AGENTS.md"
     primitive: 9

@@ -1,175 +1,64 @@
 ---
 title: Telemetry Reference
-description: Execution Epoch schema, the autoharness telemetry record emission contract, repo-local SQLite/JSONL sinks, and the telemetry.mode none kill-switch
+description: ExecutionEpoch v1.1, ToolTelemetryEvent v1.0, pre-execution contexts, local sinks, readers, aggregation, and report boundaries.
 ---
 
-> **Navigation**: [README](../README.md) · [Getting Started](getting-started.md) · [Validation Gates](gates-reference.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md) · [Tuning Guide](tuning-guide.md)
+# Telemetry Reference
 
-## Overview
+> **Navigation**: [README](../README.md) · [Architecture](ARCHITECTURE.md) · [Validation Gates](gates-reference.md) · [Primitives](primitives.md) · [Capability Packs](capability-packs.md)
 
-Telemetry lets autoharness measure its own efficiency ("Best Outcome at the Best
-Price") by capturing high-fidelity **Execution Epochs** — one structured record
-per task-completion boundary. Each epoch carries the route configuration, the
-economic payload, the operational reality, and the absolute gate outcome, and is
-written to a repo-local SQLite aggregator plus an optional JSONL stream.
+## Ownership Model
 
-This is **Phase 2 (capture core)** of the Deterministic Gates, Telemetry &
-Evaluation Engine design — see [the design document](design-docs/autoharness-evals-gates-design.md) §4
-and §6.3. The headless evaluation runner, deterministic reviewer matrix, and
-pre-execution sizing gate are later shipments and are intentionally *not*
-implemented here.
+autoharness owns the local epoch time-series telemetry contract, repo-local SQLite/JSONL persistence, reader normalization, aggregation formulas, report helpers, and eval-facing summaries. backlogit owns work-state traceability, task IDs, shipment membership, dependencies, comments, and task-level planned `size`. agent-engram is the structural/graph ingestion consumer for emitted telemetry; telemetry modules do not import agent-engram or CozoDB.
 
-### The no-execution-loop framing
+## ExecutionEpoch v1.1
 
-autoharness's CLI is an **install/tune tool**, not a live agent execution host.
-There is **no in-process execution loop** to wrap. The design doc's "wrap the
-execution loop to log …" is therefore delivered as a **self-contained CLI
-capability** (`autoharness telemetry record`) plus this documented **emission
-contract**: the harness runtime (Copilot CLI / VS Code / the build-feature
-skill) already knows its route, token/COGS/duration, CLI tools used, and gate
-exit codes at task-completion time, and it hands those to autoharness through the
-record command. autoharness owns the **epoch schema** and the **sinks**, not the
-collection of raw runtime signals.
+`ExecutionEpoch v1.1` is the persisted task-close record. Required serialized fields are `schema_version`, `epoch_id`, `task_id`, `backlog_item_id`, `timestamp`, `route`, `economics`, `operations`, and `outcome`.
 
-### Fail-open by design
-
-Telemetry is **observational and off the completion critical path**. An absent or
-`mode: none` telemetry block disables all emission (behavior identical to an
-install without telemetry). A failing or misconfigured sink is reported but never
-raises — `autoharness telemetry record` returning non-zero MUST NOT be
-interpreted by the harness as a completion blocker.
-
-## Configuration
-
-Telemetry is configured under a `telemetry` block in the workspace
-`.autoharness/config.yaml`, validated against the versioned
-[`validation-gates` JSON Schema](../schemas/validation-gates/1.0.0.schema.json)
-(the `telemetry` definition). The block is **entirely optional**.
-
-```yaml
-telemetry:
-  mode: "sqlite"                                    # sqlite | none (default none)
-  database_path: ".autoharness/metrics/execution_epochs.db"
-  emit_jsonl: true                                  # append one JSON epoch per line
-```
-
-| Field | Required | Default | Description |
-|---|---|---|---|
-| `mode` | no | `none` | `sqlite` enables the SQLite aggregator; `none` disables all telemetry (kill-switch). |
-| `database_path` | no | `.autoharness/metrics/execution_epochs.db` | Repo-relative path to the local SQLite DB. Resolved against the workspace root and **confined to it** (see below). |
-| `emit_jsonl` | no | `false` | When `true`, also append a JSONL epoch stream alongside the DB. |
-
-Telemetry artifacts are **confined to the workspace**. `database_path` (and the
-JSONL stream derived from it) is resolved against the workspace root, and the
-resolved real path must live **inside** the workspace. A `database_path` that
-escapes the repo — an absolute path outside the workspace, or a relative path
-using `..` traversal — is rejected and telemetry **fails open to disabled** (a
-warning is logged; nothing is emitted outside the repo). The **default**
-location `.autoharness/metrics/` is gitignored, so default emission never dirties
-the working tree. If you override `database_path` to an in-workspace location
-*outside* `.autoharness/metrics/`, confinement still holds, but those artifacts
-are **not** covered by the default gitignore rule — add your own ignore entry so
-emission does not produce tracked-file changes.
-
-The commented activation guidance ships through
-[`templates/harness-config.yaml.tmpl`](../templates/harness-config.yaml.tmpl) so
-target workspaces receive it through the normal install/tune flow.
-
-## Execution Epoch Schema
-
-An `ExecutionEpoch` composes the four design-§4 payload classes. The serialized
-shape below (`to_record()`) is the **stable contract** shared by both sinks and
-the external ingestion boundary.
-
-```json
-{
-  "epoch_id": "b6b1…",
-  "schema_version": "1.0.0",
-  "task_id": "051.001-T",
-  "timestamp": "2026-07-01T08:53:00+00:00",
-  "route":      { "models": ["claude-opus-4.8", "gpt-5.4-mini"] },
-  "economics":  { "input_tokens": 1200, "output_tokens": 800, "cogs_usd": 0.042, "duration_seconds": 93.5 },
-  "operations": { "cli_tools": ["git", "pytest", "backlogit"] },
-  "outcome":    { "gate_exit_codes": [0, 0, 1] }
-}
-```
-
-| Payload class | Field(s) | Meaning |
-|---|---|---|
-| `RouteConfiguration` | `models` | The models used (first element is the primary model). |
-| `EconomicPayload` | `input_tokens`, `output_tokens`, `cogs_usd`, `duration_seconds` | Cost and duration of the epoch. |
-| `OperationalReality` | `cli_tools` | The CLI tools actually invoked. |
-| `AbsoluteOutcome` | `gate_exit_codes` | The gate exit code(s); any non-zero marks the epoch `blocked`. |
-
-`task_id` and the four payload classes are **required**; a payload missing any of
-them is rejected with exit code `2`. `epoch_id`, `timestamp`, and
-`schema_version` are auto-populated when omitted.
-
-## Emission Contract
-
-The harness runtime invokes the record command at execution close, supplying the
-epoch payload as a JSON object via `--from-json <path>` or stdin:
-
-```bash
-# From a file the runtime wrote at task close:
-autoharness telemetry record --from-json epoch.json --workspace .
-
-# Or piped on stdin:
-Get-Content epoch.json | autoharness telemetry record --workspace .
-```
-
-The command loads the workspace `telemetry` config, constructs an
-`ExecutionEpoch` from the payload, and routes it to every enabled sink.
-
-### Exit codes
-
-| Code | Meaning |
+| Area | Fields |
 |---|---|
-| `0` | Epoch recorded, **or** telemetry disabled (no-op), **or** a sink failed (fail-open — reported, not blocking). |
-| `2` | Invalid arguments, or a malformed/incomplete epoch payload. |
+| Root correlation | `workspace_id`, `session_id`, `agent_role`, `phase`, `backlog_item_id`, `feature_id`, `shipment_id`, `branch`, `commit_sha` |
+| Route | `models`, `route_kinds`, derived `primary_route_kind` |
+| Economics | `input_tokens`, `output_tokens`, `cached_input_tokens`, `cumulative_input_tokens`, `cumulative_output_tokens`, `context_tokens_before`, `context_tokens_after`, `context_area_tokens`, `avoided_read_estimated_tokens`, `tool_output_estimated_tokens`, `cogs_usd`, `duration_seconds`, `metric_sources`, `metric_quality` |
+| Operations | `cli_tools`, `tool_surfaces`, `retrieval_packs`, `route_kind_counts`, routed/raw counts, avoided-read counts, `tool_output_bytes`, expected/observed/missing tool count maps, `degraded_tool_count`, `stale_or_unavailable_index_count`, provenance maps |
+| Outcome | `gate_exit_codes`, `tool_failure_count`, `tool_degraded_count`, `tool_gap_count`, provenance maps |
+| Sizing | optional nested `WorkSizingSnapshot` |
 
-## Sinks
+nullable metric fields mean the value is unavailable; zero counts mean an observed zero. Every populated metric must have same-named `metric_sources` and `metric_quality` entries. Quality values distinguish observed, estimated, derived, unavailable, and not-applicable data so reports never imply false precision.
 
-### SQLite aggregator (repo-local)
+## WorkSizingSnapshot
 
-Each epoch is written as one row to the `execution_epochs` table in
-`.autoharness/metrics/execution_epochs.db` (§6.3 — telemetry is kept **repo-local**,
-not global). Parent directories are auto-created; the connection uses **WAL**
-journaling with short-lived per-write connections so concurrent emissions do not
-contend. Columns support quantitative metric queries:
+`WorkSizingSnapshot` is captured once at the `pre_execution` boundary and then carried through the close record unchanged. It includes `snapshot_at`, `snapshot_boundary`, `task_size_label`, null-by-contract feature/shipment size labels, per-level `sizing_sources`, `sizing_source_revisions`, `sizing_ruleset_versions`, feature child count/histogram/hash, and shipment manifest count/histogram/hash.
 
-```text
-epoch_id, schema_version, task_id, timestamp,
-primary_model, models,
-input_tokens, output_tokens, total_tokens,
-cogs_usd, duration_seconds,
-cli_tools, gate_exit_codes, blocked
-```
+Backlogit stores task-level `custom_fields.size` only. Feature and shipment labels are null-by-contract and expose computed composition instead. Composition uses the same canonical sorted unique task-ID set for count, histogram, and membership hash. The histogram uses `XS`, `S`, `M`, `L`, `XL`, plus `unsized`; skipped unresolved IDs are excluded from both count and histogram. There is no `unavailable` histogram bucket. The membership hash is lowercase SHA-256 over a compact UTF-8 JSON array of sorted unique task IDs; unavailable membership yields `null`.
 
-### JSONL stream (emit-only)
+Size labels are ordinal and level-relative. Reports may group by labels and show dispersion or monotonicity observations, but cost-per-size-point stays `unavailable` unless a future named/versioned label-to-point mapping is present. `autoharness gate size` task labels are deterministic metadata complexity/scope bucket values, not elapsed time; the 2-hour rule remains a separate task-scope ceiling.
 
-When `emit_jsonl: true`, each epoch is also appended as **one well-formed JSON
-object per line** to `execution_epochs.jsonl` alongside the DB. This sink is
-**emit-only**: the external relational schema and the ingestion path that consumes
-the stream are an [agent-engram](design-docs/autoharness-evals-gates-design.md)
-concern (design §4) and are **not** implemented by autoharness. autoharness writes
-JSONL and stops at the file boundary.
+## Begin and Record Lifecycle
 
-## Runtime-Artifact Isolation
+Ship invokes `autoharness telemetry begin --task-id <id> --backlog-item-id <id> --feature-id <feature> --shipment-id <shipment> --capture-backlogit-sizing --json` immediately after task claim. Begin creates a workspace-contained context artifact under the configured metrics `contexts/` directory and returns `context_ref`, stable `epoch_id`, and a canonical context digest. Path-safe context artifact rules reject absolute refs, traversal, separator tricks, symlink escapes, mismatched filename stems, and digest mismatches.
 
-Everything under `.autoharness/metrics/` — the SQLite DB, its `-wal`/`-shm`
-sidecars, and the JSONL stream — is **gitignored** so emission never dirties a
-consumer's working tree. This applies the same runtime-artifact learning
-established for `.autoharness/gates/` and `.autoharness/staging/` in Phase 1.
+At task close, Ship invokes `autoharness telemetry record --context-ref <context_ref> --from-json <epoch-payload> --json`. Record merges frozen identity/correlation/sizing from begin with close-time roll-up metrics. It does not re-read backlogit size, hierarchy, shipment membership, or any other mutable planning state at close.
 
-## Kill-Switch Rollback
+Replay semantics are first-write immutable. Sinks store or derive `payload_digest`; identical replays are idempotent, partial sink retries repair only missing sinks when the digest matches, and conflicting replays are diagnosed as `conflict_rejected` without replacing the first accepted content.
 
-Telemetry has a **zero-code kill-switch**: set `telemetry.mode: none` (or remove
-the `telemetry` block entirely) in `.autoharness/config.yaml`. All emission stops
-immediately and the harness fails open to its prior behavior. To also reset the
-local data, delete the `.autoharness/metrics/` directory.
+## Sinks, Readers, Aggregation, and Reports
 
-## Related
+SQLite persists queryable columns plus JSON payload columns for every v1.1 field. JSONL writes the exact `ExecutionEpoch.to_record()` object. Readers normalize legacy v1.0 rows to v1.1, mark unknown metric provenance as `unavailable`, deduplicate by `epoch_id`, and apply SQLite-over-JSONL precedence in combined mode.
 
-- [Validation Gates Reference](gates-reference.md) — Phase 1 gate execution surface whose exit codes become the epoch's `AbsoluteOutcome`.
-- [Design Document](design-docs/autoharness-evals-gates-design.md) — §4 (Phase 2) and §6.3 (repo-local telemetry).
+Aggregation computes UTC-normalized date buckets, token consumption, token generation, context-area estimates, COGS, duration, routed-vs-raw usage, avoided-read counts/token estimates, expected counts, observed counts, missing counts, per-tool gap rates, size-label distributions, within-size dispersion, and derived efficiency metrics. Derived metrics include `net_offload_tokens`, `consumption_generation_ratio`, `gap_rate`, and `cost_per_successful_epoch`; denominators are aggregate totals, never averages of per-epoch ratios. If an operand is null/unavailable or the denominator is zero, the metric is `unavailable`.
+
+Reports filter only on persisted fields such as `session_id`, `backlog_item_id`, `feature_id`, `shipment_id`, `phase`, `branch`, and `commit_sha`. No CLI report subcommand is included in shipment 092-S.
+
+## ToolTelemetryEvent v1.0
+
+`ToolTelemetryEvent v1.0` is a forward-only schema contract. It describes future granular event identity, correlation, optional `work_sizing_snapshot`, tool, timing, outcome, token economics, provenance maps, offload, retrieval health, evidence, and safety fields. live event model/sink/emission and deterministic event-to-epoch composition are deferred to 084-F if needed, not part of 079-F core.
+
+## Cross-Pack Sequencing
+
+Shipment 092-S is fail-closed on the released backlogit hierarchical-sizing contract and task 079.013-T, plus the 079.014-T begin context, 079.016-T record-close/idempotency, and 079.015-T Ship host handoff tasks. 082-F maps real pack evidence before broad adapter implementation. 084-F implements live token-efficiency event emission if required. 085-F builds benchmark suites after stable telemetry inputs exist.
+
+## Rollback and Disabled Mode
+
+Set `telemetry.mode: none` or omit the `telemetry` block to disable telemetry. Begin returns a structured disabled/no-op result, record skips payload parsing when disabled, and no sink files are created.
+

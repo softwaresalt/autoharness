@@ -29,6 +29,13 @@ class RecordSummary:
     enabled: bool = False
     sqlite_written: bool = False
     jsonl_written: bool = False
+    sqlite_status: str | None = None
+    jsonl_status: str | None = None
+    payload_digest: str | None = None
+    epoch_id: str | None = None
+    context_ref: str | None = None
+    context_digest: str | None = None
+    idempotency_outcome: str | None = None
     errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -36,30 +43,110 @@ class RecordSummary:
             "enabled": self.enabled,
             "sqlite_written": self.sqlite_written,
             "jsonl_written": self.jsonl_written,
+            "sqlite_status": self.sqlite_status,
+            "jsonl_status": self.jsonl_status,
+            "payload_digest": self.payload_digest,
+            "epoch_id": self.epoch_id,
+            "context_ref": self.context_ref,
+            "context_digest": self.context_digest,
+            "idempotency_outcome": self.idempotency_outcome,
             "errors": list(self.errors),
         }
 
 
+def _preflight_conflict(epoch: ExecutionEpoch, config: TelemetryConfig, summary: RecordSummary) -> bool:
+    digest = sqlite_sink.payload_digest(epoch)
+    summary.payload_digest = digest
+    observed: list[tuple[str, str]] = []
+
+    if config.database_path is not None:
+        try:
+            existing = sqlite_sink.find_epoch_digest(config.database_path, epoch.epoch_id)
+            if existing is not None:
+                observed.append(("sqlite", existing))
+        except Exception as exc:
+            summary.errors.append(f"sqlite sink preflight failed: {exc}")
+
+    if config.emit_jsonl and config.jsonl_path is not None:
+        try:
+            existing = jsonl_sink.find_epoch_digest(config.jsonl_path, epoch.epoch_id)
+            if existing is not None:
+                observed.append(("jsonl", existing))
+        except Exception as exc:
+            summary.errors.append(f"jsonl sink preflight failed: {exc}")
+
+    conflicts = [
+        f"{name} digest {existing} != {digest}"
+        for name, existing in observed
+        if existing != digest
+    ]
+    if conflicts:
+        summary.errors.append(
+            f"immutable epoch conflict for {epoch.epoch_id}: " + "; ".join(conflicts)
+        )
+        summary.idempotency_outcome = "conflict_rejected"
+        return True
+    return False
+
+
+def _finalize_idempotency(summary: RecordSummary) -> None:
+    if summary.idempotency_outcome == "conflict_rejected":
+        return
+    statuses = [
+        status
+        for status in (summary.sqlite_status, summary.jsonl_status)
+        if status is not None
+    ]
+    if any("conflict" in err.lower() for err in summary.errors):
+        summary.idempotency_outcome = "conflict_rejected"
+    elif statuses and all(status == "idempotent_replay" for status in statuses):
+        summary.idempotency_outcome = "idempotent_replay"
+    elif "created" in statuses and "idempotent_replay" in statuses:
+        summary.idempotency_outcome = "partial_repaired"
+    elif "created" in statuses:
+        summary.idempotency_outcome = "created"
+    else:
+        summary.idempotency_outcome = "created" if summary.sqlite_written or summary.jsonl_written else "disabled"
+
+
 def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummary:
     """Dispatch an epoch to every enabled sink, failing open on sink errors."""
-    summary = RecordSummary(enabled=config.enabled)
+    summary = RecordSummary(enabled=config.enabled, epoch_id=epoch.epoch_id)
     if not config.enabled:
+        summary.idempotency_outcome = "disabled"
+        return summary
+
+    if _preflight_conflict(epoch, config, summary):
         return summary
 
     if config.database_path is not None:
         try:
-            sqlite_sink.write_epoch(epoch, config.database_path)
+            sqlite_result = sqlite_sink.write_epoch(epoch, config.database_path)
+            summary.sqlite_status = sqlite_result.status
+            summary.payload_digest = sqlite_result.payload_digest
             summary.sqlite_written = True
+        except sqlite_sink.TelemetryConflictError as exc:
+            summary.errors.append(f"sqlite sink conflict: {exc}")
+            # Copilot review t3: a conflict raised here (another writer inserted
+            # after preflight) still returns early, so finalize the documented
+            # conflict_rejected outcome before returning instead of leaving it unset.
+            summary.idempotency_outcome = "conflict_rejected"
+            return summary
         except Exception as exc:  # fail-open: never block completion
             summary.errors.append(f"sqlite sink failed: {exc}")
 
     if config.emit_jsonl and config.jsonl_path is not None:
         try:
-            jsonl_sink.append_epoch(epoch, config.jsonl_path)
+            jsonl_result = jsonl_sink.append_epoch(epoch, config.jsonl_path)
+            summary.jsonl_status = jsonl_result.status
+            summary.payload_digest = jsonl_result.payload_digest
             summary.jsonl_written = True
+        except jsonl_sink.TelemetryConflictError as exc:
+            summary.errors.append(f"jsonl sink conflict: {exc}")
         except Exception as exc:  # fail-open: never block completion
             summary.errors.append(f"jsonl sink failed: {exc}")
 
+    _finalize_idempotency(summary)
     return summary
 
 
