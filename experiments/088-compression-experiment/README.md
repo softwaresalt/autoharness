@@ -27,13 +27,29 @@ the environment (see `brainspace/config.py`). With the flag unset (the
 default), the hook entry point always returns `{}` (pass-through, no-op) and
 no store is created.
 
+**Not wired into `.github/hooks/` by default.** `hooks.json.example` in this
+directory is a template, not a live hook registration — copying it into
+`.github/hooks/` would make Copilot CLI invoke `hook_cli.py` on every
+matching tool call for every contributor (the script itself still no-ops
+unless the flag is set, but the plan requires this prototype to stay
+throwaway and out of the default install path). To exercise the hook
+end-to-end locally:
+
+```powershell
+Copy-Item experiments/088-compression-experiment/hooks.json.example .github/hooks/088-compression-experiment.json
+$env:BRAINSPACE_EXPERIMENT_ENABLED = '1'
+copilot   # interact normally; remove the copied file + unset the flag when done
+```
+
 ## How to remove this experiment entirely
 
 1. Delete this directory: `experiments/088-compression-experiment/`.
 2. Remove the `brainspace-ccr` entry from `.mcp.json` (if present).
-3. Remove the `.autoharness/cache/brainspace/` gitignore entries from
+3. Remove any copied `.github/hooks/088-compression-experiment.json` (only
+   present if a developer opted in locally — never committed by default).
+4. Remove the `.autoharness/cache/brainspace/` gitignore entries from
    `.gitignore`.
-4. Delete any runtime store data at `.autoharness/cache/brainspace/`.
+5. Delete any runtime store data at `.autoharness/cache/brainspace/`.
 
 Nothing else in the repository references this package.
 
