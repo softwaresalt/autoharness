@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "brainspace-ccr": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["experiments/088-compression-experiment/brainspace/mcp_server.py"],
+      "env": {"BRAINSPACE_WORKSPACE": "${workspaceFolder}"},
+      "tools": ["output_retrieve"]
+    }
+  }
+}

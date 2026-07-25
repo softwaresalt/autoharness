@@ -20,6 +20,22 @@ token-savings measurement harness, a benchmark corpus runner, and decline-case
 safety tests — built to prove or disprove honest token savings without hiding
 required evidence.
 
+## MCP retrieval tool (not registered in the root `.mcp.json` by default)
+
+`mcp_server.py` implements a minimal, dependency-free stdio JSON-RPC server
+exposing one tool, `output_retrieve` (full or paginated byte-equivalent
+retrieval). `mcp.json.example` shows how to register it. It is intentionally
+**not** merged into the repo-root `.mcp.json` — that file is the canonical,
+always-loaded shared MCP surface for every contributor and agent session in
+this repo, and merging it there would make the retrieval server part of the
+default environment, contradicting the plan's "disabled by default, not a
+production capability-pack install" condition even though the tool itself is
+inert (returns "handle not found" errors) whenever the store is empty. To
+exercise retrieval locally, merge `mcp.json.example` into a local/untracked
+MCP config, or invoke `brainspace/retrieval.py` functions directly (see
+`tests/test_retrieval_byte_equivalent.py` for the direct-store recovery
+path used by the benchmark).
+
 ## Flag gate
 
 The experiment is disabled unless `BRAINSPACE_EXPERIMENT_ENABLED=1` is set in
