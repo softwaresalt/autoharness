@@ -43,6 +43,13 @@ def _load_model_tokenizer():
     return lambda text: len(encoding.encode(text))
 
 
+class ModelTokenizerUnavailable(Exception):
+    """Raised when a real model tokenizer cannot be used to prove a token
+    count for a specific text -- either because no tokenizer is importable,
+    or because the tokenizer's own ``encode()`` call failed for this exact
+    input (P-018 round-8 finding)."""
+
+
 def count_tokens(text: str) -> int:
     """Count tokens in ``text`` using a model tokenizer if available."""
     if not text:
@@ -54,6 +61,33 @@ def count_tokens(text: str) -> int:
         return tokenizer(text)
     except Exception:
         return estimate_tokens(text)
+
+
+def count_tokens_strict(text: str) -> int:
+    """Count tokens using ONLY the real model tokenizer -- never falls back.
+
+    Raises :class:`ModelTokenizerUnavailable` if no model tokenizer is
+    importable/usable, or if the tokenizer's own ``encode()`` call fails for
+    this specific text. ``is_model_tokenizer_available()`` only proves the
+    tokenizer *loaded* successfully (``tiktoken.get_encoding(...)``
+    succeeded) -- it does NOT prove ``encode()`` will succeed for every
+    possible input. Callers that must PROVE an actual real-model token
+    count was used to authorize a decision (e.g. the hook's never-expand
+    guard) must use this, not :func:`count_tokens`, or a per-call encode
+    failure on the actual input could be silently masked by the fallback
+    estimator while the caller believes a real-model comparison was proven.
+    """
+    if not text:
+        return 0
+    tokenizer = _load_model_tokenizer()
+    if tokenizer is None:
+        raise ModelTokenizerUnavailable("no model tokenizer is available")
+    try:
+        return tokenizer(text)
+    except Exception as exc:
+        raise ModelTokenizerUnavailable(
+            f"model tokenizer failed to encode this input: {exc}"
+        ) from exc
 
 
 def is_model_tokenizer_available() -> bool:
@@ -136,7 +170,15 @@ def measure_dual(original: str, compressed_view: str, footer: str) -> dict:
     model_tokenizer = _load_model_tokenizer()
     model_result = None
     if model_tokenizer is not None:
-        model_result = measure(
-            original, compressed_view, footer, token_counter=model_tokenizer
-        )
+        try:
+            model_result = measure(
+                original, compressed_view, footer, token_counter=model_tokenizer
+            )
+        except Exception:
+            # A tokenizer that loaded successfully can still raise on a
+            # specific input's encode() call -- that must be reported
+            # honestly as "no model result" (P-018 round-8 finding), not
+            # silently substituted with the fallback estimator's numbers or
+            # allowed to crash the caller.
+            model_result = None
     return {"fallback": fallback_result, "model": model_result}

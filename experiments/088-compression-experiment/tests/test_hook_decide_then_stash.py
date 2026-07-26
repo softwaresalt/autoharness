@@ -11,6 +11,7 @@ from brainspace import config
 from brainspace import hook as hook_module
 from brainspace.hook import process_post_tool_use, process_post_tool_use_failure
 from brainspace.store import BrainspaceStore
+from brainspace.tokenizer_fallback import estimate_tokens
 
 
 @pytest.fixture(autouse=True)
@@ -69,8 +70,11 @@ def test_large_compressible_output_is_compressed_and_stashed(store, monkeypatch)
     # invariant (P-018 round-6 finding) -- simulate one being available so
     # this test exercises the compress-and-stash path regardless of whether
     # the real ``tiktoken`` dependency happens to be installed in whatever
-    # environment runs the suite.
+    # environment runs the suite. count_tokens_strict() is also simulated
+    # (P-018 round-8 finding: it never silently falls back like the old
+    # count_tokens() did, so the boolean gate alone is not enough here).
     monkeypatch.setattr(hook_module, "is_model_tokenizer_available", lambda: True)
+    monkeypatch.setattr(hook_module, "count_tokens_strict", estimate_tokens)
     text = "repeated noisy log line\n" * 200
     result = process_post_tool_use(_payload("bash", text), store)
     assert "modifiedResult" in result
@@ -82,6 +86,7 @@ def test_large_compressible_output_is_compressed_and_stashed(store, monkeypatch)
 
 def test_compressed_view_contains_deterministic_handle_footer(store, monkeypatch):
     monkeypatch.setattr(hook_module, "is_model_tokenizer_available", lambda: True)
+    monkeypatch.setattr(hook_module, "count_tokens_strict", estimate_tokens)
     text = "repeated noisy log line\n" * 200
     result1 = process_post_tool_use(_payload("bash", text), store)
     result2 = process_post_tool_use(_payload("bash", text), store)
@@ -93,6 +98,7 @@ def test_compressed_view_contains_deterministic_handle_footer(store, monkeypatch
 
 def test_stashed_original_is_byte_equivalent_retrievable(store, monkeypatch):
     monkeypatch.setattr(hook_module, "is_model_tokenizer_available", lambda: True)
+    monkeypatch.setattr(hook_module, "count_tokens_strict", estimate_tokens)
     text = "repeated noisy log line\n" * 200
     result = process_post_tool_use(_payload("bash", text), store)
     footer = result["modifiedResult"]["textResultForLlm"]
@@ -193,7 +199,7 @@ def test_never_expand_guard_uses_real_token_comparison_not_char_count_only(
     def _adversarial_token_counter(candidate_text):
         return 1 if candidate_text == text else 10**6
 
-    monkeypatch.setattr(hook_module, "count_tokens", _adversarial_token_counter)
+    monkeypatch.setattr(hook_module, "count_tokens_strict", _adversarial_token_counter)
 
     result = process_post_tool_use(_payload("bash", text), store)
 

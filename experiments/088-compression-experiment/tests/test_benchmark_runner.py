@@ -22,6 +22,7 @@ from brainspace.benchmark import (
     render_json_report,
 )
 from brainspace.store import BrainspaceStore
+from brainspace.tokenizer_fallback import estimate_tokens
 
 
 @pytest.fixture(autouse=True)
@@ -58,6 +59,7 @@ def test_compression_positive_case_is_marked_safe_win(store, monkeypatch):
     monkeypatch.setattr(
         "brainspace.hook.is_model_tokenizer_available", lambda: True
     )
+    monkeypatch.setattr("brainspace.hook.count_tokens_strict", estimate_tokens)
 
     def fake_measure_dual(original, compressed_view, footer):
         fallback = MeasurementResult(
@@ -117,6 +119,7 @@ def test_compression_case_is_inconclusive_when_model_tokenizer_unavailable(store
     monkeypatch.setattr(
         "brainspace.hook.is_model_tokenizer_available", lambda: True
     )
+    monkeypatch.setattr("brainspace.hook.count_tokens_strict", estimate_tokens)
 
     def fake_measure_dual(original, compressed_view, footer):
         fallback = measurement_module.measure(
@@ -153,6 +156,7 @@ def test_capture_failed_case_is_never_a_safe_win_even_if_all_else_passes(store, 
     monkeypatch.setattr(
         "brainspace.hook.is_model_tokenizer_available", lambda: True
     )
+    monkeypatch.setattr("brainspace.hook.count_tokens_strict", estimate_tokens)
 
     def fake_measure_dual(original, compressed_view, footer):
         result = MeasurementResult(
@@ -189,6 +193,7 @@ def test_compression_case_fails_safe_win_when_required_fact_would_be_lost(store,
     monkeypatch.setattr(
         "brainspace.hook.is_model_tokenizer_available", lambda: True
     )
+    monkeypatch.setattr("brainspace.hook.count_tokens_strict", estimate_tokens)
     text = ("padding line\n" * 100) + "see PR #427 for details\n" + ("padding line\n" * 100)
     case = BenchmarkCase(
         name="buried-pr-reference",
@@ -238,6 +243,7 @@ def test_decline_control_case_flags_when_it_unexpectedly_compresses(store, monke
     monkeypatch.setattr(
         "brainspace.hook.is_model_tokenizer_available", lambda: True
     )
+    monkeypatch.setattr("brainspace.hook.count_tokens_strict", estimate_tokens)
     case = BenchmarkCase(
         name="mislabeled-decline",
         tool_name="bash",

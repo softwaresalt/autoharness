@@ -22,7 +22,11 @@ import json
 import re
 
 from brainspace import config
-from brainspace.measurement import count_tokens, is_model_tokenizer_available
+from brainspace.measurement import (
+    ModelTokenizerUnavailable,
+    count_tokens_strict,
+    is_model_tokenizer_available,
+)
 from brainspace.policy import classify_decline_reason
 
 _MATCHER_RE = re.compile(rf"^(?:{config.DEFAULT_MATCHER})$")
@@ -214,9 +218,20 @@ def process_post_tool_use(payload, store):
         # evidence bar -- decline before store.put() rather than stash and
         # rewrite output on an unproven estimate that could, in reality,
         # expand actual Copilot-model tokens (P-018 round-6 finding).
+        #
+        # ``is_model_tokenizer_available()`` only proves the tokenizer
+        # LOADED successfully -- it does not prove ``encode()`` will
+        # succeed for this specific text. Use ``count_tokens_strict()``
+        # (never silently falls back) so a per-call encode failure on the
+        # actual input declines rather than being masked by the fallback
+        # estimator while still being treated as a proven real-model
+        # comparison (P-018 round-8 finding).
         if not is_model_tokenizer_available():
             return {}
-        if count_tokens(candidate) >= count_tokens(text):
+        try:
+            if count_tokens_strict(candidate) >= count_tokens_strict(text):
+                return {}
+        except ModelTokenizerUnavailable:
             return {}
 
         # THEN STASH: only after the decision above holds do we write the

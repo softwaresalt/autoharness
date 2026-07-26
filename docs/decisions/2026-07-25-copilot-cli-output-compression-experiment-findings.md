@@ -424,6 +424,88 @@ compressor (round-3 finding #14) and the wider decline-verdict coverage
 (`test_hook_type_router.py`, `test_policy_decline_cases.py`); they are simply
 never reached by the live corpus run now, one gate earlier than before.
 
+### Round 7 (1 finding from a seventh auto-triggered re-review): closing a containment-boundary gap
+
+* **The workspace-root resolver trusted any ancestor of `cwd`, unbounded.**
+  `workspace.py`'s `_validate_related_to_process_cwd()` accepted any ancestor
+  of the process `cwd` as a valid workspace-root candidate purely because
+  `os.path.commonpath([candidate, cwd]) == candidate` — with no bound on how
+  broad an ancestor could be (e.g. a filesystem root or a home directory).
+  This is a genuine Constitution IV containment gap: an attacker-influenced
+  or misconfigured explicit root could walk arbitrarily far up the tree and
+  still be accepted. Fixed: added `_discover_repo_root()` (walks up from the
+  real `cwd` looking for a `.git` marker) and `_is_ancestor_or_equal()`;
+  ancestor-of-`cwd` candidates are now only trusted if they are bounded
+  within the discovered repository root — an unbounded ancestor (no `.git`
+  marker found, or broader than the discovered root) is rejected outright.
+  Three new regression tests cover the unbounded-ancestor-without-repo-root
+  rejection, the ancestor-broader-than-repo-root rejection, and the positive
+  case (ancestor exactly at the repo root is still accepted, preserving the
+  legitimate "pin repo root, `cd` into a subdirectory" use case this
+  validation exists for).
+
+Regenerating the benchmark report after round 7 shows no change — the
+containment-resolver fix affects root discovery only, not the corpus content
+or compression outcomes, so the round-6 figures (0/6 safe wins, 7/7 correct
+decline controls, all six compression-positive candidates declining outright
+for lack of a real tokenizer) stand unchanged.
+
+### Round 8 (3 findings from an eighth auto-triggered re-review): closing an honesty gap and an evidence-loss gap
+
+* **A loadable tokenizer could still silently fall back mid-encode.**
+  `measurement.is_model_tokenizer_available()` only proves the tokenizer
+  *loaded* (`tiktoken.get_encoding(...)` succeeded) — it does not prove
+  `encode()` will succeed for a *specific* piece of text. `hook.py`'s
+  never-expand guard called the fallback-tolerant `count_tokens()`, which
+  would silently fall back to the char/4 estimator if the real tokenizer's
+  `encode()` raised for that text, even though the guard's own gate believed
+  a real-model token comparison had been proven. This could let a rewrite be
+  authorized on fallback-only counts while reporting/believing the
+  never-expand invariant held on real model tokens. Fixed: added a
+  `ModelTokenizerUnavailable` exception and a new `count_tokens_strict()`
+  that never silently falls back — it raises if no tokenizer is available OR
+  if `encode()` fails for the given input — and the never-expand guard now
+  calls `count_tokens_strict()`, declining (`return {}`, no store write)
+  whenever it raises. `measure_dual()` (report-only) is separately hardened
+  to catch the same exception and report `model: None` rather than crash.
+  `count_tokens()` itself is unchanged and still intentionally
+  fallback-tolerant for non-decision-authorizing callers (a dedicated
+  regression test now pins down that this fallback tolerance is deliberate,
+  not an oversight).
+* **Corpus truncation could silently discard the fact a case was built to
+  test.** `corpus.py`'s real-capture cases truncated captured command output
+  with a prefix-only `text[:_MAX_CAPTURE_CHARS]`, then derived
+  `required_fact` (via `last_nonblank_line`) from that *truncated* text. For
+  outputs where the fact of interest — e.g. `pytest -vv`'s final pass/fail
+  summary line — lives past the truncation boundary, this let the
+  task-answerability criterion pass trivially without the real fact ever
+  surviving truncation, silently masking evidence loss the criterion exists
+  to catch (affected the `pytest -vv`, `backlogit doctor`, and
+  workspace-file-inventory cases). Fixed: added `_truncate_preserving_tail()`
+  (keeps a head prefix plus a tail suffix with an omission marker between
+  them, mirroring the same head/tail strategy `hook.py`'s own prose
+  compressor already uses) and all five real-capture cases now use it for
+  `text` while deriving `required_fact` from the full, untruncated captured
+  output.
+* **The PR's own readiness block had gone stale across several rounds** (not
+  a code defect) — flagged and corrected as part of this round's PR body
+  update rather than a source change.
+
+Regenerating the benchmark report after round 8 shows **no change** from
+round 6/7's figures (0/6 six-criteria safe wins, 7/7 correct decline
+controls) — in this benchmark environment there is still no real `tiktoken`
+tokenizer installed, so every real-capture compression-positive case
+continues to decline outright at the hook's never-expand guard before ever
+reaching the corpus's truncation/required-fact logic, regardless of the
+`count_tokens_strict()` rename or the head+tail truncation change. Both
+round-8 fixes strengthen the harness's own honesty guarantees (never
+authorizing a rewrite on an unproven token count; never letting a required
+fact silently vanish under truncation) rather than changing what this
+tokenizer-less environment can currently observe. The **headline
+recommendation is unchanged**: zero proven safe wins, precondition #1 (a
+real model tokenizer) still required before the prototype can compress
+anything at all, let alone prove a net savings.
+
 ## Evidence summary
 
 ### Copilot CLI `postToolUse` hooks contract re-verification (plan condition #4)

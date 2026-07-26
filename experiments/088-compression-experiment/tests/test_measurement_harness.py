@@ -126,3 +126,64 @@ def test_measure_dual_reports_none_for_model_when_tokenizer_unavailable(monkeypa
     footer = "footer"
     dual = measurement.measure_dual(original, compressed, footer)
     assert dual["model"] is None
+
+
+def test_measure_dual_reports_none_for_model_when_encode_raises_for_this_input(monkeypatch):
+    # P-018 round-8 finding: a tokenizer that LOADED successfully can still
+    # raise for a specific input's encode() call. measure_dual() must
+    # report this honestly as "no model result" rather than crashing or
+    # silently substituting the fallback estimator's numbers.
+    def _raising_tokenizer(text):
+        raise RuntimeError("simulated encode failure for this input")
+
+    monkeypatch.setattr(measurement, "_load_model_tokenizer", lambda: _raising_tokenizer)
+    original = "repeated noisy log line\n" * 200
+    compressed = "head...\n[190 lines omitted]\n...tail"
+    footer = "footer"
+    dual = measurement.measure_dual(original, compressed, footer)
+    assert dual["model"] is None
+    assert dual["fallback"] is not None
+
+
+def test_count_tokens_strict_raises_when_no_model_tokenizer_available(monkeypatch):
+    monkeypatch.setattr(measurement, "_load_model_tokenizer", lambda: None)
+    with pytest.raises(measurement.ModelTokenizerUnavailable):
+        measurement.count_tokens_strict("some text")
+
+
+def test_count_tokens_strict_raises_when_tokenizer_encode_fails_for_this_input(monkeypatch):
+    # P-018 round-8 finding: is_model_tokenizer_available() only proves the
+    # tokenizer LOADED -- it does not prove encode() succeeds for every
+    # input. count_tokens_strict() must never silently fall back to the
+    # estimator on an encode failure; it must raise so the caller (e.g. the
+    # hook's never-expand guard) can decline instead of masking the failure.
+    def _raising_tokenizer(text):
+        raise RuntimeError("simulated encode failure for this input")
+
+    monkeypatch.setattr(measurement, "_load_model_tokenizer", lambda: _raising_tokenizer)
+    with pytest.raises(measurement.ModelTokenizerUnavailable):
+        measurement.count_tokens_strict("some text")
+
+
+def test_count_tokens_strict_returns_zero_for_empty_text(monkeypatch):
+    monkeypatch.setattr(measurement, "_load_model_tokenizer", lambda: lambda t: 999)
+    assert measurement.count_tokens_strict("") == 0
+
+
+def test_count_tokens_strict_uses_real_tokenizer_when_available(monkeypatch):
+    monkeypatch.setattr(measurement, "_load_model_tokenizer", lambda: lambda t: 42)
+    assert measurement.count_tokens_strict("some text") == 42
+
+
+def test_count_tokens_still_falls_back_silently_for_non_strict_callers(monkeypatch):
+    # count_tokens() (the non-strict variant) is intentionally left
+    # fallback-tolerant for reporting-only callers that already treat a
+    # missing/failed model tokenizer as a distinct honesty signal elsewhere
+    # (e.g. is_model_tokenizer_available()); only the strict variant used to
+    # AUTHORIZE a decision must refuse to mask an encode failure.
+    def _raising_tokenizer(text):
+        raise RuntimeError("simulated encode failure for this input")
+
+    monkeypatch.setattr(measurement, "_load_model_tokenizer", lambda: _raising_tokenizer)
+    text = "some sample text for token counting " * 10
+    assert measurement.count_tokens(text) == estimate_tokens(text)

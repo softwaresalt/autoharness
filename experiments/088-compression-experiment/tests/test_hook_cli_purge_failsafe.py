@@ -18,6 +18,7 @@ import json
 
 from brainspace import config, hook_cli
 from brainspace.store import BrainspaceStore
+from brainspace.tokenizer_fallback import estimate_tokens
 
 
 def test_purge_failure_does_not_prevent_result_from_being_emitted(
@@ -71,6 +72,7 @@ def test_purge_failure_does_not_drop_an_already_created_handle(
     monkeypatch.setenv(config.ENABLED_ENV_VAR, "1")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("brainspace.hook.is_model_tokenizer_available", lambda: True)
+    monkeypatch.setattr("brainspace.hook.count_tokens_strict", estimate_tokens)
 
     def _boom(self):
         raise RuntimeError("simulated purge failure (lock contention)")

@@ -87,6 +87,34 @@ def _is_capture_failure(text: str) -> bool:
     return text.startswith(_CAPTURE_FAILED_MARKER)
 
 
+def _truncate_preserving_tail(
+    text: str, max_chars: int = _MAX_CAPTURE_CHARS, tail_chars: int = 2000
+) -> str:
+    """Truncate ``text`` to at most ``max_chars`` while preserving its tail.
+
+    Captured command output frequently carries its most important evidence
+    at the END of the output -- a pass/fail summary line, a final doctor
+    finding count, the last file in an inventory listing. Prefix-only
+    truncation silently discards that evidence while the resulting case is
+    still treated as a complete live sample: a 60+ KB ``pytest -vv``
+    capture could lose its own final summary line entirely, and any
+    ``required_fact`` derived from the truncated text would then come from
+    an arbitrary mid-output line instead of the real summary, letting the
+    task-answerability criterion pass without ever proving the actual fact
+    survived (P-018 round-8 finding). Keep a head prefix plus a tail suffix
+    (where such summaries live) instead of a prefix-only cut.
+    """
+    if len(text) <= max_chars:
+        return text
+    tail_chars = min(tail_chars, max_chars // 2)
+    head_chars = max_chars - tail_chars
+    head = text[:head_chars]
+    tail = text[-tail_chars:] if tail_chars else ""
+    omitted = len(text) - head_chars - tail_chars
+    marker = f"\n... [corpus capture truncated; {omitted} chars omitted] ...\n"
+    return f"{head}{marker}{tail}"
+
+
 def build_default_corpus(
     repo_root: str,
     command_runner: Optional[Callable[[List[str], str], str]] = None,
@@ -105,27 +133,27 @@ def build_default_corpus(
         ["python", "-m", "pytest", "experiments/088-compression-experiment/tests", "-vv"],
         repo_root,
     )
-    truncated_pytest = pytest_output[:_MAX_CAPTURE_CHARS]
+    truncated_pytest = _truncate_preserving_tail(pytest_output)
     cases.append(
         BenchmarkCase(
             name="pytest-vv-experiment-suite",
             tool_name="bash",
             text=truncated_pytest,
             task_question="did the experiment test suite pass, and what is the summary?",
-            required_fact=last_nonblank_line(truncated_pytest),
+            required_fact=last_nonblank_line(pytest_output),
             capture_failed=_is_capture_failure(pytest_output),
         )
     )
 
     doctor_output = run(["backlogit", "doctor"], repo_root)
-    truncated_doctor = doctor_output[:_MAX_CAPTURE_CHARS]
+    truncated_doctor = _truncate_preserving_tail(doctor_output)
     cases.append(
         BenchmarkCase(
             name="backlogit-doctor-findings",
             tool_name="bash",
             text=truncated_doctor,
             task_question="how many doctor issues were found?",
-            required_fact=last_nonblank_line(truncated_doctor),
+            required_fact=last_nonblank_line(doctor_output),
             capture_failed=_is_capture_failure(doctor_output),
         )
     )
@@ -134,40 +162,40 @@ def build_default_corpus(
         ["git", "--no-pager", "log", "--stat", "-20"],
         repo_root,
     )
-    truncated_diff = diff_output[:_MAX_CAPTURE_CHARS]
+    truncated_diff = _truncate_preserving_tail(diff_output)
     cases.append(
         BenchmarkCase(
             name="git-log-stat-history",
             tool_name="bash",
             text=truncated_diff,
             task_question="what is the most recent commit summary?",
-            required_fact=_first_nonblank_line(truncated_diff),
+            required_fact=_first_nonblank_line(diff_output),
             capture_failed=_is_capture_failure(diff_output),
         )
     )
 
     mcp_json_output = run(["backlogit", "list", "--json"], repo_root)
-    truncated_mcp_json = mcp_json_output[:_MAX_CAPTURE_CHARS]
+    truncated_mcp_json = _truncate_preserving_tail(mcp_json_output)
     cases.append(
         BenchmarkCase(
             name="backlogit-list-json-mcp-shaped",
             tool_name="backlogit_mcp",
             text=truncated_mcp_json,
             task_question="what does the first record in this JSON listing look like?",
-            required_fact=_first_nonblank_line(truncated_mcp_json),
+            required_fact=_first_nonblank_line(mcp_json_output),
             capture_failed=_is_capture_failure(mcp_json_output),
         )
     )
 
     inventory_output = run(["git", "ls-files"], repo_root)
-    truncated_inventory = inventory_output[:_MAX_CAPTURE_CHARS]
+    truncated_inventory = _truncate_preserving_tail(inventory_output)
     cases.append(
         BenchmarkCase(
             name="workspace-file-inventory",
             tool_name="bash",
             text=truncated_inventory,
             task_question="what is the last file listed in the inventory?",
-            required_fact=last_nonblank_line(truncated_inventory),
+            required_fact=last_nonblank_line(inventory_output),
             capture_failed=_is_capture_failure(inventory_output),
         )
     )

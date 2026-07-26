@@ -124,3 +124,45 @@ def test_default_command_runner_success_is_not_marked_capture_failed(monkeypatch
     result = _default_command_runner(["pytest", "-vv"], str(tmp_path))
     assert not _is_capture_failure(result)
     assert result == "all good"
+
+
+def test_truncate_preserving_tail_returns_unchanged_when_under_cap():
+    from brainspace.corpus import _truncate_preserving_tail
+
+    text = "short text"
+    assert _truncate_preserving_tail(text, max_chars=1000) == text
+
+
+def test_truncate_preserving_tail_keeps_head_and_tail_when_over_cap():
+    # P-018 round-8 finding: prefix-only truncation discarded evidence that
+    # lives at the END of large captured output. The fix must keep both a
+    # head prefix AND a tail suffix rather than cutting the tail away.
+    from brainspace.corpus import _truncate_preserving_tail
+
+    text = "A" * 100_000 + "TAIL-MARKER"
+    truncated = _truncate_preserving_tail(text, max_chars=1000, tail_chars=200)
+    assert len(truncated) < len(text)
+    assert truncated.startswith("A")
+    assert "TAIL-MARKER" in truncated
+
+
+def test_build_default_corpus_large_capture_preserves_required_fact_in_truncated_text(tmp_path):
+    # P-018 round-8 finding: a pytest -vv capture over the truncation cap
+    # previously lost its own final summary line under prefix-only
+    # truncation, so required_fact (derived from the truncated text) would
+    # be an arbitrary mid-output line instead of the real summary -- the
+    # task-answerability criterion could then pass without the actual fact
+    # ever surviving truncation. required_fact must now be derived from the
+    # FULL captured output, and it must still be genuinely present in the
+    # truncated text handed to the compressor/oracle.
+    def fake_runner(args, cwd):
+        return ("noisy line\n" * 20_000) + "===== 1 passed in 0.01s ====="
+
+    cases = build_default_corpus(str(tmp_path), command_runner=fake_runner)
+    pytest_case = next(c for c in cases if c.name == "pytest-vv-experiment-suite")
+    assert pytest_case.required_fact == "===== 1 passed in 0.01s ====="
+    assert pytest_case.required_fact in pytest_case.text
+    # The truncation actually happened (proves this isn't a vacuous pass
+    # because the fake output was small enough to fit under the cap).
+    full_len = len(("noisy line\n" * 20_000) + "===== 1 passed in 0.01s =====")
+    assert len(pytest_case.text) < full_len
