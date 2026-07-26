@@ -25,8 +25,14 @@ closure_status: READY_WITH_CONDITIONS
 **Surface classification**: this deliverable is a **throwaway, flag-gated,
 disabled-by-default** prototype. It has no default-on runtime surface in the
 shipped harness — the only "runtime" is an operator explicitly opting in by
-setting `hooks.json`/`mcp.json` env pins from the provided `.example` templates
-and setting `BRAINSPACE_MODEL_ENCODING`. There is no production rollout, no
+exporting `BRAINSPACE_EXPERIMENT_ENABLED=1` (the actual feature gate; see
+`experiments/088-compression-experiment/README.md` "Flag gate" section and
+`brainspace/config.py`) AND setting `hooks.json`/`mcp.json` env pins from the
+provided `.example` templates plus `BRAINSPACE_MODEL_ENCODING`. With
+`BRAINSPACE_EXPERIMENT_ENABLED` unset (the default), the hook entry point
+always returns `{}` (pass-through, no-op) and no store is created — the
+`.example` templates alone, without also exporting the enable flag, do not
+activate anything. There is no production rollout, no
 CI/CD deployment target, and no change to any existing harness runtime path.
 
 **Validator evidence (proportionate to a disabled-by-default experiment)**:
@@ -55,7 +61,9 @@ future *pilot* promotion (out of scope for this throwaway-experiment merge).
 The **base harness** (everything except the isolated experiment directory) is
 unconditionally releasable — no behavior changed, all existing tests and CI
 remain green, and the experiment cannot execute unless an operator explicitly
-opts in via the example config templates.
+opts in by exporting `BRAINSPACE_EXPERIMENT_ENABLED=1` (the flag gate)
+alongside the example config templates; copying the `.example` files alone
+does not enable anything.
 
 The **experiment itself** is `READY_WITH_CONDITIONS` for any use beyond
 "merged, disabled, and available for a deliberate opt-in local trial run by

@@ -73,7 +73,10 @@ subjective (decline-with-rationale, resolve, move on). Concretely:
   **disabled-by-default, isolated, throwaway experiment** with no
   base-harness dependency: nothing ships enabled, nothing outside
   `experiments/088-compression-experiment/` depends on it, and the follow-ups
-  were tracked (stashed for Stage routing) rather than silently dropped. The
+  were tracked (documented in the PR body, task comments, and this closure
+  record, then handed off for the Orchestrator to route to Stage — Ship's
+  role boundary forbids Ship itself from creating stash or backlog entries)
+  rather than silently dropped. The
   two gates only agree when the artifact being merged is itself the
   production/pilot surface — for a gated-off experiment, "hard blocker for
   promotion" and "acceptable to defer at merge, tracked as a follow-up" are
