@@ -22,6 +22,7 @@ import json
 import re
 
 from brainspace import config
+from brainspace.measurement import count_tokens
 from brainspace.policy import classify_decline_reason
 
 _MATCHER_RE = re.compile(rf"^(?:{config.DEFAULT_MATCHER})$")
@@ -184,17 +185,27 @@ def process_post_tool_use(payload, store):
 
         # DECIDE (before stashing): the never-expand guard must hold for the
         # compressed view + footer overhead too, or we decline and never
-        # write the original at all. Two independent checks are required
-        # (P-018 re-review finding #1, new round): a structured result with
-        # many protected evidence lines can stay well under the *original*
-        # character count yet still exceed the 10 KB additionalContext byte
-        # cap the Copilot CLI enforces -- a char-count-only comparison would
-        # silently let that oversized, cap-violating result through.
+        # write the original at all. Three independent checks are required
+        # (P-018 re-review finding #1, then finding round-5 #2): a
+        # structured result with many protected evidence lines can stay
+        # well under the *original* character count yet still exceed the
+        # 10 KB additionalContext byte cap the Copilot CLI enforces -- a
+        # char-count-only comparison would silently let that oversized,
+        # cap-violating result through. Separately, a char-shorter
+        # candidate is not guaranteed to tokenize to fewer tokens (e.g.
+        # dense punctuation/unicode can tokenize less efficiently than the
+        # original prose it replaced), so the "never-expand" promise this
+        # module's docstring makes must be proven with an actual token
+        # comparison (the same tokenizer 088.005-T's measurement harness
+        # uses — a model tokenizer when available, else the cheap fallback
+        # estimator), not inferred from character counts alone.
         footer_estimate = config.RETRIEVAL_FOOTER_TEMPLATE.format(handle="0" * 16)
         candidate = compressed + footer_estimate
         if len(candidate) >= len(text):
             return {}
         if len(candidate.encode("utf-8")) > config.ADDITIONAL_CONTEXT_CAP_BYTES:
+            return {}
+        if count_tokens(candidate) >= count_tokens(text):
             return {}
 
         # THEN STASH: only after the decision above holds do we write the

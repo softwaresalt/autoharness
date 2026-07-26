@@ -8,6 +8,7 @@ placeholders, and fail-safe passthrough on any internal error.
 import pytest
 
 from brainspace import config
+from brainspace import hook as hook_module
 from brainspace.hook import process_post_tool_use, process_post_tool_use_failure
 from brainspace.store import BrainspaceStore
 
@@ -158,6 +159,29 @@ def test_never_expand_guard_also_enforces_additional_context_byte_cap(store):
         blocks.append("Date:   Mon Jan 1 00:00:00 2024 +0000")
         blocks.extend(["    filler filler filler filler filler filler"] * 50)
     text = "\n".join(blocks)
+
+    result = process_post_tool_use(_payload("bash", text), store)
+
+    assert result == {}
+    assert store.row_count() == 0
+
+
+def test_never_expand_guard_uses_real_token_comparison_not_char_count_only(
+    store, monkeypatch
+):
+    # P-018 round-5 finding: the never-expand guard previously compared only
+    # character counts, but a char-shorter candidate is not guaranteed to
+    # tokenize to fewer tokens (dense punctuation/unicode can tokenize less
+    # efficiently than the prose it replaced). Force a token counter where
+    # the compressed candidate -- despite being far fewer CHARACTERS than
+    # the original -- reports MORE tokens, and prove the guard declines
+    # (and stashes nothing) on the token comparison alone, not just chars.
+    text = "repeated noisy log line\n" * 200
+
+    def _adversarial_token_counter(candidate_text):
+        return 1 if candidate_text == text else 10**6
+
+    monkeypatch.setattr(hook_module, "count_tokens", _adversarial_token_counter)
 
     result = process_post_tool_use(_payload("bash", text), store)
 

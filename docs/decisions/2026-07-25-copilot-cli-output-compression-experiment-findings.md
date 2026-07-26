@@ -310,6 +310,49 @@ two non-deterministic live-command token counts shifted (test-suite growth
 from the two new regression tests added this round), and the table below was
 refreshed accordingly.
 
+### Round 5 (2 findings from a fifth auto-triggered re-review): a required-invariant fix, not a cosmetic one
+
+A fifth Copilot re-review triggered automatically after the round-4 push.
+Both findings are genuine and one touches a plan hard invariant directly:
+
+* **`hooks.json.example` used a bare `"command"` field.** The Copilot CLI
+  hooks reference documents `command` as a valid cross-platform fallback
+  (copied to both `bash` and `powershell` when those fields are absent), but
+  the reviewer flagged the documented opt-in path as unverified/fragile
+  against the current schema with only the fallback field set. Fixed:
+  the template now sets explicit `bash` and `powershell` fields (both
+  invoking the same Python entrypoint), removing any ambiguity about
+  fallback-copying behavior. A new `test_config_templates.py` regression
+  suite parses the template and pins both fields so this cannot silently
+  regress again.
+* **The "never-expand token+char guard" was character-count-only, not a
+  real token comparison.** `hook.py`'s never-expand guard (088.002-T /
+  088.004-T's documented decide-then-stash contract) compared only
+  `len(candidate)` against `len(text)` before the round-3 byte-cap addition,
+  and even after that addition it never compared actual token counts. A
+  char-shorter candidate is not guaranteed to tokenize to fewer tokens
+  (dense punctuation/unicode can tokenize less efficiently than the prose
+  it replaced), so an enabled hook could still expand model context in a
+  case that satisfies the char and byte checks but not a genuine token
+  count reduction — directly contradicting the plan's non-negotiable
+  "never-expand token+char guard" decide-then-stash invariant. Fixed:
+  the guard now also compares `count_tokens(candidate)` against
+  `count_tokens(text)` using the same tokenizer selection (`tiktoken` model
+  tokenizer when available, else the cheap fallback estimator) the
+  088.005-T measurement harness already uses, and declines (return `{}`,
+  no store write) whenever tokens cannot be shown to decrease. A new
+  regression test forces an adversarial token counter (fewer chars, more
+  tokens) to prove the guard is genuinely token-aware, not char-count-only.
+
+Regenerating the benchmark report after round 5 confirms the categorization
+is unchanged (0/6 six-criteria safe wins, 7/7 correct decline controls) —
+in this environment `count_tokens` falls back to the cheap char/4 estimator
+(no `tiktoken` installed), which stays proportional to character count for
+the corpus's existing cases, so no case's decline/compression outcome
+flipped. Only the non-deterministic `pytest -vv` live-command token count
+shifted again from the additional regression tests this round added, and
+the table below was refreshed to match.
+
 ## Evidence summary
 
 ### Copilot CLI `postToolUse` hooks contract re-verification (plan condition #4)
@@ -380,7 +423,7 @@ command reference (#3).
 
 `experiments/088-compression-experiment/reports/benchmark-report.{md,json}`
 is the actual, live-generated report from this repository (not a mock-up),
-regenerated after all review fixes through round 4 above (including the
+regenerated after all review fixes through round 5 above (including the
 type router and the `safe_win`/`decline_correct` metric split). 13 cases
 were run: 6 compression-positive candidates and 7 decline/
 negative-controls, applying all six spike proof-method criteria
@@ -390,7 +433,7 @@ negative-controls, applying all six spike proof-method criteria
 
 | Case | Provenance | Raw tokens (fallback) | Compressed tokens (fallback) | Net savings (fallback) | Verdict |
 |---|---|---:|---:|---:|---|
-| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 6,043 | 235 | 5,808 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 6,223 | 235 | 5,988 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
 | `backlogit-doctor-findings` | live (`backlogit doctor`) | 3,654 | 401 | 3,253 (89%) | **INCONCLUSIVE** — model tokenizer unavailable |
 | `git-log-stat-history` | live (`git --no-pager log --stat -20`) | n/a | n/a | n/a | **NOT a safe win** — hook declined this case outright (gate/readiness verdict text found in real commit history); not a compression candidate |
 | `backlogit-list-json-mcp-shaped` | live (`backlogit list --json`, truncated to 60 KB) | 15,000 | 250 | 14,750 (98%) | **INCONCLUSIVE** — model tokenizer unavailable |
