@@ -62,7 +62,17 @@ def main() -> int:
         # is the practical approximation of the 088.001-T TTL+purge
         # contract -- it bounds how long expired raw output can persist
         # without requiring a separate scheduled process.
-        store.purge_expired()
+        #
+        # This cleanup is best-effort and MUST NOT be allowed to prevent
+        # the already-decided `result` (and any retrieval handle it
+        # references) from being emitted: a purge failure (lock
+        # contention, I/O error) here is not a reason to fail the whole
+        # invocation and drop an already-created handle (P-018 round-6
+        # finding).
+        try:
+            store.purge_expired()
+        except Exception:
+            pass
     finally:
         store.close()
 

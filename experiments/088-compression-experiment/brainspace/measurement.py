@@ -56,6 +56,18 @@ def count_tokens(text: str) -> int:
         return estimate_tokens(text)
 
 
+def is_model_tokenizer_available() -> bool:
+    """Return ``True`` if a real model tokenizer (e.g. ``tiktoken``) is
+    importable and usable in this environment.
+
+    Callers that must PROVE an actual token-count reduction (not merely
+    estimate one) use this to distinguish "no real tokenizer to prove
+    savings with" from "a real tokenizer was consulted and showed no
+    savings" -- the two are not the same claim (P-018 round-6 finding).
+    """
+    return _load_model_tokenizer() is not None
+
+
 @dataclass
 class MeasurementResult:
     raw_tokens: int

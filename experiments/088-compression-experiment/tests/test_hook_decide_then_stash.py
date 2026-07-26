@@ -64,7 +64,13 @@ def test_secret_bearing_output_declines_before_store(store):
     assert store.row_count() == 0  # no durable row for a declined attempt
 
 
-def test_large_compressible_output_is_compressed_and_stashed(store):
+def test_large_compressible_output_is_compressed_and_stashed(store, monkeypatch):
+    # Compression requires a real model tokenizer to prove the never-expand
+    # invariant (P-018 round-6 finding) -- simulate one being available so
+    # this test exercises the compress-and-stash path regardless of whether
+    # the real ``tiktoken`` dependency happens to be installed in whatever
+    # environment runs the suite.
+    monkeypatch.setattr(hook_module, "is_model_tokenizer_available", lambda: True)
     text = "repeated noisy log line\n" * 200
     result = process_post_tool_use(_payload("bash", text), store)
     assert "modifiedResult" in result
@@ -74,7 +80,8 @@ def test_large_compressible_output_is_compressed_and_stashed(store):
     assert store.row_count() == 1
 
 
-def test_compressed_view_contains_deterministic_handle_footer(store):
+def test_compressed_view_contains_deterministic_handle_footer(store, monkeypatch):
+    monkeypatch.setattr(hook_module, "is_model_tokenizer_available", lambda: True)
     text = "repeated noisy log line\n" * 200
     result1 = process_post_tool_use(_payload("bash", text), store)
     result2 = process_post_tool_use(_payload("bash", text), store)
@@ -84,7 +91,8 @@ def test_compressed_view_contains_deterministic_handle_footer(store):
     assert store.row_count() == 1  # identical content maps to same handle
 
 
-def test_stashed_original_is_byte_equivalent_retrievable(store):
+def test_stashed_original_is_byte_equivalent_retrievable(store, monkeypatch):
+    monkeypatch.setattr(hook_module, "is_model_tokenizer_available", lambda: True)
     text = "repeated noisy log line\n" * 200
     result = process_post_tool_use(_payload("bash", text), store)
     footer = result["modifiedResult"]["textResultForLlm"]
@@ -176,12 +184,35 @@ def test_never_expand_guard_uses_real_token_comparison_not_char_count_only(
     # the compressed candidate -- despite being far fewer CHARACTERS than
     # the original -- reports MORE tokens, and prove the guard declines
     # (and stashes nothing) on the token comparison alone, not just chars.
+    # A model tokenizer must be simulated as available so this exercises
+    # the token-comparison branch itself rather than the round-6
+    # no-tokenizer decline added below.
+    monkeypatch.setattr(hook_module, "is_model_tokenizer_available", lambda: True)
     text = "repeated noisy log line\n" * 200
 
     def _adversarial_token_counter(candidate_text):
         return 1 if candidate_text == text else 10**6
 
     monkeypatch.setattr(hook_module, "count_tokens", _adversarial_token_counter)
+
+    result = process_post_tool_use(_payload("bash", text), store)
+
+    assert result == {}
+    assert store.row_count() == 0
+
+
+def test_never_expand_guard_declines_without_model_tokenizer_even_when_compressible(
+    store, monkeypatch
+):
+    # P-018 round-6 finding: count_tokens() silently falls back to the cheap
+    # char/4 estimator when no real model tokenizer is available, which
+    # cannot PROVE the never-expand invariant -- the committed benchmark
+    # report already treats this exact state as INCONCLUSIVE (criterion 1
+    # unproven), so the live hook must hold itself to the same evidence bar
+    # and decline (never stash/rewrite) rather than act on an unproven
+    # estimate, even for clearly, dramatically compressible content.
+    monkeypatch.setattr(hook_module, "is_model_tokenizer_available", lambda: False)
+    text = "repeated noisy log line\n" * 200
 
     result = process_post_tool_use(_payload("bash", text), store)
 

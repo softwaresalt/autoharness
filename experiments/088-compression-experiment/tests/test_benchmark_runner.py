@@ -45,8 +45,19 @@ def test_compression_positive_case_is_marked_safe_win(store, monkeypatch):
     # no tiktoken installed) so the happy-path safe-win assertion below
     # tests real both-tokenizer proof rather than the tokenizer-unavailable
     # fallback path (see the dedicated inconclusive-path test below).
+    #
+    # Two independent things must be simulated as "tokenizer available"
+    # here: the hook's OWN never-expand gate (P-018 round-6 finding —
+    # without this the hook declines before ever returning a
+    # ``modifiedResult``, so the benchmark would never reach its own
+    # tokenizer-based criteria evaluation at all) and the benchmark's
+    # separate ``measure_dual`` re-measurement used for detailed reporting.
     from brainspace import measurement as measurement_module
     from brainspace.measurement import MeasurementResult
+
+    monkeypatch.setattr(
+        "brainspace.hook.is_model_tokenizer_available", lambda: True
+    )
 
     def fake_measure_dual(original, compressed_view, footer):
         fallback = MeasurementResult(
@@ -89,8 +100,23 @@ def test_compression_case_is_inconclusive_when_model_tokenizer_unavailable(store
     # the case must never silently pass criterion 1 (lower tokens under
     # BOTH tokenizers) just because the fallback estimator shows savings.
     # It must be reported as inconclusive / not a safe win.
+    #
+    # This test exercises `_run_compression_case`'s own defensive reporting
+    # logic in isolation: the hook's never-expand gate is simulated as
+    # having confirmed a tokenizer is available (so it actually compresses
+    # and returns a `modifiedResult`), while the benchmark's SEPARATE
+    # `measure_dual` re-measurement (used only for detailed criteria
+    # reporting) is simulated as finding no model tokenizer. In a real,
+    # single-process run these two would never disagree (both ultimately
+    # consult the same tokenizer loader), but this test protects the
+    # reporting function against ever silently trusting fallback-only
+    # evidence if that ever changed.
     from brainspace import measurement as measurement_module
     from brainspace.tokenizer_fallback import estimate_tokens
+
+    monkeypatch.setattr(
+        "brainspace.hook.is_model_tokenizer_available", lambda: True
+    )
 
     def fake_measure_dual(original, compressed_view, footer):
         fallback = measurement_module.measure(
@@ -124,6 +150,10 @@ def test_capture_failed_case_is_never_a_safe_win_even_if_all_else_passes(store, 
     from brainspace import measurement as measurement_module
     from brainspace.measurement import MeasurementResult
 
+    monkeypatch.setattr(
+        "brainspace.hook.is_model_tokenizer_available", lambda: True
+    )
+
     def fake_measure_dual(original, compressed_view, footer):
         result = MeasurementResult(
             raw_tokens=1000,
@@ -150,12 +180,15 @@ def test_capture_failed_case_is_never_a_safe_win_even_if_all_else_passes(store, 
     assert "capture failed" in result.notes.lower()
 
 
-def test_compression_case_fails_safe_win_when_required_fact_would_be_lost(store):
+def test_compression_case_fails_safe_win_when_required_fact_would_be_lost(store, monkeypatch):
     # A required fact buried only in the collapsed middle (not head/tail)
     # must cause the oracle to fail, and the case must NOT be a safe win.
     # Uses a PR reference (not an exit-code/failure pattern) so the policy
     # pre-screen still treats this as a compression candidate rather than
     # declining it outright as a failure-bearing output.
+    monkeypatch.setattr(
+        "brainspace.hook.is_model_tokenizer_available", lambda: True
+    )
     text = ("padding line\n" * 100) + "see PR #427 for details\n" + ("padding line\n" * 100)
     case = BenchmarkCase(
         name="buried-pr-reference",
@@ -196,9 +229,15 @@ def test_decline_control_case_reports_no_durable_row(store):
     assert result.criteria["no_durable_row_on_decline"] is True
 
 
-def test_decline_control_case_flags_when_it_unexpectedly_compresses(store):
+def test_decline_control_case_flags_when_it_unexpectedly_compresses(store, monkeypatch):
     # Sanity check: if a case marked expect_decline actually compresses,
     # that is NOT hidden — it is reported as a failed decline control.
+    # Simulate a tokenizer being available so the hook's own never-expand
+    # gate does not itself decline first (which would otherwise mask the
+    # "mislabeled decline" scenario this test targets).
+    monkeypatch.setattr(
+        "brainspace.hook.is_model_tokenizer_available", lambda: True
+    )
     case = BenchmarkCase(
         name="mislabeled-decline",
         tool_name="bash",

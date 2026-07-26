@@ -22,7 +22,7 @@ import json
 import re
 
 from brainspace import config
-from brainspace.measurement import count_tokens
+from brainspace.measurement import count_tokens, is_model_tokenizer_available
 from brainspace.policy import classify_decline_reason
 
 _MATCHER_RE = re.compile(rf"^(?:{config.DEFAULT_MATCHER})$")
@@ -204,6 +204,17 @@ def process_post_tool_use(payload, store):
         if len(candidate) >= len(text):
             return {}
         if len(candidate.encode("utf-8")) > config.ADDITIONAL_CONTEXT_CAP_BYTES:
+            return {}
+        # A real model tokenizer is required to PROVE the never-expand
+        # invariant, not merely estimate it: without one, count_tokens()
+        # silently falls back to the cheap char/4 estimator, which the
+        # benchmark report itself refuses to treat as proof of lower
+        # model-token counts (it reports that same state as INCONCLUSIVE,
+        # not a safe win). The live hook must hold itself to the same
+        # evidence bar -- decline before store.put() rather than stash and
+        # rewrite output on an unproven estimate that could, in reality,
+        # expand actual Copilot-model tokens (P-018 round-6 finding).
+        if not is_model_tokenizer_available():
             return {}
         if count_tokens(candidate) >= count_tokens(text):
             return {}

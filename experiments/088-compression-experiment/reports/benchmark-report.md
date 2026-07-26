@@ -8,12 +8,12 @@
 
 | Case | Category | Verdict | Notes |
 |---|---|---|---|
-| pytest-vv-experiment-suite | compression_positive | INCONCLUSIVE (model tokenizer unavailable) | INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence |
-| backlogit-doctor-findings | compression_positive | INCONCLUSIVE (model tokenizer unavailable) | INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence |
+| pytest-vv-experiment-suite | compression_positive | NOT a safe win | hook declined this case; not a compression candidate |
+| backlogit-doctor-findings | compression_positive | NOT a safe win | hook declined this case; not a compression candidate |
 | git-log-stat-history | compression_positive | NOT a safe win | hook declined this case; not a compression candidate |
-| backlogit-list-json-mcp-shaped | compression_positive | INCONCLUSIVE (model tokenizer unavailable) | INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence |
-| workspace-file-inventory | compression_positive | INCONCLUSIVE (model tokenizer unavailable) | INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence |
-| graphtor-search-results-representative | compression_positive | INCONCLUSIVE (model tokenizer unavailable) | INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence [synthetic-representative: Engram/graphtor MCP search surface not running in this benchmark environment] |
+| backlogit-list-json-mcp-shaped | compression_positive | NOT a safe win | hook declined this case; not a compression candidate |
+| workspace-file-inventory | compression_positive | NOT a safe win | hook declined this case; not a compression candidate |
+| graphtor-search-results-representative | compression_positive | NOT a safe win | hook declined this case; not a compression candidate |
 | tiny-output-decline | decline_control | DECLINE CORRECT | tiny_output |
 | unwritable-store-passthrough | decline_control | DECLINE CORRECT | unwritable_store |
 | secret-bearing-output-decline | decline_control | DECLINE CORRECT | secret_bearing |
@@ -25,82 +25,22 @@
 ## Per-case criteria detail
 
 ### pytest-vv-experiment-suite (compression_positive)
-- `byte_equivalent_retrieval`: True
-- `no_extra_rows_beyond_stash`: True
-- `lower_tokens_fallback`: True
-- `lower_tokens_model`: False
-- `lower_tokens_both`: False
-- `model_tokenizer_available`: False
-- `evidence_oracle_passes`: True
-- `task_answerable_from_compressed_view`: True
-- `capture_succeeded`: True
-- `raw_tokens_fallback`: 6223
-- `compressed_tokens_fallback`: 235
-- `net_savings_tokens_fallback`: 5988
-- `projected_savings_10_turns_fallback`: 59880
+- `compressed_at_all`: False
 
 ### backlogit-doctor-findings (compression_positive)
-- `byte_equivalent_retrieval`: True
-- `no_extra_rows_beyond_stash`: True
-- `lower_tokens_fallback`: True
-- `lower_tokens_model`: False
-- `lower_tokens_both`: False
-- `model_tokenizer_available`: False
-- `evidence_oracle_passes`: True
-- `task_answerable_from_compressed_view`: True
-- `capture_succeeded`: True
-- `raw_tokens_fallback`: 3654
-- `compressed_tokens_fallback`: 401
-- `net_savings_tokens_fallback`: 3253
-- `projected_savings_10_turns_fallback`: 32530
+- `compressed_at_all`: False
 
 ### git-log-stat-history (compression_positive)
 - `compressed_at_all`: False
 
 ### backlogit-list-json-mcp-shaped (compression_positive)
-- `byte_equivalent_retrieval`: True
-- `no_extra_rows_beyond_stash`: True
-- `lower_tokens_fallback`: True
-- `lower_tokens_model`: False
-- `lower_tokens_both`: False
-- `model_tokenizer_available`: False
-- `evidence_oracle_passes`: True
-- `task_answerable_from_compressed_view`: True
-- `capture_succeeded`: True
-- `raw_tokens_fallback`: 15000
-- `compressed_tokens_fallback`: 250
-- `net_savings_tokens_fallback`: 14750
-- `projected_savings_10_turns_fallback`: 147500
+- `compressed_at_all`: False
 
 ### workspace-file-inventory (compression_positive)
-- `byte_equivalent_retrieval`: True
-- `no_extra_rows_beyond_stash`: True
-- `lower_tokens_fallback`: True
-- `lower_tokens_model`: False
-- `lower_tokens_both`: False
-- `model_tokenizer_available`: False
-- `evidence_oracle_passes`: True
-- `task_answerable_from_compressed_view`: True
-- `capture_succeeded`: True
-- `raw_tokens_fallback`: 13335
-- `compressed_tokens_fallback`: 118
-- `net_savings_tokens_fallback`: 13217
-- `projected_savings_10_turns_fallback`: 132170
+- `compressed_at_all`: False
 
 ### graphtor-search-results-representative (compression_positive)
-- `byte_equivalent_retrieval`: True
-- `no_extra_rows_beyond_stash`: True
-- `lower_tokens_fallback`: True
-- `lower_tokens_model`: False
-- `lower_tokens_both`: False
-- `model_tokenizer_available`: False
-- `evidence_oracle_passes`: True
-- `task_answerable_from_compressed_view`: True
-- `capture_succeeded`: True
-- `raw_tokens_fallback`: 8827
-- `compressed_tokens_fallback`: 323
-- `net_savings_tokens_fallback`: 8504
-- `projected_savings_10_turns_fallback`: 85040
+- `compressed_at_all`: False
 
 ### tiny-output-decline (decline_control)
 - `declined_as_expected`: True

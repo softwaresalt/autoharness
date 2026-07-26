@@ -74,7 +74,13 @@ def test_disabled_invocation_makes_no_durable_write(tmp_path):
     assert not store_dir.exists()
 
 
-def test_enabled_compresses_large_matching_output(tmp_path):
+def test_enabled_without_model_tokenizer_still_passes_through_unchanged(tmp_path):
+    # P-018 round-6 finding: without a real model tokenizer available, the
+    # hook must decline (byte-identical passthrough) rather than stash and
+    # rewrite output on the unproven char/4 fallback estimate alone. This
+    # is the realistic default state of most environments (no ``tiktoken``
+    # installed), so this smoke test intentionally does NOT inject a fake
+    # tokenizer -- it proves the CLI's real, un-doctored default behavior.
     payload = {
         "sessionId": "s1",
         "timestamp": 1,
@@ -87,6 +93,46 @@ def test_enabled_compresses_large_matching_output(tmp_path):
         },
     }
     result = _run_hook_cli(payload, env_overrides={"BRAINSPACE_EXPERIMENT_ENABLED": "1"})
+    assert result == {}
+
+
+def test_enabled_with_model_tokenizer_available_compresses_large_matching_output(tmp_path):
+    # Companion to the decline test above: prove the compress-and-stash path
+    # still works end-to-end (through the real subprocess CLI, not just the
+    # in-process unit tests) once a real model tokenizer becomes available.
+    # A tiny fake ``tiktoken`` stub is injected via PYTHONPATH so this does
+    # not depend on the real dependency being installed in the environment
+    # that runs the suite.
+    stub_dir = tmp_path / "tiktoken_stub"
+    stub_dir.mkdir()
+    (stub_dir / "tiktoken.py").write_text(
+        "class _Encoding:\n"
+        "    def encode(self, text):\n"
+        "        return text.split()\n"
+        "\n"
+        "\n"
+        "def get_encoding(name):\n"
+        "    return _Encoding()\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "sessionId": "s1",
+        "timestamp": 1,
+        "cwd": str(tmp_path),
+        "toolName": "bash",
+        "toolArgs": {},
+        "toolResult": {
+            "resultType": "success",
+            "textResultForLlm": "noisy line\n" * 100,
+        },
+    }
+    result = _run_hook_cli(
+        payload,
+        env_overrides={
+            "BRAINSPACE_EXPERIMENT_ENABLED": "1",
+            "PYTHONPATH": str(stub_dir) + os.pathsep + os.environ.get("PYTHONPATH", ""),
+        },
+    )
     assert "modifiedResult" in result
 
 

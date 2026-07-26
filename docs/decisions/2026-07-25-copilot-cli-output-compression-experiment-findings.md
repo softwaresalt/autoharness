@@ -53,7 +53,10 @@ reversible storage.
 1. **Real model-tokenizer verification is now the single blocking
    precondition.** Add `tiktoken` (or an equivalent) as an explicit, isolated
    optional pilot dependency and re-run the benchmark corpus. Until this
-   happens, **zero** corpus cases can be reported as a proven safe win — see
+   happens, the live hook cannot attempt compression on any case at all (a
+   round-6 fix requires a confirmed real model tokenizer before the
+   never-expand guard will authorize compression), so **zero** corpus cases
+   can be reported as a proven safe win — see
    [Benchmark corpus results](#benchmark-corpus-results).
 2. Replace the deterministic "required_fact substring" proxy for
    task-answerability with either a wider fact-extraction ruleset or a real
@@ -353,6 +356,74 @@ flipped. Only the non-deterministic `pytest -vv` live-command token count
 shifted again from the additional regression tests this round added, and
 the table below was refreshed to match.
 
+### Round 6 (2 findings from a sixth auto-triggered re-review): closing the gap between honest reporting and live hook behavior
+
+A sixth Copilot re-review triggered automatically after the round-5 push.
+Both findings are genuine; the first directly hardens the same never-expand
+invariant round 5 touched, and materially changes what the benchmark corpus
+can currently demonstrate:
+
+* **The live hook could still stash/rewrite on an unproven fallback-only
+  token estimate.** Round 5 added a real token-count comparison to the
+  never-expand guard, but `count_tokens()` silently falls back to the cheap
+  char/4 estimator whenever no real model tokenizer (`tiktoken`) is
+  available — the same fallback this memo's own benchmark reporting already
+  refuses to treat as proof (Round 1 finding #1: an unavailable model
+  tokenizer is INCONCLUSIVE, never a pass). The live hook was not held to
+  that same evidence bar: it would still stash the original and rewrite the
+  tool output based on the fallback estimate alone, which cannot prove the
+  replacement uses fewer *actual* Copilot-model tokens — a candidate that
+  looks shorter by character count is not guaranteed to be shorter in real
+  model tokens. Fixed: added a public
+  `measurement.is_model_tokenizer_available()` helper, and the never-expand
+  guard now declines (returns `{}`, no `store.put()`) whenever no real model
+  tokenizer is available, rather than authorizing compression on the
+  fallback estimate. This makes the live hook's behavior consistent with the
+  benchmark's own honest INCONCLUSIVE reporting, at the cost of the
+  prototype being a **complete no-op in any environment without a real model
+  tokenizer installed** — see the updated
+  [Benchmark corpus results](#benchmark-corpus-results) below. Regression
+  tests cover both directions: a new test proves the guard declines
+  dramatically-compressible content when no tokenizer is simulated as
+  available, and the existing compression-path tests (previously exercised
+  by the environment's real char/4 fallback) now explicitly simulate an
+  available model tokenizer via monkeypatching, so they remain meaningful
+  regression coverage independent of whether `tiktoken` happens to be
+  installed wherever the suite runs.
+* **Opportunistic purge cleanup was not fail-safe.** `hook_cli.py` called
+  `store.purge_expired()` unguarded, in the same `try` block as
+  `process_post_tool_use()`. A purge failure (lock contention, I/O error)
+  after a result had already been decided — and potentially after a durable
+  row had already been stashed with a retrieval handle already embedded in
+  that decided result — would raise out of `main()` before the result was
+  ever printed, silently dropping an already-created handle from the
+  caller's point of view. Fixed: the purge call is now wrapped in its own
+  `try/except`, treating a purge failure as non-fatal (best-effort cleanup)
+  so it can never prevent the hook's already-computed `result` from being
+  emitted. Two regression tests cover this: one confirms the hook still
+  emits a valid result when purge raises, and a stronger one confirms this
+  holds even when a durable row and retrieval handle were already created
+  before the (simulated) purge failure.
+
+Regenerating the benchmark report after round 6 shows a materially different
+(and more conservative) result than every prior round: **all 6
+compression-positive candidates now decline outright** ("hook declined this
+case; not a compression candidate"), because this benchmark environment has
+no real model tokenizer installed — matching the live hook's new,
+stricter-but-honest behavior. The **headline conclusion is unchanged** (0/6
+six-criteria safe wins, 7/7 correct decline controls — this memo's
+recommendation was already predicated on zero proven safe wins), but the
+*evidence detail* underneath it changed: rounds 1–5 could still show
+detailed per-tokenizer fallback figures and label the state "INCONCLUSIVE";
+round 6 shows the prototype cannot even attempt compression at all without a
+real tokenizer. This strengthens (does not weaken) precondition #1: adding a
+real model tokenizer is no longer merely required to *prove* savings — it is
+now required for the prototype to *do anything at all*. The type-aware
+compressor (round-3 finding #14) and the wider decline-verdict coverage
+(round-3 finding #13) remain proven correct by their dedicated unit tests
+(`test_hook_type_router.py`, `test_policy_decline_cases.py`); they are simply
+never reached by the live corpus run now, one gate earlier than before.
+
 ## Evidence summary
 
 ### Copilot CLI `postToolUse` hooks contract re-verification (plan condition #4)
@@ -423,45 +494,51 @@ command reference (#3).
 
 `experiments/088-compression-experiment/reports/benchmark-report.{md,json}`
 is the actual, live-generated report from this repository (not a mock-up),
-regenerated after all review fixes through round 5 above (including the
-type router and the `safe_win`/`decline_correct` metric split). 13 cases
-were run: 6 compression-positive candidates and 7 decline/
-negative-controls, applying all six spike proof-method criteria
-(§7.4 of the 2026-07-15 spike) to every case.
+regenerated after all review fixes through round 6 above (including the
+type router, the `safe_win`/`decline_correct` metric split, and the round-6
+no-model-tokenizer decline). 13 cases were run: 6 compression-positive
+candidates and 7 decline/negative-controls, applying all six spike
+proof-method criteria (§7.4 of the 2026-07-15 spike) to every case.
 
-**Compression-positive candidates (0 of 6 currently prove a safe win):**
+**Compression-positive candidates (0 of 6 currently prove a safe win — and,
+as of round 6, none currently reach the hook's compression path at all):**
 
-| Case | Provenance | Raw tokens (fallback) | Compressed tokens (fallback) | Net savings (fallback) | Verdict |
-|---|---|---:|---:|---:|---|
-| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 6,223 | 235 | 5,988 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
-| `backlogit-doctor-findings` | live (`backlogit doctor`) | 3,654 | 401 | 3,253 (89%) | **INCONCLUSIVE** — model tokenizer unavailable |
-| `git-log-stat-history` | live (`git --no-pager log --stat -20`) | n/a | n/a | n/a | **NOT a safe win** — hook declined this case outright (gate/readiness verdict text found in real commit history); not a compression candidate |
-| `backlogit-list-json-mcp-shaped` | live (`backlogit list --json`, truncated to 60 KB) | 15,000 | 250 | 14,750 (98%) | **INCONCLUSIVE** — model tokenizer unavailable |
-| `workspace-file-inventory` | live (`git ls-files`) | 13,335 | 118 | 13,217 (99%) | **INCONCLUSIVE** — model tokenizer unavailable |
-| `graphtor-search-results-representative` | **synthetic-representative** (no live Engram/graphtor MCP index in this benchmark run) | 8,827 | 323 | 8,504 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| Case | Provenance | Verdict |
+|---|---|---|
+| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | **NOT a safe win** — hook declined this case; not a compression candidate |
+| `backlogit-doctor-findings` | live (`backlogit doctor`) | **NOT a safe win** — hook declined this case; not a compression candidate |
+| `git-log-stat-history` | live (`git --no-pager log --stat -20`) | **NOT a safe win** — hook declined this case; not a compression candidate |
+| `backlogit-list-json-mcp-shaped` | live (`backlogit list --json`, truncated to 60 KB) | **NOT a safe win** — hook declined this case; not a compression candidate |
+| `workspace-file-inventory` | live (`git ls-files`) | **NOT a safe win** — hook declined this case; not a compression candidate |
+| `graphtor-search-results-representative` | **synthetic-representative** (no live Engram/graphtor MCP index in this benchmark run) | **NOT a safe win** — hook declined this case; not a compression candidate |
 
-*Exact token counts drift slightly between benchmark runs because several
-cases capture genuinely live command output (test counts, git history
-length, file inventory) that changes as the repository itself changes.
-Numbers above match `reports/benchmark-report.json` as of the reviewed HEAD.
-The fallback-estimator net-savings figures are shown for transparency only —
-they are explicitly **not** a proven safe win under the plan's six-criterion
-standard, which requires proof under both a real model tokenizer and the
-fallback estimator (`lower_tokens_both`).*
+*As of the round-6 fix, the live hook's own never-expand guard requires an
+available real model tokenizer (`measurement.is_model_tokenizer_available()`)
+before it will authorize any compression at all — this benchmark environment
+has no `tiktoken` installed, so every compression-positive candidate above now
+declines before `_compress_view` or `store.put()` is ever reached, and no
+per-tokenizer token-count figures are produced for this run. Rounds 1–5 of
+this memo reported detailed fallback-estimator token counts for 5 of these 6
+cases (labeled INCONCLUSIVE); those figures are no longer produced by a live
+run and are superseded by this table. The historical per-round figures remain
+readable in this document's git history and in
+[Revision history](#revision-history) for anyone auditing how the evidence
+narrowed round over round.*
 
-**Why `git-log-stat-history` is no longer merely "not a safe win" but
-declined outright:** the broadened decline-verdict patterns (finding #13)
-now correctly recognize gate/readiness verdict text (`P0`/`P1` finding
-markers) that this repository's own real commit history contains, from
-prior review-fix rounds. The hook declines the whole capture before any
-compression is attempted — the safest possible outcome, and a stronger
-result than the previous "compress it, then fail the evidence oracle"
-finding. The **type-aware compressor built to fix this evidence-loss
-category (finding #14) is proven by dedicated unit tests**
-(`test_hook_type_router.py`) rather than by this specific live corpus case,
-since the case never reaches the compressor at all. Precondition #3 (below)
-asks for a wider corpus that can exercise the type router on a live,
-non-declined capture.
+**Why `git-log-stat-history` was already a decline before round 6, and why
+that is unaffected by the round-6 change:** the broadened decline-verdict
+patterns (finding #13) already recognize gate/readiness verdict text
+(`P0`/`P1` finding markers) that this repository's own real commit history
+contains, from prior review-fix rounds — this case declines via the
+decline-case policy pre-screen, before the never-expand guard is ever
+reached, both before and after round 6. The **type-aware compressor built to
+fix a related evidence-loss category (finding #14) is proven by dedicated
+unit tests** (`test_hook_type_router.py`) rather than by any live corpus case
+now, since every compression-positive case in this run declines before the
+compressor is ever invoked (the other 5 via round 6's no-tokenizer gate, this
+one via the pre-existing policy pre-screen). Precondition #3 (below) asks for
+a wider corpus that can exercise the type router on a live, non-declined
+capture once a real tokenizer is available.
 
 **Decline/negative controls (7 of 7 correctly declined, zero durable rows):**
 
@@ -482,25 +559,28 @@ criterion 6).
 
 * **Model tokenizer unavailable in this environment** (`tiktoken` is not
   installed, and no new pip dependency was added per the plan's scope
-  constraints). Every reported token count above is the cheap fallback
-  estimator (~4 chars/token), not a real GPT-family tokenizer. Following the
-  P-018 review fix to finding #1, this is no longer reported as a vacuous
-  pass: `model_tokenizer_available` is `False` and `lower_tokens_both` is
-  correctly `False` for every affected case, which is why every
-  compression-positive candidate is **INCONCLUSIVE** rather than a safe win.
-  **This is now precondition #1 (the single blocking precondition)**: no
-  pilot should claim verified token savings without a real tokenizer check,
-  and currently none can be claimed at all.
+  constraints). As of the round-6 fix, this is no longer merely a reporting
+  caveat on token-count figures — it now means the **live hook itself
+  declines to compress anything at all** (`is_model_tokenizer_available()`
+  gates the never-expand guard before any candidate is even considered), so
+  no token counts are produced by a live run in this environment at all,
+  fallback or otherwise. **This is now precondition #1 (the single blocking
+  precondition), strengthened**: no pilot should claim verified token
+  savings without a real tokenizer check, and currently the prototype cannot
+  attempt compression — let alone claim savings — without one.
 * **`graphtor-search-results-representative` is synthetic**, not a live
   capture — no Engram/graphtor MCP server was running inside this benchmark
   process. It is a representative repetitive-JSON shape, clearly labeled via
   `BenchmarkCase.provenance`, and its savings numbers should not be read as
-  measured production behavior.
+  measured production behavior (and, as of round 6, it currently declines
+  outright rather than producing any savings numbers at all).
 * **Task-answerability is a deterministic proxy**, not a live model/evaluator
   judgment: each case declares a `required_fact` substring, and the oracle
   checks whether that substring survives compression. This is honest and
   reproducible, but it can only catch facts it was told to look for —
-  precondition #2 addresses this gap directly.
+  precondition #2 addresses this gap directly. This criterion currently
+  cannot even be exercised by a live corpus run for the same reason as
+  above (every compression-positive case declines before it is reached).
 * **A non-zero command-capture returncode can never be a safe win** (finding
   #15, fixed): `corpus.py`'s command runner now labels a non-zero exit as a
   capture failure, and `benchmark.py` unconditionally forces `safe_win =
@@ -534,7 +614,10 @@ throwaway experiment:
    equivalent) as an explicit, isolated optional dependency for the pilot
    only, and re-run the benchmark corpus to determine whether savings hold
    under a real tokenizer. Until this happens, this experiment has proven
-   **zero** cases meeting the full six-criterion safe-win standard.
+   **zero** cases meeting the full six-criterion safe-win standard, and, as
+   of the round-6 fix, the live hook cannot attempt compression on any case
+   at all without one (`is_model_tokenizer_available()` gates the
+   never-expand guard before any candidate is considered).
 2. **Stronger task-answerability proof.** Extend the evidence oracle's fact
    patterns and/or add a real model-graded answerability check for a
    broader sample of benchmark cases, rather than relying solely on
