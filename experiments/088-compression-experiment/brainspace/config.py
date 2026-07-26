@@ -21,6 +21,14 @@ def is_enabled() -> bool:
 STORE_RELATIVE_DIR = os.path.join(".autoharness", "cache", "brainspace")
 STORE_DB_FILENAME = "ccr.sqlite3"
 
+#: Explicit workspace-root pin (finding #12): when set, this takes
+#: precedence over any per-invocation ``cwd`` so the hook (subprocess per
+#: tool call, sees the session ``cwd``) and the MCP server (long-lived
+#: process, sees only its own ``cwd``/env at startup) resolve the SAME
+#: store root even when a tool runs from a subdirectory. See
+#: ``brainspace.workspace.resolve_workspace_root``.
+WORKSPACE_ENV_VAR = "BRAINSPACE_WORKSPACE"
+
 #: Retention: short TTL + size cap (086-F carried forward). Never silently
 #: extended on dedup/access.
 DEFAULT_TTL_SECONDS = 4 * 60 * 60  # 4 hours — session/window bounded

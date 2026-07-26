@@ -27,6 +27,11 @@ from brainspace.benchmark import BenchmarkCase
 #: runtime bounded. Still large enough to be a realistic stress case.
 _MAX_CAPTURE_CHARS = 60_000
 
+#: Prefix marking a labeled capture-failure placeholder (tool not installed,
+#: non-zero exit, or timeout) so downstream corpus building can flag the
+#: resulting case as ``capture_failed`` rather than a real sample.
+_CAPTURE_FAILED_MARKER = "[corpus capture failed for "
+
 
 def last_nonblank_line(text: str) -> str:
     """Return the final non-blank line of ``text`` (or ``""``)."""
@@ -50,7 +55,11 @@ def _default_command_runner(args: List[str], cwd: str) -> str:
 
     On any failure (tool not installed, non-zero exit, timeout), returns a
     clearly-labeled placeholder string rather than raising — a missing
-    local tool must not crash the benchmark run.
+    local tool must not crash the benchmark run. A non-zero exit is a
+    CAPTURE FAILURE, not a real command-output sample: the returned text is
+    prefixed with ``_CAPTURE_FAILED_MARKER`` so ``build_default_corpus`` can
+    mark the resulting case ``capture_failed=True`` and the benchmark
+    runner can guarantee it is never reported as a SAFE WIN (finding #15).
     """
     try:
         proc = subprocess.run(
@@ -62,9 +71,20 @@ def _default_command_runner(args: List[str], cwd: str) -> str:
             encoding="utf-8",
             errors="surrogatepass",
         )
-        return (proc.stdout or "") + (proc.stderr or "")
+        combined = (proc.stdout or "") + (proc.stderr or "")
+        if proc.returncode != 0:
+            return (
+                f"{_CAPTURE_FAILED_MARKER}{' '.join(args)} exited with code "
+                f"{proc.returncode}]\n{combined}"
+            )
+        return combined
     except Exception as exc:  # pragma: no cover - environment-dependent
-        return f"[corpus capture unavailable for {' '.join(args)}: {exc}]"
+        return f"{_CAPTURE_FAILED_MARKER}{' '.join(args)}: {exc}]"
+
+
+def _is_capture_failure(text: str) -> bool:
+    """True when ``text`` is a labeled capture-failure placeholder."""
+    return text.startswith(_CAPTURE_FAILED_MARKER)
 
 
 def build_default_corpus(
@@ -85,24 +105,28 @@ def build_default_corpus(
         ["python", "-m", "pytest", "experiments/088-compression-experiment/tests", "-vv"],
         repo_root,
     )
+    truncated_pytest = pytest_output[:_MAX_CAPTURE_CHARS]
     cases.append(
         BenchmarkCase(
             name="pytest-vv-experiment-suite",
             tool_name="bash",
-            text=pytest_output[:_MAX_CAPTURE_CHARS],
+            text=truncated_pytest,
             task_question="did the experiment test suite pass, and what is the summary?",
-            required_fact=last_nonblank_line(pytest_output[:_MAX_CAPTURE_CHARS]),
+            required_fact=last_nonblank_line(truncated_pytest),
+            capture_failed=_is_capture_failure(pytest_output),
         )
     )
 
     doctor_output = run(["backlogit", "doctor"], repo_root)
+    truncated_doctor = doctor_output[:_MAX_CAPTURE_CHARS]
     cases.append(
         BenchmarkCase(
             name="backlogit-doctor-findings",
             tool_name="bash",
-            text=doctor_output[:_MAX_CAPTURE_CHARS],
+            text=truncated_doctor,
             task_question="how many doctor issues were found?",
-            required_fact=last_nonblank_line(doctor_output[:_MAX_CAPTURE_CHARS]),
+            required_fact=last_nonblank_line(truncated_doctor),
+            capture_failed=_is_capture_failure(doctor_output),
         )
     )
 
@@ -110,13 +134,15 @@ def build_default_corpus(
         ["git", "--no-pager", "log", "--stat", "-20"],
         repo_root,
     )
+    truncated_diff = diff_output[:_MAX_CAPTURE_CHARS]
     cases.append(
         BenchmarkCase(
             name="git-log-stat-history",
             tool_name="bash",
-            text=diff_output[:_MAX_CAPTURE_CHARS],
+            text=truncated_diff,
             task_question="what is the most recent commit summary?",
-            required_fact=_first_nonblank_line(diff_output[:_MAX_CAPTURE_CHARS]),
+            required_fact=_first_nonblank_line(truncated_diff),
+            capture_failed=_is_capture_failure(diff_output),
         )
     )
 
@@ -129,17 +155,20 @@ def build_default_corpus(
             text=truncated_mcp_json,
             task_question="what does the first record in this JSON listing look like?",
             required_fact=_first_nonblank_line(truncated_mcp_json),
+            capture_failed=_is_capture_failure(mcp_json_output),
         )
     )
 
     inventory_output = run(["git", "ls-files"], repo_root)
+    truncated_inventory = inventory_output[:_MAX_CAPTURE_CHARS]
     cases.append(
         BenchmarkCase(
             name="workspace-file-inventory",
             tool_name="bash",
-            text=inventory_output[:_MAX_CAPTURE_CHARS],
+            text=truncated_inventory,
             task_question="what is the last file listed in the inventory?",
-            required_fact=last_nonblank_line(inventory_output[:_MAX_CAPTURE_CHARS]),
+            required_fact=last_nonblank_line(truncated_inventory),
+            capture_failed=_is_capture_failure(inventory_output),
         )
     )
 

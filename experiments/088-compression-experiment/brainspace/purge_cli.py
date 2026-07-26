@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Purge command CLI (088.001-T TTL + purge + session-end cleanup contract).
+
+Finding #11 (P-018 review): ``BrainspaceStore.purge_expired``/``purge_all``
+existed but nothing outside tests implemented or called a standalone purge
+command or session-end cleanup path, so expired raw output could persist in
+the durable store indefinitely. ``hook_cli.py`` calls ``purge_expired``
+opportunistically after each hook invocation (an approximation of
+session-end cleanup, since each hook call is a discrete subprocess with no
+single observable "session end" event to hook into); this CLI is the
+explicit, operator- or scheduler-invokable purge command for the same
+contract.
+
+Not wired into any CI job, pre-push hook, or hook chain by default -- this
+is a manual, opt-in command for the 088-F throwaway experiment. Run with:
+
+    python experiments/088-compression-experiment/brainspace/purge_cli.py [--mode expired|all]
+
+from the repository root.
+"""
+
+import argparse
+import os
+import sys
+
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_EXPERIMENT_ROOT = os.path.dirname(_THIS_DIR)
+if _EXPERIMENT_ROOT not in sys.path:
+    sys.path.insert(0, _EXPERIMENT_ROOT)
+
+from brainspace.store import BrainspaceStore  # noqa: E402
+from brainspace.workspace import resolve_workspace_root  # noqa: E402
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--repo-root",
+        default=None,
+        help="Workspace root to anchor the store to (defaults to the "
+        "BRAINSPACE_WORKSPACE env var, else the process cwd).",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("expired", "all"),
+        default="expired",
+        help="'expired' (default, safe) deletes only TTL-expired rows; "
+        "'all' clears the entire store, including live rows.",
+    )
+    args = parser.parse_args(argv)
+
+    payload = {"cwd": args.repo_root} if args.repo_root else None
+    workspace_root = resolve_workspace_root(payload)
+
+    store = BrainspaceStore(workspace_root)
+    try:
+        if args.mode == "all":
+            before = store.row_count()
+            store.purge_all()
+            print(f"Purged all {before} row(s) from the brainspace store.")
+        else:
+            count = store.purge_expired()
+            print(f"Purged {count} expired row(s) from the brainspace store.")
+    finally:
+        store.close()
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())

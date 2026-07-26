@@ -68,3 +68,59 @@ def test_build_default_corpus_live_cases_carry_required_fact_from_output(tmp_pat
     assert len(live_cases) > 0
     for case in live_cases:
         assert case.required_fact  # every live positive case has a fact to check
+
+
+def test_build_default_corpus_marks_capture_failed_when_runner_reports_nonzero_exit(tmp_path):
+    from brainspace.corpus import _CAPTURE_FAILED_MARKER
+
+    def fake_runner(args, cwd):
+        return f"{_CAPTURE_FAILED_MARKER}{' '.join(args)} exited with code 1]\nboom"
+
+    cases = build_default_corpus(str(tmp_path), command_runner=fake_runner)
+    live_positive_cases = [c for c in cases if c.provenance == "live" and not c.expect_decline]
+    assert len(live_positive_cases) > 0
+    assert all(c.capture_failed for c in live_positive_cases)
+
+
+def test_build_default_corpus_does_not_mark_capture_failed_on_success(tmp_path):
+    def fake_runner(args, cwd):
+        return f"stub output for {' '.join(args)}\n" + ("padding\n" * 50) + "final line"
+
+    cases = build_default_corpus(str(tmp_path), command_runner=fake_runner)
+    live_positive_cases = [c for c in cases if c.provenance == "live" and not c.expect_decline]
+    assert len(live_positive_cases) > 0
+    assert all(not c.capture_failed for c in live_positive_cases)
+
+
+def test_default_command_runner_marks_nonzero_returncode_as_capture_failed(monkeypatch, tmp_path):
+    import subprocess
+
+    from brainspace.corpus import _default_command_runner, _is_capture_failure
+
+    class _FakeCompletedProcess:
+        returncode = 1
+        stdout = "some partial output"
+        stderr = "some error output"
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _FakeCompletedProcess())
+
+    result = _default_command_runner(["pytest", "-vv"], str(tmp_path))
+    assert _is_capture_failure(result)
+    assert "exited with code 1" in result
+
+
+def test_default_command_runner_success_is_not_marked_capture_failed(monkeypatch, tmp_path):
+    import subprocess
+
+    from brainspace.corpus import _default_command_runner, _is_capture_failure
+
+    class _FakeCompletedProcess:
+        returncode = 0
+        stdout = "all good"
+        stderr = ""
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _FakeCompletedProcess())
+
+    result = _default_command_runner(["pytest", "-vv"], str(tmp_path))
+    assert not _is_capture_failure(result)
+    assert result == "all good"

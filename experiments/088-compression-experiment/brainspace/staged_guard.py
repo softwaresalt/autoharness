@@ -1,8 +1,8 @@
 """Staged-file guard (088.001-T).
 
 A doctor / pre-commit check that fails if any brainspace store SQLite file
-or its ``-wal``/``-shm`` sidecar is staged for commit, so raw tool output
-never lands in git history.
+or its ``-wal``/``-shm``/``-journal`` sidecar is staged for commit, so raw
+tool output never lands in git history.
 """
 
 import os
@@ -11,7 +11,7 @@ from brainspace import config
 
 _STORE_MARKER = config.STORE_RELATIVE_DIR.replace("\\", "/")
 _DB_BASENAME = config.STORE_DB_FILENAME
-_SIDECAR_SUFFIXES = ("", "-wal", "-shm")
+_SIDECAR_SUFFIXES = ("", "-wal", "-shm", "-journal")
 
 
 def find_staged_store_violations(staged_paths):

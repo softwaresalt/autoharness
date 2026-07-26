@@ -22,6 +22,15 @@ def test_flags_staged_wal_and_shm_sidecars():
     assert len(violations) == 2
 
 
+def test_flags_staged_rollback_journal_sidecar():
+    # SQLite's default rollback-journal mode can leave a ``-journal`` file
+    # behind after a crash mid-transaction -- this sidecar must be covered
+    # by the same guard as -wal/-shm, not just the two WAL-mode sidecars.
+    staged = [".autoharness/cache/brainspace/ccr.sqlite3-journal"]
+    violations = find_staged_store_violations(staged)
+    assert violations == [".autoharness/cache/brainspace/ccr.sqlite3-journal"]
+
+
 def test_does_not_flag_unrelated_files():
     staged = ["src/autoharness/cli.py", "docs/README.md", "tests/test_foo.py"]
     assert find_staged_store_violations(staged) == []

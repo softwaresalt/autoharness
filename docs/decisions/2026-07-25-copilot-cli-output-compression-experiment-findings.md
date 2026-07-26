@@ -34,11 +34,15 @@ tags:
 
 Do **not** accept this prototype for a default/production capability-pack
 install, and do **not** reject the underlying idea outright. The experiment
-proves the core safety invariants hold and that honest, evidence-preserving
-token savings are achievable on several real autoharness command outputs —
-but it also surfaces one concrete correctness gap (a naive compressor is not
-safe for every output shape) and one unverifiable claim (real model-tokenizer
-savings) that must be closed before any wider pilot. This recommendation is
+proves the core safety invariants hold — including several invariants that a
+P-018 review round found genuinely incomplete and required real fixes for
+(TTL dedup-on-expiry, size-cap dangling handles, MCP conformance, decline
+coverage, secret-pattern coverage, containment of the `-journal` sidecar, and
+a real type-aware compressor) — but it does **not currently prove any
+positive token-savings claim** under the full six-criterion evidence
+standard, because a real model tokenizer is unavailable in this environment.
+This is a materially more conservative finding than an earlier draft of this
+memo reported (see [Revision history](#revision-history)), and it is
 consistent with the 2026-07-15 spike's own conclusion ("PROCEED to a bounded,
 opt-in experiment/benchmark; keep production/default install DEFERRED") and
 with 086-F's original caution about host parity, retention, and safe
@@ -46,19 +50,67 @@ reversible storage.
 
 **Preconditions for a narrow pilot** (see [Preconditions](#preconditions-for-a-narrow-pilot)):
 
-1. Replace the naive head/tail compressor with a genuine type-aware router
-   (JSON / log / diff / prose) so structured outputs (diffs, stat summaries)
-   don't lose facts that live outside the first/last N lines.
-2. Verify real token savings under an actual model tokenizer (e.g. add
-   `tiktoken` as an optional pilot dependency) rather than the fallback
-   char/4 estimator alone.
-3. Replace the deterministic "required_fact substring" proxy for
+1. **Real model-tokenizer verification is now the single blocking
+   precondition.** Add `tiktoken` (or an equivalent) as an explicit, isolated
+   optional pilot dependency and re-run the benchmark corpus. Until this
+   happens, **zero** corpus cases can be reported as a proven safe win — see
+   [Benchmark corpus results](#benchmark-corpus-results).
+2. Replace the deterministic "required_fact substring" proxy for
    task-answerability with either a wider fact-extraction ruleset or a real
    model/evaluator pass, since the current oracle only catches facts it was
    told to look for.
+3. Widen the benchmark corpus with additional real diff/log/JSON shapes now
+   that a type-aware compressor exists (precondition #1 from the prior
+   revision is **complete** — see below), so the type router's evidence
+   preservation can be exercised on a live corpus case, not only unit tests.
 4. Any pilot remains flag-gated, disabled by default, and confined to the
    `experiments/088-compression-experiment/` layout (or an equivalent
    clearly-isolated module) until a separate plan/review promotes it.
+
+## Revision history
+
+This memo was revised during a P-018 Copilot-review remediation round on
+PR #229. The original benchmark run (HEAD `e7db334`) reported `SAFE WIN
+count: 12` (of 13), including 5 of 6 compression-positive candidates. Two
+review findings, once genuinely fixed, changed that materially:
+
+* **Finding #1 (model-tokenizer-unavailable was silently treated as a pass).**
+  `benchmark.py` previously set `lower_tokens_model = True` whenever no model
+  tokenizer was available, making `lower_tokens_both` (and thus `safe_win`)
+  vacuously achievable on fallback-estimator evidence alone. Fixed: an
+  unavailable model tokenizer now forces `model_tokenizer_available = False`
+  and `lower_tokens_both = False`, and the case is reported as **INCONCLUSIVE**
+  rather than a safe win.
+* **Finding #13 (decline-verdict patterns were incomplete).** `policy.py`'s
+  decline patterns did not recognize `Blocking findings: P0=X, P1=Y`,
+  `CI aggregation: <status>`, or bare `**P0**`/`**P1**` finding lines as
+  gate/readiness verdicts. Once added, the live `git --no-pager log --stat
+  -20` corpus capture — which, in this repository's real history, contains
+  commit messages referencing P0/P1 review findings from prior fix rounds —
+  is now correctly **declined outright** (no compression attempted at all),
+  superseding the earlier "NOT a safe win — evidence oracle fails" verdict
+  with an earlier, safer decline.
+* **Finding #14 (type-aware compressor).** `hook.py::_compress_view` now
+  routes JSON / git-log / unified-diff content through an evidence-preserving
+  compressor (`_compress_lines_preserving_evidence`) that keeps every line
+  matching a required-evidence pattern (commit/diff headers, PR/issue
+  references, exit/stderr markers) regardless of position, instead of only
+  the first/last 5 lines. This directly closes precondition #1 from the
+  original memo. It is proven by dedicated unit tests
+  (`test_hook_type_router.py`) showing a PR reference buried in the middle of
+  a 20-commit synthetic `git log --stat` capture, and a similarly buried
+  issue reference in a 200-line JSON payload, both survive compression.
+  **It could not be demonstrated on the live corpus case**, because that case
+  is now declined before compression is ever attempted (finding #13, above)
+  — a strictly safer outcome than a compression attempt that might still
+  need the type router's help.
+
+Net effect: `SAFE WIN count` dropped from 12/13 to **7/13**, and the number of
+compression-positive candidates achieving a genuine safe win dropped from
+5/6 to **0/6**. Every one of the 7 remaining safe wins is a decline-control
+case (the hook correctly declining to compress at all). This is reported
+here in full, not softened — it is the honest, current state of the
+evidence.
 
 ## Evidence summary
 
@@ -98,70 +150,76 @@ run:
 | Containment (Constitution IV) — resolver rejects `..`, absolute overrides, symlink escape, and `BRAINSPACE_CCR`-style env overrides | `resolver.py` | `test_resolver_containment.py` |
 | Byte-lossless codec (`surrogatepass`, not `errors="replace"`) | `codec.py` | `test_codec_byte_lossless.py` |
 | Decide-then-stash — no durable row for any declined attempt | `hook.py` + `policy.py` | `test_hook_decide_then_stash.py`, `test_policy_decline_cases.py` |
-| Secret screening precedes durable storage | `secret_screen.py` + `policy.py` | `test_secret_screen.py`, `test_policy_decline_cases.py` |
+| Secret screening precedes durable storage, including fine-grained GitHub PATs | `secret_screen.py` + `policy.py` | `test_secret_screen.py`, `test_policy_decline_cases.py` |
 | Fail-safe passthrough on any store/screen/guard error | `hook.py` | `test_hook_decide_then_stash.py::test_store_error_falls_back_to_byte_identical_passthrough` |
-| Byte-equivalent retrieval (full + paginated, no silent truncation) | `retrieval.py` | `test_retrieval_byte_equivalent.py` |
-| Staged-file guard fails if store sidecars are staged | `staged_guard.py` | `test_staged_file_guard.py` |
+| Byte-equivalent retrieval (full + paginated, with strict offset/limit validation — no silent truncation) | `retrieval.py` | `test_retrieval_byte_equivalent.py` |
+| Staged-file guard fails if store sidecars (including the rollback-journal `-journal` sidecar) are staged | `staged_guard.py` | `test_staged_file_guard.py` |
 | Evidence oracle catches dropped required facts | `evidence_oracle.py` | `test_evidence_oracle.py` |
+| TTL dedup refresh on re-put of expired content; no dangling handle on size-cap eviction | `store.py` | `test_store_roundtrip.py` |
+| Disabled invocation makes zero durable writes | `hook_cli.py` | `test_hook_cli_entrypoint.py` |
+| Consistent hook/server workspace-root resolution (subdirectory case) | `workspace.py` | `test_workspace_resolution.py` |
+| MCP 2024-11-05 conformant `initialize`/`tools/call` results | `mcp_server.py` | `test_mcp_server_dispatch.py` |
+| Type-aware compression preserves evidence outside head/tail (JSON/log/diff) | `hook.py` | `test_hook_type_router.py` |
+| Real purge command + capture-failure honesty (non-zero returncode is never a safe win) | `purge_cli.py`, `corpus.py`, `benchmark.py` | `test_purge_cli.py`, `test_corpus_builder.py`, `test_benchmark_runner.py` |
 
-All 110 experiment tests pass (`python -m pytest
-experiments/088-compression-experiment/tests -q`).
+All experiment tests pass (`python -m pytest
+experiments/088-compression-experiment/tests -q`); see the shipment record
+for the current pass count.
 
-**Two findings from local adversarial review were fixed before this memo was
-finalized** (see the shipment's Step 3 review record):
-
-* **P0 (containment/gitignore gap):** the store is anchored to the Copilot
-  CLI session `cwd`, which may be any subdirectory of the repo, not just the
-  repo root. The original `.gitignore` patterns and `staged_guard.py`'s
-  matcher only recognized a repo-root-relative store path, so a store
-  nested under a subdirectory could be gitignore-missed and git-staged
-  undetected. Fixed by making both the gitignore patterns (`**/` prefix) and
-  `staged_guard.find_staged_store_violations` match the store directory at
-  any nesting depth; verified live against the exact reproduction the
-  reviewer supplied.
-* **P1 (TTL silently extended on dedup):** `BrainspaceStore.put()` used
-  `INSERT OR REPLACE`, which reset `stored_at` on every re-put of identical
-  content — contradicting the store's own documented retention invariant
-  ("never silently extended on dedup/access", carried forward from 086-F).
-  Fixed by switching to `INSERT OR IGNORE` so a dedup re-put is a true no-op
-  on the existing row's timestamp. A regression test
-  (`test_dedup_put_does_not_extend_ttl_clock`) now proves this.
+**A P-018 Copilot-review round on PR #229 found 15 issues, all fixed with
+regression tests** (superseding the two findings fixed in an earlier local
+adversarial review pass): honesty of the model-tokenizer criterion (#1),
+rollback-journal sidecar containment (#2), pagination boundary validation
+(#7), fine-grained PAT detection (#8), disabled-invocation zero-write (#9),
+consistent hook/server workspace resolution (#12), MCP result conformance
+(#5, #6), broader gate/readiness decline coverage (#13), a real type-aware
+compressor (#14), and non-zero-returncode capture-failure honesty (#15),
+plus TTL-dedup-of-expired-content refresh (#4), no-dangling-handle-on-
+size-cap-eviction (#10), a real purge command (#11), and a corrected README
+command reference (#3).
 
 ### Benchmark corpus results
 
 `experiments/088-compression-experiment/reports/benchmark-report.{md,json}`
-is the actual, live-generated report from this repository (not a mock-up).
+is the actual, live-generated report from this repository (not a mock-up),
+regenerated after all 15 review fixes above (including the type router).
 13 cases were run: 6 compression-positive candidates and 7 decline/
 negative-controls, applying all six spike proof-method criteria
 (§7.4 of the 2026-07-15 spike) to every case.
 
-**Compression-positive candidates (5 of 6 are genuine SAFE WINs):**
+**Compression-positive candidates (0 of 6 currently prove a safe win):**
 
-| Case | Provenance | Raw tokens (fallback) | Compressed tokens (fallback) | Net savings | Verdict |
+| Case | Provenance | Raw tokens (fallback) | Compressed tokens (fallback) | Net savings (fallback) | Verdict |
 |---|---|---:|---:|---:|---|
-| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 3,782 | 218 | 3,564 (94%) | SAFE WIN |
-| `backlogit-doctor-findings` | live (`backlogit doctor`) | 3,654 | 401 | 3,253 (89%) | SAFE WIN |
-| `git-log-stat-history` | live (`git --no-pager log --stat -20`) | 6,258 | 150 | 6,108 (98%) | **NOT a safe win** — evidence oracle fails |
-| `backlogit-list-json-mcp-shaped` | live (`backlogit list --json`, truncated to 60 KB) | 15,000 | 250 | 14,750 (98%) | SAFE WIN |
-| `workspace-file-inventory` | live (`git ls-files`) | 13,224 | 118 | 13,106 (99%) | SAFE WIN |
-| `graphtor-search-results-representative` | **synthetic-representative** (no live Engram/graphtor MCP index in this benchmark run) | 8,827 | 323 | 8,504 (96%) | SAFE WIN (representative only) |
+| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 5,175 | 232 | 4,943 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| `backlogit-doctor-findings` | live (`backlogit doctor`) | 3,654 | 401 | 3,253 (89%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| `git-log-stat-history` | live (`git --no-pager log --stat -20`) | n/a | n/a | n/a | **NOT a safe win** — hook declined this case outright (gate/readiness verdict text found in real commit history); not a compression candidate |
+| `backlogit-list-json-mcp-shaped` | live (`backlogit list --json`, truncated to 60 KB) | 15,000 | 250 | 14,750 (98%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| `workspace-file-inventory` | live (`git ls-files`) | 13,238 | 118 | 13,120 (99%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| `graphtor-search-results-representative` | **synthetic-representative** (no live Engram/graphtor MCP index in this benchmark run) | 8,827 | 323 | 8,504 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
 
 *Exact token counts drift slightly between benchmark runs because several
 cases capture genuinely live command output (test counts, git history
-length, file inventory) that changes as the repository itself changes — the
-percentages and safe-win/not-safe-win verdicts are stable across runs.
-Numbers above match `reports/benchmark-report.json` as of the reviewed HEAD.*
+length, file inventory) that changes as the repository itself changes.
+Numbers above match `reports/benchmark-report.json` as of the reviewed HEAD.
+The fallback-estimator net-savings figures are shown for transparency only —
+they are explicitly **not** a proven safe win under the plan's six-criterion
+standard, which requires proof under both a real model tokenizer and the
+fallback estimator (`lower_tokens_both`).*
 
-**The one honest negative finding matters most:** `git-log-stat-history`
-fails the evidence oracle because the naive head/tail compressor
-(`hook.py::_compress_view`) can drop required facts (e.g. a commit hash or a
-`#issue` reference) that fall in the collapsed middle of a large `git log
---stat` output rather than the head or tail. This is **not hidden** — it is
-reported plainly as `NOT a safe win` in both the Markdown and JSON report.
-It is the direct evidence behind precondition #1 above: the compressor needs
-real type-awareness (a diff/log-specific strategy that preserves commit
-boundaries, hashes, and file-change summaries) before any output shaped like
-a diff or commit log can be trusted to compress safely.
+**Why `git-log-stat-history` is no longer merely "not a safe win" but
+declined outright:** the broadened decline-verdict patterns (finding #13)
+now correctly recognize gate/readiness verdict text (`P0`/`P1` finding
+markers) that this repository's own real commit history contains, from
+prior review-fix rounds. The hook declines the whole capture before any
+compression is attempted — the safest possible outcome, and a stronger
+result than the previous "compress it, then fail the evidence oracle"
+finding. The **type-aware compressor built to fix this evidence-loss
+category (finding #14) is proven by dedicated unit tests**
+(`test_hook_type_router.py`) rather than by this specific live corpus case,
+since the case never reaches the compressor at all. Precondition #3 (below)
+asks for a wider corpus that can exercise the type router on a live,
+non-declined capture.
 
 **Decline/negative controls (7 of 7 correctly declined, zero durable rows):**
 
@@ -183,12 +241,14 @@ criterion 6).
 * **Model tokenizer unavailable in this environment** (`tiktoken` is not
   installed, and no new pip dependency was added per the plan's scope
   constraints). Every reported token count above is the cheap fallback
-  estimator (~4 chars/token), not a real GPT-family tokenizer. The
-  `lower_tokens_model` criterion is reported as vacuously `True` (not
-  disprovable without a tokenizer) rather than fabricated — this is called
-  out explicitly in every report row's notes column. **This is precondition
-  #2**: no pilot should claim verified token savings without a real
-  tokenizer check.
+  estimator (~4 chars/token), not a real GPT-family tokenizer. Following the
+  P-018 review fix to finding #1, this is no longer reported as a vacuous
+  pass: `model_tokenizer_available` is `False` and `lower_tokens_both` is
+  correctly `False` for every affected case, which is why every
+  compression-positive candidate is **INCONCLUSIVE** rather than a safe win.
+  **This is now precondition #1 (the single blocking precondition)**: no
+  pilot should claim verified token savings without a real tokenizer check,
+  and currently none can be claimed at all.
 * **`graphtor-search-results-representative` is synthetic**, not a live
   capture — no Engram/graphtor MCP server was running inside this benchmark
   process. It is a representative repetitive-JSON shape, clearly labeled via
@@ -198,14 +258,21 @@ criterion 6).
   judgment: each case declares a `required_fact` substring, and the oracle
   checks whether that substring survives compression. This is honest and
   reproducible, but it can only catch facts it was told to look for —
-  precondition #3 addresses this gap directly.
+  precondition #2 addresses this gap directly.
+* **A non-zero command-capture returncode can never be a safe win** (finding
+  #15, fixed): `corpus.py`'s command runner now labels a non-zero exit as a
+  capture failure, and `benchmark.py` unconditionally forces `safe_win =
+  False` for any capture-failed case, regardless of other criteria. No
+  corpus case in this run hit this path, but the honesty guarantee is now
+  covered by tests (`test_corpus_builder.py`, `test_benchmark_runner.py`).
 
 ## Scope decisions carried into this recommendation
 
 * The prototype was built entirely under
   `experiments/088-compression-experiment/`, imported by nothing in
   `src/autoharness`, and is trivially removable (delete the directory,
-  optionally purge `.autoharness/cache/brainspace/`).
+  optionally purge `.autoharness/cache/brainspace/` via the new
+  `purge_cli.py --mode all`).
   `hooks.json.example` and `mcp.json.example` were deliberately **not**
   wired into `.github/hooks/` or the committed root `.mcp.json` — they
   remain opt-in templates so the experiment never auto-activates for every
@@ -221,22 +288,26 @@ criterion 6).
 Before any follow-up feature considers widening this beyond the current
 throwaway experiment:
 
-1. **Type-aware compressor.** Replace `_compress_view`'s naive head/tail
-   strategy with routing by output shape (JSON, log, diff/git-stat, prose),
-   preserving diff hunks/commit boundaries and structural markers, not just
-   the first/last N lines.
-2. **Real tokenizer verification.** Add `tiktoken` (or an equivalent) as an
-   explicit, isolated optional dependency for the pilot only, and re-run the
-   benchmark corpus to confirm savings hold under a real tokenizer, not just
-   the fallback estimator.
-3. **Stronger task-answerability proof.** Extend the evidence oracle's fact
+1. **Real tokenizer verification (blocking).** Add `tiktoken` (or an
+   equivalent) as an explicit, isolated optional dependency for the pilot
+   only, and re-run the benchmark corpus to determine whether savings hold
+   under a real tokenizer. Until this happens, this experiment has proven
+   **zero** cases meeting the full six-criterion safe-win standard.
+2. **Stronger task-answerability proof.** Extend the evidence oracle's fact
    patterns and/or add a real model-graded answerability check for a
    broader sample of benchmark cases, rather than relying solely on
    predeclared substrings.
-4. **Wider, more adversarial corpus.** Add more real command captures
-   (additional `git diff` shapes, large multi-file JSON, nested error
-   payloads) specifically targeting the type-router gap found here.
-5. **Explicit product/security sign-off** on retention (TTL/size-cap
+3. **Wider, more adversarial corpus that can exercise the type router live.**
+   The type-aware compressor (precondition from the prior revision, now
+   complete and unit-tested) has not yet been proven against a live,
+   non-declined corpus capture, because the one corpus case it targeted
+   (`git-log-stat-history`) is now declined outright by the broadened
+   decline-verdict patterns. Add a real capture (e.g. a `git diff` on a
+   feature branch without gate/readiness text in its messages, or a
+   `git log --stat` window from a period without review-finding
+   references) to prove the type router's evidence preservation in
+   production-shaped, non-synthetic conditions.
+4. **Explicit product/security sign-off** on retention (TTL/size-cap
    defaults), before even a narrow pilot is enabled by default for any
    contributor — the flag must stay opt-in.
 
@@ -246,4 +317,7 @@ Recommend the shipment proceed to PR/review with this memo attached as the
 experiment's findings record. The flag (`BRAINSPACE_EXPERIMENT_ENABLED`)
 stays **disabled by default**; no base-harness behavior depends on this
 code; the entire `experiments/088-compression-experiment/` tree remains
-trivially removable if the operator instead chooses REJECT.
+trivially removable if the operator instead chooses REJECT. The current
+state of the evidence is: **safety mechanism proven; savings unproven** —
+this is precisely the situation a narrow, precondition-gated pilot exists to
+resolve, not a reason to accept or reject outright.

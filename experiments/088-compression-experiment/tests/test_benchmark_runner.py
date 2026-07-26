@@ -40,7 +40,31 @@ def _compressible_text(fact="exit code: 0"):
     return "noisy repeated log line\n" * 200 + fact
 
 
-def test_compression_positive_case_is_marked_safe_win(store):
+def test_compression_positive_case_is_marked_safe_win(store, monkeypatch):
+    # Simulate a genuinely available model tokenizer (this environment has
+    # no tiktoken installed) so the happy-path safe-win assertion below
+    # tests real both-tokenizer proof rather than the tokenizer-unavailable
+    # fallback path (see the dedicated inconclusive-path test below).
+    from brainspace import measurement as measurement_module
+    from brainspace.measurement import MeasurementResult
+
+    def fake_measure_dual(original, compressed_view, footer):
+        fallback = MeasurementResult(
+            raw_tokens=1000,
+            compressed_tokens=100,
+            net_savings_tokens=900,
+            projected_savings_by_turn={1: 900, 3: 2700, 5: 4500, 10: 9000},
+        )
+        model = MeasurementResult(
+            raw_tokens=800,
+            compressed_tokens=90,
+            net_savings_tokens=710,
+            projected_savings_by_turn={1: 710, 3: 2130, 5: 3550, 10: 7100},
+        )
+        return {"fallback": fallback, "model": model}
+
+    monkeypatch.setattr(measurement_module, "measure_dual", fake_measure_dual)
+
     case = BenchmarkCase(
         name="pytest-verbose-pass",
         tool_name="bash",
@@ -54,8 +78,76 @@ def test_compression_positive_case_is_marked_safe_win(store):
     assert result.safe_win is True
     assert result.criteria["byte_equivalent_retrieval"] is True
     assert result.criteria["lower_tokens_fallback"] is True
+    assert result.criteria["lower_tokens_model"] is True
+    assert result.criteria["model_tokenizer_available"] is True
     assert result.criteria["evidence_oracle_passes"] is True
     assert result.criteria["task_answerable_from_compressed_view"] is True
+
+
+def test_compression_case_is_inconclusive_when_model_tokenizer_unavailable(store, monkeypatch):
+    # Finding #1 (P-018 review): when the model tokenizer is unavailable,
+    # the case must never silently pass criterion 1 (lower tokens under
+    # BOTH tokenizers) just because the fallback estimator shows savings.
+    # It must be reported as inconclusive / not a safe win.
+    from brainspace import measurement as measurement_module
+    from brainspace.tokenizer_fallback import estimate_tokens
+
+    def fake_measure_dual(original, compressed_view, footer):
+        fallback = measurement_module.measure(
+            original, compressed_view, footer, token_counter=estimate_tokens
+        )
+        return {"fallback": fallback, "model": None}
+
+    monkeypatch.setattr(measurement_module, "measure_dual", fake_measure_dual)
+
+    case = BenchmarkCase(
+        name="pytest-verbose-pass",
+        tool_name="bash",
+        text=_compressible_text("exit code: 0"),
+        task_question="did the command succeed?",
+        required_fact="exit code: 0",
+    )
+    report = run_benchmark([case], store=store)
+    result = report.results[0]
+    assert result.safe_win is False
+    assert result.criteria["model_tokenizer_available"] is False
+    assert result.criteria["lower_tokens_model"] is False
+    assert result.criteria["lower_tokens_both"] is False
+    assert "inconclusive" in result.notes.lower()
+
+
+def test_capture_failed_case_is_never_a_safe_win_even_if_all_else_passes(store, monkeypatch):
+    # Finding #15 (P-018 review): a non-zero-exit / misconfigured command
+    # capture must never be reported as a compression-positive SAFE WIN,
+    # even if the (unreliable) captured text happens to look compressible
+    # and every other criterion would otherwise pass.
+    from brainspace import measurement as measurement_module
+    from brainspace.measurement import MeasurementResult
+
+    def fake_measure_dual(original, compressed_view, footer):
+        result = MeasurementResult(
+            raw_tokens=1000,
+            compressed_tokens=100,
+            net_savings_tokens=900,
+            projected_savings_by_turn={1: 900, 3: 2700, 5: 4500, 10: 9000},
+        )
+        return {"fallback": result, "model": result}
+
+    monkeypatch.setattr(measurement_module, "measure_dual", fake_measure_dual)
+
+    case = BenchmarkCase(
+        name="pytest-vv-misconfigured",
+        tool_name="bash",
+        text=_compressible_text("exit code: 0"),
+        task_question="did the command succeed?",
+        required_fact="exit code: 0",
+        capture_failed=True,
+    )
+    report = run_benchmark([case], store=store)
+    result = report.results[0]
+    assert result.safe_win is False
+    assert result.criteria["capture_succeeded"] is False
+    assert "capture failed" in result.notes.lower()
 
 
 def test_compression_case_fails_safe_win_when_required_fact_would_be_lost(store):

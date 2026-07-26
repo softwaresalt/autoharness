@@ -17,6 +17,11 @@ def test_detects_github_token():
     assert contains_secret(text) is True
 
 
+def test_detects_fine_grained_github_pat():
+    text = "auth header: github_pat_11ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghij"
+    assert contains_secret(text) is True
+
+
 def test_detects_private_key_header():
     text = "-----BEGIN RSA PRIVATE KEY-----\nMIIB...\n-----END RSA PRIVATE KEY-----"
     assert contains_secret(text) is True

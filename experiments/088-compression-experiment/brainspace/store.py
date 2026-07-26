@@ -15,6 +15,20 @@ from brainspace.codec import decode_lossless, encode_lossless
 from brainspace.resolver import resolve_store_root
 
 
+class StoreCapacityError(Exception):
+    """Raised when a single put's content cannot be retained under the cap.
+
+    ``BrainspaceStore._enforce_size_cap`` evicts oldest-first until the
+    total store size is within the configured cap; if the content just
+    inserted by this ``put()`` call is itself evicted (e.g. a single output
+    larger than the whole cap), ``put()`` must not hand back a handle whose
+    row no longer exists -- a caller writing a retrieval footer around a
+    dangling handle would point at unretrievable content. Raising here lets
+    the hook's existing fail-safe wrapper pass the original through
+    byte-identically instead.
+    """
+
+
 class BrainspaceStore:
     """A TTL- and size-capped local store for exact raw tool outputs."""
 
@@ -30,6 +44,14 @@ class BrainspaceStore:
         )
         db_path = self._root / config.STORE_DB_FILENAME
         self._conn = sqlite3.connect(str(db_path))
+        # Explicit WAL journal mode: keeps the on-disk sidecar set limited to
+        # the two guarded/gitignored WAL-mode files (-wal/-shm) instead of
+        # SQLite's default rollback-journal mode, which can leave a
+        # crash-time -journal file containing raw output. The staged-file
+        # guard and .gitignore also cover -journal defensively in case a
+        # filesystem falls back to rollback mode (e.g. no shared-memory
+        # locking support), but WAL mode is the primary containment control.
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS entries ("
             " handle TEXT PRIMARY KEY,"
@@ -53,23 +75,58 @@ class BrainspaceStore:
     def put(self, text: str) -> str:
         """Durably store ``text`` and return its deterministic handle.
 
-        Dedup is a no-op on ``stored_at``: since ``handle`` is a
-        content-derived hash, re-putting identical content never changes
-        what is stored, so the TTL clock must not be silently extended by
-        repeated access. ``INSERT OR IGNORE`` leaves an existing row (and
-        its original ``stored_at``) untouched on conflict.
+        Dedup is a no-op on ``stored_at`` for a LIVE (non-expired) existing
+        row: since ``handle`` is a content-derived hash, re-putting
+        identical content never changes what is stored, so the TTL clock
+        must not be silently extended by repeated access.
+
+        If the existing row is ALREADY expired, a re-put of identical
+        content refreshes ``stored_at`` (delete-then-insert) instead of
+        silently returning a handle whose row the very next ``get()``
+        would delete as expired.
+
+        Raises ``StoreCapacityError`` instead of returning a handle whose
+        row ``_enforce_size_cap`` evicted immediately (e.g. a single put
+        larger than the whole cap) -- callers must never receive a
+        dangling handle.
         """
         handle = self.compute_handle(text)
         blob = encode_lossless(text)
         size = len(blob)
         now = time.time()
-        self._conn.execute(
-            "INSERT OR IGNORE INTO entries (handle, content, size_bytes, stored_at) "
-            "VALUES (?, ?, ?, ?)",
-            (handle, blob, size, now),
+
+        existing = self._conn.execute(
+            "SELECT stored_at FROM entries WHERE handle = ?", (handle,)
+        ).fetchone()
+        is_expired = existing is not None and (
+            self._ttl_seconds is not None
+            and (now - existing[0]) > self._ttl_seconds
         )
-        self._conn.commit()
+        if existing is None or is_expired:
+            if is_expired:
+                # Refresh: delete the stale (expired) row before
+                # re-inserting so stored_at reflects this new put.
+                self._conn.execute("DELETE FROM entries WHERE handle = ?", (handle,))
+            self._conn.execute(
+                "INSERT OR IGNORE INTO entries "
+                "(handle, content, size_bytes, stored_at) VALUES (?, ?, ?, ?)",
+                (handle, blob, size, now),
+            )
+            self._conn.commit()
+        # else: live (non-expired) dedup -- leave the existing row and its
+        # original stored_at untouched, never silently extending the TTL.
+
         self._enforce_size_cap()
+
+        still_present = self._conn.execute(
+            "SELECT 1 FROM entries WHERE handle = ?", (handle,)
+        ).fetchone()
+        if still_present is None:
+            raise StoreCapacityError(
+                f"content ({size} bytes) could not be retained under the "
+                f"{self._max_size_bytes}-byte store cap; evicted immediately "
+                "on insert"
+            )
         return handle
 
     def get(self, handle: str):

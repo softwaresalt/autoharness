@@ -68,6 +68,36 @@ def test_retrieve_chunk_missing_handle_raises(store):
         retrieve_chunk(store, "nope", offset=0, limit=10)
 
 
+def test_retrieve_chunk_rejects_zero_limit(store):
+    handle = store.put("some content that is long enough" * 5)
+    with pytest.raises(ValueError):
+        retrieve_chunk(store, handle, offset=0, limit=0)
+
+
+def test_retrieve_chunk_rejects_negative_limit(store):
+    handle = store.put("some content that is long enough" * 5)
+    with pytest.raises(ValueError):
+        retrieve_chunk(store, handle, offset=0, limit=-1)
+
+
+def test_retrieve_chunk_rejects_negative_offset(store):
+    handle = store.put("some content that is long enough" * 5)
+    with pytest.raises(ValueError):
+        retrieve_chunk(store, handle, offset=-1, limit=10)
+
+
+def test_retrieve_chunk_rejects_non_integer_offset(store):
+    handle = store.put("some content that is long enough" * 5)
+    with pytest.raises(ValueError):
+        retrieve_chunk(store, handle, offset="0", limit=10)
+
+
+def test_retrieve_chunk_rejects_non_integer_limit(store):
+    handle = store.put("some content that is long enough" * 5)
+    with pytest.raises(ValueError):
+        retrieve_chunk(store, handle, offset=0, limit="10")
+
+
 def test_retrieve_preserves_surrogate_content(store):
     original = "before\ud800after" * 100
     handle = store.put(original)

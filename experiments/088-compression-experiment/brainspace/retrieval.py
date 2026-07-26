@@ -27,7 +27,24 @@ def retrieve_chunk(store, handle: str, offset: int = 0, limit: int = 4096):
     "has_more": bool}``. Repeated calls advancing ``offset`` by the returned
     chunk length, until ``has_more`` is False, reassemble the exact original
     with no silent truncation.
+
+    ``offset`` and ``limit`` are validated strictly: both must be ``int``
+    (bool excluded, since ``bool`` is an ``int`` subclass and would silently
+    coerce to 0/1), ``offset`` must be non-negative, and ``limit`` must be a
+    positive integer. A zero/negative ``limit`` would otherwise return an
+    empty chunk with ``has_more=True`` forever (an infinite pagination
+    loop), and a non-integer value would raise an uncaught ``TypeError``
+    deep in the slice arithmetic instead of a clear, callable-facing error.
     """
+    if isinstance(offset, bool) or not isinstance(offset, int):
+        raise ValueError(f"offset must be an int, got {type(offset).__name__}")
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        raise ValueError(f"limit must be an int, got {type(limit).__name__}")
+    if offset < 0:
+        raise ValueError(f"offset must be >= 0, got {offset}")
+    if limit <= 0:
+        raise ValueError(f"limit must be a positive integer, got {limit}")
+
     original = store.get(handle)
     if original is None:
         raise RetrievalError(f"handle not found or expired: {handle}")

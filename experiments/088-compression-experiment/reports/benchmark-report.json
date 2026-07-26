@@ -2,121 +2,121 @@
   "total_count": 13,
   "compression_positive_count": 6,
   "decline_control_count": 7,
-  "safe_win_count": 12,
+  "safe_win_count": 7,
   "results": [
     {
       "name": "pytest-vv-experiment-suite",
-      "category": "compression_positive",
-      "safe_win": true,
-      "criteria": {
-        "byte_equivalent_retrieval": true,
-        "no_extra_rows_beyond_stash": true,
-        "lower_tokens_fallback": true,
-        "lower_tokens_model": true,
-        "lower_tokens_both": true,
-        "evidence_oracle_passes": true,
-        "task_answerable_from_compressed_view": true,
-        "raw_tokens_fallback": 3782,
-        "compressed_tokens_fallback": 218,
-        "net_savings_tokens_fallback": 3564,
-        "projected_savings_10_turns_fallback": 35640
-      },
-      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
-    },
-    {
-      "name": "backlogit-doctor-findings",
-      "category": "compression_positive",
-      "safe_win": true,
-      "criteria": {
-        "byte_equivalent_retrieval": true,
-        "no_extra_rows_beyond_stash": true,
-        "lower_tokens_fallback": true,
-        "lower_tokens_model": true,
-        "lower_tokens_both": true,
-        "evidence_oracle_passes": true,
-        "task_answerable_from_compressed_view": true,
-        "raw_tokens_fallback": 3654,
-        "compressed_tokens_fallback": 401,
-        "net_savings_tokens_fallback": 3253,
-        "projected_savings_10_turns_fallback": 32530
-      },
-      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
-    },
-    {
-      "name": "git-log-stat-history",
       "category": "compression_positive",
       "safe_win": false,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
         "lower_tokens_fallback": true,
-        "lower_tokens_model": true,
-        "lower_tokens_both": true,
-        "evidence_oracle_passes": false,
+        "lower_tokens_model": false,
+        "lower_tokens_both": false,
+        "model_tokenizer_available": false,
+        "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
-        "raw_tokens_fallback": 6258,
-        "compressed_tokens_fallback": 150,
-        "net_savings_tokens_fallback": 6108,
-        "projected_savings_10_turns_fallback": 61080
+        "capture_succeeded": true,
+        "raw_tokens_fallback": 5175,
+        "compressed_tokens_fallback": 232,
+        "net_savings_tokens_fallback": 4943,
+        "projected_savings_10_turns_fallback": 49430
       },
-      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
+      "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
     },
     {
-      "name": "backlogit-list-json-mcp-shaped",
+      "name": "backlogit-doctor-findings",
       "category": "compression_positive",
-      "safe_win": true,
+      "safe_win": false,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
         "lower_tokens_fallback": true,
-        "lower_tokens_model": true,
-        "lower_tokens_both": true,
+        "lower_tokens_model": false,
+        "lower_tokens_both": false,
+        "model_tokenizer_available": false,
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
+        "capture_succeeded": true,
+        "raw_tokens_fallback": 3654,
+        "compressed_tokens_fallback": 401,
+        "net_savings_tokens_fallback": 3253,
+        "projected_savings_10_turns_fallback": 32530
+      },
+      "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
+    },
+    {
+      "name": "git-log-stat-history",
+      "category": "compression_positive",
+      "safe_win": false,
+      "criteria": {
+        "compressed_at_all": false
+      },
+      "notes": "hook declined this case; not a compression candidate"
+    },
+    {
+      "name": "backlogit-list-json-mcp-shaped",
+      "category": "compression_positive",
+      "safe_win": false,
+      "criteria": {
+        "byte_equivalent_retrieval": true,
+        "no_extra_rows_beyond_stash": true,
+        "lower_tokens_fallback": true,
+        "lower_tokens_model": false,
+        "lower_tokens_both": false,
+        "model_tokenizer_available": false,
+        "evidence_oracle_passes": true,
+        "task_answerable_from_compressed_view": true,
+        "capture_succeeded": true,
         "raw_tokens_fallback": 15000,
         "compressed_tokens_fallback": 250,
         "net_savings_tokens_fallback": 14750,
         "projected_savings_10_turns_fallback": 147500
       },
-      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
+      "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
     },
     {
       "name": "workspace-file-inventory",
       "category": "compression_positive",
-      "safe_win": true,
+      "safe_win": false,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
         "lower_tokens_fallback": true,
-        "lower_tokens_model": true,
-        "lower_tokens_both": true,
+        "lower_tokens_model": false,
+        "lower_tokens_both": false,
+        "model_tokenizer_available": false,
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
-        "raw_tokens_fallback": 13224,
+        "capture_succeeded": true,
+        "raw_tokens_fallback": 13238,
         "compressed_tokens_fallback": 118,
-        "net_savings_tokens_fallback": 13106,
-        "projected_savings_10_turns_fallback": 131060
+        "net_savings_tokens_fallback": 13120,
+        "projected_savings_10_turns_fallback": 131200
       },
-      "notes": "model tokenizer unavailable; fallback-only, reported honestly"
+      "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
     },
     {
       "name": "graphtor-search-results-representative",
       "category": "compression_positive",
-      "safe_win": true,
+      "safe_win": false,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
         "lower_tokens_fallback": true,
-        "lower_tokens_model": true,
-        "lower_tokens_both": true,
+        "lower_tokens_model": false,
+        "lower_tokens_both": false,
+        "model_tokenizer_available": false,
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
+        "capture_succeeded": true,
         "raw_tokens_fallback": 8827,
         "compressed_tokens_fallback": 323,
         "net_savings_tokens_fallback": 8504,
         "projected_savings_10_turns_fallback": 85040
       },
-      "notes": "model tokenizer unavailable; fallback-only, reported honestly [synthetic-representative: Engram/graphtor MCP search surface not running in this benchmark environment]"
+      "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence [synthetic-representative: Engram/graphtor MCP search surface not running in this benchmark environment]"
     },
     {
       "name": "tiny-output-decline",

@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from brainspace.store import BrainspaceStore
+from brainspace.store import BrainspaceStore, StoreCapacityError
 
 
 @pytest.fixture
@@ -55,6 +55,26 @@ def test_dedup_put_does_not_extend_ttl_clock(tmp_path):
         s.close()
 
 
+def test_reput_of_expired_content_refreshes_stored_at(tmp_path):
+    # Finding #4 (P-018 review): if the existing row is ALREADY expired
+    # when identical content is re-put, INSERT OR IGNORE alone would leave
+    # the stale (expired) stored_at untouched, silently handing back a
+    # handle whose row the very next get() would delete. A re-put of
+    # expired content must refresh stored_at so the content survives.
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=10_000)
+    try:
+        text = "content that will be re-put after expiry"
+        handle = s.put(text)
+        time.sleep(1.2)  # row is now expired per the 1s TTL
+        handle2 = s.put(text)  # re-put of expired-but-identical content
+        assert handle2 == handle
+        # Immediately retrievable -- stored_at must have been refreshed,
+        # not left at the original (now-expired) timestamp.
+        assert s.get(handle) == text
+    finally:
+        s.close()
+
+
 def test_get_missing_handle_returns_none(store):
     assert store.get("does-not-exist") is None
 
@@ -80,6 +100,23 @@ def test_size_cap_evicts_oldest_entries(tmp_path):
         # silently exceeding the cap.
         assert s.get(h1) is None
         assert s.get(h2) == "b" * 40
+    finally:
+        s.close()
+
+
+def test_put_raises_capacity_error_instead_of_dangling_handle(tmp_path):
+    # Finding #10 (P-018 review): if a SINGLE put's content exceeds the
+    # cap, ``_enforce_size_cap`` evicts the just-inserted row (oldest-first
+    # eviction), but ``put()`` must not still hand back that now-deleted
+    # handle -- a caller (the hook) writing a retrieval footer around a
+    # dangling handle would point at unretrievable content. ``put()`` must
+    # raise instead, so the hook's existing fail-safe wrapper passes the
+    # ORIGINAL through byte-identically.
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=3600, max_size_bytes=50)
+    try:
+        with pytest.raises(StoreCapacityError):
+            s.put("x" * 200)  # a single put larger than the entire cap
+        assert s.row_count() == 0  # no dangling row left behind
     finally:
         s.close()
 

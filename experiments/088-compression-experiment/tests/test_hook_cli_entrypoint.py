@@ -46,6 +46,28 @@ def test_disabled_by_default_passes_through(tmp_path):
     assert result == {}
 
 
+def test_disabled_invocation_makes_no_durable_write(tmp_path):
+    # A disabled invocation must make ZERO filesystem writes -- not even
+    # creating the (empty) store database file. Constructing the store is
+    # itself a durable side effect (mkdir + sqlite3.connect creates the
+    # file on disk), so the flag check must happen BEFORE the store is
+    # ever constructed, not merely before any row is written to it.
+    payload = {
+        "sessionId": "s1",
+        "timestamp": 1,
+        "cwd": str(tmp_path),
+        "toolName": "bash",
+        "toolArgs": {},
+        "toolResult": {
+            "resultType": "success",
+            "textResultForLlm": "noisy line\n" * 100,
+        },
+    }
+    _run_hook_cli(payload)
+    store_dir = tmp_path / ".autoharness" / "cache" / "brainspace"
+    assert not store_dir.exists()
+
+
 def test_enabled_compresses_large_matching_output(tmp_path):
     payload = {
         "sessionId": "s1",

@@ -52,6 +52,10 @@ class BenchmarkCase:
     running in this benchmark environment"``) when a live capture was not
     possible. This is surfaced in the report so no positive-savings claim
     can be mistaken for a live measurement it isn't.
+
+    ``capture_failed`` marks a live command capture that itself failed
+    (non-zero exit / misconfigured tool) rather than produced a real
+    sample — such a case can never be reported as a SAFE WIN.
     """
 
     name: str
@@ -63,6 +67,7 @@ class BenchmarkCase:
     decline_reason_label: Optional[str] = None
     simulate_unwritable_store: bool = False
     provenance: str = "live"
+    capture_failed: bool = False
 
 
 @dataclass
@@ -168,15 +173,24 @@ def _run_compression_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseRe
     # Criterion 3: decide-then-stash — at most one new row (dedup-safe).
     no_extra_rows = rows_after in (rows_before, rows_before + 1)
 
-    # Criterion 1: lower tokens under both tokenizers.
+    # Criterion 1: lower tokens under both tokenizers. An unavailable model
+    # tokenizer must NEVER silently satisfy this criterion just because the
+    # fallback estimator shows savings -- the case is INCONCLUSIVE (not a
+    # safe win) until proven under a real model tokenizer too.
     dual = measurement.measure_dual(case.text, compressed_text, "")
     lower_fallback = dual["fallback"].compressed_tokens < dual["fallback"].raw_tokens
     if dual["model"] is not None:
         lower_model = dual["model"].compressed_tokens < dual["model"].raw_tokens
+        model_tokenizer_available = True
         model_caveat = ""
     else:
-        lower_model = True  # not disprovable without a model tokenizer
-        model_caveat = "model tokenizer unavailable; fallback-only, reported honestly"
+        lower_model = False
+        model_tokenizer_available = False
+        model_caveat = (
+            "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 "
+            "(lower tokens under both tokenizers) cannot be proven, so this "
+            "case is never reported as a safe win on fallback-only evidence"
+        )
 
     # Criterion 4: evidence oracle passes WITHOUT retrieval.
     oracle = evaluate_oracle(case.text, compressed_text)
@@ -194,8 +208,10 @@ def _run_compression_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseRe
         "lower_tokens_fallback": lower_fallback,
         "lower_tokens_model": lower_model,
         "lower_tokens_both": lower_fallback and lower_model,
+        "model_tokenizer_available": model_tokenizer_available,
         "evidence_oracle_passes": oracle.passed,
         "task_answerable_from_compressed_view": answerable,
+        "capture_succeeded": not case.capture_failed,
         "raw_tokens_fallback": dual["fallback"].raw_tokens,
         "compressed_tokens_fallback": dual["fallback"].compressed_tokens,
         "net_savings_tokens_fallback": dual["fallback"].net_savings_tokens,
@@ -213,10 +229,17 @@ def _run_compression_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseRe
             criteria["lower_tokens_both"],
             criteria["evidence_oracle_passes"],
             criteria["task_answerable_from_compressed_view"],
+            criteria["capture_succeeded"],
         ]
     )
 
     notes = model_caveat
+    if case.capture_failed:
+        capture_note = (
+            "capture failed (non-zero exit / misconfigured command); "
+            "never a safe win regardless of other criteria"
+        )
+        notes = f"{capture_note} {notes}".strip()
     if case.provenance != "live":
         notes = f"{notes} [{case.provenance}]".strip()
 
@@ -279,7 +302,14 @@ def render_markdown_report(report: BenchmarkReport) -> str:
         "|---|---|---|---|",
     ]
     for r in report.results:
-        verdict = "SAFE WIN" if r.safe_win else "NOT a safe win"
+        if r.safe_win:
+            verdict = "SAFE WIN"
+        elif r.category == "compression_positive" and r.criteria.get(
+            "model_tokenizer_available"
+        ) is False:
+            verdict = "INCONCLUSIVE (model tokenizer unavailable)"
+        else:
+            verdict = "NOT a safe win"
         lines.append(f"| {r.name} | {r.category} | {verdict} | {r.notes} |")
 
     lines.append("")

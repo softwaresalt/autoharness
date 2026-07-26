@@ -11,6 +11,7 @@ import re
 _PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS access key id
     re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}"),  # GitHub tokens (ghp_/gho_/ghu_/ghs_/ghr_)
+    re.compile(r"github_pat_[A-Za-z0-9_]{20,}"),  # GitHub fine-grained PAT
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),  # PEM private key headers
     re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),  # JWT-shaped
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._-]{20,}"),  # generic bearer token

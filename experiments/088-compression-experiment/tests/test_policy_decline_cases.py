@@ -64,6 +64,35 @@ def test_compressible_candidate_returns_none():
     assert classify_decline_reason(text) is None
 
 
+def test_blocking_findings_p0_p1_line_declines():
+    text = (
+        "Summary of review outcome\n"
+        "Blocking findings: P0=1, P1=0\n" + ("padding line\n" * 40)
+    )
+    assert classify_decline_reason(text) == DeclineReason.GATE_READINESS_VERDICT
+
+
+def test_ci_aggregation_status_line_declines():
+    text = "CI aggregation: failed\n" + ("padding line\n" * 60)
+    assert classify_decline_reason(text) == DeclineReason.GATE_READINESS_VERDICT
+
+
+def test_p0_finding_bullet_line_declines():
+    text = (
+        "Review findings\n"
+        "- **P0**: containment bypass in resolver.py\n" + ("padding line\n" * 40)
+    )
+    assert classify_decline_reason(text) == DeclineReason.GATE_READINESS_VERDICT
+
+
+def test_p1_finding_bullet_line_declines():
+    text = (
+        "Review findings\n"
+        "- **P1**: TTL silently extended on dedup\n" + ("padding line\n" * 40)
+    )
+    assert classify_decline_reason(text) == DeclineReason.GATE_READINESS_VERDICT
+
+
 def test_unwritable_store_reason_is_available_as_a_named_constant():
     # Exercised by the hook's fail-safe passthrough path, not by text
     # classification -- the reason must still be a defined enum member so

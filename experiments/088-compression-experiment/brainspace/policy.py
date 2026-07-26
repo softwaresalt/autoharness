@@ -32,6 +32,9 @@ _GATE_VERDICT_PATTERNS = [
     re.compile(r"\bMERGE_(CONFIRMED|NOT_CONFIRMED|AUTHORIZED)\b"),
     re.compile(r"\breviewDecision\b"),
     re.compile(r"\bautoharness gate\b"),
+    re.compile(r"(?i)Blocking findings:\s*P0=\d+,\s*P1=\d+"),
+    re.compile(r"(?i)CI aggregation:\s*\S+"),
+    re.compile(r"(?i)(^|\W)P[01]\b\s*[:)]|\*\*P[01]\*\*"),
 ]
 
 _STACK_TRACE_PATTERNS = [

@@ -78,9 +78,22 @@ python -m pytest experiments/088-compression-experiment/tests -q
 ## Running the benchmark corpus
 
 ```powershell
-$env:BRAINSPACE_EXPERIMENT_ENABLED = '1'
-python experiments/088-compression-experiment/brainspace/benchmark.py
+python experiments/088-compression-experiment/brainspace/benchmark_cli.py
 ```
+
+`benchmark_cli.py` self-manages the disabled-by-default flag for the
+duration of its own process only (never persisted, never leaked into the
+ambient environment) -- no manual `BRAINSPACE_EXPERIMENT_ENABLED` step is
+needed.
 
 Emits a JSON + Markdown report under
 `experiments/088-compression-experiment/reports/`.
+
+## Purging the store
+
+```powershell
+python experiments/088-compression-experiment/brainspace/purge_cli.py --mode expired
+```
+
+Deletes TTL-expired rows (the default, safe mode). Pass `--mode all` to
+clear the entire store, including live rows.

@@ -20,6 +20,7 @@
 **/.autoharness/cache/brainspace/*.sqlite3
 **/.autoharness/cache/brainspace/*.sqlite3-wal
 **/.autoharness/cache/brainspace/*.sqlite3-shm
+**/.autoharness/cache/brainspace/*.sqlite3-journal
 src/autoharness/__pycache__/*.pyc
 .*.lock
 **/.*.lock
