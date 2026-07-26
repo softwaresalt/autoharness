@@ -11,6 +11,16 @@
 .backlogit/hooks_queue.jsonl
 .backlogit/*.db-shm
 .backlogit/*.db-wal
+
+# 088-F throwaway compression experiment — brainspace CCR store (never
+# committed; see experiments/088-compression-experiment/README.md). The
+# store is anchored to the Copilot CLI session cwd (which may be a
+# subdirectory of the repo, not just the repo root), so these patterns must
+# match at any nesting depth, not only at the repo root.
+**/.autoharness/cache/brainspace/*.sqlite3
+**/.autoharness/cache/brainspace/*.sqlite3-wal
+**/.autoharness/cache/brainspace/*.sqlite3-shm
+**/.autoharness/cache/brainspace/*.sqlite3-journal
 src/autoharness/__pycache__/*.pyc
 .*.lock
 **/.*.lock

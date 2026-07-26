@@ -1,0 +1,147 @@
+{
+  "total_count": 13,
+  "compression_positive_count": 6,
+  "decline_control_count": 7,
+  "safe_win_count": 0,
+  "decline_correct_count": 6,
+  "results": [
+    {
+      "name": "pytest-vv-experiment-suite",
+      "category": "compression_positive",
+      "safe_win": false,
+      "decline_correct": null,
+      "criteria": {
+        "compressed_at_all": false
+      },
+      "notes": "hook declined this case; not a compression candidate"
+    },
+    {
+      "name": "backlogit-doctor-findings",
+      "category": "compression_positive",
+      "safe_win": false,
+      "decline_correct": null,
+      "criteria": {
+        "compressed_at_all": false
+      },
+      "notes": "hook declined this case; not a compression candidate"
+    },
+    {
+      "name": "git-log-stat-history",
+      "category": "compression_positive",
+      "safe_win": false,
+      "decline_correct": null,
+      "criteria": {
+        "compressed_at_all": false
+      },
+      "notes": "hook declined this case; not a compression candidate"
+    },
+    {
+      "name": "backlogit-list-json-mcp-shaped",
+      "category": "compression_positive",
+      "safe_win": false,
+      "decline_correct": null,
+      "criteria": {
+        "compressed_at_all": false
+      },
+      "notes": "hook declined this case; not a compression candidate"
+    },
+    {
+      "name": "workspace-file-inventory",
+      "category": "compression_positive",
+      "safe_win": false,
+      "decline_correct": null,
+      "criteria": {
+        "compressed_at_all": false
+      },
+      "notes": "hook declined this case; not a compression candidate"
+    },
+    {
+      "name": "graphtor-search-results-representative",
+      "category": "compression_positive",
+      "safe_win": false,
+      "decline_correct": null,
+      "criteria": {
+        "compressed_at_all": false
+      },
+      "notes": "hook declined this case; not a compression candidate"
+    },
+    {
+      "name": "tiny-output-decline",
+      "category": "decline_control",
+      "safe_win": false,
+      "decline_correct": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "tiny_output"
+    },
+    {
+      "name": "unwritable-store-passthrough",
+      "category": "decline_control",
+      "safe_win": false,
+      "decline_correct": false,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true,
+        "unwritable_store_path_exercised": false
+      },
+      "notes": "unwritable_store [INCONCLUSIVE: hook declined before store.put() was reached; unwritable-store passthrough not exercised this run]"
+    },
+    {
+      "name": "secret-bearing-output-decline",
+      "category": "decline_control",
+      "safe_win": false,
+      "decline_correct": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "secret_bearing"
+    },
+    {
+      "name": "gate-readiness-verdict-decline",
+      "category": "decline_control",
+      "safe_win": false,
+      "decline_correct": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "gate_readiness_verdict"
+    },
+    {
+      "name": "failure-bearing-gh-run-view-representative",
+      "category": "decline_control",
+      "safe_win": false,
+      "decline_correct": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "failure_bearing_success [synthetic-representative: emulates a failed `gh run view --log-failed` without depending on a live failed CI run]"
+    },
+    {
+      "name": "active-stack-trace-decline",
+      "category": "decline_control",
+      "safe_win": false,
+      "decline_correct": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "active_stack_trace"
+    },
+    {
+      "name": "operator-approval-text-decline",
+      "category": "decline_control",
+      "safe_win": false,
+      "decline_correct": true,
+      "criteria": {
+        "declined_as_expected": true,
+        "no_durable_row_on_decline": true
+      },
+      "notes": "operator_approval_text"
+    }
+  ]
+}

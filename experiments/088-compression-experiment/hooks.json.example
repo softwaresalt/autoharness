@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "type": "command",
+        "matcher": "bash|view|task|.*_mcp.*",
+        "bash": "python experiments/088-compression-experiment/brainspace/hook_cli.py",
+        "powershell": "python experiments/088-compression-experiment/brainspace/hook_cli.py",
+        "timeoutSec": 10,
+        "env": {"BRAINSPACE_WORKSPACE": "${workspaceFolder}"}
+      }
+    ]
+  }
+}
