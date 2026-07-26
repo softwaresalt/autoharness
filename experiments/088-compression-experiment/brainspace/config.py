@@ -46,6 +46,41 @@ ADDITIONAL_CONTEXT_CAP_BYTES = 10 * 1024
 #: Matcher scope (spike §7.1): noisy tools plus MCP result tools.
 DEFAULT_MATCHER = r"bash|view|task|.*_mcp.*"
 
+#: P-018 round-10/11 finding: the ``postToolUse`` hook payload does not
+#: identify which Copilot model/tokenizer is actually in play for the live
+#: session, so a real model tokenizer must never be ASSUMED (e.g.
+#: hardcoding ``cl100k_base``) -- doing so lets a session on a different
+#: model be rewritten based on an unrelated token count, silently
+#: defeating the never-expand guard's own promise. Instead, the operator
+#: must explicitly BIND this environment variable to one of the encodings
+#: this experiment has been reviewed against; any unset or unrecognized
+#: value is treated as "unbound" and the model tokenizer is reported
+#: unavailable (fail-safe: decline compression rather than guess).
+MODEL_ENCODING_ENV_VAR = "BRAINSPACE_MODEL_ENCODING"
+
+#: Explicit allowlist of model/tokenizer encodings this experiment has been
+#: reviewed against. Do not add an encoding here without also confirming
+#: (and documenting) which Copilot model(s) actually use it.
+SUPPORTED_MODEL_ENCODINGS = frozenset({"cl100k_base", "o200k_base"})
+
+
+def get_bound_model_encoding():
+    """Return the operator-declared, explicitly-supported model encoding
+    for this session, or ``None`` if unbound or unrecognized.
+
+    An installed ``tiktoken`` alone is never sufficient to authorize the
+    never-expand guard's real-model comparison -- the operator must
+    explicitly declare which encoding matches the live session's actual
+    model via :data:`MODEL_ENCODING_ENV_VAR`. Unset or unrecognized values
+    fail closed (return ``None``), which the measurement module treats as
+    "no model tokenizer available" so the guard declines rather than
+    silently rewriting on a mismatched model's token count.
+    """
+    value = os.environ.get(MODEL_ENCODING_ENV_VAR)
+    if value in SUPPORTED_MODEL_ENCODINGS:
+        return value
+    return None
+
 #: Compact deterministic footer template appended so the model can request
 #: the byte-equivalent original. No timestamps/mutable counters (086 risk:
 #: prompt-cache fragility).

@@ -179,6 +179,55 @@ def test_purge_all_removes_every_row(store):
     assert store.row_count() == 0
 
 
+def test_purge_expired_leaves_no_raw_output_bytes_on_disk(tmp_path):
+    # P-018 final-convergence finding #4: DELETE + commit alone only
+    # removes the SQL row -- with the DB held open in WAL mode (as the
+    # long-lived MCP server does), the pre-delete page image containing
+    # the raw output can remain readable in an un-checkpointed WAL frame
+    # past the advertised TTL. purge_expired() must actually remove the
+    # raw bytes from disk (main db file AND its WAL sidecar), not just the
+    # logical row, for the bounded-retention claim to hold.
+    marker = "UNIQUE_RAW_OUTPUT_MARKER_9f3c7a21_do_not_reuse_elsewhere"
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=100_000)
+    try:
+        s.put(marker * 200)  # large enough to force a real on-disk write
+        time.sleep(1.2)  # now past the 1s TTL
+        removed = s.purge_expired()
+        assert removed == 1
+
+        db_path = s.root / "ccr.sqlite3"
+        wal_path = s.root / "ccr.sqlite3-wal"
+        db_bytes = db_path.read_bytes()
+        assert marker.encode("utf-8") not in db_bytes
+        if wal_path.exists():
+            wal_bytes = wal_path.read_bytes()
+            assert marker.encode("utf-8") not in wal_bytes
+    finally:
+        s.close()
+
+
+def test_expired_get_cleanup_also_leaves_no_raw_output_bytes_on_disk(tmp_path):
+    # Companion to the purge_expired() disk-level test: the lazy
+    # expired-row cleanup triggered by get() is also a TTL-cleanup path
+    # and must hold the same on-disk bounded-retention guarantee.
+    marker = "UNIQUE_RAW_OUTPUT_MARKER_lazy_get_path_5b1e0d"
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=100_000)
+    try:
+        handle = s.put(marker * 200)
+        time.sleep(1.2)
+        assert s.get(handle) is None  # triggers _delete_if_still_expired
+
+        db_path = s.root / "ccr.sqlite3"
+        wal_path = s.root / "ccr.sqlite3-wal"
+        db_bytes = db_path.read_bytes()
+        assert marker.encode("utf-8") not in db_bytes
+        if wal_path.exists():
+            wal_bytes = wal_path.read_bytes()
+            assert marker.encode("utf-8") not in wal_bytes
+    finally:
+        s.close()
+
+
 def test_delete_removes_single_row(store):
     handle = store.put("delete me")
     store.delete(handle)

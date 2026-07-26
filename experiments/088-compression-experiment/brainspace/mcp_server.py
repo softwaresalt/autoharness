@@ -98,7 +98,7 @@ def dispatch_tool_call(store, tool_name: str, arguments: dict) -> dict:
     return _text_result(text, is_error=False, meta=meta)
 
 
-def handle_request(request: dict, store):
+def handle_request(request, store):
     """Handle one JSON-RPC request against ``store``. Pure, testable core.
 
     ``main()`` is the thin stdio transport wrapper around this function --
@@ -111,7 +111,23 @@ def handle_request(request: dict, store):
     JSON-RPC 2.0 / MCP, notifications MUST receive no response at all
     (P-018 re-review finding #2, new round): a method-not-found response
     with ``id: null`` is not a valid reply to a notification.
+
+    ``request`` is untyped (not annotated ``dict``) because a syntactically
+    valid JSON payload is not guaranteed to decode to an *object* -- a bare
+    list, string, number, or ``null`` all parse successfully but are not a
+    JSON-RPC Request. Calling ``.get()`` on those crashes with
+    ``AttributeError`` (P-018 final-convergence finding #2), which would
+    take down this long-lived stdio server on a single malformed line. Per
+    JSON-RPC 2.0 §5.1, a non-object request is reported as ``-32600``
+    Invalid Request with ``id: null`` (the id cannot be recovered from a
+    non-object payload), and the server MUST keep serving afterward.
     """
+    if not isinstance(request, dict):
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32600, "message": "Invalid Request"},
+        }
     method = request.get("method")
     is_notification = "id" not in request
     req_id = request.get("id")
@@ -148,6 +164,31 @@ def handle_request(request: dict, store):
     }
 
 
+def handle_line(line: str, store):
+    """Parse one raw stdio line as JSON and dispatch it via
+    :func:`handle_request`. Returns a response dict, or ``None`` if no
+    reply should be sent (a notification, per JSON-RPC 2.0 semantics).
+
+    This is the pure, testable seam between the stdio transport loop and
+    request handling (P-018 final-convergence finding #2): a line that
+    fails to parse as JSON at all is a ``-32700`` Parse error (JSON-RPC 2.0
+    §4.2); a line that parses but is not a JSON object falls through to
+    ``handle_request``'s own ``-32600`` Invalid Request check. Either way
+    this function -- and therefore the long-lived stdio server calling it
+    -- must never raise for a malformed line and must keep serving
+    afterward.
+    """
+    try:
+        request = json.loads(line)
+    except json.JSONDecodeError:
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32700, "message": "Parse error"},
+        }
+    return handle_request(request, store)
+
+
 def main() -> int:  # pragma: no cover -- thin stdio transport wrapper
     from brainspace.store import BrainspaceStore
 
@@ -158,15 +199,11 @@ def main() -> int:  # pragma: no cover -- thin stdio transport wrapper
             line = line.strip()
             if not line:
                 continue
-            try:
-                request = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            response = handle_request(request, store)
+            response = handle_line(line, store)
             if response is not None:
-                # Notifications (handle_request returned None) must receive
-                # no reply at all -- per JSON-RPC 2.0 / MCP semantics.
+                # Notifications (handle_line/handle_request returned None)
+                # must receive no reply at all -- per JSON-RPC 2.0 / MCP
+                # semantics.
                 print(json.dumps(response), flush=True)
     finally:
         store.close()

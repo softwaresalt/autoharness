@@ -52,6 +52,15 @@ class BrainspaceStore:
         # filesystem falls back to rollback mode (e.g. no shared-memory
         # locking support), but WAL mode is the primary containment control.
         self._conn.execute("PRAGMA journal_mode=WAL")
+        # secure_delete=ON: any DELETE overwrites the freed page content with
+        # zero bytes as part of the same transaction, rather than merely
+        # unlinking it from the b-tree and leaving the raw bytes readable in
+        # the free page until reused. Combined with the wal_checkpoint(...)
+        # call in purge_expired()/purge_all() below, this is what makes the
+        # store's advertised bounded-retention/TTL claim actually true on
+        # disk, not just at the SQL-row level (P-018 final-convergence
+        # finding #4).
+        self._conn.execute("PRAGMA secure_delete=ON")
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS entries ("
             " handle TEXT PRIMARY KEY,"
@@ -154,24 +163,48 @@ class BrainspaceStore:
         handle dangling. Keying the delete on the stale ``stored_at`` value
         makes it a no-op whenever a refresh has already happened, so the
         refreshed row survives.
+
+        This is also a TTL-cleanup path (triggered lazily on ``get()`` of an
+        expired row rather than the periodic sweep in ``purge_expired()``),
+        so it checkpoints/truncates the WAL for the same on-disk
+        bounded-retention reason (P-018 final-convergence finding #4) --
+        but only when this call actually deleted a row, to avoid a wasted
+        checkpoint on the concurrent-refresh no-op case.
         """
-        self._conn.execute(
+        cur = self._conn.execute(
             "DELETE FROM entries WHERE handle = ? AND stored_at = ?",
             (handle, stored_at),
         )
         self._conn.commit()
+        if cur.rowcount:
+            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
     def delete(self, handle: str) -> None:
         self._conn.execute("DELETE FROM entries WHERE handle = ?", (handle,))
         self._conn.commit()
 
     def purge_expired(self) -> int:
-        """Delete all entries older than the configured TTL. Returns count."""
+        """Delete all entries older than the configured TTL. Returns count.
+
+        The DELETE + commit alone only removes the SQL row; with the
+        long-lived MCP server holding this connection open in WAL mode,
+        the pre-delete page image (containing the raw output) can remain
+        readable in WAL frames written before this checkpoint until a
+        checkpoint reclaims them. ``wal_checkpoint(TRUNCATE)`` flushes all
+        frames -- including the ``secure_delete=ON`` zeroed page from this
+        delete -- back into the main database file and truncates the WAL
+        file itself, so no earlier frame containing the still-live raw
+        bytes survives on disk past this call (P-018 final-convergence
+        finding #4: the bounded-retention/TTL claim must hold on disk, not
+        only at the SQL-row level).
+        """
         if self._ttl_seconds is None:
             return 0
         cutoff = time.time() - self._ttl_seconds
         cur = self._conn.execute("DELETE FROM entries WHERE stored_at < ?", (cutoff,))
         self._conn.commit()
+        if cur.rowcount:
+            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         return cur.rowcount
 
     def purge_all(self) -> None:

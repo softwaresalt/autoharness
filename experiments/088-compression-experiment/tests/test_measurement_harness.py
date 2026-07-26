@@ -7,7 +7,7 @@ already produced elsewhere.
 
 import pytest
 
-from brainspace import measurement
+from brainspace import config, measurement
 from brainspace.tokenizer_fallback import estimate_tokens
 
 
@@ -187,3 +187,45 @@ def test_count_tokens_still_falls_back_silently_for_non_strict_callers(monkeypat
     monkeypatch.setattr(measurement, "_load_model_tokenizer", lambda: _raising_tokenizer)
     text = "some sample text for token counting " * 10
     assert measurement.count_tokens(text) == estimate_tokens(text)
+
+
+def test_load_model_tokenizer_returns_none_when_encoding_unbound(monkeypatch):
+    # P-018 round-10 finding: an installed tiktoken alone must never be
+    # treated as proof the tokenizer matches the live session's actual
+    # model -- the postToolUse payload carries no model identifier, so an
+    # unset/unrecognized BRAINSPACE_MODEL_ENCODING must fail closed.
+    monkeypatch.delenv(config.MODEL_ENCODING_ENV_VAR, raising=False)
+    assert measurement._load_model_tokenizer() is None
+    assert measurement.is_model_tokenizer_available() is False
+
+
+def test_load_model_tokenizer_returns_none_for_unrecognized_encoding(monkeypatch):
+    monkeypatch.setenv(config.MODEL_ENCODING_ENV_VAR, "some-future-unreviewed-encoding")
+    assert measurement._load_model_tokenizer() is None
+
+
+def test_load_model_tokenizer_uses_real_tokenizer_when_bound_and_available(monkeypatch):
+    tiktoken = pytest.importorskip("tiktoken")
+    monkeypatch.setenv(config.MODEL_ENCODING_ENV_VAR, "cl100k_base")
+    tokenizer = measurement._load_model_tokenizer()
+    assert tokenizer is not None
+    encoding = tiktoken.get_encoding("cl100k_base")
+    text = "some sample text for token counting"
+    assert tokenizer(text) == len(encoding.encode(text))
+
+
+def test_count_tokens_strict_declines_when_encoding_unbound_even_with_tiktoken_installed(monkeypatch):
+    pytest.importorskip("tiktoken")
+    monkeypatch.delenv(config.MODEL_ENCODING_ENV_VAR, raising=False)
+    with pytest.raises(measurement.ModelTokenizerUnavailable):
+        measurement.count_tokens_strict("some text")
+
+
+def test_get_bound_model_encoding_rejects_unrecognized_value(monkeypatch):
+    monkeypatch.setenv(config.MODEL_ENCODING_ENV_VAR, "gpt2")
+    assert config.get_bound_model_encoding() is None
+
+
+def test_get_bound_model_encoding_accepts_supported_value(monkeypatch):
+    monkeypatch.setenv(config.MODEL_ENCODING_ENV_VAR, "cl100k_base")
+    assert config.get_bound_model_encoding() == "cl100k_base"

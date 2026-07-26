@@ -4,6 +4,8 @@ Tests the pure dispatch function directly (no stdio transport) so the tool
 contract is verified without spinning a real MCP client/server pair.
 """
 
+import json
+
 import pytest
 
 from brainspace.mcp_server import dispatch_tool_call
@@ -152,3 +154,70 @@ def test_handle_request_unknown_notification_still_returns_none(store):
 
     request = {"jsonrpc": "2.0", "method": "notifications/some_future_event"}
     assert handle_request(request, store) is None
+
+
+def test_handle_request_non_object_list_returns_invalid_request_not_crash(store):
+    # P-018 final-convergence finding #2: a syntactically valid JSON value
+    # that is not an object (e.g. "[]") must never reach ``.get()`` and
+    # crash the long-lived server with AttributeError.
+    from brainspace.mcp_server import handle_request
+
+    response = handle_request([], store)
+    assert response["error"]["code"] == -32600
+    assert response["id"] is None
+
+
+def test_handle_request_non_object_bare_string_returns_invalid_request(store):
+    from brainspace.mcp_server import handle_request
+
+    response = handle_request("just a string", store)
+    assert response["error"]["code"] == -32600
+
+
+def test_handle_request_non_object_number_returns_invalid_request(store):
+    from brainspace.mcp_server import handle_request
+
+    response = handle_request(42, store)
+    assert response["error"]["code"] == -32600
+
+
+def test_handle_request_non_object_null_returns_invalid_request(store):
+    from brainspace.mcp_server import handle_request
+
+    response = handle_request(None, store)
+    assert response["error"]["code"] == -32600
+
+
+def test_handle_line_malformed_json_returns_parse_error_not_crash(store):
+    # P-018 final-convergence finding #2: malformed JSON must not silently
+    # vanish (the previous ``continue``) nor crash -- it is reported as a
+    # standard JSON-RPC -32700 Parse error so the server keeps serving.
+    from brainspace.mcp_server import handle_line
+
+    response = handle_line("{not valid json", store)
+    assert response["error"]["code"] == -32700
+    assert response["id"] is None
+
+
+def test_handle_line_non_object_list_returns_invalid_request(store):
+    from brainspace.mcp_server import handle_line
+
+    response = handle_line("[]", store)
+    assert response["error"]["code"] == -32600
+
+
+def test_handle_line_survives_sequence_of_bad_lines_then_serves_good_request(store):
+    # The server must keep serving after malformed/non-object lines --
+    # neither should raise, and a subsequent well-formed request must
+    # still dispatch normally.
+    from brainspace.mcp_server import handle_line
+
+    assert handle_line("not json at all {", store)["error"]["code"] == -32700
+    assert handle_line("[]", store)["error"]["code"] == -32600
+    assert handle_line('"a bare string"', store)["error"]["code"] == -32600
+
+    good = handle_line(
+        json.dumps({"jsonrpc": "2.0", "id": 99, "method": "tools/list"}), store
+    )
+    assert good["id"] == 99
+    assert "tools" in good["result"]

@@ -585,6 +585,127 @@ final for this remediation cycle regardless of any further auto-triggered
 re-review; any subsequent finding becomes an explicit operator-facing
 follow-up rather than a tenth round.
 
+### Rounds 10–11 and the final convergence pass: closing the last four findings
+
+Two more auto-triggered re-review rounds surfaced 4 additional findings after
+round 9 (round 10: 1 finding; round 11: 3 findings, the latter triggered
+inadvertently by a backlog-tracking commit push, not a deliberate re-request).
+Given the remediation cycle was already at 11 rounds — well beyond the
+standing 3-cycle guidance — these 4 were initially replied to with an honest
+deferral rationale and left unresolved as explicit follow-ups, pending
+operator direction. The operator then explicitly directed a bounded final
+convergence pass: fix all 4 for real (none deferrable), in one consolidated
+push, then resolve every remaining thread via GraphQL without further pushes
+(since resolving a thread does not itself re-trigger Copilot review — only a
+push does), capped at one additional fix-push if that push's own follow-up
+review surfaced a genuine new hard blocker. All 4 are now fixed with
+regression tests, not deferred:
+
+* **Hardcoded `cl100k_base` was never proven to match the live session's
+  actual model (round 10).** `measurement._load_model_tokenizer()` loaded
+  `tiktoken.get_encoding("cl100k_base")` unconditionally whenever `tiktoken`
+  was importable, with no check that the live Copilot session was actually
+  using a `cl100k_base`-compatible model. The `postToolUse` payload carries
+  no model identifier, so this was an unverifiable assumption: once
+  `tiktoken` is installed in a pilot environment, a session on a different
+  model could be rewritten based on a token count that does not correspond
+  to what that model would actually see, and the never-expand guard's own
+  promise ("compressed + footer is never more tokens than the original")
+  would no longer hold for the real model in play. Fixed: `config.py` adds
+  `MODEL_ENCODING_ENV_VAR` (`BRAINSPACE_MODEL_ENCODING`) and an explicit
+  `SUPPORTED_MODEL_ENCODINGS` allowlist; `get_bound_model_encoding()` returns
+  the operator-declared encoding only if it is both set and recognized,
+  else `None`. `_load_model_tokenizer()` now requires a bound encoding
+  before even attempting the `tiktoken` import/load — an installed
+  tokenizer with no explicit, reviewed binding is treated identically to no
+  tokenizer being installed at all (`is_model_tokenizer_available()` returns
+  `False`, and the never-expand guard declines exactly as it already does in
+  today's tokenizer-less environment). New tests cover: unbound encoding
+  (even with a working fake `tiktoken` stub) declines; an unrecognized
+  encoding value declines; a bound, supported encoding loads and is used for
+  real counting; the end-to-end hook CLI still declines with `tiktoken`
+  importable but `BRAINSPACE_MODEL_ENCODING` unset. Precondition #1 (below)
+  is reworded to require this explicit binding, not merely "install a
+  tokenizer."
+* **A non-object JSON-RPC message crashed the long-lived MCP server
+  (round 11).** `mcp_server.handle_request()` called `request.get("method")`
+  unconditionally. A syntactically valid JSON value that is not an object —
+  a bare list (`[]`), string, number, or `null` — parses successfully via
+  `json.loads()` but has no `.get()` method, so it reached this call and
+  raised `AttributeError`, taking down the server process on a single
+  malformed line. Fixed: `handle_request()` now checks `isinstance(request,
+  dict)` first and returns a standard JSON-RPC `-32600` Invalid Request
+  (`id: null`, since no id can be recovered from a non-object payload) for
+  any non-dict input, before touching `.get()`. Malformed JSON that fails to
+  parse at all is now also handled explicitly rather than silently swallowed
+  (the previous stdio loop's bare `except json.JSONDecodeError: continue`):
+  a new `handle_line()` seam parses one raw line and returns a `-32700`
+  Parse error response when `json.loads()` itself raises, keeping the
+  request/response protocol observable instead of going silent. New tests
+  exercise `handle_request` with `[]`, a bare string, a number, and `None`
+  (all `-32600`), `handle_line` with malformed JSON (`-32700`) and a
+  non-object line (`-32600`), and a sequence test proving the server keeps
+  serving a subsequent well-formed request after several bad lines in a row.
+* **TTL purge did not actually remove raw output from disk (round 11,
+  containment-relevant — not deferred).** `store.purge_expired()` issued
+  `DELETE ... WHERE stored_at < cutoff` and committed, which removes the SQL
+  row, but with the long-lived MCP server holding the connection open in
+  WAL mode, the pre-delete page image (containing the raw output bytes) can
+  remain readable in an un-checkpointed WAL frame written before the delete
+  — SQLite's WAL is append-only until a checkpoint consolidates frames back
+  into the main database file. So the advertised bounded-retention/TTL claim
+  was true only at the SQL-row level, not the on-disk-bytes level, for as
+  long as the server process kept the WAL open. Fixed two ways: (1) the
+  store's connection now also sets `PRAGMA secure_delete=ON`, so any
+  `DELETE` overwrites the freed page's content with zero bytes as part of
+  the same transaction rather than merely unlinking it from the b-tree; (2)
+  `purge_expired()` (and the lazy per-`get()` expired-row cleanup in
+  `_delete_if_still_expired()`) now call `PRAGMA wal_checkpoint(TRUNCATE)`
+  immediately after a delete that actually removed a row, which flushes all
+  WAL frames — including the newly zeroed page — back into the main database
+  file and truncates the WAL file itself, discarding any earlier frame that
+  still held the pre-delete raw bytes. This is the preferred fix (real
+  physical removal), not the doc-claim-downgrade fallback the operator
+  authorized as a last resort. New regression tests
+  (`test_purge_expired_leaves_no_raw_output_bytes_on_disk` and
+  `test_expired_get_cleanup_also_leaves_no_raw_output_bytes_on_disk`) insert
+  a uniquely-marked payload, let it expire, purge, then read the raw bytes
+  of both the main `.sqlite3` file and its `-wal` sidecar directly off disk
+  and assert the marker string does not appear in either — proving the
+  bytes are gone, not merely the row.
+* **Precondition #1 wording (couples to the `measurement.py` fix).** The
+  prior wording ("Add `tiktoken` ... and re-run the benchmark corpus")
+  still permitted the hardcoded-`cl100k_base`-once-installed behavior this
+  round closes. Reworded (see
+  [Preconditions](#preconditions-for-a-narrow-pilot)) to require binding
+  token counting to the Copilot model(s) the pilot actually targets via
+  `BRAINSPACE_MODEL_ENCODING`, with unknown/unbound models declining rather
+  than silently assumed.
+
+**Benchmark/report impact**: regenerating the benchmark report after this
+fix set produces **no diff** — `tiktoken` remains uninstalled in this CI/dev
+environment, so `_load_model_tokenizer()` still returns `None` (it now fails
+closed one step earlier, at the encoding-binding check, before even
+attempting the `tiktoken` import) and every figure in the Evidence summary
+below is unchanged from round 9 (`6 of 7` decline-control-correct; `0 of 6`
+six-criteria safe wins). The **headline recommendation is unchanged**:
+**NARROW-PILOT**, zero proven safe wins, precondition #1 (now a model-bound
+tokenizer, not merely an installed one) still required.
+
+**Circuit-breaker note (final)**: this remediation cycle ran 11 Copilot
+review rounds in total (49 threads, 45 resolved by round 9, 4 explicit
+follow-ups carried from rounds 10–11) before the operator explicitly
+directed this bounded final convergence pass, overriding the standing
+3-cycle guidance for this specific PR. All 4 remaining findings were
+genuinely valid and safety/containment/evidence-integrity relevant per the
+operator's own assessment, so all 4 are fixed with tests here rather than
+declined. Per the bounded-convergence protocol, the fix commit for these 4
+is pushed exactly once; any further Copilot findings from that push's
+follow-up review round are resolved via reply + GraphQL `resolveReviewThread`
+without additional code pushes unless a genuine new hard blocker (P0-class
+safety/containment/evidence-integrity) appears, in which case a single
+additional fix-push is the absolute cap before escalating to the operator.
+
 ## Evidence summary
 
 ### Copilot CLI `postToolUse` hooks contract re-verification (plan condition #4)
@@ -776,14 +897,26 @@ explicit note, rather than silently dropped or silently counted as correct.
 Before any follow-up feature considers widening this beyond the current
 throwaway experiment:
 
-1. **Real tokenizer verification (blocking).** Add `tiktoken` (or an
-   equivalent) as an explicit, isolated optional dependency for the pilot
-   only, and re-run the benchmark corpus to determine whether savings hold
-   under a real tokenizer. Until this happens, this experiment has proven
-   **zero** cases meeting the full six-criterion safe-win standard, and, as
-   of the round-6 fix, the live hook cannot attempt compression on any case
-   at all without one (`is_model_tokenizer_available()` gates the
-   never-expand guard before any candidate is considered).
+1. **Real, model-bound tokenizer verification (blocking).** Add `tiktoken`
+   (or an equivalent) as an explicit, isolated optional dependency for the
+   pilot only, AND explicitly bind token counting to the Copilot model(s)
+   the pilot actually targets via `BRAINSPACE_MODEL_ENCODING` (an
+   operator-declared, allowlisted encoding — see `config.py`), then
+   re-run the benchmark corpus to determine whether savings hold under
+   that bound tokenizer. Merely having `tiktoken` importable is
+   insufficient and was itself a P-018 final-convergence finding: the
+   `postToolUse` payload carries no model identifier, so an installed
+   tokenizer alone is never proof it matches the live session's actual
+   model — assuming `cl100k_base` (or any other encoding) without an
+   explicit, reviewed binding could silently rewrite output based on an
+   unrelated model's token count, and correspondingly the never-expand
+   guard's promise would no longer hold for the real live model. Until an
+   explicit model binding is configured, `_load_model_tokenizer()`
+   reports the tokenizer unavailable and the live hook declines
+   (`is_model_tokenizer_available()` gates the never-expand guard before
+   any candidate is considered) regardless of whether `tiktoken` itself
+   is installed. As of this writing, this experiment has proven **zero**
+   cases meeting the full six-criterion safe-win standard.
 2. **Stronger task-answerability proof.** Extend the evidence oracle's fact
    patterns and/or add a real model-graded answerability check for a
    broader sample of benchmark cases, rather than relying solely on

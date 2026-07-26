@@ -25,18 +25,29 @@ PROJECTION_TURNS = (1, 3, 5, 10)
 def _load_model_tokenizer():
     """Return a callable ``text -> int`` model tokenizer, or ``None``.
 
-    Attempts an optional import of ``tiktoken``. No new dependency is added
-    to the project — if ``tiktoken`` is not installed, this returns
-    ``None`` and callers fall back to the cheap estimator. This keeps the
-    experiment's declared "no new pip dependencies" constraint intact.
+    Requires an EXPLICIT, operator-declared model-encoding binding via
+    :data:`config.MODEL_ENCODING_ENV_VAR` (P-018 round-10/11 finding): the
+    hook payload does not identify which Copilot model/tokenizer is
+    actually in play, so an installed ``tiktoken`` alone is never
+    sufficient proof that ``cl100k_base`` (or any other encoding) matches
+    the live session's real model. Without an explicit, recognized
+    binding, this returns ``None`` and callers fall back to the cheap
+    estimator (non-strict callers) or decline (strict callers) -- never
+    silently assuming a specific encoding is correct for an unknown model.
+    No new dependency is added to the project -- if ``tiktoken`` is not
+    installed, this also returns ``None``.
     """
+    encoding_name = config.get_bound_model_encoding()
+    if encoding_name is None:
+        return None
+
     try:
         import tiktoken  # type: ignore
     except ImportError:
         return None
 
     try:
-        encoding = tiktoken.get_encoding("cl100k_base")
+        encoding = tiktoken.get_encoding(encoding_name)
     except Exception:
         return None
 

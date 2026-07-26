@@ -99,10 +99,52 @@ def test_enabled_without_model_tokenizer_still_passes_through_unchanged(tmp_path
 def test_enabled_with_model_tokenizer_available_compresses_large_matching_output(tmp_path):
     # Companion to the decline test above: prove the compress-and-stash path
     # still works end-to-end (through the real subprocess CLI, not just the
-    # in-process unit tests) once a real model tokenizer becomes available.
-    # A tiny fake ``tiktoken`` stub is injected via PYTHONPATH so this does
-    # not depend on the real dependency being installed in the environment
-    # that runs the suite.
+    # in-process unit tests) once a real model tokenizer becomes available
+    # AND is explicitly bound to a supported encoding (P-018 round-10
+    # finding: an installed tokenizer alone is not proof it matches the
+    # live session's actual model). A tiny fake ``tiktoken`` stub is
+    # injected via PYTHONPATH so this does not depend on the real
+    # dependency being installed in the environment that runs the suite.
+    stub_dir = tmp_path / "tiktoken_stub"
+    stub_dir.mkdir()
+    (stub_dir / "tiktoken.py").write_text(
+        "class _Encoding:\n"
+        "    def encode(self, text):\n"
+        "        return text.split()\n"
+        "\n"
+        "\n"
+        "def get_encoding(name):\n"
+        "    return _Encoding()\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "sessionId": "s1",
+        "timestamp": 1,
+        "cwd": str(tmp_path),
+        "toolName": "bash",
+        "toolArgs": {},
+        "toolResult": {
+            "resultType": "success",
+            "textResultForLlm": "noisy line\n" * 100,
+        },
+    }
+    result = _run_hook_cli(
+        payload,
+        env_overrides={
+            "BRAINSPACE_EXPERIMENT_ENABLED": "1",
+            "BRAINSPACE_MODEL_ENCODING": "cl100k_base",
+            "PYTHONPATH": str(stub_dir) + os.pathsep + os.environ.get("PYTHONPATH", ""),
+        },
+    )
+    assert "modifiedResult" in result
+
+
+def test_enabled_with_tokenizer_installed_but_unbound_still_declines(tmp_path):
+    # P-018 round-10 finding: a tokenizer being IMPORTABLE must never be
+    # treated as proof it matches the live session's actual model -- the
+    # postToolUse payload carries no model identifier. Without an explicit
+    # BRAINSPACE_MODEL_ENCODING binding, the hook must decline even though
+    # the same fake tiktoken stub used in the test above is on PYTHONPATH.
     stub_dir = tmp_path / "tiktoken_stub"
     stub_dir.mkdir()
     (stub_dir / "tiktoken.py").write_text(
@@ -133,7 +175,7 @@ def test_enabled_with_model_tokenizer_available_compresses_large_matching_output
             "PYTHONPATH": str(stub_dir) + os.pathsep + os.environ.get("PYTHONPATH", ""),
         },
     )
-    assert "modifiedResult" in result
+    assert result == {}
 
 
 def test_malformed_stdin_is_safe_noop(tmp_path):
