@@ -230,3 +230,31 @@ def test_non_dict_payload_falls_back_to_process_cwd_instead_of_crashing(
     monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
     assert resolve_workspace_root(payload) == os.getcwd()
 
+
+def test_dict_payload_with_non_string_cwd_raises_containment_error(monkeypatch):
+    # 089.001-T: a *dict* payload whose ``cwd`` value is itself truthy but
+    # NOT a string (e.g. a crafted/stale hook payload carrying a list) passes
+    # the ``isinstance(payload, dict)`` and truthiness guards above, then
+    # previously reached ``_validate_related_to_process_cwd`` -> ``os.path
+    # .realpath()`` unguarded -- ``realpath`` raises a bare ``TypeError`` for
+    # a non-str/bytes/PathLike argument, crashing the hook instead of the
+    # required fail-safe ``WorkspaceContainmentError`` -> ``{}`` passthrough
+    # contract. This must raise ``WorkspaceContainmentError``, never a bare
+    # ``TypeError``.
+    monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
+    payload = {"cwd": ["not", "a", "string"]}
+    with pytest.raises(WorkspaceContainmentError):
+        resolve_workspace_root(payload)
+
+
+def test_dict_payload_with_valid_string_cwd_still_resolves(monkeypatch, tmp_path):
+    # Negative control for the guard above: an ordinary valid string ``cwd``
+    # in the payload must still resolve normally (no regression from the
+    # new ``isinstance(payload_cwd, str)`` check).
+    monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
+    monkeypatch.chdir(tmp_path)
+    subdir = tmp_path / "subdir"
+    subdir.mkdir()
+    payload = {"cwd": str(subdir)}
+    assert resolve_workspace_root(payload) == str(subdir)
+

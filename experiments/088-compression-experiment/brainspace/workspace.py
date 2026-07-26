@@ -163,6 +163,20 @@ def resolve_workspace_root(payload=None, *, explicit_root=None) -> str:
         # is truthy but has no ``.get()``, so ``payload.get("cwd")`` would
         # raise ``AttributeError`` here and crash the hook mid-resolution
         # instead of emitting its required fail-safe ``{}`` passthrough.
+        #
+        # 089.001-T: ``payload["cwd"]`` itself is not guaranteed to be a
+        # string even when the outer payload is a well-formed dict -- a
+        # crafted or stale payload could carry a truthy non-string value
+        # (e.g. a list). ``os.path.realpath()`` raises a bare ``TypeError``
+        # for a non-str/bytes/PathLike argument, which would crash the hook
+        # instead of the required fail-safe ``WorkspaceContainmentError`` ->
+        # ``{}`` passthrough contract, so this must be rejected before it
+        # ever reaches ``_validate_related_to_process_cwd``.
+        if not isinstance(payload_cwd, str):
+            raise WorkspaceContainmentError(
+                f"payload cwd must be a string, got {type(payload_cwd).__name__!r}: "
+                f"{payload_cwd!r}"
+            )
         _validate_related_to_process_cwd(payload_cwd, source="payload cwd")
         return payload_cwd
     return os.getcwd()

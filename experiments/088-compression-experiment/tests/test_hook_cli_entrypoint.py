@@ -193,6 +193,45 @@ def test_malformed_stdin_is_safe_noop(tmp_path):
     assert json.loads(proc.stdout) == {}
 
 
+def test_non_string_payload_cwd_is_safe_noop_not_a_crash(tmp_path):
+    # 089.001-T: a dict payload whose ``cwd`` value is truthy but NOT a
+    # string (e.g. a crafted/stale hook payload carrying a list) must not
+    # crash the hook subprocess with an uncaught ``TypeError`` from
+    # ``os.path.realpath()`` -- it must fail safe to the same ``{}``
+    # no-op passthrough as the other malformed-input cases above. This is
+    # the hook-level (subprocess entrypoint) invariant that matters in
+    # production: the resolver-level ``WorkspaceContainmentError`` proven in
+    # ``test_workspace_resolution.py`` must actually be caught and converted
+    # to the fail-safe passthrough by ``hook_cli.py``, not merely raised.
+    session_dir = tmp_path / "actual-session-dir"
+    session_dir.mkdir()
+    payload = {
+        "sessionId": "s1",
+        "timestamp": 1,
+        "cwd": ["not", "a", "string"],
+        "toolName": "bash",
+        "toolArgs": {},
+        "toolResult": {
+            "resultType": "success",
+            "textResultForLlm": "noisy line\n" * 100,
+        },
+    }
+    env = dict(os.environ)
+    env["BRAINSPACE_EXPERIMENT_ENABLED"] = "1"
+    env.pop("BRAINSPACE_WORKSPACE", None)
+    proc = subprocess.run(
+        [sys.executable, _HOOK_CLI],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(session_dir),
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout) == {}
+
+
 def test_unrelated_payload_cwd_is_safe_noop_not_a_crash(tmp_path):
     # P-018 round-3 follow-up finding: a crafted or stale payload cwd
     # unrelated to the subprocess's actual working directory must never

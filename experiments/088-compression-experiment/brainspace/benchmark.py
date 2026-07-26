@@ -206,12 +206,30 @@ def _run_compression_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseRe
     rows_after = store.row_count()
 
     if "modifiedResult" not in result:
+        # 089.002-T: the full (non-declined) path below reports
+        # capture_failed/provenance evidence via criteria["capture_succeeded"]
+        # and a notes annotation (L266, L288-296) -- this early-decline
+        # branch previously omitted both, misrepresenting a declined case's
+        # provenance in the benchmark report (a capture-failed or replayed
+        # sample that happened to get declined looked identical to a clean
+        # live decline).
+        notes = "hook declined this case; not a compression candidate"
+        if case.capture_failed:
+            notes = (
+                f"{notes} [capture failed (non-zero exit / misconfigured "
+                "command); never a safe win regardless of other criteria]"
+            )
+        if case.provenance != "live":
+            notes = f"{notes} [{case.provenance}]"
         return CaseResult(
             name=case.name,
             category="compression_positive",
             safe_win=False,
-            criteria={"compressed_at_all": False},
-            notes="hook declined this case; not a compression candidate",
+            criteria={
+                "compressed_at_all": False,
+                "capture_succeeded": not case.capture_failed,
+            },
+            notes=notes,
         )
 
     compressed_text = result["modifiedResult"]["textResultForLlm"]

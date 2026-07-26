@@ -208,6 +208,56 @@ def test_compression_case_fails_safe_win_when_required_fact_would_be_lost(store,
     assert result.criteria["evidence_oracle_passes"] is False
 
 
+def test_early_decline_case_carries_capture_failed_into_result(store, monkeypatch):
+    # 089.002-T: `_run_compression_case`'s early-decline branch (no
+    # `modifiedResult` in the hook result) previously returned only
+    # `{"compressed_at_all": False}`, silently dropping `capture_failed`
+    # evidence -- a declined case whose live capture itself failed must
+    # still surface that in its `CaseResult`, not be misreported as an
+    # unannotated decline.
+    #
+    # Force the hook's never-expand gate to decline deterministically
+    # (rather than relying on this environment happening to lack a real
+    # model tokenizer) so this test reliably exercises the early-decline
+    # branch in every supported environment, including one where
+    # ``tiktoken`` is installed.
+    monkeypatch.setattr("brainspace.hook.is_model_tokenizer_available", lambda: False)
+    case = BenchmarkCase(
+        name="capture-failed-and-declined",
+        tool_name="bash",
+        text=_compressible_text("exit code: 0"),
+        task_question="did the command succeed?",
+        required_fact="exit code: 0",
+        capture_failed=True,
+    )
+    report = run_benchmark([case], store=store)
+    result = report.results[0]
+    assert result.criteria.get("capture_succeeded") is False
+
+
+def test_early_decline_case_carries_non_live_provenance_into_result(store, monkeypatch):
+    # Companion to the test above: a declined case with a non-"live"
+    # provenance (e.g. a replayed/synthetic sample) must have that
+    # provenance reflected in the returned result, not silently reported as
+    # an unannotated decline that could be mistaken for a live measurement.
+    #
+    # As above, force the hook's never-expand gate to decline
+    # deterministically rather than relying on this environment lacking a
+    # real model tokenizer.
+    monkeypatch.setattr("brainspace.hook.is_model_tokenizer_available", lambda: False)
+    case = BenchmarkCase(
+        name="replayed-and-declined",
+        tool_name="bash",
+        text=_compressible_text("exit code: 0"),
+        task_question="did the command succeed?",
+        required_fact="exit code: 0",
+        provenance="replayed",
+    )
+    report = run_benchmark([case], store=store)
+    result = report.results[0]
+    assert "replayed" in result.notes
+
+
 def test_decline_control_case_reports_no_durable_row(store):
     case = BenchmarkCase(
         name="secret-bearing-output",
