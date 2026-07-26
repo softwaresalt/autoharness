@@ -23,8 +23,22 @@ def test_purge_cli_expired_mode_removes_only_expired_rows(tmp_path, capsys, monk
     finally:
         store.close()
 
-    exit_code = purge_cli.main(["--repo-root", str(tmp_path), "--mode", "expired"])
+    # P-018 round-3 follow-up finding: purge_cli previously always reopened
+    # the store with the (4-hour) default TTL, so this test's 1-second TTL
+    # rows were never actually "expired" from the CLI's point of view and
+    # `purge_expired()` purged zero rows. The only reason the assertions
+    # below used to pass anyway is that `store.get()` *lazily* deletes an
+    # expired row as a side effect of reading it -- masking the fact that
+    # the CLI's own purge path was never exercised. Passing --ttl-seconds
+    # to match the rows' actual TTL, and asserting the reported count, makes
+    # this test validate the real purge path rather than the lazy-get path.
+    exit_code = purge_cli.main(
+        ["--repo-root", str(tmp_path), "--mode", "expired", "--ttl-seconds", "1"]
+    )
     assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "Purged 1" in captured.out
 
     verify = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=10_000)
     try:
@@ -32,9 +46,6 @@ def test_purge_cli_expired_mode_removes_only_expired_rows(tmp_path, capsys, monk
         assert verify.get(live_handle) == "still-live content"
     finally:
         verify.close()
-
-    captured = capsys.readouterr()
-    assert "Purged" in captured.out
 
 
 def test_purge_cli_all_mode_clears_entire_store(tmp_path, monkeypatch):

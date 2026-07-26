@@ -182,7 +182,16 @@ def test_decline_control_case_reports_no_durable_row(store):
     report = run_benchmark([case], store=store)
     result = report.results[0]
     assert result.category == "decline_control"
-    assert result.safe_win is True  # "safe" here means it correctly declined
+    # P-018 round-3 follow-up finding: a decline control passing its own two
+    # checks (declined as expected, no durable row) is NOT the same thing as
+    # a "SAFE WIN" under the module's six-criteria compression-positive bar
+    # (module docstring, §7.4 of the spike) -- conflating the two silently
+    # inflated `safe_win_count` even though zero compression-positive cases
+    # met all six criteria. `safe_win` must stay False for every
+    # decline_control result; decline correctness is tracked separately via
+    # `decline_correct`.
+    assert result.safe_win is False
+    assert result.decline_correct is True
     assert result.criteria["declined_as_expected"] is True
     assert result.criteria["no_durable_row_on_decline"] is True
 
@@ -200,6 +209,7 @@ def test_decline_control_case_flags_when_it_unexpectedly_compresses(store):
     report = run_benchmark([case], store=store)
     result = report.results[0]
     assert result.safe_win is False
+    assert result.decline_correct is False
     assert result.criteria["declined_as_expected"] is False
 
 
@@ -214,9 +224,39 @@ def test_unwritable_store_simulation_falls_back_to_passthrough(store):
     )
     report = run_benchmark([case], store=store)
     result = report.results[0]
-    assert result.safe_win is True
+    assert result.safe_win is False
+    assert result.decline_correct is True
     assert result.criteria["declined_as_expected"] is True
     assert result.criteria["no_durable_row_on_decline"] is True
+
+
+def test_report_decline_correct_count_tracked_separately_from_safe_win_count(store):
+    # P-018 round-3 follow-up finding regression test: `safe_win_count` must
+    # reflect only genuine six-criteria compression-positive safe wins.
+    # Correctly-behaving decline controls are counted via
+    # `decline_correct_count`, never folded into `safe_win_count`.
+    cases = [
+        BenchmarkCase(
+            name="win-case",
+            tool_name="bash",
+            text=_compressible_text(),
+            task_question="q",
+            required_fact="exit code: 0",
+        ),
+        BenchmarkCase(
+            name="decline-case",
+            tool_name="bash",
+            text="tiny",
+            task_question="n/a",
+            expect_decline=True,
+        ),
+    ]
+    report = run_benchmark(cases, store=store)
+    assert report.decline_correct_count == 1
+    # The compression-positive case above has no fake tokenizer stub, so it
+    # is not proven a safe win either -- safe_win_count must be 0, not 1
+    # (which the old bug would have reported by counting the decline too).
+    assert report.safe_win_count == 0
 
 
 def test_report_includes_both_compression_and_decline_cases_not_hidden(store):

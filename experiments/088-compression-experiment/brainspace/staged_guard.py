@@ -47,7 +47,14 @@ def find_staged_store_violations(staged_paths):
 
 
 def main(staged_paths=None):
-    """CLI entry point: exit non-zero if any store file is staged."""
+    """CLI entry point: exit non-zero if any store file is staged.
+
+    Fails CLOSED if ``staged_paths`` is not supplied and the underlying
+    ``git diff --cached --name-only`` invocation itself fails (nonzero
+    returncode) -- a pre-commit control protecting raw stored output must
+    never silently report "no violations" just because it could not inspect
+    the index (P-018 round-3 follow-up finding).
+    """
     import subprocess
     import sys
 
@@ -58,6 +65,15 @@ def main(staged_paths=None):
             text=True,
             check=False,
         )
+        if result.returncode != 0:
+            print(
+                "088-F staged-file guard: `git diff --cached --name-only` "
+                "failed, so the staged index could not be inspected. Failing "
+                "closed rather than silently reporting no violations."
+            )
+            if result.stderr:
+                print(result.stderr.strip())
+            sys.exit(1)
         staged_paths = [line for line in result.stdout.splitlines() if line]
 
     violations = find_staged_store_violations(staged_paths)

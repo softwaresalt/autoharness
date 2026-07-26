@@ -105,19 +105,23 @@ review findings, once genuinely fixed, changed that materially:
   — a strictly safer outcome than a compression attempt that might still
   need the type router's help.
 
-Net effect: `SAFE WIN count` dropped from 12/13 to **7/13**, and the number of
-compression-positive candidates achieving a genuine safe win dropped from
-5/6 to **0/6**. Every one of the 7 remaining safe wins is a decline-control
-case (the hook correctly declining to compress at all). This is reported
-here in full, not softened — it is the honest, current state of the
-evidence.
+Net effect: the compression-positive candidates achieving a genuine safe win
+dropped from 5/6 to **0/6**, and the original run's "SAFE WIN count: 12"
+figure is not comparable to later runs at all, for a second reason beyond
+findings #1/#13/#14: a later round-3 follow-up finding (see below) found that
+`safe_win_count` itself conflated two different things -- genuine
+six-criteria compression-positive safe wins, and decline controls that
+merely behaved correctly (declined, no durable row). The corrected report
+now shows **0/6 six-criteria safe wins** and a separately-tracked
+**7/7 decline-control-correct** count. This is reported here in full, not
+softened — it is the honest, current state of the evidence.
 
 ### Round 2 (same PR, HEAD `1c400fe` → later): additional safety/protocol fixes
 
 A fresh Copilot re-review, triggered automatically after the round-1 push,
 found five more genuine issues. None of them changed the benchmark verdicts
-above (still 7/13 SAFE WIN, 0/6 genuine compression-positive wins) — they are
-safety/protocol/containment correctness fixes, not measurement changes:
+above (still 0/6 six-criteria safe wins, 7/7 decline controls correct) — they
+are safety/protocol/containment correctness fixes, not measurement changes:
 
 * **Never-expand guard was char-count-only.** `hook.py`'s never-expand
   decision compared character counts only, so a structured result with many
@@ -153,10 +157,11 @@ safety/protocol/containment correctness fixes, not measurement changes:
 ### Round 3 (same PR, HEAD `2899834` → later): a third auto-triggered re-review
 
 A third Copilot re-review triggered automatically after a subsequent, purely
-non-code (backlog-tracking) push found four more issues, all safety/
-containment-critical. None change the benchmark verdicts above (still 7/13
-SAFE WIN, 0/6 genuine compression-positive wins) — they are correctness fixes
-to code paths the benchmark corpus does not exercise:
+non-code (backlog-tracking) push found nine more issues across two comment
+batches, all safety/containment/evidence-integrity-critical. None change the
+**0/6 six-criteria safe wins** conclusion — they are correctness fixes to
+code paths the benchmark corpus does not exercise, plus one fix to the
+report's own metric definitions (below):
 
 * **MCP `output_retrieve` defaulted to a truncating page.** A handle-only
   call (no `offset`/`limit`) went through `retrieve_chunk`'s default
@@ -186,6 +191,51 @@ to code paths the benchmark corpus does not exercise:
   outside `--repo-root`. Fixed: `--out-dir` is now resolved against
   `--repo-root` (if relative) and validated to stay contained within it;
   an escaping path raises `ValueError` before anything is created.
+* **`explicit_root` truthiness discarded an explicitly-supplied empty
+  string.** `resolve_workspace_root()` used `if explicit_root:` instead of
+  `if explicit_root is not None:`, so `purge_cli.py --repo-root ""
+  --mode all` silently fell through to an ambient `BRAINSPACE_WORKSPACE`
+  pin instead of being rejected -- changing which workspace's rows got
+  purged despite the operator's explicit (if malformed) argument. Fixed: an
+  explicitly-supplied empty root is now rejected outright rather than
+  treated as "not supplied".
+* **Staged-file guard failed open on a `git diff --cached` error.**
+  `staged_guard.main()` ignored the subprocess's returncode/stderr; if the
+  git invocation itself failed (not a git repo, git not on PATH, index
+  issues), stdout was empty, no violations were found, and the guard
+  exited 0 as if the index had been inspected and was clean. A pre-commit
+  control protecting raw stored output must fail **closed**, not open.
+  Fixed: a nonzero `git diff --cached` returncode now exits 1 with a clear
+  message instead of silently reporting "no violations".
+* **`test_purge_cli.py`'s expired-mode test did not actually exercise the
+  CLI's purge path.** The test created rows with a 1-second TTL, but
+  `purge_cli.main()` reopened the store with the (4-hour) default TTL, so
+  `purge_expired()` purged zero rows; the test's own `store.get()`
+  verification call lazily deleted the "expired" row as a side effect of
+  reading it, masking that the CLI's purge path was never truly exercised.
+  Fixed: added a `--ttl-seconds` override to `purge_cli.py` so tests (and
+  operators with a non-default TTL store) can align the CLI's TTL with the
+  store's, and the test now asserts the reported `Purged 1` count.
+* **PR readiness block went stale again after a bookkeeping-only push.**
+  A backlogit tracking commit advanced the PR HEAD without refreshing the
+  `## Local Review Readiness` block, leaving mandatory current-HEAD review
+  evidence stale. Addressed procedurally: the readiness block is refreshed
+  to the final HEAD of this round before requesting re-review.
+* **`safe_win_count` conflated two different things.** A decline control
+  that behaved correctly (declined, left no durable row) was marked
+  `safe_win=True` using only its own two checks, even though the module's
+  documented standard requires **all six** spike proof-method criteria
+  (§7.4) for a genuine compression-positive safe win. This meant every one
+  of the corpus's 7 correctly-declining controls inflated `safe_win_count`
+  to 7, even though 0 of the 6 compression-positive candidates met the full
+  six-criteria standard -- a materially misleading headline number. Fixed:
+  `CaseResult` now carries a separate `decline_correct` field (and
+  `BenchmarkReport.decline_correct_count`); `safe_win` is always `False`
+  for `decline_control` results. The regenerated report now correctly shows
+  **`safe_win_count: 0`** and **`decline_correct_count: 7` (of 7)** — the
+  underlying facts are unchanged (0/6 genuine compression-positive safe
+  wins, all 7 decline controls behave correctly), only the metric that was
+  conflating the two is fixed.
 
 ## Evidence summary
 

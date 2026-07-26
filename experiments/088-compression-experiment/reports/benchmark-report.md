@@ -3,7 +3,8 @@
 - Total cases: 13
 - Compression-positive cases: 6
 - Decline-control cases: 7
-- SAFE WIN count: 7
+- SAFE WIN count (six-criteria compression-positive bar): 0
+- Decline-control-correct count: 7 of 7
 
 | Case | Category | Verdict | Notes |
 |---|---|---|---|
@@ -13,13 +14,13 @@
 | backlogit-list-json-mcp-shaped | compression_positive | INCONCLUSIVE (model tokenizer unavailable) | INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence |
 | workspace-file-inventory | compression_positive | INCONCLUSIVE (model tokenizer unavailable) | INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence |
 | graphtor-search-results-representative | compression_positive | INCONCLUSIVE (model tokenizer unavailable) | INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence [synthetic-representative: Engram/graphtor MCP search surface not running in this benchmark environment] |
-| tiny-output-decline | decline_control | SAFE WIN | tiny_output |
-| unwritable-store-passthrough | decline_control | SAFE WIN | unwritable_store |
-| secret-bearing-output-decline | decline_control | SAFE WIN | secret_bearing |
-| gate-readiness-verdict-decline | decline_control | SAFE WIN | gate_readiness_verdict |
-| failure-bearing-gh-run-view-representative | decline_control | SAFE WIN | failure_bearing_success [synthetic-representative: emulates a failed `gh run view --log-failed` without depending on a live failed CI run] |
-| active-stack-trace-decline | decline_control | SAFE WIN | active_stack_trace |
-| operator-approval-text-decline | decline_control | SAFE WIN | operator_approval_text |
+| tiny-output-decline | decline_control | DECLINE CORRECT | tiny_output |
+| unwritable-store-passthrough | decline_control | DECLINE CORRECT | unwritable_store |
+| secret-bearing-output-decline | decline_control | DECLINE CORRECT | secret_bearing |
+| gate-readiness-verdict-decline | decline_control | DECLINE CORRECT | gate_readiness_verdict |
+| failure-bearing-gh-run-view-representative | decline_control | DECLINE CORRECT | failure_bearing_success [synthetic-representative: emulates a failed `gh run view --log-failed` without depending on a live failed CI run] |
+| active-stack-trace-decline | decline_control | DECLINE CORRECT | active_stack_trace |
+| operator-approval-text-decline | decline_control | DECLINE CORRECT | operator_approval_text |
 
 ## Per-case criteria detail
 
@@ -33,10 +34,10 @@
 - `evidence_oracle_passes`: True
 - `task_answerable_from_compressed_view`: True
 - `capture_succeeded`: True
-- `raw_tokens_fallback`: 5423
-- `compressed_tokens_fallback`: 233
-- `net_savings_tokens_fallback`: 5190
-- `projected_savings_10_turns_fallback`: 51900
+- `raw_tokens_fallback`: 5881
+- `compressed_tokens_fallback`: 235
+- `net_savings_tokens_fallback`: 5646
+- `projected_savings_10_turns_fallback`: 56460
 
 ### backlogit-doctor-findings (compression_positive)
 - `byte_equivalent_retrieval`: True
@@ -81,10 +82,10 @@
 - `evidence_oracle_passes`: True
 - `task_answerable_from_compressed_view`: True
 - `capture_succeeded`: True
-- `raw_tokens_fallback`: 13321
+- `raw_tokens_fallback`: 13335
 - `compressed_tokens_fallback`: 118
-- `net_savings_tokens_fallback`: 13203
-- `projected_savings_10_turns_fallback`: 132030
+- `net_savings_tokens_fallback`: 13217
+- `projected_savings_10_turns_fallback`: 132170
 
 ### graphtor-search-results-representative (compression_positive)
 - `byte_equivalent_retrieval`: True

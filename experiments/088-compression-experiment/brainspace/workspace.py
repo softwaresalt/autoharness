@@ -75,8 +75,22 @@ def resolve_workspace_root(payload=None, *, explicit_root=None) -> str:
     before being returned (P-018 round-3 finding #3) -- an unrelated
     candidate is rejected with ``WorkspaceContainmentError`` rather than
     silently honored.
+
+    ``explicit_root`` is checked with ``is not None`` rather than truthiness:
+    an *explicitly supplied* empty string (e.g. a CLI's ``--repo-root ""``)
+    must never be treated as "not supplied" and silently fall through to the
+    ambient env pin -- that would let a malformed explicit argument change
+    which workspace's rows a command like ``purge_cli --mode all`` acts on
+    (P-018 round-3 follow-up finding). An empty explicit root is rejected
+    outright since it can never be a valid, containment-checkable path.
     """
-    if explicit_root:
+    if explicit_root is not None:
+        if not explicit_root.strip():
+            raise WorkspaceContainmentError(
+                "explicit_root was supplied but is empty; refusing to fall "
+                "back to an ambient BRAINSPACE_WORKSPACE pin for an "
+                "explicitly-provided (if malformed) argument"
+            )
         _validate_related_to_process_cwd(explicit_root, source="explicit_root")
         return explicit_root
     env_root = os.environ.get(config.WORKSPACE_ENV_VAR)

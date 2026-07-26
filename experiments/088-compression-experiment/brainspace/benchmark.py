@@ -77,6 +77,7 @@ class CaseResult:
     safe_win: bool
     criteria: dict = field(default_factory=dict)
     notes: str = ""
+    decline_correct: Optional[bool] = None
 
 
 @dataclass
@@ -94,6 +95,21 @@ class BenchmarkReport:
     @property
     def decline_control_count(self) -> int:
         return sum(1 for r in self.results if r.category == "decline_control")
+
+    @property
+    def decline_correct_count(self) -> int:
+        """Decline-control cases that behaved correctly (declined, no
+        durable row). Tracked separately from ``safe_win_count`` -- a
+        correctly-behaving decline control is not the same thing as meeting
+        the six-criteria compression-positive safe-win bar (P-018 round-3
+        follow-up finding: conflating the two silently inflated the reported
+        SAFE WIN count).
+        """
+        return sum(
+            1
+            for r in self.results
+            if r.category == "decline_control" and r.decline_correct
+        )
 
     @property
     def compression_positive_count(self) -> int:
@@ -139,7 +155,15 @@ def _run_decline_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseResult
     return CaseResult(
         name=case.name,
         category="decline_control",
-        safe_win=declined and no_new_row,
+        # A correctly-declined control is NOT a "safe win" under the
+        # module's six-criteria compression-positive bar (module docstring,
+        # spike §7.4) -- it never attempted compression at all. Conflating
+        # "declined correctly" with `safe_win=True` silently inflated the
+        # reported SAFE WIN count (P-018 round-3 follow-up finding).
+        # `safe_win` is therefore always False here; decline correctness is
+        # reported via the dedicated `decline_correct` field/count instead.
+        safe_win=False,
+        decline_correct=declined and no_new_row,
         criteria={
             "declined_as_expected": declined,
             "no_durable_row_on_decline": no_new_row,
@@ -275,11 +299,13 @@ def render_json_report(report: BenchmarkReport) -> dict:
         "compression_positive_count": report.compression_positive_count,
         "decline_control_count": report.decline_control_count,
         "safe_win_count": report.safe_win_count,
+        "decline_correct_count": report.decline_correct_count,
         "results": [
             {
                 "name": r.name,
                 "category": r.category,
                 "safe_win": r.safe_win,
+                "decline_correct": r.decline_correct,
                 "criteria": r.criteria,
                 "notes": r.notes,
             }
@@ -296,17 +322,18 @@ def render_markdown_report(report: BenchmarkReport) -> str:
         f"- Total cases: {report.total_count}",
         f"- Compression-positive cases: {report.compression_positive_count}",
         f"- Decline-control cases: {report.decline_control_count}",
-        f"- SAFE WIN count: {report.safe_win_count}",
+        f"- SAFE WIN count (six-criteria compression-positive bar): {report.safe_win_count}",
+        f"- Decline-control-correct count: {report.decline_correct_count} of {report.decline_control_count}",
         "",
         "| Case | Category | Verdict | Notes |",
         "|---|---|---|---|",
     ]
     for r in report.results:
-        if r.safe_win:
+        if r.category == "decline_control":
+            verdict = "DECLINE CORRECT" if r.decline_correct else "DECLINE FAILED (compressed unexpectedly)"
+        elif r.safe_win:
             verdict = "SAFE WIN"
-        elif r.category == "compression_positive" and r.criteria.get(
-            "model_tokenizer_available"
-        ) is False:
+        elif r.criteria.get("model_tokenizer_available") is False:
             verdict = "INCONCLUSIVE (model tokenizer unavailable)"
         else:
             verdict = "NOT a safe win"

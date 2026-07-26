@@ -2,12 +2,14 @@
   "total_count": 13,
   "compression_positive_count": 6,
   "decline_control_count": 7,
-  "safe_win_count": 7,
+  "safe_win_count": 0,
+  "decline_correct_count": 7,
   "results": [
     {
       "name": "pytest-vv-experiment-suite",
       "category": "compression_positive",
       "safe_win": false,
+      "decline_correct": null,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
@@ -18,10 +20,10 @@
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
         "capture_succeeded": true,
-        "raw_tokens_fallback": 5423,
-        "compressed_tokens_fallback": 233,
-        "net_savings_tokens_fallback": 5190,
-        "projected_savings_10_turns_fallback": 51900
+        "raw_tokens_fallback": 5881,
+        "compressed_tokens_fallback": 235,
+        "net_savings_tokens_fallback": 5646,
+        "projected_savings_10_turns_fallback": 56460
       },
       "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
     },
@@ -29,6 +31,7 @@
       "name": "backlogit-doctor-findings",
       "category": "compression_positive",
       "safe_win": false,
+      "decline_correct": null,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
@@ -50,6 +53,7 @@
       "name": "git-log-stat-history",
       "category": "compression_positive",
       "safe_win": false,
+      "decline_correct": null,
       "criteria": {
         "compressed_at_all": false
       },
@@ -59,6 +63,7 @@
       "name": "backlogit-list-json-mcp-shaped",
       "category": "compression_positive",
       "safe_win": false,
+      "decline_correct": null,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
@@ -80,6 +85,7 @@
       "name": "workspace-file-inventory",
       "category": "compression_positive",
       "safe_win": false,
+      "decline_correct": null,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
@@ -90,10 +96,10 @@
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
         "capture_succeeded": true,
-        "raw_tokens_fallback": 13321,
+        "raw_tokens_fallback": 13335,
         "compressed_tokens_fallback": 118,
-        "net_savings_tokens_fallback": 13203,
-        "projected_savings_10_turns_fallback": 132030
+        "net_savings_tokens_fallback": 13217,
+        "projected_savings_10_turns_fallback": 132170
       },
       "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
     },
@@ -101,6 +107,7 @@
       "name": "graphtor-search-results-representative",
       "category": "compression_positive",
       "safe_win": false,
+      "decline_correct": null,
       "criteria": {
         "byte_equivalent_retrieval": true,
         "no_extra_rows_beyond_stash": true,
@@ -121,7 +128,8 @@
     {
       "name": "tiny-output-decline",
       "category": "decline_control",
-      "safe_win": true,
+      "safe_win": false,
+      "decline_correct": true,
       "criteria": {
         "declined_as_expected": true,
         "no_durable_row_on_decline": true
@@ -131,7 +139,8 @@
     {
       "name": "unwritable-store-passthrough",
       "category": "decline_control",
-      "safe_win": true,
+      "safe_win": false,
+      "decline_correct": true,
       "criteria": {
         "declined_as_expected": true,
         "no_durable_row_on_decline": true
@@ -141,7 +150,8 @@
     {
       "name": "secret-bearing-output-decline",
       "category": "decline_control",
-      "safe_win": true,
+      "safe_win": false,
+      "decline_correct": true,
       "criteria": {
         "declined_as_expected": true,
         "no_durable_row_on_decline": true
@@ -151,7 +161,8 @@
     {
       "name": "gate-readiness-verdict-decline",
       "category": "decline_control",
-      "safe_win": true,
+      "safe_win": false,
+      "decline_correct": true,
       "criteria": {
         "declined_as_expected": true,
         "no_durable_row_on_decline": true
@@ -161,7 +172,8 @@
     {
       "name": "failure-bearing-gh-run-view-representative",
       "category": "decline_control",
-      "safe_win": true,
+      "safe_win": false,
+      "decline_correct": true,
       "criteria": {
         "declined_as_expected": true,
         "no_durable_row_on_decline": true
@@ -171,7 +183,8 @@
     {
       "name": "active-stack-trace-decline",
       "category": "decline_control",
-      "safe_win": true,
+      "safe_win": false,
+      "decline_correct": true,
       "criteria": {
         "declined_as_expected": true,
         "no_durable_row_on_decline": true
@@ -181,7 +194,8 @@
     {
       "name": "operator-approval-text-decline",
       "category": "decline_control",
-      "safe_win": true,
+      "safe_win": false,
+      "decline_correct": true,
       "criteria": {
         "declined_as_expected": true,
         "no_durable_row_on_decline": true

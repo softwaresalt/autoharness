@@ -48,13 +48,23 @@ def main(argv=None) -> int:
         help="'expired' (default, safe) deletes only TTL-expired rows; "
         "'all' clears the entire store, including live rows.",
     )
+    parser.add_argument(
+        "--ttl-seconds",
+        type=int,
+        default=None,
+        help="Override the store's TTL (seconds) used to decide which rows "
+        "are 'expired'. Defaults to the store's own default TTL "
+        "(brainspace.config.DEFAULT_TTL_SECONDS) when not supplied. Mainly "
+        "useful for operators/tests that need 'expired' mode to agree with "
+        "a store that was written with a non-default TTL.",
+    )
     args = parser.parse_args(argv)
 
     # An explicit --repo-root is an operator's per-invocation intent and
     # must win over an ambient BRAINSPACE_WORKSPACE env pin (finding #4).
     workspace_root = resolve_workspace_root(explicit_root=args.repo_root)
 
-    store = BrainspaceStore(workspace_root)
+    store = BrainspaceStore(workspace_root, ttl_seconds=args.ttl_seconds)
     try:
         if args.mode == "all":
             before = store.row_count()

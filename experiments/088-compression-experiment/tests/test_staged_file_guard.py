@@ -60,3 +60,37 @@ def test_flags_store_files_nested_under_a_subdirectory():
     ]
     violations = find_staged_store_violations(staged)
     assert len(violations) == 2
+
+
+def test_main_fails_closed_when_git_diff_cached_errors(monkeypatch, capsys):
+    # P-018 round-3 follow-up finding: main() previously ignored the
+    # subprocess's returncode/stderr entirely -- if `git diff --cached
+    # --name-only` itself failed (not a git repo, git not on PATH, index
+    # corruption, etc.), stdout was empty, no violations were found, and the
+    # guard exited 0 as if the index had been inspected and was clean. A
+    # pre-commit control protecting raw stored output must fail CLOSED
+    # (non-zero, with a clear message) when it cannot inspect the index at
+    # all, not silently report a false "all clear".
+    import subprocess
+
+    from brainspace import staged_guard
+
+    class _FakeCompletedProcess:
+        returncode = 1
+        stdout = ""
+        stderr = "fatal: not a git repository (or any of the parent directories): .git"
+
+    def _fake_run(*args, **kwargs):
+        return _FakeCompletedProcess()
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    import pytest
+
+    with pytest.raises(SystemExit) as exc_info:
+        staged_guard.main()
+
+    assert exc_info.value.code != 0
+    captured = capsys.readouterr()
+    assert "git diff --cached" in captured.out + captured.err
+

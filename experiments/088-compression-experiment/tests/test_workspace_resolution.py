@@ -115,3 +115,19 @@ def test_env_pin_unrelated_to_process_cwd_is_rejected(monkeypatch, tmp_path):
     with pytest.raises(WorkspaceContainmentError):
         resolve_workspace_root(None)
 
+
+def test_explicit_empty_root_is_rejected_not_treated_as_unset(monkeypatch, tmp_path):
+    # P-018 round-3 follow-up finding: ``if explicit_root:`` truthiness meant
+    # an *explicitly supplied* empty string (e.g. ``purge_cli.py --repo-root
+    # "" --mode all``) fell through to the ambient BRAINSPACE_WORKSPACE pin
+    # instead of being rejected -- silently changing which workspace's rows
+    # got purged despite the operator's explicit (if malformed) argument.
+    # An explicit empty root must never be treated as "not supplied".
+    monkeypatch.chdir(tmp_path)
+    ambient = tmp_path / "ambient-root"
+    ambient.mkdir()
+    monkeypatch.setenv("BRAINSPACE_WORKSPACE", str(ambient))
+    with pytest.raises(WorkspaceContainmentError):
+        resolve_workspace_root(explicit_root="")
+
+
