@@ -13,7 +13,8 @@ from brainspace import purge_cli
 from brainspace.store import BrainspaceStore
 
 
-def test_purge_cli_expired_mode_removes_only_expired_rows(tmp_path, capsys):
+def test_purge_cli_expired_mode_removes_only_expired_rows(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     store = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=10_000)
     try:
         expired_handle = store.put("expired content")
@@ -36,7 +37,8 @@ def test_purge_cli_expired_mode_removes_only_expired_rows(tmp_path, capsys):
     assert "Purged" in captured.out
 
 
-def test_purge_cli_all_mode_clears_entire_store(tmp_path):
+def test_purge_cli_all_mode_clears_entire_store(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     store = BrainspaceStore(str(tmp_path), ttl_seconds=3600, max_size_bytes=10_000)
     try:
         store.put("some content")
@@ -54,9 +56,10 @@ def test_purge_cli_all_mode_clears_entire_store(tmp_path):
         verify.close()
 
 
-def test_purge_cli_defaults_to_expired_mode(tmp_path):
+def test_purge_cli_defaults_to_expired_mode(tmp_path, monkeypatch):
     # No --mode flag supplied: must default to the safer "expired" mode,
     # never silently clearing live (non-expired) rows.
+    monkeypatch.chdir(tmp_path)
     store = BrainspaceStore(str(tmp_path), ttl_seconds=3600, max_size_bytes=10_000)
     try:
         handle = store.put("live content")
@@ -74,10 +77,11 @@ def test_purge_cli_defaults_to_expired_mode(tmp_path):
 
 
 def test_repo_root_arg_takes_precedence_over_ambient_env_pin(tmp_path, monkeypatch):
-    # P-018 re-review finding #4 (new round): an ambient BRAINSPACE_WORKSPACE
+    # P-018 re-review finding #4 (round 2): an ambient BRAINSPACE_WORKSPACE
     # must NOT silently override an explicit --repo-root -- otherwise
     # "--mode all" could purge the wrong workspace's live rows even though
     # the CLI's own help text says --repo-root anchors the target store.
+    monkeypatch.chdir(tmp_path)
     wrong_root = tmp_path / "wrong-workspace"
     right_root = tmp_path / "right-workspace"
     wrong_root.mkdir()

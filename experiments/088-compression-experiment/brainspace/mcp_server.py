@@ -18,7 +18,7 @@ _EXPERIMENT_ROOT = os.path.dirname(_THIS_DIR)
 if _EXPERIMENT_ROOT not in sys.path:
     sys.path.insert(0, _EXPERIMENT_ROOT)
 
-from brainspace.retrieval import RetrievalError, retrieve_chunk  # noqa: E402
+from brainspace.retrieval import RetrievalError, retrieve_chunk, retrieve_full  # noqa: E402
 from brainspace.workspace import resolve_workspace_root  # noqa: E402
 
 _PROTOCOL_VERSION = "2024-11-05"
@@ -72,19 +72,30 @@ def dispatch_tool_call(store, tool_name: str, arguments: dict) -> dict:
         return _text_result(f"unknown tool: {tool_name}", is_error=True)
 
     handle = arguments.get("handle")
-    offset = arguments.get("offset", 0)
-    limit = arguments.get("limit", 65536)
+    # Only branch into paginated mode when the caller actually supplied
+    # pagination arguments. A handle-only call (exactly as the emitted
+    # footer instructs) must return the COMPLETE original regardless of
+    # length -- falling through to retrieve_chunk's 65,536-char schema
+    # default would silently truncate longer originals to a prefix.
+    paginated = "offset" in arguments or "limit" in arguments
     try:
-        page = retrieve_chunk(store, handle, offset=offset, limit=limit)
+        if paginated:
+            offset = arguments.get("offset", 0)
+            limit = arguments.get("limit", 65536)
+            page = retrieve_chunk(store, handle, offset=offset, limit=limit)
+            text = page["chunk"]
+            meta = {
+                "offset": page["offset"],
+                "total_length": page["total_length"],
+                "has_more": page["has_more"],
+            }
+        else:
+            text = retrieve_full(store, handle)
+            meta = {"offset": 0, "total_length": len(text), "has_more": False}
     except (RetrievalError, ValueError) as exc:
         return _text_result(str(exc), is_error=True)
 
-    meta = {
-        "offset": page["offset"],
-        "total_length": page["total_length"],
-        "has_more": page["has_more"],
-    }
-    return _text_result(page["chunk"], is_error=False, meta=meta)
+    return _text_result(text, is_error=False, meta=meta)
 
 
 def handle_request(request: dict, store):

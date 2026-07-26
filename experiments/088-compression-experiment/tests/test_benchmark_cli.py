@@ -8,6 +8,8 @@ does not depend on external tools or a live repo checkout.
 import json
 import os
 
+import pytest
+
 from brainspace import benchmark_cli
 from brainspace.benchmark import BenchmarkCase
 
@@ -67,7 +69,7 @@ def test_main_does_not_leave_experiment_flag_enabled_globally(tmp_path, monkeypa
 
 
 def test_ephemeral_store_is_anchored_under_repo_root_not_os_temp(tmp_path, monkeypatch):
-    # P-018 re-review finding #3 (new round): tempfile.TemporaryDirectory()
+    # P-018 re-review finding #3 (round 2): tempfile.TemporaryDirectory()
     # defaults to the OS temp area, violating the containment requirement
     # (config.py: the store must be repo-local, never OS temp) even though
     # the directory is ephemeral. Capture the root actually passed to
@@ -89,3 +91,44 @@ def test_ephemeral_store_is_anchored_under_repo_root_not_os_temp(tmp_path, monke
     assert "root" in captured
     common = os.path.commonpath([captured["root"], str(tmp_path)])
     assert common == str(tmp_path)
+
+
+def test_out_dir_outside_repo_root_is_rejected(tmp_path, monkeypatch):
+    # P-018 round-3 finding #4: --out-dir is used directly for makedirs and
+    # report writes with no containment validation. An absolute path or a
+    # path escaping via `..` must be rejected -- resolve it against the
+    # workspace root and never write anything outside it.
+    monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    unrelated_out_dir = tmp_path / "unrelated-out-dir"
+
+    with pytest.raises(ValueError):
+        benchmark_cli.main(
+            ["--repo-root", str(repo_root), "--out-dir", str(unrelated_out_dir)]
+        )
+
+    assert not unrelated_out_dir.exists()
+
+
+def test_out_dir_relative_traversal_outside_repo_root_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    with pytest.raises(ValueError):
+        benchmark_cli.main(
+            ["--repo-root", str(repo_root), "--out-dir", "../escaped-reports"]
+        )
+
+
+def test_out_dir_relative_to_repo_root_is_allowed(tmp_path, monkeypatch):
+    monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    exit_code = benchmark_cli.main(
+        ["--repo-root", str(repo_root), "--out-dir", "reports"]
+    )
+    assert exit_code == 0
+    assert (repo_root / "reports" / "benchmark-report.md").exists()

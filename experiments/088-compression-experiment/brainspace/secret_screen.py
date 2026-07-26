@@ -18,6 +18,11 @@ _PATTERNS = [
     re.compile(
         r"(?im)^\s*[A-Z0-9_]*(SECRET|TOKEN|API_KEY|PASSWORD|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*\S{8,}"
     ),  # .env-style secret assignment
+    re.compile(
+        r'(?i)["\']?[A-Za-z0-9_]*(SECRET|TOKEN|API[_-]?KEY|PASSWORD|'
+        r'PRIVATE[_-]?KEY|ACCESS[_-]?KEY)[A-Za-z0-9_]*["\']?\s*[:=]\s*'
+        r'["\']?[^\s,"\']{6,}'
+    ),  # structured key/value forms (JSON/YAML/etc.), not just dotenv KEY=value
 ]
 
 

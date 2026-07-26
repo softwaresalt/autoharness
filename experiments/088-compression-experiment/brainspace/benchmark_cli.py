@@ -37,12 +37,35 @@ from brainspace.store import BrainspaceStore  # noqa: E402
 _DEFAULT_OUT_DIR = os.path.join(_EXPERIMENT_ROOT, "reports")
 
 
+def _resolve_contained_out_dir(out_dir: str, *, repo_root: str) -> str:
+    """Resolve ``out_dir`` against ``repo_root`` and reject any target that
+    escapes it (P-018 round-3 finding #4). A relative ``out_dir`` is joined
+    onto ``repo_root``; an absolute path or a ``..``-relative path that
+    resolves outside ``repo_root`` is rejected before anything is created or
+    written, per the repository's non-negotiable CLI containment rule.
+    """
+    candidate = out_dir if os.path.isabs(out_dir) else os.path.join(repo_root, out_dir)
+    real_repo_root = os.path.realpath(repo_root)
+    real_candidate = os.path.realpath(candidate)
+    try:
+        common = os.path.commonpath([real_candidate, real_repo_root])
+    except ValueError:
+        common = None
+    if common != real_repo_root:
+        raise ValueError(
+            f"--out-dir must resolve inside --repo-root ({repo_root!r}); "
+            f"got {out_dir!r} which resolves to {real_candidate!r}"
+        )
+    return candidate
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", default=os.getcwd())
     parser.add_argument("--out-dir", default=_DEFAULT_OUT_DIR)
     args = parser.parse_args(argv)
 
+    args.out_dir = _resolve_contained_out_dir(args.out_dir, repo_root=args.repo_root)
     os.makedirs(args.out_dir, exist_ok=True)
 
     # Enable the experiment flag only for this process's own run — never

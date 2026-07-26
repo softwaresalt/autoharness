@@ -150,6 +150,43 @@ safety/protocol/containment correctness fixes, not measurement changes:
   `handle_request` now returns `None` for any request without an `"id"`, and
   the stdio loop skips printing when the response is `None`.
 
+### Round 3 (same PR, HEAD `2899834` → later): a third auto-triggered re-review
+
+A third Copilot re-review triggered automatically after a subsequent, purely
+non-code (backlog-tracking) push found four more issues, all safety/
+containment-critical. None change the benchmark verdicts above (still 7/13
+SAFE WIN, 0/6 genuine compression-positive wins) — they are correctness fixes
+to code paths the benchmark corpus does not exercise:
+
+* **MCP `output_retrieve` defaulted to a truncating page.** A handle-only
+  call (no `offset`/`limit`) went through `retrieve_chunk`'s default
+  65536-character page instead of the full byte-equivalent retrieval,
+  silently truncating any original longer than the default page. Fixed:
+  `dispatch_tool_call` now uses `retrieve_full` whenever neither `offset` nor
+  `limit` was supplied, and only uses `retrieve_chunk` when pagination
+  arguments are explicit.
+* **Secret screening missed structured JSON/YAML key-value secrets.**
+  `secret_screen.py`'s generic key-name detector only matched dotenv-style
+  `KEY=value` lines, missing `{"password": "..."}` / `{"api_key": "..."}` /
+  `client_secret: ...` forms that appear routinely in tool output (API
+  responses, config dumps). Fixed: added a pattern that matches the common
+  key names with either `:` or `=` and quoted or unquoted values.
+* **Workspace resolution accepted an unrelated root with no containment
+  check.** `resolve_workspace_root()`'s `explicit_root` and
+  `BRAINSPACE_WORKSPACE` env-pin branches returned the candidate path
+  without validating it against the process's actual working directory,
+  so an arbitrary, unrelated absolute path could be honored. Fixed: both
+  branches now validate the candidate is related to `os.getcwd()` (an
+  ancestor, descendant, or the same directory) via a new
+  `WorkspaceContainmentError`-raising check; genuinely unrelated trees
+  (including cross-drive paths on Windows) are rejected.
+* **`benchmark_cli.py --out-dir` had no containment validation.** The
+  argument was passed directly to `os.makedirs`/report writers, so an
+  absolute path or a `..`-relative path could write benchmark reports
+  outside `--repo-root`. Fixed: `--out-dir` is now resolved against
+  `--repo-root` (if relative) and validated to stay contained within it;
+  an escaping path raises `ValueError` before anything is created.
+
 ## Evidence summary
 
 ### Copilot CLI `postToolUse` hooks contract re-verification (plan condition #4)

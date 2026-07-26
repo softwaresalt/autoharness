@@ -26,6 +26,21 @@ def test_output_retrieve_full_mode_returns_original(store):
     assert result["_meta"]["has_more"] is False
 
 
+def test_output_retrieve_full_mode_returns_everything_beyond_default_page_size(store):
+    # Regression: calling exactly as the emitted footer instructs (handle only,
+    # no offset/limit) must return the COMPLETE original even when it exceeds
+    # the inputSchema's 65,536-char default `limit`. Previously this silently
+    # fell through to retrieve_chunk(limit=65536), returning only a prefix.
+    original = "row\n" * 20000  # 80,000 chars -- well beyond the 65536 default
+    assert len(original) > 65536
+    handle = store.put(original)
+    result = dispatch_tool_call(store, "output_retrieve", {"handle": handle})
+    assert result["isError"] is False
+    assert result["content"] == [{"type": "text", "text": original}]
+    assert result["_meta"]["has_more"] is False
+    assert result["_meta"]["total_length"] == len(original)
+
+
 def test_output_retrieve_paginated_mode(store):
     original = "".join(f"row-{i}\n" for i in range(2000))
     handle = store.put(original)

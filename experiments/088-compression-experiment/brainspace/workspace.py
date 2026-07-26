@@ -26,19 +26,62 @@ import os
 from brainspace import config
 
 
+class WorkspaceContainmentError(Exception):
+    """Raised when a workspace-root candidate is unrelated to the process's
+    actual working directory tree (Constitution IV containment)."""
+
+
+def _validate_related_to_process_cwd(candidate: str, *, source: str) -> None:
+    """Reject a workspace-root candidate that shares no ancestry with the
+    process's actual working directory.
+
+    ``BRAINSPACE_WORKSPACE``/``explicit_root`` exist to PIN the same root
+    across processes whose own ``os.getcwd()`` may legitimately differ (e.g.
+    a session cwd inside a subdirectory of the repo), so the accepted
+    relationship can point EITHER way: the candidate may be an ancestor of
+    the process cwd (the common "pin the repo root while cd'd into a
+    subdir" case), the process cwd may be an ancestor of the candidate (an
+    explicit nested-workspace pin), or they may be identical. What must
+    never be accepted is a candidate that shares no ancestry with the
+    process's actual working directory at all -- that would let a
+    misconfigured env var or CLI argument point the store (and therefore
+    ``purge_cli --mode all``) at a completely unrelated filesystem location.
+    """
+    real_candidate = os.path.realpath(candidate)
+    real_cwd = os.path.realpath(os.getcwd())
+    try:
+        common = os.path.commonpath([real_candidate, real_cwd])
+    except ValueError:
+        # e.g. different drives on Windows -- definitionally unrelated.
+        common = None
+    if common not in (real_candidate, real_cwd):
+        raise WorkspaceContainmentError(
+            f"{source} resolves outside the current process working "
+            f"directory tree: {candidate!r} is unrelated to cwd {os.getcwd()!r}"
+        )
+
+
 def resolve_workspace_root(payload=None, *, explicit_root=None) -> str:
     """Resolve the workspace root the same way for every 088-F entry point.
 
     ``explicit_root`` (e.g. a CLI's own ``--repo-root`` argument) takes the
     HIGHEST precedence -- an operator's explicit, per-invocation intent must
     win over the ambient ``BRAINSPACE_WORKSPACE`` env pin (P-018 re-review
-    finding #4, new round), or e.g. ``purge_cli.py --mode all --repo-root X``
+    finding #4, round 2), or e.g. ``purge_cli.py --mode all --repo-root X``
     could silently purge a different workspace's live rows.
+
+    Both ``explicit_root`` and the ``BRAINSPACE_WORKSPACE`` env pin are
+    validated as related to the process's actual working directory tree
+    before being returned (P-018 round-3 finding #3) -- an unrelated
+    candidate is rejected with ``WorkspaceContainmentError`` rather than
+    silently honored.
     """
     if explicit_root:
+        _validate_related_to_process_cwd(explicit_root, source="explicit_root")
         return explicit_root
     env_root = os.environ.get(config.WORKSPACE_ENV_VAR)
     if env_root:
+        _validate_related_to_process_cwd(env_root, source="BRAINSPACE_WORKSPACE")
         return env_root
     if payload and payload.get("cwd"):
         return payload["cwd"]

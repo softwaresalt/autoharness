@@ -37,6 +37,21 @@ def test_detects_generic_bearer_token():
     assert contains_secret(text) is True
 
 
+def test_detects_structured_json_password_field():
+    text = '{"user": "alice", "password":"supersecret123"}'
+    assert contains_secret(text) is True
+
+
+def test_detects_structured_json_api_key_field():
+    text = '{"service": "openai", "api_key":"sk-proj-abcdefghijklmnopqrstuvwxyz"}'
+    assert contains_secret(text) is True
+
+
+def test_detects_structured_json_client_secret_field_with_spacing():
+    text = '{"client_secret": "a1b2c3d4e5f6g7h8i9j0"}'
+    assert contains_secret(text) is True
+
+
 def test_plain_prose_is_not_flagged():
     text = "The build succeeded and all 42 tests passed in 3.2 seconds."
     assert contains_secret(text) is False
