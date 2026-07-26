@@ -34,6 +34,7 @@ def _fake_corpus_builder(repo_root, command_runner=None):
 
 
 def test_main_writes_markdown_and_json_reports(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
     out_dir = tmp_path / "reports"
 
@@ -57,6 +58,7 @@ def test_main_writes_markdown_and_json_reports(tmp_path, monkeypatch):
 def test_main_does_not_leave_experiment_flag_enabled_globally(tmp_path, monkeypatch):
     from brainspace import config
 
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv(config.ENABLED_ENV_VAR, raising=False)
     monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
     out_dir = tmp_path / "reports"
@@ -82,6 +84,7 @@ def test_ephemeral_store_is_anchored_under_repo_root_not_os_temp(tmp_path, monke
             captured["root"] = root
             super().__init__(root, *args, **kwargs)
 
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(benchmark_cli, "BrainspaceStore", _CapturingStore)
     monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
     out_dir = tmp_path / "reports"
@@ -98,6 +101,7 @@ def test_out_dir_outside_repo_root_is_rejected(tmp_path, monkeypatch):
     # report writes with no containment validation. An absolute path or a
     # path escaping via `..` must be rejected -- resolve it against the
     # workspace root and never write anything outside it.
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -112,6 +116,7 @@ def test_out_dir_outside_repo_root_is_rejected(tmp_path, monkeypatch):
 
 
 def test_out_dir_relative_traversal_outside_repo_root_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -123,6 +128,7 @@ def test_out_dir_relative_traversal_outside_repo_root_is_rejected(tmp_path, monk
 
 
 def test_out_dir_relative_to_repo_root_is_allowed(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -132,3 +138,23 @@ def test_out_dir_relative_to_repo_root_is_allowed(tmp_path, monkeypatch):
     )
     assert exit_code == 0
     assert (repo_root / "reports" / "benchmark-report.md").exists()
+
+
+def test_repo_root_unrelated_to_process_cwd_is_rejected(tmp_path, monkeypatch):
+    # P-018 round-3 follow-up finding: --out-dir was contained only relative
+    # to --repo-root, but --repo-root itself was trusted verbatim with no
+    # validation against the process's actual working directory --
+    # `--repo-root /unrelated/path` would create the cache and reports
+    # outside the current working tree, bypassing the containment rule this
+    # round is meant to enforce.
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    monkeypatch.chdir(session_dir)
+    monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
+    unrelated_repo_root = tmp_path / "completely-unrelated-project"
+    unrelated_repo_root.mkdir()
+
+    exit_code = benchmark_cli.main(["--repo-root", str(unrelated_repo_root)])
+
+    assert exit_code != 0
+    assert not (unrelated_repo_root / "reports").exists()

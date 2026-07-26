@@ -20,7 +20,7 @@ if _EXPERIMENT_ROOT not in sys.path:
 from brainspace import config  # noqa: E402
 from brainspace.hook import process_post_tool_use  # noqa: E402
 from brainspace.store import BrainspaceStore  # noqa: E402
-from brainspace.workspace import resolve_workspace_root  # noqa: E402
+from brainspace.workspace import WorkspaceContainmentError, resolve_workspace_root  # noqa: E402
 
 
 def main() -> int:
@@ -44,7 +44,15 @@ def main() -> int:
         print("{}")
         return 0
 
-    workspace_root = resolve_workspace_root(payload)
+    try:
+        workspace_root = resolve_workspace_root(payload)
+    except WorkspaceContainmentError:
+        # Fail-safe: a crafted or stale payload cwd unrelated to this
+        # process's working directory tree must never be honored, but the
+        # invariant is fail-safe passthrough, not a crash -- never emit a
+        # placeholder-free elision or let an unhandled exception propagate.
+        print("{}")
+        return 0
     store = BrainspaceStore(workspace_root)
     try:
         result = process_post_tool_use(payload, store)

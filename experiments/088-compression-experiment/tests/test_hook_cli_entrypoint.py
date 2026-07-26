@@ -24,6 +24,12 @@ def _run_hook_cli(payload, env_overrides=None):
         capture_output=True,
         text=True,
         env=env,
+        # Real Copilot CLI invocations run the hook subprocess FROM the
+        # session cwd it reports in the payload -- the two are the same
+        # value. Passing cwd here keeps the test realistic now that
+        # resolve_workspace_root validates payload["cwd"] as related to the
+        # process's actual working directory (P-018 round-3 finding).
+        cwd=payload.get("cwd"),
         check=False,
     )
     assert proc.returncode == 0, proc.stderr
@@ -97,3 +103,41 @@ def test_malformed_stdin_is_safe_noop(tmp_path):
     )
     assert proc.returncode == 0
     assert json.loads(proc.stdout) == {}
+
+
+def test_unrelated_payload_cwd_is_safe_noop_not_a_crash(tmp_path):
+    # P-018 round-3 follow-up finding: a crafted or stale payload cwd
+    # unrelated to the subprocess's actual working directory must never
+    # crash the hook (unhandled WorkspaceContainmentError) or create a
+    # store outside the workspace -- it must fail safe to a no-op
+    # passthrough, exactly like the malformed-JSON case above.
+    unrelated = tmp_path / "unrelated-cwd"
+    unrelated.mkdir()
+    session_dir = tmp_path / "actual-session-dir"
+    session_dir.mkdir()
+    payload = {
+        "sessionId": "s1",
+        "timestamp": 1,
+        "cwd": str(unrelated),
+        "toolName": "bash",
+        "toolArgs": {},
+        "toolResult": {
+            "resultType": "success",
+            "textResultForLlm": "noisy line\n" * 100,
+        },
+    }
+    env = dict(os.environ)
+    env["BRAINSPACE_EXPERIMENT_ENABLED"] = "1"
+    env.pop("BRAINSPACE_WORKSPACE", None)
+    proc = subprocess.run(
+        [sys.executable, _HOOK_CLI],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(session_dir),  # deliberately NOT the payload's cwd
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout) == {}
+    assert not (unrelated / ".autoharness").exists()

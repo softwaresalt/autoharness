@@ -16,7 +16,10 @@ same root given the same environment/payload inputs. Precedence:
    session may ``cd`` into subdirectories, to guarantee hook/server
    agreement regardless of per-call ``cwd``.
 2. ``payload["cwd"]`` — the Copilot CLI session cwd, when a payload is
-   supplied (the hook's case).
+   supplied (the hook's case). Validated as related to the process's
+   actual working directory tree, same as ``explicit_root``/env pin (a
+   crafted or stale payload cwd must never point the store outside the
+   workspace).
 3. ``os.getcwd()`` — the process's own working directory (the server's
    fallback when no payload/env pin is available).
 """
@@ -98,5 +101,13 @@ def resolve_workspace_root(payload=None, *, explicit_root=None) -> str:
         _validate_related_to_process_cwd(env_root, source="BRAINSPACE_WORKSPACE")
         return env_root
     if payload and payload.get("cwd"):
-        return payload["cwd"]
+        payload_cwd = payload["cwd"]
+        # P-018 round-3 follow-up finding: this branch previously returned
+        # payload["cwd"] verbatim with NO containment check, so a crafted or
+        # stale hook payload could point the store at an arbitrary absolute
+        # path unrelated to the process's actual working directory tree.
+        # Callers that cannot tolerate this validation (e.g. an unhandled
+        # WorkspaceContainmentError) must fail safe -- see hook_cli.py.
+        _validate_related_to_process_cwd(payload_cwd, source="payload cwd")
+        return payload_cwd
     return os.getcwd()

@@ -31,8 +31,11 @@ def test_env_var_takes_precedence_over_payload_cwd(monkeypatch, tmp_path):
 
 def test_payload_cwd_used_when_no_env_pin(monkeypatch, tmp_path):
     monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
-    payload = {"cwd": str(tmp_path / "subdir")}
-    assert resolve_workspace_root(payload) == str(tmp_path / "subdir")
+    monkeypatch.chdir(tmp_path)
+    subdir = tmp_path / "subdir"
+    subdir.mkdir()
+    payload = {"cwd": str(subdir)}
+    assert resolve_workspace_root(payload) == str(subdir)
 
 
 def test_falls_back_to_process_cwd_when_no_env_or_payload(monkeypatch):
@@ -114,6 +117,26 @@ def test_env_pin_unrelated_to_process_cwd_is_rejected(monkeypatch, tmp_path):
     monkeypatch.setenv("BRAINSPACE_WORKSPACE", str(unrelated))
     with pytest.raises(WorkspaceContainmentError):
         resolve_workspace_root(None)
+
+
+def test_payload_cwd_unrelated_to_process_cwd_is_rejected(monkeypatch, tmp_path):
+    # P-018 round-3 follow-up finding: the third resolution branch
+    # (``payload["cwd"]``, used when neither ``explicit_root`` nor
+    # ``BRAINSPACE_WORKSPACE`` is set) returned the payload cwd verbatim with
+    # NO containment check at all -- a crafted or stale hook payload could
+    # carry an arbitrary absolute cwd unrelated to the process's actual
+    # working directory, so ``hook_cli.py`` would create the SQLite store
+    # (and write to it) outside the workspace despite the containment
+    # validation already applied to explicit_root/env_root.
+    monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    monkeypatch.chdir(session_dir)
+    unrelated = tmp_path / "completely-unrelated-project"
+    unrelated.mkdir()
+    payload = {"cwd": str(unrelated)}
+    with pytest.raises(WorkspaceContainmentError):
+        resolve_workspace_root(payload)
 
 
 def test_explicit_empty_root_is_rejected_not_treated_as_unset(monkeypatch, tmp_path):

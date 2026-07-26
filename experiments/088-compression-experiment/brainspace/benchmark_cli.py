@@ -33,6 +33,7 @@ from brainspace.benchmark import (  # noqa: E402
 )
 from brainspace.corpus import build_default_corpus  # noqa: E402
 from brainspace.store import BrainspaceStore  # noqa: E402
+from brainspace.workspace import WorkspaceContainmentError, resolve_workspace_root  # noqa: E402
 
 _DEFAULT_OUT_DIR = os.path.join(_EXPERIMENT_ROOT, "reports")
 
@@ -64,6 +65,18 @@ def main(argv=None) -> int:
     parser.add_argument("--repo-root", default=os.getcwd())
     parser.add_argument("--out-dir", default=_DEFAULT_OUT_DIR)
     args = parser.parse_args(argv)
+
+    # P-018 round-3 follow-up finding: --out-dir was contained only relative
+    # to --repo-root, but --repo-root itself was trusted verbatim -- an
+    # unrelated --repo-root would create the cache and reports outside the
+    # current working tree, bypassing this round's containment rule
+    # entirely. Reuse the same containment validation applied to every
+    # other 088-F entry point's explicit_root.
+    try:
+        args.repo_root = resolve_workspace_root(explicit_root=args.repo_root)
+    except WorkspaceContainmentError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
     args.out_dir = _resolve_contained_out_dir(args.out_dir, repo_root=args.repo_root)
     os.makedirs(args.out_dir, exist_ok=True)

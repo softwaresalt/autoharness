@@ -20,10 +20,10 @@
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
         "capture_succeeded": true,
-        "raw_tokens_fallback": 5881,
+        "raw_tokens_fallback": 5985,
         "compressed_tokens_fallback": 235,
-        "net_savings_tokens_fallback": 5646,
-        "projected_savings_10_turns_fallback": 56460
+        "net_savings_tokens_fallback": 5750,
+        "projected_savings_10_turns_fallback": 57500
       },
       "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
     },

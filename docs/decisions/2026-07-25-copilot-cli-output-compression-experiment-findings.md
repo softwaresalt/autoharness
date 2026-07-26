@@ -157,11 +157,12 @@ are safety/protocol/containment correctness fixes, not measurement changes:
 ### Round 3 (same PR, HEAD `2899834` → later): a third auto-triggered re-review
 
 A third Copilot re-review triggered automatically after a subsequent, purely
-non-code (backlog-tracking) push found nine more issues across two comment
-batches, all safety/containment/evidence-integrity-critical. None change the
-**0/6 six-criteria safe wins** conclusion — they are correctness fixes to
-code paths the benchmark corpus does not exercise, plus one fix to the
-report's own metric definitions (below):
+non-code (backlog-tracking) push found twelve more issues across three
+comment batches, all safety/containment/evidence-integrity-critical. None
+change the **0/6 six-criteria safe wins** conclusion — they are correctness
+fixes to code paths the benchmark corpus does not exercise, plus one fix to
+the report's own metric definitions and one documentation-accuracy fix
+(below):
 
 * **MCP `output_retrieve` defaulted to a truncating page.** A handle-only
   call (no `offset`/`limit`) went through `retrieve_chunk`'s default
@@ -236,6 +237,35 @@ report's own metric definitions (below):
   underlying facts are unchanged (0/6 genuine compression-positive safe
   wins, all 7 decline controls behave correctly), only the metric that was
   conflating the two is fixed.
+* **Third comment batch (arrived after the round-3 push): the payload-cwd
+  resolution branch had NO containment check at all.**
+  `resolve_workspace_root()` validated `explicit_root` and
+  `BRAINSPACE_WORKSPACE`, but the third branch — `payload["cwd"]`, used by
+  the hook when neither of those is set — returned the payload's cwd
+  verbatim. A crafted or stale hook payload could carry an arbitrary
+  absolute cwd unrelated to the process's actual working directory, so
+  `hook_cli.py` would create the SQLite store outside the workspace despite
+  the containment already claimed for the other two branches. Fixed: the
+  payload-cwd branch now runs the same containment check; `hook_cli.py`
+  catches `WorkspaceContainmentError` and fails safe to a no-op passthrough
+  (`{}`) rather than crashing or writing outside the workspace.
+* **`benchmark_cli.py --repo-root` was trusted without validation.**
+  The previous round's `--out-dir` containment fix only validated `--out-dir`
+  *relative to* `--repo-root` — but `--repo-root` itself was accepted
+  verbatim from the operator with no check against the process's actual
+  working directory, so `--repo-root /unrelated/path` would still create the
+  cache and reports outside the current working tree. Fixed: `--repo-root`
+  is now resolved through the same `resolve_workspace_root(explicit_root=…)`
+  containment check used by every other 088-F entry point; an unrelated root
+  now exits with an error before anything is created.
+* **Benchmark corpus figures cited in this memo's table had drifted from the
+  committed report.** Two live-command cases (`pytest-vv-experiment-suite`,
+  `workspace-file-inventory`) capture genuinely live output whose exact
+  token counts shift between runs (test counts, file inventory size); the
+  table below had not been refreshed after a later report regeneration, so
+  it no longer matched `reports/benchmark-report.json` as this memo itself
+  promises. Fixed: the table was refreshed to the exact figures in the
+  final regenerated report for this round.
 
 ## Evidence summary
 
@@ -307,8 +337,9 @@ command reference (#3).
 
 `experiments/088-compression-experiment/reports/benchmark-report.{md,json}`
 is the actual, live-generated report from this repository (not a mock-up),
-regenerated after all 15 review fixes above (including the type router).
-13 cases were run: 6 compression-positive candidates and 7 decline/
+regenerated after all review fixes through round 3 above (including the
+type router and the `safe_win`/`decline_correct` metric split). 13 cases
+were run: 6 compression-positive candidates and 7 decline/
 negative-controls, applying all six spike proof-method criteria
 (§7.4 of the 2026-07-15 spike) to every case.
 
@@ -316,11 +347,11 @@ negative-controls, applying all six spike proof-method criteria
 
 | Case | Provenance | Raw tokens (fallback) | Compressed tokens (fallback) | Net savings (fallback) | Verdict |
 |---|---|---:|---:|---:|---|
-| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 5,175 | 232 | 4,943 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 5,985 | 235 | 5,750 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
 | `backlogit-doctor-findings` | live (`backlogit doctor`) | 3,654 | 401 | 3,253 (89%) | **INCONCLUSIVE** — model tokenizer unavailable |
 | `git-log-stat-history` | live (`git --no-pager log --stat -20`) | n/a | n/a | n/a | **NOT a safe win** — hook declined this case outright (gate/readiness verdict text found in real commit history); not a compression candidate |
 | `backlogit-list-json-mcp-shaped` | live (`backlogit list --json`, truncated to 60 KB) | 15,000 | 250 | 14,750 (98%) | **INCONCLUSIVE** — model tokenizer unavailable |
-| `workspace-file-inventory` | live (`git ls-files`) | 13,238 | 118 | 13,120 (99%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| `workspace-file-inventory` | live (`git ls-files`) | 13,335 | 118 | 13,217 (99%) | **INCONCLUSIVE** — model tokenizer unavailable |
 | `graphtor-search-results-representative` | **synthetic-representative** (no live Engram/graphtor MCP index in this benchmark run) | 8,827 | 323 | 8,504 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
 
 *Exact token counts drift slightly between benchmark runs because several
