@@ -258,7 +258,16 @@ def test_decline_control_case_flags_when_it_unexpectedly_compresses(store, monke
     assert result.criteria["declined_as_expected"] is False
 
 
-def test_unwritable_store_simulation_falls_back_to_passthrough(store):
+def test_unwritable_store_simulation_falls_back_to_passthrough(store, monkeypatch):
+    # P-018 round-9 finding: this control's whole point is to prove the
+    # hook's fail-safe passthrough when `store.put()` itself raises. That
+    # path can only be reached if the hook actually GETS to `store.put()` --
+    # simulate a real model tokenizer being available so the never-expand
+    # guard doesn't decline first (which would make the injected
+    # `store.put` failure never actually get exercised; see the dedicated
+    # honesty test below for that scenario).
+    monkeypatch.setattr("brainspace.hook.is_model_tokenizer_available", lambda: True)
+    monkeypatch.setattr("brainspace.hook.count_tokens_strict", estimate_tokens)
     case = BenchmarkCase(
         name="unwritable-store-passthrough",
         tool_name="bash",
@@ -273,6 +282,58 @@ def test_unwritable_store_simulation_falls_back_to_passthrough(store):
     assert result.decline_correct is True
     assert result.criteria["declined_as_expected"] is True
     assert result.criteria["no_durable_row_on_decline"] is True
+    # The injected store.put() failure must actually have been reached --
+    # otherwise this control proves nothing about store-write fail-safety.
+    assert result.criteria["unwritable_store_path_exercised"] is True
+
+
+def test_unwritable_store_simulation_is_inconclusive_when_never_reached(store):
+    # P-018 round-9 finding: without a real model tokenizer simulated, the
+    # hook's never-expand guard declines BEFORE ever calling `store.put()`
+    # (no real tiktoken installed in this test environment), so the
+    # injected `store.put` failure is never actually exercised. The case
+    # still "declines with no durable row" trivially -- but that must NOT
+    # be silently counted as proof of the unwritable-store fail-safe
+    # behavior it claims to test. Report it as not-yet-proven instead.
+    case = BenchmarkCase(
+        name="unwritable-store-passthrough-no-tokenizer",
+        tool_name="bash",
+        text="repeated noisy log line\n" * 200,
+        task_question="n/a",
+        expect_decline=True,
+        simulate_unwritable_store=True,
+    )
+    report = run_benchmark([case], store=store)
+    result = report.results[0]
+    assert result.criteria["declined_as_expected"] is True
+    assert result.criteria["no_durable_row_on_decline"] is True
+    assert result.criteria["unwritable_store_path_exercised"] is False
+    # decline_correct must NOT be silently reported True for an unexercised
+    # control -- that would be exactly the kind of fabricated-pass this
+    # module's own docstring promises never to do.
+    assert result.decline_correct is False
+    assert "inconclusive" in result.notes.lower()
+
+
+def test_render_markdown_report_labels_unexercised_control_as_inconclusive_not_failed(store):
+    # Follow-up to the round-9 honesty fix: an unwritable-store control that
+    # declined for the wrong reason (never-expand guard, not the injected
+    # store.put() failure) must be labeled INCONCLUSIVE in the rendered
+    # report, not "DECLINE FAILED (compressed unexpectedly)" -- the hook
+    # DID decline (no compression happened), it just didn't prove what the
+    # case claims to prove.
+    case = BenchmarkCase(
+        name="unwritable-store-passthrough-no-tokenizer",
+        tool_name="bash",
+        text="repeated noisy log line\n" * 200,
+        task_question="n/a",
+        expect_decline=True,
+        simulate_unwritable_store=True,
+    )
+    report = run_benchmark([case], store=store)
+    markdown = render_markdown_report(report)
+    assert "INCONCLUSIVE (mechanism not exercised)" in markdown
+    assert "DECLINE FAILED (compressed unexpectedly)" not in markdown
 
 
 def test_report_decline_correct_count_tracked_separately_from_safe_win_count(store):

@@ -506,6 +506,85 @@ recommendation is unchanged**: zero proven safe wins, precondition #1 (a
 real model tokenizer) still required before the prototype can compress
 anything at all, let alone prove a net savings.
 
+### Round 9 (2 findings from a ninth auto-triggered re-review): a concurrency fix and a headline-figure correction
+
+This round changed a reported figure for the first time since round 1 — the
+**decline-control-correct count drops from 7/7 to 6/6+1-inconclusive
+(reported as 6 of 7)**. This is disclosed prominently, not buried, because it
+is exactly the kind of correction this memo's honesty standard exists to
+surface.
+
+* **Expired-row cleanup could clobber a concurrent refresh (TOCTOU).**
+  `store.py`'s `get()` deleted an expired row unconditionally
+  (`self.delete(handle)`) once it decided the row was expired. If a
+  concurrent process's `put()` refreshed identical content (same
+  content-derived handle) between the expiry check and the delete, the
+  unconditional delete would destroy the just-refreshed row, leaving a
+  dangling handle for the concurrent writer — a byte-equivalent-retrieval
+  integrity gap under concurrent access. Fixed: added
+  `_delete_if_still_expired(handle, stored_at)`, which deletes conditionally
+  (`DELETE FROM entries WHERE handle = ? AND stored_at = ?`), keyed on the
+  stale `stored_at` value read during the expiry check. A concurrent refresh
+  changes `stored_at`, making the stale-keyed delete a no-op automatically,
+  with no explicit locking required. A new regression test
+  (`test_expired_get_delete_does_not_clobber_a_concurrent_refresh`) simulates
+  the race by monkeypatching the seam method to inject a concurrent
+  `UPDATE entries SET stored_at = ?` immediately before the real delete runs,
+  and asserts the refreshed row survives.
+* **The unwritable-store-passthrough decline control could "pass" without
+  ever exercising the failure it claims to test.** `benchmark.py`'s
+  `simulate_unwritable_store` case patches `BrainspaceStore.put` to raise, but
+  in this tiktoken-less benchmark environment the hook's never-expand guard
+  declines *before* ever calling `store.put()` (the same real gate documented
+  in rounds 6/8) — so the injected failure is never actually invoked, yet the
+  case was still counted as a correctly-proven "unwritable_store" decline
+  control. This is the same class of vacuous-pass this memo already corrected
+  once for finding #1 (round 1): a control that "passes" for a reason other
+  than the one it claims to test proves nothing about the mechanism it
+  exists to validate. Fixed: `_run_decline_case()` now tracks whether the
+  injected failure was actually invoked (`unwritable_store_path_exercised`),
+  and if it was never reached, `decline_correct` is honestly forced to
+  `False` with an `[INCONCLUSIVE: ...]` note instead of a silent pass. The
+  rendered Markdown report's verdict column now also distinguishes this case
+  (`INCONCLUSIVE (mechanism not exercised)`) from a genuine decline failure
+  (`DECLINE FAILED (compressed unexpectedly)`), so the report itself doesn't
+  imply the hook malfunctioned when it actually just declined for an earlier,
+  unrelated reason. Two tests cover both branches: one simulates a real
+  tokenizer being available (so the hook reaches `store.put()` and the
+  control is genuinely proven) and one matches this environment's real
+  behavior (no tokenizer simulated, control is honestly inconclusive), plus a
+  dedicated test asserting the corrected verdict label.
+
+Regenerating the benchmark report after round 9 **does change the headline
+decline-control figure**, unlike rounds 6–8: `decline-control-correct count`
+drops from **7 of 7** to **6 of 7**, because the
+`unwritable-store-passthrough` case is now honestly reported as
+`INCONCLUSIVE (mechanism not exercised)` rather than a silently-counted
+correct decline. This does **not** indicate the hook actually failed to
+decline — it still declined with no durable row written, which is itself
+correct behavior — it indicates that this specific control has not yet
+proven what it claims to prove (fail-safe passthrough on an actual
+`store.put()` failure) in an environment with no real model tokenizer
+installed. Once precondition #1 (a real `tiktoken` install) is satisfied in a
+pilot environment, this control should re-run and can move back to a
+genuinely-proven "7 of 7" — but until then, "6 of 7" is the honest, current
+figure. All other round-6/7/8 figures (0/6 six-criteria safe wins, all six
+compression-positive candidates declining outright) are unchanged. The
+**headline recommendation is unchanged**: zero proven safe wins, precondition
+#1 still required.
+
+**Circuit-breaker note**: this is the ninth Copilot-review remediation round
+on PR #229 (46 findings total across rounds 1–9), which is triple the
+3-review-fix-cycle guidance in `circuit-breaker.instructions.md`. Both
+round-9 findings were judged genuinely safety/evidence-integrity relevant
+(the concurrency fix touches byte-equivalent-retrieval integrity; the
+benchmark-honesty fix touches the evidence oracle this whole memo depends
+on), which is why they were fixed rather than declined under the operator's
+standing override for safety-relevant findings. This round is treated as
+final for this remediation cycle regardless of any further auto-triggered
+re-review; any subsequent finding becomes an explicit operator-facing
+follow-up rather than a tenth round.
+
 ## Evidence summary
 
 ### Copilot CLI `postToolUse` hooks contract re-verification (plan condition #4)
@@ -576,9 +655,11 @@ command reference (#3).
 
 `experiments/088-compression-experiment/reports/benchmark-report.{md,json}`
 is the actual, live-generated report from this repository (not a mock-up),
-regenerated after all review fixes through round 6 above (including the
-type router, the `safe_win`/`decline_correct` metric split, and the round-6
-no-model-tokenizer decline). 13 cases were run: 6 compression-positive
+regenerated after all review fixes through round 9 above (including the
+type router, the `safe_win`/`decline_correct` metric split, the round-6
+no-model-tokenizer decline, and the round-9 honesty fix that reclassifies
+the `unwritable-store-passthrough` control as inconclusive in this
+environment). 13 cases were run: 6 compression-positive
 candidates and 7 decline/negative-controls, applying all six spike
 proof-method criteria (§7.4 of the 2026-07-15 spike) to every case.
 
@@ -622,12 +703,14 @@ one via the pre-existing policy pre-screen). Precondition #3 (below) asks for
 a wider corpus that can exercise the type router on a live, non-declined
 capture once a real tokenizer is available.
 
-**Decline/negative controls (7 of 7 correctly declined, zero durable rows):**
+**Decline/negative controls (6 of 7 correctly declined and proven, zero
+durable rows; 1 of 7 honestly reported as inconclusive as of round 9 — see
+below):**
 
 | Case | Decline reason | Result |
 |---|---|---|
 | `tiny-output-decline` | tiny output | declined, no row |
-| `unwritable-store-passthrough` | simulated store failure (fail-safe passthrough) | declined, no row |
+| `unwritable-store-passthrough` | never-expand guard declines before `store.put()` is reached in this environment | declined, no row — **INCONCLUSIVE (mechanism not exercised)**, not counted as a proven correct control (round 9) |
 | `secret-bearing-output-decline` | secret detector hit (AWS key pattern) | declined, no row |
 | `gate-readiness-verdict-decline` | P-014 gate verdict text | declined, no row |
 | `failure-bearing-gh-run-view-representative` | synthetic representative of a failed `gh run view --log-failed` | declined, no row |
@@ -635,7 +718,8 @@ capture once a real tokenizer is available.
 | `operator-approval-text-decline` | operator y/n approval prompt | declined, no row |
 
 No decline case was hidden or omitted from the report (proof-method
-criterion 6).
+criterion 6) — the inconclusive case above is reported in full, with an
+explicit note, rather than silently dropped or silently counted as correct.
 
 ### Honesty caveats on the reported numbers
 

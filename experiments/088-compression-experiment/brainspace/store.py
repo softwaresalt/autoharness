@@ -138,9 +138,28 @@ class BrainspaceStore:
             return None
         content, stored_at = row
         if self._ttl_seconds is not None and (time.time() - stored_at) > self._ttl_seconds:
-            self.delete(handle)
+            self._delete_if_still_expired(handle, stored_at)
             return None
         return decode_lossless(content)
+
+    def _delete_if_still_expired(self, handle: str, stored_at: float) -> None:
+        """Delete ``handle`` only if its row's ``stored_at`` still matches
+        the value just read as expired (P-018 round-9 finding).
+
+        Handles are content-derived, so a concurrent ``put()`` refreshing
+        identical content between this method's caller reading the row and
+        this delete would give the row a NEW ``stored_at``. An unconditional
+        ``DELETE ... WHERE handle = ?`` would remove that freshly-refreshed
+        row out from under the concurrent writer, leaving its already-issued
+        handle dangling. Keying the delete on the stale ``stored_at`` value
+        makes it a no-op whenever a refresh has already happened, so the
+        refreshed row survives.
+        """
+        self._conn.execute(
+            "DELETE FROM entries WHERE handle = ? AND stored_at = ?",
+            (handle, stored_at),
+        )
+        self._conn.commit()
 
     def delete(self, handle: str) -> None:
         self._conn.execute("DELETE FROM entries WHERE handle = ?", (handle,))

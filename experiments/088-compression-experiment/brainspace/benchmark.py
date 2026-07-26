@@ -129,11 +129,14 @@ def _payload(tool_name: str, text: str) -> dict:
 
 def _run_decline_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseResult:
     rows_before = store.row_count()
+    unwritable_store_path_exercised = None
 
     if case.simulate_unwritable_store:
         original_put = BrainspaceStore.put
+        invocations = {"count": 0}
 
         def _boom(self, _text):
+            invocations["count"] += 1
             raise RuntimeError("simulated unwritable store")
 
         BrainspaceStore.put = _boom
@@ -141,6 +144,13 @@ def _run_decline_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseResult
             result = process_post_tool_use(_payload(case.tool_name, case.text), store)
         finally:
             BrainspaceStore.put = original_put
+        # P-018 round-9 finding: in a tokenizer-less environment the hook's
+        # never-expand guard declines BEFORE ever calling store.put(), so
+        # the injected failure above is never actually reached -- track
+        # whether it was, so this control cannot silently claim to have
+        # proven fail-safe passthrough on a store-write error when it
+        # never actually exercised that code path this run.
+        unwritable_store_path_exercised = invocations["count"] > 0
     else:
         result = process_post_tool_use(_payload(case.tool_name, case.text), store)
 
@@ -151,6 +161,27 @@ def _run_decline_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseResult
     notes = case.decline_reason_label or ""
     if case.provenance != "live":
         notes = f"{notes} [{case.provenance}]".strip()
+
+    criteria = {
+        "declined_as_expected": declined,
+        "no_durable_row_on_decline": no_new_row,
+    }
+    decline_correct = declined and no_new_row
+    if case.simulate_unwritable_store:
+        criteria["unwritable_store_path_exercised"] = bool(unwritable_store_path_exercised)
+        if not unwritable_store_path_exercised:
+            # The hook declined for a DIFFERENT, earlier reason (e.g. no
+            # real model tokenizer available) -- this control has NOT
+            # proven the store-write fail-safe passthrough behavior it
+            # claims to test. Report this honestly instead of silently
+            # counting it as a correctly-proven decline control (the same
+            # honesty bar this module already applies to the model-
+            # tokenizer-unavailable INCONCLUSIVE reporting).
+            decline_correct = False
+            notes = (
+                f"{notes} [INCONCLUSIVE: hook declined before store.put() was "
+                "reached; unwritable-store passthrough not exercised this run]"
+            ).strip()
 
     return CaseResult(
         name=case.name,
@@ -163,11 +194,8 @@ def _run_decline_case(case: BenchmarkCase, store: BrainspaceStore) -> CaseResult
         # `safe_win` is therefore always False here; decline correctness is
         # reported via the dedicated `decline_correct` field/count instead.
         safe_win=False,
-        decline_correct=declined and no_new_row,
-        criteria={
-            "declined_as_expected": declined,
-            "no_durable_row_on_decline": no_new_row,
-        },
+        decline_correct=decline_correct,
+        criteria=criteria,
         notes=notes,
     )
 
@@ -330,7 +358,12 @@ def render_markdown_report(report: BenchmarkReport) -> str:
     ]
     for r in report.results:
         if r.category == "decline_control":
-            verdict = "DECLINE CORRECT" if r.decline_correct else "DECLINE FAILED (compressed unexpectedly)"
+            if r.decline_correct:
+                verdict = "DECLINE CORRECT"
+            elif r.criteria.get("unwritable_store_path_exercised") is False:
+                verdict = "INCONCLUSIVE (mechanism not exercised)"
+            else:
+                verdict = "DECLINE FAILED (compressed unexpectedly)"
         elif r.safe_win:
             verdict = "SAFE WIN"
         elif r.criteria.get("model_tokenizer_available") is False:

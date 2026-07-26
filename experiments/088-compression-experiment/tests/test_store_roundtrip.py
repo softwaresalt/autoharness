@@ -91,6 +91,56 @@ def test_get_expired_entry_returns_none_and_removes_row(tmp_path):
         s.close()
 
 
+def test_expired_get_delete_does_not_clobber_a_concurrent_refresh(tmp_path, monkeypatch):
+    # P-018 round-9 finding: get()'s expired-row cleanup previously called
+    # the unconditional self.delete(handle). If a concurrent process's
+    # put() refreshes this same content-derived handle (e.g. a concurrent
+    # hook re-puts identical content) between this get() reading the row as
+    # expired and issuing its delete, the unconditional delete would wipe
+    # out the freshly-refreshed row too, leaving the concurrent writer's
+    # already-issued handle dangling. Simulate the interleaving
+    # deterministically by racing a "concurrent refresh" inside the
+    # deletion seam itself.
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=10_000)
+    try:
+        text = "content a concurrent process refreshes mid-expiry-check"
+        handle = s.put(text)
+        # Backdate stored_at directly so this get() sees it as expired,
+        # without a real sleep (avoids wall-clock flakiness).
+        s._conn.execute(
+            "UPDATE entries SET stored_at = ? WHERE handle = ?",
+            (time.time() - 1000, handle),
+        )
+        s._conn.commit()
+
+        from brainspace.store import BrainspaceStore as _Store
+
+        original_delete_if_still_expired = _Store._delete_if_still_expired
+
+        def racing_delete(self, h, stored_at):
+            # Simulate the concurrent refresh landing *between* the read
+            # that decided "expired" and this delete call.
+            self._conn.execute(
+                "UPDATE entries SET stored_at = ? WHERE handle = ?",
+                (time.time(), h),
+            )
+            self._conn.commit()
+            original_delete_if_still_expired(self, h, stored_at)
+
+        monkeypatch.setattr(_Store, "_delete_if_still_expired", racing_delete)
+
+        result = s.get(handle)
+        assert result is None  # this call still correctly reports expired
+
+        # But the concurrently-refreshed row must have survived the delete.
+        row = s._conn.execute(
+            "SELECT content FROM entries WHERE handle = ?", (handle,)
+        ).fetchone()
+        assert row is not None
+    finally:
+        s.close()
+
+
 def test_size_cap_evicts_oldest_entries(tmp_path):
     s = BrainspaceStore(str(tmp_path), ttl_seconds=3600, max_size_bytes=50)
     try:

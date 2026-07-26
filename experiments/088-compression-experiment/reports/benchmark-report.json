@@ -3,7 +3,7 @@
   "compression_positive_count": 6,
   "decline_control_count": 7,
   "safe_win_count": 0,
-  "decline_correct_count": 7,
+  "decline_correct_count": 6,
   "results": [
     {
       "name": "pytest-vv-experiment-suite",
@@ -80,12 +80,13 @@
       "name": "unwritable-store-passthrough",
       "category": "decline_control",
       "safe_win": false,
-      "decline_correct": true,
+      "decline_correct": false,
       "criteria": {
         "declined_as_expected": true,
-        "no_durable_row_on_decline": true
+        "no_durable_row_on_decline": true,
+        "unwritable_store_path_exercised": false
       },
-      "notes": "unwritable_store"
+      "notes": "unwritable_store [INCONCLUSIVE: hook declined before store.put() was reached; unwritable-store passthrough not exercised this run]"
     },
     {
       "name": "secret-bearing-output-decline",
