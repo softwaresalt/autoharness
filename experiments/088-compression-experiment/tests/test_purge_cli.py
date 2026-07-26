@@ -87,6 +87,32 @@ def test_purge_cli_defaults_to_expired_mode(tmp_path, monkeypatch):
         verify.close()
 
 
+def test_negative_ttl_seconds_is_rejected(tmp_path, monkeypatch, capsys):
+    # P-018 round-3 (4th cycle) finding: --ttl-seconds accepted negative
+    # values. purge_expired() computes cutoff = now - ttl, so a negative
+    # TTL puts the cutoff in the FUTURE and makes the supposedly-safe
+    # "expired" mode delete every live row -- a live-data-loss bug in a
+    # mode explicitly documented as safe. Reject before opening the store.
+    monkeypatch.chdir(tmp_path)
+    store = BrainspaceStore(str(tmp_path), ttl_seconds=3600, max_size_bytes=10_000)
+    try:
+        handle = store.put("live content that must survive")
+    finally:
+        store.close()
+
+    exit_code = purge_cli.main(
+        ["--repo-root", str(tmp_path), "--mode", "expired", "--ttl-seconds", "-5"]
+    )
+    assert exit_code != 0
+    assert "negative" in capsys.readouterr().err.lower()
+
+    verify = BrainspaceStore(str(tmp_path), ttl_seconds=3600, max_size_bytes=10_000)
+    try:
+        assert verify.get(handle) == "live content that must survive"
+    finally:
+        verify.close()
+
+
 def test_repo_root_arg_takes_precedence_over_ambient_env_pin(tmp_path, monkeypatch):
     # P-018 re-review finding #4 (round 2): an ambient BRAINSPACE_WORKSPACE
     # must NOT silently override an explicit --repo-root -- otherwise

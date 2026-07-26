@@ -267,6 +267,49 @@ the report's own metric definitions and one documentation-accuracy fix
   promises. Fixed: the table was refreshed to the exact figures in the
   final regenerated report for this round.
 
+### Round 4 (same PR, HEAD `91f939e` → later): a fourth auto-triggered re-review
+
+A fourth Copilot re-review triggered automatically after Round 3's completion
+push found two more safety-critical issues, both fixed:
+
+* **Secret/PII screen had zero PII detectors despite its name.**
+  `secret_screen.py`'s module docstring claimed "Secret/PII pre-screen", but
+  every pattern in `_PATTERNS` targeted credential/token forms (API keys,
+  passwords, PATs, JWTs, connection strings) — none detected common PII such
+  as email addresses. Ordinary tool output (e.g. `git log` author lines like
+  `Someone <someone@example.com>`) would pass the screen and be durably
+  stored with no PII protection, contradicting the module's own claimed
+  contract. Fixed: added an email-address pattern
+  (`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`) to `_PATTERNS`, so any
+  detected email address forces a decline before durable storage, and
+  narrowed the module docstring to state explicitly that email addresses are
+  the only PII family covered (not a general-purpose PII scanner) — avoiding
+  an over-broad claim of protection this prototype does not implement (no
+  phone numbers, SSNs, physical addresses, or names).
+* **`purge_cli.py --ttl-seconds` accepted negative values, causing
+  `--mode expired` to delete every live row.** The round-3 fix added a
+  `--ttl-seconds` override for test alignment, but did not validate its
+  sign. `purge_expired()` computes `cutoff = now - ttl_seconds`; a negative
+  `ttl_seconds` therefore pushes `cutoff` into the *future*, so every row —
+  including rows written moments earlier — is treated as "expired" and
+  deleted. This turned the documented safe cleanup mode into a data-loss
+  vector. Fixed: `purge_cli.main()` now rejects any `--ttl-seconds < 0` with
+  a clear error message and a non-zero exit *before* the store is opened, so
+  no purge runs at all on invalid input. Regression-tested: a store with a
+  live row survives a `--ttl-seconds -5 --mode expired` invocation
+  unchanged, and the CLI reports the rejection on stderr.
+
+Neither Round 4 finding touches a code path the benchmark corpus exercises
+for a compression-positive candidate (the email-PII fix only *narrows* what
+the secret/PII screen accepts, which can only ever turn an existing
+decline-control case into a decline, or turn a would-be compression case into
+a decline — it cannot manufacture a new safe win). Regenerating the report
+after this round confirms the **0/6 six-criteria safe wins** and
+**7/7 correctly-behaving decline controls** conclusion is unchanged; only the
+two non-deterministic live-command token counts shifted (test-suite growth
+from the two new regression tests added this round), and the table below was
+refreshed accordingly.
+
 ## Evidence summary
 
 ### Copilot CLI `postToolUse` hooks contract re-verification (plan condition #4)
@@ -337,7 +380,7 @@ command reference (#3).
 
 `experiments/088-compression-experiment/reports/benchmark-report.{md,json}`
 is the actual, live-generated report from this repository (not a mock-up),
-regenerated after all review fixes through round 3 above (including the
+regenerated after all review fixes through round 4 above (including the
 type router and the `safe_win`/`decline_correct` metric split). 13 cases
 were run: 6 compression-positive candidates and 7 decline/
 negative-controls, applying all six spike proof-method criteria
@@ -347,7 +390,7 @@ negative-controls, applying all six spike proof-method criteria
 
 | Case | Provenance | Raw tokens (fallback) | Compressed tokens (fallback) | Net savings (fallback) | Verdict |
 |---|---|---:|---:|---:|---|
-| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 5,985 | 235 | 5,750 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
+| `pytest-vv-experiment-suite` | live (`python -m pytest ... -vv`) | 6,043 | 235 | 5,808 (96%) | **INCONCLUSIVE** — model tokenizer unavailable |
 | `backlogit-doctor-findings` | live (`backlogit doctor`) | 3,654 | 401 | 3,253 (89%) | **INCONCLUSIVE** — model tokenizer unavailable |
 | `git-log-stat-history` | live (`git --no-pager log --stat -20`) | n/a | n/a | n/a | **NOT a safe win** — hook declined this case outright (gate/readiness verdict text found in real commit history); not a compression candidate |
 | `backlogit-list-json-mcp-shaped` | live (`backlogit list --json`, truncated to 60 KB) | 15,000 | 250 | 14,750 (98%) | **INCONCLUSIVE** — model tokenizer unavailable |

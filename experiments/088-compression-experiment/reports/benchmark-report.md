@@ -34,10 +34,10 @@
 - `evidence_oracle_passes`: True
 - `task_answerable_from_compressed_view`: True
 - `capture_succeeded`: True
-- `raw_tokens_fallback`: 5985
+- `raw_tokens_fallback`: 6043
 - `compressed_tokens_fallback`: 235
-- `net_savings_tokens_fallback`: 5750
-- `projected_savings_10_turns_fallback`: 57500
+- `net_savings_tokens_fallback`: 5808
+- `projected_savings_10_turns_fallback`: 58080
 
 ### backlogit-doctor-findings (compression_positive)
 - `byte_equivalent_retrieval`: True

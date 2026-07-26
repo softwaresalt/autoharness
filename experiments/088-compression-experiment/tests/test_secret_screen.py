@@ -52,6 +52,15 @@ def test_detects_structured_json_client_secret_field_with_spacing():
     assert contains_secret(text) is True
 
 
+def test_detects_email_address_as_pii():
+    # P-018 round-3 (4th cycle) finding: the module's docstring promises a
+    # secret/PII pre-screen, but had no PII detector at all -- common tool
+    # output such as `git log` author lines ("Someone <someone@example.com>")
+    # was accepted and durably stored with no PII screening whatsoever.
+    text = "Author: Someone <someone@example.com>\nDate: 2026-07-15"
+    assert contains_secret(text) is True
+
+
 def test_plain_prose_is_not_flagged():
     text = "The build succeeded and all 42 tests passed in 3.2 seconds."
     assert contains_secret(text) is False

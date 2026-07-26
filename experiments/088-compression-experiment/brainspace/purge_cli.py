@@ -60,6 +60,17 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.ttl_seconds is not None and args.ttl_seconds < 0:
+        # purge_expired() computes cutoff = now - ttl; a negative ttl puts
+        # the cutoff in the future, making the supposedly-safe "expired"
+        # mode delete every live row. Reject before the store is even
+        # opened.
+        print(
+            f"error: --ttl-seconds must not be negative; got {args.ttl_seconds}",
+            file=sys.stderr,
+        )
+        return 1
+
     # An explicit --repo-root is an operator's per-invocation intent and
     # must win over an ambient BRAINSPACE_WORKSPACE env pin (finding #4).
     workspace_root = resolve_workspace_root(explicit_root=args.repo_root)

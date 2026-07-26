@@ -4,6 +4,12 @@ A conservative, regex-based detector used to force a decline (never store,
 never compress) before any durable write. False positives are acceptable —
 false negatives are not. This is deliberately simple/dependency-free; it is
 not a production secret scanner.
+
+PII coverage is intentionally narrow and explicit: email addresses (the most
+common PII incidentally present in ordinary tool output, e.g. `git log`
+author lines) are detected. This is not a general-purpose PII scanner (no
+phone numbers, physical addresses, SSNs, etc.) -- treat any broader PII
+claim as out of scope for this throwaway experiment.
 """
 
 import re
@@ -23,6 +29,7 @@ _PATTERNS = [
         r'PRIVATE[_-]?KEY|ACCESS[_-]?KEY)[A-Za-z0-9_]*["\']?\s*[:=]\s*'
         r'["\']?[^\s,"\']{6,}'
     ),  # structured key/value forms (JSON/YAML/etc.), not just dotenv KEY=value
+    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),  # email address (PII)
 ]
 
 
