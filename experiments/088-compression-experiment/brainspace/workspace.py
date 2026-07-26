@@ -34,6 +34,32 @@ class WorkspaceContainmentError(Exception):
     actual working directory tree (Constitution IV containment)."""
 
 
+def _discover_repo_root(start: str):
+    """Walk upward from ``start`` looking for a repository marker (``.git``).
+
+    Returns the marker's containing directory, or ``None`` if no marker is
+    found anywhere between ``start`` and the filesystem root. ``.git`` may be
+    a directory (ordinary clone) or a file (worktree/submodule pointer);
+    ``os.path.exists`` covers both.
+    """
+    current = os.path.realpath(start)
+    while True:
+        if os.path.exists(os.path.join(current, ".git")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
+def _is_ancestor_or_equal(ancestor: str, path: str) -> bool:
+    try:
+        return os.path.commonpath([ancestor, path]) == ancestor
+    except ValueError:
+        # e.g. different drives on Windows -- definitionally unrelated.
+        return False
+
+
 def _validate_related_to_process_cwd(candidate: str, *, source: str) -> None:
     """Reject a workspace-root candidate that shares no ancestry with the
     process's actual working directory.
@@ -49,19 +75,41 @@ def _validate_related_to_process_cwd(candidate: str, *, source: str) -> None:
     process's actual working directory at all -- that would let a
     misconfigured env var or CLI argument point the store (and therefore
     ``purge_cli --mode all``) at a completely unrelated filesystem location.
+
+    A candidate that is a proper ANCESTOR of cwd is additionally bounded to
+    a discovered repository root (P-018 round-7 finding): accepting ANY
+    ancestor purely because ``commonpath(candidate, cwd) == candidate`` lets
+    a misconfigured env pin or a crafted/stale payload cwd point the store at
+    an arbitrarily broad, unrelated parent -- e.g. ``/`` or ``/home`` -- just
+    because it is technically an ancestor of the real cwd. Only ancestors at
+    or below the nearest discoverable ``.git`` boundary (walking up from the
+    real cwd) are trusted; a descendant-of-cwd candidate (the reverse,
+    nested-workspace-pin relationship) carries no such risk and needs no
+    repo-root bound, since it can never be broader than cwd itself.
     """
     real_candidate = os.path.realpath(candidate)
     real_cwd = os.path.realpath(os.getcwd())
-    try:
-        common = os.path.commonpath([real_candidate, real_cwd])
-    except ValueError:
-        # e.g. different drives on Windows -- definitionally unrelated.
-        common = None
-    if common not in (real_candidate, real_cwd):
+
+    if real_candidate == real_cwd:
+        return
+    if _is_ancestor_or_equal(real_cwd, real_candidate):
+        # candidate is a descendant of cwd -- narrower than cwd, no escape risk.
+        return
+    if _is_ancestor_or_equal(real_candidate, real_cwd):
+        # candidate is a proper ancestor of cwd -- only trust it up to the
+        # discovered repository root, never unbounded ancestry.
+        repo_root = _discover_repo_root(real_cwd)
+        if repo_root is not None and _is_ancestor_or_equal(repo_root, real_candidate):
+            return
         raise WorkspaceContainmentError(
-            f"{source} resolves outside the current process working "
-            f"directory tree: {candidate!r} is unrelated to cwd {os.getcwd()!r}"
+            f"{source} is an ancestor of the current working directory but "
+            f"is not bounded by a discoverable repository root: {candidate!r} "
+            f"is too broad relative to cwd {os.getcwd()!r}"
         )
+    raise WorkspaceContainmentError(
+        f"{source} resolves outside the current process working "
+        f"directory tree: {candidate!r} is unrelated to cwd {os.getcwd()!r}"
+    )
 
 
 def resolve_workspace_root(payload=None, *, explicit_root=None) -> str:

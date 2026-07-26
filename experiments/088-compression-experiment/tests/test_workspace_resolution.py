@@ -23,6 +23,10 @@ def test_env_var_takes_precedence_over_payload_cwd(monkeypatch, tmp_path):
     pinned = tmp_path / "pinned-root"
     nested = pinned / "nested"
     nested.mkdir(parents=True)
+    # P-018 round-7 finding: an ancestor-of-cwd candidate is only trusted up
+    # to a discovered repository root -- mark ``pinned`` as that root so this
+    # legitimate "pin repo root, cd into subdir" case still resolves.
+    (pinned / ".git").mkdir()
     monkeypatch.chdir(nested)
     monkeypatch.setenv("BRAINSPACE_WORKSPACE", str(pinned))
     payload = {"cwd": str(tmp_path / "subdir")}
@@ -49,6 +53,8 @@ def test_hook_and_server_resolve_identically_given_same_inputs(monkeypatch, tmp_
     # has pinned BRAINSPACE_WORKSPACE so both entry points still agree.
     session_dir = tmp_path / "anywhere-under-pinned-root"
     session_dir.mkdir()
+    # P-018 round-7 finding: bound the ancestor pin to a discoverable repo root.
+    (tmp_path / ".git").mkdir()
     monkeypatch.chdir(session_dir)
     pinned = str(tmp_path)
     monkeypatch.setenv("BRAINSPACE_WORKSPACE", pinned)
@@ -67,6 +73,8 @@ def test_explicit_root_takes_precedence_over_env_pin(monkeypatch, tmp_path):
     explicit = tmp_path / "explicit-root"
     nested = explicit / "nested"
     nested.mkdir(parents=True)
+    # P-018 round-7 finding: bound the ancestor pin to a discoverable repo root.
+    (explicit / ".git").mkdir()
     monkeypatch.chdir(nested)
     ambient = str(tmp_path / "ambient-root")
     monkeypatch.setenv("BRAINSPACE_WORKSPACE", ambient)
@@ -77,6 +85,8 @@ def test_explicit_root_wins_over_env_pin_and_payload(monkeypatch, tmp_path):
     explicit = tmp_path / "explicit-root"
     nested = explicit / "nested"
     nested.mkdir(parents=True)
+    # P-018 round-7 finding: bound the ancestor pin to a discoverable repo root.
+    (explicit / ".git").mkdir()
     monkeypatch.chdir(nested)
     ambient = str(tmp_path / "ambient-root")
     monkeypatch.setenv("BRAINSPACE_WORKSPACE", ambient)
@@ -152,5 +162,57 @@ def test_explicit_empty_root_is_rejected_not_treated_as_unset(monkeypatch, tmp_p
     monkeypatch.setenv("BRAINSPACE_WORKSPACE", str(ambient))
     with pytest.raises(WorkspaceContainmentError):
         resolve_workspace_root(explicit_root="")
+
+
+def test_broad_unbounded_ancestor_without_repo_root_is_rejected(monkeypatch, tmp_path):
+    # P-018 round-7 finding: an ancestor-of-cwd candidate was previously
+    # accepted purely because ``commonpath(candidate, cwd) == candidate``,
+    # with no bound on how broad that ancestor could be -- a misconfigured
+    # BRAINSPACE_WORKSPACE pin (or a crafted payload cwd) pointing at
+    # something as broad as "/" or "/home" would be silently honored merely
+    # because it happens to be an ancestor of the real cwd. Without a
+    # discoverable repository root (".git") bounding the ancestor, the
+    # candidate must now be rejected rather than trusted.
+    monkeypatch.setattr("brainspace.workspace._discover_repo_root", lambda start: None)
+    broad = tmp_path  # stands in for an overly-broad parent like "/" or "/home"
+    nested = broad / "deeply" / "nested" / "session"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
+    payload = {"cwd": str(broad)}
+    with pytest.raises(WorkspaceContainmentError):
+        resolve_workspace_root(payload)
+
+
+def test_ancestor_broader_than_discovered_repo_root_is_rejected(monkeypatch, tmp_path):
+    # The discovered repository root only trusts ancestors AT OR BELOW it --
+    # a candidate broader than the repo boundary (e.g. BRAINSPACE_WORKSPACE
+    # pinned one level above the actual repo root, such as "/home" when the
+    # repo lives at "/home/user/project") must still be rejected even though
+    # a repository root WAS discoverable.
+    broad = tmp_path  # stands in for an overly-broad parent like "/home"
+    repo_root = broad / "actual-repo"
+    (repo_root / ".git").mkdir(parents=True)
+    nested = repo_root / "subdir"
+    nested.mkdir()
+    monkeypatch.chdir(nested)
+    monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
+    payload = {"cwd": str(broad)}
+    with pytest.raises(WorkspaceContainmentError):
+        resolve_workspace_root(payload)
+
+
+def test_ancestor_at_discovered_repo_root_is_accepted(monkeypatch, tmp_path):
+    # Positive counterpart: an ancestor pin that resolves EXACTLY to the
+    # discovered repository root is the legitimate "pin the repo root"
+    # case and must still be accepted.
+    repo_root = tmp_path / "actual-repo"
+    (repo_root / ".git").mkdir(parents=True)
+    nested = repo_root / "subdir"
+    nested.mkdir()
+    monkeypatch.chdir(nested)
+    monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
+    payload = {"cwd": str(repo_root)}
+    assert resolve_workspace_root(payload) == str(repo_root)
 
 
