@@ -74,7 +74,20 @@ $env:BRAINSPACE_EXPERIMENT_ENABLED = '1'
 # every subprocess regardless of whether a given host's hook/MCP config
 # schema supports templated per-entry "env" blocks.
 $env:BRAINSPACE_WORKSPACE = (Get-Location).Path
-copilot   # interact normally; remove the copied file + unset both flags when done
+# REQUIRED for any actual compression to occur (P-018 final-convergence
+# follow-up finding): the hook's never-expand guard requires token counting
+# to be bound to an explicitly supported model encoding via
+# BRAINSPACE_MODEL_ENCODING, AND that encoding's tokenizer package
+# (`pip install tiktoken`) to be installed. Without BOTH, every candidate
+# output declines (the hook still runs and correctly emits a byte-identical
+# passthrough -- this is intentional fail-closed behavior, not a bug) and
+# the steps above alone are a no-op for compression purposes. Only set this
+# to an encoding you have verified matches the Copilot model actually in use
+# for this session (see brainspace/config.py's SUPPORTED_MODEL_ENCODINGS) --
+# never guess: an unbound or mismatched encoding is declined by design
+# rather than silently assumed.
+$env:BRAINSPACE_MODEL_ENCODING = 'cl100k_base'
+copilot   # interact normally; remove copied file + unset all three vars when done
 ```
 
 ## How to remove this experiment entirely

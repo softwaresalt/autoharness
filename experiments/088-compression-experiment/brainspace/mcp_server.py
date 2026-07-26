@@ -149,9 +149,29 @@ def handle_request(request, store):
         }
     if method == "tools/call":
         params = request.get("params", {})
-        result = dispatch_tool_call(
-            store, params.get("name", ""), params.get("arguments", {})
-        )
+        # A syntactically valid but non-object ``params`` (e.g. ``[]`` or
+        # ``null``) -- or a non-object ``arguments`` nested inside an
+        # otherwise valid ``params`` object -- reaches ``.get()`` the same
+        # way a non-object top-level request does. The top-level
+        # ``isinstance`` guard above does not protect these nested shapes
+        # (P-018 final-convergence follow-up finding), so both are
+        # validated here and rejected with JSON-RPC 2.0's dedicated
+        # "Invalid params" code (-32602) rather than crashing the
+        # long-lived server.
+        if not isinstance(params, dict):
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": "Invalid params"},
+            }
+        arguments = params.get("arguments", {})
+        if not isinstance(arguments, dict):
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": "Invalid params"},
+            }
+        result = dispatch_tool_call(store, params.get("name", ""), arguments)
         return {"jsonrpc": "2.0", "id": req_id, "result": result}
     if is_notification:
         # Unrecognized notification (e.g. a future notifications/* method):

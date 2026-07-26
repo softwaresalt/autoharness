@@ -148,7 +148,7 @@ def resolve_workspace_root(payload=None, *, explicit_root=None) -> str:
     if env_root:
         _validate_related_to_process_cwd(env_root, source="BRAINSPACE_WORKSPACE")
         return env_root
-    if payload and payload.get("cwd"):
+    if payload and isinstance(payload, dict) and payload.get("cwd"):
         payload_cwd = payload["cwd"]
         # P-018 round-3 follow-up finding: this branch previously returned
         # payload["cwd"] verbatim with NO containment check, so a crafted or
@@ -156,6 +156,13 @@ def resolve_workspace_root(payload=None, *, explicit_root=None) -> str:
         # path unrelated to the process's actual working directory tree.
         # Callers that cannot tolerate this validation (e.g. an unhandled
         # WorkspaceContainmentError) must fail safe -- see hook_cli.py.
+        #
+        # ``isinstance(payload, dict)`` (P-018 final-convergence follow-up
+        # finding): a syntactically valid JSON payload is not guaranteed to
+        # decode to an object -- a non-empty JSON array such as ``["cwd"]``
+        # is truthy but has no ``.get()``, so ``payload.get("cwd")`` would
+        # raise ``AttributeError`` here and crash the hook mid-resolution
+        # instead of emitting its required fail-safe ``{}`` passthrough.
         _validate_related_to_process_cwd(payload_cwd, source="payload cwd")
         return payload_cwd
     return os.getcwd()

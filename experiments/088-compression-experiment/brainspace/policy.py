@@ -29,6 +29,15 @@ _GATE_VERDICT_PATTERNS = [
     re.compile(r"##\s*Local Review Readiness"),
     re.compile(r"P-0\d\d\s+(GATE|VIOLATION)"),
     re.compile(r"\b(READY_WITH_FOLLOWUPS|READY_WITH_CONDITIONS|BLOCKED)\b"),
+    # P-018 final-convergence follow-up finding: the plain successful
+    # readiness form ("Outcome: READY") was not covered by any pattern --
+    # only its READY_WITH_* / BLOCKED siblings were -- so a standalone
+    # readiness summary reporting a clean "Outcome: READY" (without the
+    # "## Local Review Readiness" heading itself, e.g. a status line quoted
+    # elsewhere) passed through to compression, contrary to the
+    # requirement that every gate/readiness verdict form is always
+    # declined, never compressed.
+    re.compile(r"(?i)\bOutcome:\s*READY\b"),
     re.compile(r"\bMERGE_(CONFIRMED|NOT_CONFIRMED|AUTHORIZED)\b"),
     re.compile(r"\breviewDecision\b"),
     re.compile(r"\bautoharness gate\b"),

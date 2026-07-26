@@ -93,6 +93,27 @@ def test_p1_finding_bullet_line_declines():
     assert classify_decline_reason(text) == DeclineReason.GATE_READINESS_VERDICT
 
 
+def test_plain_outcome_ready_line_declines():
+    # P-018 final-convergence follow-up finding: only the READY_WITH_* /
+    # BLOCKED siblings were covered -- a standalone readiness summary
+    # reporting a clean "Outcome: READY" (without the "## Local Review
+    # Readiness" heading itself, e.g. quoted in another status message)
+    # previously passed through to compression, contrary to the
+    # requirement that every gate/readiness verdict form is always
+    # declined, never compressed.
+    text = (
+        "Merge readiness summary\n"
+        "- Outcome: READY\n"
+        "- Blocking findings: none\n" + ("padding line\n" * 40)
+    )
+    assert classify_decline_reason(text) == DeclineReason.GATE_READINESS_VERDICT
+
+
+def test_outcome_ready_is_case_insensitive():
+    text = "outcome: ready\n" + ("padding line\n" * 40)
+    assert classify_decline_reason(text) == DeclineReason.GATE_READINESS_VERDICT
+
+
 def test_unwritable_store_reason_is_available_as_a_named_constant():
     # Exercised by the hook's fail-safe passthrough path, not by text
     # classification -- the reason must still be a defined enum member so

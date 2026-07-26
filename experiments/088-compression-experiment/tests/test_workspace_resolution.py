@@ -216,3 +216,17 @@ def test_ancestor_at_discovered_repo_root_is_accepted(monkeypatch, tmp_path):
     assert resolve_workspace_root(payload) == str(repo_root)
 
 
+@pytest.mark.parametrize("payload", [["cwd", "/some/path"], "not-a-dict", 42])
+def test_non_dict_payload_falls_back_to_process_cwd_instead_of_crashing(
+    monkeypatch, payload
+):
+    # P-018 final-convergence follow-up finding: a syntactically valid JSON
+    # value need not decode to an object -- a non-empty JSON array (or any
+    # other non-dict) is truthy, so the previous ``if payload and
+    # payload.get("cwd")`` check called ``.get()`` on it and raised
+    # AttributeError instead of falling through to the process-cwd default,
+    # crashing hook_cli.py mid-resolution instead of emitting the required
+    # fail-safe ``{}`` passthrough.
+    monkeypatch.delenv("BRAINSPACE_WORKSPACE", raising=False)
+    assert resolve_workspace_root(payload) == os.getcwd()
+

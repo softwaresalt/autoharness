@@ -9,6 +9,7 @@ placeholders stable for prompt caching.
 import hashlib
 import sqlite3
 import time
+import warnings
 
 from brainspace import config
 from brainspace.codec import decode_lossless, encode_lossless
@@ -151,6 +152,45 @@ class BrainspaceStore:
             return None
         return decode_lossless(content)
 
+    def _checkpoint_wal_truncate(self) -> bool:
+        """Run ``PRAGMA wal_checkpoint(TRUNCATE)`` and verify it actually
+        completed a full truncating checkpoint (P-018 final-convergence
+        follow-up finding).
+
+        ``wal_checkpoint(TRUNCATE)`` does not raise when it cannot fully
+        checkpoint -- it returns a ``(busy, log_frames, checkpointed_frames)``
+        row where a nonzero ``busy`` means some connection blocked the
+        truncate and pre-delete WAL frames may still be on disk. Ignoring
+        that return value (as the previous fire-and-forget call did) would
+        let a purge/cleanup call silently claim the on-disk
+        bounded-retention guarantee held when it did not. This retries a
+        bounded number of times (busy is expected to be transient -- e.g. a
+        concurrent reader mid-transaction) and reports whether a full
+        truncating checkpoint was ultimately achieved.
+
+        This never raises: a persistently busy WAL degrades to a logged
+        best-effort warning rather than an exception, because a hard
+        failure here must not be allowed to take down the long-lived MCP
+        server or abort an otherwise-successful expired-row delete (the
+        SQL-level TTL contract already held via the DELETE + commit; only
+        the stronger on-disk-bytes guarantee is what may be delayed).
+        """
+        for _ in range(3):
+            busy, _log_frames, _checkpointed_frames = self._conn.execute(
+                "PRAGMA wal_checkpoint(TRUNCATE)"
+            ).fetchone()
+            if not busy:
+                return True
+            time.sleep(0.01)
+        warnings.warn(
+            "brainspace store: wal_checkpoint(TRUNCATE) remained busy after "
+            "retries; pre-delete WAL frames may persist on disk past the "
+            "advertised TTL until a later successful checkpoint",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return False
+
     def _delete_if_still_expired(self, handle: str, stored_at: float) -> None:
         """Delete ``handle`` only if its row's ``stored_at`` still matches
         the value just read as expired (P-018 round-9 finding).
@@ -177,7 +217,7 @@ class BrainspaceStore:
         )
         self._conn.commit()
         if cur.rowcount:
-            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            self._checkpoint_wal_truncate()
 
     def delete(self, handle: str) -> None:
         self._conn.execute("DELETE FROM entries WHERE handle = ?", (handle,))
@@ -204,7 +244,7 @@ class BrainspaceStore:
         cur = self._conn.execute("DELETE FROM entries WHERE stored_at < ?", (cutoff,))
         self._conn.commit()
         if cur.rowcount:
-            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            self._checkpoint_wal_truncate()
         return cur.rowcount
 
     def purge_all(self) -> None:
@@ -213,7 +253,10 @@ class BrainspaceStore:
         self._conn.commit()
         # SQLite checkpoint/compaction guidance: reclaim WAL/free pages so a
         # purge actually shrinks on-disk size rather than leaving free pages.
-        self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        # Same verified-checkpoint helper as the TTL cleanup paths (P-018
+        # final-convergence follow-up finding) -- an unverified checkpoint
+        # here would give the same false all-clear for a full purge_all.
+        self._checkpoint_wal_truncate()
         self._conn.execute("VACUUM")
 
     def row_count(self) -> int:

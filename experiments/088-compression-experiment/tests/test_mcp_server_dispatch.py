@@ -221,3 +221,57 @@ def test_handle_line_survives_sequence_of_bad_lines_then_serves_good_request(sto
     )
     assert good["id"] == 99
     assert "tools" in good["result"]
+
+
+def test_handle_request_tools_call_non_object_params_returns_invalid_params(store):
+    # P-018 final-convergence follow-up finding: the top-level ``isinstance``
+    # guard protects the request itself, but a nested non-object ``params``
+    # (e.g. ``[]`` or ``null``) still reaches ``params.get(...)`` unless
+    # validated separately, crashing the long-lived server the same way.
+    from brainspace.mcp_server import handle_request
+
+    request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": []}
+    response = handle_request(request, store)
+    assert response["error"]["code"] == -32602
+
+
+def test_handle_request_tools_call_null_params_returns_invalid_params(store):
+    from brainspace.mcp_server import handle_request
+
+    request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": None}
+    response = handle_request(request, store)
+    assert response["error"]["code"] == -32602
+
+
+def test_handle_request_tools_call_non_object_arguments_returns_invalid_params(store):
+    # A syntactically valid ``params`` object with a non-object ``arguments``
+    # (e.g. ``arguments: []``) still reaches ``arguments.get("handle")``
+    # inside ``dispatch_tool_call`` unless validated at the same seam.
+    from brainspace.mcp_server import handle_request
+
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "output_retrieve", "arguments": []},
+    }
+    response = handle_request(request, store)
+    assert response["error"]["code"] == -32602
+
+
+def test_handle_request_tools_call_valid_params_still_dispatches(store):
+    # Regression guard: the new validation must not reject a normal,
+    # well-formed tools/call request.
+    from brainspace.mcp_server import handle_request
+
+    handle = store.put("hello world")
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "output_retrieve", "arguments": {"handle": handle}},
+    }
+    response = handle_request(request, store)
+    assert "error" not in response
+    assert response["result"]["content"][0]["text"] == "hello world"
+

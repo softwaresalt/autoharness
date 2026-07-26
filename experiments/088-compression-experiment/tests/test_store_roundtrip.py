@@ -228,6 +228,79 @@ def test_expired_get_cleanup_also_leaves_no_raw_output_bytes_on_disk(tmp_path):
         s.close()
 
 
+def test_checkpoint_wal_truncate_retries_then_warns_when_persistently_busy(
+    tmp_path, monkeypatch
+):
+    # P-018 final-convergence follow-up finding: wal_checkpoint(TRUNCATE)
+    # does not raise when it cannot fully checkpoint -- it returns a
+    # (busy, log_frames, checkpointed_frames) row. The previous fire-and-
+    # forget call ignored this, so a purge/cleanup call could silently
+    # claim the on-disk bounded-retention guarantee held when a busy WAL
+    # meant it did not. This must retry, then surface (via warning, never
+    # an exception -- a hard failure here must not crash the long-lived
+    # MCP server) rather than silently succeeding.
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=100_000)
+    real_conn = s._conn
+    call_count = {"n": 0}
+
+    class _BusyCursor:
+        def fetchone(self):
+            return (1, 0, 0)  # busy=1: checkpoint did not fully complete
+
+    class _FakeConn:
+        # sqlite3.Connection.execute is a read-only slot on the real
+        # connection object, so it cannot be monkeypatched directly --
+        # wrap the real connection instead and swap the whole ``_conn``
+        # instance attribute, forwarding everything except the
+        # checkpoint pragma this test needs to force "busy".
+        def execute(self, sql, *args, **kwargs):
+            if "wal_checkpoint" in sql:
+                call_count["n"] += 1
+                return _BusyCursor()
+            return real_conn.execute(sql, *args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(real_conn, name)
+
+    try:
+        monkeypatch.setattr(s, "_conn", _FakeConn())
+        with pytest.warns(RuntimeWarning, match="wal_checkpoint"):
+            result = s._checkpoint_wal_truncate()
+        assert result is False
+        assert call_count["n"] == 3  # bounded retries, never raises
+    finally:
+        s.close()
+
+
+def test_checkpoint_wal_truncate_returns_true_on_first_success(tmp_path):
+    # Positive counterpart: a normal (non-busy) checkpoint succeeds
+    # immediately and reports success without any warning.
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=100_000)
+    try:
+        assert s._checkpoint_wal_truncate() is True
+    finally:
+        s.close()
+
+
+def test_purge_expired_does_not_raise_when_checkpoint_persistently_busy(
+    tmp_path, monkeypatch
+):
+    # The SQL-level TTL contract (the row is gone) must hold even when the
+    # stronger on-disk-bytes checkpoint cannot complete -- purge_expired()
+    # must not raise or lose the already-correct rowcount.
+    marker = "checkpoint-busy-does-not-block-logical-delete"
+    s = BrainspaceStore(str(tmp_path), ttl_seconds=1, max_size_bytes=100_000)
+    try:
+        s.put(marker)
+        time.sleep(1.2)
+        monkeypatch.setattr(s, "_checkpoint_wal_truncate", lambda: False)
+        removed = s.purge_expired()
+        assert removed == 1
+    finally:
+        s.close()
+
+
+
 def test_delete_removes_single_row(store):
     handle = store.put("delete me")
     store.delete(handle)
