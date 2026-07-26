@@ -43,8 +43,10 @@ telemetry/GPT-5.6-Sol/rename/etc. items, left untouched).
    * Task `089.001-T` — resolve-workspace-root-non-string-cwd-failsafe
    * Task `089.002-T` — benchmark-early-decline-carries-capture-failed-provenance
 6. Assembled shipment `094-S` — "088-F-review-followup-hardening" —
-   containing `089-F`, `089.001-T`, `089.002-T` (verified via
-   `backlogit_get_shipment`).
+   with a task-only manifest containing `089.001-T`, `089.002-T` (verified
+   via `backlogit_get_shipment`); the covering feature `089-F` is preserved
+   as protected, not listed as a shipment item (task-only shape per
+   092-S/093-S precedent and the Ship safe-close contract).
 7. Archived stash entries `A351DB70` and `C2F7BB15`.
 8. Ran final `backlogit_sync_index` (541 items indexed).
 
