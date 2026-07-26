@@ -137,7 +137,21 @@ Verified after the fact via `backlogit doctor` (no orphaned/cascade findings
 for any `088.*`/`093-S` item) and by confirming `.backlogit/queue/` retains no
 remaining `088.*`/`093-S` artifacts, that no corruption occurred — 093-S's
 manifest is exactly and completely feature 088-F's full task set (7 tasks, no
-siblings), so there was no protected set to violate. Flagged here for
-awareness in future shipments where a shipment's manifest is a **partial**
-subset of its covering feature's tasks — those cases require the documented
-manual safe-close procedure, not the cascade command.
+siblings), so there was no protected set to violate this time.
+
+**This is a correction, not a narrowing exception**: per
+`.github/agents/.ship.agent.md` Step 5 Closure Tasks item 1, the
+single-artifact safe-close procedure is REQUIRED for **every** shipment
+closure, full-feature or partial-feature alike, and `backlogit shipment ship`
+is **never** an acceptable substitute — the instruction says so
+unconditionally ("NEVER the cascade `backlogit shipment ship`"), not only for
+partial-feature shipments. That this particular shipment happened to have no
+protected-set members to corrupt does not make the cascade command safe to
+use again; it only means this specific run got lucky. Future shipment
+closures — regardless of whether the shipment's manifest is the covering
+feature's complete task set or a partial subset — MUST use the documented
+manual safe-close procedure (manifest read → protected-set derivation →
+baseline gate → per-item archive → verify-after-each → shipment-record
+archive → post re-verify → commit), never `backlogit shipment ship`. See
+`docs/compound/093-S-review-loop-convergence.md` for the fuller compound
+lesson, which states this unconditional requirement consistently.

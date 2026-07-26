@@ -58,12 +58,32 @@ operator's explicit "must fix, never decline" categories) versus cosmetic/
 subjective (decline-with-rationale, resolve, move on). Concretely:
 
 - Fail-safe passthrough violations (a payload shape that crashes instead of
-  degrading to a safe default) are **always** hard blockers — the
-  Constitution's fail-safe invariant is unconditional.
-- Evidence-integrity gaps (a report field silently dropped that changes what
-  a downstream decision-maker believes happened) are **always** hard
-  blockers — this is the entire reason the decision memo's SAFE WIN claims
+  degrading to a safe default) and evidence-integrity gaps (a report field
+  silently dropped that changes what a downstream decision-maker believes
+  happened) are **always hard blockers for pilot/production promotion** — the
+  experiment must not be promoted out of throwaway/flag-gated status while
+  either class remains unresolved, because that is the entire reason the
+  decision memo's SAFE WIN claims and the Constitution's fail-safe invariant
   can be trusted at all.
+- That "always a hard blocker for promotion" bar is a **distinct gate** from
+  "must block *this* merge." This same run genuinely deferred two such
+  findings (`workspace.py:152`, `benchmark.py:215`) past the one-additional-
+  push cap and still shipped `READY_WITH_FOLLOWUPS` — and that was the
+  correct call, not a contradiction, because the artifact being merged was a
+  **disabled-by-default, isolated, throwaway experiment** with no
+  base-harness dependency: nothing ships enabled, nothing outside
+  `experiments/088-compression-experiment/` depends on it, and the follow-ups
+  were tracked (stashed for Stage routing) rather than silently dropped. The
+  two gates only agree when the artifact being merged is itself the
+  production/pilot surface — for a gated-off experiment, "hard blocker for
+  promotion" and "acceptable to defer at merge, tracked as a follow-up" are
+  not in tension.
+- Concretely: before this experiment is promoted to a narrow pilot or any
+  non-flag-gated state, both deferred findings (and any other fail-safe /
+  evidence-integrity gap) must be genuinely fixed — that promotion gate never
+  relaxes. Merging the disabled experiment itself may proceed as
+  `READY_WITH_FOLLOWUPS` only when the deferred items are explicitly tracked,
+  not silently forgotten.
 - Documentation/PR-body staleness observations are **not** code bugs, even
   when a Copilot comment is phrased like a code-line finding — resolve them
   by updating the actual stale artifact (the PR body here), not by touching
@@ -79,16 +99,27 @@ this by wrapping the whole connection object in a thin proxy class
 monkeypatching the *instance attribute holding the connection*
 (e.g. `store._conn`), not the connection's own bound method.
 
-## Pitfall: `PRAGMA wal_checkpoint(TRUNCATE)` Does Not Raise on Failure
+## Pitfall: `wal_checkpoint` Busy Is Silent, But Other Failures Raise
 
-It returns a `(busy, log_frames, checkpointed_frames)` row and silently
-leaves the WAL un-truncated when `busy != 0` (e.g. a concurrent reader holds
-the DB open). A "TTL purge ran the DELETE" success does not imply "the bytes
-are actually gone from disk" — you must fetch and check the return value, and
-if a long-lived reader (like an MCP server) can hold the DB open
-indefinitely, a bounded-retention claim needs retry-then-warn semantics
-(never raise — the purge's SQL-level success must not become a runtime
-error) plus a documented residual-risk note.
+Scope this lesson to the **busy-reader case specifically**: when a concurrent
+reader holds the DB open, `wal_checkpoint(TRUNCATE)` returns a `(busy,
+log_frames, checkpointed_frames)` row with `busy != 0` and silently leaves
+the WAL un-truncated — this particular failure mode is reported in the
+result row, not raised as an exception. A "TTL purge ran the DELETE" success
+does not imply "the bytes are actually gone from disk" — you must fetch and
+check the return value, and if a long-lived reader (like an MCP server) can
+hold the DB open indefinitely, a bounded-retention claim needs
+retry-then-warn semantics for the busy case (never raise on busy alone — the
+purge's SQL-level success must not become a runtime error) plus a documented
+residual-risk note.
+
+**Do not generalize this to "checkpoint failures never raise."** Non-busy
+checkpoint failures — a corrupt database file, an I/O error, a disk-full
+condition, or the connection being in an unexpected state — still raise a
+`sqlite3.OperationalError` (or another `sqlite3` exception) from the
+`PRAGMA` call itself. Code that wraps `wal_checkpoint` must catch and handle
+`sqlite3` errors explicitly around the call; only the busy-row outcome is
+safe to treat as an expected, non-exceptional result.
 
 ## Process Deviation: `backlogit shipment ship` vs. Single-Artifact Safe-Close
 
