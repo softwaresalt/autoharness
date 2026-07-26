@@ -64,3 +64,28 @@ def test_main_does_not_leave_experiment_flag_enabled_globally(tmp_path, monkeypa
     # The CLI enables the flag only for its own run; it must not leak into
     # the ambient environment for later, unrelated processes/tests.
     assert os.environ.get(config.ENABLED_ENV_VAR) != "1"
+
+
+def test_ephemeral_store_is_anchored_under_repo_root_not_os_temp(tmp_path, monkeypatch):
+    # P-018 re-review finding #3 (new round): tempfile.TemporaryDirectory()
+    # defaults to the OS temp area, violating the containment requirement
+    # (config.py: the store must be repo-local, never OS temp) even though
+    # the directory is ephemeral. Capture the root actually passed to
+    # BrainspaceStore and prove it is a descendant of the given repo root.
+    captured = {}
+    original_store_cls = benchmark_cli.BrainspaceStore
+
+    class _CapturingStore(original_store_cls):
+        def __init__(self, root, *args, **kwargs):
+            captured["root"] = root
+            super().__init__(root, *args, **kwargs)
+
+    monkeypatch.setattr(benchmark_cli, "BrainspaceStore", _CapturingStore)
+    monkeypatch.setattr(benchmark_cli, "build_default_corpus", _fake_corpus_builder)
+    out_dir = tmp_path / "reports"
+
+    benchmark_cli.main(["--repo-root", str(tmp_path), "--out-dir", str(out_dir)])
+
+    assert "root" in captured
+    common = os.path.commonpath([captured["root"], str(tmp_path)])
+    assert common == str(tmp_path)

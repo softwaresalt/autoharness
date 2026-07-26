@@ -87,15 +87,22 @@ def dispatch_tool_call(store, tool_name: str, arguments: dict) -> dict:
     return _text_result(page["chunk"], is_error=False, meta=meta)
 
 
-def handle_request(request: dict, store) -> dict:
+def handle_request(request: dict, store):
     """Handle one JSON-RPC request against ``store``. Pure, testable core.
 
     ``main()`` is the thin stdio transport wrapper around this function --
     keeping the dispatch logic here (not inline in the stdin read loop)
     lets ``initialize``/``tools/call`` conformance be verified directly,
     without spinning a real stdio client/server pair.
+
+    Returns ``None`` for JSON-RPC *notifications* (no ``"id"`` field, e.g.
+    the client's post-initialize ``notifications/initialized``) -- per
+    JSON-RPC 2.0 / MCP, notifications MUST receive no response at all
+    (P-018 re-review finding #2, new round): a method-not-found response
+    with ``id: null`` is not a valid reply to a notification.
     """
     method = request.get("method")
+    is_notification = "id" not in request
     req_id = request.get("id")
     if method == "initialize":
         return {
@@ -119,6 +126,10 @@ def handle_request(request: dict, store) -> dict:
             store, params.get("name", ""), params.get("arguments", {})
         )
         return {"jsonrpc": "2.0", "id": req_id, "result": result}
+    if is_notification:
+        # Unrecognized notification (e.g. a future notifications/* method):
+        # still no response, per JSON-RPC 2.0 semantics.
+        return None
     return {
         "jsonrpc": "2.0",
         "id": req_id,
@@ -142,7 +153,10 @@ def main() -> int:  # pragma: no cover -- thin stdio transport wrapper
                 continue
 
             response = handle_request(request, store)
-            print(json.dumps(response), flush=True)
+            if response is not None:
+                # Notifications (handle_request returned None) must receive
+                # no reply at all -- per JSON-RPC 2.0 / MCP semantics.
+                print(json.dumps(response), flush=True)
     finally:
         store.close()
     return 0

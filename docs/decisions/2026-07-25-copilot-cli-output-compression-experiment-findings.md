@@ -112,6 +112,44 @@ case (the hook correctly declining to compress at all). This is reported
 here in full, not softened — it is the honest, current state of the
 evidence.
 
+### Round 2 (same PR, HEAD `1c400fe` → later): additional safety/protocol fixes
+
+A fresh Copilot re-review, triggered automatically after the round-1 push,
+found five more genuine issues. None of them changed the benchmark verdicts
+above (still 7/13 SAFE WIN, 0/6 genuine compression-positive wins) — they are
+safety/protocol/containment correctness fixes, not measurement changes:
+
+* **Never-expand guard was char-count-only.** `hook.py`'s never-expand
+  decision compared character counts only, so a structured result with many
+  protected evidence lines could remain shorter than the original in chars
+  while still exceeding the 10 KB `additionalContext` cap
+  (`config.ADDITIONAL_CONTEXT_CAP_BYTES`). Fixed: the guard now also checks
+  the UTF-8 encoded byte length of the compressed view + footer against the
+  cap and declines if either check fails.
+* **Hook/server workspace-pin consistency was undocumented.** The MCP
+  server's example config pins `BRAINSPACE_WORKSPACE` in its own `env` block,
+  but the hook's example config had no corresponding pin, so a tool run from
+  a subdirectory could still diverge. Fixed: `hooks.json.example` now
+  includes the same pin, and the README documents exporting
+  `BRAINSPACE_WORKSPACE` in the session shell as the mechanism guaranteed to
+  reach both subprocesses.
+* **`benchmark_cli.py` used the OS temp area.** `tempfile.TemporaryDirectory()`
+  with no `dir=` kwarg defaults to the OS temp area, violating the
+  containment requirement that the store never live outside the
+  repo-local, gitignored tree. Fixed: the ephemeral benchmark store is now
+  anchored under `<repo-root>/.autoharness/cache/brainspace/`.
+* **`purge_cli.py --repo-root` was silently overridden by the ambient env
+  pin.** `resolve_workspace_root()` gave `BRAINSPACE_WORKSPACE` precedence
+  over an explicit CLI argument, so `--mode all --repo-root X` could purge a
+  different workspace's live rows than the one the operator named. Fixed:
+  `resolve_workspace_root()` gained an `explicit_root` parameter that now
+  takes the highest precedence, used by `purge_cli.py`'s `--repo-root`.
+* **MCP server mishandled JSON-RPC notifications.** `notifications/initialized`
+  (no `"id"` field) was answered with a method-not-found error carrying
+  `id: null`, which JSON-RPC 2.0 / MCP forbid for notifications. Fixed:
+  `handle_request` now returns `None` for any request without an `"id"`, and
+  the stdio loop skips printing when the response is `None`.
+
 ## Evidence summary
 
 ### Copilot CLI `postToolUse` hooks contract re-verification (plan condition #4)

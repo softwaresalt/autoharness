@@ -18,10 +18,10 @@
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
         "capture_succeeded": true,
-        "raw_tokens_fallback": 5175,
-        "compressed_tokens_fallback": 232,
-        "net_savings_tokens_fallback": 4943,
-        "projected_savings_10_turns_fallback": 49430
+        "raw_tokens_fallback": 5423,
+        "compressed_tokens_fallback": 233,
+        "net_savings_tokens_fallback": 5190,
+        "projected_savings_10_turns_fallback": 51900
       },
       "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
     },
@@ -90,10 +90,10 @@
         "evidence_oracle_passes": true,
         "task_answerable_from_compressed_view": true,
         "capture_succeeded": true,
-        "raw_tokens_fallback": 13238,
+        "raw_tokens_fallback": 13321,
         "compressed_tokens_fallback": 118,
-        "net_savings_tokens_fallback": 13120,
-        "projected_savings_10_turns_fallback": 131200
+        "net_savings_tokens_fallback": 13203,
+        "projected_savings_10_turns_fallback": 132030
       },
       "notes": "INCONCLUSIVE: model tokenizer unavailable -- criterion 1 (lower tokens under both tokenizers) cannot be proven, so this case is never reported as a safe win on fallback-only evidence"
     },

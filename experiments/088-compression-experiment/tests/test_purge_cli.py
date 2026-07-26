@@ -71,3 +71,38 @@ def test_purge_cli_defaults_to_expired_mode(tmp_path):
         assert verify.get(handle) == "live content"
     finally:
         verify.close()
+
+
+def test_repo_root_arg_takes_precedence_over_ambient_env_pin(tmp_path, monkeypatch):
+    # P-018 re-review finding #4 (new round): an ambient BRAINSPACE_WORKSPACE
+    # must NOT silently override an explicit --repo-root -- otherwise
+    # "--mode all" could purge the wrong workspace's live rows even though
+    # the CLI's own help text says --repo-root anchors the target store.
+    wrong_root = tmp_path / "wrong-workspace"
+    right_root = tmp_path / "right-workspace"
+    wrong_root.mkdir()
+    right_root.mkdir()
+    monkeypatch.setenv("BRAINSPACE_WORKSPACE", str(wrong_root))
+
+    wrong_store = BrainspaceStore(str(wrong_root), ttl_seconds=3600, max_size_bytes=10_000)
+    right_store = BrainspaceStore(str(right_root), ttl_seconds=3600, max_size_bytes=10_000)
+    try:
+        wrong_handle = wrong_store.put("must survive -- wrong workspace")
+        right_handle = right_store.put("must be purged -- explicit target")
+    finally:
+        wrong_store.close()
+        right_store.close()
+
+    exit_code = purge_cli.main(
+        ["--repo-root", str(right_root), "--mode", "all"]
+    )
+    assert exit_code == 0
+
+    verify_wrong = BrainspaceStore(str(wrong_root), ttl_seconds=3600, max_size_bytes=10_000)
+    verify_right = BrainspaceStore(str(right_root), ttl_seconds=3600, max_size_bytes=10_000)
+    try:
+        assert verify_wrong.get(wrong_handle) == "must survive -- wrong workspace"
+        assert verify_right.row_count() == 0
+    finally:
+        verify_wrong.close()
+        verify_right.close()

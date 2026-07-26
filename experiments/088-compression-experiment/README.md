@@ -36,6 +36,15 @@ MCP config, or invoke `brainspace/retrieval.py` functions directly (see
 `tests/test_retrieval_byte_equivalent.py` for the direct-store recovery
 path used by the benchmark).
 
+**Consistent workspace root required (finding #2, P-018 re-review):** if a
+tool later runs from a subdirectory, the hook and the MCP server MUST agree
+on the same store root or a stashed handle written by the hook becomes
+unretrievable via `output_retrieve`. Both `mcp.json.example` and
+`hooks.json.example` reference `BRAINSPACE_WORKSPACE` via `"${workspaceFolder}"`,
+but exporting `BRAINSPACE_WORKSPACE` in the shell that starts the session
+(see the Flag gate section below) is the mechanism guaranteed to reach both
+subprocesses regardless of host-specific config templating support.
+
 ## Flag gate
 
 The experiment is disabled unless `BRAINSPACE_EXPERIMENT_ENABLED=1` is set in
@@ -54,7 +63,18 @@ end-to-end locally:
 ```powershell
 Copy-Item experiments/088-compression-experiment/hooks.json.example .github/hooks/088-compression-experiment.json
 $env:BRAINSPACE_EXPERIMENT_ENABLED = '1'
-copilot   # interact normally; remove the copied file + unset the flag when done
+# Pin the workspace root explicitly so the hook (per-invocation subprocess,
+# sees the session cwd) and the MCP retrieval server (long-lived process,
+# started separately) resolve the SAME store even if a tool later runs from
+# a subdirectory (finding #2, P-018 re-review: without this pin, a tool run
+# from a subdirectory could store where the server never looks). The
+# hooks.json.example / mcp.json.example templates both reference
+# BRAINSPACE_WORKSPACE via "${workspaceFolder}", but exporting it in the
+# shell that starts the session is the one mechanism guaranteed to reach
+# every subprocess regardless of whether a given host's hook/MCP config
+# schema supports templated per-entry "env" blocks.
+$env:BRAINSPACE_WORKSPACE = (Get-Location).Path
+copilot   # interact normally; remove the copied file + unset both flags when done
 ```
 
 ## How to remove this experiment entirely

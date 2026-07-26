@@ -51,7 +51,15 @@ def main(argv=None) -> int:
     previously_set = os.environ.get(config.ENABLED_ENV_VAR)
     os.environ[config.ENABLED_ENV_VAR] = "1"
     try:
-        with tempfile.TemporaryDirectory() as tmp_store_dir:
+        # Anchor the ephemeral benchmark store under the repo-local,
+        # gitignored store directory -- NOT the OS temp area (P-018
+        # re-review finding #3, new round). TemporaryDirectory() with no
+        # ``dir=`` kwarg defaults to the OS temp area, which violates the
+        # containment requirement in config.py even though the directory is
+        # short-lived and auto-cleaned.
+        store_parent_dir = os.path.join(args.repo_root, config.STORE_RELATIVE_DIR)
+        os.makedirs(store_parent_dir, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=store_parent_dir) as tmp_store_dir:
             store = BrainspaceStore(tmp_store_dir)
             try:
                 cases = build_default_corpus(args.repo_root)

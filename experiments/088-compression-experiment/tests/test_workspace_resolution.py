@@ -39,3 +39,24 @@ def test_hook_and_server_resolve_identically_given_same_inputs(monkeypatch, tmp_
     server_payload = None  # server has no per-call payload
     assert resolve_workspace_root(hook_payload) == resolve_workspace_root(server_payload)
     assert resolve_workspace_root(hook_payload) == pinned
+
+
+def test_explicit_root_takes_precedence_over_env_pin(monkeypatch, tmp_path):
+    # P-018 re-review finding #4 (new round): an explicit CLI argument (e.g.
+    # purge_cli.py's ``--repo-root``) must win over an ambient
+    # BRAINSPACE_WORKSPACE env var, or an operator's explicit intent could be
+    # silently overridden -- in ``--mode all`` that could purge the wrong
+    # workspace's live rows.
+    ambient = str(tmp_path / "ambient-root")
+    explicit = str(tmp_path / "explicit-root")
+    monkeypatch.setenv("BRAINSPACE_WORKSPACE", ambient)
+    assert resolve_workspace_root(explicit_root=explicit) == explicit
+
+
+def test_explicit_root_wins_over_env_pin_and_payload(monkeypatch, tmp_path):
+    ambient = str(tmp_path / "ambient-root")
+    explicit = str(tmp_path / "explicit-root")
+    monkeypatch.setenv("BRAINSPACE_WORKSPACE", ambient)
+    payload = {"cwd": str(tmp_path / "payload-root")}
+    assert resolve_workspace_root(payload, explicit_root=explicit) == explicit
+

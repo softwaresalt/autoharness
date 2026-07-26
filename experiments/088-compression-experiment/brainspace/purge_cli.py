@@ -37,8 +37,9 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--repo-root",
         default=None,
-        help="Workspace root to anchor the store to (defaults to the "
-        "BRAINSPACE_WORKSPACE env var, else the process cwd).",
+        help="Workspace root to anchor the store to. Takes precedence over "
+        "an ambient BRAINSPACE_WORKSPACE env var, which in turn takes "
+        "precedence over the process cwd.",
     )
     parser.add_argument(
         "--mode",
@@ -49,8 +50,9 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    payload = {"cwd": args.repo_root} if args.repo_root else None
-    workspace_root = resolve_workspace_root(payload)
+    # An explicit --repo-root is an operator's per-invocation intent and
+    # must win over an ambient BRAINSPACE_WORKSPACE env pin (finding #4).
+    workspace_root = resolve_workspace_root(explicit_root=args.repo_root)
 
     store = BrainspaceStore(workspace_root)
     try:

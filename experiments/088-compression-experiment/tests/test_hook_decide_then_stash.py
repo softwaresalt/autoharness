@@ -139,6 +139,32 @@ def test_operator_approval_text_declines_before_store(store):
     assert store.row_count() == 0
 
 
+def test_never_expand_guard_also_enforces_additional_context_byte_cap(store):
+    # P-018 re-review finding #1 (new round): the never-expand guard
+    # previously only compared character counts against the original, so a
+    # structured (git-log-style) result with many protected evidence lines
+    # (commit/Author/Date headers) could remain well under the *original*
+    # length yet still exceed the 10 KB additionalContext cap the Copilot
+    # CLI enforces. Build such a case: each iteration contributes ~120
+    # protected bytes (commit/Author/Date headers, never collapsed) plus a
+    # large filler run that DOES compress away -- across enough iterations
+    # the surviving protected content alone exceeds the 10 KB cap, while the
+    # overall compressed size is still comfortably shorter than the huge
+    # original (so the old char-only check would have let it through).
+    blocks = []
+    for i in range(100):
+        blocks.append(f"commit {i:07x}deadbeef1234567890abcdef")
+        blocks.append("Author: Someone <someone@example.com>")
+        blocks.append("Date:   Mon Jan 1 00:00:00 2024 +0000")
+        blocks.extend(["    filler filler filler filler filler filler"] * 50)
+    text = "\n".join(blocks)
+
+    result = process_post_tool_use(_payload("bash", text), store)
+
+    assert result == {}
+    assert store.row_count() == 0
+
+
 def test_post_tool_use_failure_is_never_rewritten(store):
     payload = {
         "sessionId": "s1",

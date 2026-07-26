@@ -6,7 +6,8 @@
         "type": "command",
         "matcher": "bash|view|task|.*_mcp.*",
         "command": "python experiments/088-compression-experiment/brainspace/hook_cli.py",
-        "timeoutSec": 10
+        "timeoutSec": 10,
+        "env": {"BRAINSPACE_WORKSPACE": "${workspaceFolder}"}
       }
     ]
   }

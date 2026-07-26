@@ -184,11 +184,17 @@ def process_post_tool_use(payload, store):
 
         # DECIDE (before stashing): the never-expand guard must hold for the
         # compressed view + footer overhead too, or we decline and never
-        # write the original at all.
-        footer_estimate_len = len(
-            config.RETRIEVAL_FOOTER_TEMPLATE.format(handle="0" * 16)
-        )
-        if (len(compressed) + footer_estimate_len) >= len(text):
+        # write the original at all. Two independent checks are required
+        # (P-018 re-review finding #1, new round): a structured result with
+        # many protected evidence lines can stay well under the *original*
+        # character count yet still exceed the 10 KB additionalContext byte
+        # cap the Copilot CLI enforces -- a char-count-only comparison would
+        # silently let that oversized, cap-violating result through.
+        footer_estimate = config.RETRIEVAL_FOOTER_TEMPLATE.format(handle="0" * 16)
+        candidate = compressed + footer_estimate
+        if len(candidate) >= len(text):
+            return {}
+        if len(candidate.encode("utf-8")) > config.ADDITIONAL_CONTEXT_CAP_BYTES:
             return {}
 
         # THEN STASH: only after the decision above holds do we write the

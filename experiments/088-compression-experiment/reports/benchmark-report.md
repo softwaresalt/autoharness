@@ -33,10 +33,10 @@
 - `evidence_oracle_passes`: True
 - `task_answerable_from_compressed_view`: True
 - `capture_succeeded`: True
-- `raw_tokens_fallback`: 5175
-- `compressed_tokens_fallback`: 232
-- `net_savings_tokens_fallback`: 4943
-- `projected_savings_10_turns_fallback`: 49430
+- `raw_tokens_fallback`: 5423
+- `compressed_tokens_fallback`: 233
+- `net_savings_tokens_fallback`: 5190
+- `projected_savings_10_turns_fallback`: 51900
 
 ### backlogit-doctor-findings (compression_positive)
 - `byte_equivalent_retrieval`: True
@@ -81,10 +81,10 @@
 - `evidence_oracle_passes`: True
 - `task_answerable_from_compressed_view`: True
 - `capture_succeeded`: True
-- `raw_tokens_fallback`: 13238
+- `raw_tokens_fallback`: 13321
 - `compressed_tokens_fallback`: 118
-- `net_savings_tokens_fallback`: 13120
-- `projected_savings_10_turns_fallback`: 131200
+- `net_savings_tokens_fallback`: 13203
+- `projected_savings_10_turns_fallback`: 132030
 
 ### graphtor-search-results-representative (compression_positive)
 - `byte_equivalent_retrieval`: True

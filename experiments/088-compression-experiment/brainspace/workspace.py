@@ -26,8 +26,17 @@ import os
 from brainspace import config
 
 
-def resolve_workspace_root(payload=None) -> str:
-    """Resolve the workspace root the same way for every 088-F entry point."""
+def resolve_workspace_root(payload=None, *, explicit_root=None) -> str:
+    """Resolve the workspace root the same way for every 088-F entry point.
+
+    ``explicit_root`` (e.g. a CLI's own ``--repo-root`` argument) takes the
+    HIGHEST precedence -- an operator's explicit, per-invocation intent must
+    win over the ambient ``BRAINSPACE_WORKSPACE`` env pin (P-018 re-review
+    finding #4, new round), or e.g. ``purge_cli.py --mode all --repo-root X``
+    could silently purge a different workspace's live rows.
+    """
+    if explicit_root:
+        return explicit_root
     env_root = os.environ.get(config.WORKSPACE_ENV_VAR)
     if env_root:
         return env_root

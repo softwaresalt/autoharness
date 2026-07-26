@@ -118,3 +118,22 @@ def test_handle_request_unknown_method_reports_json_rpc_error(store):
     request = {"jsonrpc": "2.0", "id": 4, "method": "does/not/exist"}
     response = handle_request(request, store)
     assert response["error"]["code"] == -32601
+
+
+def test_handle_request_notification_returns_none(store):
+    # P-018 re-review finding #2 (new round): a JSON-RPC/MCP *notification*
+    # (no "id" field, e.g. the client's post-initialize
+    # "notifications/initialized") must receive NO response at all -- not a
+    # method-not-found error with id: null, which the previous fallback
+    # produced and the stdio loop would then print.
+    from brainspace.mcp_server import handle_request
+
+    request = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+    assert handle_request(request, store) is None
+
+
+def test_handle_request_unknown_notification_still_returns_none(store):
+    from brainspace.mcp_server import handle_request
+
+    request = {"jsonrpc": "2.0", "method": "notifications/some_future_event"}
+    assert handle_request(request, store) is None
