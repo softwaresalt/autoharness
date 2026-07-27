@@ -851,7 +851,12 @@ def _validate_record_timestamp(value: object) -> str:
     instead of recognized as ``idempotent_replay``. A malformed (but nonblank)
     timestamp would otherwise be accepted on write and only silently dropped
     later by the reader (``reader.py:45-50``); mirror that same parity check
-    here so it fails closed at write time instead.
+    here so it fails closed at write time instead. ``datetime.fromisoformat``
+    also accepts timezone-naive values such as ``2026-07-26`` and
+    ``2026-07-26T08:00:00``; those are ambiguous instants (aggregation's
+    ``_parse_instant`` would silently assume UTC), so an explicit offset/``Z``
+    is required for the write-time check to actually fail closed on a
+    non-instant.
     """
     from datetime import datetime
 
@@ -863,11 +868,17 @@ def _validate_record_timestamp(value: object) -> str:
             "use telemetry begin/record with an explicit ISO-8601 timestamp."
         )
     try:
-        datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError as exc:
         raise EpochError(
             f"Replayable task-close 'timestamp' {value!r} is not a valid ISO-8601 instant."
         ) from exc
+    if parsed.tzinfo is None:
+        raise EpochError(
+            f"Replayable task-close 'timestamp' {value!r} is not a valid ISO-8601 instant: "
+            "it lacks an explicit UTC offset (e.g. 'Z' or '+00:00'); a timezone-naive "
+            "value is an ambiguous instant and is refused at write time."
+        )
     return str(value)
 
 

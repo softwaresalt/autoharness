@@ -135,6 +135,18 @@ def _field_quality(records: Iterable[dict[str, Any]], section: str, field: str) 
     logic, most historical telemetry records never set ``metric_quality`` at
     all, so treating silence as pessimistic here would inject provenance noise
     into every fully-observed ratio (the common case must stay a bare float).
+
+    This intentional asymmetry with report.py's ``_quality`` is contract-pinned
+    by test_telemetry_aggregation.py (unlabeled records must yield bare-float
+    derived ratios, e.g. ``consumption_generation_ratio == 101/101``): the two
+    functions serve different outputs. report.py annotates a *display* quality
+    for a single value, so an unlabeled populated value is a legible provenance
+    gap; ``_field_quality`` gates a *numeric* aggregate ratio, where flipping
+    silence to ``unavailable`` would mass-regress every legacy ratio. Explicit
+    ``unavailable``/``not_applicable`` labels are still honored fail-closed here
+    (via ``_sum_field`` returning ``None`` -> ``UNAVAILABLE``); only *silence*
+    stays optimistic. 090.008-T propagates explicit labels; it does not
+    introduce a missing-label fail-closed rule for aggregation.
     """
     worst: str | None = None
     for record in records:

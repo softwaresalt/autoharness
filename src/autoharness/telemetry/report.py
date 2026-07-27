@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 from autoharness.telemetry.aggregation import AggregationResult, aggregate_epochs
+from autoharness.telemetry.epoch import _metric_is_populated
 from autoharness.telemetry.reader import TelemetryReadResult
 
 _ALLOWED_FILTERS = {
@@ -107,9 +108,15 @@ def _quality(records: tuple[dict[str, Any], ...], field: str) -> str:
         label = quality.get(field)
         if label is None:
             value = economics.get(field)
-            if value is None or value == "unavailable":
-                # The field itself is unpopulated on this record; there is
-                # nothing to degrade quality with, so skip it.
+            if value == "unavailable" or not _metric_is_populated(value):
+                # The field is unpopulated on this record — missing, the
+                # "unavailable" sentinel, or a zero default. The telemetry model
+                # defines "populated" as non-zero and treats a zero as "not
+                # observed" needing no provenance (epoch._metric_is_populated /
+                # ExecutionEpoch.missing_provenance), so there is nothing to
+                # degrade quality with; skip it. Degrading a zero here would let
+                # one default-zero without a label downgrade an otherwise fully
+                # labeled aggregate to "unavailable".
                 continue
             # 090.006-T: a populated field with no matching quality label is a
             # genuine provenance gap, not an absence of data. Treat it as the

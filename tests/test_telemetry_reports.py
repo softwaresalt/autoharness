@@ -131,6 +131,23 @@ class TelemetryReportTests(unittest.TestCase):
 
         self.assertEqual(_quality((record,), "input_tokens"), "observed")
 
+    def test_quality_skips_zero_valued_unlabeled_metric(self) -> None:
+        """090.006-T follow-up (Copilot review): the telemetry model defines a
+        metric as "populated" only when non-zero (epoch._metric_is_populated /
+        ExecutionEpoch.missing_provenance); a zero default is "not observed" and
+        needs no provenance. So a zero, unlabeled field must NOT be treated as a
+        provenance gap — in a multi-record slice it must not downgrade an
+        otherwise fully-labeled aggregate to "unavailable"."""
+        from autoharness.telemetry.report import _quality
+
+        labeled = _record("labeled")
+        labeled["economics"]["output_tokens"] = 25
+        labeled["economics"]["metric_quality"]["output_tokens"] = "observed"
+        zero = _record("zero")
+        zero["economics"]["output_tokens"] = 0  # zero default, no output_tokens label
+
+        self.assertEqual(_quality((labeled, zero), "output_tokens"), "observed")
+
     def test_degraded_inputs_render_gracefully(self) -> None:
         for status in ("disabled", "unavailable", "empty"):
             text = render_report(TelemetryReadResult(status, (), ("missing input",)))

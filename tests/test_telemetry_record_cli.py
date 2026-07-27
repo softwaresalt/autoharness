@@ -166,6 +166,24 @@ class TelemetryRecordCliTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, 2)
 
+    def test_record_rejects_timezone_naive_timestamp_without_context(self) -> None:
+        """090.002-T follow-up (Copilot review): datetime.fromisoformat also
+        accepts timezone-naive values such as '2026-07-26' and
+        '2026-07-26T08:00:00'. Those are ambiguous instants, yet the write-time
+        validator promises an ISO-8601 instant. A value lacking an explicit
+        offset/Z must fail closed (exit 2) rather than being persisted and only
+        later assumed-UTC by aggregation._parse_instant."""
+        self._write_config(_ENABLED_CONFIG)
+        for naive in ("2026-07-26T08:00:00", "2026-07-26"):
+            payload = dict(_PAYLOAD)
+            payload["timestamp"] = naive
+            self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaises(SystemExit) as ctx:
+                self._run()
+
+            self.assertEqual(ctx.exception.code, 2)
+
     def test_record_context_ref_merges_frozen_identity_and_reports_digests(self) -> None:
         self._write_config(_ENABLED_CONFIG)
         from autoharness.telemetry.record import load_workspace_telemetry_config
