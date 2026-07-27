@@ -70,7 +70,7 @@ a focused, reviewable release unit rather than a mega-batch.
 
 ### Task 1 — 090.001-T: Genericize 092-S sizing-readiness gate + explicit close timestamp (638AA991, A465162F)
 
-* **Files** (3): `templates/agents/.ship.agent.md.tmpl`, `.github/agents/.ship.agent.md`, `tests/test_telemetry_ship_lifecycle.py`
+* **Files** (5): `templates/agents/.ship.agent.md.tmpl`, `.github/agents/.ship.agent.md`, `tests/test_telemetry_ship_lifecycle.py`, `tests/test_telemetry_record_cli.py`, `.autoharness/harness-manifest.yaml`
 * **Execution posture**: test-first (red → green). **Elevated blast radius — see Plan Hardening Signals; this task requires plan-harden.**
 * **Current state**: both agent docs hard-code `079.013-T`/`079.015-T` as the
   literal execution-ready gate condition; the ratified test
@@ -89,23 +89,37 @@ a focused, reviewable release unit rather than a mega-batch.
      literals). Keep the existing `task-only manifests` / `parent_id` /
      `execution-ready` assertions unchanged.
   2. Add an assertion to the same test (or a sibling test in the same file)
-     proving both docs instruct an explicit close timestamp at the telemetry
-     record step.
-  3. Run the updated test against current (unmodified) doc content and
-     confirm it fails (red) — the docs still contain the old literals and
-     lack the timestamp guidance.
+     proving both docs instruct capture-once/reuse of an explicit close
+     timestamp (the same value reused on every retry, never regenerated per
+     attempt) at the telemetry record step — not merely "an explicit
+     timestamp".
+  3. Add `test_record_replays_idempotently_with_same_explicit_close_timestamp`
+     to `tests/test_telemetry_record_cli.py`: two context-ref records sharing
+     one explicit close timestamp yield `created` then `idempotent_replay`,
+     locking the capture-once/reuse contract behaviorally.
+  4. Run the updated/added tests against current (unmodified) doc content and
+     confirm they fail (red) — the docs still contain the old literals and
+     lack capture-once/reuse guidance.
 * **Fix**: edit both `templates/agents/.ship.agent.md.tmpl` and
   `.github/agents/.ship.agent.md` identically in substance: (a) replace the
   literal `079.013-T`/`079.015-T` sentence with a generic rule deriving
   execution-readiness from the shipment's own declared task dependencies; (b)
-  add explicit-close-timestamp guidance at the `telemetry record --context-ref`
-  step (`.ship.agent.md:242`). Confirm the updated test is green.
+  add close-timestamp guidance at the `telemetry record --context-ref` step
+  (`.ship.agent.md:242`) that requires Ship to capture the close timestamp ONCE
+  and reuse that exact value on every retry (never regenerate `now` per
+  attempt), so a retried record keeps a stable `payload_digest` and replays as
+  `idempotent_replay` rather than `conflict_rejected`; (c) after editing the
+  `.github/agents/.ship.agent.md` mirror, refresh its sha256 entry in
+  `.autoharness/harness-manifest.yaml` so
+  `test_manifest_tracks_dogfood_ship_agent_checksum`
+  (`tests/test_telemetry_ship_lifecycle.py:45-52`) stays green. Confirm the
+  updated/added tests are green.
 * **Guardrail**: do not weaken `_merge_telemetry_context_payload`'s protected
   `captured_at` fallback (covered by
   `test_record_context_idempotency_and_conflict_outcomes`,
   `tests/test_telemetry_record_cli.py:199`) — satisfy this via explicit
   documentation guidance, not by modifying that function.
-* **Verification**: `python -m pytest tests/test_telemetry_ship_lifecycle.py -v`
+* **Verification**: `python -m pytest tests/test_telemetry_ship_lifecycle.py tests/test_telemetry_record_cli.py -v`
 
 ### Task 2 — 090.002-T: Stable timestamp for non-context telemetry record retries (A7DBF981)
 
@@ -302,10 +316,15 @@ a focused, reviewable release unit rather than a mega-batch.
 
 ## Dependency Graph
 
-All 8 tasks touch mutually disjoint file sets (confirmed above) and share no
-runtime state. No task depends on another task's output; they may be
-implemented in any order or in parallel within the same build session. No
-cycles. No `backlogit dep` entries were created between tasks.
+Tasks 3-8 touch mutually disjoint file sets and share no runtime state. Tasks 1
+and 2 both add cases to `tests/test_telemetry_record_cli.py` (Task 1 for the
+context-ref explicit-timestamp idempotency regression, Task 2 for the
+non-context path), so that single shared test file is their only overlap —
+implement Tasks 1 and 2 sequentially (or merge their test additions carefully)
+to avoid a conflict there. The remaining tasks may be implemented in any order
+or in parallel within the same build session. No task depends on another task's
+runtime output. No cycles. No `backlogit dep` entries were created between
+tasks.
 
 ## Decisions and Rationale
 
@@ -408,7 +427,7 @@ is a binding acceptance criterion for the task, not an optional suggestion.
   harness components (no CLI/API/browser UI changes to interface shape;
   validation/reporting/schema behavior only). `pytest` green for each task's
   modified test file is sufficient proof of absorption.
-* Task 1 changes agent-definition documentation consumed by the Ship agent's
+* Task 1 changes agent-definition documentation (and its harness-manifest checksum) consumed by the Ship agent's
   own execution-readiness gate logic at build/PR time. Runtime verification
   for Task 1 is: (a) the updated ratified test passing, and (b) a manual diff
   confirming both `.ship.agent.md` and its template mirror state the generic
