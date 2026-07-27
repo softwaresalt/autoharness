@@ -307,13 +307,16 @@ a focused, reviewable release unit rather than a mega-batch.
      `"unavailable"` numerator (`missing_expected_tool_count=0` marked
      unavailable) must surface `"unavailable"` provenance, not a bare `0.0`.
   3. In `tests/test_telemetry_aggregation.py` (which owns the
-     `derived_efficiency_metrics` contract at lines 182-224:
-     `consumption_generation_ratio`, `cost_per_successful_epoch`,
-     `net_offload_tokens`), operand-quality regression cases asserting an
-     unavailable/estimated numerator or denominator degrades those ratios'
-     provenance too and does not silently change their shape — covering the
-     broadened `_derived_ratio` where it is actually consumed, not only via
-     `gap_rate` in `test_eval_summary.py`.
+     `derived_efficiency_metrics` contract at lines 182-224), operand-quality
+     regression cases for the OTHER `_derived_ratio` consumers —
+     `consumption_generation_ratio` and `cost_per_successful_epoch`
+     (`aggregation.py:140,142`) — asserting an unavailable/estimated numerator
+     or denominator degrades those ratios' provenance too and does not silently
+     change their shape, covering the broadened `_derived_ratio` where it is
+     actually consumed, not only via `gap_rate` in `test_eval_summary.py`.
+     (`net_offload_tokens` at `aggregation.py:136-139` is a direct subtraction,
+     not a `_derived_ratio` consumer, and already returns `UNAVAILABLE` when
+     either operand is `None`; out of scope for this broadening.)
 * **Fix**: extend `_derived_ratio` in `aggregation.py` to accept/propagate a
   quality indicator for BOTH its numerator and denominator operands (a
   denominator-only design still returns `0.0` for the unavailable-numerator
@@ -439,9 +442,33 @@ is a binding acceptance criterion for the task, not an optional suggestion.
 
 ## Runtime Verification and Closure
 
-* Tasks 2-8 do not change any runtime surface exposed to operators or other
-  harness components (no CLI/API/browser UI changes to interface shape;
-  validation/reporting/schema behavior only). `pytest` green for each task's
+* Four of these tasks DO change an operator- or consumer-visible contract, so
+  `pytest` green is necessary but not sufficient — each carries an explicit
+  compatibility expectation and a runtime check:
+  * **Task 2 (090.002-T)** makes `timestamp` mandatory (and ISO-8601-valid) on
+    the non-context `telemetry record` path — previously omitted timestamps were
+    auto-stamped. This is a fail-closed CLI behavior change: callers omitting or
+    malforming `timestamp` now exit 2. Compatibility: harness/agents already pass
+    explicit ISO-8601 timestamps; runtime check — a `telemetry record` smoke call
+    with a valid explicit timestamp confirms created/idempotent_replay, and calls
+    omitting or malforming it confirm the new exit-2 diagnostic.
+  * **Task 3 (090.003-T)** makes `telemetry begin` fail fast (exit 2,
+    `TelemetryContextError`) on a backlog_item_id/task_id mismatch that
+    previously succeeded silently. Compatibility: only genuinely inconsistent
+    begin calls change outcome; runtime check — a `telemetry begin` smoke call
+    with a deliberate mismatch confirms the exit-2 diagnostic.
+  * **Task 5 (090.005-T)** changes the public embedded WorkSizingSnapshot JSON
+    Schema (adds `feature_skipped_ids`/`shipment_skipped_ids`). The change is
+    additive/permissive (previously-rejected valid payloads now validate);
+    runtime check — validate a sample event carrying both fields against the
+    base and versioned schema files.
+  * **Task 8 (090.008-T)** changes serialized eval-summary output (adds a
+    provenance/quality marker to derived ratios). Compatibility: additive field
+    on the summary structure; runtime check — an `eval summary` run over a
+    fixture with estimated and observed operands confirms the new provenance
+    marker appears without breaking existing consumers of the structure.
+* Tasks 4, 6, and 7 are internal validation/computation/reporting fixes with no
+  new CLI-contract or public-schema change; `pytest` green for each task's
   modified test file is sufficient proof of absorption.
 * Task 1 changes agent-definition documentation (and its harness-manifest checksum) consumed by the Ship agent's
   own execution-readiness gate logic at build/PR time. Runtime verification
@@ -450,9 +477,10 @@ is a binding acceptance criterion for the task, not an optional suggestion.
   derivation rule identically. No live Ship session needs to be run to absorb
   this change — the next real shipment's execution-readiness gate check will
   naturally exercise the new generic rule.
-* **Operational closure artifact**: none required beyond this shipment's PR
-  local review readiness record; none of these 8 tasks touch a monitored
-  production surface.
+* **Operational closure artifact**: the per-task runtime checks above are
+  recorded in this shipment's PR local review readiness record; none of these 8
+  tasks touch a monitored production surface, so no separate monitoring/rollback
+  artifact is required.
 
 Generated by: Stage (staging session) | PR #227 telemetry hardening
 
