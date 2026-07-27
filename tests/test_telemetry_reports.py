@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from autoharness.telemetry.reader import TelemetryReadResult
-from autoharness.telemetry.report import filter_records, render_report, summarize_report
+from autoharness.telemetry.report import _quality, filter_records, render_report, summarize_report
 
 
 def _record(epoch_id: str, *, feature_id="079-F", task_size="M", metric_quality="observed") -> dict:
@@ -103,6 +103,67 @@ class TelemetryReportTests(unittest.TestCase):
         self.assertEqual(_quality((unavailable, observed), "context_area_tokens"), "unavailable")
         self.assertEqual(_quality((observed, estimated), "context_area_tokens"), "estimated")
         self.assertEqual(_quality((estimated, observed), "context_area_tokens"), "estimated")
+
+    def test_quality_flags_populated_metric_missing_label_as_unavailable(self) -> None:
+        """090.006-T: a record whose economics carry a real (populated) value for
+        a metric but whose metric_quality map has no entry for that field is a
+        genuine provenance gap. Previously such records were skipped entirely
+        (quality.get(field) is None -> continue), which let the aggregate fall
+        through to the "observed" default purely for lack of information. Any
+        populated record missing its label must degrade the aggregate to
+        "unavailable" instead."""
+        from autoharness.telemetry.report import _quality
+
+        # _record()'s economics populate input_tokens=100 but metric_quality
+        # only documents context_area_tokens — input_tokens has no label.
+        record = _record("a")
+
+        self.assertEqual(_quality((record,), "input_tokens"), "unavailable")
+
+    def test_quality_preserves_observed_when_all_populated_records_labeled(self) -> None:
+        """090.006-T: the missing-label degradation must not regress the common
+        case — when every populated record carries a real "observed" label for
+        the field, the aggregate quality remains "observed"."""
+        from autoharness.telemetry.report import _quality
+
+        record = _record("a")
+        record["economics"]["metric_quality"]["input_tokens"] = "observed"
+
+        self.assertEqual(_quality((record,), "input_tokens"), "observed")
+
+    def test_quality_skips_zero_valued_unlabeled_metric(self) -> None:
+        """090.006-T follow-up (Copilot review): the telemetry model defines a
+        metric as "populated" only when non-zero (epoch._metric_is_populated /
+        ExecutionEpoch.missing_provenance); a zero default is "not observed" and
+        needs no provenance. So a zero, unlabeled field must NOT be treated as a
+        provenance gap — in a multi-record slice it must not downgrade an
+        otherwise fully-labeled aggregate to "unavailable"."""
+        from autoharness.telemetry.report import _quality
+
+        labeled = _record("labeled")
+        labeled["economics"]["output_tokens"] = 25
+        labeled["economics"]["metric_quality"]["output_tokens"] = "observed"
+        zero = _record("zero")
+        zero["economics"]["output_tokens"] = 0  # zero default, no output_tokens label
+
+        self.assertEqual(_quality((labeled, zero), "output_tokens"), "observed")
+
+    def test_quality_normalizes_malformed_explicit_label(self) -> None:
+        """090.008-T (PR #235 r5): report _quality must apply the same fail-closed
+        normalization as aggregation for explicit metric_quality data. An
+        out-of-vocabulary label (e.g. "guessed") must degrade to "unavailable"
+        before ranking rather than leak as an undocumented "(guessed)" marker,
+        and a non-mapping metric_quality must be treated as absent instead of
+        raising on ``.get``."""
+        out_of_vocab = _record("g", metric_quality="guessed")
+
+        self.assertEqual(_quality((out_of_vocab,), "context_area_tokens"), "unavailable")
+
+        non_mapping = _record("n")
+        non_mapping["economics"]["metric_quality"] = "not-a-mapping"
+        # A non-mapping metric_quality must not raise; it is treated as absent, so
+        # the populated-but-unlabeled context_area_tokens degrades to unavailable.
+        self.assertEqual(_quality((non_mapping,), "context_area_tokens"), "unavailable")
 
     def test_degraded_inputs_render_gracefully(self) -> None:
         for status in ("disabled", "unavailable", "empty"):

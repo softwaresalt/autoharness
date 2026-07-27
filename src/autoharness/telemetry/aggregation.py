@@ -115,10 +115,116 @@ def _dedupe(records: Iterable[dict[str, Any]]) -> tuple[list[dict[str, Any]], li
     return [entry[0] for entry in by_id.values()], diagnostics
 
 
-def _derived_ratio(numerator: float | int | None, denominator: float | int | None) -> float | str:
+# 090.008-T: worst-case ranking of the observed/derived/estimated/unavailable/
+# not-applicable vocabulary, used to pick the dominant provenance marker when a
+# derived ratio's two operands carry different quality labels.
+_QUALITY_RANK = {
+    "observed": 0,
+    "derived": 1,
+    "estimated": 2,
+    "not_applicable": 3,
+    "unavailable": 4,
+}
+
+
+def _normalize_quality(value: Any) -> str:
+    """Coerce a raw ``metric_quality`` label into the known vocabulary.
+
+    ``ExecutionEpoch.from_mapping`` preserves ``metric_quality`` values without
+    validating them (090.008-T, PR #235 review r3), so a malformed payload can
+    reach the ranking below. A missing label (``None``) keeps the intentional
+    optimistic ``"observed"`` legacy default; any *present-but-invalid* label — a
+    non-string, or a string outside ``_QUALITY_RANK`` — degrades fail-closed to
+    ``"unavailable"``. This makes the unhashable ``_QUALITY_RANK`` lookup safe
+    and prevents an undocumented label from leaking into ``derived_quality``.
+    """
+    if value is None:
+        return "observed"
+    if isinstance(value, str) and value in _QUALITY_RANK:
+        return value
+    return "unavailable"
+
+
+def _field_quality(records: Iterable[dict[str, Any]], section: str, field: str) -> str | None:
+    """Worst-case ``metric_quality`` label for ``field`` across ``records``.
+
+    A populated field with no explicit quality label defaults to ``"observed"``
+    (optimistic), not ``"unavailable"``. Unlike report.py's per-record display
+    logic, most historical telemetry records never set ``metric_quality`` at
+    all, so treating silence as pessimistic here would inject provenance noise
+    into every fully-observed ratio (the common case must stay a bare float).
+
+    This intentional asymmetry with report.py's ``_quality`` is contract-pinned
+    by test_telemetry_aggregation.py (unlabeled records must yield bare-float
+    derived ratios, e.g. ``consumption_generation_ratio == 101/101``): the two
+    functions serve different outputs. report.py annotates a *display* quality
+    for a single value, so an unlabeled populated value is a legible provenance
+    gap; ``_field_quality`` gates a *numeric* aggregate ratio, where flipping
+    silence to ``unavailable`` would mass-regress every legacy ratio. Explicit
+    ``unavailable``/``not_applicable`` labels are still honored fail-closed here
+    (via ``_sum_field`` returning ``None`` -> ``UNAVAILABLE``); only *silence*
+    stays optimistic. 090.008-T propagates explicit labels; it does not
+    introduce a missing-label fail-closed rule for aggregation. Present-but-
+    malformed labels are normalized by ``_normalize_quality`` (PR #235 r3).
+    """
+    worst: str | None = None
+    for record in records:
+        sec = record.get(section) or {}
+        quality = _normalize_quality((sec.get("metric_quality") or {}).get(field))
+        if worst is None or _QUALITY_RANK[quality] > _QUALITY_RANK[worst]:
+            worst = quality
+    return worst
+
+
+def _worst_quality(*qualities: str | None) -> str | None:
+    ranked = [_normalize_quality(quality) for quality in qualities if quality is not None]
+    if not ranked:
+        return None
+    return max(ranked, key=lambda quality: _QUALITY_RANK[quality])
+
+
+def _derived_ratio(
+    numerator: float | int | None,
+    denominator: float | int | None,
+    *,
+    numerator_quality: str | None = None,
+    denominator_quality: str | None = None,
+) -> float | str:
+    """Numeric derived ratio, or the ``UNAVAILABLE`` sentinel.
+
+    090.008-T (Copilot review, PR #235): the ratio value stays machine-readable
+    — a bare ``float`` or ``UNAVAILABLE`` — per the documented contract
+    (docs/telemetry-reference.md: derived metrics are ratios or ``unavailable``)
+    and the plan's compatibility note (an *additive* provenance field, not
+    presentation text baked into the value). Operand provenance is surfaced
+    separately via ``_ratio_provenance`` and the sibling ``derived_quality``
+    map, so JSON consumers can still compare and aggregate the number. An
+    operand whose quality is ``unavailable``/``not_applicable`` still degrades
+    the value itself to ``UNAVAILABLE``.
+    """
     if numerator is None or denominator is None or denominator == 0:
         return UNAVAILABLE
+    if _worst_quality(numerator_quality, denominator_quality) in ("unavailable", "not_applicable"):
+        return UNAVAILABLE
     return numerator / denominator
+
+
+def _ratio_provenance(value: float | int | str, *qualities: str | None) -> str | None:
+    """Non-observed provenance marker (``estimated``/``derived``) for a usable
+    numeric derived ratio, or ``None``.
+
+    Additive companion to ``_derived_ratio``: returns ``None`` when the ratio is
+    ``UNAVAILABLE``, has no operand provenance, or is fully ``observed`` (so the
+    common case yields an empty ``derived_quality`` map). ``unavailable`` /
+    ``not_applicable`` operands never surface here — they already degrade the
+    ratio value itself to ``UNAVAILABLE``.
+    """
+    if isinstance(value, str):  # UNAVAILABLE sentinel — nothing usable to mark.
+        return None
+    worst = _worst_quality(*qualities)
+    if worst is None or worst in ("observed", "unavailable", "not_applicable"):
+        return None
+    return worst
 
 
 def derived_efficiency_metrics(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -130,18 +236,58 @@ def derived_efficiency_metrics(records: Iterable[dict[str, Any]]) -> dict[str, A
     expected = _operation_sum(records, "expected_tool_count")
     missing = _operation_sum(records, "missing_expected_tool_count")
 
+    input_quality = _field_quality(records, "economics", "input_tokens")
+    output_quality = _field_quality(records, "economics", "output_tokens")
+    missing_quality = _field_quality(records, "operations", "missing_expected_tool_count")
+    expected_quality = _field_quality(records, "operations", "expected_tool_count")
+
     successful = [record for record in records if is_successful_epoch(record)]
     successful_cost = _sum_field(successful, "economics", "cogs_usd") if successful else None
+    successful_cost_quality = (
+        _field_quality(successful, "economics", "cogs_usd") if successful else None
+    )
+
+    consumption_generation_ratio = _derived_ratio(
+        input_tokens,
+        output_tokens,
+        numerator_quality=input_quality,
+        denominator_quality=output_quality,
+    )
+    gap_rate = _derived_ratio(
+        missing,
+        expected,
+        numerator_quality=missing_quality,
+        denominator_quality=expected_quality,
+    )
+    cost_per_successful_epoch = _derived_ratio(
+        successful_cost,
+        len(successful),
+        numerator_quality=successful_cost_quality,
+    )
+
+    # 090.008-T (Copilot review, PR #235): operand provenance travels in an
+    # additive sibling map so the ratios above stay numeric/``unavailable`` for
+    # machine consumers instead of becoming "<ratio> (estimated)" display text.
+    derived_quality: dict[str, str] = {}
+    for name, value, qualities in (
+        ("consumption_generation_ratio", consumption_generation_ratio, (input_quality, output_quality)),
+        ("gap_rate", gap_rate, (missing_quality, expected_quality)),
+        ("cost_per_successful_epoch", cost_per_successful_epoch, (successful_cost_quality,)),
+    ):
+        marker = _ratio_provenance(value, *qualities)
+        if marker is not None:
+            derived_quality[name] = marker
 
     return {
         "net_offload_tokens": (
             UNAVAILABLE if avoided is None or tool_output is None else avoided - tool_output
         ),
-        "consumption_generation_ratio": _derived_ratio(input_tokens, output_tokens),
-        "gap_rate": _derived_ratio(missing, expected),
-        "cost_per_successful_epoch": _derived_ratio(successful_cost, len(successful)),
+        "consumption_generation_ratio": consumption_generation_ratio,
+        "gap_rate": gap_rate,
+        "cost_per_successful_epoch": cost_per_successful_epoch,
         "planned_vs_composition": UNAVAILABLE,
         "cost_per_size_point": UNAVAILABLE,
+        "derived_quality": derived_quality,
     }
 
 

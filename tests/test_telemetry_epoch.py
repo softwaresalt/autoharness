@@ -211,6 +211,23 @@ class ExecutionEpochTests(unittest.TestCase):
         with self.assertRaises(EpochError):
             AbsoluteOutcome.from_mapping({"gate_exit_codes": [0], "tool_degraded_count": -1})
 
+    def test_absolute_outcome_from_mapping_rejects_non_numeric_exit_code(self) -> None:
+        """090.007-T (435F201D): the v1.1 schema declares gate_exit_codes items
+        as ``type: integer`` (signed values intentionally allowed). Prior to the
+        fix, ``tuple(int(c) for c in codes)`` applied no per-element type check,
+        so a bool silently coerced (True -> 1), a numeric string silently
+        coerced ("2" -> 2), and — worse — a float silently truncated
+        (``int(1.5) == 1``) without ever raising. Mirror the
+        ``_coerce_nonneg_metric`` strict-type pattern: each of these must raise
+        EpochError instead."""
+        for bad_codes in ([True], ["1"], [1.5]):
+            with self.assertRaises(EpochError):
+                AbsoluteOutcome.from_mapping({"gate_exit_codes": bad_codes})
+
+        # Valid integer exit-code tuples continue to round-trip unchanged.
+        ok = AbsoluteOutcome.from_mapping({"gate_exit_codes": [0, 1, -1]})
+        self.assertEqual(ok.gate_exit_codes, (0, 1, -1))
+
     def test_missing_required_payload_class_raises(self) -> None:
         record = _full_epoch().to_record()
         del record["outcome"]
@@ -567,6 +584,27 @@ class WorkSizingSnapshotTests(unittest.TestCase):
         self.assertEqual(snap.shipment_skipped_ids, ())
         self.assertEqual(snap.to_dict()["feature_skipped_ids"], [])
         self.assertEqual(snap.to_dict()["shipment_skipped_ids"], [])
+
+    def test_work_sizing_snapshot_rejects_null_snapshot_boundary(self) -> None:
+        """090.007-T (4C4A8F0B): from_mapping must reject an explicit null
+        ``snapshot_boundary`` rather than silently coercing it to the literal
+        string "None" via ``str(None)``."""
+        with self.assertRaises(EpochError):
+            WorkSizingSnapshot.from_mapping({"snapshot_boundary": None})
+
+    def test_work_sizing_snapshot_rejects_invalid_snapshot_boundary_enum(self) -> None:
+        """090.007-T (4C4A8F0B): the public schema fixes snapshot_boundary to
+        ``const: "pre_execution"``; any other string must raise EpochError,
+        both via direct construction and via from_mapping."""
+        for bad in ("post_execution", "PRE_EXECUTION", "", "pre-execution"):
+            with self.assertRaises(EpochError):
+                WorkSizingSnapshot(snapshot_boundary=bad)
+            with self.assertRaises(EpochError):
+                WorkSizingSnapshot.from_mapping({"snapshot_boundary": bad})
+
+        # The sole accepted value continues to round-trip unchanged.
+        ok = WorkSizingSnapshot(snapshot_boundary="pre_execution")
+        self.assertEqual(ok.snapshot_boundary, "pre_execution")
 
 
 class OperationalGapRollupTests(unittest.TestCase):

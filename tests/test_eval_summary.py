@@ -256,6 +256,106 @@ class TelemetryMetricFoldingTests(unittest.TestCase):
         self.assertEqual(summary.planned_vs_composition, "unavailable")
         self.assertEqual(summary.cost_per_size_point, "unavailable")
 
+    def test_gap_rate_flags_estimated_denominator_provenance(self) -> None:
+        """090.008-T (3EFC51DE / PR #235): a metric history where the ratio's
+        denominator carries "estimated" quality (usable, but less certain than
+        "observed") keeps ``expected_tool_gap_rate`` numeric while surfacing the
+        provenance in the additive ``derived_quality`` map — distinguishing it
+        from a genuinely observed ratio without turning the value into a string
+        that JSON consumers can no longer compare."""
+        epoch = ExecutionEpoch(
+            task_id="eval:gap-estimated",
+            route=RouteConfiguration(models=("m",)),
+            economics=EconomicPayload(input_tokens=10, output_tokens=5, cogs_usd=1.0),
+            operations=OperationalReality(
+                expected_tool_count=2,
+                missing_expected_tool_count=1,
+                metric_quality={"expected_tool_count": "estimated"},
+            ),
+            outcome=AbsoluteOutcome(gate_exit_codes=(0,)),
+        )
+        summary = summarize_baseline(
+            EvalRunReport(None, (EvalRun("gap-estimated", epoch, RecordSummary(enabled=False)),))
+        )
+
+        config = summary.configs[0]
+        self.assertEqual(config.expected_tool_gap_rate, 0.5)
+        self.assertEqual(config.derived_quality["expected_tool_gap_rate"], "estimated")
+
+    def test_gap_rate_unavailable_when_numerator_unavailable(self) -> None:
+        """090.008-T (3EFC51DE): a usable denominator (expected_tool_count=1)
+        paired with an "unavailable" numerator (missing_expected_tool_count=0
+        marked unavailable, i.e. never actually measured) must surface
+        "unavailable" provenance rather than the bare 0.0 that plain division
+        would silently produce."""
+        epoch = ExecutionEpoch(
+            task_id="eval:gap-unavailable",
+            route=RouteConfiguration(models=("m",)),
+            economics=EconomicPayload(input_tokens=10, output_tokens=5, cogs_usd=1.0),
+            operations=OperationalReality(
+                expected_tool_count=1,
+                missing_expected_tool_count=0,
+                metric_quality={"missing_expected_tool_count": "unavailable"},
+            ),
+            outcome=AbsoluteOutcome(gate_exit_codes=(0,)),
+        )
+        summary = summarize_baseline(
+            EvalRunReport(None, (EvalRun("gap-unavailable", epoch, RecordSummary(enabled=False)),))
+        )
+
+        config = summary.configs[0]
+        self.assertEqual(config.expected_tool_gap_rate, "unavailable")
+
+    def test_derived_quality_is_additive_optional_field(self) -> None:
+        """090.008-T (PR #235 r4): ConfigSummary and BaselineSummary are exported
+        from autoharness.eval, so the new derived_quality field must be additive
+        and backward-compatible — omitting it in construction defaults to an
+        empty map rather than raising, and it is placed after all pre-existing
+        required fields so positional callers do not shift."""
+        config = ConfigSummary(
+            config_name="c",
+            primary_model=None,
+            models=(),
+            input_tokens=0,
+            output_tokens=0,
+            total_tokens=0,
+            cogs_usd=0.0,
+            duration_seconds=0.0,
+            context_area_tokens=0,
+            net_offload_tokens=0,
+            consumption_generation_ratio="unavailable",
+            expected_tool_gap_rate="unavailable",
+            task_size_label=None,
+            feature_planned_size_label=None,
+            shipment_planned_size_label=None,
+            gate_exit_codes=(),
+            blocked=False,
+            quality_overall=None,
+            quality_dimensions=None,
+        )
+        self.assertEqual(config.derived_quality, {})
+        self.assertEqual(config.to_dict()["derived_quality"], {})
+
+        baseline = BaselineSummary(
+            frozen_base=None,
+            frozen_head=None,
+            frozen_sha=None,
+            configs=(),
+            cheapest_config=None,
+            costliest_config=None,
+            fastest_config=None,
+            lowest_token_config=None,
+            highest_quality_config=None,
+            blocked_configs=(),
+            total_cogs_usd=0.0,
+            total_tokens=0,
+            cost_per_successful_epoch="unavailable",
+            planned_vs_composition="unavailable",
+            cost_per_size_point="unavailable",
+        )
+        self.assertEqual(baseline.derived_quality, {})
+        self.assertEqual(baseline.to_dict()["derived_quality"], {})
+
 
 if __name__ == "__main__":
     unittest.main()

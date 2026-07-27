@@ -153,6 +153,30 @@ def _coerce_nonneg_metric(
     return value
 
 
+def _coerce_exit_code(value: Any) -> int:
+    """Validate a single ``gate_exit_codes`` element per the v1.1 schema.
+
+    The schema declares ``gate_exit_codes`` items as ``type: integer`` with
+    negative values intentionally allowed (signed process/gate exit codes), so
+    there is no ``minimum`` bound to enforce here. Mirror the strict-type
+    pattern used by :func:`_coerce_nonneg_metric`: ``bool`` is never a valid
+    JSON integer here (``True``/``False`` would silently coerce to ``1``/``0``),
+    and non-int values must not be silently coerced by ``int(...)`` — a numeric
+    string would silently parse, and a float would silently *truncate*
+    (``int(1.5) == 1``), each masking schema-invalid telemetry.
+    """
+    if isinstance(value, bool):
+        raise EpochError(
+            f"'gate_exit_codes' entries must be JSON integers per schema; got bool {value!r}."
+        )
+    if not isinstance(value, int):
+        raise EpochError(
+            "'gate_exit_codes' entries must be JSON integers per schema; got "
+            f"{type(value).__name__} {value!r}."
+        )
+    return value
+
+
 def _coerce_nonneg_count_map(value: Any, field_name: str) -> dict[str, int]:
     """Validate a per-key telemetry count map has non-negative integer values.
 
@@ -501,7 +525,7 @@ class AbsoluteOutcome:
             return _coerce_nonneg_metric(data, name, int, 0, sources, quality)
 
         return cls(
-            gate_exit_codes=tuple(int(c) for c in codes),
+            gate_exit_codes=tuple(_coerce_exit_code(c) for c in codes),
             tool_failure_count=_count("tool_failure_count"),
             tool_degraded_count=_count("tool_degraded_count"),
             tool_gap_count=_count("tool_gap_count"),
@@ -549,6 +573,17 @@ class WorkSizingSnapshot:
     shipment_skipped_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        # 090.007-T (4C4A8F0B): the public schema fixes snapshot_boundary to
+        # const: "pre_execution" (execution-epoch.schema.json). Reject any
+        # other value with exact parity — including the literal string "None"
+        # that from_mapping's str(None) coercion would otherwise produce for
+        # an explicit null — rather than silently persisting an invalid
+        # boundary.
+        if self.snapshot_boundary != "pre_execution":
+            raise EpochError(
+                "WorkSizingSnapshot.snapshot_boundary must be the schema const "
+                f"'pre_execution'; got {self.snapshot_boundary!r}."
+            )
         for label_field in (
             "task_size_label",
             "feature_planned_size_label",

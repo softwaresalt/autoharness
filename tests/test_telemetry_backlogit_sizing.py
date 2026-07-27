@@ -247,6 +247,35 @@ class BacklogitSizingSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot.feature_planned_child_size_histogram, {"M": 1, "unsized": 2})
         self.assertTrue(snapshot.feature_composition_consistent())
 
+    def test_composition_flags_inconsistent_sized_count_as_unavailable(self) -> None:
+        """090.004-T (2D22ED3D): when the histogram's sized_count exceeds the
+        number of unique member IDs, the composition data is inconsistent
+        (a data-quality problem) and must degrade to the existing unavailable
+        5-tuple — mirroring the malformed-value precedent at sizing.py:139-145
+        — rather than silently clamping ``unsized`` to 0 via ``max(...,0)``."""
+        runner = FakeBacklogitRunner(
+            {
+                "079.013-T": _task("079.013-T", "M"),
+                "079-F": _rollup(
+                    "079-F",
+                    [{"id": "a-T", "artifact_type": "task"}],
+                    histogram={"M": 3},  # sized_count 3 > len(unique_ids) 1
+                ),
+            }
+        )
+
+        snapshot = capture_work_sizing_snapshot(
+            workspace=self.workspace,
+            task_id="079.013-T",
+            feature_id="079-F",
+            runner=runner,
+            snapshot_at="2026-07-24T03:37:49Z",
+        )
+
+        self.assertIsNone(snapshot.feature_planned_child_task_count)
+        self.assertEqual(snapshot.feature_planned_child_size_histogram, {})
+        self.assertIsNone(snapshot.feature_child_membership_hash)
+
     def test_sync_failure_degrades_composition_without_consuming_stale_index(self) -> None:
         """Regression (Copilot review c10 / C50F24DD, 079.013-T freshness AC): a
         failed pre-capture freshness sync must degrade feature/shipment composition

@@ -163,7 +163,7 @@ build work begins:
 1. Load the shipment using `{{OP_GET_SHIPMENT_MCP}}`. Confirm it is in `{{STATUS_QUEUED}}` or `{{STATUS_ACTIVE}}` status.
 2. Confirm the shipment has explicit task item membership. Task-only manifests are valid; task-only manifests are accepted by resolving the covering feature through each task's `parent_id` instead of requiring the parent feature to appear as a shipment item.
 3. Verify no task item in the shipment is missing a covering feature parent.
-3a. For shipments that include sizing/context tasks (for example 092-S), do not treat the shipment as execution-ready while the backlogit sizing adapter task (`079.013-T`) or the Ship telemetry handoff task (`079.015-T`) remains incomplete. These tasks are dependency-ordered through `dependencies`, not `blocked-on-external`.
+3a. For shipments that include sizing/context tasks (for example 092-S), execution-readiness is derived generically from the shipment's own declared task dependencies — never from an embedded task ID literal. Do not treat the shipment as execution-ready while any of its own declared prerequisite tasks remain incomplete. These tasks are dependency-ordered through `dependencies`, not `blocked-on-external`.
 3a. **Branch Creation Gate (P-011, NON-NEGOTIABLE) + Worktree Topology Gate (P-016, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active and no prohibited parallel worktree is attached:
     - Check current branch:
       `git branch --show-current`
@@ -351,6 +351,10 @@ When the `adversarial-review` capability pack is installed, Ship invokes the **a
    enabled `context_ref`, create a close-time epoch payload from the task roll-up
    metrics and record it before marking the task done:
    `autoharness telemetry record --context-ref {context_ref} --from-json {epoch_payload_path} --json`.
+   Capture the close timestamp once and reuse that exact value on every retry
+   of this record call — never regenerate it per attempt. This keeps the
+   payload digest stable across retries so a retried record replays as
+   `idempotent_replay` rather than `conflict_rejected`.
    Skip the record close on `disabled`, `unavailable`, or `conflict`.
    The record path must preserve the same stable epoch_id and must not re-read
    backlogit size, hierarchy, or shipment membership at close.

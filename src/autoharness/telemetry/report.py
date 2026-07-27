@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
-from autoharness.telemetry.aggregation import AggregationResult, aggregate_epochs
+from autoharness.telemetry.aggregation import AggregationResult, _normalize_quality, aggregate_epochs
+from autoharness.telemetry.epoch import _metric_is_populated
 from autoharness.telemetry.reader import TelemetryReadResult
 
 _ALLOWED_FILTERS = {
@@ -102,14 +103,39 @@ def _quality(records: tuple[dict[str, Any], ...], field: str) -> str:
     worst: str | None = None
     worst_rank = -1
     for record in records:
-        quality = (record.get("economics") or {}).get("metric_quality") or {}
+        economics = record.get("economics") or {}
+        raw_quality = economics.get("metric_quality")
+        # PR #235 r5: a persisted metric_quality that is not a mapping (malformed
+        # payload) must be treated as absent, not raise on .get.
+        quality = raw_quality if isinstance(raw_quality, Mapping) else {}
         label = quality.get(field)
         if label is None:
-            continue
-        rank = _QUALITY_RANK.get(str(label), _QUALITY_RANK["unavailable"])
+            value = economics.get(field)
+            if value == "unavailable" or not _metric_is_populated(value):
+                # The field is unpopulated on this record — missing, the
+                # "unavailable" sentinel, or a zero default. The telemetry model
+                # defines "populated" as non-zero and treats a zero as "not
+                # observed" needing no provenance (epoch._metric_is_populated /
+                # ExecutionEpoch.missing_provenance), so there is nothing to
+                # degrade quality with; skip it. Degrading a zero here would let
+                # one default-zero without a label downgrade an otherwise fully
+                # labeled aggregate to "unavailable".
+                continue
+            # 090.006-T: a populated field with no matching quality label is a
+            # genuine provenance gap, not an absence of data. Treat it as the
+            # worst-case "unavailable" label instead of silently skipping the
+            # record, which previously let the aggregate default to "observed"
+            # purely for lack of information.
+            label = "unavailable"
+        # PR #235 r5: normalize an explicit label to the known vocabulary before
+        # ranking, so an out-of-vocabulary or non-string value degrades
+        # fail-closed to "unavailable" rather than leaking as an undocumented
+        # provenance marker (mirrors aggregation's _normalize_quality).
+        label = _normalize_quality(label)
+        rank = _QUALITY_RANK[label]
         if rank > worst_rank:
             worst_rank = rank
-            worst = str(label)
+            worst = label
     if worst is not None:
         return worst
     return "unavailable" if field in _unavailable_metrics(records) else "observed"
@@ -157,7 +183,12 @@ def render_report(report: TelemetryReportSummary) -> str:
         f"Size-label distributions: {dict(report.size_groups)}",
     ]
     for key, value in report.derived.items():
+        if key == "derived_quality":
+            continue
         lines.append(f"{key}: {value}")
+    provenance = report.derived.get("derived_quality") or {}
+    if provenance:
+        lines.append(f"Derived provenance: {dict(sorted(provenance.items()))}")
     if report.unavailable_metrics:
         lines.append(f"Unavailable metrics: {', '.join(report.unavailable_metrics)}")
     if report.diagnostics:

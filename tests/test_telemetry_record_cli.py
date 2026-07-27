@@ -38,6 +38,7 @@ telemetry:
 _PAYLOAD = {
     "epoch_id": "11111111111141118111111111111111",
     "task_id": "051.001-T",
+    "timestamp": "2026-07-26T00:00:00Z",
     "route": {"models": ["claude-opus-4.6"]},
     "economics": {"input_tokens": 100, "output_tokens": 50, "cogs_usd": 0.01, "duration_seconds": 12.0},
     "operations": {"cli_tools": ["git", "pytest"]},
@@ -115,6 +116,73 @@ class TelemetryRecordCliTests(unittest.TestCase):
             self._run()
 
         self.assertEqual(ctx.exception.code, 2)
+
+    def test_record_rejects_missing_timestamp_without_context(self) -> None:
+        """090.002-T (A7DBF981): the non-context record path must require an
+        explicit timestamp, mirroring the epoch_id requirement, so an intended
+        idempotent retry cannot silently get a fresh wall-clock stamp."""
+        self._write_config(_ENABLED_CONFIG)
+        payload = dict(_PAYLOAD)
+        payload.pop("timestamp", None)
+        self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_record_replays_idempotently_with_explicit_timestamp_without_context(self) -> None:
+        """090.002-T (A7DBF981): the same payload with an explicit timestamp,
+        recorded twice, must yield created then idempotent_replay."""
+        self._write_config(_ENABLED_CONFIG)
+        payload = dict(_PAYLOAD)
+        payload["timestamp"] = "2026-07-26T08:00:00Z"
+        self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        import contextlib
+        import io
+
+        first_stdout = io.StringIO()
+        with contextlib.redirect_stdout(first_stdout):
+            self._run("--json")
+        second_stdout = io.StringIO()
+        with contextlib.redirect_stdout(second_stdout):
+            self._run("--json")
+
+        self.assertEqual(json.loads(first_stdout.getvalue())["idempotency_outcome"], "created")
+        self.assertEqual(json.loads(second_stdout.getvalue())["idempotency_outcome"], "idempotent_replay")
+
+    def test_record_rejects_malformed_timestamp_without_context(self) -> None:
+        """090.002-T (A7DBF981): a nonblank but malformed timestamp must raise
+        EpochError / exit 2 rather than being silently persisted and later
+        dropped by the reader (reader.py:35-50)."""
+        self._write_config(_ENABLED_CONFIG)
+        payload = dict(_PAYLOAD)
+        payload["timestamp"] = "not-a-date"
+        self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_record_rejects_timezone_naive_timestamp_without_context(self) -> None:
+        """090.002-T follow-up (Copilot review): datetime.fromisoformat also
+        accepts timezone-naive values such as '2026-07-26' and
+        '2026-07-26T08:00:00'. Those are ambiguous instants, yet the write-time
+        validator promises an ISO-8601 instant. A value lacking an explicit
+        offset/Z must fail closed (exit 2) rather than being persisted and only
+        later assumed-UTC by aggregation._parse_instant."""
+        self._write_config(_ENABLED_CONFIG)
+        for naive in ("2026-07-26T08:00:00", "2026-07-26"):
+            payload = dict(_PAYLOAD)
+            payload["timestamp"] = naive
+            self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaises(SystemExit) as ctx:
+                self._run()
+
+            self.assertEqual(ctx.exception.code, 2)
 
     def test_record_context_ref_merges_frozen_identity_and_reports_digests(self) -> None:
         self._write_config(_ENABLED_CONFIG)
@@ -236,6 +304,40 @@ class TelemetryRecordCliTests(unittest.TestCase):
         self.assertEqual(conflict["idempotency_outcome"], "conflict_rejected")
         self.assertFalse(conflict["sqlite_written"])
         self.assertFalse(conflict["jsonl_written"])
+
+    def test_record_replays_idempotently_with_same_explicit_close_timestamp(self) -> None:
+        """090.001-T (A465162F): a context-ref record replayed with the same
+        explicit close timestamp reused on every attempt must yield `created`
+        then `idempotent_replay` — the capture-once/reuse contract that
+        `.ship.agent.md` documents at the record-close step."""
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        begin = begin_context(
+            config,
+            self.workspace,
+            task_id="079.016-T",
+            epoch_id="66666666-6666-4666-8666-666666666666",
+            captured_at="2026-07-24T03:37:49Z",
+        )
+        close_payload = dict(_PAYLOAD)
+        close_payload.pop("epoch_id")
+        close_payload["timestamp"] = "2026-07-26T12:00:00Z"
+        self.payload_path.write_text(json.dumps(close_payload), encoding="utf-8")
+
+        import contextlib
+        import io
+
+        first_stdout = io.StringIO()
+        with contextlib.redirect_stdout(first_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+        second_stdout = io.StringIO()
+        with contextlib.redirect_stdout(second_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+
+        self.assertEqual(json.loads(first_stdout.getvalue())["idempotency_outcome"], "created")
+        self.assertEqual(json.loads(second_stdout.getvalue())["idempotency_outcome"], "idempotent_replay")
 
     def test_disabled_telemetry_is_noop_success(self) -> None:
         self._write_config(_DISABLED_CONFIG)
