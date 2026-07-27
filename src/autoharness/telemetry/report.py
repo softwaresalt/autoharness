@@ -102,10 +102,21 @@ def _quality(records: tuple[dict[str, Any], ...], field: str) -> str:
     worst: str | None = None
     worst_rank = -1
     for record in records:
-        quality = (record.get("economics") or {}).get("metric_quality") or {}
+        economics = record.get("economics") or {}
+        quality = economics.get("metric_quality") or {}
         label = quality.get(field)
         if label is None:
-            continue
+            value = economics.get(field)
+            if value is None or value == "unavailable":
+                # The field itself is unpopulated on this record; there is
+                # nothing to degrade quality with, so skip it.
+                continue
+            # 090.006-T: a populated field with no matching quality label is a
+            # genuine provenance gap, not an absence of data. Treat it as the
+            # worst-case "unavailable" label instead of silently skipping the
+            # record, which previously let the aggregate default to "observed"
+            # purely for lack of information.
+            label = "unavailable"
         rank = _QUALITY_RANK.get(str(label), _QUALITY_RANK["unavailable"])
         if rank > worst_rank:
             worst_rank = rank

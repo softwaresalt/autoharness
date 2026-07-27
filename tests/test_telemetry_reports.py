@@ -104,6 +104,33 @@ class TelemetryReportTests(unittest.TestCase):
         self.assertEqual(_quality((observed, estimated), "context_area_tokens"), "estimated")
         self.assertEqual(_quality((estimated, observed), "context_area_tokens"), "estimated")
 
+    def test_quality_flags_populated_metric_missing_label_as_unavailable(self) -> None:
+        """090.006-T: a record whose economics carry a real (populated) value for
+        a metric but whose metric_quality map has no entry for that field is a
+        genuine provenance gap. Previously such records were skipped entirely
+        (quality.get(field) is None -> continue), which let the aggregate fall
+        through to the "observed" default purely for lack of information. Any
+        populated record missing its label must degrade the aggregate to
+        "unavailable" instead."""
+        from autoharness.telemetry.report import _quality
+
+        # _record()'s economics populate input_tokens=100 but metric_quality
+        # only documents context_area_tokens — input_tokens has no label.
+        record = _record("a")
+
+        self.assertEqual(_quality((record,), "input_tokens"), "unavailable")
+
+    def test_quality_preserves_observed_when_all_populated_records_labeled(self) -> None:
+        """090.006-T: the missing-label degradation must not regress the common
+        case — when every populated record carries a real "observed" label for
+        the field, the aggregate quality remains "observed"."""
+        from autoharness.telemetry.report import _quality
+
+        record = _record("a")
+        record["economics"]["metric_quality"]["input_tokens"] = "observed"
+
+        self.assertEqual(_quality((record,), "input_tokens"), "observed")
+
     def test_degraded_inputs_render_gracefully(self) -> None:
         for status in ("disabled", "unavailable", "empty"):
             text = render_report(TelemetryReadResult(status, (), ("missing input",)))
