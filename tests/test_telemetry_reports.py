@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from autoharness.telemetry.reader import TelemetryReadResult
-from autoharness.telemetry.report import filter_records, render_report, summarize_report
+from autoharness.telemetry.report import _quality, filter_records, render_report, summarize_report
 
 
 def _record(epoch_id: str, *, feature_id="079-F", task_size="M", metric_quality="observed") -> dict:
@@ -147,6 +147,23 @@ class TelemetryReportTests(unittest.TestCase):
         zero["economics"]["output_tokens"] = 0  # zero default, no output_tokens label
 
         self.assertEqual(_quality((labeled, zero), "output_tokens"), "observed")
+
+    def test_quality_normalizes_malformed_explicit_label(self) -> None:
+        """090.008-T (PR #235 r5): report _quality must apply the same fail-closed
+        normalization as aggregation for explicit metric_quality data. An
+        out-of-vocabulary label (e.g. "guessed") must degrade to "unavailable"
+        before ranking rather than leak as an undocumented "(guessed)" marker,
+        and a non-mapping metric_quality must be treated as absent instead of
+        raising on ``.get``."""
+        out_of_vocab = _record("g", metric_quality="guessed")
+
+        self.assertEqual(_quality((out_of_vocab,), "context_area_tokens"), "unavailable")
+
+        non_mapping = _record("n")
+        non_mapping["economics"]["metric_quality"] = "not-a-mapping"
+        # A non-mapping metric_quality must not raise; it is treated as absent, so
+        # the populated-but-unlabeled context_area_tokens degrades to unavailable.
+        self.assertEqual(_quality((non_mapping,), "context_area_tokens"), "unavailable")
 
     def test_degraded_inputs_render_gracefully(self) -> None:
         for status in ("disabled", "unavailable", "empty"):

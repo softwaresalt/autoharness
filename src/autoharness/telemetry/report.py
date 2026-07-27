@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
-from autoharness.telemetry.aggregation import AggregationResult, aggregate_epochs
+from autoharness.telemetry.aggregation import AggregationResult, _normalize_quality, aggregate_epochs
 from autoharness.telemetry.epoch import _metric_is_populated
 from autoharness.telemetry.reader import TelemetryReadResult
 
@@ -104,7 +104,10 @@ def _quality(records: tuple[dict[str, Any], ...], field: str) -> str:
     worst_rank = -1
     for record in records:
         economics = record.get("economics") or {}
-        quality = economics.get("metric_quality") or {}
+        raw_quality = economics.get("metric_quality")
+        # PR #235 r5: a persisted metric_quality that is not a mapping (malformed
+        # payload) must be treated as absent, not raise on .get.
+        quality = raw_quality if isinstance(raw_quality, Mapping) else {}
         label = quality.get(field)
         if label is None:
             value = economics.get(field)
@@ -124,10 +127,15 @@ def _quality(records: tuple[dict[str, Any], ...], field: str) -> str:
             # record, which previously let the aggregate default to "observed"
             # purely for lack of information.
             label = "unavailable"
-        rank = _QUALITY_RANK.get(str(label), _QUALITY_RANK["unavailable"])
+        # PR #235 r5: normalize an explicit label to the known vocabulary before
+        # ranking, so an out-of-vocabulary or non-string value degrades
+        # fail-closed to "unavailable" rather than leaking as an undocumented
+        # provenance marker (mirrors aggregation's _normalize_quality).
+        label = _normalize_quality(label)
+        rank = _QUALITY_RANK[label]
         if rank > worst_rank:
             worst_rank = rank
-            worst = str(label)
+            worst = label
     if worst is not None:
         return worst
     return "unavailable" if field in _unavailable_metrics(records) else "observed"
