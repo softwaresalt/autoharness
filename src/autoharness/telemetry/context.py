@@ -141,6 +141,17 @@ def _build_context_payload(
 ) -> dict[str, Any]:
     if not task_id or not str(task_id).strip():
         raise TelemetryContextError("task_id is required for telemetry begin.")
+    # 090.003-T (346DF592): enforce the same identity contract
+    # ExecutionEpoch.__post_init__ applies at close time (epoch.py:732-737),
+    # but fail fast here at begin time — a mismatched begin previously
+    # succeeded silently and the operator only discovered the conflict when
+    # closing the epoch, often after doing the wrong work.
+    if backlog_item_id is not None and str(backlog_item_id) != str(task_id):
+        raise TelemetryContextError(
+            f"backlog_item_id {backlog_item_id!r} must equal task_id {task_id!r} "
+            "for task epochs per the v1.1 identity contract; refusing to create "
+            "a mismatched begin-context."
+        )
     if sizing is not None and not isinstance(sizing, WorkSizingSnapshot):
         raise TelemetryContextError("sizing must be a WorkSizingSnapshot or None.")
     return {

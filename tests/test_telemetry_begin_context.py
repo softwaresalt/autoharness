@@ -102,6 +102,20 @@ class TelemetryBeginContextTests(unittest.TestCase):
             with self.assertRaises(TelemetryContextError, msg=bad_id):
                 begin_context(self._config(), self.workspace, task_id="079.014-T", epoch_id=bad_id)
 
+    def test_begin_context_rejects_backlog_task_id_mismatch(self) -> None:
+        """090.003-T (346DF592): a begin-context call with an inconsistent
+        backlog_item_id/task_id pair must raise TelemetryContextError
+        immediately, fail-fast at context-begin time rather than only at
+        epoch close (epoch.py:732-737)."""
+        with self.assertRaises(TelemetryContextError):
+            begin_context(
+                self._config(),
+                self.workspace,
+                task_id="079.014-T",
+                backlog_item_id="079.999-T",
+                epoch_id=str(uuid.uuid4()),
+            )
+
     def test_default_and_custom_context_directories_stay_inside_workspace(self) -> None:
         default_result = begin_context(
             self._config(),
