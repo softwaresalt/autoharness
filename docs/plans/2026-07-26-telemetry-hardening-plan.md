@@ -200,8 +200,10 @@ a focused, reviewable release unit rather than a mega-batch.
 * **Fix**: add both properties (array of string) to the `WorkSizingSnapshot`
   property block in both schema files, keeping them in sync.
 * **Explicitly out of scope**: `schemas/execution-epoch.schema.json` (+
-  versioned mirror) has an analogous gap but is NOT touched by this task, per
-  stash 64C01A60's narrow framing.
+  versioned mirror) already declares `feature_skipped_ids` /
+  `shipment_skipped_ids` (`execution-epoch.schema.json:1546,1615`;
+  `execution-epoch/1.1.0.schema.json`), so no analogous gap remains there; it
+  is NOT touched by this task, per stash 64C01A60's narrow framing.
 * **Verification**: `python -m pytest tests/test_telemetry_schema_contracts.py -v`
 
 ### Task 6 — 090.006-T: Distinguish unknown vs observed quality in telemetry reports (59E6CD50)
