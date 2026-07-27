@@ -13,7 +13,7 @@ Comparative selectors break ties by config name so output is fully reproducible.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
 from autoharness.eval.reviewer import ReviewMatrixResult
@@ -43,7 +43,6 @@ class ConfigSummary:
     net_offload_tokens: int | str
     consumption_generation_ratio: float | str
     expected_tool_gap_rate: float | str
-    derived_quality: dict[str, str]
     task_size_label: str | None
     feature_planned_size_label: str | None
     shipment_planned_size_label: str | None
@@ -51,6 +50,11 @@ class ConfigSummary:
     blocked: bool
     quality_overall: float | None
     quality_dimensions: dict[str, float] | None
+    # 090.008-T (PR #235 r4): additive, backward-compatible provenance map for
+    # the derived ratios above. Optional with an empty-map default and placed
+    # last so adding it does not shift positional args or break existing keyword
+    # construction of this exported (autoharness.eval) dataclass.
+    derived_quality: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -98,7 +102,10 @@ class BaselineSummary:
     cost_per_successful_epoch: float | str
     planned_vs_composition: str
     cost_per_size_point: str
-    derived_quality: dict[str, str]
+    # 090.008-T (PR #235 r4): additive, backward-compatible provenance map;
+    # optional with an empty-map default so this exported dataclass stays
+    # constructible without the new field.
+    derived_quality: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
