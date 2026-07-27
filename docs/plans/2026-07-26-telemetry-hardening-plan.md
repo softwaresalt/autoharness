@@ -43,8 +43,10 @@ telemetry-hardening theme by priority or by coupling:
   concern.
 
 The remaining 11 entries are genuinely open, medium-or-higher priority,
-directly coupled to the telemetry-hardening theme, and file-disjoint from each
-other. They are grouped into **8 TDD-scoped tasks** (two coupled pairs
+directly coupled to the telemetry-hardening theme, and (with the single
+exception of Tasks 1 and 2, which both add cases to
+`tests/test_telemetry_record_cli.py` — see the Dependency Graph) file-disjoint
+from each other. They are grouped into **8 TDD-scoped tasks** (two coupled pairs
 merged, six standalone) under one covering feature and one queued shipment —
 a focused, reviewable release unit rather than a mega-batch.
 
@@ -275,7 +277,9 @@ a focused, reviewable release unit rather than a mega-batch.
      `tuple(int(c) for c in codes)` after `_as_tuple` (line 498), with no
      per-element type check, unlike the strict-type coercion pattern already
      used by `_coerce_nonneg_metric` (`epoch.py:99-153`, esp. 129-142)
-     elsewhere in the same module.
+     elsewhere in the same module. Note `int()` also silently *truncates* a
+     float (`int(1.5) == 1`), so a float slips through with no error yet
+     violates the schema's integer-only exit-code contract.
 * **Tests to add first (must fail before the fix)**:
   1. `test_work_sizing_snapshot_rejects_null_snapshot_boundary` — explicit
      `null` must raise `EpochError`, not become the literal string `"None"`.
@@ -283,8 +287,10 @@ a focused, reviewable release unit rather than a mega-batch.
      string other than the schema const `"pre_execution"` must raise
      `EpochError`.
   3. `test_absolute_outcome_from_mapping_rejects_non_numeric_exit_code` — a
-     bool or string element in `codes` must raise `EpochError` with an
-     actionable message, mirroring the `_coerce_nonneg_metric` pattern.
+     bool, a string, AND a float such as `1.5` (which `int()` would silently
+     truncate to `1`) in `codes` must each raise `EpochError` with an actionable
+     message, mirroring the `_coerce_nonneg_metric` pattern and enforcing the
+     schema's integer-only contract.
 * **Fix**: add `snapshot_boundary` validation in
   `WorkSizingSnapshot.__post_init__`/`from_mapping`, raising `EpochError` on any
   value other than the schema const `"pre_execution"` (exact const parity — null
