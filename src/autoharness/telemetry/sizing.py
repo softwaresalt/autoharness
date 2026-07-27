@@ -144,7 +144,21 @@ def _composition(
                         skipped,
                     )
     sized_count = sum(histogram.values())
-    unsized = max(len(unique_ids) - sized_count, 0)
+    if sized_count > len(unique_ids):
+        # 090.004-T (2D22ED3D): a histogram whose sized_count exceeds the
+        # number of unique member IDs is internally inconsistent — a
+        # data-quality problem, not a legitimate zero. Degrade the whole
+        # composition to unavailable (mirroring the malformed-value
+        # precedent above) instead of silently clamping via max(...,0),
+        # which would mask the inconsistency behind unsized=0.
+        return (
+            None,
+            {},
+            None,
+            str(comp.get("ruleset_version") or "unavailable"),
+            skipped,
+        )
+    unsized = len(unique_ids) - sized_count
     if unsized:
         histogram["unsized"] = unsized
     unsupported = set(histogram) - _HISTOGRAM_LABELS
