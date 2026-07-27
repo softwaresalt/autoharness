@@ -451,6 +451,34 @@ class ToolTelemetryEventSchemaContractTests(unittest.TestCase):
         with_points["work_sizing_snapshot"]["task_size_points"] = 1
         self.assertFalse(validator.is_valid(with_points))
 
+    def test_work_sizing_snapshot_schema_allows_skipped_id_fields(self) -> None:
+        """090.005-T: additive parity with execution-epoch.schema.json, which
+        already documents feature_skipped_ids/shipment_skipped_ids as
+        diagnostic skipped-ID lists (079.013-T). Both the root and versioned
+        tool-telemetry-event schema mirrors must accept the same fields."""
+        for path in (_TOOL_EVENT_ROOT, _TOOL_EVENT_VERSIONED):
+            validator = _validator(path)
+            event = _minimal_tool_event()
+            event["work_sizing_snapshot"] = {
+                "snapshot_at": "2026-07-23T19:41:39Z",
+                "snapshot_boundary": "pre_execution",
+                "task_size_label": "S",
+                "feature_planned_size_label": None,
+                "shipment_planned_size_label": None,
+                "sizing_sources": {"task": "backlogit"},
+                "sizing_source_revisions": {"task": "rev-1"},
+                "sizing_ruleset_versions": {"task": "backlogit-1.2.3"},
+                "feature_planned_child_task_count": 2,
+                "feature_planned_child_size_histogram": {"S": 1, "unsized": 1},
+                "feature_child_membership_hash": "b" * 64,
+                "feature_skipped_ids": ["079.099-T"],
+                "shipment_manifest_task_count": None,
+                "shipment_manifest_size_histogram": {},
+                "shipment_membership_hash": None,
+                "shipment_skipped_ids": [],
+            }
+            self.assertTrue(validator.is_valid(event), path)
+
     def test_tool_event_route_and_freshness_extension_vocabulary(self) -> None:
         validator = _validator(_TOOL_EVENT_ROOT)
 
