@@ -140,10 +140,18 @@ a focused, reviewable release unit rather than a mega-batch.
   2. `test_record_replays_idempotently_with_explicit_timestamp_without_context`
      — the same payload with an explicit `timestamp`, recorded twice, yields
      `created` then `idempotent_replay`.
+  3. `test_record_rejects_malformed_timestamp_without_context` — a nonblank but
+     malformed `timestamp` (e.g. `"not-a-date"`) must raise `EpochError` / exit 2
+     rather than being accepted on write and later silently dropped by the reader
+     (`reader.py:35-50`).
 * **Fix**: add a `_validate_record_timestamp(value)` helper beside
   `_validate_record_epoch_id` in `cli.py`, called at `cli.py:951` alongside
   the existing non-context `epoch_id` validation, raising `EpochError` with an
-  actionable message when `timestamp` is `None`/blank.
+  actionable message when `timestamp` is `None`/blank OR is a nonblank value
+  that is not a valid ISO-8601 instant — mirroring the reader's write/read
+  parity check (`reader.py:45-50`: `datetime.fromisoformat(value.replace("Z","+00:00"))`)
+  so a malformed timestamp fails closed on write instead of being persisted and
+  later silently skipped by the reader (`reader.py:35-50`).
 * **Guardrail**: `_merge_telemetry_context_payload` and the context-ref path
   are untouched.
 * **Verification**: `python -m pytest tests/test_telemetry_record_cli.py -v`
@@ -258,10 +266,11 @@ a focused, reviewable release unit rather than a mega-batch.
 * **Execution posture**: test-first (red → green)
 * **Current state (two related defects in the same file)**:
   1. `WorkSizingSnapshot.__post_init__` (`epoch.py:551-596`) never validates
-     `snapshot_boundary` against its allowed enum; `from_mapping`
-     (`epoch.py:654`) does `str(data.get("snapshot_boundary", "pre_execution"))`,
-     so an explicit `null` becomes the literal string `"None"` instead of
-     being rejected.
+     `snapshot_boundary` against the public schema, which fixes it to
+     `const: "pre_execution"` (`execution-epoch.schema.json:1408-1410`);
+     `from_mapping` (`epoch.py:654`) does
+     `str(data.get("snapshot_boundary", "pre_execution"))`, so an explicit
+     `null` becomes the literal string `"None"` instead of being rejected.
   2. `AbsoluteOutcome.from_mapping` (`epoch.py:504`) does raw
      `tuple(int(c) for c in codes)` after `_as_tuple` (line 498), with no
      per-element type check, unlike the strict-type coercion pattern already
@@ -270,18 +279,20 @@ a focused, reviewable release unit rather than a mega-batch.
 * **Tests to add first (must fail before the fix)**:
   1. `test_work_sizing_snapshot_rejects_null_snapshot_boundary` — explicit
      `null` must raise `EpochError`, not become the literal string `"None"`.
-  2. `test_work_sizing_snapshot_rejects_invalid_snapshot_boundary_enum` — an
-     unrecognized string must raise `EpochError`.
+  2. `test_work_sizing_snapshot_rejects_invalid_snapshot_boundary_enum` — any
+     string other than the schema const `"pre_execution"` must raise
+     `EpochError`.
   3. `test_absolute_outcome_from_mapping_rejects_non_numeric_exit_code` — a
      bool or string element in `codes` must raise `EpochError` with an
      actionable message, mirroring the `_coerce_nonneg_metric` pattern.
-* **Fix**: add `snapshot_boundary` enum validation in
-  `WorkSizingSnapshot.__post_init__`/`from_mapping`, raising `EpochError` on
-  null or unrecognized values; add per-element strict-type validation in
+* **Fix**: add `snapshot_boundary` validation in
+  `WorkSizingSnapshot.__post_init__`/`from_mapping`, raising `EpochError` on any
+  value other than the schema const `"pre_execution"` (exact const parity — null
+  and every other string are rejected); add per-element strict-type validation in
   `AbsoluteOutcome.from_mapping`'s exit-code tuple construction, following the
   `_coerce_nonneg_metric` pattern.
-* **Guardrail**: valid `snapshot_boundary` values and valid integer exit-code
-  tuples continue to round-trip unchanged.
+* **Guardrail**: the sole accepted `snapshot_boundary` value `"pre_execution"`
+  and valid integer exit-code tuples continue to round-trip unchanged.
 * **Verification**: `python -m pytest tests/test_telemetry_epoch.py -v`
 
 ### Task 8 — 090.008-T: Surface estimated-vs-observed provenance in eval-summary derived ratios (D194A24B, 3EFC51DE)
