@@ -175,7 +175,12 @@ def render_report(report: TelemetryReportSummary) -> str:
         f"Size-label distributions: {dict(report.size_groups)}",
     ]
     for key, value in report.derived.items():
+        if key == "derived_quality":
+            continue
         lines.append(f"{key}: {value}")
+    provenance = report.derived.get("derived_quality") or {}
+    if provenance:
+        lines.append(f"Derived provenance: {dict(sorted(provenance.items()))}")
     if report.unavailable_metrics:
         lines.append(f"Unavailable metrics: {', '.join(report.unavailable_metrics)}")
     if report.diagnostics:

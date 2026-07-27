@@ -171,15 +171,41 @@ def _derived_ratio(
     numerator_quality: str | None = None,
     denominator_quality: str | None = None,
 ) -> float | str:
+    """Numeric derived ratio, or the ``UNAVAILABLE`` sentinel.
+
+    090.008-T (Copilot review, PR #235): the ratio value stays machine-readable
+    — a bare ``float`` or ``UNAVAILABLE`` — per the documented contract
+    (docs/telemetry-reference.md: derived metrics are ratios or ``unavailable``)
+    and the plan's compatibility note (an *additive* provenance field, not
+    presentation text baked into the value). Operand provenance is surfaced
+    separately via ``_ratio_provenance`` and the sibling ``derived_quality``
+    map, so JSON consumers can still compare and aggregate the number. An
+    operand whose quality is ``unavailable``/``not_applicable`` still degrades
+    the value itself to ``UNAVAILABLE``.
+    """
     if numerator is None or denominator is None or denominator == 0:
         return UNAVAILABLE
-    ratio = numerator / denominator
-    worst = _worst_quality(numerator_quality, denominator_quality)
-    if worst in ("unavailable", "not_applicable"):
+    if _worst_quality(numerator_quality, denominator_quality) in ("unavailable", "not_applicable"):
         return UNAVAILABLE
-    if worst is not None and worst != "observed":
-        return f"{ratio} ({worst})"
-    return ratio
+    return numerator / denominator
+
+
+def _ratio_provenance(value: float | int | str, *qualities: str | None) -> str | None:
+    """Non-observed provenance marker (``estimated``/``derived``) for a usable
+    numeric derived ratio, or ``None``.
+
+    Additive companion to ``_derived_ratio``: returns ``None`` when the ratio is
+    ``UNAVAILABLE``, has no operand provenance, or is fully ``observed`` (so the
+    common case yields an empty ``derived_quality`` map). ``unavailable`` /
+    ``not_applicable`` operands never surface here — they already degrade the
+    ratio value itself to ``UNAVAILABLE``.
+    """
+    if isinstance(value, str):  # UNAVAILABLE sentinel — nothing usable to mark.
+        return None
+    worst = _worst_quality(*qualities)
+    if worst is None or worst in ("observed", "unavailable", "not_applicable"):
+        return None
+    return worst
 
 
 def derived_efficiency_metrics(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -191,35 +217,58 @@ def derived_efficiency_metrics(records: Iterable[dict[str, Any]]) -> dict[str, A
     expected = _operation_sum(records, "expected_tool_count")
     missing = _operation_sum(records, "missing_expected_tool_count")
 
+    input_quality = _field_quality(records, "economics", "input_tokens")
+    output_quality = _field_quality(records, "economics", "output_tokens")
+    missing_quality = _field_quality(records, "operations", "missing_expected_tool_count")
+    expected_quality = _field_quality(records, "operations", "expected_tool_count")
+
     successful = [record for record in records if is_successful_epoch(record)]
     successful_cost = _sum_field(successful, "economics", "cogs_usd") if successful else None
     successful_cost_quality = (
         _field_quality(successful, "economics", "cogs_usd") if successful else None
     )
 
+    consumption_generation_ratio = _derived_ratio(
+        input_tokens,
+        output_tokens,
+        numerator_quality=input_quality,
+        denominator_quality=output_quality,
+    )
+    gap_rate = _derived_ratio(
+        missing,
+        expected,
+        numerator_quality=missing_quality,
+        denominator_quality=expected_quality,
+    )
+    cost_per_successful_epoch = _derived_ratio(
+        successful_cost,
+        len(successful),
+        numerator_quality=successful_cost_quality,
+    )
+
+    # 090.008-T (Copilot review, PR #235): operand provenance travels in an
+    # additive sibling map so the ratios above stay numeric/``unavailable`` for
+    # machine consumers instead of becoming "<ratio> (estimated)" display text.
+    derived_quality: dict[str, str] = {}
+    for name, value, qualities in (
+        ("consumption_generation_ratio", consumption_generation_ratio, (input_quality, output_quality)),
+        ("gap_rate", gap_rate, (missing_quality, expected_quality)),
+        ("cost_per_successful_epoch", cost_per_successful_epoch, (successful_cost_quality,)),
+    ):
+        marker = _ratio_provenance(value, *qualities)
+        if marker is not None:
+            derived_quality[name] = marker
+
     return {
         "net_offload_tokens": (
             UNAVAILABLE if avoided is None or tool_output is None else avoided - tool_output
         ),
-        "consumption_generation_ratio": _derived_ratio(
-            input_tokens,
-            output_tokens,
-            numerator_quality=_field_quality(records, "economics", "input_tokens"),
-            denominator_quality=_field_quality(records, "economics", "output_tokens"),
-        ),
-        "gap_rate": _derived_ratio(
-            missing,
-            expected,
-            numerator_quality=_field_quality(records, "operations", "missing_expected_tool_count"),
-            denominator_quality=_field_quality(records, "operations", "expected_tool_count"),
-        ),
-        "cost_per_successful_epoch": _derived_ratio(
-            successful_cost,
-            len(successful),
-            numerator_quality=successful_cost_quality,
-        ),
+        "consumption_generation_ratio": consumption_generation_ratio,
+        "gap_rate": gap_rate,
+        "cost_per_successful_epoch": cost_per_successful_epoch,
         "planned_vs_composition": UNAVAILABLE,
         "cost_per_size_point": UNAVAILABLE,
+        "derived_quality": derived_quality,
     }
 
 

@@ -21,6 +21,7 @@ from autoharness.eval.runner import EvalRunReport
 from autoharness.telemetry.aggregation import (
     UNAVAILABLE,
     _derived_ratio,
+    _ratio_provenance,
     aggregate_epochs,
     derived_efficiency_metrics,
 )
@@ -42,6 +43,7 @@ class ConfigSummary:
     net_offload_tokens: int | str
     consumption_generation_ratio: float | str
     expected_tool_gap_rate: float | str
+    derived_quality: dict[str, str]
     task_size_label: str | None
     feature_planned_size_label: str | None
     shipment_planned_size_label: str | None
@@ -64,6 +66,7 @@ class ConfigSummary:
             "net_offload_tokens": self.net_offload_tokens,
             "consumption_generation_ratio": self.consumption_generation_ratio,
             "expected_tool_gap_rate": self.expected_tool_gap_rate,
+            "derived_quality": dict(self.derived_quality),
             "task_size_label": self.task_size_label,
             "feature_planned_size_label": self.feature_planned_size_label,
             "shipment_planned_size_label": self.shipment_planned_size_label,
@@ -95,6 +98,7 @@ class BaselineSummary:
     cost_per_successful_epoch: float | str
     planned_vs_composition: str
     cost_per_size_point: str
+    derived_quality: dict[str, str]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -115,6 +119,7 @@ class BaselineSummary:
             "cost_per_successful_epoch": self.cost_per_successful_epoch,
             "planned_vs_composition": self.planned_vs_composition,
             "cost_per_size_point": self.cost_per_size_point,
+            "derived_quality": dict(self.derived_quality),
         }
 
 
@@ -161,6 +166,20 @@ def _config_summary(
         if review is not None
         else None
     )
+    # 090.008-T (PR #235): mirror aggregation's additive provenance map — the
+    # ratio fields above stay numeric/unavailable for machine consumers, and
+    # operand quality travels in a sibling map keyed by metric name.
+    config_derived_quality: dict[str, str] = {}
+    cg_marker = (derived.get("derived_quality") or {}).get("consumption_generation_ratio")
+    if cg_marker is not None:
+        config_derived_quality["consumption_generation_ratio"] = cg_marker
+    gap_marker = _ratio_provenance(
+        gap_rate,
+        operations_quality.get("missing_expected_tool_count"),
+        operations_quality.get("expected_tool_count"),
+    )
+    if gap_marker is not None:
+        config_derived_quality["expected_tool_gap_rate"] = gap_marker
     return ConfigSummary(
         config_name=config_name,
         primary_model=epoch.route.primary_model,
@@ -179,6 +198,7 @@ def _config_summary(
         net_offload_tokens=derived["net_offload_tokens"],
         consumption_generation_ratio=derived["consumption_generation_ratio"],
         expected_tool_gap_rate=gap_rate,
+        derived_quality=config_derived_quality,
         task_size_label=sizing.task_size_label if sizing is not None else None,
         feature_planned_size_label=(
             sizing.feature_planned_size_label if sizing is not None else None
@@ -214,6 +234,13 @@ def summarize_baseline(
     blocked_configs = tuple(c.config_name for c in configs if c.blocked)
     telemetry_aggregate = aggregate_epochs([epoch.to_record() for epoch in report.epochs])
 
+    baseline_derived_quality: dict[str, str] = {}
+    cost_marker = (telemetry_aggregate.derived.get("derived_quality") or {}).get(
+        "cost_per_successful_epoch"
+    )
+    if cost_marker is not None:
+        baseline_derived_quality["cost_per_successful_epoch"] = cost_marker
+
     return BaselineSummary(
         frozen_base=frozen.base if frozen else None,
         frozen_head=frozen.head if frozen else None,
@@ -230,4 +257,5 @@ def summarize_baseline(
         cost_per_successful_epoch=telemetry_aggregate.derived["cost_per_successful_epoch"],
         planned_vs_composition=UNAVAILABLE,
         cost_per_size_point=UNAVAILABLE,
+        derived_quality=baseline_derived_quality,
     )

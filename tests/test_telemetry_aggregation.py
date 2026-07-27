@@ -226,30 +226,33 @@ class TelemetryAggregationTests(unittest.TestCase):
         self.assertEqual(result.totals["output_tokens"], 51)
 
     def test_consumption_generation_ratio_flags_estimated_operand_provenance(self) -> None:
-        """090.008-T (D194A24B): _derived_ratio must accept/propagate a quality
-        indicator for both operands. An "estimated" operand (usable, but less
-        certain than "observed") must surface a provenance marker distinguishing
-        the ratio from a genuinely observed one — not silently present as a bare
-        float, and not discarded as fully "unavailable" either (the value is
-        still usable)."""
+        """090.008-T (D194A24B / PR #235): _derived_ratio must accept/propagate a
+        quality indicator for both operands. An "estimated" operand (usable, but
+        less certain than "observed") keeps the ratio value machine-readable — a
+        bare float, per docs/telemetry-reference.md and the plan's additive-field
+        compatibility note — while surfacing its provenance in the sibling
+        ``derived_quality`` map rather than baking "(estimated)" into the value."""
         record = _record("est", "2026-07-24T00:00:00Z", input_tokens=100, output_tokens=50)
         record["economics"]["metric_quality"] = {"input_tokens": "estimated"}
 
         metrics = derived_efficiency_metrics([record])
 
-        self.assertEqual(metrics["consumption_generation_ratio"], "2.0 (estimated)")
+        self.assertEqual(metrics["consumption_generation_ratio"], 2.0)
+        self.assertEqual(metrics["derived_quality"]["consumption_generation_ratio"], "estimated")
 
     def test_cost_per_successful_epoch_flags_estimated_operand_provenance(self) -> None:
-        """090.008-T (D194A24B): cost_per_successful_epoch is also a
-        _derived_ratio consumer (aggregation.py:142) and must surface the same
-        operand-quality provenance as consumption_generation_ratio when its
-        numerator (successful cogs_usd) is only "estimated"."""
+        """090.008-T (D194A24B / PR #235): cost_per_successful_epoch is also a
+        _derived_ratio consumer and must surface the same additive operand-quality
+        provenance as consumption_generation_ratio when its numerator (successful
+        cogs_usd) is only "estimated" — a numeric value plus a ``derived_quality``
+        marker, not a display string."""
         record = _record("est-ok", "2026-07-24T00:00:00Z", cogs_usd=3.0, gate_exit_codes=(0,))
         record["economics"]["metric_quality"] = {"cogs_usd": "estimated"}
 
         metrics = derived_efficiency_metrics([record])
 
-        self.assertEqual(metrics["cost_per_successful_epoch"], "3.0 (estimated)")
+        self.assertEqual(metrics["cost_per_successful_epoch"], 3.0)
+        self.assertEqual(metrics["derived_quality"]["cost_per_successful_epoch"], "estimated")
 
     def test_size_label_groups_are_ordinal_with_no_cost_per_point(self) -> None:
         result = aggregate_epochs(

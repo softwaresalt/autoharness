@@ -257,11 +257,12 @@ class TelemetryMetricFoldingTests(unittest.TestCase):
         self.assertEqual(summary.cost_per_size_point, "unavailable")
 
     def test_gap_rate_flags_estimated_denominator_provenance(self) -> None:
-        """090.008-T (3EFC51DE): a metric history where the ratio's denominator
-        carries "estimated" quality (usable, but less certain than "observed")
-        must surface a provenance marker in the summary output distinguishing
-        it from a genuinely observed ratio, rather than silently rendering a
-        plain float as if the count were fully observed."""
+        """090.008-T (3EFC51DE / PR #235): a metric history where the ratio's
+        denominator carries "estimated" quality (usable, but less certain than
+        "observed") keeps ``expected_tool_gap_rate`` numeric while surfacing the
+        provenance in the additive ``derived_quality`` map — distinguishing it
+        from a genuinely observed ratio without turning the value into a string
+        that JSON consumers can no longer compare."""
         epoch = ExecutionEpoch(
             task_id="eval:gap-estimated",
             route=RouteConfiguration(models=("m",)),
@@ -278,7 +279,8 @@ class TelemetryMetricFoldingTests(unittest.TestCase):
         )
 
         config = summary.configs[0]
-        self.assertEqual(config.expected_tool_gap_rate, "0.5 (estimated)")
+        self.assertEqual(config.expected_tool_gap_rate, 0.5)
+        self.assertEqual(config.derived_quality["expected_tool_gap_rate"], "estimated")
 
     def test_gap_rate_unavailable_when_numerator_unavailable(self) -> None:
         """090.008-T (3EFC51DE): a usable denominator (expected_tool_count=1)
