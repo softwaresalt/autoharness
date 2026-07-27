@@ -30,16 +30,26 @@ missing) and carries the provenance in a **separate additive map** keyed by
 metric name, alongside the metric block:
 
 - `derived_efficiency_metrics` stays `{metric_name: float | "unavailable"}`.
-- A sibling `derived_quality: {metric_name: "observed" | "estimated" | ...}` map
-  is *added*, never interleaved. Consumers that never look at `derived_quality`
-  are completely unaffected; consumers that want provenance opt in by reading it.
+- A sibling `derived_quality` map is *added*, never interleaved, and is
+  **sparse**: it carries an entry only for a numeric ratio whose provenance is
+  worse than fully observed, and the entry value is exactly `estimated` or
+  `derived`. Fully-observed ratios, ratios degraded to the `UNAVAILABLE`
+  sentinel, and ratios whose operands are `unavailable`/`not_applicable` produce
+  **no entry** at all — so the common all-observed case yields an *empty* map.
+  Consumers that never look at `derived_quality` are completely unaffected;
+  consumers that want provenance opt in by reading it (and must treat a missing
+  key as "fully observed / no degradation to report").
 
 This honors the plan's additive-field contract (`docs/plans/2026-07-26-telemetry-hardening-plan.md`
 lines 482-486) and the invariant in `docs/telemetry-reference.md` that derived
 metrics are always numeric-or-`unavailable`. The provenance helper
 (`_ratio_provenance(value, *operand_qualities)`) returns the worst non-observed
-marker only for a usable numeric value, and `None`/`unavailable` for a
-sentinel value — so the two maps never disagree about whether a metric is real.
+marker (`estimated`/`derived`) only for a usable numeric ratio, and `None` —
+which omits the entry — when the value is the `UNAVAILABLE` sentinel, has no
+operand provenance, is fully observed, or has `unavailable`/`not_applicable`
+operands (those already degrade the ratio value itself to `UNAVAILABLE`). Because
+a degraded operand collapses the value to the sentinel *and* omits the quality
+key, the two maps never disagree about whether a metric is real.
 
 **Reusable rule:** when a value field and a "how good is this value" field both
 need to travel, make the quality field an additive sibling keyed by the same
