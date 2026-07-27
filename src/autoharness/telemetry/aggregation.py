@@ -127,6 +127,24 @@ _QUALITY_RANK = {
 }
 
 
+def _normalize_quality(value: Any) -> str:
+    """Coerce a raw ``metric_quality`` label into the known vocabulary.
+
+    ``ExecutionEpoch.from_mapping`` preserves ``metric_quality`` values without
+    validating them (090.008-T, PR #235 review r3), so a malformed payload can
+    reach the ranking below. A missing label (``None``) keeps the intentional
+    optimistic ``"observed"`` legacy default; any *present-but-invalid* label — a
+    non-string, or a string outside ``_QUALITY_RANK`` — degrades fail-closed to
+    ``"unavailable"``. This makes the unhashable ``_QUALITY_RANK`` lookup safe
+    and prevents an undocumented label from leaking into ``derived_quality``.
+    """
+    if value is None:
+        return "observed"
+    if isinstance(value, str) and value in _QUALITY_RANK:
+        return value
+    return "unavailable"
+
+
 def _field_quality(records: Iterable[dict[str, Any]], section: str, field: str) -> str | None:
     """Worst-case ``metric_quality`` label for ``field`` across ``records``.
 
@@ -146,22 +164,23 @@ def _field_quality(records: Iterable[dict[str, Any]], section: str, field: str) 
     ``unavailable``/``not_applicable`` labels are still honored fail-closed here
     (via ``_sum_field`` returning ``None`` -> ``UNAVAILABLE``); only *silence*
     stays optimistic. 090.008-T propagates explicit labels; it does not
-    introduce a missing-label fail-closed rule for aggregation.
+    introduce a missing-label fail-closed rule for aggregation. Present-but-
+    malformed labels are normalized by ``_normalize_quality`` (PR #235 r3).
     """
     worst: str | None = None
     for record in records:
         sec = record.get(section) or {}
-        quality = (sec.get("metric_quality") or {}).get(field) or "observed"
-        if worst is None or _QUALITY_RANK.get(quality, 0) > _QUALITY_RANK.get(worst, 0):
+        quality = _normalize_quality((sec.get("metric_quality") or {}).get(field))
+        if worst is None or _QUALITY_RANK[quality] > _QUALITY_RANK[worst]:
             worst = quality
     return worst
 
 
 def _worst_quality(*qualities: str | None) -> str | None:
-    ranked = [quality for quality in qualities if quality is not None]
+    ranked = [_normalize_quality(quality) for quality in qualities if quality is not None]
     if not ranked:
         return None
-    return max(ranked, key=lambda quality: _QUALITY_RANK.get(quality, 0))
+    return max(ranked, key=lambda quality: _QUALITY_RANK[quality])
 
 
 def _derived_ratio(

@@ -254,6 +254,24 @@ class TelemetryAggregationTests(unittest.TestCase):
         self.assertEqual(metrics["cost_per_successful_epoch"], 3.0)
         self.assertEqual(metrics["derived_quality"]["cost_per_successful_epoch"], "estimated")
 
+    def test_derived_ratio_degrades_malformed_quality_label_without_crashing(self) -> None:
+        """090.008-T (PR #235 r3): ExecutionEpoch.from_mapping preserves
+        metric_quality values without validating them, so a malformed label — a
+        non-string (e.g. a list) or an out-of-vocabulary string — must neither
+        crash the unhashable _QUALITY_RANK lookup nor leak an undocumented
+        derived_quality marker. Missing labels still default optimistically to
+        "observed"; a present-but-invalid label degrades fail-closed to
+        "unavailable" (so the ratio itself becomes unavailable, with no marker)."""
+        list_label = _record("bad-list", "2026-07-24T00:00:00Z", input_tokens=100, output_tokens=50)
+        list_label["economics"]["metric_quality"] = {"input_tokens": ["not-a-label"]}
+        unknown = _record("bad-str", "2026-07-24T01:00:00Z", input_tokens=100, output_tokens=50)
+        unknown["economics"]["metric_quality"] = {"input_tokens": "guessed"}
+
+        for record in (list_label, unknown):
+            metrics = derived_efficiency_metrics([record])
+            self.assertEqual(metrics["consumption_generation_ratio"], "unavailable")
+            self.assertNotIn("consumption_generation_ratio", metrics["derived_quality"])
+
     def test_size_label_groups_are_ordinal_with_no_cost_per_point(self) -> None:
         result = aggregate_epochs(
             [
