@@ -147,11 +147,14 @@ a focused, reviewable release unit rather than a mega-batch.
 * **Tests to add first (must fail before the fix)**:
   1. `test_begin_context_rejects_backlog_task_id_mismatch` — a begin-context
      call with inconsistent `backlog_item_id`/`task_id` must raise
-     `EpochError` immediately.
+     `TelemetryContextError` immediately (the type `_telemetry_begin_command`
+     catches at `cli.py:776-810`).
 * **Fix**: add an early consistency check in `_build_context_payload` (or the
-  begin-context CLI entry point that calls it), raising `EpochError` with the
-  same actionable message style used at `epoch.py:732-737`, before the payload
-  is constructed.
+  begin-context CLI entry point that calls it), raising `TelemetryContextError`
+  (so the existing `_telemetry_begin_command` handler at `cli.py:776-810`
+  catches it and emits the exit-2 diagnostic instead of an uncaught traceback)
+  with the same actionable message style used at `epoch.py:732-737`, before the
+  payload is constructed.
 * **Guardrail**: the `epoch.py` close-time check remains as defense-in-depth
   (not removed); existing consistent begin-context calls remain unaffected.
 * **Verification**: `python -m pytest tests/test_telemetry_begin_context.py -v`
@@ -212,15 +215,22 @@ a focused, reviewable release unit rather than a mega-batch.
   was ever attached" from "quality label was attached and is genuinely
   observed."
 * **Tests to add first (must fail before the fix)**:
-  1. `test_quality_reports_unknown_when_no_label_recorded` — a metric history
-     with zero quality-label entries must report an explicit "unknown" (or
-     equivalent unavailable) marker, not `"observed"`.
-* **Fix**: introduce a distinct "unknown" return value in `_quality` for the
-  case where no quality label was ever recorded, propagated through the
-  report renderer, while preserving current behavior for fields already in
-  `_unavailable_metrics`.
-* **Guardrail**: metrics with at least one real `"observed"` quality label
-  continue to report `"observed"`.
+  1. `test_quality_reports_unavailable_when_no_label_recorded` — a metric
+     history with zero quality-label entries must report `"unavailable"`, not
+     `"observed"`.
+  2. `test_quality_reports_unavailable_for_mixed_missing_label_history` — a
+     mixed history with one genuinely `"observed"` record and one populated
+     record lacking a same-named quality label must degrade the aggregate to
+     `"unavailable"` (the real 59E6CD50 failure mode, since `_quality` skips
+     missing labels per record).
+* **Fix**: treat each populated record with a missing same-named quality label
+  as `"unavailable"` in `_quality` (so any missing provenance degrades the
+  aggregate), while preserving current behavior for fields already in
+  `_unavailable_metrics`. Do NOT add a new `"unknown"` value — the documented
+  vocabulary is observed/derived/estimated/unavailable/not-applicable
+  (`docs/telemetry-reference.md:27,47`); reuse `"unavailable"`.
+* **Guardrail**: metrics whose populated records all carry a real `"observed"`
+  quality label (none missing) continue to report `"observed"`.
 * **Verification**: `python -m pytest tests/test_telemetry_reports.py -v`
 
 ### Task 7 — 090.007-T: Strict validation for snapshot_boundary and exit-code coercion (4C4A8F0B, 435F201D)
@@ -273,13 +283,19 @@ a focused, reviewable release unit rather than a mega-batch.
      where the denominator's quality is "estimated" must surface a provenance
      marker in the summary output distinguishing it from a genuinely observed
      ratio.
+  2. `test_gap_rate_unavailable_when_numerator_unavailable` — 3EFC51DE's
+     concrete case: a usable denominator (`expected_tool_count=1`) with an
+     `"unavailable"` numerator (`missing_expected_tool_count=0` marked
+     unavailable) must surface `"unavailable"` provenance, not a bare `0.0`.
 * **Fix**: extend `_derived_ratio` in `aggregation.py` to accept/propagate a
-  quality indicator for its denominator; update `summary.py`'s `gap_rate`
-  computation (and other `_derived_ratio` consumers sharing the same gap) to
-  surface that provenance in the returned summary structure, generalizing the
-  existing `context_area_tokens` special case rather than duplicating it.
-* **Guardrail**: ratios with fully-observed denominators are unaffected (no
-  provenance noise added for the common case).
+  quality indicator for BOTH its numerator and denominator operands (a
+  denominator-only design still returns `0.0` for the unavailable-numerator
+  case and does not fix 3EFC51DE); update `summary.py`'s `gap_rate` computation
+  (and other `_derived_ratio` consumers sharing the same gap) to surface that
+  provenance in the returned summary structure, generalizing the existing
+  `context_area_tokens` special case rather than duplicating it.
+* **Guardrail**: ratios with fully-observed numerator and denominator are
+  unaffected (no provenance noise added for the common case).
 * **Verification**: `python -m pytest tests/test_eval_summary.py -v`
 
 ## Dependency Graph
