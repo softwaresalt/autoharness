@@ -186,11 +186,14 @@ a focused, reviewable release unit rather than a mega-batch.
 * **Tests to add first (must fail before the fix)**:
   1. `test_composition_flags_inconsistent_sized_count_as_unavailable` —
      construct a histogram where `sized_count` exceeds `len(unique_ids)`,
-     assert `_composition` returns the unavailable marker for the unsized
-     field.
+     assert `_composition` degrades the ENTIRE composition to the existing
+     unavailable tuple (`None`, `{}`, `None`, preserved `ruleset_version`,
+     preserved `skipped`), matching `sizing.py:139-145`. There is no
+     per-field/per-bucket "unavailable" marker, and `WorkSizingSnapshot`
+     forbids an "unavailable" histogram bucket (`epoch.py:526-531,568-573`).
 * **Fix**: change line 147 to detect `sized_count > len(unique_ids)` and
-  return the unavailable tuple consistent with the existing malformed-value
-  pattern, instead of clamping via `max(...,0)`.
+  return that same 5-tuple, exactly like the existing malformed-value
+  pattern (`sizing.py:139-145`), instead of clamping via `max(...,0)`.
 * **Guardrail**: normal (non-overfull) histograms are unaffected.
 * **Verification**: `python -m pytest tests/test_telemetry_backlogit_sizing.py -v`
 
@@ -283,7 +286,7 @@ a focused, reviewable release unit rather than a mega-batch.
 
 ### Task 8 — 090.008-T: Surface estimated-vs-observed provenance in eval-summary derived ratios (D194A24B, 3EFC51DE)
 
-* **Files** (3): `src/autoharness/telemetry/aggregation.py`, `src/autoharness/eval/summary.py`, `tests/test_eval_summary.py`
+* **Files** (4): `src/autoharness/telemetry/aggregation.py`, `src/autoharness/eval/summary.py`, `tests/test_eval_summary.py`, `tests/test_telemetry_aggregation.py`
 * **Execution posture**: test-first (red → green)
 * **Current state (two coupled defects)**: `eval/summary.py` has no general
   mechanism surfacing whether an economics metric was estimated vs observed
@@ -303,6 +306,14 @@ a focused, reviewable release unit rather than a mega-batch.
      concrete case: a usable denominator (`expected_tool_count=1`) with an
      `"unavailable"` numerator (`missing_expected_tool_count=0` marked
      unavailable) must surface `"unavailable"` provenance, not a bare `0.0`.
+  3. In `tests/test_telemetry_aggregation.py` (which owns the
+     `derived_efficiency_metrics` contract at lines 182-224:
+     `consumption_generation_ratio`, `cost_per_successful_epoch`,
+     `net_offload_tokens`), operand-quality regression cases asserting an
+     unavailable/estimated numerator or denominator degrades those ratios'
+     provenance too and does not silently change their shape — covering the
+     broadened `_derived_ratio` where it is actually consumed, not only via
+     `gap_rate` in `test_eval_summary.py`.
 * **Fix**: extend `_derived_ratio` in `aggregation.py` to accept/propagate a
   quality indicator for BOTH its numerator and denominator operands (a
   denominator-only design still returns `0.0` for the unavailable-numerator
@@ -312,7 +323,7 @@ a focused, reviewable release unit rather than a mega-batch.
   `context_area_tokens` special case rather than duplicating it.
 * **Guardrail**: ratios with fully-observed numerator and denominator are
   unaffected (no provenance noise added for the common case).
-* **Verification**: `python -m pytest tests/test_eval_summary.py -v`
+* **Verification**: `python -m pytest tests/test_eval_summary.py tests/test_telemetry_aggregation.py -v`
 
 ## Dependency Graph
 
@@ -340,8 +351,13 @@ tasks.
   `epoch.py`; D194A24B and 3EFC51DE both touch the same
   `aggregation.py`/`summary.py` provenance gap. Splitting these pairs into
   separate tasks would create artificial file-overlap and sequencing risk
-  between tasks; merging keeps each task within the 2-Hour Rule's `<3 files`
-  bound while eliminating cross-task coupling.
+  between tasks. Tasks 7 and 8 stay within the 2-Hour Rule's `<3 files`
+  bound; Task 1 is the one deliberate exception at 5 files (two lockstep
+  agent-doc mirrors that must change together + two co-located test files +
+  a mechanical `harness-manifest.yaml` checksum bump) — a single cohesive,
+  width-isolated change carried under explicit plan-hardening (see Plan
+  Hardening Signals), not a claim of blanket `<3 files` compliance. Splitting
+  it would only re-introduce the same file-overlap between the halves.
 * **Five entries left in the stash rather than force-fit into this shipment**
   — see Sizing Rationale above. Keeps this shipment focused and reviewable
   instead of a mega-batch.
@@ -485,16 +501,20 @@ file-disjoint, fully test-covered, no gate/contract change).
   strict-type pattern, the existing "unavailable" tuple convention, and the
   existing `criteria`/`notes` report shape). See P2-2.
 * **Scope Boundary Auditor**: Confirmed every task stays within its declared
-  file set (all ≤3 files, all width-isolated to a single domain). Confirmed
-  the 5 left-stashed entries are genuinely separable (see Sizing Rationale)
-  and not silently dropped. See P2-1.
+  file set and is width-isolated to a single domain. Seven tasks are ≤3 files;
+  Task 1 is 5 files (two lockstep agent-doc mirrors + two co-located test files
+  + a mechanical manifest-checksum bump) — a single cohesive width-isolated
+  change carried under explicit plan-hardening, not a granularity violation.
+  Confirmed the 5 left-stashed entries are genuinely separable (see Sizing
+  Rationale) and not silently dropped. See P2-1.
 * **Learnings Researcher**: No prior compound learning found that
   contradicts this plan's sizing or task-only manifest convention; the
   092-S/093-S/094-S precedent for task-only shipment manifests is directly
   confirmed by this shipment's own `backlogit shipment get 095-S` output
   (feature `090-F` absent from `custom_fields.items`).
-* **Architecture Strategist**: All 8 tasks are fully decoupled (disjoint
-  files, no shared state, no `backlogit dep` edges needed). See P3-1.
+* **Architecture Strategist**: Tasks 3–8 are fully decoupled (disjoint files,
+  no shared state, no `backlogit dep` edges needed); Tasks 1 and 2 share only
+  `tests/test_telemetry_record_cli.py` and are sequenced for that file. See P3-1.
 * **Security Lens Reviewer**: Not triggered as a P0/P1 concern — no task
   touches authentication, authorization, secret handling, or workspace
   containment. Task 1's touch to `.ship.agent.md` is a documentation/gate-logic
