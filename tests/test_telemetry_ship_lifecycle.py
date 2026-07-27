@@ -160,9 +160,18 @@ class ShipTelemetryLifecycleTests(unittest.TestCase):
         for content in (template, mirror):
             self.assertIn("task-only manifests", content)
             self.assertIn("parent_id", content)
-            self.assertIn("079.013-T", content)
-            self.assertIn("079.015-T", content)
             self.assertIn("execution-ready", content)
+            # 638AA991: execution-readiness for sizing/context shipments must be
+            # derived generically from the shipment's own declared task
+            # dependencies, never hard-coded to a specific task ID literal.
+            self.assertIn("the shipment's own declared task dependencies", content)
+            self.assertNotIn("079.013-T", content)
+            self.assertNotIn("079.015-T", content)
+            # A465162F: the close-time telemetry record step must instruct Ship
+            # to capture the close timestamp ONCE and reuse that exact value on
+            # every retry, never regenerate it per attempt.
+            self.assertIn("capture the close timestamp once", content.lower())
+            self.assertIn("reuse that exact value on every retry", content.lower())
 
 
 if __name__ == "__main__":

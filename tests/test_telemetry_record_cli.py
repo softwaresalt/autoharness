@@ -237,6 +237,40 @@ class TelemetryRecordCliTests(unittest.TestCase):
         self.assertFalse(conflict["sqlite_written"])
         self.assertFalse(conflict["jsonl_written"])
 
+    def test_record_replays_idempotently_with_same_explicit_close_timestamp(self) -> None:
+        """090.001-T (A465162F): a context-ref record replayed with the same
+        explicit close timestamp reused on every attempt must yield `created`
+        then `idempotent_replay` — the capture-once/reuse contract that
+        `.ship.agent.md` documents at the record-close step."""
+        self._write_config(_ENABLED_CONFIG)
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+
+        config = load_workspace_telemetry_config(self.workspace)
+        begin = begin_context(
+            config,
+            self.workspace,
+            task_id="079.016-T",
+            epoch_id="66666666-6666-4666-8666-666666666666",
+            captured_at="2026-07-24T03:37:49Z",
+        )
+        close_payload = dict(_PAYLOAD)
+        close_payload.pop("epoch_id")
+        close_payload["timestamp"] = "2026-07-26T12:00:00Z"
+        self.payload_path.write_text(json.dumps(close_payload), encoding="utf-8")
+
+        import contextlib
+        import io
+
+        first_stdout = io.StringIO()
+        with contextlib.redirect_stdout(first_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+        second_stdout = io.StringIO()
+        with contextlib.redirect_stdout(second_stdout):
+            self._run("--context-ref", begin.context_ref, "--json")
+
+        self.assertEqual(json.loads(first_stdout.getvalue())["idempotency_outcome"], "created")
+        self.assertEqual(json.loads(second_stdout.getvalue())["idempotency_outcome"], "idempotent_replay")
+
     def test_disabled_telemetry_is_noop_success(self) -> None:
         self._write_config(_DISABLED_CONFIG)
         # No SystemExit ⇒ exit 0 no-op.
