@@ -18,7 +18,12 @@ from typing import Any, Callable, Mapping
 
 from autoharness.eval.reviewer import ReviewMatrixResult
 from autoharness.eval.runner import EvalRunReport
-from autoharness.telemetry.aggregation import UNAVAILABLE, aggregate_epochs, derived_efficiency_metrics
+from autoharness.telemetry.aggregation import (
+    UNAVAILABLE,
+    _derived_ratio,
+    aggregate_epochs,
+    derived_efficiency_metrics,
+)
 
 
 @dataclass(frozen=True)
@@ -140,7 +145,16 @@ def _config_summary(
     outcome = epoch.outcome
     expected = epoch.operations.expected_tool_count
     missing = epoch.operations.missing_expected_tool_count
-    gap_rate: float | str = UNAVAILABLE if expected == 0 else missing / expected
+    # 090.008-T: generalize the context_area_tokens quality special-case below —
+    # gap_rate is also a _derived_ratio consumer, so surface operand provenance
+    # via metric_quality instead of a raw division that silently discards it.
+    operations_quality = epoch.operations.metric_quality
+    gap_rate: float | str = _derived_ratio(
+        missing,
+        expected,
+        numerator_quality=operations_quality.get("missing_expected_tool_count"),
+        denominator_quality=operations_quality.get("expected_tool_count"),
+    )
     quality_overall = review.overall if review is not None else None
     quality_dimensions = (
         {dim: score.score for dim, score in review.dimensions.items()}

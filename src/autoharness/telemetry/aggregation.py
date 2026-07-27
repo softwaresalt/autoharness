@@ -115,10 +115,59 @@ def _dedupe(records: Iterable[dict[str, Any]]) -> tuple[list[dict[str, Any]], li
     return [entry[0] for entry in by_id.values()], diagnostics
 
 
-def _derived_ratio(numerator: float | int | None, denominator: float | int | None) -> float | str:
+# 090.008-T: worst-case ranking of the observed/derived/estimated/unavailable/
+# not-applicable vocabulary, used to pick the dominant provenance marker when a
+# derived ratio's two operands carry different quality labels.
+_QUALITY_RANK = {
+    "observed": 0,
+    "derived": 1,
+    "estimated": 2,
+    "not_applicable": 3,
+    "unavailable": 4,
+}
+
+
+def _field_quality(records: Iterable[dict[str, Any]], section: str, field: str) -> str | None:
+    """Worst-case ``metric_quality`` label for ``field`` across ``records``.
+
+    A populated field with no explicit quality label defaults to ``"observed"``
+    (optimistic), not ``"unavailable"``. Unlike report.py's per-record display
+    logic, most historical telemetry records never set ``metric_quality`` at
+    all, so treating silence as pessimistic here would inject provenance noise
+    into every fully-observed ratio (the common case must stay a bare float).
+    """
+    worst: str | None = None
+    for record in records:
+        sec = record.get(section) or {}
+        quality = (sec.get("metric_quality") or {}).get(field) or "observed"
+        if worst is None or _QUALITY_RANK.get(quality, 0) > _QUALITY_RANK.get(worst, 0):
+            worst = quality
+    return worst
+
+
+def _worst_quality(*qualities: str | None) -> str | None:
+    ranked = [quality for quality in qualities if quality is not None]
+    if not ranked:
+        return None
+    return max(ranked, key=lambda quality: _QUALITY_RANK.get(quality, 0))
+
+
+def _derived_ratio(
+    numerator: float | int | None,
+    denominator: float | int | None,
+    *,
+    numerator_quality: str | None = None,
+    denominator_quality: str | None = None,
+) -> float | str:
     if numerator is None or denominator is None or denominator == 0:
         return UNAVAILABLE
-    return numerator / denominator
+    ratio = numerator / denominator
+    worst = _worst_quality(numerator_quality, denominator_quality)
+    if worst in ("unavailable", "not_applicable"):
+        return UNAVAILABLE
+    if worst is not None and worst != "observed":
+        return f"{ratio} ({worst})"
+    return ratio
 
 
 def derived_efficiency_metrics(records: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -132,14 +181,31 @@ def derived_efficiency_metrics(records: Iterable[dict[str, Any]]) -> dict[str, A
 
     successful = [record for record in records if is_successful_epoch(record)]
     successful_cost = _sum_field(successful, "economics", "cogs_usd") if successful else None
+    successful_cost_quality = (
+        _field_quality(successful, "economics", "cogs_usd") if successful else None
+    )
 
     return {
         "net_offload_tokens": (
             UNAVAILABLE if avoided is None or tool_output is None else avoided - tool_output
         ),
-        "consumption_generation_ratio": _derived_ratio(input_tokens, output_tokens),
-        "gap_rate": _derived_ratio(missing, expected),
-        "cost_per_successful_epoch": _derived_ratio(successful_cost, len(successful)),
+        "consumption_generation_ratio": _derived_ratio(
+            input_tokens,
+            output_tokens,
+            numerator_quality=_field_quality(records, "economics", "input_tokens"),
+            denominator_quality=_field_quality(records, "economics", "output_tokens"),
+        ),
+        "gap_rate": _derived_ratio(
+            missing,
+            expected,
+            numerator_quality=_field_quality(records, "operations", "missing_expected_tool_count"),
+            denominator_quality=_field_quality(records, "operations", "expected_tool_count"),
+        ),
+        "cost_per_successful_epoch": _derived_ratio(
+            successful_cost,
+            len(successful),
+            numerator_quality=successful_cost_quality,
+        ),
         "planned_vs_composition": UNAVAILABLE,
         "cost_per_size_point": UNAVAILABLE,
     }

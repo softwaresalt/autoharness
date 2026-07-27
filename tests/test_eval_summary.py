@@ -256,6 +256,54 @@ class TelemetryMetricFoldingTests(unittest.TestCase):
         self.assertEqual(summary.planned_vs_composition, "unavailable")
         self.assertEqual(summary.cost_per_size_point, "unavailable")
 
+    def test_gap_rate_flags_estimated_denominator_provenance(self) -> None:
+        """090.008-T (3EFC51DE): a metric history where the ratio's denominator
+        carries "estimated" quality (usable, but less certain than "observed")
+        must surface a provenance marker in the summary output distinguishing
+        it from a genuinely observed ratio, rather than silently rendering a
+        plain float as if the count were fully observed."""
+        epoch = ExecutionEpoch(
+            task_id="eval:gap-estimated",
+            route=RouteConfiguration(models=("m",)),
+            economics=EconomicPayload(input_tokens=10, output_tokens=5, cogs_usd=1.0),
+            operations=OperationalReality(
+                expected_tool_count=2,
+                missing_expected_tool_count=1,
+                metric_quality={"expected_tool_count": "estimated"},
+            ),
+            outcome=AbsoluteOutcome(gate_exit_codes=(0,)),
+        )
+        summary = summarize_baseline(
+            EvalRunReport(None, (EvalRun("gap-estimated", epoch, RecordSummary(enabled=False)),))
+        )
+
+        config = summary.configs[0]
+        self.assertEqual(config.expected_tool_gap_rate, "0.5 (estimated)")
+
+    def test_gap_rate_unavailable_when_numerator_unavailable(self) -> None:
+        """090.008-T (3EFC51DE): a usable denominator (expected_tool_count=1)
+        paired with an "unavailable" numerator (missing_expected_tool_count=0
+        marked unavailable, i.e. never actually measured) must surface
+        "unavailable" provenance rather than the bare 0.0 that plain division
+        would silently produce."""
+        epoch = ExecutionEpoch(
+            task_id="eval:gap-unavailable",
+            route=RouteConfiguration(models=("m",)),
+            economics=EconomicPayload(input_tokens=10, output_tokens=5, cogs_usd=1.0),
+            operations=OperationalReality(
+                expected_tool_count=1,
+                missing_expected_tool_count=0,
+                metric_quality={"missing_expected_tool_count": "unavailable"},
+            ),
+            outcome=AbsoluteOutcome(gate_exit_codes=(0,)),
+        )
+        summary = summarize_baseline(
+            EvalRunReport(None, (EvalRun("gap-unavailable", epoch, RecordSummary(enabled=False)),))
+        )
+
+        config = summary.configs[0]
+        self.assertEqual(config.expected_tool_gap_rate, "unavailable")
+
 
 if __name__ == "__main__":
     unittest.main()
