@@ -840,6 +840,37 @@ def _validate_record_epoch_id(value: object) -> str:
     return canonical
 
 
+def _validate_record_timestamp(value: object) -> str:
+    """Validate the non-context record path's ``timestamp`` is a present,
+    well-formed ISO-8601 instant (090.002-T / A7DBF981).
+
+    Without this check, an omitted ``timestamp`` falls back to
+    ``ExecutionEpoch``'s ``_utc_now_iso`` default factory, stamping a fresh
+    wall-clock value on every call — so an intended idempotent retry produces
+    a different ``payload_digest`` and is rejected as ``conflict_rejected``
+    instead of recognized as ``idempotent_replay``. A malformed (but nonblank)
+    timestamp would otherwise be accepted on write and only silently dropped
+    later by the reader (``reader.py:45-50``); mirror that same parity check
+    here so it fails closed at write time instead.
+    """
+    from datetime import datetime
+
+    from autoharness.telemetry.epoch import EpochError
+
+    if value is None or not str(value).strip():
+        raise EpochError(
+            "Replayable task-close payload is missing required 'timestamp'; "
+            "use telemetry begin/record with an explicit ISO-8601 timestamp."
+        )
+    try:
+        datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise EpochError(
+            f"Replayable task-close 'timestamp' {value!r} is not a valid ISO-8601 instant."
+        ) from exc
+    return str(value)
+
+
 def _merge_telemetry_context_payload(payload: object, context_payload: dict) -> dict:
     from autoharness.telemetry.epoch import EpochError
 
@@ -949,6 +980,7 @@ def _telemetry_record_command(rest: list[str]) -> None:
             payload = _merge_telemetry_context_payload(payload, context_payload)
         else:
             _validate_record_epoch_id(payload.get("epoch_id") if isinstance(payload, dict) else None)
+            _validate_record_timestamp(payload.get("timestamp") if isinstance(payload, dict) else None)
         epoch = ExecutionEpoch.from_mapping(payload)
     except TelemetryContextError as exc:
         print(f"Invalid telemetry context: {exc}", file=sys.stderr)

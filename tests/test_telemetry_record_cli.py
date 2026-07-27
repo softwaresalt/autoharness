@@ -38,6 +38,7 @@ telemetry:
 _PAYLOAD = {
     "epoch_id": "11111111111141118111111111111111",
     "task_id": "051.001-T",
+    "timestamp": "2026-07-26T00:00:00Z",
     "route": {"models": ["claude-opus-4.6"]},
     "economics": {"input_tokens": 100, "output_tokens": 50, "cogs_usd": 0.01, "duration_seconds": 12.0},
     "operations": {"cli_tools": ["git", "pytest"]},
@@ -109,6 +110,55 @@ class TelemetryRecordCliTests(unittest.TestCase):
         self._write_config(_ENABLED_CONFIG)
         payload = dict(_PAYLOAD)
         del payload["epoch_id"]
+        self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_record_rejects_missing_timestamp_without_context(self) -> None:
+        """090.002-T (A7DBF981): the non-context record path must require an
+        explicit timestamp, mirroring the epoch_id requirement, so an intended
+        idempotent retry cannot silently get a fresh wall-clock stamp."""
+        self._write_config(_ENABLED_CONFIG)
+        payload = dict(_PAYLOAD)
+        payload.pop("timestamp", None)
+        self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaises(SystemExit) as ctx:
+            self._run()
+
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_record_replays_idempotently_with_explicit_timestamp_without_context(self) -> None:
+        """090.002-T (A7DBF981): the same payload with an explicit timestamp,
+        recorded twice, must yield created then idempotent_replay."""
+        self._write_config(_ENABLED_CONFIG)
+        payload = dict(_PAYLOAD)
+        payload["timestamp"] = "2026-07-26T08:00:00Z"
+        self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        import contextlib
+        import io
+
+        first_stdout = io.StringIO()
+        with contextlib.redirect_stdout(first_stdout):
+            self._run("--json")
+        second_stdout = io.StringIO()
+        with contextlib.redirect_stdout(second_stdout):
+            self._run("--json")
+
+        self.assertEqual(json.loads(first_stdout.getvalue())["idempotency_outcome"], "created")
+        self.assertEqual(json.loads(second_stdout.getvalue())["idempotency_outcome"], "idempotent_replay")
+
+    def test_record_rejects_malformed_timestamp_without_context(self) -> None:
+        """090.002-T (A7DBF981): a nonblank but malformed timestamp must raise
+        EpochError / exit 2 rather than being silently persisted and later
+        dropped by the reader (reader.py:35-50)."""
+        self._write_config(_ENABLED_CONFIG)
+        payload = dict(_PAYLOAD)
+        payload["timestamp"] = "not-a-date"
         self.payload_path.write_text(json.dumps(payload), encoding="utf-8")
 
         with self.assertRaises(SystemExit) as ctx:
