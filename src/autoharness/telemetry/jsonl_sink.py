@@ -31,6 +31,12 @@ class SinkWriteResult:
     payload_digest: str
 
 
+@dataclass(frozen=True)
+class JsonlPreflightScan:
+    existing_digest: str | None
+    scanned_offset: int
+
+
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
@@ -51,25 +57,41 @@ def _digest_record(record: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(record).encode("utf-8")).hexdigest()
 
 
-def find_epoch_digest(jsonl_path: Path, epoch_id: str) -> str | None:
-    """Return the digest for the first accepted JSONL record with ``epoch_id``."""
+def scan_epoch_digest(
+    jsonl_path: Path,
+    epoch_id: str,
+    *,
+    start_offset: int = 0,
+) -> JsonlPreflightScan:
+    """Return digest and byte offset reached when scanning JSONL records."""
     if not jsonl_path.exists():
-        return None
-    with jsonl_path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            if not line.strip():
+        return JsonlPreflightScan(existing_digest=None, scanned_offset=0)
+    file_size = jsonl_path.stat().st_size
+    offset = max(0, min(start_offset, file_size))
+    with jsonl_path.open("rb") as handle:
+        handle.seek(offset)
+        for raw_line in handle:
+            if not raw_line.strip():
                 continue
             try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
+                record = json.loads(raw_line.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
                 # Copilot review r3 B5: a single corrupt historical line must not
                 # raise and permanently disable future JSONL emission (every append
                 # runs this preflight scan). The reader already skips malformed
                 # lines; mirror that resilience here and keep scanning.
                 continue
             if isinstance(record, dict) and record.get("epoch_id") == epoch_id:
-                return _digest_record(record)
-    return None
+                return JsonlPreflightScan(
+                    existing_digest=_digest_record(record),
+                    scanned_offset=handle.tell(),
+                )
+        return JsonlPreflightScan(existing_digest=None, scanned_offset=handle.tell())
+
+
+def find_epoch_digest(jsonl_path: Path, epoch_id: str) -> str | None:
+    """Return the digest for the first accepted JSONL record with ``epoch_id``."""
+    return scan_epoch_digest(jsonl_path, epoch_id).existing_digest
 
 
 def _atomic_append_bytes(path: Path, data: bytes) -> None:
@@ -130,7 +152,12 @@ def _win_atomic_append(path: Path, data: bytes) -> None:
         kernel32.CloseHandle(handle)
 
 
-def append_epoch(epoch: ExecutionEpoch, jsonl_path: Path) -> SinkWriteResult:
+def append_epoch(
+    epoch: ExecutionEpoch,
+    jsonl_path: Path,
+    *,
+    preflight: JsonlPreflightScan | None = None,
+) -> SinkWriteResult:
     """Append one epoch as a single atomic JSON line to the JSONL mirror.
 
     Each record is written with a single atomic append of the complete line, so a
@@ -145,7 +172,18 @@ def append_epoch(epoch: ExecutionEpoch, jsonl_path: Path) -> SinkWriteResult:
     """
     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
     digest = payload_digest(epoch)
-    existing_digest = find_epoch_digest(jsonl_path, epoch.epoch_id)
+    preflight_supplied = preflight is not None
+    scan = preflight or scan_epoch_digest(jsonl_path, epoch.epoch_id)
+    existing_digest = scan.existing_digest
+    if preflight_supplied and existing_digest is None and jsonl_path.exists():
+        current_size = jsonl_path.stat().st_size
+        if current_size != scan.scanned_offset:
+            start_offset = scan.scanned_offset if current_size >= scan.scanned_offset else 0
+            existing_digest = scan_epoch_digest(
+                jsonl_path,
+                epoch.epoch_id,
+                start_offset=start_offset,
+            ).existing_digest
     if existing_digest == digest:
         return SinkWriteResult(status="idempotent_replay", payload_digest=digest)
     if existing_digest is not None:

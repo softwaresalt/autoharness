@@ -721,6 +721,32 @@ class RecordEpochFailOpenTests(unittest.TestCase):
             self.assertTrue(retry.jsonl_written)
             self.assertEqual(len(config.jsonl_path.read_text(encoding="utf-8").splitlines()), 1)
 
+    def test_record_epoch_reuses_jsonl_preflight_scan_for_append(self) -> None:
+        from autoharness.telemetry import jsonl_sink
+
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            jsonl_path = workspace / ".autoharness" / "metrics" / "execution_epochs.jsonl"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=None,
+                emit_jsonl=True,
+                jsonl_path=jsonl_path,
+            )
+            jsonl_sink.append_epoch(self._epoch(), jsonl_path)
+
+            with mock.patch.object(
+                jsonl_sink,
+                "scan_epoch_digest",
+                wraps=jsonl_sink.scan_epoch_digest,
+            ) as scan:
+                summary = record_epoch(self._epoch(), config)
+
+            self.assertEqual(summary.idempotency_outcome, "created")
+            self.assertEqual(summary.jsonl_status, "created")
+            self.assertEqual(scan.call_count, 1)
+
     def test_conflicting_retry_after_partial_sqlite_success_writes_no_missing_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)

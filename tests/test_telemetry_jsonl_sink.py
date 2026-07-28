@@ -6,7 +6,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from autoharness.telemetry import jsonl_sink
 from autoharness.telemetry.epoch import (
     AbsoluteOutcome,
     EconomicPayload,
@@ -158,6 +160,50 @@ class JsonlSinkTests(unittest.TestCase):
         self.assertEqual(idempotent.status, "idempotent_replay")
         self.assertEqual(len(lines), 1)
         self.assertEqual(json.loads(lines[0])["economics"]["input_tokens"], 10)
+
+    def test_preflight_tail_scan_detects_concurrent_identical_replay(self) -> None:
+        epoch = _sized_epoch("abababababababababababababababab")
+        append_epoch(_epoch("history"), self.jsonl_path)
+        preflight = jsonl_sink.scan_epoch_digest(self.jsonl_path, epoch.epoch_id)
+        append_epoch(epoch, self.jsonl_path)
+
+        with mock.patch.object(
+            jsonl_sink,
+            "scan_epoch_digest",
+            wraps=jsonl_sink.scan_epoch_digest,
+        ) as scan:
+            result = append_epoch(epoch, self.jsonl_path, preflight=preflight)
+
+        self.assertEqual(result.status, "idempotent_replay")
+        self.assertEqual(len(self.jsonl_path.read_text(encoding="utf-8").splitlines()), 2)
+        self.assertEqual(scan.call_count, 1)
+        self.assertEqual(scan.call_args.kwargs["start_offset"], preflight.scanned_offset)
+
+    def test_preflight_tail_scan_detects_concurrent_conflicting_replay(self) -> None:
+        first = _sized_epoch("babababababababababababababababa")
+        conflict = ExecutionEpoch(
+            epoch_id=first.epoch_id,
+            task_id="079.003-T",
+            route=first.route,
+            economics=EconomicPayload(input_tokens=999),
+            operations=first.operations,
+            outcome=first.outcome,
+        )
+        append_epoch(_epoch("history"), self.jsonl_path)
+        preflight = jsonl_sink.scan_epoch_digest(self.jsonl_path, first.epoch_id)
+        append_epoch(first, self.jsonl_path)
+
+        with mock.patch.object(
+            jsonl_sink,
+            "scan_epoch_digest",
+            wraps=jsonl_sink.scan_epoch_digest,
+        ) as scan:
+            with self.assertRaises(TelemetryConflictError):
+                append_epoch(conflict, self.jsonl_path, preflight=preflight)
+
+        self.assertEqual(len(self.jsonl_path.read_text(encoding="utf-8").splitlines()), 2)
+        self.assertEqual(scan.call_count, 1)
+        self.assertEqual(scan.call_args.kwargs["start_offset"], preflight.scanned_offset)
 
     def test_corrupt_historical_line_does_not_disable_emission(self) -> None:
         """Regression (Copilot review r3 B5): every append preflights the whole
