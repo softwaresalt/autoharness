@@ -57,13 +57,15 @@ model family.
 
 * `files`: (Required) Files or diff to review. Can be a list of paths, a git diff
   ref (e.g., `HEAD~1`), or a PR number.
-* `reviewers`: (Optional) Number of parallel reviewer instances. Default: 4 when
-  the Anchor Reviewer route is dispatchable, otherwise 3. Minimum: 2 (a single
-  reviewer provides no consensus signal). Maximum: 5.
-* `models`: (Optional) Model tiers to use for each reviewer instance. Default:
-  one Tier 1, one Tier 2, one Tier 3 model — ensuring diversity across the
-  speed/quality spectrum. Specify as a list matching the `reviewers` count, or
-  leave unset to use the default tier distribution.
+* `reviewers`: (Optional) Total number of parallel reviewer instances, including
+  the Anchor Reviewer when the anchor route is dispatchable. Default: 4 with a
+  dispatchable anchor route (Anchor + Tier 1 + Tier 2 + Tier 3), otherwise 3
+  (Tier 1 + Tier 2 + Tier 3). Minimum: 2 (a single reviewer provides no
+  consensus signal). Maximum: 5.
+* `models`: (Optional) Model tiers/routes to use for each reviewer instance.
+  Specify a list matching the `reviewers` count, including `anchor_review` when
+  assigning an Anchor Reviewer slot. When unset, use the count-specific mapping
+  in Phase 1 so every accepted reviewer count has a deterministic slot map.
 * `alt_provider`: (Optional) Alternate model provider name (e.g., `google`).
   Overrides `{{ALT_REVIEW_PROVIDER}}` for this invocation. When set, one reviewer
   slot is assigned to the alternate provider.
@@ -104,15 +106,20 @@ Output file at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-review.md`.
 
 1. Resolve the file list or diff to review.
 2. Load the ruleset from the specified path or the default.
-3. Determine the reviewer count and model route assignment:
-   * Default with a dispatchable anchor route (4 reviewers): Anchor Reviewer =
-     `{{ANCHOR_REVIEW_PROVIDER}}` / `{{ANCHOR_REVIEW_FAMILY}}`, Reviewer-A = Tier 1
-     (fast/cheap), Reviewer-B = Tier 2 (standard), Reviewer-C = Tier 3 (frontier).
-   * Default without a dispatchable anchor route (3 reviewers): Reviewer-A = Tier 1,
-     Reviewer-B = Tier 2, Reviewer-C = Tier 3; record a declared fallback for the
-     Anchor Reviewer.
-   * For 5 reviewers: add Tier 1 or Tier 2 variants after preserving the Anchor
-     Reviewer and Tier 1/2/3 coverage.
+3. Determine the reviewer count and model route assignment. The `reviewers`
+   value is the total number of slots; when the anchor route is dispatchable, the
+   Anchor Reviewer consumes one slot. Use these mappings unless `models` provides
+   an explicit list with the same count:
+
+   | Reviewer count | Anchor dispatchable mapping | Anchor unavailable mapping |
+   |---|---|---|
+   | 2 | Anchor Reviewer + Reviewer-C (Tier 3) | Reviewer-B (Tier 2) + Reviewer-C (Tier 3) |
+   | 3 | Anchor Reviewer + Reviewer-A (Tier 1) + Reviewer-C (Tier 3) | Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) |
+   | 4 (default with anchor) | Anchor Reviewer + Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) | Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) + Reviewer-D (Tier 1/Tier 2 variant) |
+   | 5 | Anchor Reviewer + Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) + Reviewer-D (Tier 1/Tier 2 variant) | Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) + Reviewer-D (Tier 1/Tier 2 variant) + Reviewer-E (Tier 2/Tier 3 variant) |
+
+   Record a declared fallback for the Anchor Reviewer whenever the anchor route is
+   configured but unavailable.
 4. Apply anchor and alternate model provider assignments:
    * Read `{{ANCHOR_REVIEW_PROVIDER}}` and `{{ANCHOR_REVIEW_FAMILY}}` (or
      `anchor_provider` / `anchor_family` input overrides). If both are non-empty
@@ -135,7 +142,8 @@ Output file at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-review.md`.
 | Reviewer-A | Tier 1 (fast/cheap) | `{{TIER_1_FAMILY}}` | unchanged |
 | Reviewer-B | Tier 2 (standard) | `{{TIER_2_FAMILY}}` | `{{ALT_REVIEW_FAMILY}}` via `{{ALT_REVIEW_PROVIDER}}` |
 | Reviewer-C | Tier 3 (frontier) | `{{TIER_3_FAMILY}}` | unchanged |
-| Reviewer-D (5-reviewer) | Tier 1 or Tier 2 variant | different from A/B | unchanged |
+| Reviewer-D | Tier 1 or Tier 2 variant | different from A/B/C | unchanged |
+| Reviewer-E (5 reviewers without anchor) | Tier 2 or Tier 3 variant | different from A/B/C/D | unchanged |
 
 When `{{ANCHOR_REVIEW_PROVIDER}}` or `{{ANCHOR_REVIEW_FAMILY}}` is empty or the
 route cannot be dispatched, all standard reviewer slots still use tier routing and

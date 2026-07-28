@@ -53,6 +53,7 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         validator = Draft7Validator(schema)
         model_props = schema["properties"]["model_routing"]["properties"]
         self.assertIn("anchor_review", model_props)
+        self.assertNotIn("additionalProperties", schema["properties"]["model_routing"])
         anchor_schema = model_props["anchor_review"]
         self.assertFalse(anchor_schema.get("additionalProperties", True))
         self.assertEqual(set(anchor_schema["required"]), {"model_provider", "model_family"})
@@ -84,6 +85,14 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         }
         self.assertFalse(validator.is_valid(invalid))
 
+        custom_route = {
+            "schema_version": "1.0.0",
+            "model_routing": {
+                "workspace_specific_review": {"model_provider": "local", "model_family": "custom"}
+            },
+        }
+        self.assertTrue(validator.is_valid(custom_route))
+
     def test_harness_config_template_has_anchor_defaults_and_valid_yaml_when_reasoning_empty(self) -> None:
         text = _read(_CONFIG_TEMPLATE)
         for token in (
@@ -111,6 +120,7 @@ class AnchorReviewSkillRoutingTests(unittest.TestCase):
         self.assertIn("model_routing.anchor_review", text)
         self.assertIn("Anchor Reviewer", text)
         self.assertIn("declared fallback", text)
+        self.assertIn("`overlay-coherence` domain value", text)
 
     def test_adversarial_review_templates_have_rendered_anchor_placeholders_and_preserve_consensus(self) -> None:
         agent = _read(_ADVERSARIAL_AGENT)
@@ -122,6 +132,9 @@ class AnchorReviewSkillRoutingTests(unittest.TestCase):
             self.assertIn("consensus", text.lower())
         self.assertIn('anchor_review_provider: "{{ANCHOR_REVIEW_PROVIDER}}"', agent)
         self.assertIn('anchor_review_family: "{{ANCHOR_REVIEW_FAMILY}}"', agent)
+        for count in ("| 2 |", "| 3 |", "| 4 (default with anchor) |", "| 5 |"):
+            self.assertIn(count, agent)
+        self.assertIn("including `anchor_review`", agent)
 
     def test_plan_and_code_review_route_one_persona_to_anchor_when_available(self) -> None:
         for path in (_PLAN_REVIEW, _REVIEW):

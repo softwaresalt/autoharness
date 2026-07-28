@@ -109,7 +109,7 @@ model** to ensure genuine diversity of critique:
 
 | Reviewer | Domain | Suggested Model Route |
 |---|---|---|
-| Anchor Reviewer | Cross-model anchor sanity pass | `model_routing.anchor_review` (default `openai` / `gpt-5.6-sol`, `high`) when dispatchable; otherwise declared fallback |
+| Anchor Reviewer | Overlay Coherence (`overlay-coherence`) — anchor sanity pass | `model_routing.anchor_review` (default `openai` / `gpt-5.6-sol`, `high`) when dispatchable; otherwise declared fallback |
 | Reviewer A | Template Fidelity | Tier 3 (Frontier) |
 | Reviewer B | Overlay Coherence | Tier 2 (Standard, different vendor) |
 | Reviewer C | Cross-Reference Integrity | Tier 1 or Tier 2 (different from A and B) |
@@ -119,6 +119,7 @@ Each reviewer receives:
 * The review payload from Phase 1
 * Read access to the workspace and autoharness template directories
 * Instructions to return **structured JSON findings only**
+* For JSON output, the Anchor Reviewer MUST use the existing `overlay-coherence` domain value; its anchor perspective is identified by reviewer name, not by a new domain enum.
 
 Each reviewer produces a JSON array:
 

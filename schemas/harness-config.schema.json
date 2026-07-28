@@ -619,8 +619,7 @@
             }
           }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "ai_tools": {
       "type": "object",
