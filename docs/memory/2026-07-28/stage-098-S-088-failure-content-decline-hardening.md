@@ -24,7 +24,7 @@ left in place for future cycles.
 | ID | Scope (one line) | Depends on |
 |---|---|---|
 | 093-F | Covering feature: 088 compression failure-content-in-success decline — spec reconciliation + detector coverage hardening | — |
-| 093.001-T | Broaden the DECLINE detector's failure-signal coverage in `policy.py` `_FAILURE_BEARING_PATTERNS` (close the colon-anchored gap: `exit code 1`, make `Error 1`, `npm ERR!`, bare stack frames) + add positive AND negative controls | — |
+| 093.001-T | Broaden the DECLINE detector's failure-signal coverage in `policy.py` `_FAILURE_BEARING_PATTERNS` (close the colon-anchored gap: `exit code 1`, make `Error 1`, `npm ERR!`) + add positive AND negative controls | — |
 | 093.002-T | Align `hook.py` evidence-line protection (`_EVIDENCE_LINE_PATTERNS`) and `evidence_oracle.py` required-fact patterns to the broadened failure-signal set so protection and the oracle stay consistent | 093.001-T |
 | 093.003-T | Reconcile the 088-F compression plan spec (`docs/plans/2026-07-15-...-compression-experiment-plan.md`) — enumerate the failure-bearing-success DECLINE invariant, capture acceptance criteria + traceability | 093.001-T, 093.002-T |
 
@@ -37,7 +37,7 @@ left in place for future cycles.
 2. **The real bug**: `_FAILURE_BEARING_PATTERNS` in
    `experiments/088-compression-experiment/brainspace/policy.py` is colon-anchored
    (e.g. `exit code:\s*[1-9]`). Common non-colon phrasings — `exit code 1`,
-   make's `Error 1`, `npm ERR!`, bare stack frames — slip through and a successful
+   make's `Error 1`, `npm ERR!` — slip through and a successful
    tool result embedding them could be compressed, silently dropping failure
    evidence. Broadening the DECLINE detector is **fail-safe-directional**: it only
    ever passes MORE originals through byte-identically; it can never newly hide
