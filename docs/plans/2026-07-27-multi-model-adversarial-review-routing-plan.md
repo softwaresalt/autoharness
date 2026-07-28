@@ -108,7 +108,7 @@ The implementation must remain template-first, environment-agnostic, and variabl
 
 * **Domain**: review persona agent templates and install path mapping.
 * **Files**: `templates/agents/review/*.agent.md.tmpl`, `templates/agents/research/learnings-researcher.agent.md.tmpl` if present, and install-harness review-persona mapping text where identity filenames are declared.
-* **Change**: audit the adapter table identity paths used by plan-review. Use installed artifact names, e.g. `.github/agents/review/constitution-reviewer.agent.md`, `.github/agents/review/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md`, `.github/agents/review/scope-boundary-auditor.agent.md`, and `.github/agents/research/learnings-researcher.agent.md` where installed. Update references only where they are stale or would generate nonexistent paths.
+* **Change**: audit the adapter table identity paths used by plan-review. Use installed artifact names under the canonical flat subagent destination, e.g. `.github/agents/subagents/constitution-reviewer.agent.md`, `.github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md`, `.github/agents/subagents/scope-boundary-auditor.agent.md`, and `.github/agents/subagents/learnings-researcher.agent.md` where installed. Post-merge note: the original plan text used the retired categorized `review/` / `research/` layout; PR review corrected this to the canonical `subagents/` layout. Update references only where they are stale or would generate nonexistent paths.
 * **Acceptance**: display-name-to-file mapping is valid for Python, TypeScript, and Rust profiles; technology-specific reviewer naming uses existing variables and no Go-only assumptions.
 * **Verification**: cross-reference checks for generated reviewer file names.
 
