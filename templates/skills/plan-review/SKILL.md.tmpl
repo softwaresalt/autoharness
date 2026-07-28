@@ -65,9 +65,12 @@ reviewer routing as required workflow capabilities under P-012:
    by applying every selected persona's focus from the Persona Rubric Adapter, record
    `TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass`
    and set `dispatch_mode: single-agent-declared-degradation`.
-3. If model-specific dispatch is unavailable, record
-   `TOOL_DEGRADED: model-specific-review-routing — declared fallback: same-model rubric pass`.
-   Multi-model critique is preferred, but the same rubric still applies inline.
+3. If reviewer subagent dispatch is available but model-specific dispatch is
+   unavailable, record `TOOL_DEGRADED: model-specific-review-routing — declared fallback: same-model rubric pass`
+   and set `dispatch_mode: same-model-declared-degradation`. Multi-model critique
+   is preferred, but the same persona rubrics still apply through the available
+   subagent dispatch surface. Preserve `dispatch_mode: single-agent-declared-degradation`
+   only for the inline persona-coverage fallback in Step 2.
 4. If neither subagent dispatch nor inline persona coverage can cover every selected
    persona, set `decision: FAIL` and do not present the plan as harvest-ready.
 

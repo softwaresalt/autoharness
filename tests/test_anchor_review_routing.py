@@ -161,6 +161,8 @@ class PlanReviewGateContractTests(unittest.TestCase):
             self.assertIn(token, text)
         self.assertIn("dispatch_mode:", text)
         self.assertIn("decision:", text)
+        self.assertIn("same-model-declared-degradation", text)
+        self.assertIn("single-agent-declared-degradation", text)
         self.assertNotIn("docs/exec-plans", text)
         self.assertNotIn("go-reviewer", text.lower())
         self.assertNotIn("backlogit", text.lower())
