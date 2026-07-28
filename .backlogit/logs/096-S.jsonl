@@ -1,2 +1,5 @@
 {"timestamp":"2026-07-27T16:08:58.4015837-07:00","actor":"backlogit","item_id":"096-S","event_type":"shipment_created","delta":{"items":["091.001-T","091.002-T","091.003-T","091.004-T","091.005-T","091.006-T","091.007-T","091.008-T"],"title":"Multi-model adversarial review routing enhancements"}}
 {"timestamp":"2026-07-27T20:07:37.6274438-07:00","actor":"backlogit","item_id":"096-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-27T23:26:28.0159055-07:00","actor":"backlogit","item_id":"096-S","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-07-27T23:26:30.5305995-07:00","actor":"backlogit","item_id":"096-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-07-27T23:26:39.7779954-07:00","actor":"backlogit","item_id":"096-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/096-S.md"}}
