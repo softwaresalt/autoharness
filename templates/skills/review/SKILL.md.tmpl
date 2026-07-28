@@ -133,7 +133,7 @@ P-017, this local review record is the authoritative merge-readiness signal:
 
 ### Conditional (based on changed files)
 
-Use a different model from the caller when available to force genuine diversity of critique. Cross-model is preferred but not blocking.
+Use a different model from the caller when available to force genuine diversity of critique. Cross-model is preferred but not blocking. For high-risk template, policy, review-surface, or schema/skill diffs, one eligible conditional persona may use the `model_routing.anchor_review` anchor reviewer route when model-specific dispatch is available. If unavailable, record declared degradation and apply the same rubric with the caller's model rather than skipping the persona.
 
 | Persona Subagent | Select when diff touches | Suggested Model |
 |---|---|---|
@@ -161,7 +161,8 @@ Use a different model from the caller when available to force genuine diversity 
    * Select **Security Reviewer** (`security-reviewer.agent.md`) when the diff touches: authentication or authorization code, public endpoint handlers, user input processing, permission or role checks, secret or credential management, or files matching `{{SECURITY_REVIEW_PATTERNS}}`
    * Select **Template Integrity Reviewer** (`template-integrity-reviewer.agent.md`) when the diff touches template files, Markdown harness artifacts, review/policy/instruction assets, or generated-artifact reference tables
    * Select **Schema-CLI-Docs Coupling Reviewer** (`schema-cli-docs-coupling-reviewer.agent.md`) when the diff spans schema files, `src/` verification logic, install/tune skills, or operator-facing documentation in the same change set
-3. Broadcast the routing decision with persona count
+3. When `model_routing.anchor_review` is dispatchable and the diff touches high-risk template, policy, review-surface, or schema/skill contracts, assign the anchor reviewer to one triggered conditional persona (Template Integrity Reviewer by default, otherwise Schema-CLI-Docs Coupling Reviewer). If model-specific dispatch is unavailable, record `TOOL_DEGRADED: model-specific-review-routing — declared fallback: same-model rubric pass` and apply the same rubric.
+4. Broadcast the routing decision with persona count, anchor reviewer assignment, and any declared degradation
 
 ### Step 3: Spawn Persona Subagents
 

@@ -1,9 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://softwaresalt.github.io/autoharness/schemas/harness-config.schema.json",
   "title": "Harness Configuration",
   "description": "Operator-authored configuration that controls how autoharness installs and maintains the agent harness in this workspace. Place at .autoharness/config.yaml before running autoharness install or tune.",
   "type": "object",
-  "required": ["schema_version"],
+  "required": [
+    "schema_version"
+  ],
   "properties": {
     "schema_version": {
       "type": "string",
@@ -12,25 +15,43 @@
     },
     "preset": {
       "type": "string",
-      "enum": ["starter", "standard", "full"],
+      "enum": [
+        "starter",
+        "standard",
+        "full"
+      ],
       "default": "standard",
       "description": "Installation preset controlling the default primitive set and capability pack defaults"
     },
     "primary_stack_pack": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Primary stack classification to prefer when multiple additive stack packs are present. Overrides auto-detected primary stack selection when set."
     },
     "stack_packs": {
       "type": "array",
       "description": "Additive stack classifications to treat as active for composition. Overrides detected stack packs when specified.",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "install_layers": {
       "type": "array",
       "description": "Explicit artifact-class layers to compose. Use to clarify or constrain preset-derived composition. The 'overlays' layer MUST be present when capability_packs is non-empty and SHOULD NOT be present when capability_packs is empty.",
       "items": {
         "type": "string",
-        "enum": ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge", "overlays"]
+        "enum": [
+          "foundation",
+          "instructions",
+          "workflow",
+          "review",
+          "runtime",
+          "backlog",
+          "knowledge",
+          "overlays"
+        ]
       }
     },
     "capability_packs": {
@@ -38,7 +59,17 @@
       "description": "Capability packs to enable. Overrides preset defaults when specified.",
       "items": {
         "type": "string",
-        "enum": ["agent-intercom", "agent-engram", "backlogit", "browser-verification", "continuous-learning", "strict-safety", "release-observability", "adversarial-review", "graphtor-docs"]
+        "enum": [
+          "agent-intercom",
+          "agent-engram",
+          "backlogit",
+          "browser-verification",
+          "continuous-learning",
+          "strict-safety",
+          "release-observability",
+          "adversarial-review",
+          "graphtor-docs"
+        ]
       }
     },
     "backlog": {
@@ -47,29 +78,66 @@
       "properties": {
         "tool": {
           "type": "string",
-          "enum": ["backlogit", "backlog-md", "manual"],
+          "enum": [
+            "backlogit",
+            "backlog-md",
+            "manual"
+          ],
           "description": "Backlog tool to use. When set, overrides auto-detection."
         },
         "directory": {
           "type": "string",
           "description": "Root directory for the backlog (relative to workspace root). Defaults to the detected tool's directory or '.backlog'.",
-          "examples": [".backlogit", ".backlog", "backlog"]
+          "examples": [
+            ".backlogit",
+            ".backlog",
+            "backlog"
+          ]
         },
         "suffix_map": {
           "type": "object",
           "description": "Work item type suffixes. When using backlogit, these are read from backlogit's project config and merged here. Operator values override auto-detected values.",
           "properties": {
-            "feature": { "type": "string", "default": "F" },
-            "chore": { "type": "string", "default": "C" },
-            "task": { "type": "string", "default": "T" },
-            "spike": { "type": "string", "default": "SP" },
-            "deliberation": { "type": "string", "default": "D" },
-            "bug": { "type": "string", "default": "B" },
-            "epic": { "type": "string", "default": "E" },
-            "subtask": { "type": "string", "default": "ST" },
-            "shipment": { "type": "string", "default": "S" }
+            "feature": {
+              "type": "string",
+              "default": "F"
+            },
+            "chore": {
+              "type": "string",
+              "default": "C"
+            },
+            "task": {
+              "type": "string",
+              "default": "T"
+            },
+            "spike": {
+              "type": "string",
+              "default": "SP"
+            },
+            "deliberation": {
+              "type": "string",
+              "default": "D"
+            },
+            "bug": {
+              "type": "string",
+              "default": "B"
+            },
+            "epic": {
+              "type": "string",
+              "default": "E"
+            },
+            "subtask": {
+              "type": "string",
+              "default": "ST"
+            },
+            "shipment": {
+              "type": "string",
+              "default": "S"
+            }
           },
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },
@@ -86,13 +154,34 @@
           "type": "object",
           "description": "Subdirectory names within the docs root. Override to match existing workspace conventions.",
           "properties": {
-            "compound": { "type": "string", "default": "compound" },
-            "plans": { "type": "string", "default": "plans" },
-            "decisions": { "type": "string", "default": "decisions" },
-            "memory": { "type": "string", "default": "memory" },
-            "closure": { "type": "string", "default": "closure" },
-            "design_docs": { "type": "string", "default": "design-docs" },
-            "product_specs": { "type": "string", "default": "product-specs" }
+            "compound": {
+              "type": "string",
+              "default": "compound"
+            },
+            "plans": {
+              "type": "string",
+              "default": "plans"
+            },
+            "decisions": {
+              "type": "string",
+              "default": "decisions"
+            },
+            "memory": {
+              "type": "string",
+              "default": "memory"
+            },
+            "closure": {
+              "type": "string",
+              "default": "closure"
+            },
+            "design_docs": {
+              "type": "string",
+              "default": "design-docs"
+            },
+            "product_specs": {
+              "type": "string",
+              "default": "product-specs"
+            }
           }
         }
       }
@@ -135,20 +224,58 @@
         },
         "action_risk_levels": {
           "type": "array",
-          "items": { "type": "string", "enum": ["low", "moderate", "high", "destructive"] },
-          "default": ["low", "moderate", "high", "destructive"],
+          "items": {
+            "type": "string",
+            "enum": [
+              "low",
+              "moderate",
+              "high",
+              "destructive"
+            ]
+          },
+          "default": [
+            "low",
+            "moderate",
+            "high",
+            "destructive"
+          ],
           "description": "Recognized ActionRisk classification levels"
         },
         "action_result_states": {
           "type": "array",
-          "items": { "type": "string", "enum": ["planned", "approved", "blocked", "applied", "rolled-back", "abandoned"] },
-          "default": ["planned", "approved", "blocked", "applied", "rolled-back", "abandoned"],
+          "items": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "approved",
+              "blocked",
+              "applied",
+              "rolled-back",
+              "abandoned"
+            ]
+          },
+          "default": [
+            "planned",
+            "approved",
+            "blocked",
+            "applied",
+            "rolled-back",
+            "abandoned"
+          ],
           "description": "Recognized ActionResult lifecycle states"
         },
         "require_approval_for": {
           "type": "array",
-          "items": { "type": "string", "enum": ["destructive", "high"] },
-          "default": ["destructive"],
+          "items": {
+            "type": "string",
+            "enum": [
+              "destructive",
+              "high"
+            ]
+          },
+          "default": [
+            "destructive"
+          ],
           "description": "ActionRisk levels that require explicit operator approval before execution"
         }
       }
@@ -163,12 +290,18 @@
           "description": "Path (relative to workspace root) to the graphtor-docs source index configuration file"
         },
         "binary_path": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
           "description": "Explicit path to the graphtor-docs binary. When null, the binary is resolved from PATH or the default '.graphtor/bin/' location."
         },
         "embed_model_dir": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
           "description": "Explicit path to the local sentence-transformer embedding model directory used for offline vector search (written to .env.local as GRAPHTOR_EMBED_MODEL_DIR). When null, defaults to '<workspace_root>/.graphtor/models/all-MiniLM-L6-v2'."
         }
@@ -176,7 +309,7 @@
     },
     "model_routing": {
       "type": "object",
-      "description": "Model preferences for each routing tier. Agent definitions use tier labels; this maps tiers to specific model identifiers and per-tier configuration.",
+      "description": "Model preferences for each routing tier and review-specific routes. Agent definitions use tier labels; this maps tiers and reviewer roles to environment-agnostic model identifiers and per-route configuration.",
       "properties": {
         "tier1": {
           "description": "Fast/cheap tier for low-complexity tasks (memory, docs, prompt editing). Accepts a plain model-identifier string (legacy) or an object with 'model' plus optional routing metadata.",
@@ -184,32 +317,49 @@
             {
               "type": "string",
               "description": "Legacy: plain model identifier string. E.g., 'gpt-5.4-mini'",
-              "examples": ["gpt-5.4-mini", "claude-haiku-4.5"]
+              "examples": [
+                "gpt-5.4-mini",
+                "claude-haiku-4.5"
+              ]
             },
             {
               "type": "object",
-              "required": ["model"],
+              "required": [
+                "model"
+              ],
               "additionalProperties": false,
               "properties": {
                 "model": {
                   "type": "string",
                   "description": "Model identifier for Tier 1. E.g., 'gpt-5.4-mini', 'claude-haiku-4.5'",
-                  "examples": ["gpt-5.4-mini", "claude-haiku-4.5"]
+                  "examples": [
+                    "gpt-5.4-mini",
+                    "claude-haiku-4.5"
+                  ]
                 },
                 "reasoning_effort": {
                   "type": "string",
                   "description": "Reasoning effort setting for Tier 1 agents (e.g., 'low', 'medium', 'high'). Leave empty to use the model default.",
-                  "examples": ["low", "medium"]
+                  "examples": [
+                    "low",
+                    "medium"
+                  ]
                 },
                 "model_provider": {
                   "type": "string",
                   "description": "Model provider for Tier 1 agents (e.g., 'openai', 'anthropic'). Used when environment supports multi-provider routing.",
-                  "examples": ["openai", "anthropic"]
+                  "examples": [
+                    "openai",
+                    "anthropic"
+                  ]
                 },
                 "model_family": {
                   "type": "string",
                   "description": "Model family shorthand for Tier 1 (e.g., 'gpt-5.4-mini', 'haiku'). Resolved into agent frontmatter at install time.",
-                  "examples": ["gpt-5.4-mini", "claude-haiku-4.5"]
+                  "examples": [
+                    "gpt-5.4-mini",
+                    "claude-haiku-4.5"
+                  ]
                 }
               }
             }
@@ -221,32 +371,49 @@
             {
               "type": "string",
               "description": "Legacy: plain model identifier string. E.g., 'claude-sonnet-4'",
-              "examples": ["claude-sonnet-4", "gpt-5.2"]
+              "examples": [
+                "claude-sonnet-4",
+                "gpt-5.2"
+              ]
             },
             {
               "type": "object",
-              "required": ["model"],
+              "required": [
+                "model"
+              ],
               "additionalProperties": false,
               "properties": {
                 "model": {
                   "type": "string",
                   "description": "Model identifier for Tier 2. E.g., 'claude-sonnet-4', 'gpt-5.2'",
-                  "examples": ["claude-sonnet-4", "gpt-5.2"]
+                  "examples": [
+                    "claude-sonnet-4",
+                    "gpt-5.2"
+                  ]
                 },
                 "reasoning_effort": {
                   "type": "string",
                   "description": "Reasoning effort setting for Tier 2 agents (e.g., 'medium', 'high'). Leave empty to use the model default.",
-                  "examples": ["medium", "high"]
+                  "examples": [
+                    "medium",
+                    "high"
+                  ]
                 },
                 "model_provider": {
                   "type": "string",
                   "description": "Model provider for Tier 2 agents (e.g., 'openai', 'anthropic').",
-                  "examples": ["openai", "anthropic"]
+                  "examples": [
+                    "openai",
+                    "anthropic"
+                  ]
                 },
                 "model_family": {
                   "type": "string",
                   "description": "Model family shorthand for Tier 2 (e.g., 'gpt-5.2', 'claude-sonnet-4').",
-                  "examples": ["gpt-5.2", "claude-sonnet-4"]
+                  "examples": [
+                    "gpt-5.2",
+                    "claude-sonnet-4"
+                  ]
                 }
               }
             }
@@ -258,32 +425,49 @@
             {
               "type": "string",
               "description": "Legacy: plain model identifier string. E.g., 'claude-opus-4.8'",
-              "examples": ["claude-opus-4.8", "gpt-5.4"]
+              "examples": [
+                "claude-opus-4.8",
+                "gpt-5.4"
+              ]
             },
             {
               "type": "object",
-              "required": ["model"],
+              "required": [
+                "model"
+              ],
               "additionalProperties": false,
               "properties": {
                 "model": {
                   "type": "string",
                   "description": "Model identifier for Tier 3. E.g., 'claude-opus-4.8', 'gpt-5.4'",
-                  "examples": ["claude-opus-4.8", "gpt-5.4"]
+                  "examples": [
+                    "claude-opus-4.8",
+                    "gpt-5.4"
+                  ]
                 },
                 "reasoning_effort": {
                   "type": "string",
                   "description": "Reasoning effort setting for Tier 3 agents (e.g., 'high', 'max'). Leave empty to use the model default.",
-                  "examples": ["high", "max"]
+                  "examples": [
+                    "high",
+                    "max"
+                  ]
                 },
                 "model_provider": {
                   "type": "string",
                   "description": "Model provider for Tier 3 agents (e.g., 'openai', 'anthropic').",
-                  "examples": ["openai", "anthropic"]
+                  "examples": [
+                    "openai",
+                    "anthropic"
+                  ]
                 },
                 "model_family": {
                   "type": "string",
                   "description": "Model family shorthand for Tier 3 (e.g., 'gpt-5.4', 'claude-opus-4.8').",
-                  "examples": ["gpt-5.4", "claude-opus-4.8"]
+                  "examples": [
+                    "gpt-5.4",
+                    "claude-opus-4.8"
+                  ]
                 }
               }
             }
@@ -295,7 +479,10 @@
             {
               "type": "string",
               "description": "Plain model identifier string. E.g., 'gpt-5.4'",
-              "examples": ["gpt-5.4", "claude-sonnet-5"]
+              "examples": [
+                "gpt-5.4",
+                "claude-sonnet-5"
+              ]
             },
             {
               "type": "object",
@@ -303,30 +490,137 @@
               "properties": {
                 "model": {
                   "type": "string",
-                  "description": "Model identifier for the Orchestrator. Optional — not consumed by agent frontmatter directly but recorded for documentation and tooling.",
-                  "examples": ["gpt-5.4", "claude-sonnet-5"]
+                  "description": "Model identifier for the Orchestrator. Optional \u2014 not consumed by agent frontmatter directly but recorded for documentation and tooling.",
+                  "examples": [
+                    "gpt-5.4",
+                    "claude-sonnet-5"
+                  ]
                 },
                 "reasoning_effort": {
                   "type": "string",
                   "description": "Reasoning effort setting for the Orchestrator (e.g., 'high'). Leave empty to use the model default.",
-                  "examples": ["medium", "high"]
+                  "examples": [
+                    "medium",
+                    "high"
+                  ]
                 },
                 "model_provider": {
                   "type": "string",
                   "description": "Model provider for the Orchestrator (e.g., 'openai', 'anthropic').",
-                  "examples": ["openai", "anthropic"]
+                  "examples": [
+                    "openai",
+                    "anthropic"
+                  ]
                 },
                 "model_family": {
                   "type": "string",
                   "description": "Model family shorthand for the Orchestrator (e.g., 'gpt-5.4', 'claude-sonnet-5'). Default: gpt-5.4.",
                   "default": "gpt-5.4",
-                  "examples": ["gpt-5.4", "claude-sonnet-5"]
+                  "examples": [
+                    "gpt-5.4",
+                    "claude-sonnet-5"
+                  ]
                 }
               }
             }
           ]
+        },
+        "anchor_review": {
+          "type": "object",
+          "description": "First-class anchor reviewer route used by adversarial, plan, and code review flows. Defaults to OpenAI GPT-5.6 Sol where the operator environment supports it; skills must declare degradation when the route cannot be dispatched.",
+          "required": [
+            "model_provider",
+            "model_family"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "default": "openai",
+              "description": "Provider identifier for the anchor reviewer route. Use an environment-agnostic provider name; do not embed credentials.",
+              "examples": [
+                "openai"
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "default": "gpt-5.6-sol",
+              "description": "Model family identifier for the anchor reviewer route. Default: gpt-5.6-sol.",
+              "examples": [
+                "gpt-5.6-sol"
+              ]
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "default": "high",
+              "description": "Reasoning effort for anchor review when the environment supports effort controls. Leave empty to use the model default.",
+              "examples": [
+                "high",
+                "xhigh"
+              ]
+            }
+          }
+        },
+        "alt_review": {
+          "type": "object",
+          "description": "Optional alternate review route used for reviewer diversity when configured. When either provider or family is empty or absent, standard tier routing applies.",
+          "required": [
+            "model_provider",
+            "model_family"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "default": "",
+              "description": "Provider identifier for the alternate review route, such as google. Empty means no alternate route.",
+              "examples": [
+                "google",
+                ""
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "default": "",
+              "description": "Model family for the alternate review route. Empty means no alternate route.",
+              "examples": [
+                "gemini-2.5-flash",
+                ""
+              ]
+            }
+          }
+        },
+        "alt_doc_review": {
+          "type": "object",
+          "description": "Optional alternate documentation-review route used by doc-review templates when configured. Empty provider or family means doc-review uses Tier 2.",
+          "required": [
+            "model_provider",
+            "model_family"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "default": "",
+              "description": "Provider identifier for the alternate review route, such as google. Empty means no alternate route.",
+              "examples": [
+                "google",
+                ""
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "default": "",
+              "description": "Model family for the alternate review route. Empty means no alternate route.",
+              "examples": [
+                "gemini-2.5-pro",
+                ""
+              ]
+            }
+          }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ai_tools": {
       "type": "object",
@@ -355,8 +649,10 @@
     },
     "overrides": {
       "type": "object",
-      "description": "Explicit overrides for template variables that take precedence over auto-detected values. Use sparingly — prefer correcting the workspace setup over overriding discovery.",
-      "additionalProperties": { "type": "string" }
+      "description": "Explicit overrides for template variables that take precedence over auto-detected values. Use sparingly \u2014 prefer correcting the workspace setup over overriding discovery.",
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "lifecycle_hooks": {
       "type": "object",

@@ -8,8 +8,8 @@ applyTo: '**'
 Use these rules when the workspace has enabled the `adversarial-review`
 capability pack. This pack provides multi-model parallel review for higher
 review confidence on security-sensitive, compliance-critical, or large-scale
-code changes. It also supports alternate model providers (e.g., Gemini) so
-reviewer diversity is not limited to the standard tier routing set.
+code changes. It also supports a first-class Anchor Reviewer route and alternate model providers
+(e.g., Gemini) so reviewer diversity is not limited to the standard tier routing set.
 
 ## When to Escalate
 
@@ -29,6 +29,19 @@ instances across different model tiers:
 * prefer cross-model diversity: Tier 1, Tier 2, and Tier 3 reviewers
 * each reviewer operates independently and does not see other reviewers'
   findings until consensus assembly
+
+## Anchor Reviewer Support
+
+When `{{ANCHOR_REVIEW_PROVIDER}}` and `{{ANCHOR_REVIEW_FAMILY}}` are configured,
+launch an **Anchor Reviewer** as a separately identified reviewer slot before
+standard Tier 1/2/3 assignment. The default anchor route is OpenAI GPT-5.6 Sol,
+but generated artifacts stay environment-agnostic by using the configured provider
+and family identifiers rather than hard-coding a runtime.
+
+If the anchor route is unavailable, record `TOOL_DEGRADED: anchor-review-model`
+with a declared fallback and continue only when the remaining reviewer pool still
+meets the minimum reviewer count and consensus rules. Never silently drop the
+Anchor Reviewer from the report.
 
 ## Alternate Model Provider Support
 

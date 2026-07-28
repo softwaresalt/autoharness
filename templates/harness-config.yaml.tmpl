@@ -82,6 +82,10 @@ model_routing:
     model_family: "{{ORCHESTRATOR_FAMILY}}"     # Orchestrator model override (default: gpt-5.4)
     reasoning_effort: "{{ORCHESTRATOR_REASONING_EFFORT}}"
     model_provider: "{{ORCHESTRATOR_PROVIDER}}"
+  anchor_review:
+    model_provider: "{{ANCHOR_REVIEW_PROVIDER}}"       # Anchor reviewer provider (default: openai)
+    model_family: "{{ANCHOR_REVIEW_FAMILY}}"           # Anchor reviewer family (default: gpt-5.6-sol)
+    reasoning_effort: "{{ANCHOR_REVIEW_REASONING_EFFORT}}"  # Leave empty to use model default
 
 # AI CLI tool startup configuration
 # Resolves {{COPILOT_EXE_PATH}} in the generated start.ps1 and start.sh scripts.
