@@ -35,7 +35,7 @@ class RecordSummary:
     epoch_id: str | None = None
     context_ref: str | None = None
     context_digest: str | None = None
-    idempotency_outcome: str | None = None
+    idempotency_outcome: str | None = "disabled"
     errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

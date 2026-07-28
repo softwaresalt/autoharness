@@ -19,7 +19,7 @@ from autoharness.telemetry.epoch import (
     OperationalReality,
     RouteConfiguration,
 )
-from autoharness.telemetry.record import record_epoch
+from autoharness.telemetry.record import RecordSummary, record_epoch
 
 _ENABLED_CONFIG = """
 schema_version: "1.0.0"
@@ -63,6 +63,12 @@ class TelemetryRecordCliTests(unittest.TestCase):
     def _run(self, *extra: str) -> None:
         main(["telemetry", "record", "--from-json", str(self.payload_path),
               "--workspace", str(self.workspace), *extra])
+
+    def test_disabled_record_summary_defaults_idempotency_outcome(self) -> None:
+        self.assertEqual(
+            RecordSummary(enabled=False).to_dict()["idempotency_outcome"],
+            "disabled",
+        )
 
     def test_enabled_telemetry_reaches_both_sinks(self) -> None:
         self._write_config(_ENABLED_CONFIG)
@@ -346,11 +352,27 @@ class TelemetryRecordCliTests(unittest.TestCase):
         db_path = self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"
         self.assertFalse(db_path.exists())
 
+        import contextlib
+        import io
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            self._run("--json")
+        self.assertEqual(json.loads(stdout.getvalue())["idempotency_outcome"], "disabled")
+
     def test_absent_config_is_noop_success(self) -> None:
         # No config file at all ⇒ fail-open disabled, no-op success.
         self._run()
         db_path = self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"
         self.assertFalse(db_path.exists())
+
+        import contextlib
+        import io
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            self._run("--json")
+        self.assertEqual(json.loads(stdout.getvalue())["idempotency_outcome"], "disabled")
 
     def test_enabled_non_utf8_payload_file_exits_2(self) -> None:
         # A non-UTF-8 payload file on the ENABLED path must be a controlled
