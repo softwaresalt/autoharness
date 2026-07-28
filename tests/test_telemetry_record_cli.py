@@ -19,7 +19,7 @@ from autoharness.telemetry.epoch import (
     OperationalReality,
     RouteConfiguration,
 )
-from autoharness.telemetry.record import record_epoch
+from autoharness.telemetry.record import RecordSummary, record_epoch
 
 _ENABLED_CONFIG = """
 schema_version: "1.0.0"
@@ -63,6 +63,12 @@ class TelemetryRecordCliTests(unittest.TestCase):
     def _run(self, *extra: str) -> None:
         main(["telemetry", "record", "--from-json", str(self.payload_path),
               "--workspace", str(self.workspace), *extra])
+
+    def test_disabled_record_summary_defaults_idempotency_outcome(self) -> None:
+        self.assertEqual(
+            RecordSummary(enabled=False).to_dict()["idempotency_outcome"],
+            "disabled",
+        )
 
     def test_enabled_telemetry_reaches_both_sinks(self) -> None:
         self._write_config(_ENABLED_CONFIG)
@@ -346,11 +352,27 @@ class TelemetryRecordCliTests(unittest.TestCase):
         db_path = self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"
         self.assertFalse(db_path.exists())
 
+        import contextlib
+        import io
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            self._run("--json")
+        self.assertEqual(json.loads(stdout.getvalue())["idempotency_outcome"], "disabled")
+
     def test_absent_config_is_noop_success(self) -> None:
         # No config file at all ⇒ fail-open disabled, no-op success.
         self._run()
         db_path = self.workspace / ".autoharness" / "metrics" / "execution_epochs.db"
         self.assertFalse(db_path.exists())
+
+        import contextlib
+        import io
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            self._run("--json")
+        self.assertEqual(json.loads(stdout.getvalue())["idempotency_outcome"], "disabled")
 
     def test_enabled_non_utf8_payload_file_exits_2(self) -> None:
         # A non-UTF-8 payload file on the ENABLED path must be a controlled
@@ -587,6 +609,92 @@ class RecordEpochFailOpenTests(unittest.TestCase):
             self.assertFalse(summary.sqlite_written)
             self.assertTrue(summary.errors)
 
+    def test_missing_metric_provenance_is_reported_without_rejecting_epoch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=False,
+            )
+            epoch = ExecutionEpoch(
+                task_id="092.002-T",
+                route=RouteConfiguration(),
+                economics=EconomicPayload(input_tokens=10, output_tokens=5, cogs_usd=0.25),
+                operations=OperationalReality(
+                    expected_tool_count=1,
+                    expected_tool_counts={"engram.map_code": 1},
+                ),
+                outcome=AbsoluteOutcome(gate_exit_codes=(0,), tool_gap_count=1),
+            )
+
+            summary = record_epoch(epoch, config)
+
+            self.assertTrue(summary.sqlite_written)
+            self.assertEqual(summary.idempotency_outcome, "created")
+            self.assertEqual(summary.errors, [])
+            self.assertEqual(
+                summary.to_dict()["missing_provenance"],
+                {
+                    "economics": ["input_tokens", "output_tokens", "cogs_usd"],
+                    "operations": ["expected_tool_count", "expected_tool_counts"],
+                    "outcome": ["tool_gap_count"],
+                },
+            )
+
+    def test_fully_provenanced_epoch_reports_no_missing_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=False,
+            )
+            epoch = ExecutionEpoch(
+                task_id="092.002-T",
+                route=RouteConfiguration(),
+                economics=EconomicPayload(
+                    input_tokens=10,
+                    output_tokens=5,
+                    cogs_usd=0.25,
+                    metric_sources={
+                        "input_tokens": "test",
+                        "output_tokens": "test",
+                        "cogs_usd": "test",
+                    },
+                    metric_quality={
+                        "input_tokens": "observed",
+                        "output_tokens": "observed",
+                        "cogs_usd": "observed",
+                    },
+                ),
+                operations=OperationalReality(
+                    expected_tool_count=1,
+                    expected_tool_counts={"engram.map_code": 1},
+                    metric_sources={
+                        "expected_tool_count": "test",
+                        "expected_tool_counts": "test",
+                    },
+                    metric_quality={
+                        "expected_tool_count": "observed",
+                        "expected_tool_counts": "observed",
+                    },
+                ),
+                outcome=AbsoluteOutcome(
+                    gate_exit_codes=(0,),
+                    tool_gap_count=1,
+                    metric_sources={"tool_gap_count": "test"},
+                    metric_quality={"tool_gap_count": "observed"},
+                ),
+            )
+
+            summary = record_epoch(epoch, config)
+
+            self.assertEqual(summary.idempotency_outcome, "created")
+            self.assertEqual(summary.to_dict()["missing_provenance"], {})
+
     def test_partial_sink_failure_repairs_missing_jsonl_on_identical_retry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
@@ -612,6 +720,32 @@ class RecordEpochFailOpenTests(unittest.TestCase):
             self.assertTrue(retry.sqlite_written)
             self.assertTrue(retry.jsonl_written)
             self.assertEqual(len(config.jsonl_path.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_record_epoch_reuses_jsonl_preflight_scan_for_append(self) -> None:
+        from autoharness.telemetry import jsonl_sink
+
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            jsonl_path = workspace / ".autoharness" / "metrics" / "execution_epochs.jsonl"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=None,
+                emit_jsonl=True,
+                jsonl_path=jsonl_path,
+            )
+            jsonl_sink.append_epoch(self._epoch(), jsonl_path)
+
+            with mock.patch.object(
+                jsonl_sink,
+                "scan_epoch_digest",
+                wraps=jsonl_sink.scan_epoch_digest,
+            ) as scan:
+                summary = record_epoch(self._epoch(), config)
+
+            self.assertEqual(summary.idempotency_outcome, "created")
+            self.assertEqual(summary.jsonl_status, "created")
+            self.assertEqual(scan.call_count, 1)
 
     def test_conflicting_retry_after_partial_sqlite_success_writes_no_missing_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

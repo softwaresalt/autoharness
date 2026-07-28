@@ -8,6 +8,7 @@ import io
 import json
 import shutil
 import sqlite3
+import subprocess
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -150,6 +151,138 @@ class ShipTelemetryLifecycleTests(unittest.TestCase):
                 self.assertEqual(persisted["sizing"]["task_size_label"], "S")
                 self.assertEqual(persisted["sizing"]["feature_child_membership_hash"], snapshot.feature_child_membership_hash)
                 self.assertNotEqual(persisted["sizing"]["feature_child_membership_hash"], mutated_snapshot.feature_child_membership_hash)
+        finally:
+            shutil.rmtree(_TEST_OUTPUT / self._testMethodName, ignore_errors=True)
+
+    def test_ship_lifecycle_begin_refreshes_backlogit_before_freezing_sizing_via_cli(self) -> None:
+        workspace = _TEST_OUTPUT / self._testMethodName / "workspace"
+        workspace.mkdir(parents=True, exist_ok=True)
+        (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+        (workspace / ".autoharness" / "config.yaml").write_text(
+            'telemetry:\n  mode: "sqlite"\n  emit_jsonl: true\n',
+            encoding="utf-8",
+        )
+        payload_path = workspace / "close.json"
+        payload_path.write_text(
+            json.dumps(
+                {
+                    "task_id": "092.004-T",
+                    "route": {"models": ["gpt-5.4-mini"]},
+                    "economics": {"input_tokens": 10, "output_tokens": 5},
+                    "operations": {"cli_tools": ["unittest"]},
+                    "outcome": {"gate_exit_codes": [0]},
+                }
+            ),
+            encoding="utf-8",
+        )
+        state = {"synced": False, "members": ["stale-a"]}
+        calls: list[tuple[str, ...]] = []
+
+        def composition() -> dict:
+            members = state["members"] if state["synced"] else ["stale-a"]
+            return {
+                "histogram": {"S": 1},
+                "members": [{"id": item, "artifact_type": "task"} for item in members],
+                "skipped": [],
+                "ruleset_version": "fake-rules-v1",
+            }
+
+        def item_payload(item_id: str) -> dict:
+            if item_id == "092.004-T":
+                return {
+                    "id": item_id,
+                    "artifact_type": "task",
+                    "custom_fields": {"size": "S"},
+                    "updated_at": "task-rev",
+                }
+            return {
+                "id": item_id,
+                "artifact_type": "feature" if item_id == "092-F" else "shipment",
+                "size_composition": composition(),
+                "updated_at": f"{item_id}-rev",
+            }
+
+        def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+            self.assertEqual(cmd[0], "fake-backlogit")
+            self.assertIn("--cwd", cmd)
+            self.assertEqual(Path(cmd[cmd.index("--cwd") + 1]), workspace)
+            argv = tuple(part for part in cmd[cmd.index("--cwd") + 2:] if part != "--no-update-check")
+            calls.append(argv)
+            if argv == ("sync",):
+                state["synced"] = True
+                state["members"] = ["fresh-a", "fresh-b"]
+                return subprocess.CompletedProcess(cmd, 0, stdout="Indexed 3 artifacts\n")
+            if len(argv) >= 3 and argv[0] == "get" and argv[2:] == ("--format", "json"):
+                return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(item_payload(argv[1])))
+            raise AssertionError(f"unexpected fake backlogit command: {argv}")
+
+        try:
+            begin_out = io.StringIO()
+            with mock.patch("autoharness.telemetry.sizing.subprocess.run", side_effect=fake_run):
+                with contextlib.redirect_stdout(begin_out):
+                    main(
+                        [
+                            "telemetry",
+                            "begin",
+                            "--workspace",
+                            str(workspace),
+                            "--task-id",
+                            "092.004-T",
+                            "--feature-id",
+                            "092-F",
+                            "--shipment-id",
+                            "097-S",
+                            "--capture-backlogit-sizing",
+                            "--backlogit",
+                            "fake-backlogit",
+                            "--epoch-id",
+                            "34343434-3434-4434-8434-343434343434",
+                            "--json",
+                        ]
+                    )
+            begin = json.loads(begin_out.getvalue())
+            state["members"] = ["mutated-after-begin"]
+
+            record_out = io.StringIO()
+            with contextlib.redirect_stdout(record_out):
+                main(
+                    [
+                        "telemetry",
+                        "record",
+                        "--workspace",
+                        str(workspace),
+                        "--from-json",
+                        str(payload_path),
+                        "--context-ref",
+                        begin["context_ref"],
+                        "--json",
+                    ]
+                )
+            record = json.loads(record_out.getvalue())
+
+            self.assertEqual(calls[0], ("sync",))
+            self.assertLess(calls.index(("sync",)), calls.index(("get", "092-F", "--format", "json")))
+            self.assertLess(calls.index(("sync",)), calls.index(("get", "097-S", "--format", "json")))
+            self.assertEqual(record["idempotency_outcome"], "created")
+            db_path = workspace / ".autoharness" / "metrics" / "execution_epochs.db"
+            jsonl_path = workspace / ".autoharness" / "metrics" / "execution_epochs.jsonl"
+            conn = sqlite3.connect(str(db_path))
+            try:
+                sqlite_payload = json.loads(
+                    conn.execute("SELECT payload_json FROM execution_epochs WHERE epoch_id=?", (begin["epoch_id"],)).fetchone()[0]
+                )
+            finally:
+                conn.close()
+            jsonl_payload = json.loads(jsonl_path.read_text(encoding="utf-8").splitlines()[0])
+
+            fresh_hash = WorkSizingSnapshot.membership_hash(["fresh-a", "fresh-b"])
+            mutated_hash = WorkSizingSnapshot.membership_hash(["mutated-after-begin"])
+            for persisted in (sqlite_payload, jsonl_payload):
+                self.assertEqual(persisted["sizing"]["task_size_label"], "S")
+                self.assertEqual(persisted["sizing"]["feature_child_membership_hash"], fresh_hash)
+                self.assertEqual(persisted["sizing"]["shipment_membership_hash"], fresh_hash)
+                self.assertNotEqual(persisted["sizing"]["feature_child_membership_hash"], mutated_hash)
+                self.assertNotEqual(persisted["sizing"]["shipment_membership_hash"], mutated_hash)
         finally:
             shutil.rmtree(_TEST_OUTPUT / self._testMethodName, ignore_errors=True)
 

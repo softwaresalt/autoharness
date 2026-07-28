@@ -35,8 +35,9 @@ class RecordSummary:
     epoch_id: str | None = None
     context_ref: str | None = None
     context_digest: str | None = None
-    idempotency_outcome: str | None = None
+    idempotency_outcome: str | None = "disabled"
     errors: list[str] = field(default_factory=list)
+    missing_provenance: dict[str, list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -50,14 +51,36 @@ class RecordSummary:
             "context_ref": self.context_ref,
             "context_digest": self.context_digest,
             "idempotency_outcome": self.idempotency_outcome,
+            "missing_provenance": {
+                section: list(metrics)
+                for section, metrics in self.missing_provenance.items()
+            },
             "errors": list(self.errors),
         }
 
 
-def _preflight_conflict(epoch: ExecutionEpoch, config: TelemetryConfig, summary: RecordSummary) -> bool:
+def _missing_provenance(epoch: ExecutionEpoch) -> dict[str, list[str]]:
+    sections = {
+        "economics": epoch.economics.missing_provenance(),
+        "operations": epoch.operations.missing_provenance(),
+        "outcome": epoch.outcome.missing_provenance(),
+    }
+    return {
+        section: list(metrics)
+        for section, metrics in sections.items()
+        if metrics
+    }
+
+
+def _preflight_conflict(
+    epoch: ExecutionEpoch,
+    config: TelemetryConfig,
+    summary: RecordSummary,
+) -> tuple[bool, Any | None]:
     digest = sqlite_sink.payload_digest(epoch)
     summary.payload_digest = digest
     observed: list[tuple[str, str]] = []
+    jsonl_preflight = None
 
     if config.database_path is not None:
         try:
@@ -69,7 +92,8 @@ def _preflight_conflict(epoch: ExecutionEpoch, config: TelemetryConfig, summary:
 
     if config.emit_jsonl and config.jsonl_path is not None:
         try:
-            existing = jsonl_sink.find_epoch_digest(config.jsonl_path, epoch.epoch_id)
+            jsonl_preflight = jsonl_sink.scan_epoch_digest(config.jsonl_path, epoch.epoch_id)
+            existing = jsonl_preflight.existing_digest
             if existing is not None:
                 observed.append(("jsonl", existing))
         except Exception as exc:
@@ -85,8 +109,8 @@ def _preflight_conflict(epoch: ExecutionEpoch, config: TelemetryConfig, summary:
             f"immutable epoch conflict for {epoch.epoch_id}: " + "; ".join(conflicts)
         )
         summary.idempotency_outcome = "conflict_rejected"
-        return True
-    return False
+        return True, jsonl_preflight
+    return False, jsonl_preflight
 
 
 def _finalize_idempotency(summary: RecordSummary) -> None:
@@ -116,7 +140,10 @@ def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummar
         summary.idempotency_outcome = "disabled"
         return summary
 
-    if _preflight_conflict(epoch, config, summary):
+    summary.missing_provenance = _missing_provenance(epoch)
+
+    has_conflict, jsonl_preflight = _preflight_conflict(epoch, config, summary)
+    if has_conflict:
         return summary
 
     if config.database_path is not None:
@@ -137,7 +164,11 @@ def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummar
 
     if config.emit_jsonl and config.jsonl_path is not None:
         try:
-            jsonl_result = jsonl_sink.append_epoch(epoch, config.jsonl_path)
+            jsonl_result = jsonl_sink.append_epoch(
+                epoch,
+                config.jsonl_path,
+                preflight=jsonl_preflight,
+            )
             summary.jsonl_status = jsonl_result.status
             summary.payload_digest = jsonl_result.payload_digest
             summary.jsonl_written = True
