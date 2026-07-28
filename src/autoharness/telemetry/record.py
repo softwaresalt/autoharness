@@ -36,8 +36,8 @@ class RecordSummary:
     context_ref: str | None = None
     context_digest: str | None = None
     idempotency_outcome: str | None = "disabled"
-    missing_provenance: dict[str, list[str]] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    missing_provenance: dict[str, list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
