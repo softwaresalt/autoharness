@@ -36,6 +36,7 @@ class RecordSummary:
     context_ref: str | None = None
     context_digest: str | None = None
     idempotency_outcome: str | None = "disabled"
+    missing_provenance: dict[str, list[str]] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -50,8 +51,25 @@ class RecordSummary:
             "context_ref": self.context_ref,
             "context_digest": self.context_digest,
             "idempotency_outcome": self.idempotency_outcome,
+            "missing_provenance": {
+                section: list(metrics)
+                for section, metrics in self.missing_provenance.items()
+            },
             "errors": list(self.errors),
         }
+
+
+def _missing_provenance(epoch: ExecutionEpoch) -> dict[str, list[str]]:
+    sections = {
+        "economics": epoch.economics.missing_provenance(),
+        "operations": epoch.operations.missing_provenance(),
+        "outcome": epoch.outcome.missing_provenance(),
+    }
+    return {
+        section: list(metrics)
+        for section, metrics in sections.items()
+        if metrics
+    }
 
 
 def _preflight_conflict(epoch: ExecutionEpoch, config: TelemetryConfig, summary: RecordSummary) -> bool:
@@ -115,6 +133,8 @@ def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummar
     if not config.enabled:
         summary.idempotency_outcome = "disabled"
         return summary
+
+    summary.missing_provenance = _missing_provenance(epoch)
 
     if _preflight_conflict(epoch, config, summary):
         return summary

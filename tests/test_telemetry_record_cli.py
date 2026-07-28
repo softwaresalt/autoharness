@@ -609,6 +609,92 @@ class RecordEpochFailOpenTests(unittest.TestCase):
             self.assertFalse(summary.sqlite_written)
             self.assertTrue(summary.errors)
 
+    def test_missing_metric_provenance_is_reported_without_rejecting_epoch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=False,
+            )
+            epoch = ExecutionEpoch(
+                task_id="092.002-T",
+                route=RouteConfiguration(),
+                economics=EconomicPayload(input_tokens=10, output_tokens=5, cogs_usd=0.25),
+                operations=OperationalReality(
+                    expected_tool_count=1,
+                    expected_tool_counts={"engram.map_code": 1},
+                ),
+                outcome=AbsoluteOutcome(gate_exit_codes=(0,), tool_gap_count=1),
+            )
+
+            summary = record_epoch(epoch, config)
+
+            self.assertTrue(summary.sqlite_written)
+            self.assertEqual(summary.idempotency_outcome, "created")
+            self.assertEqual(summary.errors, [])
+            self.assertEqual(
+                summary.to_dict()["missing_provenance"],
+                {
+                    "economics": ["input_tokens", "output_tokens", "cogs_usd"],
+                    "operations": ["expected_tool_count", "expected_tool_counts"],
+                    "outcome": ["tool_gap_count"],
+                },
+            )
+
+    def test_fully_provenanced_epoch_reports_no_missing_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / ".autoharness" / "metrics" / "execution_epochs.db"
+            config = TelemetryConfig(
+                enabled=True,
+                mode="sqlite",
+                database_path=db_path,
+                emit_jsonl=False,
+            )
+            epoch = ExecutionEpoch(
+                task_id="092.002-T",
+                route=RouteConfiguration(),
+                economics=EconomicPayload(
+                    input_tokens=10,
+                    output_tokens=5,
+                    cogs_usd=0.25,
+                    metric_sources={
+                        "input_tokens": "test",
+                        "output_tokens": "test",
+                        "cogs_usd": "test",
+                    },
+                    metric_quality={
+                        "input_tokens": "observed",
+                        "output_tokens": "observed",
+                        "cogs_usd": "observed",
+                    },
+                ),
+                operations=OperationalReality(
+                    expected_tool_count=1,
+                    expected_tool_counts={"engram.map_code": 1},
+                    metric_sources={
+                        "expected_tool_count": "test",
+                        "expected_tool_counts": "test",
+                    },
+                    metric_quality={
+                        "expected_tool_count": "observed",
+                        "expected_tool_counts": "observed",
+                    },
+                ),
+                outcome=AbsoluteOutcome(
+                    gate_exit_codes=(0,),
+                    tool_gap_count=1,
+                    metric_sources={"tool_gap_count": "test"},
+                    metric_quality={"tool_gap_count": "observed"},
+                ),
+            )
+
+            summary = record_epoch(epoch, config)
+
+            self.assertEqual(summary.idempotency_outcome, "created")
+            self.assertEqual(summary.to_dict()["missing_provenance"], {})
+
     def test_partial_sink_failure_repairs_missing_jsonl_on_identical_retry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
