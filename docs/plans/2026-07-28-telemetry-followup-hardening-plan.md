@@ -392,20 +392,22 @@ follow-ups: JSONL rotation/retention and any future strict provenance gate.
 
 Create one covering feature and five child tasks, one per implementation unit.
 Every task must reference this plan and include test-first acceptance criteria.
-The queued shipment manifest must include the feature first and
-`custom_fields.items` listing the five task IDs for Ship's safe-close contract.
+The queued shipment manifest `custom_fields.items` must list ONLY the five child
+task IDs. Ship derives and protects the covering feature from each task's
+`parent_id` per its safe-close contract, so `092-F` MUST NOT appear in the
+manifest items (listing it would cause closure to archive the feature itself).
 
 ## Harvest Results
 
 * Covering feature: `092-F` — Telemetry subsystem follow-up hardening
 * Queued shipment: `097-S`
-* Shipment manifest `custom_fields.items`:
-  1. `092-F`
-  2. `092.001-T` — Default disabled telemetry RecordSummary idempotency outcome
-  3. `092.002-T` — Flag missing telemetry metric provenance at record time
-  4. `092.003-T` — Reuse JSONL preflight scans without weakening replay checks
-  5. `092.004-T` — Cover telemetry begin backlogit freshness through Ship lifecycle CLI
-  6. `092.005-T` — Report ordinal size-label cost monotonicity observations
+* Shipment manifest `custom_fields.items` (task IDs only; covering feature
+  `092-F` is derived via `parent_id`, not listed):
+  1. `092.001-T` — Default disabled telemetry RecordSummary idempotency outcome
+  2. `092.002-T` — Flag missing telemetry metric provenance at record time
+  3. `092.003-T` — Reuse JSONL preflight scans without weakening replay checks
+  4. `092.004-T` — Cover telemetry begin backlogit freshness through Ship lifecycle CLI
+  5. `092.005-T` — Report ordinal size-label cost monotonicity observations
 * Dependency edges:
   * `092.002-T` depends on `092.001-T`
   * `092.003-T` depends on `092.002-T`
