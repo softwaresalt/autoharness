@@ -54,9 +54,21 @@ _STACK_TRACE_PATTERNS = [
 ]
 
 _FAILURE_BEARING_PATTERNS = [
-    re.compile(r"(?i)exit code:\s*[1-9]\d*"),
-    re.compile(r"(?i)exit status\s*[1-9]\d*"),
-    re.compile(r"(?i)returncode=[1-9]\d*"),
+    # Non-zero exit code, colon optional: "exit code: 1", "exit code 1".
+    re.compile(r"(?i)exit code:?\s*[1-9]\d*"),
+    # Non-zero exit status, colon optional: "exit status 1", "exit status: 1".
+    re.compile(r"(?i)exit status:?\s*[1-9]\d*"),
+    # "exited with code 1", "exited with exit code 1",
+    # "Process finished with exit code 1" (non-zero only).
+    re.compile(r"(?i)(?:exited|finished) with (?:exit )?code:?\s*[1-9]\d*"),
+    # returncode, "=" or whitespace separated, non-zero:
+    # "returncode=1", "returncode 1".
+    re.compile(r"(?i)returncode[=\s]\s*[1-9]\d*"),
+    # GNU make failure line: "*** [target] Error 1", "make: *** [x] Error 2".
+    re.compile(r"\*\*\*\s*\[[^\]]*\]\s+Error\s+[1-9]\d*"),
+    # npm failure marker.
+    re.compile(r"(?i)npm ERR!"),
+    # stderr marker.
     re.compile(r"(?i)^stderr:", re.MULTILINE),
 ]
 
