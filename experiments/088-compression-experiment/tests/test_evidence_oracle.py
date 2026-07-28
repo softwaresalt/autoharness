@@ -58,3 +58,51 @@ def test_fails_when_stderr_line_dropped():
     compressed = "output summary\n...omitted..."
     result = evaluate_oracle(original, compressed)
     assert result.passed is False
+
+
+# --- 093.002-T: broadened colon-agnostic failure-signal parity -------------
+#
+# The oracle required-fact patterns must recognize the SAME broadened
+# non-zero-exit / stderr forms as policy.py (093.001-T), so a compressed
+# view that drops one of these failure facts is reported as evidence loss
+# regardless of colon form. The oracle intentionally still matches zero-exit
+# forms and uses whole-line matches for markers such as `npm ERR!`.
+
+
+def test_oracle_flags_dropped_exit_code_no_colon():
+    original = "line\n" * 40 + "exit code 1\n" + "line\n" * 40
+    compressed = "head lines...\n...tail lines (no exit status)"
+    result = evaluate_oracle(original, compressed)
+    assert result.passed is False
+    assert any("exit code 1" in fact for fact in result.missing_facts)
+
+
+def test_oracle_passes_when_exit_code_no_colon_preserved():
+    original = "line\n" * 40 + "exit code 1\n" + "line\n" * 40
+    compressed = "head...\nexit code 1\n...tail"
+    result = evaluate_oracle(original, compressed)
+    assert result.passed is True
+
+
+def test_oracle_flags_dropped_exited_with_code():
+    original = "build\n" + ("padding\n" * 40) + "exited with code 1\n"
+    compressed = "build summary\n...omitted..."
+    result = evaluate_oracle(original, compressed)
+    assert result.passed is False
+
+
+def test_oracle_flags_dropped_make_error_line():
+    original = "compiling\n" + ("padding\n" * 40) + "make: *** [build] Error 2\n"
+    compressed = "compiling summary\n...omitted..."
+    result = evaluate_oracle(original, compressed)
+    assert result.passed is False
+    assert any("Error 2" in fact for fact in result.missing_facts)
+
+
+def test_oracle_flags_dropped_npm_err_whole_line():
+    original = "installing\n" + ("padding\n" * 40) + "npm ERR! code ELIFECYCLE\n"
+    compressed = "installing summary\n...omitted..."
+    result = evaluate_oracle(original, compressed)
+    assert result.passed is False
+    # Whole-line marker match: the full npm ERR! line is the required fact.
+    assert any("npm ERR! code ELIFECYCLE" in fact for fact in result.missing_facts)

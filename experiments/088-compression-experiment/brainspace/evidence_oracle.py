@@ -13,9 +13,17 @@ import re
 from dataclasses import dataclass, field
 
 _FACT_PATTERNS = [
-    re.compile(r"(?i)exit code:\s*\d+"),
-    re.compile(r"(?i)exit status\s*\d+"),
-    re.compile(r"(?i)returncode=\d+"),
+    re.compile(r"(?i)exit code:?\s*\d+"),
+    re.compile(r"(?i)exit status:?\s*\d+"),
+    # "exited with code 1", "Process finished with exit code 1"
+    # (zero-exit forms also flagged -- evidence preservation is form-based).
+    re.compile(r"(?i)(?:exited|finished) with (?:exit )?code:?\s*\d+"),
+    re.compile(r"(?i)returncode[=\s]\s*\d+"),
+    # GNU make failure line: "*** [target] Error 1".
+    re.compile(r"\*\*\*\s*\[[^\]]*\]\s+Error\s+\d+"),
+    # npm failure marker -- whole-line match so the full marker line is the
+    # required fact.
+    re.compile(r"(?im)^.*npm ERR!.*$"),
     re.compile(r"(?im)^stderr:.*$"),
     re.compile(r"P-0\d\d\s+(?:GATE|VIOLATION)[^\n]*"),
     re.compile(r"\bHEAD=\S+"),

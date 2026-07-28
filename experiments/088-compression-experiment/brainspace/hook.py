@@ -56,9 +56,16 @@ _HUNK_HEADER_RE = re.compile(r"^@@ .*@@", re.MULTILINE)
 _COMMIT_HEADER_RE = re.compile(r"^commit [0-9a-f]{7,40}\b", re.MULTILINE)
 
 _EVIDENCE_LINE_PATTERNS = [
-    re.compile(r"(?i)exit code:\s*\d+"),
-    re.compile(r"(?i)exit status\s*\d+"),
-    re.compile(r"(?i)returncode=\d+"),
+    re.compile(r"(?i)exit code:?\s*\d+"),
+    re.compile(r"(?i)exit status:?\s*\d+"),
+    # "exited with code 1", "exited with exit code 1",
+    # "Process finished with exit code 1" (zero-exit forms also protected).
+    re.compile(r"(?i)(?:exited|finished) with (?:exit )?code:?\s*\d+"),
+    re.compile(r"(?i)returncode[=\s]\s*\d+"),
+    # GNU make failure line: "*** [target] Error 1".
+    re.compile(r"\*\*\*\s*\[[^\]]*\]\s+Error\s+\d+"),
+    # npm failure marker.
+    re.compile(r"(?i)npm ERR!"),
     re.compile(r"(?i)^stderr:"),
     re.compile(r"P-0\d\d\s+(?:GATE|VIOLATION)"),
     re.compile(r"\bHEAD=\S+"),
