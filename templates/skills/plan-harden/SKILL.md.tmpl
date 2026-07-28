@@ -30,6 +30,7 @@ The same plan file, updated with a `## Plan Hardening` section that records:
 * reinforced instructions and learnings consulted
 * risky actions using the `ProposedAction` / `ActionRisk` / `ActionResult` vocabulary when applicable
 * added verification, rollback, monitoring, and operator-checkpoint detail
+* review-gate capability risks, including expected `dispatch_mode:` / `decision:` markers and any P-012 degraded-review conditions that must be carried into plan review
 
 ## Required Protocol
 
@@ -50,7 +51,7 @@ them implicit.
 ### Phase 1: Read the Plan and Confirm Hardening Need
 
 1. Read the plan file.
-2. Extract the hardening signals, runtime surfaces, risky actions, and open
+2. Extract the hardening signals, runtime surfaces, risky actions, review-gate capability risks, and open
    rollout questions.
 3. Confirm whether extra hardening is required before plan review.
 
@@ -79,6 +80,8 @@ Enrich the plan so risky work is specific and reviewable:
   rollback procedure, owner, and validation window
 * call out human checkpoints, partial-rollout constraints, or fallback paths for
   external integrations and browser/runtime dependencies
+* carry forward review-gate capability risks so plan review must emit literal
+  `dispatch_mode:` and `decision:` markers and declare any fallback before harvest
 
 ### Phase 4: Append the Hardening Record
 
@@ -88,6 +91,8 @@ Append a `## Plan Hardening` section to the plan with:
 * the learnings and instruction files consulted
 * any `ProposedAction` / `ActionRisk` entries that must be carried forward
 * the added verification, closure, and rollback detail
+* any review-gate capability risk, required fallback declaration, and expected
+  `dispatch_mode:` / `decision:` marker handling
 * unresolved operator decisions that still block safe execution
 
 ## Quality Criteria

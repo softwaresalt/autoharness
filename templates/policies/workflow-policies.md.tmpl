@@ -288,19 +288,22 @@ P-005 violation event.
 | Applies To | All agents and skills                    |
 | Gate Point | Session start (Step 0.0) before any pipeline work |
 
-**Statement**: Agents must probe configured tools before relying on them and must explicitly declare degraded mode when a configured tool is unavailable. Silent fallback to ad hoc filesystem operations (grep, cat, find) when a configured tool is expected is a policy violation.
+**Statement**: Agents must probe configured tools and required workflow capabilities before relying on them, and must explicitly declare degraded mode when a configured tool or required capability is unavailable. Silent fallback to ad hoc filesystem operations (`grep`, `cat`, `find`), silent reviewer-dispatch skips, or other undeclared substitutions when a configured surface is expected is a policy violation.
 
-**Required actions at session start**:
-1. Check for `.autoharness/backlog-registry.yaml`. If present, identify required operations.
-2. Probe each required tool with a read-only lightweight operation.
-3. On failure: check for a registry-declared CLI fallback (`cli_command` field).
-   - If CLI fallback exists: log `TOOL_DEGRADED: {tool_name} — using CLI fallback` and proceed.
-   - If no fallback: halt with `TOOL_UNAVAILABLE: {tool_name}`.
-4. On success: log `TOOL_OK: {tool_name}`.
+**Required actions at session start or before a skill depends on the surface**:
+1. Check for `.autoharness/backlog-registry.yaml`. If present, identify required backlog operations.
+2. Identify required non-registry workflow capabilities for the current phase, such as reviewer subagent dispatch, model-specific reviewer routing, intercom approval routing, indexed retrieval, or CI/PR automation.
+3. Probe each required tool or capability with a read-only lightweight operation when a probe exists. On success, log `TOOL_OK: {tool_or_capability}`.
+4. For registry-backed backlog tools that fail: check for a registry-declared CLI fallback (`cli_command` field).
+   - If CLI fallback exists: log `TOOL_DEGRADED: {tool_name} — using CLI fallback: {cli_command}` and proceed through that fallback.
+   - If no fallback exists: halt with `TOOL_UNAVAILABLE: {tool_name}`.
+5. For required non-registry workflow capabilities that fail or cannot be probed:
+   - If the skill defines a safe deterministic fallback (for example, `dispatch_mode: single-agent-declared-degradation` with the same persona rubric applied inline), log `TOOL_DEGRADED: {capability} — declared fallback: {fallback_mode}`, record the degraded mode in the skill output, and continue only if the skill's minimum coverage and decision rules are still satisfiable.
+   - If no safe fallback exists, halt with `TOOL_UNAVAILABLE: {capability}` before depending on that capability.
 
-**Forbidden**: Silently bypassing a configured tool with ad hoc `grep`, `cat`, or directory scans when the backlog tool is registered but unavailable. This masks configuration problems and produces incorrect results.
+**Forbidden**: Silently bypassing a configured backlog tool with ad hoc filesystem scans, silently skipping required reviewer subagent dispatch, or silently replacing a model-specific/capability-specific workflow with same-model inline work without a `TOOL_DEGRADED` record and a machine-readable fallback marker. These mask configuration problems and produce incorrect readiness signals.
 
-**Exception**: When no backlog tool is registered (no `.autoharness/backlog-registry.yaml` or empty registry), file-backed manual mode is the intentional operating mode, not a degradation.
+**Exception**: When no backlog tool is registered (no `.autoharness/backlog-registry.yaml` or empty registry), file-backed manual mode is the intentional operating mode, not a degradation. Optional capabilities that are not selected for the current phase are not degradations; once a skill declares a capability required, P-012 applies.
 
 **Violation Action**: Log `POLICY_VIOLATION: P-012 — silent fallback detected` (via P-005 telemetry), surface the degradation explicitly, and re-evaluate whether the session can continue safely.
 

@@ -1,6 +1,6 @@
 ---
 name: Adversarial Review
-description: "Multi-model parallel review using independent reviewer agents with different models, assembled into a consensus report with confidence-weighted findings and remediation queue. Supports alternate model providers (e.g., Gemini) for reviewer diversity and a post-remediation re-review phase."
+description: "Multi-model parallel review using independent reviewer agents with different models, assembled into a consensus report with confidence-weighted findings and remediation queue. Supports a first-class anchor reviewer route, alternate model providers (e.g., Gemini), and a post-remediation re-review phase."
 maturity: stable
 tools: read, agent, search, edit
 max_subagent_tier: 1
@@ -9,6 +9,9 @@ model_provider: "{{TIER_3_PROVIDER}}"
 model_family: "{{TIER_3_FAMILY}}"
 alt_review_provider: "{{ALT_REVIEW_PROVIDER}}"
 alt_review_family: "{{ALT_REVIEW_FAMILY}}"
+anchor_review_provider: "{{ANCHOR_REVIEW_PROVIDER}}"
+anchor_review_family: "{{ANCHOR_REVIEW_FAMILY}}"
+anchor_review_reasoning_effort: "{{ANCHOR_REVIEW_REASONING_EFFORT}}"
 subagent_depth: 2
 ---
 
@@ -32,6 +35,12 @@ may be a false positive — or a subtle issue that only one model caught. The pr
 preserves both signals with appropriate confidence labels, rather than losing unique
 findings or trusting any single model too much.
 
+Anchor Reviewer support (`{{ANCHOR_REVIEW_PROVIDER}}` / `{{ANCHOR_REVIEW_FAMILY}}`)
+adds a first-class reviewer route, defaulting to OpenAI GPT-5.6 Sol where supported,
+without replacing Tier 1/2/3 diversity. If the anchor route cannot be dispatched,
+record a declared fallback and continue only when the remaining reviewer pool still
+satisfies the consensus minimum.
+
 Alternate model provider support (`{{ALT_REVIEW_PROVIDER}}` / `{{ALT_REVIEW_FAMILY}}`)
 allows reviewer slots to be assigned to Gemini or other providers outside the standard
 tier routing set, ensuring reviewer diversity is not limited to a single provider's
@@ -48,17 +57,27 @@ model family.
 
 * `files`: (Required) Files or diff to review. Can be a list of paths, a git diff
   ref (e.g., `HEAD~1`), or a PR number.
-* `reviewers`: (Optional) Number of parallel reviewer instances. Default: 3.
-  Minimum: 2 (a single reviewer provides no consensus signal). Maximum: 5.
-* `models`: (Optional) Model tiers to use for each reviewer instance. Default:
-  one Tier 1, one Tier 2, one Tier 3 model — ensuring diversity across the
-  speed/quality spectrum. Specify as a list matching the `reviewers` count, or
-  leave unset to use the default tier distribution.
+* `reviewers`: (Optional) Total number of parallel reviewer instances, including
+  the Anchor Reviewer when the anchor route is dispatchable. Default: 4 with a
+  dispatchable anchor route (Anchor + Tier 1 + Tier 2 + Tier 3), otherwise 3
+  (Tier 1 + Tier 2 + Tier 3). Minimum: 2 (a single reviewer provides no
+  consensus signal). Maximum: 5.
+* `models`: (Optional) Model tiers/routes to use for each reviewer instance.
+  Specify a list matching the `reviewers` count, including `anchor_review` when
+  assigning an Anchor Reviewer slot. When unset, use the count-specific mapping
+  in Phase 1 so every accepted reviewer count has a deterministic slot map.
 * `alt_provider`: (Optional) Alternate model provider name (e.g., `google`).
   Overrides `{{ALT_REVIEW_PROVIDER}}` for this invocation. When set, one reviewer
   slot is assigned to the alternate provider.
 * `alt_family`: (Optional) Alternate model family (e.g., `gemini-2.5-flash`).
   Overrides `{{ALT_REVIEW_FAMILY}}` for this invocation. Paired with `alt_provider`.
+* `anchor_provider`: (Optional) Anchor reviewer provider. Overrides
+  `{{ANCHOR_REVIEW_PROVIDER}}` for this invocation.
+* `anchor_family`: (Optional) Anchor reviewer model family. Overrides
+  `{{ANCHOR_REVIEW_FAMILY}}` for this invocation.
+* `anchor_reasoning_effort`: (Optional) Anchor reviewer reasoning effort.
+  Overrides `{{ANCHOR_REVIEW_REASONING_EFFORT}}`; empty means use the model
+  default.
 * `ruleset`: (Optional) Path to a ruleset file. Defaults to
   `.github/copilot-review-instructions.md` if present, otherwise uses the
   built-in harness review ruleset.
@@ -74,12 +93,16 @@ model family.
    These require mandatory remediation before merge.
 2. **Majority findings** (confidence: MEDIUM) — Flagged by more than half of agents.
    Require explicit acknowledgment (fix or defer with rationale).
-3. **Unique findings** (confidence: LOW) — Flagged by exactly one agent.
+3. **Plurality findings** (confidence: MEDIUM) — Flagged by more than one reviewer
+   but not by a strict majority, such as 2 of 4 reviewers. These are not consensus,
+   but they are stronger than unique observations and require explicit
+   acknowledgment.
+4. **Unique findings** (confidence: LOW) — Flagged by exactly one agent.
    Preserved as observations; human judgment required on whether to act.
-4. **Remediation plan** — Ordered action list combining all findings, sorted by
+5. **Remediation plan** — Ordered action list combining all findings, sorted by
    `confidence × severity`, with estimated action class (`safe_auto`, `gated_auto`,
    `manual`, `advisory`).
-5. **Bug/issue queue entries** — For each P0 and P1 finding, a structured work item
+6. **Bug/issue queue entries** — For each P0 and P1 finding, a structured work item
    ready to create in the backlog using `{{OP_CREATE_CLI}}`.
 
 Output file at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-review.md`.
@@ -90,34 +113,53 @@ Output file at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-review.md`.
 
 1. Resolve the file list or diff to review.
 2. Load the ruleset from the specified path or the default.
-3. Determine the reviewer count and model tier assignment:
-   * Default (3 reviewers): Reviewer-A = Tier 1 (fast/cheap), Reviewer-B = Tier 2
-     (standard), Reviewer-C = Tier 3 (frontier).
-   * For 4 reviewers: add a second Tier 2 with a different model identifier.
-   * For 5 reviewers: add Tier 1 and Tier 2 variants.
-4. Apply alternate model provider assignment:
+3. Determine the reviewer count and model route assignment. The `reviewers`
+   value is the total number of slots; when the anchor route is dispatchable, the
+   Anchor Reviewer consumes one slot. Use these mappings unless `models` provides
+   an explicit list with the same count:
+
+   | Reviewer count | Anchor dispatchable mapping | Anchor unavailable mapping |
+   |---|---|---|
+   | 2 | Anchor Reviewer + Reviewer-C (Tier 3) | Reviewer-B (Tier 2) + Reviewer-C (Tier 3) |
+   | 3 | Anchor Reviewer + Reviewer-A (Tier 1) + Reviewer-C (Tier 3) | Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) |
+   | 4 (default with anchor) | Anchor Reviewer + Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) | Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) + Reviewer-D (Tier 1/Tier 2 variant) |
+   | 5 | Anchor Reviewer + Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) + Reviewer-D (Tier 1/Tier 2 variant) | Reviewer-A (Tier 1) + Reviewer-B (Tier 2) + Reviewer-C (Tier 3) + Reviewer-D (Tier 1/Tier 2 variant) + Reviewer-E (Tier 2/Tier 3 variant) |
+
+   Record a declared fallback for the Anchor Reviewer whenever the anchor route is
+   configured but unavailable.
+4. Apply anchor and alternate model provider assignments:
+   * Read `{{ANCHOR_REVIEW_PROVIDER}}`, `{{ANCHOR_REVIEW_FAMILY}}`, and
+     `{{ANCHOR_REVIEW_REASONING_EFFORT}}` (or `anchor_provider`,
+     `anchor_family`, and `anchor_reasoning_effort` input overrides). If provider
+     and family are non-empty and dispatchable, launch the Anchor Reviewer as a
+     separate slot, pass the reasoning effort when non-empty, and identify it
+     separately in the report.
    * Read `{{ALT_REVIEW_PROVIDER}}` and `{{ALT_REVIEW_FAMILY}}` (or `alt_provider`
      / `alt_family` input overrides).
-   * If both are non-empty: replace one reviewer slot with the alternate provider.
-     Replace Reviewer-B (Tier 2 slot) by default to maximize diversity while
-     preserving Tier 1 and Tier 3 coverage.
-   * Log the model tier assignment table (see below).
+   * If both alternate values are non-empty: replace one non-anchor reviewer slot
+     with the alternate provider. Replace Reviewer-B (Tier 2 slot) by default to
+     maximize diversity while preserving Anchor, Tier 1, and Tier 3 coverage.
+   * Log the model route assignment table (see below), including declared fallback
+     if the Anchor Reviewer or alternate provider is unavailable.
 5. Confirm with the operator if the review is interactive mode.
 
-#### Model Tier Assignment Table
+#### Model Route Assignment Table
 
-| Reviewer | Default Tier | Default Model | With Alternate Provider |
+| Reviewer | Default Route | Default Model | With Alternate Provider |
 |---|---|---|---|
+| Anchor Reviewer | Anchor review route | `{{ANCHOR_REVIEW_FAMILY}}` via `{{ANCHOR_REVIEW_PROVIDER}}` with `{{ANCHOR_REVIEW_REASONING_EFFORT}}` when non-empty | unchanged; if unavailable, declared fallback |
 | Reviewer-A | Tier 1 (fast/cheap) | `{{TIER_1_FAMILY}}` | unchanged |
 | Reviewer-B | Tier 2 (standard) | `{{TIER_2_FAMILY}}` | `{{ALT_REVIEW_FAMILY}}` via `{{ALT_REVIEW_PROVIDER}}` |
 | Reviewer-C | Tier 3 (frontier) | `{{TIER_3_FAMILY}}` | unchanged |
-| Reviewer-D (4-reviewer) | Tier 2 variant | different from B | unchanged |
-| Reviewer-E (5-reviewer) | Tier 1 variant | different from A | unchanged |
+| Reviewer-D | Tier 1 or Tier 2 variant | different from A/B/C | unchanged |
+| Reviewer-E (5 reviewers without anchor) | Tier 2 or Tier 3 variant | different from A/B/C/D | unchanged |
 
-When `{{ALT_REVIEW_PROVIDER}}` is empty, all reviewer slots use standard tier
-routing. When `{{ALT_REVIEW_PROVIDER}}` is non-empty, Reviewer-B is routed to the
-alternate provider. This ensures reviewer diversity is not limited to a single
-provider's model family even when only 3 reviewers are used.
+When `{{ANCHOR_REVIEW_PROVIDER}}` or `{{ANCHOR_REVIEW_FAMILY}}` is empty or the
+route cannot be dispatched, all standard reviewer slots still use tier routing and
+the report records the Anchor Reviewer declared fallback. When
+`{{ALT_REVIEW_PROVIDER}}` is non-empty, Reviewer-B is routed to the alternate
+provider. This ensures reviewer diversity is not limited to a single provider's
+model family while keeping the Anchor Reviewer separate.
 
 ### Phase 2: Parallel Dispatch
 
@@ -125,8 +167,8 @@ Launch all reviewer agents **simultaneously** as parallel subagents. Each receiv
 
 * The same file list or diff
 * The same ruleset
-* Its assigned model tier instruction (prepend to the reviewer's system prompt:
-  "You are operating as a Tier N reviewer. Use concise, precise findings only.")
+* Its assigned model tier or Anchor Reviewer route instruction (prepend to the reviewer's system prompt:
+  "You are operating as the Anchor Reviewer or Tier N reviewer. Use concise, precise findings only.")
 * Instruction to return **structured JSON findings only** — no prose summaries
 
 Each reviewer produces a JSON array of findings:
@@ -151,10 +193,13 @@ Do not proceed to Phase 3 until all reviewer agents have returned results.
 Collect all finding arrays. For each unique finding (keyed by `file` + `line` + `rule`):
 
 1. Count how many reviewers flagged it (using fuzzy match on `file` + `line` ± 2 + same `rule`).
-2. Assign confidence tier:
-   * **HIGH**: Flagged by all `reviewers` agents
-   * **MEDIUM**: Flagged by majority (> reviewers / 2)
-   * **LOW**: Flagged by exactly one agent
+2. Assign confidence tier and report section so every agreement count from 1 to
+   `reviewers` is classified:
+   * **HIGH / Consensus section**: Flagged by all `reviewers` agents.
+   * **MEDIUM / Majority section**: Flagged by a strict majority (> reviewers / 2).
+   * **MEDIUM / Plurality section**: Flagged by more than one reviewer but not a
+     strict majority (for example, 2 of 4 reviewers).
+   * **LOW / Unique section**: Flagged by exactly one reviewer.
 3. For severity conflicts between reviewers, take the most conservative (highest severity).
 
 ### Phase 4: Order and Score
@@ -176,14 +221,15 @@ file path for deterministic output.
 |---|---|
 | HIGH confidence + CRITICAL severity | `safe_auto` (if deterministic fix exists) or `manual` |
 | HIGH confidence + MAJOR severity | `gated_auto` or `manual` |
-| MEDIUM confidence + CRITICAL/MAJOR | `gated_auto` — confirm before applying |
+| MEDIUM confidence + CRITICAL/MAJOR (majority or plurality) | `gated_auto` — confirm before applying |
 | LOW confidence + CRITICAL | `gated_auto` — unusual enough to flag despite single source |
 | Any + MINOR | `advisory` |
 
 ### Phase 6: Produce Output
 
-Assemble the output report with all four sections (consensus, majority, unique,
-remediation plan). For each P0 and P1 finding, produce a backlog work item entry:
+Assemble the output report with all five finding/remediation sections (consensus,
+majority, plurality, unique, remediation plan). For each P0 and P1 finding, produce
+a backlog work item entry:
 
 ```yaml
 type: bug
@@ -253,7 +299,10 @@ re-review loop run in this agent — no further delegation.
   `safe_auto` fixes were applied; it is skipped when no fixes were made
 * The recursion cap of 2 cycles is enforced — the agent MUST NOT recurse more than
   twice regardless of remaining findings
-* When `{{ALT_REVIEW_PROVIDER}}` is set, at least one reviewer must use the alternate
+* When `{{ANCHOR_REVIEW_PROVIDER}}` is set, the Anchor Reviewer must use that
+  provider's model family unless the provider is unavailable; if unavailable, log
+  the declared fallback separately and continue only when consensus minimums hold
+* When `{{ALT_REVIEW_PROVIDER}}` is set, at least one non-anchor reviewer must use the alternate
   provider; failure to route when the provider and family are both configured and
   reachable is a configuration error; if the provider is unreachable at runtime,
   fall back to the Tier 2 standard model, log the fallback, and continue

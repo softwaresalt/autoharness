@@ -424,8 +424,13 @@ Resolution notes for health-check variables:
 | `{{ORCHESTRATOR_REASONING_EFFORT}}` | `config.model_routing.orchestrator.reasoning_effort` (object form), fallback `{{TIER_2_REASONING_EFFORT}}` | _(empty)_ | Reasoning effort for the Orchestrator; falls back to Tier 2 default |
 | `{{ORCHESTRATOR_PROVIDER}}` | `config.model_routing.orchestrator.model_provider` (object form), fallback `{{TIER_2_PROVIDER}}` | _(empty)_ | Model provider for the Orchestrator; falls back to Tier 2 default |
 | `{{ORCHESTRATOR_FAMILY}}` | `config.model_routing.orchestrator.model_family` (object form) or `config.model_routing.orchestrator` (string form), fallback `gpt-5.4` | `gpt-5.4` | Model family for the Orchestrator; defaults to `gpt-5.4` when unset (does NOT fall back to tier2 — the orchestrator has its own default) |
+| `{{ANCHOR_REVIEW_PROVIDER}}` | `config.model_routing.anchor_review.model_provider` | `openai` | Provider for the first-class anchor reviewer route used by plan/code/adversarial review when model-specific dispatch is available; declare degradation when unavailable |
+| `{{ANCHOR_REVIEW_FAMILY}}` | `config.model_routing.anchor_review.model_family` | `gpt-5.6-sol` | Model family for the anchor reviewer route; default is OpenAI GPT-5.6 Sol as an environment-agnostic family identifier |
+| `{{ANCHOR_REVIEW_REASONING_EFFORT}}` | `config.model_routing.anchor_review.reasoning_effort` | `high` | Reasoning effort for anchor review when supported; leave empty to use the model default |
 
 When `config.model_routing.orchestrator` is a plain string (e.g., `orchestrator: "gpt-5.4"`), it is treated as the `model_family` value. The `reasoning_effort` and `model_provider` fields fall back to their tier2 equivalents. When it is an object, each field resolves independently.
+
+The anchor review route is always object-shaped (`model_provider`, `model_family`, optional `reasoning_effort`) and defaults to `openai` / `gpt-5.6-sol` / `high`. Generated review artifacts must degrade gracefully when the runtime cannot dispatch that provider/family: record `TOOL_DEGRADED` and use the same persona rubric through available reviewers rather than leaving unresolved placeholders in installed output.
 | `{{BROWSER_CLI}}` | `config.browser.cli` | `agent-browser` | Written back into `config.browser.cli` in the resolved harness-config.yaml |
 | `{{BROWSER_HEADLESS_FLAG}}` | `config.browser.headless_flag` | `--headless` | Written back into `config.browser.headless_flag` |
 | `{{EXPERIMENT_BRANCH_PREFIX}}` | `config.experiments.branch_prefix` | `experiment/` | Written back into `config.experiments.branch_prefix` (normalized to end with `/`) |
@@ -498,6 +503,7 @@ Note: These capability-pack and reviewer-selection variables are used internally
 Resolution notes for alternate model variables:
 
 * When both `*_PROVIDER` and `*_FAMILY` are non-empty, the corresponding skill or agent routes one reviewer/review slot to the alternate provider. When either is empty, standard tier routing applies.
+* The harness config schema accepts `config.model_routing.alt_review` and `config.model_routing.alt_doc_review` as object-shaped routes with `model_provider` and `model_family`; unknown fields are rejected so misspelled provider settings do not silently disappear.
 * `{{ALT_REVIEW_PROVIDER}}` / `{{ALT_REVIEW_FAMILY}}` replace Reviewer-B (Tier 2 slot) in the adversarial-review agent's reviewer pool. This ensures cross-provider diversity without requiring additional reviewer count.
 * `{{ALT_DOC_REVIEW_PROVIDER}}` / `{{ALT_DOC_REVIEW_FAMILY}}` determine the model used for the entire doc-review skill pass. When empty, doc-review uses Tier 2.
 * These variables resolve to the empty string when the operator has not configured an alternate model. Templates that reference them must degrade gracefully to Tier 2 defaults when the variables are empty.
@@ -1105,15 +1111,15 @@ scope.
    * `constitution-reviewer.agent.md` — References local constitution
    * `correctness-reviewer.agent.md` — Always-on behavioral correctness reviewer
    * `maintainability-reviewer.agent.md` — Always-on maintainability and complexity reviewer
-   * `scope-boundary-auditor.agent.md` — Universal
-    * `technology-reviewer.agent.md` → `{language}-reviewer.agent.md` — Fully technology-specific
-    * `concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
-    * `agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
-    * `security-reviewer.agent.md` — Include when the `review` layer is active; universal security code review persona
-    * `security-lens-reviewer.agent.md` — Include when the `review` layer is active; plan-level security review persona
-    * `template-integrity-reviewer.agent.md` — Include when the workspace produces template-driven or Markdown-heavy product surfaces so frontmatter, placeholder, markdown, and cross-reference defects are caught before PR submission
-    * `schema-cli-docs-coupling-reviewer.agent.md` — Include when diffs commonly span schemas, CLI verification logic, install/tune flows, and operator docs
-    * `learnings-researcher.agent.md` — Universal
+   * `scope-boundary-auditor.agent.md` → `.github/agents/subagents/scope-boundary-auditor.agent.md` — Universal
+   * `technology-reviewer.agent.md` → `.github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md` — Fully technology-specific
+   * `concurrency-reviewer.agent.md` → `.github/agents/subagents/concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
+   * `agent-native-parity-reviewer.agent.md` → `.github/agents/subagents/agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
+   * `security-reviewer.agent.md` → `.github/agents/subagents/security-reviewer.agent.md` — Include when the `review` layer is active; universal security code review persona
+   * `security-lens-reviewer.agent.md` → `.github/agents/subagents/security-lens-reviewer.agent.md` — Include when the `review` layer is active; plan-level security review persona
+   * `template-integrity-reviewer.agent.md` → `.github/agents/subagents/template-integrity-reviewer.agent.md` — Include when the workspace produces template-driven or Markdown-heavy product surfaces so frontmatter, placeholder, markdown, and cross-reference defects are caught before PR submission
+   * `schema-cli-docs-coupling-reviewer.agent.md` → `.github/agents/subagents/schema-cli-docs-coupling-reviewer.agent.md` — Include when diffs commonly span schemas, CLI verification logic, install/tune flows, and operator docs
+   * `learnings-researcher.agent.md` → `.github/agents/subagents/learnings-researcher.agent.md` — Universal
 
 5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. Install when the `review` layer is active. Ensure `review/SKILL.md` produces a local review readiness outcome (`READY`, `READY_WITH_FOLLOWUPS`, `BLOCKED`) and routes residual P2/P3 findings into explicit follow-up handling. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed

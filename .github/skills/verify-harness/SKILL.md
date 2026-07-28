@@ -84,13 +84,36 @@ callers/callees, impact, symbols, blast radius, inheritance, implementations,
 implementers, and where/how-implemented questions. Missing or weakened coverage
 is a MAJOR overlay-coherence finding.
 
+### Phase 2.5: Resolve Anchor Review Route
+
+Before dispatch, read the target workspace config at
+`<workspace_path>/.autoharness/config.yaml` and resolve
+`model_routing.anchor_review`:
+
+* `model_provider` — default `openai` when the route is absent
+* `model_family` — default `gpt-5.6-sol` when the route is absent
+* `reasoning_effort` — default `high`; empty means use the model default
+
+Resolve the effective anchor route first: use the operator override from
+`model_routing.anchor_review` when present, otherwise use the literal defaults above.
+Then probe or attempt dispatch for that resolved provider/family/effort. If the
+current environment can dispatch the resolved route, mark the Anchor Reviewer as
+enabled and record `TOOL_OK: anchor-review-model`. Record
+`TOOL_DEGRADED: anchor-review-model — declared fallback: tier-diverse reviewer pool`
+only when the resolved route cannot be dispatched; never treat an omitted
+`anchor_review` config key by itself as degradation. Keep the normal Tier 1/2/3
+reviewers only for that declared fallback, and continue only when at least two
+reviewer instances and the consensus minimums below remain satisfiable. Never write unresolved anchor-review template variables into this source-controlled
+skill; this file resolves runtime config from the target workspace instead.
+
 ### Phase 3: Dispatch Parallel Reviewers
 
 Launch one reviewer subagent per domain. Each reviewer MUST use a **different
 model** to ensure genuine diversity of critique:
 
-| Reviewer | Domain | Suggested Model Tier |
+| Reviewer | Domain | Suggested Model Route |
 |---|---|---|
+| Anchor Reviewer | Overlay Coherence (`overlay-coherence`) — anchor sanity pass | `model_routing.anchor_review` (default `openai` / `gpt-5.6-sol`, `high`) when dispatchable; otherwise declared fallback |
 | Reviewer A | Template Fidelity | Tier 3 (Frontier) |
 | Reviewer B | Overlay Coherence | Tier 2 (Standard, different vendor) |
 | Reviewer C | Cross-Reference Integrity | Tier 1 or Tier 2 (different from A and B) |
@@ -100,6 +123,7 @@ Each reviewer receives:
 * The review payload from Phase 1
 * Read access to the workspace and autoharness template directories
 * Instructions to return **structured JSON findings only**
+* For JSON output, the Anchor Reviewer MUST use the existing `overlay-coherence` domain value; its anchor perspective is identified by reviewer name, not by a new domain enum.
 
 Each reviewer produces a JSON array:
 
@@ -168,6 +192,7 @@ Append to the install/tune report:
 ## Adversarial Verification
 
 ### Reviewer Dispatch
+- Anchor Reviewer (model_routing.anchor_review): {model_or_declared_fallback} — {finding_count} findings
 - Reviewer A (Template Fidelity): {model} — {finding_count} findings
 - Reviewer B (Overlay Coherence): {model} — {finding_count} findings
 - Reviewer C (Cross-Reference Integrity): {model} — {finding_count} findings
@@ -209,6 +234,8 @@ auto-remediated.
 * Always read the actual file content before classifying a finding as HIGH
   confidence — do not trust reviewer claims without verification
 * Back up every file before modification
+* If the Anchor Reviewer cannot be dispatched, record the declared fallback separately
+  from Reviewer A/B/C so the report makes the anchor route outcome visible
 * If fewer than 2 reviewer instances return results, halt and report the failure
   rather than proceeding with single-model findings
 

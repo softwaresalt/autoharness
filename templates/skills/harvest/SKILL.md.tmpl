@@ -52,12 +52,25 @@ warn the operator that visibility is degraded and continue locally.
 
 1. Read `${input:plan}` in full.
 2. Confirm the file exists and represents an implementation plan.
-3. Confirm the plan has already cleared the review gate or is explicitly
-   marked ready for harvesting.
-4. Broadcast the accepted plan path.
-5. Halt if the plan is missing, unreadable, or clearly not ready for
-   backlog creation. Recommend running `plan-review` first when the
-   review state is unclear.
+3. Locate the latest `## Plan Review` section and require literal machine-readable
+   markers: `dispatch_mode:` and `decision:`. Missing markers fail closed because
+   they may indicate reviewer dispatch was silently skipped.
+4. Interpret `decision:`:
+   * `decision: PASS` — proceed.
+   * `decision: ADVISORY` — proceed only with explicit authorization recorded in
+     the harvest invocation or plan review notes; otherwise halt and request the
+     operator decision.
+   * `decision: FAIL` or any other value — halt; the plan is not harvest-ready.
+5. Interpret `dispatch_mode:`. `multi-agent`, `single-agent-declared-degradation`,
+   and `same-model-declared-degradation` are acceptable only when the review section
+   states that every selected persona was covered. Missing, empty, or unavailable
+   dispatch modes halt before backlog creation.
+6. Confirm the plan has already cleared the review gate or is explicitly marked ready
+   for harvesting according to the markers above.
+7. Broadcast the accepted plan path.
+8. Halt if the plan is missing, unreadable, lacks review markers, has a FAIL decision,
+   has an unauthorized ADVISORY decision, or is clearly not ready for backlog
+   creation. Recommend running `plan-review` first when the review state is unclear.
 
 ### Phase 2: Parse the plan structure
 
