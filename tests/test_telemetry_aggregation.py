@@ -286,6 +286,47 @@ class TelemetryAggregationTests(unittest.TestCase):
         self.assertEqual(result.derived["cost_per_size_point"], "unavailable")
         self.assertEqual(result.derived["planned_vs_composition"], "unavailable")
 
+    def test_size_label_observation_reports_non_decreasing_cost_trend(self) -> None:
+        result = aggregate_epochs(
+            [
+                _record("s", "2026-07-24T00:00:00Z", task_size="S", cogs_usd=1.0),
+                _record("m", "2026-07-24T01:00:00Z", task_size="M", cogs_usd=2.0),
+                _record("l", "2026-07-24T02:00:00Z", task_size="L", cogs_usd=3.0),
+            ]
+        )
+
+        observation = result.size_observations["task_size_label"]["cogs_usd_monotonicity"]
+        self.assertEqual(observation["status"], "non_decreasing")
+        self.assertEqual(observation["labels"], ["S", "M", "L"])
+        self.assertTrue(observation["ordinal_only"])
+        self.assertEqual(result.derived["cost_per_size_point"], "unavailable")
+        self.assertEqual(result.derived["planned_vs_composition"], "unavailable")
+
+    def test_size_label_observation_reports_non_monotonic_cost_trend(self) -> None:
+        result = aggregate_epochs(
+            [
+                _record("s", "2026-07-24T00:00:00Z", task_size="S", cogs_usd=3.0),
+                _record("m", "2026-07-24T01:00:00Z", task_size="M", cogs_usd=1.0),
+                _record("l", "2026-07-24T02:00:00Z", task_size="L", cogs_usd=4.0),
+            ]
+        )
+
+        observation = result.size_observations["task_size_label"]["cogs_usd_monotonicity"]
+        self.assertEqual(observation["status"], "non_monotonic")
+        self.assertEqual(observation["labels"], ["S", "M", "L"])
+
+    def test_size_label_observation_unavailable_when_any_label_has_no_measured_cost(self) -> None:
+        measured = _record("s", "2026-07-24T00:00:00Z", task_size="S", cogs_usd=1.0)
+        unmeasured = _record("m", "2026-07-24T01:00:00Z", task_size="M", cogs_usd=0.0)
+        unmeasured["economics"]["metric_quality"] = {"cogs_usd": "unavailable"}
+
+        result = aggregate_epochs([measured, unmeasured])
+
+        observation = result.size_observations["task_size_label"]["cogs_usd_monotonicity"]
+        self.assertEqual(observation["status"], "unavailable")
+        self.assertEqual(observation["labels"], ["S", "M"])
+        self.assertEqual(result.derived["cost_per_size_point"], "unavailable")
+
     def test_size_group_cost_range_excludes_unavailable_cogs(self) -> None:
         """Copilot review t2: an epoch whose cogs_usd is unavailable must not be
         coerced to a fabricated 0.0 in the size-group cost range. The epoch is

@@ -14,6 +14,7 @@ _SIZE_FIELDS = (
     "feature_planned_size_label",
     "shipment_planned_size_label",
 )
+_SIZE_LABEL_ORDER = ("XS", "S", "M", "L", "XL")
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class AggregationResult:
     size_groups: Mapping[str, Mapping[str, Mapping[str, Any]]]
     groups: Mapping[str, Mapping[str, Any]]
     diagnostics: tuple[str, ...] = field(default_factory=tuple)
+    size_observations: Mapping[str, Mapping[str, Mapping[str, Any]]] = field(default_factory=dict)
 
 
 def _canonical(record: Mapping[str, Any]) -> str:
@@ -389,6 +391,51 @@ def _size_groups(records: list[dict[str, Any]]) -> dict[str, dict[str, dict[str,
     return output
 
 
+def _ordered_size_labels(labels: Iterable[str]) -> list[str]:
+    order = {label: index for index, label in enumerate(_SIZE_LABEL_ORDER)}
+    return sorted(labels, key=lambda label: (order.get(label, len(order)), label))
+
+
+def _range_center(value: Any) -> float | None:
+    if not isinstance(value, tuple) or len(value) != 2:
+        return None
+    low, high = (_number(value[0]), _number(value[1]))
+    if low is None or high is None:
+        return None
+    return (float(low) + float(high)) / 2
+
+
+def _size_observations(
+    size_groups: Mapping[str, Mapping[str, Mapping[str, Any]]],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    observations: dict[str, dict[str, dict[str, Any]]] = {}
+    for field, groups in size_groups.items():
+        labels = _ordered_size_labels(str(label) for label in groups)
+        centers = {
+            label: _range_center(groups[label].get("cogs_usd_range"))
+            for label in labels
+        }
+        measured = {label: center for label, center in centers.items() if center is not None}
+        if len(labels) < 2 or len(measured) != len(labels):
+            status = UNAVAILABLE
+        else:
+            values = [measured[label] for label in labels]
+            status = (
+                "non_decreasing"
+                if all(left <= right for left, right in zip(values, values[1:]))
+                else "non_monotonic"
+            )
+        observations[field] = {
+            "cogs_usd_monotonicity": {
+                "status": status,
+                "labels": labels,
+                "centers": measured,
+                "ordinal_only": True,
+            }
+        }
+    return observations
+
+
 def _group_by(records: list[dict[str, Any]], group_by: str | None) -> dict[str, dict[str, Any]]:
     if not group_by:
         return {}
@@ -432,6 +479,7 @@ def aggregate_epochs(
             continue
         filtered.append(record)
     ordered = sorted(filtered, key=lambda item: (_parse_instant(str(item["timestamp"])), str(item["epoch_id"])))
+    size_groups = _size_groups(ordered)
     return AggregationResult(
         total_epochs=len(ordered),
         ordered_records=tuple(ordered),
@@ -439,7 +487,8 @@ def aggregate_epochs(
         totals=_totals(ordered),
         derived=derived_efficiency_metrics(ordered),
         tool_gap_rates=_per_tool_rates(ordered),
-        size_groups=_size_groups(ordered),
+        size_groups=size_groups,
         groups=_group_by(ordered, group_by),
         diagnostics=tuple(diagnostics),
+        size_observations=_size_observations(size_groups),
     )
