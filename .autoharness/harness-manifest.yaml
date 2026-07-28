@@ -171,7 +171,7 @@ artifacts:
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
     template: "global skill definition"
-    checksum: "6665f3c91dc7e92eaebaab00ccbb7e70f2c3a4113dc01618414a7b94bb1da339"
+    checksum: "e2fe06c688fdc4da43403678791673f5afb333358fce93dbf8b0c243178401ac"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/prompts/install-harness.prompt.md"
     primitive: 6

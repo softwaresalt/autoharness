@@ -121,6 +121,9 @@ class AnchorReviewSkillRoutingTests(unittest.TestCase):
         self.assertIn("Anchor Reviewer", text)
         self.assertIn("declared fallback", text)
         self.assertIn("`overlay-coherence` domain value", text)
+        self.assertIn("Resolve the effective anchor route first", text)
+        self.assertIn("never treat an omitted", text)
+        self.assertIn("`anchor_review` config key by itself as degradation", text)
 
     def test_adversarial_review_templates_have_rendered_anchor_placeholders_and_preserve_consensus(self) -> None:
         agent = _read(_ADVERSARIAL_AGENT)
@@ -138,6 +141,12 @@ class AnchorReviewSkillRoutingTests(unittest.TestCase):
         self.assertIn("including `anchor_review`", agent)
         self.assertIn("anchor_reasoning_effort", agent)
         self.assertIn("pass the reasoning effort when non-empty", agent)
+        for text in (agent, instructions):
+            self.assertIn("Plurality", text)
+            self.assertIn("more than one", text)
+            self.assertIn("strict majority", text)
+        self.assertIn("every agreement count from 1 to", agent)
+        self.assertIn("majority, plurality, unique", agent)
 
     def test_plan_and_code_review_route_one_persona_to_anchor_when_available(self) -> None:
         for path in (_PLAN_REVIEW, _REVIEW):

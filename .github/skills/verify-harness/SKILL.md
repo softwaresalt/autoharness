@@ -94,12 +94,16 @@ Before dispatch, read the target workspace config at
 * `model_family` — default `gpt-5.6-sol` when the route is absent
 * `reasoning_effort` — default `high`; empty means use the model default
 
-If the route is present and the current environment can dispatch that provider and
-family, mark the Anchor Reviewer as enabled and record `TOOL_OK: anchor-review-model`.
-If the route is absent or the environment cannot dispatch it, record
-`TOOL_DEGRADED: anchor-review-model — declared fallback: tier-diverse reviewer pool`,
-keep the normal Tier 1/2/3 reviewers, and continue only when at least two reviewer
-instances and the consensus minimums below remain satisfiable. Never write unresolved anchor-review template variables into this source-controlled
+Resolve the effective anchor route first: use the operator override from
+`model_routing.anchor_review` when present, otherwise use the literal defaults above.
+Then probe or attempt dispatch for that resolved provider/family/effort. If the
+current environment can dispatch the resolved route, mark the Anchor Reviewer as
+enabled and record `TOOL_OK: anchor-review-model`. Record
+`TOOL_DEGRADED: anchor-review-model — declared fallback: tier-diverse reviewer pool`
+only when the resolved route cannot be dispatched; never treat an omitted
+`anchor_review` config key by itself as degradation. Keep the normal Tier 1/2/3
+reviewers only for that declared fallback, and continue only when at least two
+reviewer instances and the consensus minimums below remain satisfiable. Never write unresolved anchor-review template variables into this source-controlled
 skill; this file resolves runtime config from the target workspace instead.
 
 ### Phase 3: Dispatch Parallel Reviewers

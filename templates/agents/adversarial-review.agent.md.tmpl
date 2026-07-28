@@ -93,12 +93,16 @@ model family.
    These require mandatory remediation before merge.
 2. **Majority findings** (confidence: MEDIUM) — Flagged by more than half of agents.
    Require explicit acknowledgment (fix or defer with rationale).
-3. **Unique findings** (confidence: LOW) — Flagged by exactly one agent.
+3. **Plurality findings** (confidence: MEDIUM) — Flagged by more than one reviewer
+   but not by a strict majority, such as 2 of 4 reviewers. These are not consensus,
+   but they are stronger than unique observations and require explicit
+   acknowledgment.
+4. **Unique findings** (confidence: LOW) — Flagged by exactly one agent.
    Preserved as observations; human judgment required on whether to act.
-4. **Remediation plan** — Ordered action list combining all findings, sorted by
+5. **Remediation plan** — Ordered action list combining all findings, sorted by
    `confidence × severity`, with estimated action class (`safe_auto`, `gated_auto`,
    `manual`, `advisory`).
-5. **Bug/issue queue entries** — For each P0 and P1 finding, a structured work item
+6. **Bug/issue queue entries** — For each P0 and P1 finding, a structured work item
    ready to create in the backlog using `{{OP_CREATE_CLI}}`.
 
 Output file at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-review.md`.
@@ -189,10 +193,13 @@ Do not proceed to Phase 3 until all reviewer agents have returned results.
 Collect all finding arrays. For each unique finding (keyed by `file` + `line` + `rule`):
 
 1. Count how many reviewers flagged it (using fuzzy match on `file` + `line` ± 2 + same `rule`).
-2. Assign confidence tier:
-   * **HIGH**: Flagged by all `reviewers` agents
-   * **MEDIUM**: Flagged by majority (> reviewers / 2)
-   * **LOW**: Flagged by exactly one agent
+2. Assign confidence tier and report section so every agreement count from 1 to
+   `reviewers` is classified:
+   * **HIGH / Consensus section**: Flagged by all `reviewers` agents.
+   * **MEDIUM / Majority section**: Flagged by a strict majority (> reviewers / 2).
+   * **MEDIUM / Plurality section**: Flagged by more than one reviewer but not a
+     strict majority (for example, 2 of 4 reviewers).
+   * **LOW / Unique section**: Flagged by exactly one reviewer.
 3. For severity conflicts between reviewers, take the most conservative (highest severity).
 
 ### Phase 4: Order and Score
@@ -214,14 +221,15 @@ file path for deterministic output.
 |---|---|
 | HIGH confidence + CRITICAL severity | `safe_auto` (if deterministic fix exists) or `manual` |
 | HIGH confidence + MAJOR severity | `gated_auto` or `manual` |
-| MEDIUM confidence + CRITICAL/MAJOR | `gated_auto` — confirm before applying |
+| MEDIUM confidence + CRITICAL/MAJOR (majority or plurality) | `gated_auto` — confirm before applying |
 | LOW confidence + CRITICAL | `gated_auto` — unusual enough to flag despite single source |
 | Any + MINOR | `advisory` |
 
 ### Phase 6: Produce Output
 
-Assemble the output report with all four sections (consensus, majority, unique,
-remediation plan). For each P0 and P1 finding, produce a backlog work item entry:
+Assemble the output report with all five finding/remediation sections (consensus,
+majority, plurality, unique, remediation plan). For each P0 and P1 finding, produce
+a backlog work item entry:
 
 ```yaml
 type: bug

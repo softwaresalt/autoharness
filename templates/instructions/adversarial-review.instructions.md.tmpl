@@ -91,20 +91,25 @@ before merge.
 
 After all reviewers return findings:
 
-* **HIGH confidence** — finding identified by all reviewers (consensus).
+* **HIGH confidence / Consensus section** — finding identified by all reviewers.
   Treat identically to a standard review P0/P1 finding: blocks the gate.
-* **MEDIUM confidence** — finding identified by a majority of reviewers.
-  Requires explicit acknowledgment (fix or defer with rationale).
-* **LOW confidence** — finding identified by a single reviewer only.
-  Preserved as an advisory observation.
+* **MEDIUM confidence / Majority section** — finding identified by a strict
+  majority of reviewers (`agreement_count > reviewers / 2`). Requires explicit
+  acknowledgment (fix or defer with rationale).
+* **MEDIUM confidence / Plurality section** — finding identified by more than one
+  reviewer but not by a strict majority, such as 2 of 4 reviewers. Requires
+  explicit acknowledgment and uses the same action-class rules as other MEDIUM
+  findings.
+* **LOW confidence / Unique section** — finding identified by a single reviewer
+  only. Preserved as an advisory observation.
 
 ## Remediation Queue
 
 Assemble findings into a structured remediation queue ordered by
 `confidence × severity`:
 
-* each entry includes: finding summary, affected file/line, confidence
-  tier, severity (P0–P3), and action class (safe_auto / gated_auto /
+* each entry includes: finding summary, affected file/line, report section,
+  confidence tier, severity (P0–P3), and action class (safe_auto / gated_auto /
   manual / advisory)
 * HIGH-confidence P0/P1 entries are ready for direct backlog creation
 * remediation entries carry enough context to be actionable without
