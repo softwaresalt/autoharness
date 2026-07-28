@@ -3,7 +3,7 @@ shipment: 097-S
 feature: 092-F
 feature_pr: 241
 merge_commit: 52851c2
-merged_at: "2026-07-28T00:00:00Z"
+merged_at: "2026-07-28T21:09:01Z"
 closure_status: READY
 ---
 
@@ -15,7 +15,8 @@ coverage, and derived size monotonicity observations.
 
 ## Merge Confirmation
 
-- PR #241 merged to `main` with merge commit `52851c2`.
+- PR #241 merged to `main` at `2026-07-28T21:09:01Z` with merge
+  commit `52851c2`.
 - The merge commit has two parents, `e4688ca` and `b2031ae`, preserving the
   P-009 merge-commit strategy.
 - Closure began from synced `main` at `52851c2`.
@@ -67,7 +68,7 @@ active or queued artifacts for this lineage.
     `custom_fields.items`; that field must remain task-ID-only.
   - Attempts to treat repository-root `pytest -q` as the canonical gate.
 - **Validation window**: immediate post-merge closure on 2026-07-28 after `main`
-  synced to merge commit `52851c2`.
+  synced to merge commit `52851c2`, merged at `2026-07-28T21:09:01Z`.
 - **Rollback trigger**: revert merge commit `52851c2` if the telemetry hardening
   changes cause telemetry record writes, JSONL append/replay behavior, or
   aggregation/reporting consumers to regress.

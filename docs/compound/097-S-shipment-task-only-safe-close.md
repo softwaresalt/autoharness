@@ -28,8 +28,12 @@ For shipment manifests:
 
 - `custom_fields.items` contains task IDs only.
 - The covering feature is derived from task `parent_id` values.
-- During post-merge closure, skip pre-archived tasks and close only the derived
-  covering feature plus the shipment.
+- During post-merge closure, skip pre-archived manifest tasks. For partial-feature
+  shipments, keep non-manifest parent or sibling artifacts protected unless the
+  operator/Orchestrator explicitly declares that the covering feature itself is
+  complete and in closure scope.
+- When the covering feature is explicitly in closure scope, close it separately
+  from the shipment manifest. Do not add it to `custom_fields.items`.
 - Use per-item operations for this close path:
   `backlogit move <id> --status done` followed by `backlogit archive <id>`.
 - Do not use `backlogit shipment ship <shipment>` for this partial-feature
@@ -39,8 +43,8 @@ For shipment manifests:
 
 The manifest is the release unit's explicit membership boundary. Keeping it
 task-only prevents accidental parent/sibling archival and makes the close path
-auditable: the shipped task set is fixed, while the covering feature is inferred
-and closed separately after every task is already archived.
+auditable: the shipped task set is fixed, while any covering-feature closure is
+an explicit operation outside the manifest, not an implicit cascade.
 
 ## Verification Pattern
 
