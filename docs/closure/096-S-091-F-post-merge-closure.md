@@ -35,7 +35,7 @@ runtime probing.
 | Repository test suite | `python -m unittest discover -s tests -q` | **PASS** — 711 tests OK |
 | Manifest checksum drift | `autoharness verify-workspace --workspace . --autoharness-home . --json` checksum scan | **PASS for tracked skill drift** — install/verify skill checksums reported `unchanged`; command still reports pre-existing unresolved staging placeholders/targeted checks outside this closure |
 | CI on PR #238 | GitHub Actions `detect code changes`, `test`, `ci gate` | **PASS** |
-| Backlog close | `C:\Tools\backlogit.exe shipment ship 096-S`; `C:\Tools\backlogit.exe sync` | **PASS** — shipment, tasks, and covering feature archived |
+| Backlog close | Operator-directed `C:\Tools\backlogit.exe shipment ship 096-S`; `C:\Tools\backlogit.exe sync` | **PASS WITH RECORDED P-015 DEVIATION** — cascade archived exactly the task-only manifest plus derived covering feature `091-F`; verified shipment, tasks, and feature archived |
 
 No manual runtime checkpoint was required: there is no UI, server, CLI runtime
 behavior, database migration, or deployed service to exercise.
@@ -49,8 +49,11 @@ behavior, database migration, or deployed service to exercise.
     harvest/plan-harden gates.
   - Manifest checksums for edited global skills were refreshed and reported
     drift-clean in checksum scan.
-  - Backlog safe-close archived shipment `096-S`, tasks `091.001-T` through
-    `091.008-T`, and covering feature `091-F`.
+  - Backlog closure archived shipment `096-S`, tasks `091.001-T` through
+    `091.008-T`, and covering feature `091-F`. The operator explicitly directed
+    `backlogit shipment ship 096-S`; this is recorded as a bounded P-015 deviation
+    from Ship's current single-artifact safe-close contract because the command is
+    normally forbidden for partial-feature shipments.
 - **Anchor route behavior**: `model_routing.anchor_review` defaults to
   provider `openai`, family `gpt-5.6-sol`, and reasoning effort `high` when no
   workspace override exists. Global, non-rendered skills resolve this route from
@@ -78,8 +81,12 @@ behavior, database migration, or deployed service to exercise.
 
 ## Backlog Reconciliation
 
-`backlogit shipment ship 096-S` safe-closed the task-only shipment manifest and
-archived the derived covering feature from the `091` task-ID prefix:
+Operator-directed `backlogit shipment ship 096-S` closed the task-only shipment
+manifest and archived the derived covering feature from the `091` task-ID prefix.
+This closure records the P-015 deviation explicitly because Ship's current agent
+definition normally requires single-artifact archival instead of the cascade
+command. Post-command verification found only the intended shipment, manifest
+tasks, and covering feature archived:
 
 | Item | Final state |
 |---|---|
