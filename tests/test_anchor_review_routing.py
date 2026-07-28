@@ -180,10 +180,10 @@ class PlanReviewGateContractTests(unittest.TestCase):
         plan_review = _read(_PLAN_REVIEW)
         install = _read(_INSTALL_HARNESS)
         expected_paths = {
-            ".github/agents/review/constitution-reviewer.agent.md": _REVIEW_TEMPLATES / "constitution-reviewer.agent.md.tmpl",
-            ".github/agents/review/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md": _REVIEW_TEMPLATES / "technology-reviewer.agent.md.tmpl",
-            ".github/agents/review/scope-boundary-auditor.agent.md": _REVIEW_TEMPLATES / "scope-boundary-auditor.agent.md.tmpl",
-            ".github/agents/research/learnings-researcher.agent.md": _RESEARCH_TEMPLATES / "learnings-researcher.agent.md.tmpl",
+            ".github/agents/subagents/constitution-reviewer.agent.md": _REVIEW_TEMPLATES / "constitution-reviewer.agent.md.tmpl",
+            ".github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md": _REVIEW_TEMPLATES / "technology-reviewer.agent.md.tmpl",
+            ".github/agents/subagents/scope-boundary-auditor.agent.md": _REVIEW_TEMPLATES / "scope-boundary-auditor.agent.md.tmpl",
+            ".github/agents/subagents/learnings-researcher.agent.md": _RESEARCH_TEMPLATES / "learnings-researcher.agent.md.tmpl",
         }
         combined = plan_review + "\n" + install
         for installed_path, template_path in expected_paths.items():

@@ -1111,15 +1111,15 @@ scope.
    * `constitution-reviewer.agent.md` — References local constitution
    * `correctness-reviewer.agent.md` — Always-on behavioral correctness reviewer
    * `maintainability-reviewer.agent.md` — Always-on maintainability and complexity reviewer
-   * `scope-boundary-auditor.agent.md` → `.github/agents/review/scope-boundary-auditor.agent.md` — Universal
-   * `technology-reviewer.agent.md` → `.github/agents/review/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md` — Fully technology-specific
-   * `concurrency-reviewer.agent.md` → `.github/agents/review/concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
-   * `agent-native-parity-reviewer.agent.md` → `.github/agents/review/agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
-   * `security-reviewer.agent.md` → `.github/agents/review/security-reviewer.agent.md` — Include when the `review` layer is active; universal security code review persona
-   * `security-lens-reviewer.agent.md` → `.github/agents/review/security-lens-reviewer.agent.md` — Include when the `review` layer is active; plan-level security review persona
-   * `template-integrity-reviewer.agent.md` → `.github/agents/review/template-integrity-reviewer.agent.md` — Include when the workspace produces template-driven or Markdown-heavy product surfaces so frontmatter, placeholder, markdown, and cross-reference defects are caught before PR submission
-   * `schema-cli-docs-coupling-reviewer.agent.md` → `.github/agents/review/schema-cli-docs-coupling-reviewer.agent.md` — Include when diffs commonly span schemas, CLI verification logic, install/tune flows, and operator docs
-   * `learnings-researcher.agent.md` → `.github/agents/research/learnings-researcher.agent.md` — Universal
+   * `scope-boundary-auditor.agent.md` → `.github/agents/subagents/scope-boundary-auditor.agent.md` — Universal
+   * `technology-reviewer.agent.md` → `.github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md` — Fully technology-specific
+   * `concurrency-reviewer.agent.md` → `.github/agents/subagents/concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
+   * `agent-native-parity-reviewer.agent.md` → `.github/agents/subagents/agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
+   * `security-reviewer.agent.md` → `.github/agents/subagents/security-reviewer.agent.md` — Include when the `review` layer is active; universal security code review persona
+   * `security-lens-reviewer.agent.md` → `.github/agents/subagents/security-lens-reviewer.agent.md` — Include when the `review` layer is active; plan-level security review persona
+   * `template-integrity-reviewer.agent.md` → `.github/agents/subagents/template-integrity-reviewer.agent.md` — Include when the workspace produces template-driven or Markdown-heavy product surfaces so frontmatter, placeholder, markdown, and cross-reference defects are caught before PR submission
+   * `schema-cli-docs-coupling-reviewer.agent.md` → `.github/agents/subagents/schema-cli-docs-coupling-reviewer.agent.md` — Include when diffs commonly span schemas, CLI verification logic, install/tune flows, and operator docs
+   * `learnings-researcher.agent.md` → `.github/agents/subagents/learnings-researcher.agent.md` — Universal
 
 5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. Install when the `review` layer is active. Ensure `review/SKILL.md` produces a local review readiness outcome (`READY`, `READY_WITH_FOLLOWUPS`, `BLOCKED`) and routes residual P2/P3 findings into explicit follow-up handling. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed

@@ -101,13 +101,13 @@ The identity paths are installed artifact paths, not template source paths.
 
 | Persona | Installed identity file | Focus used in all modes | Trigger / routing |
 |---|---|---|---|
-| Constitution Reviewer | `.github/agents/review/constitution-reviewer.agent.md` | Map plan units against constitutional principles and flag violations. | Always-on |
-| {{PRIMARY_LANGUAGE}} Reviewer | `.github/agents/review/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md` | Evaluate proposed {{PRIMARY_LANGUAGE}} type signatures, error handling, package boundaries, and verification steps. | Always-on |
-| Scope Boundary Auditor | `.github/agents/review/scope-boundary-auditor.agent.md` | Verify units stay within declared scope and detect scope creep, YAGNI, and unnecessary complexity. | Always-on |
-| Learnings Researcher | `.github/agents/research/learnings-researcher.agent.md` | Search `{{DOCS_COMPOUND}}/` for prior solutions relevant to the plan's scope. | Always-on |
-| Architecture Strategist | `.github/agents/review/architecture-strategist.agent.md` | Review cohesion, coupling, module boundaries, and dependency chains. | Cross-model; prefer `model_routing.anchor_review` when available |
-| Agent-Native Parity Reviewer | `.github/agents/review/agent-native-parity-reviewer.agent.md` | Review MCP tools, agent-facing actions, context surfaces, and user/agent parity-sensitive workflows. | Conditional cross-model; may use anchor route |
-| Security Lens Reviewer | `.github/agents/review/security-lens-reviewer.agent.md` | Review auth/authz, API surfaces, sensitive data, external trust boundaries, and secrets handling. | Conditional cross-model; may use anchor route |
+| Constitution Reviewer | `.github/agents/subagents/constitution-reviewer.agent.md` | Map plan units against constitutional principles and flag violations. | Always-on |
+| {{PRIMARY_LANGUAGE}} Reviewer | `.github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md` | Evaluate proposed {{PRIMARY_LANGUAGE}} type signatures, error handling, package boundaries, and verification steps. | Always-on |
+| Scope Boundary Auditor | `.github/agents/subagents/scope-boundary-auditor.agent.md` | Verify units stay within declared scope and detect scope creep, YAGNI, and unnecessary complexity. | Always-on |
+| Learnings Researcher | `.github/agents/subagents/learnings-researcher.agent.md` | Search `{{DOCS_COMPOUND}}/` for prior solutions relevant to the plan's scope. | Always-on |
+| Architecture Strategist | `.github/agents/subagents/architecture-strategist.agent.md` | Review cohesion, coupling, module boundaries, and dependency chains. | Cross-model; prefer `model_routing.anchor_review` when available |
+| Agent-Native Parity Reviewer | `.github/agents/subagents/agent-native-parity-reviewer.agent.md` | Review MCP tools, agent-facing actions, context surfaces, and user/agent parity-sensitive workflows. | Conditional cross-model; may use anchor route |
+| Security Lens Reviewer | `.github/agents/subagents/security-lens-reviewer.agent.md` | Review auth/authz, API surfaces, sensitive data, external trust boundaries, and secrets handling. | Conditional cross-model; may use anchor route |
 
 ## Reviewer Personas
 
