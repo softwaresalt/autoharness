@@ -75,6 +75,9 @@ model family.
   `{{ANCHOR_REVIEW_PROVIDER}}` for this invocation.
 * `anchor_family`: (Optional) Anchor reviewer model family. Overrides
   `{{ANCHOR_REVIEW_FAMILY}}` for this invocation.
+* `anchor_reasoning_effort`: (Optional) Anchor reviewer reasoning effort.
+  Overrides `{{ANCHOR_REVIEW_REASONING_EFFORT}}`; empty means use the model
+  default.
 * `ruleset`: (Optional) Path to a ruleset file. Defaults to
   `.github/copilot-review-instructions.md` if present, otherwise uses the
   built-in harness review ruleset.
@@ -121,10 +124,12 @@ Output file at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-review.md`.
    Record a declared fallback for the Anchor Reviewer whenever the anchor route is
    configured but unavailable.
 4. Apply anchor and alternate model provider assignments:
-   * Read `{{ANCHOR_REVIEW_PROVIDER}}` and `{{ANCHOR_REVIEW_FAMILY}}` (or
-     `anchor_provider` / `anchor_family` input overrides). If both are non-empty
-     and dispatchable, launch the Anchor Reviewer as a separate slot and identify
-     it separately in the report.
+   * Read `{{ANCHOR_REVIEW_PROVIDER}}`, `{{ANCHOR_REVIEW_FAMILY}}`, and
+     `{{ANCHOR_REVIEW_REASONING_EFFORT}}` (or `anchor_provider`,
+     `anchor_family`, and `anchor_reasoning_effort` input overrides). If provider
+     and family are non-empty and dispatchable, launch the Anchor Reviewer as a
+     separate slot, pass the reasoning effort when non-empty, and identify it
+     separately in the report.
    * Read `{{ALT_REVIEW_PROVIDER}}` and `{{ALT_REVIEW_FAMILY}}` (or `alt_provider`
      / `alt_family` input overrides).
    * If both alternate values are non-empty: replace one non-anchor reviewer slot
@@ -138,7 +143,7 @@ Output file at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-adversarial-review.md`.
 
 | Reviewer | Default Route | Default Model | With Alternate Provider |
 |---|---|---|---|
-| Anchor Reviewer | Anchor review route | `{{ANCHOR_REVIEW_FAMILY}}` via `{{ANCHOR_REVIEW_PROVIDER}}` | unchanged; if unavailable, declared fallback |
+| Anchor Reviewer | Anchor review route | `{{ANCHOR_REVIEW_FAMILY}}` via `{{ANCHOR_REVIEW_PROVIDER}}` with `{{ANCHOR_REVIEW_REASONING_EFFORT}}` when non-empty | unchanged; if unavailable, declared fallback |
 | Reviewer-A | Tier 1 (fast/cheap) | `{{TIER_1_FAMILY}}` | unchanged |
 | Reviewer-B | Tier 2 (standard) | `{{TIER_2_FAMILY}}` | `{{ALT_REVIEW_FAMILY}}` via `{{ALT_REVIEW_PROVIDER}}` |
 | Reviewer-C | Tier 3 (frontier) | `{{TIER_3_FAMILY}}` | unchanged |

@@ -128,6 +128,7 @@ class AnchorReviewSkillRoutingTests(unittest.TestCase):
         for text in (agent, instructions):
             self.assertIn("{{ANCHOR_REVIEW_PROVIDER}}", text)
             self.assertIn("{{ANCHOR_REVIEW_FAMILY}}", text)
+            self.assertIn("{{ANCHOR_REVIEW_REASONING_EFFORT}}", text)
             self.assertIn("Anchor Reviewer", text)
             self.assertIn("consensus", text.lower())
         self.assertIn('anchor_review_provider: "{{ANCHOR_REVIEW_PROVIDER}}"', agent)
@@ -135,6 +136,8 @@ class AnchorReviewSkillRoutingTests(unittest.TestCase):
         for count in ("| 2 |", "| 3 |", "| 4 (default with anchor) |", "| 5 |"):
             self.assertIn(count, agent)
         self.assertIn("including `anchor_review`", agent)
+        self.assertIn("anchor_reasoning_effort", agent)
+        self.assertIn("pass the reasoning effort when non-empty", agent)
 
     def test_plan_and_code_review_route_one_persona_to_anchor_when_available(self) -> None:
         for path in (_PLAN_REVIEW, _REVIEW):

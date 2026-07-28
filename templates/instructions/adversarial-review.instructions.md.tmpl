@@ -34,9 +34,11 @@ instances across different model tiers:
 
 When `{{ANCHOR_REVIEW_PROVIDER}}` and `{{ANCHOR_REVIEW_FAMILY}}` are configured,
 launch an **Anchor Reviewer** as a separately identified reviewer slot before
-standard Tier 1/2/3 assignment. The default anchor route is OpenAI GPT-5.6 Sol,
-but generated artifacts stay environment-agnostic by using the configured provider
-and family identifiers rather than hard-coding a runtime.
+standard Tier 1/2/3 assignment. Pass `{{ANCHOR_REVIEW_REASONING_EFFORT}}` to the
+anchor reviewer when it is non-empty; an empty value means use the model default.
+The default anchor route is OpenAI GPT-5.6 Sol, but generated artifacts stay
+environment-agnostic by using the configured provider and family identifiers
+rather than hard-coding a runtime.
 
 If the anchor route is unavailable, record `TOOL_DEGRADED: anchor-review-model`
 with a declared fallback and continue only when the remaining reviewer pool still
