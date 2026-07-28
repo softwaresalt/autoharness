@@ -78,6 +78,7 @@ The implementation must remain template-first, environment-agnostic, and variabl
 * **Change**: make the default reviewer pool include an explicit anchor reviewer using `{{ANCHOR_REVIEW_PROVIDER}}` / `{{ANCHOR_REVIEW_FAMILY}}` (default GPT-5.6 Sol) plus the existing tier/diversity reviewers. Do not remove consensus, majority, unique, confidence weighting, or post-remediation re-review semantics.
 * **Acceptance**: reports identify the anchor reviewer separately from Tier 1/2/3; if anchor routing is unavailable, the skill records a declared fallback and continues only when reviewer-count and consensus minimums are still satisfied.
 * **Verification**: read-only skill/template checks or existing documentation tests that assert reviewer tables and model-routing variables resolve.
+* **Manifest**: `.github/skills/verify-harness/SKILL.md` is checksum-tracked in `.autoharness/harness-manifest.yaml`. After editing it, recompute its raw-bytes sha256 and update the matching checksum entry, then confirm `verify_workspace` reports no drift for this artifact. Skipping the refresh leaves the installed harness reporting false drift.
 
 ### Unit D — Plan-review and code-review anchor persona routing
 
@@ -118,6 +119,7 @@ The implementation must remain template-first, environment-agnostic, and variabl
 * **Change**: document the new anchor review variables and defaults alongside existing `{{ALT_REVIEW_PROVIDER}}` / `{{ALT_REVIEW_FAMILY}}`. If Ship chooses to formalize missing `alt_review` / `alt_doc_review` schema support while adding the anchor route, document that explicitly in the same variable table.
 * **Acceptance**: every new `{{ANCHOR_REVIEW_*}}` placeholder introduced in templates is listed with source, example, default, and degradation behavior; no unresolved variable can appear in installed output.
 * **Verification**: variable completeness scan and install-harness docs consistency checks.
+* **Manifest**: `.github/skills/install-harness/SKILL.md` is checksum-tracked in `.autoharness/harness-manifest.yaml`. After editing it, recompute its raw-bytes sha256 and update the matching checksum entry, then confirm `verify_workspace` reports no drift for this artifact. Skipping the refresh leaves the installed harness reporting false drift.
 
 ## Dependency Graph
 

@@ -19,8 +19,8 @@ feature: 091-F
 * Applied P-006 hardening: required and satisfied.
 * Plan-review mode: `single-agent-declared-degradation` because reviewer sub-agent dispatch was unavailable; inline persona pass decision: PASS.
 * Harvested covering feature `091-F` and tasks `091.001-T` through `091.008-T`.
-* Created queued shipment `096-S` with 9 items: feature first, then dependency-ordered tasks.
-* Archived consumed stash entries E929B1C9 and CB6A0EC6 after adding forward references to `091-F` / `096-S`.
+* Created queued shipment `096-S` with 8 task items (`091.001-T`..`091.008-T`) in dependency order. The covering feature `091-F` is NOT a manifest item — Ship derives it from the task ID prefix at safe-close, and listing it in `custom_fields.items` would make the closure loop archive the parent feature (see `.ship.agent.md` safe-close contract).
+* Archived consumed stash entries E929B1C9 and CB6A0EC6, preserving each original text verbatim and recording the `091-F` / `096-S` promotion reference in a separate `promotion` field.
 
 ## Handoff to Ship
 
