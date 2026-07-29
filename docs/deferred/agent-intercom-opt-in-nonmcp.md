@@ -6,13 +6,12 @@ doc_type: reference
 
 # Deferred: agent-intercom opt-in / non-MCP reclassification
 
-Status: **completed but deferred** — the change is fully implemented and was passing
-locally, but it is intentionally set aside for its own later shipment rather than
-merged now. This document plus the committed patch make the deferred work durable and
-reproducible from a fresh clone; it does not depend on any local `git stash` or
-gitignored session checkpoint.
+Status: **shipped** — implemented and merged via PR #253 (merge commit `09b7856`)
+under shipment `101-S` / covering feature `096-F`. This document plus the committed
+patch remain the durable record of the change; they do not depend on any local
+`git stash` or gitignored session checkpoint. Retained for historical reference.
 
-Backlog tracker: backlogit stash entry `DD75C983`.
+Backlog tracker: backlogit stash entry `DD75C983` (shipped via `101-S`).
 
 ## Goal
 
