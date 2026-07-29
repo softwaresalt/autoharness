@@ -11,7 +11,7 @@ status: READY
 feature_pr: 244
 feature_merge_commit: a89797f1e8a680df6b5c4e4f002690e15e4d2552
 reviewed_head: 7e51b945685618cd8c9fddd546856d011d564b88
-closed_at: 2026-07-28T18:17:58Z
+closed_at: 2026-07-29T01:17:58Z
 stash_origin: 3D8724BA
 doc_type: memory
 source: docs/memory/098-S-closure.md

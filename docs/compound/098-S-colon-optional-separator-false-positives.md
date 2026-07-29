@@ -6,7 +6,7 @@ tags: [decline-detector, compression-experiment, copilot-review, p-018, regex, e
 shipment: 098-S
 feature: 093-F
 pr: 244
-merged_at: "2026-07-28T00:00:00Z"
+merged_at: "2026-07-29T01:13:50Z"
 ---
 
 # 098-S / PR #244: Colon-Optional Separators Silently Widen a Failure Detector Too Far
@@ -32,9 +32,14 @@ all three surfaces (`policy._FAILURE_BEARING_PATTERNS`,
    "exit code 1" required-fact out of two unrelated lines, corrupting what
    the oracle believes must be preserved.
 
-Both are fail-*unsafe* in the evidence direction: the oracle one can
-manufacture a required fact that never existed, and the policy/hook ones can
-decline (refuse to compress) benign successful output.
+Both are fail-*safe* in the evidence direction, but they degrade compression
+accuracy: the oracle's synthesized fact makes `evaluate_oracle` *reject* an
+otherwise-valid compression (an over-conservative false negative), and the
+policy/hook false matches force byte-identical passthrough of benign
+successful output. Neither can hide evidence — they harm benchmark /
+compression accuracy, not evidence integrity — but a decline detector that
+fires on garbage still erodes the experiment's core value, so the boundary
+must be tight.
 
 ## Solution — A Horizontal-Only, Mandatory Separator
 
