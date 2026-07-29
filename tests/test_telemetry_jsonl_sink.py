@@ -226,5 +226,94 @@ class JsonlSinkTests(unittest.TestCase):
         self.assertEqual(result.status, "created")
 
 
+def _encode_line(epoch: ExecutionEpoch) -> str:
+    return json.dumps(epoch.to_record(), separators=(",", ":")) + "\n"
+
+
+def _conflicting_epoch(epoch_id: str, input_tokens: int = 999) -> ExecutionEpoch:
+    base = _sized_epoch(epoch_id)
+    return ExecutionEpoch(
+        epoch_id=base.epoch_id,
+        task_id="079.003-T",
+        route=base.route,
+        economics=EconomicPayload(input_tokens=input_tokens),
+        operations=base.operations,
+        outcome=base.outcome,
+    )
+
+
+class CrossSegmentReplayTests(unittest.TestCase):
+    """095.001-T — replay/preflight scan spans active + sealed segments."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.jsonl_path = Path(self._tmp.name) / ".autoharness" / "metrics" / "execution_epochs.jsonl"
+        self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write_sealed(self, generation: int, *epochs: ExecutionEpoch) -> Path:
+        sealed = jsonl_sink.sealed_segment_path(self.jsonl_path, generation)
+        sealed.write_text("".join(_encode_line(e) for e in epochs), encoding="utf-8")
+        return sealed
+
+    def test_idempotent_replay_when_epoch_lives_in_sealed_segment(self) -> None:
+        epoch = _sized_epoch("11111111111111111111111111111111")
+        self._write_sealed(1, epoch)
+
+        result = append_epoch(epoch, self.jsonl_path)
+
+        self.assertEqual(result.status, "idempotent_replay")
+        # No line is written to the (still absent) active segment on replay.
+        self.assertFalse(self.jsonl_path.exists())
+
+    def test_conflict_detected_across_sealed_segment(self) -> None:
+        original = _sized_epoch("22222222222222222222222222222222")
+        self._write_sealed(1, original)
+
+        with self.assertRaises(TelemetryConflictError):
+            append_epoch(_conflicting_epoch(original.epoch_id), self.jsonl_path)
+
+    def test_active_replacement_between_preflight_and_append_invalidates_offset(self) -> None:
+        # A rollover between preflight and append replaces the active segment with
+        # a LARGER file whose early bytes hold the epoch. A naive resume from the
+        # stale offset would skip the replay; the generation identity forces a full
+        # cross-segment rescan that still detects it.
+        epoch = _sized_epoch("33333333333333333333333333333333")
+        append_epoch(_epoch("history-a"), self.jsonl_path)
+        append_epoch(_epoch("history-b"), self.jsonl_path)
+        preflight = jsonl_sink.scan_epoch_digest(self.jsonl_path, epoch.epoch_id)
+        self.assertIsNone(preflight.existing_digest)
+        self.assertEqual(preflight.active_generation, 1)
+
+        # Simulate rollover: seal the old active to generation 1, then create a
+        # fresh, larger active whose first line is the replayed epoch.
+        self.jsonl_path.replace(jsonl_sink.sealed_segment_path(self.jsonl_path, 1))
+        fresh = _encode_line(epoch) + "".join(_encode_line(_epoch(f"filler-{i}")) for i in range(5))
+        self.jsonl_path.write_text(fresh, encoding="utf-8")
+        self.assertGreater(self.jsonl_path.stat().st_size, preflight.scanned_offset)
+
+        result = append_epoch(epoch, self.jsonl_path, preflight=preflight)
+        self.assertEqual(result.status, "idempotent_replay")
+
+    def test_single_segment_offset_optimization_preserved_with_generation_identity(self) -> None:
+        epoch = _sized_epoch("44444444444444444444444444444444")
+        append_epoch(_epoch("history"), self.jsonl_path)
+        preflight = jsonl_sink.scan_epoch_digest(self.jsonl_path, epoch.epoch_id)
+        self.assertEqual(preflight.active_generation, 1)
+        self.assertGreater(preflight.active_size, 0)
+        append_epoch(epoch, self.jsonl_path)
+
+        with mock.patch.object(
+            jsonl_sink, "scan_epoch_digest", wraps=jsonl_sink.scan_epoch_digest
+        ) as scan:
+            result = append_epoch(epoch, self.jsonl_path, preflight=preflight)
+
+        self.assertEqual(result.status, "idempotent_replay")
+        self.assertEqual(scan.call_count, 1)
+        self.assertEqual(scan.call_args.kwargs["start_offset"], preflight.scanned_offset)
+
+
 if __name__ == "__main__":
     unittest.main()

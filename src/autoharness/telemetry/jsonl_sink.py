@@ -20,6 +20,31 @@ from typing import Any
 
 from autoharness.telemetry.epoch import ExecutionEpoch
 
+# --- Segment rollover / retention (module constants, NOT runtime config) ------
+#
+# Rotation thresholds are deliberately module-level constants rather than
+# ``TelemetryConfig`` fields: exposing them as configuration would require a
+# schema-versioned bump across the four telemetry schemas (all
+# ``additionalProperties: false``), ``config.py`` parsing, and the ``record.py``
+# caller for no demonstrated per-workspace tuning need. Tests override them
+# locally (e.g. ``mock.patch.object``) to exercise rollover at a low threshold.
+#
+# The JSONL sink is a BEST-EFFORT, concurrent-writer-safe human-readable mirror;
+# SQLite is the authoritative first-write-immutable store. Rotation preserves
+# that contract: sealing uses a no-replace generation claim so a concurrent
+# rollover never clobbers a sealed segment, sealed segments are NOT claimed
+# byte-immutable (a late ``O_APPEND`` into a just-sealed segment is acceptable and
+# reconciled on read), and pruning is by-design lossy on the mirror only (SQLite
+# retains authoritative history). No global write lock is introduced.
+
+# Active segment rolls over once it reaches or exceeds this size. Default large
+# enough that the existing test suite never triggers rollover.
+_MAX_SEGMENT_BYTES = 8 * 1024 * 1024
+# Number of sealed segments retained; oldest sealed generation pruned first.
+_MAX_RETAINED_SEGMENTS = 8
+# Zero-padded minimum width of the sealed-segment generation suffix.
+_GENERATION_WIDTH = 5
+
 
 class TelemetryConflictError(RuntimeError):
     """Raised when a JSONL epoch replay conflicts with first-write content."""
@@ -35,6 +60,61 @@ class SinkWriteResult:
 class JsonlPreflightScan:
     existing_digest: str | None
     scanned_offset: int
+    # Active-segment identity captured at scan time (finding 6). ``append_epoch``
+    # only trusts ``scanned_offset`` when the recorded generation still matches the
+    # current active segment; a rollover between preflight and append changes the
+    # generation and forces a full cross-segment rescan.
+    active_generation: int = 0
+    active_size: int = 0
+
+
+def sealed_segment_path(jsonl_path: Path, generation: int) -> Path:
+    """Return the path of the sealed segment for ``generation`` beside the active."""
+    return jsonl_path.parent / f"{jsonl_path.name}.{generation:0{_GENERATION_WIDTH}d}"
+
+
+def sealed_segments(jsonl_path: Path) -> list[tuple[int, Path]]:
+    """Return ``(generation, path)`` for sealed segments, oldest generation first."""
+    parent = jsonl_path.parent
+    if not parent.exists():
+        return []
+    prefix = jsonl_path.name + "."
+    found: list[tuple[int, Path]] = []
+    for child in parent.iterdir():
+        name = child.name
+        if not name.startswith(prefix):
+            continue
+        suffix = name[len(prefix):]
+        if suffix.isdigit():
+            found.append((int(suffix), child))
+    found.sort(key=lambda item: item[0])
+    return found
+
+
+def segment_read_paths(jsonl_path: Path) -> list[Path]:
+    """Shared segment enumeration: retained sealed segments (oldest→newest) then
+    the active segment. This is the single source of truth for segment ordering,
+    reused by the replay scan and the reader so both span rotated history and
+    preserve first-write precedence (oldest record wins on dedupe)."""
+    paths = [path for _generation, path in sealed_segments(jsonl_path)]
+    if jsonl_path.exists():
+        paths.append(jsonl_path)
+    return paths
+
+
+def _max_sealed_generation(jsonl_path: Path) -> int:
+    generations = sealed_segments(jsonl_path)
+    return generations[-1][0] if generations else 0
+
+
+def _active_generation(jsonl_path: Path) -> int:
+    """Identity of the current active segment: the generation it would seal to.
+
+    A rollover seals the active file to ``max(sealed) + 1`` and creates a fresh
+    active, so this value strictly increases across any rollover and is the signal
+    that a preflight offset captured before the rollover is stale.
+    """
+    return _max_sealed_generation(jsonl_path) + 1
 
 
 def _canonical_json(value: Any) -> str:
@@ -57,18 +137,17 @@ def _digest_record(record: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(record).encode("utf-8")).hexdigest()
 
 
-def scan_epoch_digest(
-    jsonl_path: Path,
+def _scan_single_file(
+    path: Path,
     epoch_id: str,
-    *,
-    start_offset: int = 0,
-) -> JsonlPreflightScan:
-    """Return digest and byte offset reached when scanning JSONL records."""
-    if not jsonl_path.exists():
-        return JsonlPreflightScan(existing_digest=None, scanned_offset=0)
-    file_size = jsonl_path.stat().st_size
+    start_offset: int,
+) -> tuple[str | None, int]:
+    """Scan one segment file for ``epoch_id``; return ``(digest, offset_reached)``."""
+    if not path.exists():
+        return None, 0
+    file_size = path.stat().st_size
     offset = max(0, min(start_offset, file_size))
-    with jsonl_path.open("rb") as handle:
+    with path.open("rb") as handle:
         handle.seek(offset)
         for raw_line in handle:
             if not raw_line.strip():
@@ -76,17 +155,55 @@ def scan_epoch_digest(
             try:
                 record = json.loads(raw_line.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError):
-                # Copilot review r3 B5: a single corrupt historical line must not
-                # raise and permanently disable future JSONL emission (every append
-                # runs this preflight scan). The reader already skips malformed
-                # lines; mirror that resilience here and keep scanning.
+                # A single corrupt historical line must not raise and permanently
+                # disable future JSONL emission (every append runs this preflight
+                # scan). The reader already skips malformed lines; mirror that
+                # resilience here and keep scanning.
                 continue
             if isinstance(record, dict) and record.get("epoch_id") == epoch_id:
+                return _digest_record(record), handle.tell()
+        return None, handle.tell()
+
+
+def scan_epoch_digest(
+    jsonl_path: Path,
+    epoch_id: str,
+    *,
+    start_offset: int = 0,
+) -> JsonlPreflightScan:
+    """Return digest and active-segment identity when scanning for ``epoch_id``.
+
+    The scan spans the active segment plus all retained sealed segments so that
+    idempotent-replay and conflict detection hold across rotated segments (within
+    the retention horizon). A match in ANY retained segment counts.
+
+    ``start_offset`` is a resume optimization for the ACTIVE segment only: a
+    positive value means the caller already scanned the sealed segments and the
+    active head during preflight under a matching generation identity, so only the
+    active tail needs rescanning. The offset is never applied to sealed segments,
+    which are always scanned in full.
+    """
+    active_generation = _active_generation(jsonl_path)
+    active_size = jsonl_path.stat().st_size if jsonl_path.exists() else 0
+
+    if start_offset <= 0:
+        for _generation, sealed_path in sealed_segments(jsonl_path):
+            digest, _offset = _scan_single_file(sealed_path, epoch_id, 0)
+            if digest is not None:
                 return JsonlPreflightScan(
-                    existing_digest=_digest_record(record),
-                    scanned_offset=handle.tell(),
+                    existing_digest=digest,
+                    scanned_offset=active_size,
+                    active_generation=active_generation,
+                    active_size=active_size,
                 )
-        return JsonlPreflightScan(existing_digest=None, scanned_offset=handle.tell())
+
+    active_digest, active_offset = _scan_single_file(jsonl_path, epoch_id, start_offset)
+    return JsonlPreflightScan(
+        existing_digest=active_digest,
+        scanned_offset=active_offset,
+        active_generation=active_generation,
+        active_size=active_size,
+    )
 
 
 def find_epoch_digest(jsonl_path: Path, epoch_id: str) -> str | None:
@@ -152,6 +269,32 @@ def _win_atomic_append(path: Path, data: bytes) -> None:
         kernel32.CloseHandle(handle)
 
 
+def _revalidate_preflight(
+    jsonl_path: Path,
+    epoch_id: str,
+    scan: JsonlPreflightScan,
+) -> str | None:
+    """Re-derive the existing digest for a supplied preflight whose active segment
+    may have advanced or rolled over since the scan.
+
+    If the active-segment generation changed (a rollover sealed the scanned active
+    and created a fresh one), the recorded ``scanned_offset`` belongs to a
+    different file and MUST NOT be trusted — including an equal-sized or larger
+    replacement — so a full cross-segment rescan is performed. Otherwise the offset
+    optimization resumes the active-tail scan from the recorded offset.
+    """
+    current_generation = _active_generation(jsonl_path)
+    if scan.active_generation != current_generation:
+        return scan_epoch_digest(jsonl_path, epoch_id).existing_digest
+    current_size = jsonl_path.stat().st_size if jsonl_path.exists() else 0
+    if current_size == scan.scanned_offset:
+        return None
+    start_offset = scan.scanned_offset if current_size >= scan.scanned_offset else 0
+    return scan_epoch_digest(
+        jsonl_path, epoch_id, start_offset=start_offset
+    ).existing_digest
+
+
 def append_epoch(
     epoch: ExecutionEpoch,
     jsonl_path: Path,
@@ -169,21 +312,21 @@ def append_epoch(
     is the authoritative first-write-immutable store. Readers deduplicate by
     ``epoch_id`` and apply SQLite-over-JSONL precedence, so duplicate mirror lines
     are reconciled on read rather than by locking this secondary sink.
+
+    Replay checks span the active segment plus all retained sealed segments, so
+    idempotent-replay and conflict detection hold across rotated segments — but
+    only within the retention horizon. Once the segment carrying an ``epoch_id`` is
+    pruned, a later replay of that ``epoch_id`` can no longer be detected on the
+    mirror and is appended as new; SQLite remains authoritative and deduplicates on
+    read.
     """
     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
     digest = payload_digest(epoch)
     preflight_supplied = preflight is not None
     scan = preflight or scan_epoch_digest(jsonl_path, epoch.epoch_id)
     existing_digest = scan.existing_digest
-    if preflight_supplied and existing_digest is None and jsonl_path.exists():
-        current_size = jsonl_path.stat().st_size
-        if current_size != scan.scanned_offset:
-            start_offset = scan.scanned_offset if current_size >= scan.scanned_offset else 0
-            existing_digest = scan_epoch_digest(
-                jsonl_path,
-                epoch.epoch_id,
-                start_offset=start_offset,
-            ).existing_digest
+    if preflight_supplied and existing_digest is None:
+        existing_digest = _revalidate_preflight(jsonl_path, epoch.epoch_id, scan)
     if existing_digest == digest:
         return SinkWriteResult(status="idempotent_replay", payload_digest=digest)
     if existing_digest is not None:
