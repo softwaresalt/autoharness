@@ -359,9 +359,14 @@ class DeployHarnessShOptInTests(_DeployWrapperOptInMixin, unittest.TestCase):
     interpreter = "sh"
 
     def _scaffold(self, preset, packs, workspace):  # noqa: ANN001
+        # The committed script is CRLF; a CRLF bash script fails on POSIX
+        # (stray \r corrupts tokens). Run an LF-normalised copy instead.
+        lf_script = workspace / "_deploy-harness.sh"
+        lf_script.write_bytes(_read(_SH_INSTANCE).encode("utf-8"))
+        lf_script.chmod(0o755)
         args = [
             _BASH,
-            str(_SH_INSTANCE),
+            str(lf_script),
             "--home",
             str(_REPO_ROOT),
             "--register",
