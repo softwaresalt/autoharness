@@ -1,5 +1,5 @@
 ---
-name: .Stage
+name: _Stage
 id: autoharness/pipeline/stage
 description: "Manages the stash-to-backlog pipeline for autoharness template development: triage, deliberation, planning, review gating, and harvest"
 maturity: stable
