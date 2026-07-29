@@ -594,25 +594,33 @@ commands; the compact-context skill is the file-level analog).
 **INVOCATION** of the skill at the closure boundary (guaranteed per-merge). It
 does **not** mandate heavy compaction work. The skill's **CANDIDATE SELECTION**
 remains threshold-gated and unchanged (`threshold_days`, `max_files`,
-`max_size_kb`; active checkpoints are never compacted). When nothing qualifies,
-the Tier-1 (fast/cheap) skill is an idempotent no-op. Guaranteed invocation costs
-roughly one directory scan and neutralizes the cost/latency objection while
-providing a consolidation floor and preventing silent drift.
+`max_size_kb`; active checkpoints are never compacted). The just-closed release
+unit's memory is the one intended per-merge candidate (eligible under the
+completed-work rule), so the guaranteed call performs a bounded, cheap Tier-1
+consolidation of that fresh memory and degrades to a scan-only no-op only when no
+completed-work memory exists and nothing else exceeds the thresholds. Guaranteed
+invocation neutralizes the cost/latency objection while providing a consolidation
+floor and preventing silent drift.
 
 **Precondition**: The PR has merged and Ship Step 6 post-merge closure has been
 entered.
 
-**Postcondition**: compact-context has been invoked with `target: all` before the
-shipment is declared closed.
+**Postcondition**: compact-context has been invoked with `target: all` and its
+outcome recorded as the operational-closure artifact's compaction status before
+the post-merge closure is declared complete.
 
 **Violation Action**: **SKIPPING** the invocation is a P-020 violation recorded
 through P-005 telemetry (`violation_policy: P-020`, `gate: Ship Step 6 closure`,
-`action: closure-incomplete`); closure is treated as **incomplete**, so the
-shipment remains active under P-001 and is caught/retried rather than
-hard-halting in a way that strands the merged PR. A compact-context run that
-**FAILS** is **NON-BLOCKING**: log a warning and continue closure — the merge has
-already landed and the Tier-1 skill is non-destructive (it archives, never
-deletes).
+`action: closure-incomplete`). Because backlog and shipment archival run earlier
+in closure, completeness is NOT tracked by shipment active-state; it is tracked by
+the operational-closure artifact's recorded **compaction status**. Skipping
+compaction leaves that status unset, so the post-merge release closure is
+**incomplete** and the Orchestrator's closure-gated routing (P-001 + P-020) holds
+the next shipment until compaction is completed and its status recorded — rather
+than hard-halting in a way that strands the merged PR. A compact-context run that
+**FAILS** is **NON-BLOCKING**: record `compaction: degraded` in the closure
+artifact, log a warning, and continue closure — the merge has already landed and
+the Tier-1 skill is non-destructive (it archives, never deletes).
 
 **Relationship to P-001**: Required post-merge compaction is part of the closure
 set that keeps a merged shipment in-flight until closure is complete. P-020

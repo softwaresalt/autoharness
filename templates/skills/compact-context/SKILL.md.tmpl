@@ -20,9 +20,12 @@ Invoke as part of the standard workflow:
 > that Ship **invokes** this skill at every post-merge closure. It does not mandate
 > heavy compaction: the **candidate selection** below stays threshold-gated
 > (`threshold_days`, `max_files`, `max_size_kb`; active checkpoints are never
-> compacted). When nothing qualifies, this Tier-1 (fast/cheap) skill is an
-> idempotent no-op — guaranteed invocation costs roughly one directory scan while
-> providing a per-merge consolidation floor.
+> compacted). One candidate is intended per merge — the just-closed release unit's
+> memory qualifies under the completed-work rule (Phase 2, "completed feature or
+> chore") — so the guaranteed call performs a **bounded, cheap Tier-1 consolidation**
+> of that fresh memory (the intended post-merge floor), degrading to a scan-only
+> no-op only when no completed-work memory exists and nothing else exceeds the
+> thresholds.
 
 ## Inputs
 

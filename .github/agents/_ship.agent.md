@@ -484,16 +484,22 @@ this protocol is non-negotiable and has no local-record bypass.
 3. Update documentation if templates changed significantly.
 4. Write session memory to `docs/memory/`.
 5. **Mandatory (P-020)**: Invoke **compact-context** with `target: all` to consolidate
-   memory checkpoints, finalize any decided-plans, and compact closure artifacts.
+   memory checkpoints, finalize any decided-plans, and compact closure artifacts, then
+   record the outcome as the operational-closure artifact's compaction status.
    Built-in AI assistant memory features do not write to the repository's `docs/`
    directory — compact-context is the mechanism that ensures durable persistence.
-   Invocation is mandatory per merge; candidate selection stays threshold-gated, so
-   when nothing qualifies the Tier-1 skill is an idempotent no-op. SKIPPING this
-   invocation is a P-020 violation recorded via P-005 telemetry and leaves closure
-   **incomplete** (the shipment stays active under P-001 and is retried — it does not
-   strand the merged PR); a compact-context run that **FAILS** is **NON-BLOCKING**
-   (log a warning and continue — the merge already landed and the skill is
-   non-destructive).
+   Invocation is mandatory per merge; candidate selection stays threshold-gated. The
+   just-closed release unit's memory is the one intended candidate (eligible under the
+   completed-work rule), so the guaranteed call is a bounded, cheap Tier-1 consolidation
+   of that fresh memory and degrades to a scan-only no-op only when nothing else
+   qualifies. SKIPPING this invocation is a P-020 violation recorded via P-005 telemetry.
+   Because the shipment is safe-closed and archived in step 1, completeness is tracked by
+   the operational-closure artifact's compaction status, not shipment active-state:
+   skipping leaves that status unset so post-merge closure is **incomplete** and the
+   Orchestrator's closure-gated routing (P-001 + P-020) holds the next shipment until
+   compaction is completed — it does not strand the merged PR. A compact-context run that
+   **FAILS** is **NON-BLOCKING** (record `compaction: degraded`, log a warning, and
+   continue — the merge already landed and the skill is non-destructive).
 6. In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
    merge/fallback status, admin fallback result if any, compaction status (P-020),
    closure status, and follow-up items before `DARK_MODE_COMPLETE` can be emitted.
