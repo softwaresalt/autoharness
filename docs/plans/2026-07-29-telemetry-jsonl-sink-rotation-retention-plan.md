@@ -8,6 +8,7 @@ prior_work: 092-F / 097-S (PR #241, telemetry subsystem hardening)
 covering_feature: 095-F
 shipment: 100-S
 hardened: 2026-07-29 (P-006, per PR #249 Copilot review — round 1: 6 findings; round 3: best-effort concurrent-writer mirror + no-replace rollover, findings A + B)
+shipped: 2026-07-29 (PR #250, merge commit ac94a3f — dark mode; tasks 095.001-T..095.004-T)
 ---
 
 # Plan: Rotation + retention for the telemetry JSONL sink

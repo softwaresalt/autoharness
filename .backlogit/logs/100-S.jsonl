@@ -1,3 +1,4 @@
 {"timestamp":"2026-07-29T01:06:17.6236144-07:00","actor":"backlogit","item_id":"100-S","event_type":"shipment_created","delta":{"items":["095.001-T","095.002-T","095.003-T"],"title":"Telemetry JSONL sink rotation + retention (095-F / stash 7D1E2F1A)"}}
 {"timestamp":"2026-07-29T01:24:37.1430116-07:00","actor":"backlogit","item_id":"100-S","event_type":"shipment_item_added","delta":{"item_id":"095.004-T"}}
 {"timestamp":"2026-07-29T02:14:06.3211904-07:00","actor":"backlogit","item_id":"100-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-29T02:59:30.8432971-07:00","actor":"backlogit","item_id":"100-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/100-S.md"}}
