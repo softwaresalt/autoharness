@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-29T06:47:40.1438984-07:00","actor":"backlogit","item_id":"103-S","event_type":"shipment_created","delta":{"items":["098.001-T","098.002-T","098.003-T","098.004-T","098.005-T","098.006-T","098.007-T","098.008-T"],"title":"P-020 Post-Merge Context Compaction — policy + closure wiring + dogfood drift fix"}}
+{"timestamp":"2026-07-29T08:22:25.038329-07:00","actor":"backlogit","item_id":"103-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/103-S.md"}}
