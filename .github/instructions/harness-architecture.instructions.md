@@ -97,6 +97,7 @@ through several primitives at once, and must stay coherent across them:
 * Checkpoints capture: tasks completed, files modified, decisions, failed approaches, next steps
 * Learnings retrieval runs before planning and review work, not just after failures
 * Compact-context is a mandatory workflow step (invoked by stage or ship agent at checkpoint threshold and at batch completion), not an advisory suggestion
+* Post-merge context compaction is a policy-enforced mandatory closure gate (P-020): Ship MUST invoke compact-context (`target: all`) at every post-merge closure. Invocation is mandatory per merge; candidate selection stays threshold-gated, so it is an idempotent Tier-1 no-op when nothing qualifies
 * Session continuity protocols in stage and ship agents handle state persistence at Tier 1 (Fast/Cheap) — recommended model: GPT-5.4-mini or equivalent
 * Compaction triggers when file count exceeds threshold (default 40) or total size exceeds 500 KB
 * Compound entries use searchable frontmatter fields: `problem_type`, `category`, `root_cause`, `tags`
@@ -301,6 +302,7 @@ through several primitives at once, and must stay coherent across them:
 * Operational closure converts validator evidence plus monitoring/rollback requirements into explicit releasability evidence (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`)
 * Closure artifacts record healthy signals, failure signals, validation windows, rollback triggers, and owner
 * Runtime findings feed back into compound learnings, documentation updates, and tuning proposals
+* Required post-merge context compaction (P-020) is part of operational closure: Ship invokes the env-agnostic compact-context skill at every post-merge closure so session knowledge is consolidated into durable docs-root artifacts. Skipping invocation leaves closure incomplete (P-001); a failed compaction run is non-blocking
 * In dark factory mode, closure summaries must list decisions, gate outcomes, reviewed HEADs, merge/fallback status, admin fallback result if any, closure status, and follow-up items before `DARK_MODE_COMPLETE` is emitted
 * Primitive 10 is the formal handoff from “implemented” to “safely absorbed by the running system”
 

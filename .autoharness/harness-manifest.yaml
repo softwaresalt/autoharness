@@ -112,12 +112,12 @@ artifacts:
   - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "adc627962a0f05762ed798de84b597e7e746531a6a1eb4669a68db7ac176c618"
+    checksum: "d78de25fe8994293570892f091429ba96ec6331d1fb0ef4429bb8387d0dc1dac"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "439a9bf309e7a5a590b37cf9cffcefb8f943443fa876004955ec59fc0c11a164"
+    checksum: "9e0aafcef42e88963a4aa5e8be3db38240466646f7281ac3efb7b856eae7a278"
     note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1
@@ -131,7 +131,7 @@ artifacts:
   - path: "AGENTS.md"
     primitive: 9
     template: "foundation/AGENTS.md.tmpl"
-    checksum: "c90ccbbf195e2ad30ac5218f2ff61b793d66742f7e1994044ef7c280bd6d79c8"
+    checksum: "eeb8763b85a76b1ca99e9a7705e8c35fa63f7e9e14b7cfd7a41059cbdde4a9b8"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/copilot-instructions.md"
     primitive: 6
@@ -141,7 +141,7 @@ artifacts:
   - path: ".github/instructions/harness-architecture.instructions.md"
     primitive: 9
     template: "global instruction definition"
-    checksum: "4ce57f3d976c3aa4804bb93f9b7c3d11fc6430effebfcc69595be60dd0871cb1"
+    checksum: "f317ddb02c648553e5f6d10bcb17dff8c68cf426c828a61bac72bd8140f77778"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/agents/auto-mergeinstall.agent.md"
     primitive: 4

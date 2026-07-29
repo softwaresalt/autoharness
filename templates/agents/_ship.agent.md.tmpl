@@ -613,8 +613,8 @@ branch-per-release-unit principle.
       `git commit -m "chore: archive {shipment_id} backlog artifacts"`
 2. Invoke `operational-closure` in `mode=post-merge` to produce release-readiness, monitoring, and rollback artifacts in `{{DOCS_CLOSURE}}/`.
    In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
-   merge/fallback status, admin fallback result if any, closure status, and
-   follow-up items before `DARK_MODE_COMPLETE` can be emitted.
+   merge/fallback status, admin fallback result if any, **compaction status (P-020)**,
+   closure status, and follow-up items before `DARK_MODE_COMPLETE` can be emitted.
 3. Evaluate whether documentation or compound learnings need updates for the shipped scope:
    * `{{DOCS_ROOT}}/ARCHITECTURE.md` for structural changes
    * `AGENTS.md` for agent or skill changes
@@ -632,7 +632,7 @@ branch-per-release-unit principle.
    * For each shipped top-level item in scope (feature or chore), read `custom_fields.source_deliberation_id`. If present, verify the deliberation artifact exists via `backlogit_get_item`. If it exists and is not already archived, call `backlogit_archive_item`. If it is already archived or not found, skip and log it.
    * After processing the full shipped scope, record the archived and skipped source artifact IDs in the closure artifact's `Source artifact cleanup` section so the closure report remains the traceable system of record.
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Source artifacts archived: {stash_count} stash, {delib_count} deliberations`.
-8. **Mandatory**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence.
+8. **Mandatory (P-020)**: Invoke **compact-context** with `target: all` to consolidate memory checkpoints, finalize any decided-plans, and compact closure artifacts. This is required because built-in AI assistant memory features do not write to the repository's `{{DOCS_ROOT}}/` directory — compact-context is the mechanism that ensures durable persistence. **Invocation is mandatory per merge; candidate selection stays threshold-gated** — when nothing qualifies the Tier-1 skill is an idempotent no-op, so guaranteed invocation costs roughly one directory scan. **Failure semantics (P-020)**: SKIPPING this invocation is a P-020 violation recorded via P-005 telemetry and leaves closure **incomplete** (the shipment stays active under P-001 and is retried — it does not strand the merged PR). A compact-context run that **FAILS** is **NON-BLOCKING**: log a warning and continue closure (the merge already landed and the skill is non-destructive).
 9. **Backlog index resync** (backlogit only): After all archival, source-artifact mutations, and knowledge graduation are complete, call `{{OP_SYNC_INDEX_MCP}}` (or CLI fallback `{{OP_SYNC_INDEX_CLI}}`) to rebuild the backlogit index so it reflects all closure mutations.
    - On success: log `CLOSURE_INDEX_SYNC_OK`. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Backlog index resynced after closure`.
    - On failure: log `CLOSURE_INDEX_SYNC_WARN`. When the `agent-intercom` capability pack is installed, broadcast `[WARN] Closure index sync failed — backlogit index may not reflect archived items. Run \`{{OP_SYNC_INDEX_CLI}}\` manually.` Otherwise write the warning to session output only. Proceed — this is a degraded completion, not a halt.

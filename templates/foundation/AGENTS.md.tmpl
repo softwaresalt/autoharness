@@ -277,10 +277,11 @@ Run in order. Do not skip any gate.
    `/feature-flow-dark` prompt shim. Dark mode must record `DARK_MODE_ACTIVE`,
    stay bounded to the declared scope, preserve P-001 / P-009 / P-014 / P-016,
    keep local review readiness authoritative, emit required visibility events,
-   and complete post-merge closure before the scope is considered complete.
+   and complete post-merge closure (including required post-merge context
+   compaction under P-020) before the scope is considered complete.
 5. **Commit discipline**: Conventional commits format (`feat:`, `fix:`, `docs:`, `test:`).
 6. **No dead code**: Placeholder modules replaced or removed before completion.
-7. **Closure before forgetfulness**: Runtime verification and operational closure happen before work is considered fully absorbed.
+7. **Closure before forgetfulness**: Runtime verification and operational closure happen before work is considered fully absorbed. Required post-merge context compaction (**P-020**) is a mandatory closure gate — Ship invokes the compact-context skill at every post-merge closure.
 
 ### Task Granularity (NON-NEGOTIABLE)
 

@@ -13,8 +13,16 @@ This skill is a **mandatory workflow step** invoked explicitly by the stage or s
 Invoke as part of the standard workflow:
 
 * **Stage or Ship agent**: When checkpoint count for a feature or chore exceeds 10 (mandatory trigger)
-* **Ship agent**: At batch completion (Step 5), after writing the session memory summary
+* **Ship agent**: At every post-merge closure (mandatory per-merge trigger — **P-020**), after writing the session memory summary
 * **Manual**: When `{{DOCS_MEMORY}}/` file count > 40, total size > 500 KB, or the operator requests it
+
+> **Invocation is mandatory; candidate selection is threshold-gated.** P-020 mandates
+> that Ship **invokes** this skill at every post-merge closure. It does not mandate
+> heavy compaction: the **candidate selection** below stays threshold-gated
+> (`threshold_days`, `max_files`, `max_size_kb`; active checkpoints are never
+> compacted). When nothing qualifies, this Tier-1 (fast/cheap) skill is an
+> idempotent no-op — guaranteed invocation costs roughly one directory scan while
+> providing a per-merge consolidation floor.
 
 ## Inputs
 

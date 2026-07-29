@@ -483,10 +483,21 @@ this protocol is non-negotiable and has no local-record bypass.
 2. Write compound learnings for hard-won solutions.
 3. Update documentation if templates changed significantly.
 4. Write session memory to `docs/memory/`.
-5. In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
-   merge/fallback status, admin fallback result if any, closure status, and
-   follow-up items before `DARK_MODE_COMPLETE` can be emitted.
-6. **Closure index resync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback) after
+5. **Mandatory (P-020)**: Invoke **compact-context** with `target: all` to consolidate
+   memory checkpoints, finalize any decided-plans, and compact closure artifacts.
+   Built-in AI assistant memory features do not write to the repository's `docs/`
+   directory — compact-context is the mechanism that ensures durable persistence.
+   Invocation is mandatory per merge; candidate selection stays threshold-gated, so
+   when nothing qualifies the Tier-1 skill is an idempotent no-op. SKIPPING this
+   invocation is a P-020 violation recorded via P-005 telemetry and leaves closure
+   **incomplete** (the shipment stays active under P-001 and is retried — it does not
+   strand the merged PR); a compact-context run that **FAILS** is **NON-BLOCKING**
+   (log a warning and continue — the merge already landed and the skill is
+   non-destructive).
+6. In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
+   merge/fallback status, admin fallback result if any, compaction status (P-020),
+   closure status, and follow-up items before `DARK_MODE_COMPLETE` can be emitted.
+7. **Closure index resync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback) after
    all archival and mutations are complete. Log `CLOSURE_INDEX_SYNC_OK` on success.
 
 ## Stop Conditions

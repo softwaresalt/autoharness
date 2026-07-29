@@ -573,6 +573,57 @@ follow-up items before `DARK_MODE_COMPLETE` is emitted.
 
 ---
 
+## P-020: Post-Merge Context Compaction
+
+| Field      | Value                                             |
+|------------|---------------------------------------------------|
+| Policy ID  | P-020                                             |
+| Applies To | `ship`, `orchestrator`, `compact-context`         |
+| Gate Point | Ship post-merge closure (Step 6)                  |
+
+**Statement**: At every post-merge closure, the ship agent MUST invoke the
+environment-agnostic **compact-context skill** (`target: all`) so session memory,
+plan, and closure artifacts are consolidated into durable docs-root files and
+verbose originals are archived. The mechanism is the compact-context skill, not
+any environment-specific in-conversation compaction command — no such literal
+command is hard-wired into any harness artifact (autoharness is
+environment-agnostic and cannot hook environment-controlled conversation
+commands; the compact-context skill is the file-level analog).
+
+**Invocation vs. candidate selection (decoupled)**: This policy mandates
+**INVOCATION** of the skill at the closure boundary (guaranteed per-merge). It
+does **not** mandate heavy compaction work. The skill's **CANDIDATE SELECTION**
+remains threshold-gated and unchanged (`threshold_days`, `max_files`,
+`max_size_kb`; active checkpoints are never compacted). When nothing qualifies,
+the Tier-1 (fast/cheap) skill is an idempotent no-op. Guaranteed invocation costs
+roughly one directory scan and neutralizes the cost/latency objection while
+providing a consolidation floor and preventing silent drift.
+
+**Precondition**: The PR has merged and Ship Step 6 post-merge closure has been
+entered.
+
+**Postcondition**: compact-context has been invoked with `target: all` before the
+shipment is declared closed.
+
+**Violation Action**: **SKIPPING** the invocation is a P-020 violation recorded
+through P-005 telemetry (`violation_policy: P-020`, `gate: Ship Step 6 closure`,
+`action: closure-incomplete`); closure is treated as **incomplete**, so the
+shipment remains active under P-001 and is caught/retried rather than
+hard-halting in a way that strands the merged PR. A compact-context run that
+**FAILS** is **NON-BLOCKING**: log a warning and continue closure — the merge has
+already landed and the Tier-1 skill is non-destructive (it archives, never
+deletes).
+
+**Relationship to P-001**: Required post-merge compaction is part of the closure
+set that keeps a merged shipment in-flight until closure is complete. P-020
+composes with P-001; it does not restate or duplicate it.
+
+**Relationship to P-017**: In dark factory mode, post-merge closure MUST report
+compaction status as part of the closure summary before `DARK_MODE_COMPLETE` is
+emitted.
+
+---
+
 ## Amendment Log
 
 | Version | Date         | Change           | Reason                     |
@@ -592,3 +643,4 @@ follow-up items before `DARK_MODE_COMPLETE` is emitted.
 | 1.12.0  | {{DATE}}     | Added P-017      | Dark factory autonomy contract — bounded autonomous execution, local-review authority, and audited merge approval |
 | 1.13.0  | {{DATE}}     | Added P-018      | Copilot review completion & thread resolution merge gate — deterministic, fail-closed, admin non-bypass, multi-round, bounded-timeout escape |
 | 1.14.0  | {{DATE}}     | Added P-019      | Local pre-push quality-gate enforcement — opt-in, single-pass, tool-absent→skip, shift-left counterpart of the CI aggregation gate |
+| 1.15.0  | {{DATE}}     | Added P-020      | Post-merge context compaction — mandatory compact-context invocation at Ship closure, invocation-vs-candidate-selection decoupling, skip=violation/closure-incomplete, failed-run non-blocking |
