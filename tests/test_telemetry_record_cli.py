@@ -315,7 +315,7 @@ class TelemetryRecordCliTests(unittest.TestCase):
         """090.001-T (A465162F): a context-ref record replayed with the same
         explicit close timestamp reused on every attempt must yield `created`
         then `idempotent_replay` — the capture-once/reuse contract that
-        `.ship.agent.md` documents at the record-close step."""
+        `_ship.agent.md` documents at the record-close step."""
         self._write_config(_ENABLED_CONFIG)
         from autoharness.telemetry.record import load_workspace_telemetry_config
 

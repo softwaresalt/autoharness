@@ -487,8 +487,8 @@ Note: These capability-pack and reviewer-selection variables are used internally
 
 | Profile Path | Primary Consumers | Purpose |
 |---|---|---|
-| `runtime_validation.validator_manifest` | `.ship.agent.md`, `runtime-verification/SKILL.md` | Surface adapters, probe hints, and manual checkpoints for the runtime validator |
-| `runtime_validation.validation_expectations` | `.ship.agent.md`, `runtime-verification/SKILL.md` | Expected surfaces, minimum verdict, invariants, and explicit release blockers |
+| `runtime_validation.validator_manifest` | `_ship.agent.md`, `runtime-verification/SKILL.md` | Surface adapters, probe hints, and manual checkpoints for the runtime validator |
+| `runtime_validation.validation_expectations` | `_ship.agent.md`, `runtime-verification/SKILL.md` | Expected surfaces, minimum verdict, invariants, and explicit release blockers |
 | `runtime_validation.releasability` | `operational-closure/SKILL.md`, `release-observability.instructions.md` | Required releasability evidence such as monitoring, rollback, owner, and validation-window expectations |
 
 **Alternate Model Variables** (used by `adversarial-review` and `doc-review` templates when alternate provider support is enabled):
@@ -691,7 +691,7 @@ Example overlay target map for `backlogit`:
 | Agent continuity | stage and ship session continuity, foundation docs |
 | Traceability | backlog-aware agents and instructions |
 | Schema and tooling reference | backlogit-specific instruction files plus backlog-aware workflows that inspect SQL, frontmatter, or `custom_fields` |
-| Source artifact cleanup | `.ship.agent.md`, `operational-closure/SKILL.md`, and closure-facing traceability guidance |
+| Source artifact cleanup | `_ship.agent.md`, `operational-closure/SKILL.md`, and closure-facing traceability guidance |
 
 Example overlay target map for `agent-engram`:
 
@@ -714,7 +714,7 @@ Example overlay target map for `agent-engram`:
 **Overlay targets**:
 * `foundation-docs` — AGENTS.md, copilot-instructions.md (engram:start/end block)
 * `agent-engram.instructions.md` — primary instruction file installed at `.github/instructions/`
-* `pipeline-agents` — .stage.agent.md, .ship.agent.md: session-start daemon check, pre-planning search, pre-build impact analysis
+* `pipeline-agents` — _stage.agent.md, _ship.agent.md: session-start daemon check, pre-planning search, pre-build impact analysis
 * `analysis-heavy-workflows` — research/planning/build skills: add `unified_search` / `impact_analysis` guidance
 
 **Behavior deltas**:
@@ -725,14 +725,14 @@ Example overlay target map for `agent-engram`:
 
 **Verification checks** (installation-time):
 * `agent-engram.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
-* `.stage.agent.md` contains Engram session-start check (`get_workspace_status`) and pre-planning search step
-* `.ship.agent.md` contains Engram session-start check (`get_workspace_status`) and pre-build impact-analysis step
+* `_stage.agent.md` contains Engram session-start check (`get_workspace_status`) and pre-planning search step
+* `_ship.agent.md` contains Engram session-start check (`get_workspace_status`) and pre-build impact-analysis step
 * `copilot-instructions.md` engram block cross-references installed instructions (`agent-engram.instructions.md`)
 * No unresolved `{{VARIABLE}}` in `agent-engram.instructions.md` (template has none — direct copy)
 
 **Tuning drift checks**:
 * `agent-engram.instructions.md` checksum vs. template checksum in harness-manifest
-* .stage.agent.md and .ship.agent.md contain `get_workspace_status` reference (text search)
+* _stage.agent.md and _ship.agent.md contain `get_workspace_status` reference (text search)
 * copilot-instructions.md contains `engram:start` / `engram:end` markers (text search)
 
 #### Formal Overlay Contract: `agent-intercom`
@@ -751,7 +751,7 @@ intercom/ACP tool surface.
 
 **Overlay targets**:
 * `agent-intercom.instructions.md` — primary instruction file installed at `.github/instructions/`
-* `pipeline-agents` — .stage.agent.md, .ship.agent.md: startup heartbeat, phase broadcasts, approval routing, operator-choice broadcasts
+* `pipeline-agents` — _stage.agent.md, _ship.agent.md: startup heartbeat, phase broadcasts, approval routing, operator-choice broadcasts
 * `destructive-action-workflows` — anywhere the harness gates destructive operations (file deletion, directory removal)
 * `operator-choice-surfaces` — stash triage, plan review, shipment assembly (self-contained broadcast with backlogit item details)
 
@@ -766,13 +766,13 @@ intercom/ACP tool surface.
 
 **Verification checks** (installation-time):
 * `agent-intercom.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
-* .stage.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
-* .ship.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
+* _stage.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
+* _ship.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
 * No unresolved `{{VARIABLE}}` in `agent-intercom.instructions.md` (template has none — direct copy)
 
 **Tuning drift checks**:
 * `agent-intercom.instructions.md` checksum vs. template checksum in harness-manifest
-* .stage.agent.md and .ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
+* _stage.agent.md and _ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
 * Intercom config path in the manifest normally resolves to `.intercom/settings.json`; agent-intercom has no MCP server, so a `.mcp.json` intercom entry is not expected
 
 #### Formal Overlay Contract: `graphtor-docs`
@@ -788,7 +788,7 @@ intercom/ACP tool surface.
 
 **Overlay targets**:
 * `graphtor-docs.instructions.md` — primary instruction file (two template variables require discovery-first resolution)
-* `pipeline-agents` — .stage.agent.md, .ship.agent.md: session-start server check, pre-planning doc research, pre-build doc search, multi-pack routing note
+* `pipeline-agents` — _stage.agent.md, _ship.agent.md: session-start server check, pre-planning doc research, pre-build doc search, multi-pack routing note
 * `research-skills` — any research or learnings-retrieval skill: prefer graphtor-docs for doc lookup over broad grep
 * `workspace-profile` — requires `graphtor_docs` section with `sources_path` and `binary_path` (string|null)
 
@@ -813,12 +813,12 @@ After resolution, verify no `{{...}}` remain in the rendered file before recordi
 **Verification checks** (installation-time):
 * `graphtor-docs.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
 * Zero `{{VARIABLE}}` placeholders in installed file (both `GRAPHTOR_SOURCES_PATH` and `GRAPHTOR_BINARY_PATH` must be resolved)
-* .stage.agent.md and .ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference
+* _stage.agent.md and _ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference
 * workspace-profile.yaml has `graphtor_docs` section with `sources_path` and `binary_path` (string|null)
 
 **Tuning drift checks**:
 * `graphtor-docs.instructions.md` checksum comparison: note that because template variables are resolved at install time, the installed checksum is workspace-specific — the tuner should compare the rendered content against a fresh render from the template (re-resolving variables), NOT against the raw template file. If both `GRAPHTOR_SOURCES_PATH` and `GRAPHTOR_BINARY_PATH` are unchanged, checksums will match; if the paths changed, the tuner should flag for re-render.
-* .stage.agent.md and .ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference (text search)
+* _stage.agent.md and _ship.agent.md contain `GRAPHTOR_UNAVAILABLE` reference (text search)
 * workspace-profile.yaml contains `graphtor_docs` section (structural check)
 
 #### Capability-Pack Usage-Enforcement Coordinator (retrieval-enforced packs)
@@ -898,7 +898,7 @@ Example overlay target map for `strict-safety`:
 | Overlay Element | Required Targets |
 |---|---|
 | Action contract | foundation docs, `strict-safety.instructions.md`, `safety-modes/SKILL.md` |
-| Risky-plan legibility | `.stage.agent.md`, `impl-plan/SKILL.md`, `plan-harden/SKILL.md`, `plan-review/SKILL.md` |
+| Risky-plan legibility | `_stage.agent.md`, `impl-plan/SKILL.md`, `plan-harden/SKILL.md`, `plan-review/SKILL.md` |
 | Approval / rollback visibility | review, runtime-verification, and operational-closure workflows |
 
 Example overlay target map for `release-observability`:
@@ -912,7 +912,7 @@ Example overlay target map for `release-observability`:
 Runtime validator structural contract:
 
 * workspace-profile.yaml contains `runtime_validation.validator_manifest`, `runtime_validation.validation_expectations`, and `runtime_validation.releasability`
-* .ship.agent.md references validator evidence and releasability evidence handoff
+* _ship.agent.md references validator evidence and releasability evidence handoff
 * runtime-verification/SKILL.md emits validator evidence with surface adapters, probe hints, manual checkpoint evidence, and verdict
 * operational-closure/SKILL.md converts validator evidence into releasability evidence
 
@@ -1021,7 +1021,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    When `adversarial-review` is enabled, install `adversarial-review.instructions.md` and use it as the authoritative reference for multi-model dispatch, consensus assembly, confidence tiers, and remediation queue structure.
    When `graphtor-docs` is enabled, install `graphtor-docs.instructions.md` and use it as the authoritative reference for indexed local documentation search, semantic retrieval, doc-graph traversal, and server lifecycle workflows. Resolve `{{GRAPHTOR_SOURCES_PATH}}` from the workspace profile's `graphtor_docs.sources_path` (defaulting to `.graphtor/config/sources.yaml`) and `{{GRAPHTOR_BINARY_PATH}}` from `graphtor_docs.binary_path` when present; otherwise fall back to `graphtor` on PATH and then `.graphtor/bin/graphtor-docs.exe` or `.graphtor/bin/graphtor-docs`, with final default `graphtor` (assumes PATH).
 
-5. **Two-agent model instructions** (conditional — auto-detected): When both `.stage.agent.md` and `.ship.agent.md` are being installed (indicating the two-agent Stage/Ship workflow model), install `role-enforcement.instructions.md` from `role-enforcement.instructions.md.tmpl`. This instruction defines the pre-mutation check protocol that teaches each agent to self-check against its own `## Role Boundary (NON-NEGOTIABLE)` table before executing tool calls. Skip this instruction when only one agent (or neither) is installed — role enforcement is only meaningful in the two-agent model.
+5. **Two-agent model instructions** (conditional — auto-detected): When both `_stage.agent.md` and `_ship.agent.md` are being installed (indicating the two-agent Stage/Ship workflow model), install `role-enforcement.instructions.md` from `role-enforcement.instructions.md.tmpl`. This instruction defines the pre-mutation check protocol that teaches each agent to self-check against its own `## Role Boundary (NON-NEGOTIABLE)` table before executing tool calls. Skip this instruction when only one agent (or neither) is installed — role enforcement is only meaningful in the two-agent model.
 
 #### Step 2.3: Backlog Tool Registration
 
@@ -1076,8 +1076,8 @@ installed. The canonical identities are:
 | Canonical `id:` | Canonical filename | Canonical `name:` | Legacy filenames | Legacy `name:` |
 |---|---|---|---|---|
 | `autoharness/pipeline/orchestrator` | `_orchestrator.agent.md` | `_Orchestrator` | `orchestrator.agent.md`, `dispatch.agent.md` | `Orchestrator`, `Dispatch` |
-| `autoharness/pipeline/stage` | `.stage.agent.md` | `.Stage` | `stage.agent.md` | `Stage` |
-| `autoharness/pipeline/ship` | `.ship.agent.md` | `.Ship` | `ship.agent.md` | `Ship` |
+| `autoharness/pipeline/stage` | `_stage.agent.md` | `_Stage` | `stage.agent.md`, `.stage.agent.md` | `Stage`, `.Stage` |
+| `autoharness/pipeline/ship` | `_ship.agent.md` | `_Ship` | `ship.agent.md`, `.ship.agent.md` | `Ship`, `.Ship` |
 
 `verify-workspace` emits these as `contract: agent-identity` migration proposals.
 Detection prefers the stable `id:` field: any agent file whose `id:` matches a
@@ -1471,8 +1471,8 @@ capability_pack_overlays:
   #     - "analysis-heavy-workflows"
   #   verification_checks:
   #     - "agent-engram.instructions.md installed at .github/instructions/"
-  #     - ".stage.agent.md contains Engram session-start check (get_workspace_status)"
-  #     - ".ship.agent.md contains Engram session-start check (get_workspace_status)"
+  #     - "_stage.agent.md contains Engram session-start check (get_workspace_status)"
+  #     - "_ship.agent.md contains Engram session-start check (get_workspace_status)"
   #     - "copilot-instructions.md engram block cross-references installed instructions"
   #     - "No unresolved {{VARIABLE}} in agent-engram.instructions.md"
 primitives_installed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -1583,26 +1583,26 @@ For each enabled capability pack:
    a. Confirm `constitution.instructions.md` contains "Merge Commit History Preservation"
       or equivalent principle text referencing P-009
    b. Confirm `workflow-policies` contains "P-009" and "squash" keyword
-   c. Confirm `.ship.agent.md` or the pr-lifecycle skill contains a pre-merge strategy
+   c. Confirm `_ship.agent.md` or the pr-lifecycle skill contains a pre-merge strategy
       guardrail referencing P-009
    d. Confirm `git-merge.instructions.md` contains a squash-merge prohibition section
    e. Report FAIL for any missing artifact — absent merge policy is a P-009 violation risk
  6a. **Full-build PR gate verification** (universal — applies to all installed harnesses):
-    a. Confirm `.ship.agent.md` requires a full local build before code-changing PRs
+    a. Confirm `_ship.agent.md` requires a full local build before code-changing PRs
     b. Confirm `pr-lifecycle/SKILL.md` requires successful full local build evidence in PR readiness for code-changing PRs
     c. Confirm `github-pr-automation.instructions.md` includes the `Full local build` readiness field and gate check
     d. Report FAIL for stale guidance that allows code-changing PRs without successful full local build evidence
 7. **No-parallel branch/worktree verification** (universal — applies to all installed harnesses):
    a. Confirm `workflow-policies` contains `P-016` and "No Parallel Branch/Worktree Execution"
    b. Confirm `constitution.instructions.md` or root `AGENTS.md` states single active implementation branch/worktree behavior
-   c. Confirm `.ship.agent.md` contains a P-016 worktree topology gate before shipment claim or mutation
-   d. Confirm `.stage.agent.md` limits extra worktrees to explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
+   c. Confirm `_ship.agent.md` contains a P-016 worktree topology gate before shipment claim or mutation
+   d. Confirm `_stage.agent.md` limits extra worktrees to explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
    e. Confirm `_orchestrator.agent.md` describes planning overlap without requiring different implementation branches
    f. Report FAIL for stale guidance that endorses parallel implementation branches/worktrees outside the Stage spike/research exception
 8. **Dark factory verification** (when P-017 or `feature-flow-dark` is installed):
    a. Confirm `workflow-policies` contains `P-017`, exact trigger `Run pipeline in dark mode`, and `DARK_MODE_ACTIVE`
    b. Confirm `_orchestrator.agent.md` records bounded scope, merge approval authority, admin fallback authority, stop conditions, and `DARK_MODE_START` / `DARK_MODE_COMPLETE`
-   c. Confirm `.ship.agent.md` or `pr-lifecycle` requires current-HEAD local readiness, P-009 merge commit strategy, required checks, P-016 topology, and immediate `headRefOid` re-check before merge/admin fallback
+   c. Confirm `_ship.agent.md` or `pr-lifecycle` requires current-HEAD local readiness, P-009 merge commit strategy, required checks, P-016 topology, and immediate `headRefOid` re-check before merge/admin fallback
    d. Confirm `agent-intercom.instructions.md` contains dark-mode visibility events, including `BRAINSTORM_HANDOFF_READY`, and degraded-visibility halt behavior
    e. Confirm `feature-flow-dark.prompt.md` routes through Orchestrator and does not bypass Stage, Ship, backlog/shipment policy, local readiness, telemetry, or closure
    f. Report FAIL for missing or stale guidance that treats dark mode as a safety bypass, allows vague trigger phrases, or omits closure evidence (decisions, gates, reviewed HEADs, merge/fallback status, closure status, follow-ups)

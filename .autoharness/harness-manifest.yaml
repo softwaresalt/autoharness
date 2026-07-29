@@ -51,8 +51,8 @@ capability_pack_overlays:
       - "analysis-heavy-workflows"
     verification_checks:
       - "agent-engram.instructions.md installed at .github/instructions/"
-      - ".stage.agent.md contains Engram session-start check (get_workspace_status)"
-      - ".ship.agent.md contains Engram session-start check (get_workspace_status)"
+      - "_stage.agent.md contains Engram session-start check (get_workspace_status)"
+      - "_ship.agent.md contains Engram session-start check (get_workspace_status)"
       - "copilot-instructions.md engram block cross-references installed instructions"
       - "No unresolved {{VARIABLE}} in agent-engram.instructions.md"
       - "capability-pack-enforcement.instructions.md present with route:agent-engram row and matching manifest checksum"
@@ -64,7 +64,7 @@ capability_pack_overlays:
     verification_checks:
       - "graphtor-docs.instructions.md installed at .github/instructions/"
       - "Zero {{VARIABLE}} placeholders in installed graphtor-docs.instructions.md"
-      - ".stage.agent.md and .ship.agent.md contain GRAPHTOR_UNAVAILABLE references"
+      - "_stage.agent.md and _ship.agent.md contain GRAPHTOR_UNAVAILABLE references"
       - "workspace-profile.yaml has graphtor_docs section"
       - "capability-pack-enforcement.instructions.md present with route:graphtor-docs row and matching manifest checksum"
 primitives_installed:
@@ -104,15 +104,15 @@ artifacts:
     primitive: 4
     template: "backlog/registries/backlogit.registry.yaml"
     checksum: "3b1b8ec93af99d865b6ab2d19661546393233c815a82c4c932370c619d9fa7e8"
-  - path: ".github/agents/.stage.agent.md"
+  - path: ".github/agents/_stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "405e4cdd8245c612eacca2a2943449bb8353b6785325541b64f85794a49ab877"
+    checksum: "42ddfa22c12da6dc5d22befa0c66840471f7e7842ad3c0e8f6bde8da113ad63a"
     note: "source-controlled dogfood workflow agent"
-  - path: ".github/agents/.ship.agent.md"
+  - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "6cce6f1c39a2362377a9939e016ca5f157b9ec40374cccbd11713dd9eda8357b"
+    checksum: "adc627962a0f05762ed798de84b597e7e746531a6a1eb4669a68db7ac176c618"
     note: "source-controlled dogfood workflow agent"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4

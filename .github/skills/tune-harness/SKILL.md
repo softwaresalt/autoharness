@@ -244,7 +244,7 @@ For each installed artifact, check:
 
 * **Instruction files**: Do `applyTo` glob patterns match files that still exist?
 * **Agent files**: Do referenced skills, tools, and file paths resolve?
-* **Workflow agent routing for global self-installs**: When `workspace-profile.distribution.is_global_tool` is true and `distribution.local_agents_dir` is set, treat that local-only directory as the authoritative path for workflow agents such as `.stage.agent.md` and `.ship.agent.md`. In this mode, drift checks should target `distribution.local_agents_dir` (for example `.github/local-agents/`) rather than `.github/agents/`, which remains the global distribution surface.
+* **Workflow agent routing for global self-installs**: When `workspace-profile.distribution.is_global_tool` is true and `distribution.local_agents_dir` is set, treat that local-only directory as the authoritative path for workflow agents such as `_stage.agent.md` and `_ship.agent.md`. In this mode, drift checks should target `distribution.local_agents_dir` (for example `.github/local-agents/`) rather than `.github/agents/`, which remains the global distribution surface.
 * **Skill files**: Do build/test/lint commands match current tooling?
 * **Compound library**: Are existing learnings stale, duplicated, contradicted by current code, or strong candidates for `compound-refresh`?
 * **Policies**: Do referenced agents and gate points still apply?
@@ -324,8 +324,8 @@ does not match the canonical identity:
 | Canonical `id:` | Canonical filename | Canonical `name:` | Legacy filenames | Legacy `name:` |
 |---|---|---|---|---|
 | `autoharness/pipeline/orchestrator` | `_orchestrator.agent.md` | `_Orchestrator` | `orchestrator.agent.md`, `dispatch.agent.md` | `Orchestrator`, `Dispatch` |
-| `autoharness/pipeline/stage` | `.stage.agent.md` | `.Stage` | `stage.agent.md` | `Stage` |
-| `autoharness/pipeline/ship` | `.ship.agent.md` | `.Ship` | `ship.agent.md` | `Ship` |
+| `autoharness/pipeline/stage` | `_stage.agent.md` | `_Stage` | `stage.agent.md`, `.stage.agent.md` | `Stage`, `.Stage` |
+| `autoharness/pipeline/ship` | `_ship.agent.md` | `_Ship` | `ship.agent.md`, `.ship.agent.md` | `Ship`, `.Ship` |
 
 Detection prefers the stable `id:` frontmatter field. Any agent file whose `id:`
 matches a canonical identity is standardized onto the canonical filename and

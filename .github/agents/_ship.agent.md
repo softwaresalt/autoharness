@@ -1,5 +1,5 @@
 ---
-name: .Ship
+name: _Ship
 id: autoharness/pipeline/ship
 description: "Manages the backlog-to-shipped pipeline for autoharness template development: build, review, CI, and PR lifecycle"
 maturity: stable

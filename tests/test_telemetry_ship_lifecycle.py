@@ -24,8 +24,8 @@ _TEST_OUTPUT = _ROOT / ".test-output" / "telemetry-ship-lifecycle"
 
 class ShipTelemetryLifecycleTests(unittest.TestCase):
     def test_ship_template_and_dogfood_mirror_wire_begin_before_build_and_record_at_close(self) -> None:
-        template = (_ROOT / "templates" / "agents" / ".ship.agent.md.tmpl").read_text(encoding="utf-8")
-        mirror = (_ROOT / ".github" / "agents" / ".ship.agent.md").read_text(encoding="utf-8")
+        template = (_ROOT / "templates" / "agents" / "_ship.agent.md.tmpl").read_text(encoding="utf-8")
+        mirror = (_ROOT / ".github" / "agents" / "_ship.agent.md").read_text(encoding="utf-8")
 
         for content in (template, mirror):
             begin_pos = content.index("autoharness telemetry begin")
@@ -46,9 +46,9 @@ class ShipTelemetryLifecycleTests(unittest.TestCase):
     def test_manifest_tracks_dogfood_ship_agent_checksum(self) -> None:
         manifest = yaml.safe_load((_ROOT / ".autoharness" / "harness-manifest.yaml").read_text(encoding="utf-8"))
         artifact = next(
-            item for item in manifest["artifacts"] if item.get("path") == ".github/agents/.ship.agent.md"
+            item for item in manifest["artifacts"] if item.get("path") == ".github/agents/_ship.agent.md"
         )
-        digest = hashlib.sha256((_ROOT / ".github" / "agents" / ".ship.agent.md").read_bytes()).hexdigest()
+        digest = hashlib.sha256((_ROOT / ".github" / "agents" / "_ship.agent.md").read_bytes()).hexdigest()
 
         self.assertEqual(artifact["checksum"], digest)
 
@@ -287,8 +287,8 @@ class ShipTelemetryLifecycleTests(unittest.TestCase):
             shutil.rmtree(_TEST_OUTPUT / self._testMethodName, ignore_errors=True)
 
     def test_092s_execution_ready_guardrails_are_documented_in_ship_agents(self) -> None:
-        template = (_ROOT / "templates" / "agents" / ".ship.agent.md.tmpl").read_text(encoding="utf-8")
-        mirror = (_ROOT / ".github" / "agents" / ".ship.agent.md").read_text(encoding="utf-8")
+        template = (_ROOT / "templates" / "agents" / "_ship.agent.md.tmpl").read_text(encoding="utf-8")
+        mirror = (_ROOT / ".github" / "agents" / "_ship.agent.md").read_text(encoding="utf-8")
 
         for content in (template, mirror):
             self.assertIn("task-only manifests", content)

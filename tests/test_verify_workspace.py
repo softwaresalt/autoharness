@@ -357,12 +357,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "releasability evidence",
                 "READY_WITH_CONDITIONS",
             ],
-            repo_root / "templates" / "agents" / ".ship.agent.md.tmpl": [
+            repo_root / "templates" / "agents" / "_ship.agent.md.tmpl": [
                 "runtime_validation.validator_manifest",
                 "validator evidence",
                 "releasability evidence",
             ],
-            repo_root / ".github" / "agents" / ".ship.agent.md": [
+            repo_root / ".github" / "agents" / "_ship.agent.md": [
                 "runtime_validation.validator_manifest",
                 "validator evidence",
                 "releasability evidence",
@@ -407,7 +407,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
     def test_role_boundary_tables_present_in_both_agent_templates(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        for tmpl_name in (".stage.agent.md.tmpl", ".ship.agent.md.tmpl"):
+        for tmpl_name in ("_stage.agent.md.tmpl", "_ship.agent.md.tmpl"):
             tmpl_path = repo_root / "templates" / "agents" / tmpl_name
             with self.subTest(template=tmpl_name):
                 content = tmpl_path.read_text(encoding="utf-8")
@@ -418,8 +418,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
     def test_role_boundary_tables_have_complementary_operations(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        stage_content = (repo_root / "templates" / "agents" / ".stage.agent.md.tmpl").read_text(encoding="utf-8")
-        ship_content = (repo_root / "templates" / "agents" / ".ship.agent.md.tmpl").read_text(encoding="utf-8")
+        stage_content = (repo_root / "templates" / "agents" / "_stage.agent.md.tmpl").read_text(encoding="utf-8")
+        ship_content = (repo_root / "templates" / "agents" / "_ship.agent.md.tmpl").read_text(encoding="utf-8")
 
         # Ship's Allowed includes claim/close shipments — Stage's Forbidden should reference that
         # Use table-scoped assertion to avoid false matches on incidental occurrences
@@ -462,7 +462,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "Stage may proceed with planning",
                 "must not route a second shipment to Ship until closure is complete",
             ],
-            repo_root / "templates" / "agents" / ".ship.agent.md.tmpl": [
+            repo_root / "templates" / "agents" / "_ship.agent.md.tmpl": [
                 "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
                 "post-merge release closure",
                 "Treat the shipment as still active for P-001 purposes",
@@ -472,7 +472,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "Stage may proceed with planning",
                 "must not route a second shipment to Ship until closure is complete",
             ],
-            repo_root / ".github" / "agents" / ".ship.agent.md": [
+            repo_root / ".github" / "agents" / "_ship.agent.md": [
                 "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
                 "post-merge release closure",
                 "Treat the shipment as still active for P-001 purposes",
@@ -1532,7 +1532,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "runtime_validation.validator_manifest\nruntime_validation.validation_expectations\nruntime_validation.releasability\nvalidator evidence\nreleasability evidence\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
                 "runtime_validation.validator_manifest\nruntime_validation.validation_expectations\nvalidator evidence\nreleasability evidence\n",
                 encoding="utf-8",
             )
@@ -1694,7 +1694,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "custom_fields\nreferences\nbacklogit_update_item\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
                 "source_stash_id\nsource_deliberation_id\nbacklogit_stash_remove\nbacklogit_archive_item\n",
                 encoding="utf-8",
             )
@@ -2722,7 +2722,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            (workspace / ".github" / "agents" / ".stage.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_stage.agent.md").write_text(
                 "## Role Boundary (NON-NEGOTIABLE)\n"
                 "P-010\n"
                 "Forbidden\n"
@@ -2733,7 +2733,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "P-012\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
                 "Branch Creation Gate (P-011, NON-NEGOTIABLE)\n"
                 "git branch --show-current\n"
                 "BRANCH_OK\n"
@@ -2814,13 +2814,13 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            (workspace / ".github" / "agents" / ".stage.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_stage.agent.md").write_text(
                 "## Index Sync\n"
                 "backlogit_sync_index\n"
                 "INDEX_SYNC_OK\n",
                 encoding="utf-8",
             )
-            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
                 "backlogit_sync_index\n"
                 "INDEX_SYNC_OK\n"
                 "CLOSURE_INDEX_SYNC_OK\n"
@@ -3246,7 +3246,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
                 "## Role Boundary (NON-NEGOTIABLE)\nP-010\nForbidden\n",
                 encoding="utf-8",
             )
@@ -3318,10 +3318,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 encoding="utf-8",
             )
             # Write stage and ship agents with graphtor-docs weaving
-            (workspace / ".github" / "agents" / ".stage.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_stage.agent.md").write_text(
                 "graphtor-docs\ngraphtor-docs.instructions.md\n", encoding="utf-8"
             )
-            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
                 "graphtor-docs\ngraphtor-docs.instructions.md\n", encoding="utf-8"
             )
 
@@ -3389,10 +3389,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (workspace / ".github" / "instructions" / "graphtor-docs.instructions.md").write_text(
                 "This is a stub instruction file with no tool names.\n", encoding="utf-8"
             )
-            (workspace / ".github" / "agents" / ".stage.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_stage.agent.md").write_text(
                 "# Stage\n\nNo graphtor mention here.\n", encoding="utf-8"
             )
-            (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
                 "# Ship\n\nNo graphtor mention here.\n", encoding="utf-8"
             )
 
@@ -3661,10 +3661,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (agents_dir / "_orchestrator.agent.md").write_text(
                 "You are the Orchestrator agent for the **my-project** repository.", encoding="utf-8"
             )
-            (agents_dir / ".stage.agent.md").write_text(
+            (agents_dir / "_stage.agent.md").write_text(
                 "You are the Stage agent for the **my-project** repository.", encoding="utf-8"
             )
-            (agents_dir / ".ship.agent.md").write_text(
+            (agents_dir / "_ship.agent.md").write_text(
                 "You are the Ship agent for the **my-project** repository.", encoding="utf-8"
             )
 
@@ -3736,12 +3736,12 @@ class PortabilityTests(unittest.TestCase):
         return p
 
     def test_clean_artifact_produces_no_findings(self) -> None:
-        self._mk(".github/agents/.stage.agent.md", "# Stage\n\nNo hardcoded paths here.\n")
+        self._mk(".github/agents/_stage.agent.md", "# Stage\n\nNo hardcoded paths here.\n")
         findings = _run_portability_scan(self.ws)
         self.assertEqual(findings, [])
 
     def test_hardcoded_user_home_path_detected(self) -> None:
-        self._mk(".github/agents/.ship.agent.md", "# Ship\n\nRun: cp ~/.ssh/id_rsa .\n")
+        self._mk(".github/agents/_ship.agent.md", "# Ship\n\nRun: cp ~/.ssh/id_rsa .\n")
         findings = _run_portability_scan(self.ws)
         self.assertTrue(any(f["rule"] == "hardcoded_user_home" for f in findings))
         self.assertEqual(findings[0]["severity"], "P1")
@@ -3755,12 +3755,12 @@ class PortabilityTests(unittest.TestCase):
         self.assertTrue(any(f["rule"] == "local_agents_dir" for f in findings))
 
     def test_mcp_plugin_tool_name_detected(self) -> None:
-        self._mk(".github/agents/.stage.agent.md", "# Stage\n\nCall mcp__plugin_backlogit__create_task here.\n")
+        self._mk(".github/agents/_stage.agent.md", "# Stage\n\nCall mcp__plugin_backlogit__create_task here.\n")
         findings = _run_portability_scan(self.ws)
         self.assertTrue(any(f["rule"] == "mcp_plugin_tool_name" for f in findings))
 
     def test_hardcoded_ah_home_detected(self) -> None:
-        self._mk(".github/agents/.stage.agent.md", "# Stage\n\nPath: ~/.autoharness/templates\n")
+        self._mk(".github/agents/_stage.agent.md", "# Stage\n\nPath: ~/.autoharness/templates\n")
         findings = _run_portability_scan(self.ws)
         self.assertTrue(any(f["rule"] == "hardcoded_ah_home" for f in findings))
 
@@ -3793,7 +3793,7 @@ class PortabilityTests(unittest.TestCase):
     def test_one_finding_per_rule_per_file(self) -> None:
         """Each rule produces at most one finding per file even if the pattern matches multiple lines."""
         self._mk(
-            ".github/agents/.ship.agent.md",
+            ".github/agents/_ship.agent.md",
             "# Ship\n\nPath: ~/.ssh/key\nAlso: ~/.config/foo\n",
         )
         findings = _run_portability_scan(self.ws)
@@ -3841,7 +3841,7 @@ class PortabilityTests(unittest.TestCase):
         _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
         _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-        (workspace / ".github" / "agents" / ".ship.agent.md").write_text(
+        (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
             "# Ship\n\nRun: cp ~/.ssh/id_rsa .\n", encoding="utf-8"
         )
 
@@ -4128,14 +4128,14 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             self.assertEqual(len(proposals), 3)
             self.assertEqual(
                 by_from[".github/agents/stage.agent.md"]["to_path"],
-                ".github/agents/.stage.agent.md",
+                ".github/agents/_stage.agent.md",
             )
             self.assertEqual(
-                by_from[".github/agents/stage.agent.md"]["to_name"], ".Stage"
+                by_from[".github/agents/stage.agent.md"]["to_name"], "_Stage"
             )
             self.assertEqual(
                 by_from[".github/agents/ship.agent.md"]["to_path"],
-                ".github/agents/.ship.agent.md",
+                ".github/agents/_ship.agent.md",
             )
             self.assertEqual(
                 by_from[".github/agents/orchestrator.agent.md"]["to_path"],
@@ -4150,6 +4150,63 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             # No proposal targets an elective or review agent.
             self.assertNotIn(".github/agents/auto-mergeinstall.agent.md", by_from)
             self.assertNotIn(".github/agents/adversarial-review.agent.md", by_from)
+
+    def test_dot_prefixed_legacy_files_migrate_to_underscore(self) -> None:
+        # Regression coverage for the dot-prefixed compatibility aliases
+        # (.stage.agent.md / .Stage and .ship.agent.md / .Ship) retained in
+        # PIPELINE_AGENT_IDENTITIES legacy_files/legacy_names so existing
+        # dot-prefixed installs still migrate to the underscore canonical
+        # identity after the underscore rename.
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file(agents, ".stage.agent.md", ".Stage")
+            _write_agent_file(agents, ".ship.agent.md", ".Ship")
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+            by_from = self._index(proposals)
+
+            self.assertEqual(len(proposals), 2)
+            self.assertEqual(
+                by_from[".github/agents/.stage.agent.md"]["to_path"],
+                ".github/agents/_stage.agent.md",
+            )
+            self.assertEqual(
+                by_from[".github/agents/.stage.agent.md"]["to_name"], "_Stage"
+            )
+            self.assertEqual(
+                by_from[".github/agents/.ship.agent.md"]["to_path"],
+                ".github/agents/_ship.agent.md",
+            )
+            self.assertEqual(
+                by_from[".github/agents/.ship.agent.md"]["to_name"], "_Ship"
+            )
+            for proposal in proposals:
+                self.assertEqual(proposal["contract"], "agent-identity")
+                self.assertEqual(proposal["status"], "known-legacy")
+                self.assertIn("path", proposal["changed_fields"])
+                self.assertIn("name", proposal["changed_fields"])
+                self.assertFalse(proposal["canonical_exists"])
+
+    def test_stable_id_migrates_dot_prefixed_legacy_install(self) -> None:
+        # Copilot review coverage: a dot-prefixed install carrying its stable
+        # id must also migrate to both underscore identities via id matching.
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file_with_id(
+                agents, ".ship.agent.md", ".Ship", "autoharness/pipeline/ship"
+            )
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            proposal = proposals[0]
+            self.assertEqual(
+                proposal["from_path"], ".github/agents/.ship.agent.md"
+            )
+            self.assertEqual(proposal["to_path"], ".github/agents/_ship.agent.md")
+            self.assertEqual(proposal["to_name"], "_Ship")
 
     def test_dispatch_maps_to_orchestrator(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4170,7 +4227,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             agents = workspace / ".github" / "agents"
-            _write_agent_file(agents, ".stage.agent.md", "Stage")
+            _write_agent_file(agents, "_stage.agent.md", "Stage")
 
             proposals = _scan_agent_identity_migrations(workspace, {})
 
@@ -4178,14 +4235,14 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             proposal = proposals[0]
             self.assertEqual(proposal["changed_fields"], ["name"])
             self.assertEqual(proposal["from_path"], proposal["to_path"])
-            self.assertEqual(proposal["to_name"], ".Stage")
+            self.assertEqual(proposal["to_name"], "_Stage")
 
     def test_fully_canonical_agents_produce_no_proposals(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             agents = workspace / ".github" / "agents"
-            _write_agent_file(agents, ".stage.agent.md", ".Stage")
-            _write_agent_file(agents, ".ship.agent.md", ".Ship")
+            _write_agent_file(agents, "_stage.agent.md", "_Stage")
+            _write_agent_file(agents, "_ship.agent.md", "_Ship")
             _write_agent_file(agents, "_orchestrator.agent.md", "_Orchestrator")
 
             proposals = _scan_agent_identity_migrations(workspace, {})
@@ -4196,7 +4253,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             agents = workspace / ".github" / "agents"
-            _write_agent_file(agents, ".stage.agent.md", ".Stage")
+            _write_agent_file(agents, "_stage.agent.md", "_Stage")
             _write_agent_file(agents, "stage.agent.md", "Stage")
 
             proposals = _scan_agent_identity_migrations(workspace, {})
@@ -4226,7 +4283,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
                 proposals[0]["from_path"], ".github/local-agents/stage.agent.md"
             )
             self.assertEqual(
-                proposals[0]["to_path"], ".github/local-agents/.stage.agent.md"
+                proposals[0]["to_path"], ".github/local-agents/_stage.agent.md"
             )
 
     def test_self_install_mode_rejects_unsafe_local_agents_dir(self) -> None:
@@ -4309,7 +4366,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             ]
             self.assertEqual(len(agent_proposals), 1)
             self.assertEqual(
-                agent_proposals[0]["to_path"], ".github/agents/.stage.agent.md"
+                agent_proposals[0]["to_path"], ".github/agents/_stage.agent.md"
             )
 
             markdown_path = Path(report["report_paths"]["markdown"])
@@ -4336,8 +4393,8 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             self.assertEqual(
                 proposal["from_path"], ".github/agents/deployer.agent.md"
             )
-            self.assertEqual(proposal["to_path"], ".github/agents/.ship.agent.md")
-            self.assertEqual(proposal["to_name"], ".Ship")
+            self.assertEqual(proposal["to_path"], ".github/agents/_ship.agent.md")
+            self.assertEqual(proposal["to_name"], "_Ship")
             self.assertIn("path", proposal["changed_fields"])
             self.assertIn("name", proposal["changed_fields"])
 
@@ -4346,7 +4403,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             workspace = Path(tmp)
             agents = workspace / ".github" / "agents"
             _write_agent_file_with_id(
-                agents, ".ship.agent.md", ".Ship", "autoharness/pipeline/ship"
+                agents, "_ship.agent.md", "_Ship", "autoharness/pipeline/ship"
             )
 
             proposals = _scan_agent_identity_migrations(workspace, {})
@@ -4358,7 +4415,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             workspace = Path(tmp)
             agents = workspace / ".github" / "agents"
             _write_agent_file_with_id(
-                agents, ".ship.agent.md", "Renamed", "autoharness/pipeline/ship"
+                agents, "_ship.agent.md", "Renamed", "autoharness/pipeline/ship"
             )
 
             proposals = _scan_agent_identity_migrations(workspace, {})
@@ -4368,7 +4425,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             self.assertEqual(proposal["matched_by"], "id")
             self.assertEqual(proposal["changed_fields"], ["name"])
             self.assertEqual(proposal["from_path"], proposal["to_path"])
-            self.assertEqual(proposal["to_name"], ".Ship")
+            self.assertEqual(proposal["to_name"], "_Ship")
             # Filename is already canonical, so the canonical file is present.
             self.assertTrue(proposal["canonical_exists"])
 
@@ -4377,7 +4434,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             workspace = Path(tmp)
             agents = workspace / ".github" / "agents"
             _write_agent_file_with_id(
-                agents, ".ship.agent.md", ".Ship", "autoharness/pipeline/ship"
+                agents, "_ship.agent.md", "_Ship", "autoharness/pipeline/ship"
             )
             _write_agent_file_with_id(
                 agents, "deployer.agent.md", "Deployer", "autoharness/pipeline/ship"
@@ -4410,7 +4467,7 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             self.assertEqual(proposal["matched_by"], "id")
             # Filename is a known legacy alias, so status stays known-legacy.
             self.assertEqual(proposal["status"], "known-legacy")
-            self.assertEqual(proposal["to_path"], ".github/agents/.ship.agent.md")
+            self.assertEqual(proposal["to_path"], ".github/agents/_ship.agent.md")
 
 
 def _write_prompt_template(home: Path, name: str) -> None:

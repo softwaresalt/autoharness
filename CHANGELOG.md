@@ -4,6 +4,16 @@
 
 ### Changed
 
+- Renamed the two dogfood pipeline agent definitions and their templates from
+  dot-prefixed to underscore-prefixed filenames: the Stage and Ship agents now
+  live at `_stage.agent.md` / `_ship.agent.md` (and `_stage.agent.md.tmpl` /
+  `_ship.agent.md.tmpl`), with frontmatter `name` handles updated to `_Stage`
+  and `_Ship`. Cross-references across docs, instructions, `.gitattributes`, the
+  workspace profile, installer/tuner logic, tests, and the harness manifest were
+  swept to the new names, and `.gitattributes` now pins both agent files to LF
+  for portable checksums. `verify_workspace` retains the previous dot-prefixed
+  filenames and handles as legacy migration aliases so existing installs upgrade
+  cleanly.
 - Removed the redundant per-agent `model_tier` frontmatter integer from all
   agent definitions (templates and installed instances). Config-driven agent
   model routing is unchanged: each agent's tier is bound by the `model_routing`
