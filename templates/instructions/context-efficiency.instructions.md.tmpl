@@ -74,6 +74,14 @@ Invoke `compact-context` when **any** of the following are true:
 * You are about to begin a new major phase (e.g., transitioning from build to
   review, or from review to PR lifecycle)
 
+> **Guaranteed post-merge floor (P-020, Primitive 1).** The triggers above are the
+> *proactive* in-session compaction path. Independently, **P-020** guarantees a
+> post-merge floor: the Ship agent MUST invoke `compact-context` (`target: all`) at
+> every post-merge closure regardless of these thresholds. Invocation is mandatory
+> per merge; candidate selection stays threshold-gated, so when nothing qualifies the
+> skill is an idempotent no-op. The proactive triggers keep a live session lean; the
+> P-020 floor prevents silent drift when no proactive trigger fired.
+
 ### Compaction Discipline
 
 * Invoke compaction **before** proceeding with the next phase, not after.

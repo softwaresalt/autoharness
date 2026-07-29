@@ -36,6 +36,7 @@ This file defines the authoritative rules for working in the autoharness reposit
 # When both stage and ship agents are installed (two-agent model), both must declare Role Boundary tables — P-010
 # Agents must not work across parallel implementation branches or worktrees — P-016
 # Dark factory mode must be explicit, bounded, local-review-first, telemetry-visible, and policy-preserving — P-017
+# Required post-merge context compaction (mandatory compact-context invocation at Ship closure) is a mandatory closure gate — P-020
 ```
 
 ## Development Workflow
@@ -45,7 +46,7 @@ This file defines the authoritative rules for working in the autoharness reposit
 3. Update the variable resolution table in install-harness SKILL.md
 4. Test the template produces valid output when all variables are resolved
 5. Keep one active implementation branch/worktree; only explicit Stage spike/research worktrees are exempt, and they cannot perform implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution (P-016)
-6. Use dark factory mode only through the exact P-017 trigger (`Run pipeline in dark mode`) or its prompt shim (`/feature-flow-dark`); preserve P-001, P-009, P-014, P-016, local review readiness, CI/check handling, telemetry events, and post-merge closure
+6. Use dark factory mode only through the exact P-017 trigger (`Run pipeline in dark mode`) or its prompt shim (`/feature-flow-dark`); preserve P-001, P-009, P-014, P-016, P-020, local review readiness, CI/check handling, telemetry events, and post-merge closure
 
 ## Available Agents
 

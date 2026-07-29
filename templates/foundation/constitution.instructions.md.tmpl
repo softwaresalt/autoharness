@@ -234,7 +234,9 @@ Run in order. Do not skip any gate.
 5. **No dead code**: Placeholder modules MUST be replaced or removed before a
    release unit is considered complete.
 6. **Operational closure**: Work is not complete at “green CI” if runtime validation,
-   monitoring setup, or release handoff remains unresolved.
+   monitoring setup, or release handoff remains unresolved. Required post-merge context
+   compaction (**P-020**) is part of the mandatory closure set: Ship MUST invoke the
+   compact-context skill at every post-merge closure.
 
 ### Task Granularity (NON-NEGOTIABLE)
 
@@ -299,7 +301,7 @@ with these principles.
 | II. Test-First Development | NON-NEGOTIABLE | P-002/P-004 policies; harness-architect red phase; build-feature green phase |
 | III. Workspace Isolation | MUST | Agent runtime path resolution within workspace root |
 | IV. CLI Containment | NON-NEGOTIABLE | Agent runtime cwd boundary enforcement |
-| V. Structured Observability | MUST | Broadcasting, commit messages, structured reporting |
+| V. Structured Observability | MUST | Broadcasting, commit messages, structured reporting; P-020 post-merge compaction closure gate |
 | VI. Single Responsibility | SHOULD | Code review persona checks on dependency additions |
 | VII. Destructive Approval | NON-NEGOTIABLE | P-005 violation telemetry; strict-safety enforcement when enabled |
 | VIII. Safety Modes | MUST | safety-modes skill invocation; strict-safety decision gate when enabled |

@@ -2827,7 +2827,8 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "#### Merge Confirmation Gate (NON-NEGOTIABLE)\n"
                 "MERGE_CONFIRMED\n"
                 "MERGE_NOT_CONFIRMED\n"
-                "merge-base --is-ancestor\n",
+                "merge-base --is-ancestor\n"
+                "Mandatory (P-020): Invoke compact-context with target: all\n",
                 encoding="utf-8",
             )
 
@@ -2840,6 +2841,74 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["stage_index_sync_gate"]["ok"])
             self.assertTrue(targeted_checks["ship_index_sync_gate"]["ok"])
             self.assertTrue(targeted_checks["ship_merge_confirmation_gate"]["ok"])
+            self.assertTrue(targeted_checks["ship_post_merge_compaction_gate"]["ok"])
+
+    def test_verify_workspace_ship_post_merge_compaction_gate_fails_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema), encoding="utf-8"
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema), encoding="utf-8"
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-07-29T00:00:00Z",
+                    "autoharness_version": "1.5.0",
+                    "profile_hash": "abc",
+                    "primitives_installed": [4, 5],
+                    "capability_packs": ["backlogit"],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            # Ship agent present but the post-merge compaction step (P-020) is missing.
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
+                "#### Merge Confirmation Gate (NON-NEGOTIABLE)\n"
+                "MERGE_CONFIRMED\n"
+                "MERGE_NOT_CONFIRMED\n"
+                "merge-base --is-ancestor\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            compaction_check = targeted_checks["ship_post_merge_compaction_gate"]
+            self.assertFalse(compaction_check["ok"])
+            self.assertIn("compact-context", compaction_check["missing"])
+            self.assertIn("target: all", compaction_check["missing"])
+            self.assertIn("P-020", compaction_check["missing"])
 
     def test_orchestrator_template_exists_and_dispatch_template_removed(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

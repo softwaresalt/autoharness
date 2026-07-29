@@ -576,6 +576,15 @@ FOUNDATION_ASSERTIONS = [
         ],
     },
     {
+        "key": "ship_post_merge_compaction_gate",
+        "path": ".github/agents/_ship.agent.md",
+        "must_contain": [
+            "compact-context",
+            "target: all",
+            "P-020",
+        ],
+    },
+    {
         "key": "pr_lifecycle_branch_retention",
         "path": ".github/skills/pr-lifecycle/SKILL.md",
         "must_contain": [
