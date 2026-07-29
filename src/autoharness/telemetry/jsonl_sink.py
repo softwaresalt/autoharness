@@ -66,6 +66,28 @@ class JsonlPreflightScan:
     # generation and forces a full cross-segment rescan.
     active_generation: int = 0
     active_size: int = 0
+    # Inode/file-index identity of the active segment at scan time. The generation
+    # number (``max(sealed) + 1``) can briefly ABA back to the same value during
+    # the non-atomic two-step hard-link seal (link created, active not yet
+    # unlinked, then a fresh active recreated at the same generation). The inode of
+    # a freshly recreated active differs from the scanned one, so comparing it
+    # closes the ABA window and forces a full rescan when the underlying file was
+    # swapped. ``0`` means identity was unavailable and only generation+size apply.
+    active_inode: int = 0
+
+
+def _active_inode(jsonl_path: Path) -> int:
+    """Best-effort inode / Win32 file-index identity of the active segment.
+
+    ``os.stat().st_ino`` is a real file identity on POSIX and, since Python 3.5, on
+    Windows (the 64-bit file index from ``GetFileInformationByHandle``). Returns
+    ``0`` when the file is absent or identity cannot be determined, in which case
+    callers fall back to generation+size comparison.
+    """
+    try:
+        return jsonl_path.stat().st_ino
+    except OSError:
+        return 0
 
 
 def sealed_segment_path(jsonl_path: Path, generation: int) -> Path:
@@ -130,18 +152,36 @@ def _claim_seal(active_path: Path, target_path: Path) -> None:
     A writer that opened the active fd before the rollover may still land a late
     append in the just-sealed inode; that is acceptable under the sink's
     best-effort contract and is reconciled on read, not prevented by a lock.
+
+    If unlinking the active name fails *after* the link was created (a residual
+    cross-platform sharing violation), the partial seal is rolled back by removing
+    the just-created link so no duplicate half-sealed segment is left behind, and
+    the error propagates so the caller can retry the rollover on a later append.
     """
     os.link(str(active_path), str(target_path))
-    os.unlink(str(active_path))
+    try:
+        os.unlink(str(active_path))
+    except FileNotFoundError:
+        # Active was concurrently sealed/rotated away; the link we just created
+        # still captured the content under ``target_path``, so the seal stands.
+        pass
+    except OSError:
+        try:
+            os.unlink(str(target_path))
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _seal_active_segment(jsonl_path: Path) -> int | None:
     """Seal the active segment under the next free generation, no-replace.
 
     Returns the generation claimed, or ``None`` if the active segment was already
-    sealed by a concurrent writer. On a generation collision the true max is
-    re-read and the next generation attempted, so no global lock is needed and no
-    sealed segment is ever overwritten.
+    sealed by a concurrent writer, or if a partial-seal rollback deferred the seal
+    (the active still exceeds the threshold and the rollover is retried on the next
+    append). On a generation collision the true max is re-read and the next
+    generation attempted, so no global lock is needed and no sealed segment is ever
+    overwritten.
     """
     while True:
         generation = _max_sealed_generation(jsonl_path) + 1
@@ -153,15 +193,28 @@ def _seal_active_segment(jsonl_path: Path) -> int | None:
             continue
         except FileNotFoundError:
             return None
+        except OSError:
+            # Partial-seal rollback (e.g. a residual sharing violation): defer.
+            return None
 
 
 def _rollover_if_needed(jsonl_path: Path) -> None:
     """Seal and prune when the active segment has reached ``_MAX_SEGMENT_BYTES``.
 
-    The size check runs BEFORE the pending append, so a sealed segment is at most
-    ``_MAX_SEGMENT_BYTES + one max record`` and an oversized single record (whose
+    The size check runs BEFORE the pending append. Under a single serialized
+    progression the resulting sealed segment is at most
+    ``_MAX_SEGMENT_BYTES + one max record``, and an oversized single record (whose
     encoded line already exceeds the threshold) is written intact and sealed into
     its own segment on the following append — lines are never split.
+
+    This is a NOMINAL, not hard, bound: the sink supports concurrent writers with
+    no global lock, so N writers can each observe a below-threshold size and then
+    append, and a writer holding an already-open descriptor can append after
+    sealing. A sealed segment can therefore exceed the threshold by up to the sum
+    of all concurrently in-flight records. That overshoot is bounded by writer
+    concurrency, is acceptable under the best-effort mirror contract, and never
+    causes data loss — SQLite stays authoritative and reads reconcile by
+    ``epoch_id``.
     """
     try:
         current_size = jsonl_path.stat().st_size
@@ -262,6 +315,7 @@ def scan_epoch_digest(
     """
     active_generation = _active_generation(jsonl_path)
     active_size = jsonl_path.stat().st_size if jsonl_path.exists() else 0
+    active_inode = _active_inode(jsonl_path)
 
     if start_offset <= 0:
         for _generation, sealed_path in sealed_segments(jsonl_path):
@@ -272,6 +326,7 @@ def scan_epoch_digest(
                     scanned_offset=active_size,
                     active_generation=active_generation,
                     active_size=active_size,
+                    active_inode=active_inode,
                 )
 
     active_digest, active_offset = _scan_single_file(jsonl_path, epoch_id, start_offset)
@@ -280,6 +335,7 @@ def scan_epoch_digest(
         scanned_offset=active_offset,
         active_generation=active_generation,
         active_size=active_size,
+        active_inode=active_inode,
     )
 
 
@@ -317,6 +373,12 @@ def _win_atomic_append(path: Path, data: bytes) -> None:
     FILE_APPEND_DATA = 0x0004
     FILE_SHARE_READ = 0x00000001
     FILE_SHARE_WRITE = 0x00000002
+    # FILE_SHARE_DELETE lets a concurrent rollover unlink/rename the active name
+    # while this append handle is open. Without it, an overlapping seal's
+    # ``os.unlink(active)`` raises a Win32 sharing violation after the hard link is
+    # created, leaving both names and aborting the pending mirror append. The sink
+    # supports concurrent writers on NTFS, so delete/rename sharing is required.
+    FILE_SHARE_DELETE = 0x00000004
     OPEN_ALWAYS = 4
     FILE_ATTRIBUTE_NORMAL = 0x80
     INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
@@ -328,7 +390,8 @@ def _win_atomic_append(path: Path, data: bytes) -> None:
         wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
     ]
     handle = kernel32.CreateFileW(
-        str(path), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        str(path), FILE_APPEND_DATA,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         None, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, None,
     )
     if handle == INVALID_HANDLE_VALUE:
@@ -357,11 +420,24 @@ def _revalidate_preflight(
     If the active-segment generation changed (a rollover sealed the scanned active
     and created a fresh one), the recorded ``scanned_offset`` belongs to a
     different file and MUST NOT be trusted — including an equal-sized or larger
-    replacement — so a full cross-segment rescan is performed. Otherwise the offset
-    optimization resumes the active-tail scan from the recorded offset.
+    replacement — so a full cross-segment rescan is performed.
+
+    The generation number can briefly ABA back to the same value during the
+    non-atomic two-step hard-link seal, so the active inode is also compared: if it
+    changed, the active file was swapped underneath a matching generation and the
+    recorded offset is stale, forcing a full rescan. This is a best-effort
+    optimization on the mirror — even if a swap slipped through, the missed
+    detection only yields a duplicate mirror line reconciled on read (epoch_id
+    dedupe + SQLite-over-JSONL precedence); SQLite remains authoritative.
+
+    Otherwise the offset optimization resumes the active-tail scan from the
+    recorded offset.
     """
     current_generation = _active_generation(jsonl_path)
     if scan.active_generation != current_generation:
+        return scan_epoch_digest(jsonl_path, epoch_id).existing_digest
+    current_inode = _active_inode(jsonl_path)
+    if scan.active_inode and current_inode and scan.active_inode != current_inode:
         return scan_epoch_digest(jsonl_path, epoch_id).existing_digest
     current_size = jsonl_path.stat().st_size if jsonl_path.exists() else 0
     if current_size == scan.scanned_offset:

@@ -369,6 +369,74 @@ class SegmentRolloverTests(unittest.TestCase):
         )
         self.assertFalse(self.jsonl_path.exists())  # active consumed by the seal
 
+    def test_two_writers_interleaved_seal_preserve_every_distinct_segment(self) -> None:
+        """Deterministic two-writer race: both writers observe the same over-
+        threshold active, seal concurrently with their unlink steps held behind a
+        barrier so links interleave against unlinks, and each distinct segment's
+        content must survive (zero whole-segment loss, no clobber, no unlinking a
+        peer's freshly recreated active)."""
+        import threading
+
+        # Pre-fill the active segment with distinct content C0 that both writers
+        # will seal. Sized so a single line already exceeds the low threshold.
+        c0 = _sized_epoch("0" * 32)
+        self.jsonl_path.write_bytes(_encode_line(c0).encode("utf-8"))
+        c0_bytes = self.jsonl_path.read_bytes()
+
+        e1 = _sized_epoch("1" * 32)
+        e2 = _sized_epoch("2" * 32)
+
+        real_unlink = jsonl_sink.os.unlink
+        # Hold each writer that has just created its sealed link until both writers
+        # have linked, so the unlink steps interleave against the links and the
+        # path-reuse race window is exercised deterministically.
+        barrier = threading.Barrier(2, timeout=10)
+
+        def barriered_unlink(target: str) -> None:
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
+            real_unlink(target)
+
+        errors: list[BaseException] = []
+
+        def writer(epoch: ExecutionEpoch) -> None:
+            try:
+                append_epoch(epoch, self.jsonl_path)
+            except BaseException as exc:  # noqa: BLE001 - surfaced via assertion
+                errors.append(exc)
+
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", 50), \
+                mock.patch.object(jsonl_sink.os, "unlink", side_effect=barriered_unlink):
+            threads = [
+                threading.Thread(target=writer, args=(e1,)),
+                threading.Thread(target=writer, args=(e2,)),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=15)
+
+        self.assertEqual(errors, [], f"writers raised: {errors}")
+
+        # Sealed segments were claimed under distinct generations; every one holds
+        # the original C0 content intact — neither writer clobbered nor unlinked
+        # away another writer's sealed segment.
+        sealed = jsonl_sink.sealed_segments(self.jsonl_path)
+        self.assertGreaterEqual(len(sealed), 1)
+        for _generation, path in sealed:
+            self.assertEqual(path.read_bytes(), c0_bytes)
+
+        # Every distinct epoch survives somewhere in the segment set: the sealed
+        # C0 and both freshly written records, with zero whole-segment loss.
+        seen: set[str] = set()
+        for path in jsonl_sink.segment_read_paths(self.jsonl_path):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    seen.add(json.loads(line)["epoch_id"])
+        self.assertEqual(seen, {c0.epoch_id, e1.epoch_id, e2.epoch_id})
+
     def test_default_threshold_keeps_small_writes_single_segment(self) -> None:
         for i in range(6):
             append_epoch(_sized_epoch(f"{i:032d}"), self.jsonl_path)
