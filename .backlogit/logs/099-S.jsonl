@@ -1,2 +1,3 @@
 {"timestamp":"2026-07-29T00:20:57.0480975-07:00","actor":"backlogit","item_id":"099-S","event_type":"shipment_created","delta":{"items":["094.001-T"],"title":"Engram .claude stdio-transport fix (stash 8FD768E9)"}}
 {"timestamp":"2026-07-29T00:33:56.4056243-07:00","actor":"backlogit","item_id":"099-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-29T00:48:32.1239807-07:00","actor":"backlogit","item_id":"099-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/099-S.md"}}
