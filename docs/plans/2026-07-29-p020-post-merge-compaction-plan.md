@@ -108,7 +108,6 @@ Eight width-isolated tasks (each ≤2h), dependency-ordered:
 * `templates/agents/_ship.agent.md.tmpl` — Step 6 step 8 + dark-mode summary
 * `templates/agents/_orchestrator.agent.md.tmpl` — closure sequencing + DARK_MODE_COMPLETE
 * `templates/skills/compact-context/SKILL.md.tmpl` — When-to-Use (P-020 + invocation/candidate note)
-* `templates/instructions/harness-architecture.instructions.md.tmpl` — Primitive 1 & 10
 * `templates/instructions/context-efficiency.instructions.md.tmpl` — cross-ref
 * `templates/foundation/AGENTS.md.tmpl`, `templates/foundation/constitution.instructions.md.tmpl` — enumeration
 
@@ -116,7 +115,7 @@ Eight width-isolated tasks (each ≤2h), dependency-ordered:
 
 * `.github/agents/_ship.agent.md` — **drift fix** (add missing mandatory step)
 * `.github/agents/_orchestrator.agent.md` — closure-sequencing note
-* `.github/instructions/harness-architecture.instructions.md` — Primitive 1/10 note
+* `.github/instructions/harness-architecture.instructions.md` — Primitive 1/10 note (global artifact — no template exists; edited directly, task 098.007-T)
 * `AGENTS.md` — quality-gate/policy enumeration
 * (verify during impl) `.github/copilot-instructions.md`, `.github/instructions/constitution.instructions.md` — only where a P-016/P-017 enumeration already exists
 
