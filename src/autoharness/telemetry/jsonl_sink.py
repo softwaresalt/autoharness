@@ -174,8 +174,24 @@ def _rollover_if_needed(jsonl_path: Path) -> None:
 
 
 def _prune_sealed_segments(jsonl_path: Path) -> None:
-    """Retention hook — bounded pruning is implemented in task 095.003-T."""
-    return
+    """Prune the oldest sealed generations beyond the retention window.
+
+    Keeps at most ``_MAX_RETAINED_SEGMENTS`` sealed segments, removing the oldest
+    generations first. It NEVER targets the active segment (the base name is not a
+    sealed segment) and never deletes authoritative SQLite data — retention is
+    intentionally lossy on the best-effort mirror only. A sealed segment carrying
+    an ``epoch_id`` that is pruned pushes that epoch past the replay horizon, so a
+    later replay of it is re-appended; SQLite remains authoritative and
+    deduplicates on read.
+    """
+    sealed = sealed_segments(jsonl_path)  # oldest generation first
+    excess = len(sealed) - _MAX_RETAINED_SEGMENTS
+    for index in range(max(0, excess)):
+        _generation, path = sealed[index]
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def _canonical_json(value: Any) -> str:

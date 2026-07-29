@@ -390,5 +390,65 @@ class SegmentRolloverTests(unittest.TestCase):
         self.assertGreater(len(oversized_line.encode("utf-8")), 200)
 
 
+class SegmentRetentionTests(unittest.TestCase):
+    """095.003-T — bounded retention window with a restated byte bound."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.jsonl_path = Path(self._tmp.name) / ".autoharness" / "metrics" / "execution_epochs.jsonl"
+        self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _fill(self, count: int, threshold: int, window: int) -> list[ExecutionEpoch]:
+        epochs = [_sized_epoch(f"{i:032d}") for i in range(count)]
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", threshold), mock.patch.object(
+            jsonl_sink, "_MAX_RETAINED_SEGMENTS", window
+        ):
+            for epoch in epochs:
+                append_epoch(epoch, self.jsonl_path)
+        return epochs
+
+    def test_sealed_count_bounded_and_oldest_pruned_first(self) -> None:
+        self._fill(count=6, threshold=200, window=2)
+        generations = [g for g, _ in jsonl_sink.sealed_segments(self.jsonl_path)]
+        # Each ~2 KiB record exceeds the 200-byte threshold, so every append after
+        # the first rolls over. Only the two newest sealed generations survive.
+        self.assertEqual(generations, [4, 5])
+
+    def test_total_retained_bytes_within_restated_bound(self) -> None:
+        epochs = self._fill(count=6, threshold=200, window=2)
+        max_record = max(len(_encode_line(e).encode("utf-8")) for e in epochs)
+        bound = (2 + 1) * (200 + max_record)
+
+        sealed_paths = [p for _g, p in jsonl_sink.sealed_segments(self.jsonl_path)]
+        for path in sealed_paths:
+            self.assertLessEqual(path.stat().st_size, 200 + max_record)
+        total = sum(p.stat().st_size for p in sealed_paths) + self.jsonl_path.stat().st_size
+        self.assertLessEqual(total, bound)
+
+    def test_pruning_never_targets_active_segment(self) -> None:
+        epochs = self._fill(count=6, threshold=200, window=2)
+        # The active segment (base name) always survives pruning and holds the
+        # newest record.
+        self.assertTrue(self.jsonl_path.exists())
+        sealed_paths = {p for _g, p in jsonl_sink.sealed_segments(self.jsonl_path)}
+        self.assertNotIn(self.jsonl_path, sealed_paths)
+        active_lines = self.jsonl_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(json.loads(active_lines[-1])["epoch_id"], epochs[-1].epoch_id)
+
+    def test_pruned_epoch_replay_reappends_within_retention_horizon(self) -> None:
+        epochs = self._fill(count=6, threshold=200, window=2)
+        pruned = epochs[0]  # lived in generation 1, since pruned
+        # Its segment is gone, so replay can no longer be detected on the mirror
+        # and is re-appended (no false idempotency); SQLite remains authoritative.
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", 200), mock.patch.object(
+            jsonl_sink, "_MAX_RETAINED_SEGMENTS", 2
+        ):
+            result = append_epoch(pruned, self.jsonl_path)
+        self.assertEqual(result.status, "created")
+
+
 if __name__ == "__main__":
     unittest.main()
