@@ -117,6 +117,67 @@ def _active_generation(jsonl_path: Path) -> int:
     return _max_sealed_generation(jsonl_path) + 1
 
 
+def _claim_seal(active_path: Path, target_path: Path) -> None:
+    """No-replace seal of the active segment to ``target_path``.
+
+    ``os.link`` creates the sealed name as a second hard link to the active
+    inode, then the active name is unlinked. ``os.link`` raises ``FileExistsError``
+    if the target already exists, so a concurrent rollover that picked the same
+    generation can NEVER clobber an already-sealed segment — the loser retries the
+    next generation. It raises ``FileNotFoundError`` if the active segment was
+    already sealed away by another writer.
+
+    A writer that opened the active fd before the rollover may still land a late
+    append in the just-sealed inode; that is acceptable under the sink's
+    best-effort contract and is reconciled on read, not prevented by a lock.
+    """
+    os.link(str(active_path), str(target_path))
+    os.unlink(str(active_path))
+
+
+def _seal_active_segment(jsonl_path: Path) -> int | None:
+    """Seal the active segment under the next free generation, no-replace.
+
+    Returns the generation claimed, or ``None`` if the active segment was already
+    sealed by a concurrent writer. On a generation collision the true max is
+    re-read and the next generation attempted, so no global lock is needed and no
+    sealed segment is ever overwritten.
+    """
+    while True:
+        generation = _max_sealed_generation(jsonl_path) + 1
+        target = sealed_segment_path(jsonl_path, generation)
+        try:
+            _claim_seal(jsonl_path, target)
+            return generation
+        except FileExistsError:
+            continue
+        except FileNotFoundError:
+            return None
+
+
+def _rollover_if_needed(jsonl_path: Path) -> None:
+    """Seal and prune when the active segment has reached ``_MAX_SEGMENT_BYTES``.
+
+    The size check runs BEFORE the pending append, so a sealed segment is at most
+    ``_MAX_SEGMENT_BYTES + one max record`` and an oversized single record (whose
+    encoded line already exceeds the threshold) is written intact and sealed into
+    its own segment on the following append — lines are never split.
+    """
+    try:
+        current_size = jsonl_path.stat().st_size
+    except FileNotFoundError:
+        return
+    if current_size < _MAX_SEGMENT_BYTES:
+        return
+    if _seal_active_segment(jsonl_path) is not None:
+        _prune_sealed_segments(jsonl_path)
+
+
+def _prune_sealed_segments(jsonl_path: Path) -> None:
+    """Retention hook — bounded pruning is implemented in task 095.003-T."""
+    return
+
+
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
@@ -334,6 +395,7 @@ def append_epoch(
             f"conflicting immutable replay for epoch_id {epoch.epoch_id}: "
             f"existing digest {existing_digest} != {digest}"
         )
+    _rollover_if_needed(jsonl_path)
     line = json.dumps(epoch.to_record(), separators=(",", ":")) + "\n"
     _atomic_append_bytes(jsonl_path, line.encode("utf-8"))
     return SinkWriteResult(status="created", payload_digest=digest)
