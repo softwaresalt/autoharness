@@ -112,17 +112,17 @@ PIPELINE_AGENT_IDENTITIES = (
     },
     {
         "canonical_id": "autoharness/pipeline/stage",
-        "canonical_file": ".stage.agent.md",
-        "canonical_name": ".Stage",
-        "legacy_files": ("stage.agent.md",),
-        "legacy_names": ("Stage",),
+        "canonical_file": "_stage.agent.md",
+        "canonical_name": "_Stage",
+        "legacy_files": ("stage.agent.md", ".stage.agent.md"),
+        "legacy_names": ("Stage", ".Stage"),
     },
     {
         "canonical_id": "autoharness/pipeline/ship",
-        "canonical_file": ".ship.agent.md",
-        "canonical_name": ".Ship",
-        "legacy_files": ("ship.agent.md",),
-        "legacy_names": ("Ship",),
+        "canonical_file": "_ship.agent.md",
+        "canonical_name": "_Ship",
+        "legacy_files": ("ship.agent.md", ".ship.agent.md"),
+        "legacy_names": ("Ship", ".Ship"),
     },
 )
 DEFAULT_SUFFIXES = {
@@ -223,7 +223,7 @@ PACK_ASSERTIONS = {
         },
         {
             "key": "ship_source_artifact_cleanup",
-            "path": ".github/agents/.ship.agent.md",
+            "path": ".github/agents/_ship.agent.md",
             "must_contain": [
                 "source_stash_id",
                 "source_deliberation_id",
@@ -242,7 +242,7 @@ PACK_ASSERTIONS = {
         },
         {
             "key": "stage_index_sync_gate",
-            "path": ".github/agents/.stage.agent.md",
+            "path": ".github/agents/_stage.agent.md",
             "must_contain": [
                 "Index Sync",
                 "backlogit_sync_index",
@@ -251,7 +251,7 @@ PACK_ASSERTIONS = {
         },
         {
             "key": "ship_index_sync_gate",
-            "path": ".github/agents/.ship.agent.md",
+            "path": ".github/agents/_ship.agent.md",
             "must_contain": [
                 "backlogit_sync_index",
                 "CLOSURE_INDEX_SYNC_OK",
@@ -352,12 +352,12 @@ PACK_ASSERTIONS = {
         },
         {
             "key": "graphtor_docs_stage_weaving",
-            "path": ".github/agents/.stage.agent.md",
+            "path": ".github/agents/_stage.agent.md",
             "must_contain": ["graphtor-docs", "graphtor-docs.instructions.md"],
         },
         {
             "key": "graphtor_docs_ship_weaving",
-            "path": ".github/agents/.ship.agent.md",
+            "path": ".github/agents/_ship.agent.md",
             "must_contain": ["graphtor-docs", "graphtor-docs.instructions.md"],
         },
     ],
@@ -449,7 +449,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_runtime_validation_contract",
-        "path": ".github/agents/.ship.agent.md",
+        "path": ".github/agents/_ship.agent.md",
         "must_contain": [
             "runtime_validation.validator_manifest",
             "runtime_validation.validation_expectations",
@@ -468,7 +468,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "stage_shipment_determinism",
-        "path": ".github/agents/.stage.agent.md",
+        "path": ".github/agents/_stage.agent.md",
         "must_contain": [
             "Step Sequence Contract (NON-NEGOTIABLE)",
             "Shipment Assembly (NON-NEGOTIABLE when shipments are supported)",
@@ -478,7 +478,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "stage_role_boundary",
-        "path": ".github/agents/.stage.agent.md",
+        "path": ".github/agents/_stage.agent.md",
         "must_contain": [
             "Role Boundary (NON-NEGOTIABLE)",
             "P-010",
@@ -487,7 +487,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_role_boundary",
-        "path": ".github/agents/.ship.agent.md",
+        "path": ".github/agents/_ship.agent.md",
         "must_contain": [
             "Role Boundary (NON-NEGOTIABLE)",
             "P-010",
@@ -496,7 +496,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_release_closure_sequence",
-        "path": ".github/agents/.ship.agent.md",
+        "path": ".github/agents/_ship.agent.md",
         "must_contain": [
             "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
             "post-merge release closure",
@@ -524,7 +524,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "stage_tool_availability_gate",
-        "path": ".github/agents/.stage.agent.md",
+        "path": ".github/agents/_stage.agent.md",
         "must_contain": [
             "Tool Availability Gate",
             "TOOL_OK",
@@ -535,7 +535,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_branch_management",
-        "path": ".github/agents/.ship.agent.md",
+        "path": ".github/agents/_ship.agent.md",
         "must_contain": [
             "Branch retention (NON-NEGOTIABLE)",
             "Post-Merge Branch Protocol (NON-NEGOTIABLE)",
@@ -545,7 +545,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_branch_creation_gate",
-        "path": ".github/agents/.ship.agent.md",
+        "path": ".github/agents/_ship.agent.md",
         "must_contain": [
             "Branch Creation Gate (P-011, NON-NEGOTIABLE)",
             "git branch --show-current",
@@ -556,7 +556,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_tool_availability_gate",
-        "path": ".github/agents/.ship.agent.md",
+        "path": ".github/agents/_ship.agent.md",
         "must_contain": [
             "Tool Availability Gate",
             "TOOL_OK",
@@ -567,7 +567,7 @@ FOUNDATION_ASSERTIONS = [
     },
     {
         "key": "ship_merge_confirmation_gate",
-        "path": ".github/agents/.ship.agent.md",
+        "path": ".github/agents/_ship.agent.md",
         "must_contain": [
             "Merge Confirmation Gate",
             "MERGE_CONFIRMED",
@@ -730,7 +730,7 @@ DARK_FACTORY_ASSERTIONS = [
     },
     {
         "key": "dark_factory_ship_contract",
-        "path": ".github/agents/.ship.agent.md",
+        "path": ".github/agents/_ship.agent.md",
         "must_contain": [
             "LOCAL_REVIEW_READY",
             "DARK_MODE_MERGE_AUTHORIZED",
@@ -3418,8 +3418,8 @@ def verify_workspace(
     # present), the role-enforcement instruction file must also be present.
     # We gate on the manifest to avoid false failures in the autoharness repo
     # itself, which defines the templates but does not install them locally.
-    stage_agent = workspace_path / ".github/agents/.stage.agent.md"
-    ship_agent = workspace_path / ".github/agents/.ship.agent.md"
+    stage_agent = workspace_path / ".github/agents/_stage.agent.md"
+    ship_agent = workspace_path / ".github/agents/_ship.agent.md"
     role_enforcement_instruction = workspace_path / ".github/instructions/role-enforcement.instructions.md"
     if stage_agent.exists() and ship_agent.exists() and manifest_path.exists():
         _add_text_check(
@@ -3446,8 +3446,8 @@ def verify_workspace(
     )
     for agent_file, check_key in [
         (".github/agents/_orchestrator.agent.md", "orchestrator_workspace_identity"),
-        (".github/agents/.stage.agent.md", "stage_workspace_identity"),
-        (".github/agents/.ship.agent.md", "ship_workspace_identity"),
+        (".github/agents/_stage.agent.md", "stage_workspace_identity"),
+        (".github/agents/_ship.agent.md", "ship_workspace_identity"),
     ]:
         agent_path = workspace_path / agent_file
         if agent_path.exists():
