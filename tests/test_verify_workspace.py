@@ -4151,6 +4151,63 @@ class AgentIdentityMigrationTests(unittest.TestCase):
             self.assertNotIn(".github/agents/auto-mergeinstall.agent.md", by_from)
             self.assertNotIn(".github/agents/adversarial-review.agent.md", by_from)
 
+    def test_dot_prefixed_legacy_files_migrate_to_underscore(self) -> None:
+        # Regression coverage for the dot-prefixed compatibility aliases
+        # (.stage.agent.md / .Stage and .ship.agent.md / .Ship) retained in
+        # PIPELINE_AGENT_IDENTITIES legacy_files/legacy_names so existing
+        # dot-prefixed installs still migrate to the underscore canonical
+        # identity after the underscore rename.
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file(agents, ".stage.agent.md", ".Stage")
+            _write_agent_file(agents, ".ship.agent.md", ".Ship")
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+            by_from = self._index(proposals)
+
+            self.assertEqual(len(proposals), 2)
+            self.assertEqual(
+                by_from[".github/agents/.stage.agent.md"]["to_path"],
+                ".github/agents/_stage.agent.md",
+            )
+            self.assertEqual(
+                by_from[".github/agents/.stage.agent.md"]["to_name"], "_Stage"
+            )
+            self.assertEqual(
+                by_from[".github/agents/.ship.agent.md"]["to_path"],
+                ".github/agents/_ship.agent.md",
+            )
+            self.assertEqual(
+                by_from[".github/agents/.ship.agent.md"]["to_name"], "_Ship"
+            )
+            for proposal in proposals:
+                self.assertEqual(proposal["contract"], "agent-identity")
+                self.assertEqual(proposal["status"], "known-legacy")
+                self.assertIn("path", proposal["changed_fields"])
+                self.assertIn("name", proposal["changed_fields"])
+                self.assertFalse(proposal["canonical_exists"])
+
+    def test_stable_id_migrates_dot_prefixed_legacy_install(self) -> None:
+        # Copilot review coverage: a dot-prefixed install carrying its stable
+        # id must also migrate to both underscore identities via id matching.
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            agents = workspace / ".github" / "agents"
+            _write_agent_file_with_id(
+                agents, ".ship.agent.md", ".Ship", "autoharness/pipeline/ship"
+            )
+
+            proposals = _scan_agent_identity_migrations(workspace, {})
+
+            self.assertEqual(len(proposals), 1)
+            proposal = proposals[0]
+            self.assertEqual(
+                proposal["from_path"], ".github/agents/.ship.agent.md"
+            )
+            self.assertEqual(proposal["to_path"], ".github/agents/_ship.agent.md")
+            self.assertEqual(proposal["to_name"], "_Ship")
+
     def test_dispatch_maps_to_orchestrator(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
