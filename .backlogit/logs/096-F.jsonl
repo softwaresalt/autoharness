@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-29T03:32:41.9000129-07:00","actor":"backlogit","item_id":"096-F","event_type":"status_changed","delta":{"from":"queued","reason":"child status rollup","to":"active"}}
+{"timestamp":"2026-07-29T11:34:07.4346218-00:00","actor":"backlogit","item_id":"096-F","event_type":"status_changed","delta":{"from":"active","reason":"closure reconciliation (101-S / P-015): covering feature 096-F retained in queue; build-loop rollup to active was never persisted","to":"queued"}}
