@@ -226,5 +226,297 @@ class JsonlSinkTests(unittest.TestCase):
         self.assertEqual(result.status, "created")
 
 
+def _encode_line(epoch: ExecutionEpoch) -> str:
+    return json.dumps(epoch.to_record(), separators=(",", ":")) + "\n"
+
+
+def _conflicting_epoch(epoch_id: str, input_tokens: int = 999) -> ExecutionEpoch:
+    base = _sized_epoch(epoch_id)
+    return ExecutionEpoch(
+        epoch_id=base.epoch_id,
+        task_id="079.003-T",
+        route=base.route,
+        economics=EconomicPayload(input_tokens=input_tokens),
+        operations=base.operations,
+        outcome=base.outcome,
+    )
+
+
+class CrossSegmentReplayTests(unittest.TestCase):
+    """095.001-T — replay/preflight scan spans active + sealed segments."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.jsonl_path = Path(self._tmp.name) / ".autoharness" / "metrics" / "execution_epochs.jsonl"
+        self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write_sealed(self, generation: int, *epochs: ExecutionEpoch) -> Path:
+        sealed = jsonl_sink.sealed_segment_path(self.jsonl_path, generation)
+        sealed.write_text("".join(_encode_line(e) for e in epochs), encoding="utf-8")
+        return sealed
+
+    def test_idempotent_replay_when_epoch_lives_in_sealed_segment(self) -> None:
+        epoch = _sized_epoch("11111111111111111111111111111111")
+        self._write_sealed(1, epoch)
+
+        result = append_epoch(epoch, self.jsonl_path)
+
+        self.assertEqual(result.status, "idempotent_replay")
+        # No line is written to the (still absent) active segment on replay.
+        self.assertFalse(self.jsonl_path.exists())
+
+    def test_conflict_detected_across_sealed_segment(self) -> None:
+        original = _sized_epoch("22222222222222222222222222222222")
+        self._write_sealed(1, original)
+
+        with self.assertRaises(TelemetryConflictError):
+            append_epoch(_conflicting_epoch(original.epoch_id), self.jsonl_path)
+
+    def test_active_replacement_between_preflight_and_append_invalidates_offset(self) -> None:
+        # A rollover between preflight and append replaces the active segment with
+        # a LARGER file whose early bytes hold the epoch. A naive resume from the
+        # stale offset would skip the replay; the generation identity forces a full
+        # cross-segment rescan that still detects it.
+        epoch = _sized_epoch("33333333333333333333333333333333")
+        append_epoch(_epoch("history-a"), self.jsonl_path)
+        append_epoch(_epoch("history-b"), self.jsonl_path)
+        preflight = jsonl_sink.scan_epoch_digest(self.jsonl_path, epoch.epoch_id)
+        self.assertIsNone(preflight.existing_digest)
+        self.assertEqual(preflight.active_generation, 1)
+
+        # Simulate rollover: seal the old active to generation 1, then create a
+        # fresh, larger active whose first line is the replayed epoch.
+        self.jsonl_path.replace(jsonl_sink.sealed_segment_path(self.jsonl_path, 1))
+        fresh = _encode_line(epoch) + "".join(_encode_line(_epoch(f"filler-{i}")) for i in range(5))
+        self.jsonl_path.write_text(fresh, encoding="utf-8")
+        self.assertGreater(self.jsonl_path.stat().st_size, preflight.scanned_offset)
+
+        result = append_epoch(epoch, self.jsonl_path, preflight=preflight)
+        self.assertEqual(result.status, "idempotent_replay")
+
+    def test_single_segment_offset_optimization_preserved_with_generation_identity(self) -> None:
+        epoch = _sized_epoch("44444444444444444444444444444444")
+        append_epoch(_epoch("history"), self.jsonl_path)
+        preflight = jsonl_sink.scan_epoch_digest(self.jsonl_path, epoch.epoch_id)
+        self.assertEqual(preflight.active_generation, 1)
+        self.assertGreater(preflight.active_size, 0)
+        append_epoch(epoch, self.jsonl_path)
+
+        with mock.patch.object(
+            jsonl_sink, "scan_epoch_digest", wraps=jsonl_sink.scan_epoch_digest
+        ) as scan:
+            result = append_epoch(epoch, self.jsonl_path, preflight=preflight)
+
+        self.assertEqual(result.status, "idempotent_replay")
+        self.assertEqual(scan.call_count, 1)
+        self.assertEqual(scan.call_args.kwargs["start_offset"], preflight.scanned_offset)
+
+
+class SegmentRolloverTests(unittest.TestCase):
+    """095.002-T — size-based rollover with a no-replace generation claim."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.jsonl_path = Path(self._tmp.name) / ".autoharness" / "metrics" / "execution_epochs.jsonl"
+        self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_rollover_seals_active_and_starts_fresh_at_low_threshold(self) -> None:
+        first = _sized_epoch("a" * 32)
+        second = _sized_epoch("b" * 32)
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", 200):
+            # Active is empty (< threshold) so the first record is written; the
+            # second append observes size >= threshold, seals gen 1, and writes to
+            # a fresh active.
+            self.assertEqual(append_epoch(first, self.jsonl_path).status, "created")
+            self.assertEqual(append_epoch(second, self.jsonl_path).status, "created")
+
+        sealed = jsonl_sink.sealed_segment_path(self.jsonl_path, 1)
+        self.assertTrue(sealed.exists())
+        self.assertEqual([g for g, _ in jsonl_sink.sealed_segments(self.jsonl_path)], [1])
+        sealed_lines = sealed.read_text(encoding="utf-8").splitlines()
+        active_lines = self.jsonl_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual([json.loads(sealed_lines[0])["epoch_id"]], [first.epoch_id])
+        self.assertEqual([json.loads(active_lines[0])["epoch_id"]], [second.epoch_id])
+        # Cross-segment replay still holds after rollover: the sealed record is
+        # detected as an idempotent replay, not re-appended.
+        self.assertEqual(append_epoch(first, self.jsonl_path).status, "idempotent_replay")
+        self.assertEqual(len(self.jsonl_path.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_seal_collision_retries_next_generation_without_clobber(self) -> None:
+        active_bytes = _encode_line(_sized_epoch("b" * 32)).encode("utf-8")
+        self.jsonl_path.write_bytes(active_bytes)
+        # Generation 1 is already sealed with distinct content that MUST survive.
+        gen1 = jsonl_sink.sealed_segment_path(self.jsonl_path, 1)
+        gen1.write_text("SEALED-GEN-1\n", encoding="utf-8")
+        gen1_bytes = gen1.read_bytes()
+
+        # Force the sealer to first pick generation 1 (already taken, as a
+        # concurrent writer would), then re-read the true max on retry. The
+        # no-replace claim must refuse to clobber gen 1 and land on gen 2.
+        with mock.patch.object(jsonl_sink, "_max_sealed_generation", side_effect=[0, 1]):
+            generation = jsonl_sink._seal_active_segment(self.jsonl_path)
+
+        self.assertEqual(generation, 2)
+        self.assertEqual(gen1.read_bytes(), gen1_bytes)  # zero whole-segment loss
+        self.assertEqual(
+            jsonl_sink.sealed_segment_path(self.jsonl_path, 2).read_bytes(), active_bytes
+        )
+        self.assertFalse(self.jsonl_path.exists())  # active consumed by the seal
+
+    def test_two_writers_interleaved_seal_preserve_every_distinct_segment(self) -> None:
+        """Deterministic two-writer race: both writers observe the same over-
+        threshold active, seal concurrently with their unlink steps held behind a
+        barrier so links interleave against unlinks, and each distinct segment's
+        content must survive (zero whole-segment loss, no clobber, no unlinking a
+        peer's freshly recreated active)."""
+        import threading
+
+        # Pre-fill the active segment with distinct content C0 that both writers
+        # will seal. Sized so a single line already exceeds the low threshold.
+        c0 = _sized_epoch("0" * 32)
+        self.jsonl_path.write_bytes(_encode_line(c0).encode("utf-8"))
+        c0_bytes = self.jsonl_path.read_bytes()
+
+        e1 = _sized_epoch("1" * 32)
+        e2 = _sized_epoch("2" * 32)
+
+        real_unlink = jsonl_sink.os.unlink
+        # Hold each writer that has just created its sealed link until both writers
+        # have linked, so the unlink steps interleave against the links and the
+        # path-reuse race window is exercised deterministically.
+        barrier = threading.Barrier(2, timeout=10)
+
+        def barriered_unlink(target: str) -> None:
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
+            real_unlink(target)
+
+        errors: list[BaseException] = []
+
+        def writer(epoch: ExecutionEpoch) -> None:
+            try:
+                append_epoch(epoch, self.jsonl_path)
+            except BaseException as exc:  # noqa: BLE001 - surfaced via assertion
+                errors.append(exc)
+
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", 50), \
+                mock.patch.object(jsonl_sink.os, "unlink", side_effect=barriered_unlink):
+            threads = [
+                threading.Thread(target=writer, args=(e1,)),
+                threading.Thread(target=writer, args=(e2,)),
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=15)
+
+        self.assertEqual(errors, [], f"writers raised: {errors}")
+
+        # Sealed segments were claimed under distinct generations; every one holds
+        # the original C0 content intact — neither writer clobbered nor unlinked
+        # away another writer's sealed segment.
+        sealed = jsonl_sink.sealed_segments(self.jsonl_path)
+        self.assertGreaterEqual(len(sealed), 1)
+        for _generation, path in sealed:
+            self.assertEqual(path.read_bytes(), c0_bytes)
+
+        # Every distinct epoch survives somewhere in the segment set: the sealed
+        # C0 and both freshly written records, with zero whole-segment loss.
+        seen: set[str] = set()
+        for path in jsonl_sink.segment_read_paths(self.jsonl_path):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    seen.add(json.loads(line)["epoch_id"])
+        self.assertEqual(seen, {c0.epoch_id, e1.epoch_id, e2.epoch_id})
+
+    def test_default_threshold_keeps_small_writes_single_segment(self) -> None:
+        for i in range(6):
+            append_epoch(_sized_epoch(f"{i:032d}"), self.jsonl_path)
+        self.assertEqual(jsonl_sink.sealed_segments(self.jsonl_path), [])
+        self.assertEqual(len(self.jsonl_path.read_text(encoding="utf-8").splitlines()), 6)
+
+    def test_oversized_single_record_written_intact_to_own_segment(self) -> None:
+        oversized = _sized_epoch("c" * 32)
+        oversized_line = _encode_line(oversized)
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", 200):
+            # The oversized record (> threshold) is written intact to the active
+            # segment; the next append seals it — intact — into its own segment.
+            append_epoch(oversized, self.jsonl_path)
+            append_epoch(_sized_epoch("d" * 32), self.jsonl_path)
+
+        sealed = jsonl_sink.sealed_segment_path(self.jsonl_path, 1)
+        sealed_text = sealed.read_text(encoding="utf-8")
+        self.assertEqual(sealed_text, oversized_line)  # single intact line, not split
+        self.assertGreater(len(oversized_line.encode("utf-8")), 200)
+
+
+class SegmentRetentionTests(unittest.TestCase):
+    """095.003-T — bounded retention window with a restated byte bound."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.jsonl_path = Path(self._tmp.name) / ".autoharness" / "metrics" / "execution_epochs.jsonl"
+        self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _fill(self, count: int, threshold: int, window: int) -> list[ExecutionEpoch]:
+        epochs = [_sized_epoch(f"{i:032d}") for i in range(count)]
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", threshold), mock.patch.object(
+            jsonl_sink, "_MAX_RETAINED_SEGMENTS", window
+        ):
+            for epoch in epochs:
+                append_epoch(epoch, self.jsonl_path)
+        return epochs
+
+    def test_sealed_count_bounded_and_oldest_pruned_first(self) -> None:
+        self._fill(count=6, threshold=200, window=2)
+        generations = [g for g, _ in jsonl_sink.sealed_segments(self.jsonl_path)]
+        # Each ~2 KiB record exceeds the 200-byte threshold, so every append after
+        # the first rolls over. Only the two newest sealed generations survive.
+        self.assertEqual(generations, [4, 5])
+
+    def test_total_retained_bytes_within_restated_bound(self) -> None:
+        epochs = self._fill(count=6, threshold=200, window=2)
+        max_record = max(len(_encode_line(e).encode("utf-8")) for e in epochs)
+        bound = (2 + 1) * (200 + max_record)
+
+        sealed_paths = [p for _g, p in jsonl_sink.sealed_segments(self.jsonl_path)]
+        for path in sealed_paths:
+            self.assertLessEqual(path.stat().st_size, 200 + max_record)
+        total = sum(p.stat().st_size for p in sealed_paths) + self.jsonl_path.stat().st_size
+        self.assertLessEqual(total, bound)
+
+    def test_pruning_never_targets_active_segment(self) -> None:
+        epochs = self._fill(count=6, threshold=200, window=2)
+        # The active segment (base name) always survives pruning and holds the
+        # newest record.
+        self.assertTrue(self.jsonl_path.exists())
+        sealed_paths = {p for _g, p in jsonl_sink.sealed_segments(self.jsonl_path)}
+        self.assertNotIn(self.jsonl_path, sealed_paths)
+        active_lines = self.jsonl_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(json.loads(active_lines[-1])["epoch_id"], epochs[-1].epoch_id)
+
+    def test_pruned_epoch_replay_reappends_within_retention_horizon(self) -> None:
+        epochs = self._fill(count=6, threshold=200, window=2)
+        pruned = epochs[0]  # lived in generation 1, since pruned
+        # Its segment is gone, so replay can no longer be detected on the mirror
+        # and is re-appended (no false idempotency); SQLite remains authoritative.
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", 200), mock.patch.object(
+            jsonl_sink, "_MAX_RETAINED_SEGMENTS", 2
+        ):
+            result = append_epoch(pruned, self.jsonl_path)
+        self.assertEqual(result.status, "created")
+
+
 if __name__ == "__main__":
     unittest.main()

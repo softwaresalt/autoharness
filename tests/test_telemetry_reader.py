@@ -7,7 +7,9 @@ import shutil
 import sqlite3
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from autoharness.telemetry import jsonl_sink
 from autoharness.telemetry.config import load_telemetry_config
 from autoharness.telemetry.epoch import (
     AbsoluteOutcome,
@@ -252,6 +254,97 @@ class TelemetryReaderTests(unittest.TestCase):
 
         self.assertEqual([record["task_id"] for record in result.records], ["good-task"])
         self.assertTrue(any("timestamp" in item.lower() for item in result.diagnostics))
+
+
+class TelemetryReaderRotationTests(unittest.TestCase):
+    """095.004-T — reader read-path spans active + retained sealed segments."""
+
+    def setUp(self) -> None:
+        self.workspace = _TEST_OUTPUT / self._testMethodName / "workspace"
+        self.workspace.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(_TEST_OUTPUT / self._testMethodName, ignore_errors=True)
+
+    def _write_segment(self, path: Path, *records: dict) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "".join(json.dumps(r, separators=(",", ":")) + "\n" for r in records),
+            encoding="utf-8",
+        )
+
+    def test_reads_active_and_sealed_segments_after_rollover(self) -> None:
+        config = _config(self.workspace)
+        sealed_epoch = _epoch("aaaa1111aaaa4aaa8aaaaaaaaaaaaaa1", "sealed-task")
+        active_epoch = _epoch("bbbb2222bbbb4bbb8bbbbbbbbbbbbbb2", "active-task")
+        self._write_segment(
+            jsonl_sink.sealed_segment_path(config.jsonl_path, 1), sealed_epoch.to_record()
+        )
+        self._write_segment(config.jsonl_path, active_epoch.to_record())
+
+        for source in ("jsonl", "combined"):
+            result = read_epoch_records(config, source=source)
+            by_id = {record["epoch_id"]: record for record in result.records}
+            self.assertEqual(result.status, "ok")
+            self.assertEqual(by_id[sealed_epoch.epoch_id]["task_id"], "sealed-task")
+            self.assertEqual(by_id[active_epoch.epoch_id]["task_id"], "active-task")
+
+    def test_late_line_in_sealed_segment_reconciled_with_sqlite_precedence(self) -> None:
+        config = _config(self.workspace)
+        authoritative = _epoch("cccc3333cccc4ccc8ccccccccccccc3", "sqlite-wins")
+        write_epoch(authoritative, config.database_path)
+        # A divergent copy landed late in a SEALED segment after rollover.
+        late = _epoch(authoritative.epoch_id, "jsonl-late")
+        self._write_segment(
+            jsonl_sink.sealed_segment_path(config.jsonl_path, 1), late.to_record()
+        )
+
+        result = read_epoch_records(config, source="combined")
+
+        self.assertEqual(len(result.records), 1)
+        self.assertEqual(result.records[0]["task_id"], "sqlite-wins")
+        self.assertTrue(any("sqlite precedence" in item.lower() for item in result.diagnostics))
+
+    def test_malformed_line_in_sealed_segment_is_skipped(self) -> None:
+        config = _config(self.workspace)
+        sealed_good = _epoch("dddd4444dddd4ddd8ddddddddddddd4", "sealed-good")
+        active_good = _epoch("eeee5555eeee4eee8eeeeeeeeeeeeee5", "active-good")
+        sealed = jsonl_sink.sealed_segment_path(config.jsonl_path, 1)
+        sealed.parent.mkdir(parents=True, exist_ok=True)
+        sealed.write_text(
+            "{ not valid json\n"
+            + json.dumps(sealed_good.to_record(), separators=(",", ":"))
+            + "\n",
+            encoding="utf-8",
+        )
+        self._write_segment(config.jsonl_path, active_good.to_record())
+
+        result = read_epoch_records(config, source="jsonl")
+
+        ids = {record["epoch_id"] for record in result.records}
+        self.assertEqual(ids, {sealed_good.epoch_id, active_good.epoch_id})
+        self.assertTrue(any("malformed" in item.lower() for item in result.diagnostics))
+
+    def test_records_in_pruned_segment_absent_from_reads(self) -> None:
+        config = _config(self.workspace)
+        config.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+        epochs = [_epoch(f"{i:032d}", f"task-{i}") for i in range(6)]
+        with mock.patch.object(jsonl_sink, "_MAX_SEGMENT_BYTES", 200), mock.patch.object(
+            jsonl_sink, "_MAX_RETAINED_SEGMENTS", 2
+        ):
+            for epoch in epochs:
+                append_epoch(epoch, config.jsonl_path)
+
+        result = read_epoch_records(config, source="jsonl")
+        ids = {record["epoch_id"] for record in result.records}
+        # Uses the shared jsonl_sink enumeration, so retained segments are read and
+        # pruned ones are simply gone.
+        self.assertEqual(
+            [p.name for p in jsonl_sink.segment_read_paths(config.jsonl_path)][-1],
+            config.jsonl_path.name,
+        )
+        self.assertNotIn(epochs[0].epoch_id, ids)  # lived only in a pruned segment
+        self.assertIn(epochs[-1].epoch_id, ids)  # newest, in the active segment
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Literal
 
+from autoharness.telemetry import jsonl_sink
 from autoharness.telemetry.config import TelemetryConfig
 from autoharness.telemetry.epoch import EpochError, ExecutionEpoch
 
@@ -202,21 +203,35 @@ def _dedupe(records: Iterable[dict[str, Any]], source: str) -> tuple[list[dict[s
 
 
 def _read_jsonl(path: Path | None) -> tuple[list[dict[str, Any]], list[str], bool]:
-    if path is None or not path.exists():
+    if path is None:
+        return [], ["jsonl unavailable: file missing"], False
+    # Span the active segment plus all retained sealed segments via the shared
+    # jsonl_sink enumeration (single source of truth for segment naming/order), so
+    # rotated history survives reads. Segments are read oldest→newest, preserving
+    # first-write precedence on dedupe.
+    segment_paths = jsonl_sink.segment_read_paths(path)
+    if not segment_paths:
         return [], ["jsonl unavailable: file missing"], False
     records: list[dict[str, Any]] = []
     diagnostics: list[str] = []
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            for line_number, line in enumerate(handle, start=1):
-                if not line.strip():
-                    continue
-                try:
-                    records.append(_normalize_record(json.loads(line)))
-                except (EpochError, json.JSONDecodeError, TypeError, ValueError) as exc:
-                    diagnostics.append(f"jsonl skipped malformed line {line_number}: {exc}")
-    except OSError as exc:
-        return [], [f"jsonl unavailable: {exc}"], False
+    read_any = False
+    for segment in segment_paths:
+        try:
+            with segment.open("r", encoding="utf-8") as handle:
+                read_any = True
+                for line_number, line in enumerate(handle, start=1):
+                    if not line.strip():
+                        continue
+                    try:
+                        records.append(_normalize_record(json.loads(line)))
+                    except (EpochError, json.JSONDecodeError, TypeError, ValueError) as exc:
+                        diagnostics.append(
+                            f"jsonl skipped malformed line {line_number} in {segment.name}: {exc}"
+                        )
+        except OSError as exc:
+            diagnostics.append(f"jsonl unavailable: {exc}")
+    if not read_any:
+        return [], ["jsonl unavailable: file missing"], False
     deduped, duplicate_diagnostics = _dedupe(records, "jsonl")
     return deduped, [*diagnostics, *duplicate_diagnostics], True
 
