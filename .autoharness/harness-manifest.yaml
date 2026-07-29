@@ -3,7 +3,7 @@ installed_at: "2026-04-26T21:16:00-07:00"
 tuned_at: "2026-07-09T20:21:26+00:00"
 autoharness_version: "1.4.11"
 autoharness_home: null
-profile_hash: "446b4fb2fbab1b350bfd3dbce818600b503f6ef3c2a51c5141b6032c5c0bd6b1"
+profile_hash: "e5a71cf20952b26d42c5f8ca627c7a2e54c7744053e65268505399ea22913071"
 config_hash: "f0de8d5e21eeeee1e7866b0ecc5c420c2a72a5065fa386b7e4983a3b6ca5d590"
 install_preset: "full"
 install_mode: "self-install"
@@ -156,7 +156,7 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "ccf8351ae42fad4dc1a0540ea3f5f98c94bce8e747e240c76db793cebb465b19"
+    checksum: "8d13256ec19a63af3f6ad3d71dcbd8fe18987a34552d958945b8cceb3b5362c2"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4

@@ -59,7 +59,7 @@ The script runs a deterministic, single-pass sequence (no internal retry loop):
 | **preflight** | Verify prerequisites (`python`, `git`; optional `gh` and the target CLI). Fail closed on missing hard prerequisites. | Read-only |
 | **bootstrap** | Locate or acquire `autoharness_home` (the **global** install). | Out-of-cwd; gated behind explicit `-Bootstrap`/`--bootstrap` |
 | **register** | Register the AI environment (`setup-vscode`, `copilot plugin install`, `setup-claude`, `setup-codex`). | Per-environment config |
-| **scaffold** | Write `.autoharness/config.yaml` with the preset and every pack enumerated from the capability-pack registry. | cwd-only; backup-before-overwrite; never clobbers `.env.local` |
+| **scaffold** | Write `.autoharness/config.yaml` with the preset and its resolved capability packs (an omitted `--packs` resolves to the preset's `default_in_preset` members; explicit `all` selects every registry pack). | cwd-only; backup-before-overwrite; never clobbers `.env.local` |
 | **compose** | **Handoff only** — prints the `/install-harness` command. No template resolution happens here. | cwd-only |
 | **verify** | Optional `autoharness verify-workspace`. | cwd-only |
 
@@ -79,7 +79,7 @@ The PowerShell and shell scripts mirror the same flags and semantics:
 | PowerShell | Shell | Default | Purpose |
 |---|---|---|---|
 | `-Preset` | `--preset` | `full` | Install shape: `starter`, `standard`, `full` |
-| `-Packs` | `--packs` | `all` | `all` (resolved from the registry) or a comma-separated subset |
+| `-Packs` | `--packs` | *(preset defaults)* | Omitted resolves to the preset's default packs; `all` selects every registry pack; or pass a comma-separated subset |
 | `-Register` | `--register` | `copilot-cli` | AI environment: `vscode`, `copilot-cli`, `claude`, `codex`, `none` |
 | `-InstallMethod` | `--install-method` | `pip` | Global install method for bootstrap: `pip`, `clone` |
 | `-Home` | `--home` | *(auto)* | Explicit `autoharness_home` override |

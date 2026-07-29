@@ -1314,7 +1314,9 @@ from `{autoharness_home}/templates/scripts/deploy-harness.ps1.tmpl` and
 `deploy-harness.sh.tmpl`. These deterministic scripts run preflight → bootstrap →
 register → scaffold → compose-handoff → verify: they bootstrap autoharness,
 register the operator's AI environment, and scaffold `.autoharness/config.yaml`
-with every pack enumerated from
+with the preset's resolved capability packs (an omitted `--packs`/`-Packs` input
+resolves to the preset's `default_in_preset` members; explicit `all` selects every
+pack) from
 `{autoharness_home}/templates/packs/capability-pack-registry.yaml`, then hand off
 template composition to the `auto-mergeinstall` agent (they never resolve
 `{{VARIABLE}}` templates). Resolve `{{DEFAULT_PRESET}}`, `{{DEFAULT_REGISTER_ENV}}`,
