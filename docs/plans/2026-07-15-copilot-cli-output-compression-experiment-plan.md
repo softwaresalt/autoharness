@@ -54,7 +54,7 @@ store. Deliverable is an evidence-backed operator decision memo.
 | 088.001-T Containment-safe local store + resolver | storage/security | ~2h | — |
 | 088.002-T `postToolUse` compression hook prototype | hook logic | ~2h | 088.001-T |
 | 088.003-T Byte-equivalent retrieval MCP tool | retrieval | ~2h | 088.001-T |
-| 088.004-T Decline-case policy + evidence oracle | safety policy | ~2h | 088.002-T, 088.003-T |
+| 088.004-T Decline-case policy + evidence oracle (incl. failure-bearing-SUCCESS decline invariant) | safety policy | ~2h | 088.002-T, 088.003-T |
 | 088.005-T AUC token-savings measurement harness | measurement | ~2h | 088.002-T, 088.003-T |
 | 088.006-T Benchmark corpus runner + report | benchmark | ~2h | 088.004-T, 088.005-T |
 | 088.007-T Findings write-up + operator decision memo | analysis/doc | ~2h | 088.006-T |
@@ -82,6 +82,28 @@ measurement, and analysis work.
   tiny outputs, unwritable-CCR passthrough, secret-bearing output, gate/readiness
   verdicts, active stack traces, operator/approval text; confirm no store row
   remains after a reject; confirm failure outputs are untouched.
+  * **Failure-bearing-SUCCESS decline invariant:** a *successful*
+    `postToolUse.textResultForLlm` that embeds a non-zero exit code, stderr, a
+    stack trace, or a gate/readiness verdict is DECLINED (never compressed). This
+    is distinct from — and additional to — the `postToolUseFailure` passthrough
+    (a failed tool *invocation* is already never rewritten): here the tool result
+    is a *success* whose text nonetheless carries failure evidence, which must not
+    be collapsed into the omitted middle. The detector plus its negative controls
+    shipped in 088.004-T (commit `118bf21`).
+  * **Broadened (colon-agnostic) failure-signal set (093.001-T/093.002-T):** the
+    detector recognizes both colon and non-colon forms — `exit code: 1` /
+    `exit code 1`, `exited with code 1` / `exited with exit code 1`,
+    `Process finished with exit code 1`, GNU make `*** [target] Error 1`,
+    `npm ERR!`, and bare `returncode 1` — while benign zero-exit forms
+    (`exit code 0`, `exited with code 0`, `All checks passed`) stay compressible.
+    Secret screening still precedes the failure check. `hook.py`
+    `_EVIDENCE_LINE_PATTERNS` and `evidence_oracle.py` required-fact patterns hold
+    semantic parity for these broadened forms (defense in depth), keeping benchmark
+    evidence-preservation fidelity for any future non-declined path.
+  * **Traceability:** stash `3D8724BA` → deliberation `008-DL` → follow-up plan
+    `docs/plans/2026-07-28-088-failure-content-in-success-decline-followup-plan.md`
+    → feature `093-F` → `brainspace/policy.py`, `brainspace/hook.py`,
+    `brainspace/evidence_oracle.py` + tests.
 * **088.005-T** — AUC measurement harness: raw vs compressed tokens under model
   tokenizer + cheap fallback estimator; project savings over 1/3/5/10 turns; net
   of placeholder/footer overhead.
@@ -108,6 +130,13 @@ model sees (evidence-integrity blast radius). Hardening measures:
 * **Secret screening precedes durable storage** — a detector hit forces decline.
 * **Evidence oracle gates every "safe win"** — a benchmark cannot pass by hiding a
   stack frame, exit status, stderr line, gate verdict, or identifier.
+* **Failure-bearing-SUCCESS decline is a hard invariant** — a *successful* result
+  embedding a non-zero exit code, stderr, a stack trace, or a gate/readiness
+  verdict is declined, never compressed. The detector and its negative controls
+  shipped in 088.004-T (commit `118bf21`); 093.001-T/093.002-T broadened it to the
+  colon-agnostic non-zero-exit / stderr set and mirrored it (semantic parity)
+  across `hook.py` and `evidence_oracle.py`. This invariant is a promotion gate
+  that MUST NOT regress in the deferred narrow pilot (per 093-S).
 * **Reversibility proof required** — byte-equivalent retrieval (full/paginated)
   is a precondition for reporting any positive result.
 * **Rollback:** the prototype is throwaway and flag-gated; disabling the flag and

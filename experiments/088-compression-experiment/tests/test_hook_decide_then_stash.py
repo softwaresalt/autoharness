@@ -154,6 +154,28 @@ def test_operator_approval_text_declines_before_store(store):
     assert store.row_count() == 0
 
 
+@pytest.mark.parametrize(
+    "failure_line",
+    [
+        "exit code 1",  # space, no colon
+        "exited with code 1",
+        "make: *** [build] Error 2",
+        "*** [target] Error 1",
+        "npm ERR! code ELIFECYCLE",
+        "Process finished with exit code 1",
+        "returncode 1",
+    ],
+)
+def test_broadened_failure_forms_pass_through_byte_identically(store, failure_line):
+    # 093.001-T: broadened failure-bearing-SUCCESS forms decline at the
+    # policy layer, so the hook returns {} (original passes through
+    # byte-identically) and writes no durable store row.
+    text = "command output\n" + failure_line + "\n" + ("padding\n" * 60)
+    result = process_post_tool_use(_payload("bash", text), store)
+    assert result == {}
+    assert store.row_count() == 0
+
+
 def test_never_expand_guard_also_enforces_additional_context_byte_cap(store):
     # P-018 re-review finding #1 (new round): the never-expand guard
     # previously only compared character counts against the original, so a

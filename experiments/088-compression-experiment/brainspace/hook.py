@@ -55,10 +55,25 @@ _DIFF_HEADER_RE = re.compile(r"^diff --git ", re.MULTILINE)
 _HUNK_HEADER_RE = re.compile(r"^@@ .*@@", re.MULTILINE)
 _COMMIT_HEADER_RE = re.compile(r"^commit [0-9a-f]{7,40}\b", re.MULTILINE)
 
+# Horizontal-only failure-signal separator (parity with policy._SEP): a colon
+# (optionally followed by spaces/tabs) or one-or-more spaces/tabs, never a
+# newline. Rejects concatenated ("exit code1") false protection and keeps the
+# evidence-line match same-line (093.002-T review finding). The evidence layer
+# uses \d+ (zero-exit forms are also protected, by design).
+_SEP = r"(?::[ \t]*|[ \t]+)"
+_RC_SEP = r"(?:=[ \t]*|[ \t]+)"
+
 _EVIDENCE_LINE_PATTERNS = [
-    re.compile(r"(?i)exit code:\s*\d+"),
-    re.compile(r"(?i)exit status\s*\d+"),
-    re.compile(r"(?i)returncode=\d+"),
+    re.compile(rf"(?i)exit code{_SEP}\d+"),
+    re.compile(rf"(?i)exit status{_SEP}\d+"),
+    # "exited with code 1", "exited with exit code 1",
+    # "Process finished with exit code 1" (zero-exit forms also protected).
+    re.compile(rf"(?i)(?:exited|finished) with (?:exit )?code{_SEP}\d+"),
+    re.compile(rf"(?i)returncode{_RC_SEP}\d+"),
+    # GNU make failure line: "*** [target] Error 1".
+    re.compile(r"\*\*\*[ \t]*\[[^\]]*\][ \t]+Error[ \t]+\d+"),
+    # npm failure marker.
+    re.compile(r"(?i)npm ERR!"),
     re.compile(r"(?i)^stderr:"),
     re.compile(r"P-0\d\d\s+(?:GATE|VIOLATION)"),
     re.compile(r"\bHEAD=\S+"),
