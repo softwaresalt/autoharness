@@ -34,7 +34,7 @@ Five width-isolated tasks (each ≤2h), executed in dependency order:
 | 097.002-T | Non-code cross-reference sweep (docs, instructions, `.gitattributes`, workspace-profile, CHANGELOG) | 097.001 |
 | 097.003-T | Installer/tuner logic + emit surfaces (`verify_workspace.py` `CANONICAL_AGENTS`, install/tune SKILL alias tables) | 097.001 |
 | 097.004-T | Coupled tests (`test_verify_workspace`, telemetry ship lifecycle, telemetry record CLI) | 097.003, 097.001 |
-| 097.005-T | Manifest paths + checksums + `verify` + `pytest` + zero-residual gate | 097.001-004 |
+| 097.005-T | Manifest paths + checksums + `verify` + `unittest` + zero-residual gate | 097.001-004 |
 
 Git semantics: the 4 renames MUST use `git mv` to preserve history (2 instance
 files + 2 templates). Frontmatter edits happen in the renamed files.
@@ -79,7 +79,7 @@ files + 2 templates). Frontmatter edits happen in the renamed files.
 ### Group E — Manifest + gate (2 files + runs)
 
 * `.autoharness/harness-manifest.yaml` (2 path keys + 2 checksums + 3 assertion-text lines)
-* Gate runs: `autoharness verify`, `uv run pytest tests/`, zero-residual grep
+* Gate runs: `autoharness verify`, `PYTHONPATH=src python -m unittest discover -s tests` (canonical CI gate), zero-residual grep
 
 ## EXEMPT paths (old strings may legitimately remain)
 
@@ -95,12 +95,22 @@ alias-table legacy columns.
   `.ship.agent.md.tmpl`, `.stage.agent.md.tmpl`, `name: .Ship`, `name: .Stage`,
   `.Ship`, `.Stage`; assert ZERO hits outside EXEMPT paths and the legacy-alias
   allow-list.
-* **H2 Checksum method** — the generic manifest scan hashes RAW working-tree bytes
-  (`hashlib.sha256(read_bytes())`, verify_workspace.py ~3186); committed form is
-  LF. Pin BOTH renamed agent files to `eol=lf` in `.gitattributes` and recompute
-  checksums on LF bytes. Only 2 manifest artifact entries change.
+* **H2 Checksum method (CRLF-safe, normalize-then-hash)** — the generic manifest
+  scan hashes RAW working-tree bytes (`hashlib.sha256(read_bytes())`,
+  verify_workspace.py:3186); committed form is LF. A `.gitattributes` `eol=lf`
+  pin only governs FUTURE checkout/clean conversion — it does NOT rewrite an
+  already-checked-out CRLF file, so hashing an LF-normalized *printout* of a
+  still-CRLF working-tree file would mismatch verify. Ordered recipe: (1) set the
+  `eol=lf` pin, then force in-place LF conversion of BOTH renamed files
+  (`git add --renormalize <files>` or rewrite bytes CRLF→LF); (2) ASSERT no CRLF
+  remains in either working-tree file; (3) hash the RAW bytes of the now-LF files
+  and write those into the manifest. Only 2 manifest artifact entries change.
 * **H3 Verify + tests** — `autoharness verify` must pass;
-  `tests/test_verify_workspace.py` is the integrity test; full `pytest` green.
+  `tests/test_verify_workspace.py` is the integrity test; the canonical full-suite
+  gate `PYTHONPATH=src python -m unittest discover -s tests` (CI ci.yml:89) must
+  be green. Root `pytest tests/` is NONCANONICAL (collects vendored `references/`
+  — docs/compound/097-S-canonical-unittest-gate.md) and is at most a convenience
+  smoke, never the gate.
 * **H4** — every task carries mechanically verifiable acceptance criteria.
 
 ## Non-edits (verified, do not touch)
@@ -114,5 +124,15 @@ alias-table legacy columns.
 
 ## Plan-review outcome
 
-Multi-persona pass (completeness, correctness, safety, test-integrity): **READY**,
-P0 = 0, P1 = 0. See feature 097-F for full acceptance criteria.
+Round 1 — multi-persona pass (completeness, correctness, safety, test-integrity):
+**READY**, P0 = 0, P1 = 0.
+
+Round 2 — Copilot staging review (PR #255) raised 13 valid plan-precision
+threads; all fixed and verified against sources: canonical test gate is
+`PYTHONPATH=src python -m unittest discover -s tests` (CI ci.yml:89;
+docs/compound/097-S-canonical-unittest-gate.md); CRLF-safe normalize→assert→hash
+checksum recipe (verify_workspace.py:3186 hashes raw bytes; `eol=lf` only affects
+future conversion); backlogit section marker corrected to `acceptance-criteria`
+(.backlogit/templates/task.md); CHANGELOG historical entries exempted from the
+zero-old-name gate. Re-review: **READY**, P0 = 0, P1 = 0. See feature 097-F for
+full acceptance criteria.
