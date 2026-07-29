@@ -466,7 +466,7 @@ the `auto-mergeinstall` agent.
 |---|---|---|---|
 | `{{AGENT_INTERCOM_ENABLED}}` | `capability_packs` contains `agent-intercom` | `true` | `false` |
 | `{{AGENT_INTERCOM_DETECTED}}` | `agent_intercom.detected` | `true` | `false` |
-| `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.mcp.json, .intercom/settings.json` | empty |
+| `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.intercom/settings.json` | empty |
 | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
 | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
 | `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.mcp.json, .engram/config.toml` | empty |
@@ -546,9 +546,13 @@ Preset defaults:
 |---|---|---|---|
 | `starter` | 1, 2, 4, 5, 6, 8, 9 | none | First-time adoption, smaller repos |
 | `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review` | Most repositories |
-| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `graphtor-docs` | Higher-operational-maturity teams |
+| `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-engram`, `backlogit`, `browser-verification`, `graphtor-docs` | Higher-operational-maturity teams |
 
-If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, and `graphtor-docs`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs.
+`agent-intercom` is an **opt-in extra add-on**: it is never installed by any
+preset default (including `full`) and no longer ships an MCP server. Enable it
+only via explicit `capability_packs` selection.
+
+If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-engram`, `backlogit`, `browser-verification`, and `graphtor-docs`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs. `agent-intercom` is only installed when it appears in an explicit `capability_packs` list.
 
 Additive stack packs are descriptive composition inputs rather than substitute
 architectures. They capture multiple concurrent workspace shapes such as
@@ -733,12 +737,17 @@ Example overlay target map for `agent-engram`:
 
 #### Formal Overlay Contract: `agent-intercom`
 
-**Eligibility signals** (when to recommend agent-intercom):
-* `.mcp.json` (root, canonical shared config) references `agent-intercom`, `intercom`, or known intercom tool names (`ping`, `broadcast`, `standby`, `transmit`)
-* legacy editor-local MCP settings still reference intercom tool names (compatibility fallback only)
-* `AGENTS.md` or agent files contain intercom tool names or `<!-- intercom:start -->` marker
+`agent-intercom` is an **opt-in extra add-on** with **no MCP server**. It is
+never enabled by preset default; recommend it only when intercom markers are
+present or the operator explicitly opts in. It operates over a non-MCP
+intercom/ACP tool surface.
 
-**Recommendation logic**: Recommend when `agent_intercom.mcp_configured: true` OR `agent_intercom.detected: true` in the workspace profile.
+**Eligibility signals** (when to recommend agent-intercom):
+* `.intercom/settings.json` exists (explicit intercom policy/configuration markers)
+* `AGENTS.md` or agent files contain intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) or the `<!-- intercom:start -->` marker
+* operator explicitly opts in to remote milestone visibility and approval routing
+
+**Recommendation logic**: Recommend when `agent_intercom.detected: true` in the workspace profile. Because agent-intercom has no MCP server and is an opt-in add-on, it is never enabled by preset default and must be requested explicitly.
 
 **Overlay targets**:
 * `agent-intercom.instructions.md` — primary instruction file installed at `.github/instructions/`
@@ -764,7 +773,7 @@ Example overlay target map for `agent-engram`:
 **Tuning drift checks**:
 * `agent-intercom.instructions.md` checksum vs. template checksum in harness-manifest
 * .stage.agent.md and .ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
-* MCP config path in manifest should normally resolve to `.mcp.json`; legacy editor-local config paths may still appear when tuning older workspaces
+* Intercom config path in the manifest normally resolves to `.intercom/settings.json`; agent-intercom has no MCP server, so a `.mcp.json` intercom entry is not expected
 
 #### Formal Overlay Contract: `graphtor-docs`
 
@@ -1305,7 +1314,9 @@ from `{autoharness_home}/templates/scripts/deploy-harness.ps1.tmpl` and
 `deploy-harness.sh.tmpl`. These deterministic scripts run preflight → bootstrap →
 register → scaffold → compose-handoff → verify: they bootstrap autoharness,
 register the operator's AI environment, and scaffold `.autoharness/config.yaml`
-with every pack enumerated from
+with the preset's resolved capability packs (an omitted `--packs`/`-Packs` input
+resolves to the preset's `default_in_preset` members; explicit `all` selects every
+pack) from
 `{autoharness_home}/templates/packs/capability-pack-registry.yaml`, then hand off
 template composition to the `auto-mergeinstall` agent (they never resolve
 `{{VARIABLE}}` templates). Resolve `{{DEFAULT_PRESET}}`, `{{DEFAULT_REGISTER_ENV}}`,

@@ -231,12 +231,17 @@ This pack does not replace general search guidance. It deepens it when a workspa
 
 `agent-intercom` is the clearest example of why the overlay pattern exists.
 
+> **agent-intercom is an opt-in extra add-on.** It is not a default member of any
+> preset (including `full`) and no longer ships an MCP server — it operates over a
+> non-MCP intercom/ACP tool surface. Enable it only via explicit capability-pack
+> selection. When enabled it is still a woven overlay, not a detached single-file
+> add-on.
+
 ### Eligibility signals
 
 * `.intercom/settings.json`
-* `.mcp.json` references intercom tools
-* legacy editor settings still reference intercom tools (compatibility fallback only)
-* existing docs already describing remote approval or operator steering
+* existing `AGENTS.md` / `copilot-instructions.md` describing intercom heartbeat, remote approval, or operator steering (including `<!-- intercom:start -->` markers)
+* operator explicitly opts in to remote visibility and approval routing
 
 ### Overlay targets
 

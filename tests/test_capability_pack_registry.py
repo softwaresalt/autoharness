@@ -91,6 +91,21 @@ class CapabilityPackRegistryTests(unittest.TestCase):
         for pack in self.data["packs"]:
             self.assertTrue(set(pack["default_in_preset"]).issubset(allowed))
 
+    def test_agent_intercom_is_opt_in_add_on(self) -> None:
+        intercom = next(
+            p for p in self.data["packs"] if p["id"] == "agent-intercom"
+        )
+        self.assertEqual(
+            intercom["default_in_preset"],
+            [],
+            "agent-intercom is an opt-in add-on: it must not default into any preset",
+        )
+        self.assertEqual(
+            intercom["mcp_requirements"],
+            [],
+            "agent-intercom no longer ships an MCP server: mcp_requirements must be empty",
+        )
+
     def test_retrieval_enforced_is_optional_boolean(self) -> None:
         pack_props = self.schema["definitions"]["pack"]["properties"]
         self.assertIn(

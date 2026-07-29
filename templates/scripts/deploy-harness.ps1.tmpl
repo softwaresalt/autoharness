@@ -9,7 +9,7 @@
 #   preflight  -> verify prerequisites (fail closed on missing hard prereqs)
 #   bootstrap  -> locate/acquire autoharness_home (global; opt-in via -Bootstrap)
 #   register   -> run autoharness setup-* / copilot plugin install
-#   scaffold   -> write .autoharness/config.yaml (preset + all packs from registry)
+#   scaffold   -> write .autoharness/config.yaml (preset + resolved capability packs)
 #   compose    -> HANDOFF ONLY: print the /install-harness command; NO template
 #                 resolution happens here (that is the agent's job)
 #   verify     -> optional deterministic `autoharness verify-workspace`
@@ -38,8 +38,10 @@ param(
     [ValidateSet("starter", "standard", "full")]
     [string]$Preset = "{{DEFAULT_PRESET}}",
 
-    # "all" (resolved from the pack registry) or a comma-separated subset.
-    [string]$Packs = "all",
+    # Omitted -> the selected preset's default packs; "all" -> every registry
+    # pack; or a comma-separated explicit subset. Explicit input is honored on
+    # every preset, including starter.
+    [string]$Packs = "",
 
     [ValidateSet("vscode", "copilot-cli", "claude", "codex", "none")]
     [string]$Register = "{{DEFAULT_REGISTER_ENV}}",
@@ -124,6 +126,24 @@ function Get-RegistryPacks([string]$HomePath) {
     $ids = @()
     foreach ($line in Get-Content -LiteralPath $registryPath) {
         if ($line -match '^\s*-\s*id:\s*"([^"]+)"') { $ids += $matches[1] }
+    }
+    return $ids
+}
+
+function Get-PresetDefaultPacks([string]$HomePath, [string]$Preset) {
+    # Enumerate pack ids whose default_in_preset list includes $Preset, via a
+    # deterministic line scan (no YAML module dependency).
+    if (-not $HomePath) { return @() }
+    $registryPath = Join-Path $HomePath $PackRegistryRelPath
+    if (-not (Test-Path -LiteralPath $registryPath -PathType Leaf)) { return @() }
+    $ids = @()
+    $currentId = $null
+    foreach ($line in Get-Content -LiteralPath $registryPath) {
+        if ($line -match '^\s*-\s*id:\s*"([^"]+)"') { $currentId = $matches[1]; continue }
+        if ($currentId -and ($line -match '^\s*default_in_preset:\s*\[(.*)\]\s*$')) {
+            if ($matches[1] -match ('"' + [regex]::Escape($Preset) + '"')) { $ids += $currentId }
+            $currentId = $null
+        }
     }
     return $ids
 }
@@ -256,8 +276,18 @@ function Invoke-Scaffold([string]$HomePath) {
     Write-Phase "scaffold"
 
     $selectedPacks = @()
-    if ($Preset -eq "starter") {
-        Write-Info "starter preset selected: no capability packs by default."
+    if ($Packs.Trim() -eq "") {
+        # OMITTED pack input -> resolve to the selected preset's default_in_preset members.
+        $selectedPacks = @(Get-PresetDefaultPacks $HomePath $Preset)
+        if ($Preset -eq "starter") {
+            Write-Info "starter preset with no explicit packs: no capability packs by default."
+        }
+        elseif ($selectedPacks.Count -eq 0) {
+            Write-Warn2 "Could not enumerate preset defaults from the registry; writing config with no packs."
+        }
+        else {
+            Write-Ok ("enumerated " + $selectedPacks.Count + " default packs for preset '$Preset'")
+        }
     }
     elseif ($Packs -eq "all") {
         $selectedPacks = @(Get-RegistryPacks $HomePath)

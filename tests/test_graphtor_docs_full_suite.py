@@ -8,7 +8,8 @@ These tests fail until graphtor-docs is completed to agent-engram parity:
 * a ``full`` config enabling graphtor-docs must validate against the versioned
   config schema;
 * every registered capability pack (including graphtor-docs) must default into the
-  ``full`` preset.
+  ``full`` preset, EXCEPT opt-in extra add-ons such as ``agent-intercom`` which
+  are enabled only by explicit selection.
 """
 
 from __future__ import annotations
@@ -92,19 +93,35 @@ class GraphtorDocsSchemaParityTests(unittest.TestCase):
 
 
 class GraphtorDocsFullPresetMembershipTests(unittest.TestCase):
-    """Every registered pack must be a default member of the ``full`` preset."""
+    """Every registered pack defaults into the ``full`` preset, except opt-in
+    extra add-ons (``agent-intercom``) enabled only by explicit selection."""
+
+    # agent-intercom is an opt-in extra add-on (no MCP server); it is
+    # intentionally NOT a default member of the full preset.
+    _OPT_IN_ADD_ONS = {"agent-intercom"}
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.packs = yaml.safe_load(_REGISTRY.read_text(encoding="utf-8"))["packs"]
 
-    def test_every_pack_defaults_into_full_preset(self) -> None:
+    def test_every_non_opt_in_pack_defaults_into_full_preset(self) -> None:
         for pack in self.packs:
+            if pack["id"] in self._OPT_IN_ADD_ONS:
+                continue
             self.assertIn(
                 "full",
                 pack["default_in_preset"],
                 f"pack {pack['id']!r} is not a default of the full preset",
             )
+
+    def test_opt_in_add_ons_are_not_full_defaults(self) -> None:
+        for pack in self.packs:
+            if pack["id"] in self._OPT_IN_ADD_ONS:
+                self.assertEqual(
+                    pack["default_in_preset"],
+                    [],
+                    f"opt-in add-on {pack['id']!r} must not default into any preset",
+                )
 
     def test_graphtor_docs_defaults_into_full_preset(self) -> None:
         graphtor = next(p for p in self.packs if p["id"] == "graphtor-docs")

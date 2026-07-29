@@ -19,6 +19,10 @@ Protects the 070-F cross-platform deploy scripts (``deploy-harness.ps1`` /
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -27,6 +31,7 @@ _PS1_INSTANCE = _REPO_ROOT / "scripts" / "deploy-harness.ps1"
 _SH_INSTANCE = _REPO_ROOT / "scripts" / "deploy-harness.sh"
 _PS1_TEMPLATE = _REPO_ROOT / "templates" / "scripts" / "deploy-harness.ps1.tmpl"
 _SH_TEMPLATE = _REPO_ROOT / "templates" / "scripts" / "deploy-harness.sh.tmpl"
+_REGISTRY = _REPO_ROOT / "templates" / "packs" / "capability-pack-registry.yaml"
 
 _UNRESOLVED_VAR = re.compile(r"\{\{\s*[A-Z][A-Z0-9_]*\s*\}\}")
 
@@ -171,6 +176,7 @@ class DeployHarnessBehaviorTests(unittest.TestCase):
                     mk, inst, f"{name}: marketplace add must precede plugin install"
                 )
 
+class DeployHarnessScaffoldSymlinkTests(unittest.TestCase):
     def test_scaffold_enforces_symlink_containment(self) -> None:
         markers = {
             "ps1": "reparse point/symlink (cwd containment)",
@@ -179,6 +185,219 @@ class DeployHarnessBehaviorTests(unittest.TestCase):
         for name, _, instance in _PAIRS:
             with self.subTest(script=name):
                 self.assertIn(markers[name], _read(instance))
+
+
+# ── Opt-in pack-selection precedence (096.002-T / 096.003-T) ─────────────────
+#
+# These tests EXECUTE the real deploy wrappers in a throwaway workspace and read
+# the ``.autoharness/config.yaml`` they scaffold, asserting the uniform
+# precedence contract:
+#   1. EXPLICIT pack input is honored on every preset (including starter).
+#   2. OMITTED pack input resolves to the preset's ``default_in_preset`` members
+#      (starter -> empty), so an opt-in add-on such as ``agent-intercom``
+#      (``default_in_preset: []``) is never written by a default deploy.
+# The precedence mirrors the installer contract in
+# ``.github/skills/install-harness/SKILL.md:551`` (explicit capability_packs used
+# as-is regardless of preset; omitted resolves to preset defaults) and guards the
+# 082-S FU-1 regression (``docs/memory/082-S-closure.md:72``) where an explicit
+# starter selection was discarded.
+
+_PWSH = shutil.which("pwsh") or shutil.which("powershell")
+_BASH = shutil.which("bash")
+
+
+def _parse_registry() -> "tuple[list[str], dict[str, set[str]]]":
+    """Return (ordered pack ids, id -> set of presets from default_in_preset)."""
+    text = _read(_REGISTRY)
+    ids: list[str] = []
+    defaults: dict[str, set[str]] = {}
+    current: str | None = None
+    for line in text.splitlines():
+        m = re.match(r'^\s*-\s*id:\s*"([^"]+)"', line)
+        if m:
+            current = m.group(1)
+            ids.append(current)
+            defaults[current] = set()
+            continue
+        m = re.match(r"^\s*default_in_preset:\s*\[(.*)\]\s*$", line)
+        if m and current is not None:
+            defaults[current] = set(re.findall(r'"([^"]+)"', m.group(1)))
+            current = None
+    return ids, defaults
+
+
+def _all_registry_packs() -> list[str]:
+    return _parse_registry()[0]
+
+
+def _preset_default_packs(preset: str) -> list[str]:
+    ids, defaults = _parse_registry()
+    return [pid for pid in ids if preset in defaults[pid]]
+
+
+def _read_scaffolded_packs(workspace: Path) -> "list[str] | None":
+    """Parse capability_packs from a scaffolded .autoharness/config.yaml."""
+    cfg = workspace / ".autoharness" / "config.yaml"
+    if not cfg.exists():
+        return None
+    text = cfg.read_text(encoding="utf-8").replace("\r\n", "\n")
+    packs: list[str] = []
+    in_list = False
+    for line in text.splitlines():
+        if re.match(r"^capability_packs:\s*\[\s*\]\s*$", line):
+            return []
+        if re.match(r"^capability_packs:\s*$", line):
+            in_list = True
+            continue
+        if in_list:
+            m = re.match(r"^\s+-\s*(\S+)\s*$", line)
+            if m:
+                packs.append(m.group(1))
+            else:
+                in_list = False
+    return packs
+
+
+class _DeployWrapperOptInMixin:
+    """Shared opt-in precedence assertions, run once per interpreter."""
+
+    interpreter: str = ""
+
+    def _scaffold(self, preset: str, packs: "str | None"):  # noqa: ANN001
+        raise NotImplementedError
+
+    def _run_and_read(self, preset: str, packs: "str | None") -> list[str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            proc = self._scaffold(preset, packs, workspace)
+            result = _read_scaffolded_packs(workspace)
+            self.assertIsNotNone(  # type: ignore[attr-defined]
+                result,
+                f"{self.interpreter}: no config.yaml scaffolded "
+                f"(preset={preset}, packs={packs}); "
+                f"exit={proc.returncode}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}",
+            )
+            return result
+
+    # --- OMITTED input -> preset defaults --------------------------------
+    def test_omitted_full_excludes_agent_intercom(self) -> None:
+        packs = self._run_and_read("full", None)
+        self.assertNotIn("agent-intercom", packs)  # type: ignore[attr-defined]
+        self.assertEqual(  # type: ignore[attr-defined]
+            set(packs), set(_preset_default_packs("full"))
+        )
+
+    def test_omitted_standard_excludes_agent_intercom(self) -> None:
+        packs = self._run_and_read("standard", None)
+        self.assertNotIn("agent-intercom", packs)  # type: ignore[attr-defined]
+        self.assertEqual(  # type: ignore[attr-defined]
+            set(packs), set(_preset_default_packs("standard"))
+        )
+
+    def test_omitted_starter_selects_no_packs(self) -> None:
+        packs = self._run_and_read("starter", None)
+        self.assertEqual(packs, [])  # type: ignore[attr-defined]
+
+    # --- EXPLICIT input -> honored regardless of preset ------------------
+    def test_explicit_all_full_includes_agent_intercom(self) -> None:
+        packs = self._run_and_read("full", "all")
+        self.assertIn("agent-intercom", packs)  # type: ignore[attr-defined]
+        self.assertEqual(  # type: ignore[attr-defined]
+            set(packs), set(_all_registry_packs())
+        )
+
+    def test_explicit_all_starter_includes_every_pack(self) -> None:
+        # starter must NOT discard an explicit selection (guards 082-S FU-1).
+        packs = self._run_and_read("starter", "all")
+        self.assertIn("agent-intercom", packs)  # type: ignore[attr-defined]
+        self.assertEqual(  # type: ignore[attr-defined]
+            set(packs), set(_all_registry_packs())
+        )
+
+    def test_explicit_subset_starter_keeps_exact_subset(self) -> None:
+        # The critical 082-S FU-1 regression guard: starter + explicit subset
+        # must yield EXACTLY that subset, not an empty pack set.
+        subset = ["backlogit", "strict-safety"]
+        packs = self._run_and_read("starter", ",".join(subset))
+        self.assertEqual(set(packs), set(subset))  # type: ignore[attr-defined]
+
+    def test_explicit_subset_full_keeps_exact_subset(self) -> None:
+        subset = ["agent-intercom", "backlogit"]
+        packs = self._run_and_read("full", ",".join(subset))
+        self.assertEqual(set(packs), set(subset))  # type: ignore[attr-defined]
+
+
+@unittest.skipUnless(_PWSH, "PowerShell (pwsh/powershell) not available")
+class DeployHarnessPs1OptInTests(_DeployWrapperOptInMixin, unittest.TestCase):
+    interpreter = "ps1"
+
+    def _scaffold(self, preset, packs, workspace):  # noqa: ANN001
+        args = [
+            _PWSH,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(_PS1_INSTANCE),
+            "-Home",
+            str(_REPO_ROOT),
+            "-Register",
+            "none",
+            "-Preset",
+            preset,
+        ]
+        if packs is not None:
+            args += ["-Packs", packs]
+        return subprocess.run(
+            args, cwd=workspace, capture_output=True, text=True, timeout=180
+        )
+
+
+@unittest.skipIf(sys.platform == "win32", "bash on Windows is WSL; run sh on POSIX/CI")
+@unittest.skipUnless(_BASH, "bash not available")
+class DeployHarnessShOptInTests(_DeployWrapperOptInMixin, unittest.TestCase):
+    interpreter = "sh"
+
+    def _scaffold(self, preset, packs, workspace):  # noqa: ANN001
+        # The committed script is CRLF; a CRLF bash script fails on POSIX
+        # (stray \r corrupts tokens). Run an LF-normalised copy instead.
+        lf_script = workspace / "_deploy-harness.sh"
+        lf_script.write_bytes(_read(_SH_INSTANCE).encode("utf-8"))
+        lf_script.chmod(0o755)
+        args = [
+            _BASH,
+            str(lf_script),
+            "--home",
+            str(_REPO_ROOT),
+            "--register",
+            "none",
+            "--preset",
+            preset,
+        ]
+        if packs is not None:
+            args += ["--packs", packs]
+        return subprocess.run(
+            args, cwd=workspace, capture_output=True, text=True, timeout=180
+        )
+
+
+class DeployWrapperRegistryEnumerationTests(unittest.TestCase):
+    """The registry parse the wrappers rely on is structurally sound."""
+
+    def test_agent_intercom_is_not_a_preset_default(self) -> None:
+        _, defaults = _parse_registry()
+        self.assertEqual(defaults.get("agent-intercom"), set())
+
+    def test_default_in_preset_is_parseable_for_every_pack(self) -> None:
+        ids, defaults = _parse_registry()
+        self.assertIn("agent-intercom", ids)
+        for pid in ids:
+            self.assertIn(pid, defaults)
+
+    def test_full_defaults_are_all_packs_except_opt_in_add_ons(self) -> None:
+        full_defaults = set(_preset_default_packs("full"))
+        self.assertNotIn("agent-intercom", full_defaults)
+        self.assertLess(full_defaults, set(_all_registry_packs()))
 
 
 if __name__ == "__main__":

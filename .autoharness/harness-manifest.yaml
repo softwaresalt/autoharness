@@ -3,7 +3,7 @@ installed_at: "2026-04-26T21:16:00-07:00"
 tuned_at: "2026-07-09T20:21:26+00:00"
 autoharness_version: "1.4.11"
 autoharness_home: null
-profile_hash: "446b4fb2fbab1b350bfd3dbce818600b503f6ef3c2a51c5141b6032c5c0bd6b1"
+profile_hash: "e5a71cf20952b26d42c5f8ca627c7a2e54c7744053e65268505399ea22913071"
 config_hash: "f0de8d5e21eeeee1e7866b0ecc5c420c2a72a5065fa386b7e4983a3b6ca5d590"
 install_preset: "full"
 install_mode: "self-install"
@@ -32,7 +32,7 @@ capability_pack_overlays:
       - "pipeline-agents"
       - "long-running-skills"
     verification_checks:
-      - "agent-intercom MCP configured in .vscode/mcp.json (or .cursor/mcp.json / .mcp.json)"
+      - "agent-intercom is an opt-in add-on (no MCP server; non-MCP intercom/ACP tool surface) — enabled via explicit capability-pack selection"
       - "agent-intercom.instructions.md installed at .github/instructions/"
   - pack: "backlogit"
     overlay_targets:
@@ -95,7 +95,7 @@ artifacts:
   - path: ".autoharness/workspace-profile.yaml"
     primitive: 1
     template: "workspace-discovery output"
-    checksum: "446b4fb2fbab1b350bfd3dbce818600b503f6ef3c2a51c5141b6032c5c0bd6b1"
+    checksum: "e5a71cf20952b26d42c5f8ca627c7a2e54c7744053e65268505399ea22913071"
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
@@ -156,7 +156,7 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "4164cccb41d39a948d5f3c7316b393d80e156c513dd703f2fcaf4e0be4218b7c"
+    checksum: "8d13256ec19a63af3f6ad3d71dcbd8fe18987a34552d958945b8cceb3b5362c2"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
@@ -166,7 +166,7 @@ artifacts:
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
     template: "global skill definition"
-    checksum: "2c172b54cac0bcb92eabd95965fd2abb84d3fe641288d7a0ef9c3b5ec66ad8c8"
+    checksum: "24657cadf459b6808933da1d15fe2968fbd1076fc21b1cb69c30fe553d2a9eed"
     note: "pre-existing, source-controlled global artifact"
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
@@ -191,7 +191,7 @@ artifacts:
   - path: ".github/instructions/agent-intercom.instructions.md"
     primitive: 4
     template: "instructions/agent-intercom.instructions.md.tmpl"
-    checksum: "82e319dd0bb4fd38a16ffd2535601da3d64558626c5853d703b38b436b1a113a"
+    checksum: "3b8573246a426964e1a73ce962f5acb022ef83b882c68cfd4f42a6941fb88468"
     note: "agent-intercom capability pack overlay instruction"
   - path: ".github/instructions/graphtor-docs.instructions.md"
     primitive: 1

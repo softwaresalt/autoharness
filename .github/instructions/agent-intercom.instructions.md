@@ -7,7 +7,8 @@ applyTo: '**'
 
 Use these rules when the workspace has enabled the `agent-intercom` capability pack. This pack is not a
 single bolt-on step. It weaves remote operator visibility and approval routing through the harness
-workflow.
+workflow. agent-intercom is an opt-in add-on with no MCP server; it operates over a non-MCP
+intercom/ACP tool surface exposed by the workspace.
 
 ## Required Tool Surface
 

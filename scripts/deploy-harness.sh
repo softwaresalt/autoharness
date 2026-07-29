@@ -10,7 +10,7 @@
 #   preflight  -> verify prerequisites (fail closed on missing hard prereqs)
 #   bootstrap  -> locate/acquire autoharness_home (global; opt-in via --bootstrap)
 #   register   -> run autoharness setup-* / copilot plugin install
-#   scaffold   -> write .autoharness/config.yaml (preset + all packs from registry)
+#   scaffold   -> write .autoharness/config.yaml (preset + resolved capability packs)
 #   compose    -> HANDOFF ONLY: print the /install-harness command; NO template
 #                 resolution happens here (that is the agent's job)
 #   verify     -> optional deterministic `autoharness verify-workspace`
@@ -42,7 +42,7 @@
 set -euo pipefail
 
 PRESET="full"
-PACKS="all"
+PACKS=""
 REGISTER="copilot-cli"
 INSTALL_METHOD="pip"
 HOME_OVERRIDE=""
@@ -123,6 +123,33 @@ registry_packs() {
 	local registry="${home_path}/${PACK_REGISTRY_REL_PATH}"
 	[[ -f "$registry" ]] || return 0
 	sed -n 's/^[[:space:]]*-[[:space:]]*id:[[:space:]]*"\([^"]*\)".*/\1/p' "$registry"
+}
+
+preset_default_packs() {
+	# Enumerate pack ids whose default_in_preset list includes the given
+	# preset, via a deterministic line scan (no YAML module dependency).
+	local home_path="$1"
+	local preset="$2"
+	[[ -z "$home_path" ]] && return 0
+	local registry="${home_path}/${PACK_REGISTRY_REL_PATH}"
+	[[ -f "$registry" ]] || return 0
+	local id="" line trimmed
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		trimmed="${line#"${line%%[![:space:]]*}"}"
+		case "$trimmed" in
+			'#'*) ;;
+			'- id:'*)
+				id="${trimmed#*'"'}"
+				id="${id%%'"'*}"
+				;;
+			'default_in_preset:'*)
+				case "$trimmed" in
+					*'"'"$preset"'"'*) [[ -n "$id" ]] && printf '%s\n' "$id" ;;
+				esac
+				id=""
+				;;
+		esac
+	done < "$registry"
 }
 
 # ── Phase 1: preflight ──────────────────────────────────────────────────────
@@ -218,8 +245,16 @@ invoke_scaffold() {
 	local home_path="$1"
 	local selected=()
 
-	if [[ "$PRESET" == "starter" ]]; then
-		info "starter preset selected: no capability packs by default."
+	if [[ -z "$PACKS" ]]; then
+		# OMITTED pack input -> resolve to the selected preset's default_in_preset members.
+		while IFS= read -r id; do [[ -n "$id" ]] && selected+=("$id"); done < <(preset_default_packs "$home_path" "$PRESET")
+		if [[ "$PRESET" == "starter" ]]; then
+			info "starter preset with no explicit packs: no capability packs by default."
+		elif [[ "${#selected[@]}" -eq 0 ]]; then
+			warn "Could not enumerate preset defaults from the registry; writing config with no packs."
+		else
+			ok "enumerated ${#selected[@]} default packs for preset '$PRESET'"
+		fi
 	elif [[ "$PACKS" == "all" ]]; then
 		while IFS= read -r id; do [[ -n "$id" ]] && selected+=("$id"); done < <(registry_packs "$home_path")
 		if [[ "${#selected[@]}" -eq 0 ]]; then warn "Could not enumerate packs from the registry; writing config with no packs."; else ok "enumerated ${#selected[@]} packs from registry"; fi

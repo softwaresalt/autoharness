@@ -23,17 +23,20 @@
 schema_version: "1.0.0"
 
 packs:
+  # agent-intercom is an OPT-IN extra add-on. It is intentionally NOT a default
+  # member of any preset (default_in_preset: []) and no longer ships an MCP
+  # server (mcp_requirements: []) — it operates over a non-MCP intercom/ACP tool
+  # surface. Enable it only via explicit capability-pack selection.
   - id: "agent-intercom"
     title: "Agent Intercom"
     purpose: "Remote operator visibility, approval routing, and standby handoffs"
     primitive_impact: [4, 5, 6, 7, 10]
     eligibility_signals:
-      - ".mcp.json (workspace root) or legacy editor settings reference agent-intercom or a remote-operator intercom tool surface"
-      - "existing AGENTS.md / copilot-instructions.md describe heartbeat, broadcast, approval routing, or operator standby flows"
-      - "operator works AFK and needs remote milestone visibility and approval routing"
+      - ".intercom/settings.json exists, or existing AGENTS.md / copilot-instructions.md describe heartbeat, broadcast, approval routing, or operator standby flows"
+      - "operator works AFK and explicitly opts in to remote milestone visibility and approval routing"
     overlay_instruction: "templates/instructions/agent-intercom.instructions.md.tmpl"
-    mcp_requirements: ["agent-intercom"]
-    default_in_preset: ["full"]
+    mcp_requirements: []
+    default_in_preset: []
 
   - id: "agent-engram"
     title: "Agent Engram"
