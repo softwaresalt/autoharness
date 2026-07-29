@@ -32,7 +32,7 @@ capability_pack_overlays:
       - "pipeline-agents"
       - "long-running-skills"
     verification_checks:
-      - "agent-intercom MCP configured in .vscode/mcp.json (or .cursor/mcp.json / .mcp.json)"
+      - "agent-intercom is an opt-in add-on (no MCP server; non-MCP intercom/ACP tool surface) — enabled via explicit capability-pack selection"
       - "agent-intercom.instructions.md installed at .github/instructions/"
   - pack: "backlogit"
     overlay_targets:

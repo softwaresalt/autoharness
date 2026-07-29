@@ -741,9 +741,6 @@
         "detected": {
           "type": "boolean"
         },
-        "mcp_configured": {
-          "type": "boolean"
-        },
         "config_paths": {
           "type": "array",
           "items": {
