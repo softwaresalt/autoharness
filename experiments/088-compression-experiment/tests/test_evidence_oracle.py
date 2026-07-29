@@ -106,3 +106,31 @@ def test_oracle_flags_dropped_npm_err_whole_line():
     assert result.passed is False
     # Whole-line marker match: the full npm ERR! line is the required fact.
     assert any("npm ERR! code ELIFECYCLE" in fact for fact in result.missing_facts)
+
+
+# --- Negative controls (093.002-T review finding) -------------------------
+# The broadened separator is horizontal-only: it must never span a newline and
+# must not fuse to an adjacent digit. Because the oracle scans the full
+# multi-line string, a colon-optional + \s* form would synthesize a spurious
+# "exit code 1" fact across unrelated lines; these controls lock that out.
+
+
+def test_oracle_does_not_synthesize_cross_line_exit_code_fact():
+    # "exit code" ends one line; the next line merely starts with a digit.
+    # No "exit code 1" fact exists, so dropping the region must NOT fail.
+    original = (
+        "build log\n" + ("padding\n" * 20) + "exit code\n1 item completed\n"
+    )
+    compressed = "build log summary\n...omitted..."
+    result = evaluate_oracle(original, compressed)
+    assert all("exit code 1" not in fact for fact in result.missing_facts)
+
+
+def test_oracle_does_not_treat_concatenated_exit_code_as_fact():
+    # "exit code1" has no separator -> not a required failure fact.
+    original = "run log\n" + ("padding\n" * 20) + "exit code1\n"
+    compressed = "run log summary\n...omitted..."
+    result = evaluate_oracle(original, compressed)
+    assert all(
+        "exit code" not in fact.lower() for fact in result.missing_facts
+    )

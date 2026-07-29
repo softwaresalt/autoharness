@@ -184,3 +184,19 @@ def test_defense_in_depth_broadened_failure_declined_and_caught_by_oracle():
     result = evaluate_oracle(text, dropped_view)
     assert result.passed is False
     assert any("exit code 1" in fact for fact in result.missing_facts)
+
+
+@pytest.mark.parametrize(
+    "benign_line",
+    [
+        "exit code1",  # concatenated -> no separator
+        "exit status1",
+        "returncode1",
+        "exit code",  # marker with no code at all
+        "the exit code was reported earlier",
+    ],
+)
+def test_is_evidence_line_rejects_concatenated_failure_forms(benign_line):
+    # 093.002-T review finding: the separator is horizontal-only and mandatory;
+    # a digit fused directly to the marker is not an evidence line.
+    assert _is_evidence_line(benign_line) is False

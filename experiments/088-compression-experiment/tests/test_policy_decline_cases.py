@@ -169,6 +169,32 @@ def test_failure_bearing_secret_precedence_preserved():
     assert classify_decline_reason(text) == DeclineReason.SECRET_BEARING
 
 
+@pytest.mark.parametrize(
+    "benign_line",
+    [
+        "exit code1",  # concatenated, no separator -> not a failure signal
+        "exit status1",
+        "returncode1",
+        "the exit code was reported elsewhere",
+    ],
+)
+def test_concatenated_failure_forms_stay_compressible(benign_line):
+    # 093.001-T review finding: the separator must be a colon or horizontal
+    # whitespace -- a digit fused directly to the marker is not a failure form.
+    text = "command output\n" + benign_line + _PAD
+    assert classify_decline_reason(text) is None
+
+
+def test_cross_line_exit_code_is_not_a_failure_signal():
+    # 093.001-T review finding: the horizontal-only separator must never span a
+    # newline, so "exit code" ending a line followed by a line starting with a
+    # digit is NOT classified as a failure-bearing success.
+    text = "build output\nexit code\n1 item completed successfully\n" + (
+        "padding line\n" * 60
+    )
+    assert classify_decline_reason(text) is None
+
+
 def test_unwritable_store_reason_is_available_as_a_named_constant():
     # Exercised by the hook's fail-safe passthrough path, not by text
     # classification -- the reason must still be a defined enum member so
