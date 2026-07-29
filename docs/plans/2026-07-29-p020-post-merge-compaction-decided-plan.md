@@ -37,13 +37,18 @@ compaction: the Tier-1 skill is a cheap idempotent no-op when nothing qualifies.
   the operational-closure artifact carries a compaction-status field
   (`pending` → `done` / `degraded`).
 - **Violation-Action:** SKIPPING invocation is a P-020 violation recorded via P-005
-  telemetry, and closure is treated as incomplete (the shipment stays active under
-  P-001 so it is caught/retried) — it does not hard-halt or strand the merged PR.
-  A FAILED compact-context run is NON-BLOCKING (warn + continue; the merge landed and
-  the skill is non-destructive).
+  telemetry (`action: closure-incomplete`). Because backlog/shipment archival runs
+  earlier in closure, completeness is NOT tracked by shipment active-state — it is
+  tracked by the operational-closure artifact's recorded **compaction status**.
+  Skipping leaves that status unset, so the post-merge closure is **incomplete** and
+  the Orchestrator's closure-gated routing (P-001 + P-020) holds the next shipment
+  until compaction completes and its status is recorded — rather than hard-halting or
+  stranding the merged PR. A FAILED compact-context run is NON-BLOCKING (record
+  `compaction: degraded`, warn, and continue; the merge landed and the Tier-1 skill
+  is non-destructive).
 - **Relationship to P-001:** required post-merge compaction is part of the closure set
-  that keeps a merged shipment in-flight until complete (composes with, does not
-  duplicate, P-001).
+  that keeps a merged shipment in-flight until closure is complete (composes with, does
+  not duplicate, P-001).
 - **Relationship to P-017:** in dark mode, closure must report compaction status before
   `DARK_MODE_COMPLETE`.
 
