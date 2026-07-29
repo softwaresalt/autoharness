@@ -7,7 +7,7 @@ source_stash_id: 7D1E2F1A
 prior_work: 092-F / 097-S (PR #241, telemetry subsystem hardening)
 covering_feature: 095-F
 shipment: 100-S
-hardened: 2026-07-29 (P-006, per PR #249 Copilot review — round 1: 6 findings; round 2: single-writer concurrency convergence, findings A + B)
+hardened: 2026-07-29 (P-006, per PR #249 Copilot review — round 1: 6 findings; round 3: best-effort concurrent-writer mirror + no-replace rollover, findings A + B)
 ---
 
 # Plan: Rotation + retention for the telemetry JSONL sink
@@ -65,9 +65,12 @@ rollover or in-place compaction:
   (_MAX_SEGMENT_BYTES + one max record)`.
 * It is **deterministic and testable** with a low threshold in tests (no clock
   dependence, unlike age-based rollover; no line rewriting, unlike compaction).
-* Sealed segments are **immutable append-only files**, which keeps the existing
-  atomic-append and immutable-replay contracts intact — compaction would rewrite
-  history and fight the first-write-immutable invariant.
+* Rollover only **renames whole segment files** and never rewrites or compacts
+  line content, so it keeps the existing atomic-append and replay contracts intact
+  — compaction would rewrite history and fight the first-write-immutable invariant
+  of the authoritative SQLite store. (Sealed segments are treated as append-only
+  and are not rewritten; the sink does not, however, *guarantee* byte-immutability
+  of a sealed segment against a late concurrent `O_APPEND` — see the Writer model.)
 
 ### Rotation parameters (non-configurable module constants — finding 2)
 
@@ -102,10 +105,11 @@ Sealed segment naming carries a **monotonic zero-padded generation** colocated
 with the active file: `execution_epochs.jsonl.00001`, `.00002`, …. The active
 segment is always the base name `execution_epochs.jsonl`. Enumeration yields a
 stable oldest→newest order by generation. The generation is the single identity
-that the preflight token, rollover, and pruning all agree on. Rollover always
-seals to `max(existing sealed generation) + 1`, a name that by construction does
-not already exist, so under the single-writer contract (below) a rename can never
-clobber an existing sealed segment.
+that the preflight token, rollover, and pruning all agree on. Sealing uses a
+**no-replace atomic generation claim** (below): the active file is sealed to
+`max(existing sealed generation) + 1` via an operation that **fails rather than
+clobbers** if that generation name already exists, so a concurrent rollover can
+never overwrite an already-sealed segment — without a global lock.
 
 ### Replay integrity across segments + preflight generation identity (findings 1, 6)
 
@@ -123,8 +127,12 @@ clobber an existing sealed segment.
   belongs to the *same* active-segment generation. This closes the "equal-sized
   replacement skips rescanning / larger replacement resumes at a stale offset"
   gap.
-* Sealed segments are immutable and scanned fully (they never change), so no
-  offset optimization is needed for them.
+* Sealed segments are **not treated as strictly immutable**; they are scanned
+  fully (no offset optimization is applied to them). A late `O_APPEND` into a
+  just-sealed segment by a writer that opened the active fd before rollover is
+  **acceptable under the sink's contract** (see Writer model) and is reconciled on
+  read against SQLite, so no offset assumption about sealed segments can be
+  violated.
 * **Documented horizon bound:** replay/conflict guarantees hold only for epochs
   still inside the retention window. Once the segment carrying an `epoch_id` is
   pruned, a later replay of that `epoch_id` can no longer be detected and would be
@@ -132,75 +140,98 @@ clobber an existing sealed segment.
   authoritative and deduplicates on read) and MUST be stated explicitly in code
   docs and tests.
 
-### Writer model — single-writer-per-path contract (findings A + B, round 2, DEFINITIVE)
+### Writer model — best-effort concurrent-writer mirror, no-replace rollover (findings A + B, round 3, DEFINITIVE)
 
-The prior "best-effort generation + retention slack" wording implied cross-process
-immutability without either a lock or a stated writer contract. That was correctly
-rejected. This pass makes **one definitive decision, grounded in the code**:
-**Option B — the sink's contract is single-writer-per-path.** See the
-"Writer-model decision" section below for the code evidence. Concurrent
-multi-**process** writers to the same JSONL path are **explicitly OUT OF
-CONTRACT**.
+A prior pass proposed a single-writer-per-path contract. That was **refuted by the
+code** and is **withdrawn**: `autoharness telemetry record`
+(`cli.py:934` → `record_epoch` at `cli.py:1003`) is a **second public writer entry
+point** besides `eval/runner.py::run_matrix`, so overlapping CLI processes can
+append the same JSONL path concurrently. The sink's own docstrings state its
+**deliberate** contract:
 
-Under this contract the rollover protocol needs **no interprocess lock**, and both
-findings dissolve on the merits rather than by hand-waving:
+* `jsonl_sink.py:96-104` (`_atomic_append_bytes`): a line is "a single atomic
+  write, **safe for concurrent writers**" (POSIX `O_APPEND` atomic; Windows
+  `FILE_APPEND_DATA` atomic).
+* `jsonl_sink.py:161-171` (`append_epoch`): two processes writing the same
+  `epoch_id` "can each pass the check and produce a duplicate line. That is
+  **benign by design** — JSONL is a best-effort human-readable mirror, while
+  SQLite is the authoritative first-write-immutable store. Readers deduplicate by
+  `epoch_id` and apply SQLite-over-JSONL precedence … reconciled on read rather
+  than by locking this secondary sink."
 
-* **Immutability is by sequential construction (finding B).** The single writer
-  executes each epoch as a strict, non-overlapping sequence:
-  `preflight → [if active ≥ _MAX_SEGMENT_BYTES: rename active → gen N, create fresh
-  active, prune] → append to the current active segment`. Each append is a
-  synchronous `open(O_APPEND) → write one line → close`; **no `O_APPEND` handle is
-  ever held across a rename.** Therefore the writer never appends to a segment
-  after sealing it — a sealed segment is byte-for-byte stable for the rest of its
-  life. There is no open-before-rollover / append-after-rename inode race, because
-  there is no second writer and no outstanding handle. "Retention slack closes the
-  race" is **removed**; immutability holds by construction, not by slack.
-* **No destination-collision (finding A).** With a single writer, two writers can
-  never choose the same next generation. Additionally, rollover seals to
-  `max(existing sealed generation) + 1`, a name that does not already exist, so the
-  rename never overwrites an existing sealed segment even in the presence of a
-  stale/leftover file at a lower generation.
-* **Atomic line integrity is retained as defense-in-depth, not a rollover
-  guarantee.** The existing atomic append (`O_APPEND` / Win32 `FILE_APPEND_DATA`)
-  and the existing preflight/replay + `TelemetryConflictError` machinery stay. Per
-  the current `append_epoch` docstring, if an *accidental* second writer ever
-  appends concurrently, the worst case is a duplicate intact line that readers
-  **reconcile on read** (epoch-id dedupe, SQLite-over-JSONL precedence) — this is
-  the codebase's existing, deliberate stance and is preserved. We do **not**
-  upgrade that into a rollover/immutability guarantee, and multi-process rollover
-  remains out of contract.
-* **The only loss is retention pruning (documented horizon).** A line is dropped
-  only when its segment is later pruned — the intended retention behavior. SQLite
-  remains the authoritative, lossless store.
+So the sink's **real, intentional contract** is: *best-effort concurrent-writer
+JSONL mirror + SQLite authoritative + reconcile-on-read*, and it **deliberately
+declines to lock**. Rotation MUST preserve this contract — not swap in a
+single-writer model and not over-claim immutability. **Option A (minimal,
+contract-aligned)** is adopted: make the genuinely dangerous rollover operations
+race-safe *without* a global lock, and frame the residual best-effort behavior as
+exactly the sink's existing documented contract.
 
-**Tests for this model:** (1) rollover between preflight and append *within one
-writer* — replay/conflict still detected (preflight generation identity, finding
-6); (2) sealed-segment immutability — after a rollover, subsequent appends target
-only the new active segment and the sealed segment's bytes are unchanged; (3)
-next-generation naming never targets an existing sealed name (no-clobber by
-construction). We do **not** write a concurrent-multi-writer rollover test, because
-that scenario is out of contract; we test the single-writer sequence that the
-production caller actually exercises.
+* **No-replace atomic generation claim for sealing (finding A — rename-replace
+  collision).** Sealing the active file to `gen-N` MUST use an operation that
+  **fails rather than clobbers** if `gen-N` already exists — e.g. `os.link(active,
+  sealed_gen_N)` then unlink the active name, or an `O_EXCL` / Win32 `CreateFileW
+  CREATE_NEW` claim of the sealed name, or rename-to-unique-then-verify. On
+  collision (another writer already claimed `gen-N`), the loser re-reads
+  `max(existing sealed generation)` and **retries with the next generation**.
+  Result: a concurrent rollover can **never** overwrite or lose an already-sealed
+  segment, and it needs **no global lock**. This directly answers finding A: a
+  plain `rename` that silently replaces the destination is forbidden.
+* **No "sealed = immutable" claim; state the ACTUAL semantics (finding B — late
+  `O_APPEND` into a sealed inode).** A writer that opened the active fd before
+  rollover and appends after the rename lands a line in the just-sealed segment.
+  Under this sink's contract that is **acceptable and not a correctness
+  violation**, because: (a) JSONL is a best-effort mirror; (b) SQLite is
+  authoritative and first-write-immutable; (c) readers dedupe by `epoch_id` and
+  apply SQLite-over-JSONL precedence; and (d) the replay/preflight scan is an
+  **optimization over the mirror, not the source of truth** — a scan that races a
+  late line is reconciled on the next read against SQLite. Every "sealed segments
+  are immutable / rollover is lossless" statement is **replaced** by this
+  contract-aligned wording. We do **not** add a writer-drain lock the sink
+  deliberately avoids.
+* **Pruning is by-design lossy on the MIRROR, and that is the point.** Pruning
+  removes only **sealed** segments beyond the retention window and **never** the
+  active segment. Losing old *mirror* segments is the intended retention behavior;
+  **SQLite retains authoritative history**, so pruning never deletes authoritative
+  data. A prune racing a late append into a to-be-pruned sealed segment only drops
+  best-effort mirror lines already superseded by SQLite — acceptable under
+  contract. For extra safety, prune oldest-first and never prune a segment sealed
+  within the current rollover critical section.
+* **Preflight generation identity stays (finding 6), framed as a mirror-scan
+  optimization.** The preflight token carries generation + size so a rotation
+  between preflight and append forces a rescan for JSONL replay-check accuracy;
+  correctness ultimately rests on SQLite.
+
+**Tests for this model** (these replace the single-writer-only tests): (1)
+**simultaneous destination-collision** — two writers pick the same next generation
+→ the no-replace claim makes one retry the next generation; **both** sealed
+segments are preserved, zero whole-segment loss; (2) **late-append-into-sealed
+reconciled on read** — a line that lands in a sealed segment after rollover is
+still correctly deduped with SQLite-over-JSONL precedence by the reader; (3)
+**rollover between preflight and append** — replay/conflict still detected via the
+preflight generation identity (finding 6).
 
 ### Segment size bound — restated to what the code can guarantee (finding 5)
 
 `append_epoch` accepts an unconstrained encoded record and atomicity forbids
-splitting a line, so an exact `_MAX_SEGMENT_BYTES` ceiling is not achievable. Under
-the single-writer contract the bound is fully deterministic:
+splitting a line, so an exact `_MAX_SEGMENT_BYTES` ceiling is not achievable. The
+bound is stated as:
 
 * **Oversized single record:** a record whose encoded line is larger than
   `_MAX_SEGMENT_BYTES` is still written **intact as one line to its own segment**
   (that segment is then sealed on the next append). Lines are never split.
 * **Sealed segment size:** a sealed segment's size is ≤
-  `_MAX_SEGMENT_BYTES + one max record` (the size check is evaluated before each
-  sequential append, so at most one over-threshold record is added before sealing).
+  `_MAX_SEGMENT_BYTES + one max record` (the size check is evaluated before an
+  append, so at most one over-threshold record is added before sealing; a
+  benign concurrent duplicate is itself ≤ one max record and is superseded on
+  read).
 * **Total retained bytes:** ≤ `(_MAX_RETAINED_SEGMENTS + 1) × (_MAX_SEGMENT_BYTES
   + one max record)`.
 
-Acceptance criteria assert this sequential bound (segment ≤ threshold +
-one record after sealing; total retained ≤ `(window+1) × (threshold + one
-record)`), and a test covers the oversized-single-record case. This replaces the
-earlier, unachievable "total bytes ≤ `(window+1) × threshold`" claim.
+Acceptance criteria assert this bound (segment ≤ threshold + one record after
+sealing; total retained ≤ `(window+1) × (threshold + one record)`), and a test
+covers the oversized-single-record case. This replaces the earlier, unachievable
+"total bytes ≤ `(window+1) × threshold`" claim.
 
 ## Width isolation
 
@@ -232,55 +263,55 @@ precedence and malformed-line skipping. The public read contract is unchanged
 except that it now correctly spans retained segments. The 100-S manifest gains
 095.004-T (see Harvest model).
 
-## Writer-model decision (PR #249 round 2, findings A + B) — code evidence
+## Writer-model decision (PR #249 round 3, findings A + B) — code evidence
 
-**Decision: Option B — single-writer-per-path contract.** Determined from the
-code, not assumed:
+**Decision: Option A — best-effort concurrent-writer mirror with a no-replace
+rollover claim.** A round-2 pass asserted a single-writer-per-path contract; it is
+**withdrawn as refuted by the code**:
 
-* **Production caller is a sequential single process.** The only caller of
-  `record_epoch` is `autoharness.eval.runner.run_matrix` (`eval/runner.py:189`),
-  which iterates `for config in matrix.configs:` and calls
-  `record_epoch(epoch, telemetry_config)` **sequentially** — no `ProcessPool`,
-  `ThreadPool`, `concurrent.futures`, or `multiprocessing` anywhere in the call
-  path.
-* **The module contract is explicitly "no execution loop."** `record.py`'s module
-  docstring states autoharness is an install/tune tool with *"no in-process
-  execution loop to wrap"* and that the runtime *"supplies a fully-formed epoch
-  payload at task close"*, fanned out to sinks, fail-open and off the critical
-  path.
-* **No locking primitive exists to reuse.** A repo-wide search of `src/` for
-  `flock` / `msvcrt` / `O_EXCL` / `fcntl` / `portalocker` / `filelock` /
-  `threading.Lock` / `multiprocessing` returns nothing — the codebase has never
-  needed interprocess write serialization for telemetry.
-* **Idempotency ≠ multi-writer serialization.** The existing preflight/replay +
-  `TelemetryConflictError` machinery defends **re-emission/retry** of the same
-  `epoch_id` (idempotent replay) and **payload immutability** (a conflicting digest
-  for the same id). `append_epoch`'s own docstring says two processes writing the
-  same epoch concurrently *"can each pass the check and produce a duplicate line …
-  benign by design … reconciled on read rather than by locking this secondary
-  sink."* The codebase therefore **already declines** to serialize concurrent
-  writers and handles the rare accidental case by read-time reconciliation. This
-  is direct evidence that the intended model is single-writer, with concurrency
-  treated as benign-and-reconciled, not lock-protected.
+* **A second public writer entry point exists.** Besides
+  `eval/runner.py::run_matrix`, the CLI subcommand `autoharness telemetry record`
+  (`cli.py:934` `_telemetry_record_command` → `record_epoch` at `cli.py:1003`)
+  records an epoch to the configured sink. **Overlapping CLI invocations can append
+  the same JSONL path concurrently**, so "the only caller is a sequential single
+  process" is false.
+* **The sink documents concurrent writers as SUPPORTED BY DESIGN.**
+  `_atomic_append_bytes` (`jsonl_sink.py:96-104`) is "a single atomic write,
+  **safe for concurrent writers**" (POSIX `O_APPEND`; Windows `FILE_APPEND_DATA`).
+  `append_epoch` (`jsonl_sink.py:161-171`) states two processes writing the same
+  `epoch_id` "can each pass the check and produce a duplicate line … **benign by
+  design** — JSONL is a best-effort human-readable mirror, while SQLite is the
+  authoritative first-write-immutable store. Readers deduplicate by `epoch_id` and
+  apply SQLite-over-JSONL precedence … reconciled on read rather than by locking
+  this secondary sink."
+* **The absence of a lock is intentional, not an oversight.** The sink
+  *deliberately declines* to serialize concurrent writers and instead reconciles
+  duplicates on read. That is the contract rotation must preserve — not replace
+  with a single-writer model, and not over-claim as immutability.
 
-Because no production path creates concurrent multi-process writers to one JSONL
-path, **Option A (interprocess rollover lock + `O_EXCL` no-replace claim) would add
-a lock for a scenario the code never produces** — more complexity, no correctness
-gain. Option B is the simplest *correct* model.
+**Why Option A (minimal) and not a full interprocess lock:** the only genuinely
+dangerous rollover operation is **sealing** — a plain `rename` that silently
+replaces an existing destination could destroy an already-sealed segment (finding
+A). That is fixed precisely by a **no-replace atomic generation claim** (fail-and-
+retry-next-generation), which needs no global lock. The late-append-into-sealed
+race (finding B) is **not a correctness violation** under the sink's contract
+because the JSONL mirror is best-effort and SQLite is authoritative with read-time
+reconciliation — so adding a writer-drain lock the sink deliberately avoids would
+be contract-violating over-engineering. Option A closes the dangerous case and
+frames the residual behavior as exactly the sink's existing documented semantics.
 
 **Contract statement (goes into code docs, `095-F`, and affected task specs):**
-The JSONL sink is **single-writer-per-path**: at most one sink instance / one
-process appends a given `jsonl_path` at a time, as the production caller
-(`run_matrix`, sequential, single process) guarantees. Under this contract sealed
-segments are **immutable by construction** (the writer never appends to a segment
-after sealing it) and rollover needs no lock. **Concurrent multi-process writers to
-the same path — during rollover or otherwise — are OUT OF CONTRACT.** The
-pre-existing atomic-append line-integrity property is retained as defense-in-depth
-(and the pre-existing multi-thread line-integrity test stays green because the
-default threshold keeps it in the single-active-segment regime), but it is not
-elevated into a rollover or immutability guarantee.
+The JSONL sink is a **best-effort, concurrent-writer-safe human-readable mirror**;
+SQLite is the authoritative first-write-immutable store, and duplicate/late mirror
+lines are **reconciled on read** (`epoch_id` dedupe + SQLite-over-JSONL
+precedence). Rotation preserves this: sealing uses a **no-replace generation
+claim** so a concurrent rollover never clobbers a sealed segment; sealed segments
+are **not claimed to be immutable** (a late `O_APPEND` into a sealed inode is
+acceptable and reconciled on read); pruning removes only **sealed** segments beyond
+the retention window (never the active segment, never authoritative SQLite data).
+No global write lock is introduced, matching the sink's deliberate design.
 
-## Plan hardening record (P-006 — formally applied; updated round 2)
+## Plan hardening record (P-006 — formally applied; updated round 3)
 
 This plan qualifies for P-006 hardening: review surfaced concurrency and
 correctness findings and the reader read-path expands blast radius within the
@@ -291,27 +322,36 @@ telemetry subsystem. Hardening applied:
   criteria (no configurability claimed).
 * **Finding 3 → reader task added (095.004-T).** History survives reads across
   rotation; manifest and dependency order updated.
-* **Findings A + B (round 2) → single-writer-per-path contract (Option B).** The
-  definitive writer-model decision above, driven by code evidence. Immutability is
-  by sequential construction (no open-before-rollover race under one writer); the
-  destination-collision case cannot arise (one writer, `max+1` no-clobber naming);
-  no interprocess lock is introduced. The earlier "generation + retention slack"
-  survival claim is **removed and replaced** by the contract-based invariant. Out-
-  of-contract multi-process concurrency is stated explicitly.
-* **Finding 6 → preflight generation identity (kept, still relevant).** Within one
-  writer a rollover can occur between the preflight scan and the append; the
-  generation+size identity in the preflight token invalidates a stale offset and
-  forces a full rescan, preserving replay/conflict detection.
+* **Findings A + B (round 3, PIVOT) → best-effort concurrent-writer mirror with a
+  no-replace rollover claim (Option A).** A round-2 single-writer-per-path claim
+  (Option B) was **refuted by the code** (`cli.py:934/1003` is a second public
+  `record_epoch` entry point; `jsonl_sink.py:96-104` / `:161-171` document
+  concurrent writers as safe/benign-by-design with read-time reconciliation) and
+  is **withdrawn**. Finding A (rename-replace collision) is answered by a
+  **no-replace atomic generation claim** (`os.link`/`O_EXCL`/`CREATE_NEW`; loser
+  retries next generation) — a concurrent rollover can never clobber a sealed
+  segment, without a global lock, and a deterministic simultaneous-collision test
+  proves it. Finding B (late `O_APPEND` into a sealed inode) is answered by
+  **dropping the immutability over-claim** and stating the sink's actual contract:
+  the mirror is best-effort, SQLite is authoritative, a late line is reconciled on
+  read; a reader test proves dedup + SQLite-over-JSONL precedence still hold. No
+  writer-drain lock is added (the sink deliberately avoids locking).
+* **Finding 6 → preflight generation identity (kept), framed as a mirror-scan
+  optimization.** A rollover between the preflight scan and the append invalidates
+  a stale offset via the generation+size identity and forces a full rescan for
+  JSONL replay-check accuracy; correctness ultimately rests on SQLite.
 * **Finding 5 → restated, achievable byte bound** (threshold + one max record;
-  oversized record → own intact segment) — now fully deterministic under the
-  single-writer sequence.
+  oversized record → own intact segment; a benign concurrent duplicate is ≤ one
+  max record and superseded on read).
 * **Finding 1 → traceability fixed** (`095-F` covering feature; `095.001-T…
   095.004-T` tasks; `100-S` shipment) throughout this plan and all task specs.
 
-Residual risk after hardening: none open. The one bounded limitation is the
-documented retention horizon (a pruned epoch may re-append; SQLite is
-authoritative) and the explicit out-of-contract status of concurrent multi-process
-writers. No open design decisions remain.
+Residual risk after hardening: none open. The bounded, contract-aligned
+limitations are (a) the documented retention horizon (a pruned mirror epoch may
+re-append; SQLite is authoritative) and (b) the sink's deliberate best-effort
+concurrent-writer semantics (duplicate/late mirror lines reconciled on read, not by
+locking). Both are the sink's **existing documented contract**, not new
+over-claims. No open design decisions remain.
 
 ## Test-first (P-002 / P-004)
 
@@ -337,38 +377,46 @@ leaves the full suite green.
   when epoch lives in a sealed segment; conflict detected across segments; active
   segment replaced between preflight and append → replay/conflict still detected
   (stale-offset invalidated); single-segment behavior unchanged.
-* **095.002-T — Size-based rollover on write (single-writer contract).** Seal the
-  active segment to `max(sealed generation)+1` when it reaches `_MAX_SEGMENT_BYTES`
-  (a name that does not already exist → no clobber); create a fresh active;
-  oversized single record still written intact to its own segment. Under the
-  single-writer-per-path contract the writer's sequence is strictly
-  size-check → rename → create-fresh → append, with no `O_APPEND` handle held
-  across the rename, so sealed segments are immutable **by construction** (no lock,
-  no in-flight-append race). Depends on 095.001-T. Files: `jsonl_sink.py`, test.
-  Scenarios (≤4): rollover triggers at a low (patched) threshold → sealed
-  generation + fresh active; default high threshold leaves current small writes
+* **095.002-T — Size-based rollover on write with a no-replace generation claim.**
+  When the active segment reaches `_MAX_SEGMENT_BYTES`, seal it to
+  `max(existing sealed generation)+1` using a **no-replace atomic claim**
+  (`os.link`+unlink / `O_EXCL` / Win32 `CREATE_NEW`, or rename-to-unique-then-
+  verify) so an existing sealed name is **never** clobbered; on collision the loser
+  re-reads `max(sealed generation)` and retries the next generation. Create a fresh
+  active; an oversized single record is still written intact to its own segment.
+  Preserves the sink's best-effort concurrent-writer contract — no global lock; a
+  late `O_APPEND` into a just-sealed segment is acceptable (reconciled on read),
+  not a violation. Depends on 095.001-T. Files: `jsonl_sink.py`, test. Scenarios
+  (≤4): rollover triggers at a low (patched) threshold → sealed generation + fresh
+  active; **simultaneous destination-collision** — two writers pick the same next
+  generation → no-replace claim forces one to retry, both sealed segments preserved
+  (zero whole-segment loss); default high threshold leaves current small writes
   single-segment (existing behavior preserved, incl. the existing multi-thread
-  line-integrity test); sealed-segment immutability — after rollover, subsequent
-  appends target only the new active segment and the sealed segment's bytes are
-  unchanged; oversized single record (> threshold) written intact to its own
-  segment.
+  line-integrity test); oversized single record (> threshold) written intact to its
+  own segment.
 * **095.003-T — Bounded retention / pruning + restated byte bound.** Keep ≤
-  `_MAX_RETAINED_SEGMENTS` sealed segments, pruning oldest generations first.
-  Assert the deterministic single-writer bound. Depends on 095.002-T. Files:
-  `jsonl_sink.py`, test. Scenarios (≤4): sealed count never exceeds the window and
-  oldest pruned first; total retained bytes ≤ `(window+1) × (threshold + one
-  record)`; a sealed segment is ≤ `threshold + one max record`; pruned-epoch
-  horizon — replay of a pruned epoch re-appends (no false idempotency).
-* **095.004-T — Reader read-path across rotated segments (finding 3).** Extend
-  `reader.py::_read_jsonl` (and its source wiring) to enumerate + read active +
-  retained sealed segments via the shared `jsonl_sink` enumeration, preserving
-  existing dedupe/precedence/malformed-line skipping. Depends on 095.003-T (so
-  real rotated + pruned segments exist to read). Files: `reader.py`, sibling
-  reader test module (+ import from `jsonl_sink`). Scenarios (≤4): after rollover,
-  `source="jsonl"` returns records from active + sealed segments (no history
-  loss); dedupe/precedence preserved across segments; malformed line in a sealed
-  segment skipped, others returned; records in a pruned segment are absent
-  (consistent with the retention horizon).
+  `_MAX_RETAINED_SEGMENTS` sealed segments, pruning **oldest sealed** generations
+  first; **never** prune the active segment and never a segment sealed within the
+  current rollover critical section. Pruning is by-design lossy on the *mirror*
+  only — SQLite retains authoritative history, so no authoritative data is deleted.
+  Assert the restated bound. Depends on 095.002-T. Files: `jsonl_sink.py`, test.
+  Scenarios (≤4): sealed count never exceeds the window and oldest pruned first;
+  total retained bytes ≤ `(window+1) × (threshold + one record)` and a sealed
+  segment is ≤ `threshold + one max record`; pruning never targets the active
+  segment; pruned-epoch horizon — replay of a pruned mirror epoch re-appends (no
+  false idempotency; SQLite authoritative).
+* **095.004-T — Reader read-path across rotated segments + late-line reconciliation
+  (finding 3, and finding B reconciliation).** Extend `reader.py::_read_jsonl`
+  (and its source wiring) to enumerate + read active + retained sealed segments via
+  the shared `jsonl_sink` enumeration, preserving existing
+  dedupe/precedence/malformed-line skipping. Depends on 095.003-T (so real rotated
+  + pruned segments exist to read). Files: `reader.py`, sibling reader test module
+  (+ import from `jsonl_sink`). Scenarios (≤4): after rollover, `source="jsonl"`
+  returns records from active + sealed segments (no history loss);
+  **late-line-into-sealed reconciled on read** — a line that landed in a sealed
+  segment after rollover is correctly deduped with SQLite-over-JSONL precedence;
+  malformed line in a sealed segment skipped, others returned; records in a pruned
+  segment are absent (consistent with the retention horizon).
 
 ## Plan-review verdict (re-run on hardened plan)
 
@@ -378,13 +426,14 @@ Multi-persona inline review (personas per Stage plan-review contract):
 |---|---|
 | Python Reviewer | PASS — four focused tasks; constants (not config) match the code path; each task ≤3 files / ≤5 funcs / ≤4 scenarios. |
 | Scope Boundary Auditor | PASS — width-isolated to `jsonl_sink.py` + `reader.py` + tests (telemetry subsystem); config/schema files explicitly out of scope per finding-2 decision; reader expansion justified and flagged. |
-| Concurrency/Safety Reviewer | PASS — writer model is a code-evidenced single-writer-per-path contract; sealed-segment immutability holds by sequential construction (no lock, no open-before-rollover race); the same-generation destination collision cannot arise (one writer, `max+1` no-clobber naming); concurrent multi-process writers are explicitly out of contract; byte bound restated to an achievable, deterministic value. |
-| Architecture Strategist | PASS — one shared generation identity unifies preflight token, rollover, and pruning (findings 6 + naming); replay-across-segments precedes rollover; reader task last so it reads real rotated history; every task leaves the suite green. |
+| Concurrency/Safety Reviewer | PASS — writer model is the sink's **code-documented best-effort concurrent-writer contract** (SQLite authoritative, reconcile-on-read); the genuinely dangerous seal operation uses a **no-replace generation claim** (finding A) proven by a simultaneous-collision test; the late-append-into-sealed race (finding B) is correctly framed as acceptable-and-reconciled rather than an over-claimed immutability, with a reader reconciliation test; pruning is bounded to old sealed segments and never the active segment or SQLite; byte bound restated to an achievable value. No single-writer or immutability over-claim remains. |
+| Architecture Strategist | PASS — one shared generation identity unifies preflight token, rollover, and pruning (finding 6 + naming); replay-across-segments precedes rollover; reader task last so it reads real rotated history; every task leaves the suite green. |
 | Learnings Researcher | PASS — applies 097-S task-only-manifest and canonical-unittest-gate learnings; retention/replay horizon documented and tested. |
 
-**Findings: P0=0, P1=0.** All six round-1 PR #249 findings plus the two round-2
-convergence findings (A: destination collision; B: sealed-segment immutability)
-are resolved with one coherent, code-evidenced decision: the
-single-writer-per-path contract (Option B). No over-claim of cross-process
-losslessness remains; no open design decisions. P-006 hardening formally applied
-(see Plan hardening record).
+**Findings: P0=0, P1=0.** All six round-1 PR #249 findings plus the two round-2/3
+convergence findings (A: destination collision; B: sealed-segment immutability) are
+resolved with one coherent, code-evidenced decision: **Option A — preserve the
+sink's best-effort concurrent-writer mirror contract, make sealing race-safe via a
+no-replace generation claim, and drop the single-writer/immutability over-claims.**
+No guarantee is asserted that the design cannot deliver. P-006 hardening formally
+applied (see Plan hardening record).
