@@ -123,7 +123,7 @@ binds this gate into the harness merge path as a NON-NEGOTIABLE, fail-closed
 pre-merge dependency:
 
 * **Precondition** — a PR is about to be presented as merge-ready or merged.
-* **Gate point** — `.ship` agent Step 4/5 PR lifecycle, and
+* **Gate point** — `_ship` agent Step 4/5 PR lifecycle, and
   [`github-pr-automation.instructions.md`](../.github/instructions/github-pr-automation.instructions.md)
   §1.9.4 **Check 5**, run before any `gh pr merge` (including `--admin`).
 * **Postcondition** — the gate returns a PASS verdict for the current HEAD, or an
@@ -154,5 +154,5 @@ Running the gate never dirties the working tree.
 * [Validation Gates Reference](gates-reference.md)
 * [Workflow policy registry template](../templates/policies/workflow-policies.md.tmpl) (P-018)
 * [GitHub PR automation instructions](../.github/instructions/github-pr-automation.instructions.md) (§1.1, §1.8, §1.9)
-* [`.ship` agent definition](../.github/agents/.ship.agent.md)
+* [`_ship` agent definition](../.github/agents/_ship.agent.md)
 * [Workspace-profile JSON Schema](../schemas/workspace-profile.schema.json) (`copilot_review`)
