@@ -7,19 +7,30 @@ Engram is registered as a stdio MCP server in `.mcp.json` (command `engram shim`
 
 | Tool | Purpose |
 |------|---------|
-| `set_workspace` | Register this workspace at session start |
-| `query_memory` | Retrieve stored context, tasks, and code knowledge |
-| `create_task` | Create a new task in the workspace task list |
-| `update_task` | Update task status or details |
-| `map_code` | Index code files for semantic navigation |
-| `unified_search` | Search across all content types |
-| `query_changes` | Query git commit history by file, symbol, or date |
+| `get_daemon_status` | Confirm the Engram daemon / MCP surface is reachable (lifecycle check) |
+| `get_workspace_status` | Verify workspace binding and index freshness (required binding verification) |
+| `set_workspace` | Bind this workspace at session start (when explicit binding is required) |
+| `query_memory` | Retrieve stored context, notes, and content records |
+| `unified_search` | Broad semantic search across code, docs, and history |
+| `list_symbols` | List symbols in a file or matching a concept |
+| `map_code` | Explore callers, callees, and local graph context |
+| `impact_analysis` | Assess blast radius before modifying a symbol |
+| `query_graph` | Run advanced read-only graph queries |
+| `sync_workspace` | Incremental index refresh when the workspace is stale |
+| `index_workspace` | Full index rebuild when needed |
+| `flush_state` | Flush pending index state when the workspace uses it |
 
 ### Recommended Workflow
 
-1. **Session start**: Always call `set_workspace` first to bind this workspace.
-2. **Context loading**: Call `query_memory` to retrieve relevant prior context.
-3. **Task management**: Track all work items with `create_task` and `update_task`.
-4. **Code exploration**: Use `map_code` before navigating unfamiliar modules.
-5. **Change awareness**: Use `query_changes` to understand what changed recently.
+1. **Session start**: confirm the daemon / MCP surface is reachable with
+   `get_daemon_status`, verify binding and index freshness with
+   `get_workspace_status`, and call `set_workspace` only if explicit binding is
+   required.
+2. **Context loading**: call `query_memory` / `unified_search` to retrieve relevant
+   prior context.
+3. **Code exploration**: use `list_symbols`, `map_code`, and `impact_analysis` when
+   navigating unfamiliar modules or assessing blast radius.
+4. **Freshness**: run `sync_workspace` (or `index_workspace` for a full rebuild)
+   when the index is stale, and use `flush_state` when the workspace requires a
+   pending-state flush.
 <!-- engram:end -->
