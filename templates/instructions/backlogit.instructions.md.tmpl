@@ -73,6 +73,16 @@ Protocol above.
 * **Chain shipments into a self-enforcing sequence**: express ordering that must
   gate execution with `dep add <next-shipment> <prev-shipment> --type blocks`, so
   `<next-shipment>` cannot be claimed until `<prev-shipment>` has shipped.
+* **Un-gate the next successor after each predecessor ships (required)**: parking
+  a successor at `status: blocked` keeps it out of the `queue view` ready set, so
+  the Orchestrator's queued-only first-pass cannot see it until it is transitioned
+  back. After `<prev-shipment>` ships and its gate clears, the closing owner —
+  Ship's post-merge closure, or the Orchestrator immediately before its next queue
+  selection — MUST transition the next successor with `move <next-shipment> --status
+  queued` **before the next selection pass**; otherwise the dependency-gated
+  successor never re-enters the ready set and the dark run stalls. This is the
+  canonical `blocked → queued` (gate cleared) lifecycle transition; the `item_deps`
+  blocks-edge stays intact as the audit record of which predecessor gated it.
 * **Honor `custom_fields.queue_position`** for explicit manual ordering among
   eligible shipments; set it when you need a deterministic order that priority
   alone does not express.

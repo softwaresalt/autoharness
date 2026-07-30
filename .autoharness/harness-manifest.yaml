@@ -117,7 +117,7 @@ artifacts:
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "c78b93bc605eeb1f62509a37162df3bf91ef515d27de8d4f811d60c3ccacb13d"
+    checksum: "6c965dfceffea772fbd221dd0412f02e67f51150c24e2b7eb90329976a47632d"
     note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1
