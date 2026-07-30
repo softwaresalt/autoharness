@@ -86,17 +86,35 @@ Safe-close used per-item / single-artifact operations only. The cascade command
 - Invoked `compact-context` (target: all). Assessment: `docs/memory` = 53 files
   (> 40 file-count threshold; 180 KB < 500 KB size threshold), `docs/plans`,
   `docs/closure`.
-- **Action taken**: consolidated this release unit's memory. The verbose Stage
-  original `docs/memory/104-S-stage-session.md` was archived to
+- **Action taken (memory)**: consolidated this release unit's memory. The verbose
+  Stage original `docs/memory/104-S-stage-session.md` was archived to
   `docs/archive/memory/104-S-stage-session.md`, and the dense per-release-unit
   summary was written to
   `docs/memory/compacted/2026-07-30-104S-099F-compacted.md` (traceable path
-  preserved). No active-work checkpoints were compacted (none active).
-- **Scope discipline**: the broad `docs/memory` over-threshold sweep is a **separate
-  deferred stash entry `5F14396E`** (recorded by Stage: "run at next Ship P-020
-  closure **or a dedicated pass**"). It is out of shipment 104-S's scope; this
-  closure performed only the bounded per-release-unit floor and defers the full
-  date-bucketed sweep to a dedicated compaction pass.
+  preserved; captures decisions, files modified, key learnings, and the failed
+  task-create gotcha per the SKILL "failed approaches" contract). No active-work
+  checkpoints were compacted (none active).
+- **Action taken (plan consolidation)**: the 099-F plan
+  `docs/plans/2026-07-29-engram-claude-tool-surface-fix-plan.md` was a compaction
+  candidate — feature `099-F` is complete (task `099.002-T` done + merged) **and**
+  the plan carried an appended inline plan-review section (Phase 2 criterion). Per
+  the compact-context Phase 3 plan-consolidation contract it was converted to a
+  decided-plan at
+  `docs/plans/2026-07-29-engram-claude-tool-surface-fix-decided-plan.md` (actionable
+  decisions, surviving implementation unit, key constraints, rejected alternatives),
+  and the verbose original was moved to
+  `docs/archive/plans/2026-07-29-engram-claude-tool-surface-fix-plan.md`
+  (`supersedes` lineage recorded). This makes the `target: all` result complete —
+  memory **and** plan candidates for this release unit were both processed.
+- **Closure records**: the only 099-F closure artifact is this document, authored in
+  this same closure pass; it is not over `threshold_days` old, so no closure-record
+  compaction applies.
+- **Scope discipline**: the broad `docs/memory` over-threshold sweep of *older,
+  date-bucketed* memory is a **separate deferred stash entry `5F14396E`** (recorded
+  by Stage: "run at next Ship P-020 closure **or a dedicated pass**"). It is out of
+  shipment 104-S's scope; this closure performed the bounded per-release-unit floor
+  (this unit's memory + this unit's plan) and defers the full date-bucketed sweep to
+  a dedicated compaction pass.
 
 ## Operational Closure
 
