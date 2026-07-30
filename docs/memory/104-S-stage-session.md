@@ -12,8 +12,10 @@ source_stash: [CBE3684E, 5F14396E, 6D6CACC1]
 
 ## Outcome
 
-Produced **queued shipment 104-S** = [`099-F`, `099.002-T`] from the one
-in-repo-actionable stash entry. Two entries dispositioned without staging.
+Produced **queued shipment 104-S** (task-only manifest = [`099.002-T`]; covering
+feature `099-F` derived via task `parent_id` per the 097-S safe-close contract)
+from the one in-repo-actionable stash entry. Two entries dispositioned without
+staging.
 
 ## Triage dispositions
 
@@ -30,7 +32,9 @@ in-repo-actionable stash entry. Two entries dispositioned without staging.
 - **Route (2)**: mechanical alignment against a canonical source -> ready for planning (no spike, no deliberate).
 - **Plan (3)**: gates NOT bypassed. Plan `docs/plans/2026-07-29-engram-claude-tool-surface-fix-plan.md` -> READY (inline plan-review, P0=0/P1=0).
 - **P-006 hardening**: **not required** (single repo-owned doc file; no schema/CLI/multi-template-family blast radius). `plan-harden` not invoked.
-- **Harvest (4)**: 099-F + 099.002-T (size S). 2-hour rule satisfied.
+- **Harvest (4)**: covering feature 099-F + task 099.002-T (size S); shipment
+  manifest is task-only (`items: [099.002-T]`, covering feature derived via
+  `parent_id` per the 097-S safe-close contract). 2-hour rule satisfied.
 
 ## Notes / gotchas
 
