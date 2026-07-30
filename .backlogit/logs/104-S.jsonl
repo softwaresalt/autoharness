@@ -1,2 +1,3 @@
 {"timestamp":"2026-07-29T19:23:08.277366-07:00","actor":"backlogit","item_id":"104-S","event_type":"shipment_created","delta":{"items":["099.002-T"],"title":"Engram tool-surface table + workflow correction in .claude/instructions.md (stash CBE3684E / 099-F)"}}
 {"timestamp":"2026-07-29T20:15:40.4654978-07:00","actor":"backlogit","item_id":"104-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-07-29T23:44:02.6839288-07:00","actor":"backlogit","item_id":"104-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/104-S.md"}}
