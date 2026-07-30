@@ -68,21 +68,34 @@ new scheduler**.
 
 * **Change**: Replace Step 2 rule #1 (`Select the highest-priority queued
   shipment.`) with a queue-ordering-aware rule:
-  * Select the next shipment via `queue view --type shipment --status queued`,
-    which returns **ready** shipments in execution order (`custom_fields.queue_position`
-    first, then priority) and **already excludes** any shipment whose `item_deps`
-    blocks-chain has an unresolved (unshipped) predecessor. backlogit's queue
-    query performs that eligibility filtering, so the Orchestrator does **not**
-    re-implement suppression.
-  * Claim the **head** of that ready list. Because blocked shipments are withheld
-    by the query, an `item_deps` blocks-chain across shipments becomes a
-    self-enforcing sequence: a shipment only surfaces as claimable once its
-    predecessor has shipped.
+  * Use `queue view --type shipment --status queued` as the **first-pass**
+    candidate source: it returns shipments in execution order
+    (`custom_fields.queue_position` first, then priority) and, per the canonical
+    lifecycle, withholds shipments parked at `status: blocked`. Treat it as an
+    ordering aid and first filter — **not** the sole eligibility authority.
+  * **Constrain the candidate to the recorded scope.** In a multi-shipment dark
+    run the candidate is the **next shipment ID recorded in the P-017
+    `DARK_MODE_SCOPE` ordered cursor** (U2), not merely the global queue head.
+    Verify that exact shipment is the eligible next one; if the queue head is a
+    different, out-of-scope shipment, **halt** rather than substitute it —
+    silently claiming another queue head would violate P-017's
+    no-silent-scope-expansion rule (`workflow-policies.md.tmpl:462`).
+  * **Re-check eligibility before claim (explicit, required).** Before claiming,
+    perform an explicit `item_deps` + status check confirming the candidate has
+    **no unshipped blocking predecessor** — do **not** rely solely on the queue
+    result. This honors the existing Queue and Dependency Protocol
+    (`backlogit.instructions.md.tmpl:43-46`, "Re-check unfinished dependencies
+    before claiming"): a stale or non-filtering `queue view` could otherwise
+    surface a successor early. The queue query plus this re-check together make
+    an `item_deps` blocks-chain a self-enforcing sequence: a shipment is claimed
+    only once its predecessor has shipped.
   * Do **not** use `queue view` to reconstruct the full ordered sequence for
     scope/audit — it returns only the currently eligible head and hides blocked
     successors. Deriving the complete ordered shipment list (for the P-017 scope
-    and restart cursor; see U2) requires a **raw, non-ready listing plus
-    `item_deps` traversal**.
+    and restart cursor; see U2) requires listing shipments across **both
+    `queued` and `blocked` statuses** (or an unfiltered shipment listing), then
+    traversing the `item_deps` blocks-chain — because dependency-gated successors
+    sit at `status: blocked`, a queued-only listing would truncate the sequence.
   * **Precedence (explicit)**: `item_deps` suppression is a **hard eligibility
     gate** — a queued shipment with an unshipped blocking predecessor is never
     eligible, regardless of its `queue_position`. `queue_position` only orders
@@ -125,9 +138,12 @@ new scheduler**.
     resume is deterministic across restarts. **Reconstruction caveat**: the full
     ordered list cannot be read from `queue view` (which returns only the
     currently *ready* head and hides blocked successors). Deriving and recording
-    the complete ordered scope + restart cursor requires a **raw, non-ready
-    shipment listing plus `item_deps` traversal** (walk the blocks-chain);
-    `queue view` stays reserved for selecting the next *eligible* shipment (U1).
+    the complete ordered scope + restart cursor requires listing shipments across
+    **both `queued` and `blocked` statuses** (or an unfiltered shipment listing),
+    then traversing the `item_deps` blocks-chain (walk the blocks-edges) — a
+    queued-only listing omits the dependency-gated successors that sit at
+    `status: blocked`. `queue view` stays reserved for selecting the next
+    *eligible* shipment (U1).
 * **Files**: `templates/policies/workflow-policies.md.tmpl` (1 file).
 * **Verification**: P-017 table/section structure intact; `DARK_MODE_SCOPE`
   remains in the telemetry event list; no contradiction with the existing
@@ -142,14 +158,19 @@ new scheduler**.
   `backlogit.instructions.md.tmpl` (adjacent to the existing "Queue and
   Dependency Protocol"):
   * **Select the next eligible shipment** (execution): `queue view --type
-    shipment --status queued` returns only *ready* shipments — it already excludes
-    any shipment blocked by an unshipped `item_deps` predecessor — ordered by
-    `custom_fields.queue_position`; claim its head.
+    shipment --status queued` returns queue-ordered *ready* candidates
+    (`custom_fields.queue_position` first) and withholds shipments parked at
+    `status: blocked`. Treat it as a first-pass filter, then **re-check the
+    candidate's `item_deps` + status before claiming** (per the "Re-check
+    unfinished dependencies before claiming" rule in the Queue and Dependency
+    Protocol) rather than trusting the query alone.
   * **Reconstruct the full ordered sequence** (scope / audit / resume): because
-    `queue view` hides blocked successors, list **all** queued shipments with a
-    raw, non-ready listing and traverse `item_deps` blocks-edges to rebuild the
-    complete ordered chain and restart cursor. Do not rely on `queue view` for
-    the full sequence.
+    `queue view` hides blocked successors, list shipments across **both `queued`
+    and `blocked` statuses** (or use an unfiltered shipment listing) and traverse
+    `item_deps` blocks-edges to rebuild the complete ordered chain and restart
+    cursor. A queued-only listing truncates the chain, since dependency-gated
+    successors remain at `status: blocked` until their gate clears. Do not rely
+    on `queue view` for the full sequence.
   * Chain shipments into a self-enforcing sequence:
     `dep add <next-shipment> <prev-shipment> --type blocks`.
   * Honor `custom_fields.queue_position` for explicit manual ordering.
