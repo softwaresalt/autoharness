@@ -68,14 +68,21 @@ new scheduler**.
 
 * **Change**: Replace Step 2 rule #1 (`Select the highest-priority queued
   shipment.`) with a queue-ordering-aware rule:
-  * Enumerate queued shipments via `queue view --type shipment --status queued`,
-    which orders by `custom_fields.queue_position` first, then priority.
-  * **Suppress** any queued shipment whose `item_deps` blocks-chain has an
-    unresolved (unshipped) predecessor shipment — such a shipment is not yet
-    eligible even if it appears in the queued list.
-  * Claim the **top eligible** shipment (the head of the ordered, unblocked
-    list). An `item_deps` blocks-chain across shipments thus becomes a
-    self-enforcing sequence.
+  * Select the next shipment via `queue view --type shipment --status queued`,
+    which returns **ready** shipments in execution order (`custom_fields.queue_position`
+    first, then priority) and **already excludes** any shipment whose `item_deps`
+    blocks-chain has an unresolved (unshipped) predecessor. backlogit's queue
+    query performs that eligibility filtering, so the Orchestrator does **not**
+    re-implement suppression.
+  * Claim the **head** of that ready list. Because blocked shipments are withheld
+    by the query, an `item_deps` blocks-chain across shipments becomes a
+    self-enforcing sequence: a shipment only surfaces as claimable once its
+    predecessor has shipped.
+  * Do **not** use `queue view` to reconstruct the full ordered sequence for
+    scope/audit — it returns only the currently eligible head and hides blocked
+    successors. Deriving the complete ordered shipment list (for the P-017 scope
+    and restart cursor; see U2) requires a **raw, non-ready listing plus
+    `item_deps` traversal**.
   * **Precedence (explicit)**: `item_deps` suppression is a **hard eligibility
     gate** — a queued shipment with an unshipped blocking predecessor is never
     eligible, regardless of its `queue_position`. `queue_position` only orders
@@ -84,10 +91,20 @@ new scheduler**.
     wins: B is claimed first. Author the rule so this precedence is unambiguous.
   * Cross-reference the P-017 ordered scope (U2) and the backlogit playbook (U3)
     so the three surfaces name the same mechanism.
-* **Files**: `templates/agents/_orchestrator.agent.md.tmpl` (1 file).
-* **Verification**: rule renders as valid Markdown; the numbered list stays
-  well-formed; existing P-001/P-016/P-020 guard in rule #2 is preserved
-  verbatim; no new `{{VARIABLE}}` introduced (reuse `{{STATUS_QUEUED}}`).
+* **Files**: `templates/agents/_orchestrator.agent.md.tmpl` **and its
+  source-controlled dogfood mirror** `.github/agents/_orchestrator.agent.md` (the
+  same Step 2 rule #1 lives at `.github/agents/_orchestrator.agent.md:196`); after
+  editing the mirror, **regenerate its checksum** in
+  `.autoharness/harness-manifest.yaml` (the `.github/agents/_orchestrator.agent.md`
+  entry, ~lines 117-121). Editing only the template would leave this repository's
+  active Orchestrator on the old selection behavior.
+* **Verification**: the rule renders as valid Markdown in **both** the template
+  and the installed mirror; the numbered list stays well-formed; the existing
+  P-001/P-016/P-020 guard in rule #2 is preserved verbatim; template and mirror
+  carry the same selection rule (the mirror contains no `{{VARIABLE}}`); the
+  manifest checksum for `.github/agents/_orchestrator.agent.md` is regenerated to
+  match the edited mirror; no new `{{VARIABLE}}` is introduced in the template
+  (reuse `{{STATUS_QUEUED}}`).
 * **Execution posture**: documentation edit (characterization-by-reading; no
   runtime code).
 
@@ -105,7 +122,12 @@ new scheduler**.
     scheduler or sequence-manifest file.
   * State that the ordered sequence is derived from the same `queue_position` +
     `item_deps` mechanism the Orchestrator selection rule (U1) consumes, so
-    resume is deterministic across restarts.
+    resume is deterministic across restarts. **Reconstruction caveat**: the full
+    ordered list cannot be read from `queue view` (which returns only the
+    currently *ready* head and hides blocked successors). Deriving and recording
+    the complete ordered scope + restart cursor requires a **raw, non-ready
+    shipment listing plus `item_deps` traversal** (walk the blocks-chain);
+    `queue view` stays reserved for selecting the next *eligible* shipment (U1).
 * **Files**: `templates/policies/workflow-policies.md.tmpl` (1 file).
 * **Verification**: P-017 table/section structure intact; `DARK_MODE_SCOPE`
   remains in the telemetry event list; no contradiction with the existing
@@ -119,8 +141,15 @@ new scheduler**.
 * **Change**: Add a **Shipment Sequencing Protocol** subsection to
   `backlogit.instructions.md.tmpl` (adjacent to the existing "Queue and
   Dependency Protocol"):
-  * List queued shipments in execution order:
-    `queue view --type shipment --status queued`.
+  * **Select the next eligible shipment** (execution): `queue view --type
+    shipment --status queued` returns only *ready* shipments — it already excludes
+    any shipment blocked by an unshipped `item_deps` predecessor — ordered by
+    `custom_fields.queue_position`; claim its head.
+  * **Reconstruct the full ordered sequence** (scope / audit / resume): because
+    `queue view` hides blocked successors, list **all** queued shipments with a
+    raw, non-ready listing and traverse `item_deps` blocks-edges to rebuild the
+    complete ordered chain and restart cursor. Do not rely on `queue view` for
+    the full sequence.
   * Chain shipments into a self-enforcing sequence:
     `dep add <next-shipment> <prev-shipment> --type blocks`.
   * Honor `custom_fields.queue_position` for explicit manual ordering.
@@ -141,10 +170,14 @@ new scheduler**.
 * **Change**: After U1–U3, validate the three templates as a coherent set:
   * All three name the same mechanism (`queue_position` + `item_deps` blocks-chain)
     with consistent terminology and reciprocal cross-references.
-  * Each renders valid Markdown when variables resolve; test the intent against
-    ≥3 technology profiles conceptually (e.g., Rust, TypeScript, Python — the
-    change is technology-agnostic, so output must be identical modulo existing
-    variables).
+  * Each renders valid Markdown when variables resolve. Per `AGENTS.md`
+    (templates must work for ≥3 technology profiles and be tested *after*
+    variable resolution), **actually render** all three templates against **three
+    profile fixtures** (e.g., Rust, TypeScript, Python) and validate each rendered
+    output: valid Markdown, correct heading hierarchy, and **no unresolved
+    `{{...}}`** in the rendered result. A conceptual "identical modulo variables"
+    argument does **not** satisfy this gate — produce the three renders and check
+    them.
   * No unresolved `{{...}}` beyond pre-existing legitimate template variables;
     confirm **no new template variable was introduced** (so the install-harness
     SKILL.md variable-resolution table needs no update).
@@ -154,8 +187,10 @@ new scheduler**.
     corrects it. This keeps authorship in one place and prevents scope drift.
 * **Files**: reads all three; no authoring edits (records findings; owning unit
   fixes and U4 re-verifies).
-* **Verification**: markdownlint heading hierarchy (MD001/MD025/MD041) clean;
-  cross-reference integrity holds; variable completeness confirmed.
+* **Verification**: three rendered profile fixtures produced and checked (valid
+  Markdown, MD001/MD025/MD041 heading hierarchy clean, and no unresolved `{{...}}`
+  in each render); cross-reference integrity holds across the set; variable
+  completeness confirmed (no new variable introduced).
 * **Execution posture**: verification / coherence gate.
 * **Depends on**: U1, U2, U3.
 
@@ -212,8 +247,13 @@ mechanism it establishes. U4 is terminal (validates the whole set).
 * **R-3 (blast radius): three coupled template families.** A change in one that is
   not mirrored in the others degrades cross-reference integrity. *Mitigation*:
   U4 terminal coherence sweep; reciprocal cross-references authored in U1–U3.
-* **R-4 (rollback): trivial.** Templates render to Markdown; any regression is a
-  `git revert` of the staging commit. No data migration, no runtime state.
+* **R-4 (rollback): trivial, but targets Ship's implementation commit(s), not
+  this staging commit.** This staging commit contains only the plan + backlog
+  metadata and does **not** modify the templates or the installed mirror, so
+  reverting it cannot undo a sequencing regression. Rollback = `git revert` the
+  **downstream Ship implementation commit(s)** that edit the three templates, the
+  installed Orchestrator mirror (`.github/agents/_orchestrator.agent.md`), and the
+  manifest checksum. No data migration, no runtime state.
 
 ## Plan Hardening Signals (REQUIRED)
 
@@ -243,8 +283,10 @@ before `plan-review`.
   unambiguous.
 * **Operational closure artifact**: none beyond the shipment closure the Ship
   agent produces downstream. Rollback trigger = any post-merge report that dark
-  runs mis-sequence shipments; rollback = revert the staging commit. Owner =
-  Stage (author) → Ship (execution).
+  runs mis-sequence shipments; rollback = **revert the downstream Ship
+  implementation commit(s)** (the template + installed-mirror + manifest-checksum
+  edits), **not** this staging commit, which carries only plan/backlog metadata.
+  Owner = Stage (author) → Ship (execution).
 
 ## Plan Hardening
 
@@ -311,8 +353,13 @@ mutations are documentation-template edits and backlog/shipment creation, all
   descriptively and instructs `--type blocks` explicitly; no code depends on the
   collapse, so a future backlogit change only requires a doc-note update.
 * **Rollback trigger**: any post-merge evidence that dark runs mis-sequence
-  shipments → `git revert` the staging commit. Rollback is coupled to a single
-  commit (all four tasks land in one shipment).
+  shipments → `git revert` the **downstream Ship implementation commit(s)** that
+  edit the templates, the installed Orchestrator mirror
+  (`.github/agents/_orchestrator.agent.md`), and the manifest checksum. Reverting
+  this staging commit would only remove plan/backlog metadata and would **not**
+  undo the behavior change. Ship should keep the implementation to a cohesive
+  commit set (all four tasks in one shipment) so the revert target is
+  well-defined.
 * **Owner / validation window**: Stage (author) → Ship (executes + validates at
   build/review) → operator confirms during the first multi-shipment dark run.
 
