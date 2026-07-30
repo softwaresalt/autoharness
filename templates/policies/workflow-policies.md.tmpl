@@ -453,7 +453,7 @@ Do not infer dark factory mode from vague autonomy language such as `run everyth
 **Activation contract**: On activation, Orchestrator MUST record `DARK_MODE_ACTIVE`
 and surface:
 
-1. the bounded scope (stash IDs, feature ID, shipment ID, or explicit backlog selection);
+1. the bounded scope (stash IDs, feature ID, shipment ID, or explicit backlog selection). For a **multi-shipment dark run**, record this scope as an **ordered shipment sequence** — the execution order resolved from `custom_fields.queue_position` and the `item_deps` blocks-chain — rather than an unordered set. This is the same `queue_position` + `item_deps` mechanism the Orchestrator shipment-selection rule (Step 2, "Route to Ship") consumes, so selection and recorded scope stay in agreement;
 2. whether PR merge approval is pre-authorized for that scope;
 3. whether admin fallback is pre-authorized for branch-protection review requirements;
 4. required stop conditions;
@@ -507,6 +507,21 @@ scope and risk without reading the full chat transcript. When intercom is
 unavailable, the same event evidence must be recorded in the session/PR summary.
 Approval-dependent destructive actions, admin fallback, scope expansion,
 secrets-risk work, and ambiguous branch-protection states must halt.
+
+**`DARK_MODE_SCOPE` resume/audit evidence**: For a multi-shipment dark run,
+`DARK_MODE_SCOPE` MUST carry restartable resume/audit evidence — the **ordered
+shipment list**, the **last completed shipment**, and the **next shipment to
+claim** — a deterministic cursor derived from `queue` + `item_deps`, with **no
+new scheduler and no sequence-manifest file**. Because `queue view` returns only
+the currently eligible head and hides blocked successors, the full ordered list
+cannot be read from it: deriving and recording the complete ordered scope and
+restart cursor requires listing shipments across **both `queued` and `blocked`
+statuses** (or an unfiltered shipment listing) plus `item_deps` blocks-chain
+traversal, since dependency-gated successors sit at `status: blocked` and a
+queued-only listing truncates the chain. `queue view` stays reserved for
+selecting the next *eligible* shipment (the Orchestrator selection rule in Step 2
+"Route to Ship"). See the backlogit **Shipment Sequencing Protocol** for the
+derivation recipe.
 
 Dark-mode closure summaries MUST list decisions, gates, reviewed HEADs,
 merge/fallback status, admin fallback result if any, closure status, and
