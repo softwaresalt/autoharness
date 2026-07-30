@@ -81,6 +81,8 @@ state, stop conditions, visibility mode, and excluded items. When
 `agent-intercom` is installed, broadcast these events with enough context for a
 remote operator to audit the run without reading the full chat transcript.
 
+For a **multi-shipment dark run**, `DARK_MODE_SCOPE` MUST record the **ordered shipment sequence** and its restart cursor — the ordered list, the last completed shipment (none at activation), and the next shipment to claim (the first in the order) — derived at activation per P-017 and the backlogit **Shipment Sequencing Protocol** (list across `queued` and blocked statuses, then dependency traversal). This cursor is what the Step 2 "Route to Ship" rule consumes; without it there is no next shipment ID for the first handoff.
+
 At completion or halt, emit `DARK_MODE_COMPLETE` or `DARK_MODE_HALTED` naming
 shipped/closed shipments, unfinished scoped items, decisions, gate outcomes,
 reviewed HEADs, compaction status (P-020), closure status, merge/fallback outcomes, admin-fallback result
@@ -211,6 +213,7 @@ After each Stage or Ship cycle, re-assess state (return to Step 0):
 * **Continue**: stash still has entries or queued shipments remain
 * **Pause**: operator review needed before next cycle
 * **Halt**: circuit breaker triggered
+* **Advance the multi-shipment cursor (dark run)**: after a Ship handoff completes and its shipment is merged and closed, update the `DARK_MODE_SCOPE` cursor — set the last completed shipment to the just-shipped ID and the next shipment to the following entry in the recorded order — and **re-emit `DARK_MODE_SCOPE`** before returning to Step 2. Un-gate the next successor (transition it `blocked → queued` per the backlogit **Shipment Sequencing Protocol**) so it re-enters the ready set. A never-advanced cursor would re-select the completed shipment or strand the gated successor.
 
 ### Step E1: Elective Agent Routing (operator-initiated)
 
