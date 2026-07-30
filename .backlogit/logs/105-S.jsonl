@@ -1,1 +1,2 @@
 {"timestamp":"2026-07-30T13:21:46.2952903-07:00","actor":"backlogit","item_id":"105-S","event_type":"shipment_created","delta":{"items":["101.001-T","101.002-T","101.003-T","101.004-T"],"title":"Multi-shipment dark-factory sequencing hardening"}}
+{"timestamp":"2026-07-30T15:17:34.9374191-07:00","actor":"backlogit","item_id":"105-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
