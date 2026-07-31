@@ -240,6 +240,26 @@ class ShipClaimIntegrityGuardTests(unittest.TestCase):
         self.assertIn("`{{STATUS_QUEUED}}` or `{{STATUS_BLOCKED}}`", content)
         self.assertIn("If the re-read status is `{{STATUS_BLOCKED}}`", content)
 
+    def test_mirror_guards_conditioned_on_shipment_exists(self) -> None:
+        """The dogfood mirror's generic Work Intake allows a no-shipment path,
+        so both new guards must be conditioned on shipment existence (skipped
+        when shipment_id is unset) to avoid dereferencing an unset shipment."""
+        content = _MIRROR.read_text(encoding="utf-8")
+        # Unit B early-warning is guarded before it dereferences the shipment.
+        self.assertIn("applies only when a shipment exists", content)
+        self.assertLess(
+            content.index("applies only when a shipment exists"),
+            content.index("SHIPMENT_STATE_INCONSISTENT"),
+            "shipment-exists guard must precede the Unit B scan/halt",
+        )
+        # Unit A post-claim verify is guarded to the claimed-shipment path.
+        self.assertIn("applies only when a shipment was claimed", content)
+        self.assertLess(
+            content.index("applies only when a shipment was claimed"),
+            content.index("CLAIM_VERIFY_FAILED"),
+            "claimed-shipment guard must precede the Unit A verify/halt",
+        )
+
     def test_mirror_has_no_template_placeholder_carryover(self) -> None:
         """The installed dogfood mirror must resolve all template placeholders.
 
