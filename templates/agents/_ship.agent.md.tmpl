@@ -187,6 +187,26 @@ build work begins:
     - Note: All git commands above are run as separate sequential steps, not chained.
 4. If the shipment is still in `{{STATUS_QUEUED}}` status, claim it using `{{OP_CLAIM_SHIPMENT_MCP}}` before
    build work begins. Broadcast `[SHIP] Shipment claimed: {shipment_id}`.
+4a. **Post-claim shipment-status verification (Unit A — P-005 fail-closed)**: Immediately after the claim and
+   **before** Step 2 moves any task to `{{STATUS_ACTIVE}}`, re-read the shipment record's own status and assert it
+   reached `{{STATUS_ACTIVE}}`. Prefer the CLI fallback (`backlogit shipment get {shipment_id}`) for this re-read —
+   MCP is the unreliable surface this guard exists to catch (the `Transport closed` drops observed live), so a
+   verify that trusts the same MCP path could be defeated by the very transient it is checking for.
+    - If the re-read status is `{{STATUS_ACTIVE}}`: log `CLAIM_VERIFY_OK: shipment {shipment_id} reached active`
+      and proceed.
+    - If the re-read status is `{{STATUS_QUEUED}}`: retry the claim exactly once (CLI fallback
+      `backlogit shipment claim {shipment_id}`) and re-read. If it still is not `{{STATUS_ACTIVE}}`, halt
+      fail-closed with `CLAIM_VERIFY_FAILED: shipment {shipment_id} did not reach active after claim` and record a
+      P-005 event. Retry-once applies **only** to a `{{STATUS_QUEUED}}` re-read.
+    - If the re-read status is `blocked`: halt **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} is
+      blocked` — **no retry, no claim**. `blocked` is the repository's claim-prevention state and must transition
+      `blocked → {{STATUS_QUEUED}}` (after its gate clears) before `{{STATUS_QUEUED}} → {{STATUS_ACTIVE}}`
+      (`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md:32-44`); re-issuing a claim on a
+      `blocked` record would bypass that documented gate. Remediation requires resolving the blocking gate and
+      transitioning `blocked → {{STATUS_QUEUED}}` before any claim — never a direct
+      re-claim-to-`{{STATUS_ACTIVE}}` on a blocked record.
+    Both halts fire **before** Step 2 moves any task to `{{STATUS_ACTIVE}}`. Broadcast the claim-verify result when
+    intercom is available.
 5. Record `shipment_id` as the session scope. All build execution and PR scope is bounded
    by this shipment.
 6. **Intake reconciliation check**: Invoke `shipment-reconcile` with `mode: pre` and

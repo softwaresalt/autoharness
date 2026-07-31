@@ -204,6 +204,23 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
    - If on any other non-shipment branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
    - Note: all git commands above are run as separate sequential steps, not chained.
 4. Claim the shipment via `backlogit_claim_shipment` (first mutation, only after branch gate passes).
+5. **Post-claim shipment-status verification (P-005 fail-closed)**: Immediately after the claim and **before**
+   Step 2 moves any task to `active`, re-read the shipment record's own status (prefer the CLI fallback
+   `backlogit shipment get {shipment_id}` — MCP is the unreliable surface this guard exists to catch, e.g. the
+   `Transport closed` drops observed live) and assert it reached `active`.
+   - If the re-read status is `active`: log `CLAIM_VERIFY_OK: shipment {shipment_id} reached active` and proceed.
+   - If the re-read status is `queued`: retry the claim exactly once (CLI fallback
+     `backlogit shipment claim {shipment_id}`) and re-read. If it still is not `active`, halt fail-closed with
+     `CLAIM_VERIFY_FAILED: shipment {shipment_id} did not reach active after claim` and record a P-005 event.
+     Retry-once applies **only** to a `queued` re-read.
+   - If the re-read status is `blocked`: halt **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} is
+     blocked` — **no retry, no claim**. `blocked` is the repository's claim-prevention state and must transition
+     `blocked → queued` (after its gate clears) before `queued → active`
+     (`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md:32-44`); re-issuing a claim on a
+     `blocked` record would bypass that documented gate. Remediation requires resolving the blocking gate and
+     transitioning `blocked → queued` before any claim — never a direct re-claim-to-`active` on a blocked record.
+   Both halts fire **before** Step 2 moves any task to `active`. Broadcast the claim-verify result when intercom
+   is available.
 
 ### Step 1: Pre-Flight Checks
 
