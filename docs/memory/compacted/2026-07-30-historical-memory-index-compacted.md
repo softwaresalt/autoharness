@@ -40,7 +40,7 @@ consolidates:
   - docs/archive/memory/2026-07-04-ship-064-s-dark-factory-policy-contract.md
   - docs/archive/memory/2026-07-12-close-053-model-tier-removal.md
   - docs/archive/memory/2026-07-12-ping-loop-removal-acp-consolidation.md
-  # Batch C — legacy undated (releases 1.4.x, early shipments 010-012, closures 034-098)
+  # Batch C — legacy undated (releases 1.4.x, early shipments 010-012, closures 034-088)
   - docs/archive/memory/034-S-session.md
   - docs/archive/memory/035-S-release-1.4.3.md
   - docs/archive/memory/036-S-pr89-followup-closure.md
@@ -50,7 +50,6 @@ consolidates:
   - docs/archive/memory/082-S-closure.md
   - docs/archive/memory/083-S-closure.md
   - docs/archive/memory/088-S-closure.md
-  - docs/archive/memory/098-S-closure.md
   - docs/archive/memory/release-1.4.4-closure.md
   - docs/archive/memory/release-1.4.5-closure.md
   - docs/archive/memory/ship-010-S.md
@@ -60,7 +59,7 @@ consolidates:
 
 # Compacted historical docs/memory index (pre-2026-07-16 completed units)
 
-Dense consolidation of 45 historical agent-session memory notes from completed
+Dense consolidation of 44 historical agent-session memory notes from completed
 release units (2026-04-26 through 2026-07-12). This is a **broad historical
 sweep** performed as a dedicated `compact-context` pass (target `docs/memory`),
 consuming deferred stash `5F14396E`. It is distinct from the per-release-unit
@@ -74,9 +73,11 @@ full verbose original lives at the archive path. To read the full note for any
 row, prepend `docs/archive/memory/` to the filename.
 
 **Preserved in place (not compacted):** `docs/memory/compacted/*` (this index +
-the two per-unit indexes), the `.gitkeep`, and all within-threshold recent notes
-under `docs/memory/2026-07-26/`, `docs/memory/2026-07-27/`, and
-`docs/memory/2026-07-28/` (all newer than the 14-day threshold).
+the two per-unit indexes), the `.gitkeep`, `docs/memory/098-S-closure.md` (closed
+2026-07-29 — within the 14-day threshold, so preserved despite its undated
+filename), and all within-threshold recent notes under `docs/memory/2026-07-26/`,
+`docs/memory/2026-07-27/`, and `docs/memory/2026-07-28/` (all newer than the
+14-day threshold).
 
 ## Batch A — early harness-surface + validator-framework era (2026-04 to 2026-05)
 
@@ -131,7 +132,6 @@ under `docs/memory/2026-07-26/`, `docs/memory/2026-07-27/`, and
 | `082-S-closure.md` | Shipped scripted install/deploy automation + consolidated installation guide. Conventions: compose is handoff-only, scaffolding is cwd-contained, config backup precedes overwrite, and never `backlogit shipment ship` when P-015 single-artifact closure would cascade. Recorded FU-1 (explicit `--packs` subset overridden by `--preset starter`; later fixed in 096). |
 | `083-S-closure.md` | Renamed the dogfood CI aggregation gate `build` -> `ci gate` preserving behavior (`always()`, `needs: [changes, test]`). Used local move/archive (not shipment ship); single-task parent feature treated as fully shipped. |
 | `088-S-closure.md` | Completed `graphtor-docs` full-preset parity. Pattern: versioned schemas must be deep-equal to the corresponding root-schema blocks; dogfood verification may be composition-only when the external tool degrades gracefully; commit backlog relocations on `main` when local-only closure would be reverted by a hard reset. |
-| `098-S-closure.md` | Hardened the compression-experiment decline detector against colon-anchored false positives. Rule: never broaden token detectors with optional separators like `:?\s*`; use a mandatory horizontal-only separator and ship negative controls whenever a detector is broadened. |
 | `release-1.4.4-closure.md` | v1.4.4 shipped + PyPI-confirmed. Lesson: GitHub classic protection can look permissive while a ruleset still blocks merge; check rulesets directly; admin bypass works when the owner is Admin and the ruleset allows pull-request bypass. |
 | `release-1.4.5-closure.md` | v1.4.5 released + PyPI-confirmed, but repo-tracked closure artifacts still needed a post-merge closure PR to land on `main`. Reminder: release closure is incomplete until backlog archive provenance is reconciled and the closure PR passes P-014 readiness + explicit operator approval. |
 | `ship-010-S.md` | Established session lifecycle gates + backlogit sync behavior for Stage/Ship templates. Enduring gate: non-negotiable merge confirmation via `git merge-base --is-ancestor`; backlog index sync moved into the operational flow; closure-sync-failure broadcast gated behind `agent-intercom`. |
@@ -165,7 +165,10 @@ the current harness contracts:
   COMMENTED-only Copilot reviews force §1.9 rechecks after fix commits. Historically,
   operator-approved `--admin` bypass was the accepted escape hatch for
   review-policy-only failures. (Current repo posture layers on **P-009 merge-commits-only**
-  and **P-014 explicit operator approval** per merge.)
+  and **P-014 explicit operator approval** per merge. Under **P-018**, `--admin` does
+  NOT bypass an engaged/incomplete current-HEAD Copilot review or unresolved
+  Copilot-authored threads — only an audited, operator-authorized
+  `autoharness gate copilot-review --force` may override that block.)
 - **Deterministic-gates framework.** Schema-driven, additive/optional config,
   fail-open-to-current defaults, atomic all-or-nothing enforcement, hermetic
   subprocess runner, operator-only `--force`, 3-failure block+requeue, local
@@ -190,12 +193,13 @@ the current harness contracts:
 - **Pass type:** broad historical sweep (`compact-context`, target `docs/memory`),
   distinct from the per-release-unit P-020 post-merge floor.
 - **Stash consumed:** `5F14396E` (Stage-triaged 2026-07-29, DEFERRED as operational
-  maintenance; disposition = archived after this compaction landed).
-- **Files consolidated:** 45 verbose memory notes -> `docs/archive/memory/` (via
+  maintenance; the compaction work it requested is done. Stash-entry archival is
+  handed to Stage per the P-010 role boundary — stash operations are Stage-owned).
+- **Files consolidated:** 44 verbose memory notes -> `docs/archive/memory/` (via
   `git mv`, git history preserved). This index is the dense, discoverable summary;
   the archive holds the full originals.
-- **`docs/memory/` file count:** 54 before -> 10 after (`.gitkeep`, three
-  `compacted/` indexes, and six within-threshold recent notes remain in place),
-  restoring the directory to well under the 40-file working threshold.
+- **`docs/memory/` file count:** 54 before -> 11 after (`.gitkeep`, three
+  `compacted/` indexes, `098-S-closure.md`, and six within-threshold recent notes
+  remain in place), restoring the directory to well under the 40-file working threshold.
 - **Nothing deleted.** Every consolidated note remains readable at its archive path;
   the `consolidates:` frontmatter list is the machine-readable forwarding map.
