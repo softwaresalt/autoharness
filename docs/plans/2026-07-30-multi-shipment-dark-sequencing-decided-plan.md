@@ -51,12 +51,15 @@ authoring playbook existed. Grounding decision (backlogit spike `001-SP`): reuse
    belt-and-suspenders guard. Both paths are documented so authors pick the right
    one (redundant-by-design, not duplication — P3-A).
 4. **`queue view` is a first-pass filter, not the eligibility authority and not a
-   sequence-reconstruction source.** It returns only the currently eligible head
-   (queue_position first, then priority) and withholds `status: blocked`
-   shipments. Reconstructing the full ordered sequence (for the P-017 scope +
-   restart cursor) requires listing across **both `queued` and `blocked`
-   statuses** (or an unfiltered listing) then traversing the `item_deps`
-   blocks-chain — a queued-only listing truncates the chain.
+   sequence-reconstruction source.** It returns a **queue-ordered paginated list**
+   of currently *eligible* (ready) shipments — queue_position first, then priority
+   — withholding those parked at `status: blocked`. Its limitation for
+   reconstruction is the **queued-status filter** (which omits dependency-gated
+   blocked successors), **not** that it returns a single item. Reconstructing the
+   full ordered sequence (for the P-017 scope + restart cursor) requires listing
+   across **both `queued` and `blocked` statuses** (or an unfiltered listing) then
+   traversing the `item_deps` blocks-chain — a queued-only listing truncates the
+   chain.
 5. **Four tasks, one per template + a terminal coherence sweep.** Each edit is a
    single file / single skill domain; cross-set coherence is validated only after
    all three edits exist, so U4 is a distinct terminal milestone.
@@ -107,9 +110,11 @@ terminal.
 - **Priority-only selection** — the original behavior; rejected because shipments
   rarely carry priority, making "highest-priority" effectively arbitrary and
   order-blind.
-- **`queue view` as the sequence-reconstruction source** — rejected; it hides
-  blocked successors and returns only the eligible head, so it truncates the
-  ordered chain.
+- **`queue view` as the sequence-reconstruction source** — rejected; its
+  queued-status filter hides dependency-gated blocked successors, so the
+  queue-ordered list truncates the ordered chain (blocked successors sit at
+  `status: blocked`). It is a paginated list, not a single-item read; the
+  truncation is a status-filter effect.
 - **U4 authoring "minor coherence touch-ups"** — rejected (P2-B); U4 is
   validation-only, non-trivial fixes route back to the owning unit to keep
   authorship in one place and prevent scope drift.

@@ -46,12 +46,12 @@ review/render, not by executing code.
 
 ## Copilot Review Rounds (P-018 engaged)
 
-| Round | HEAD | Issues | Resolution |
+| Round | Reviewed HEAD | Issues | Fix commit / resolution |
 | --- | --- | --- | --- |
-| 1 | `c794b02` | (A) tool-agnostic contract violation; (B) queue single-head mischaracterization; (C) missing `blocked→queued` un-gate | abstracted shared templates to `{{OP_…}}` ops, deferred concrete recipe to backlogit overlay, fixed wording, added un-gate step |
-| 2 | `5e18f24` | (D) `list_shipments` op does not guarantee `queue_position` order (backlog-md has no `get_queue`) | conditional composition — abstract requirement in shared template, concrete `queue view` selection in mirror; no new variable |
-| 3 | `e179cc4` | (E) rule consumed a `DARK_MODE_SCOPE` cursor never produced/advanced by the Orchestrator | activation produces cursor; Step 3 advances it, re-emits `DARK_MODE_SCOPE`, un-gates next successor |
-| 4 | `e179cc4` | none | clean; all 9 threads resolved; gate SATISFIED |
+| 1 | `55530f8` | (A) tool-agnostic contract violation; (B) queue single-head mischaracterization; (C) missing `blocked→queued` un-gate | `c794b02` — abstracted shared templates to `{{OP_…}}` ops, deferred concrete recipe to backlogit overlay, fixed wording, added un-gate step |
+| 2 | `c794b02` | (D) `list_shipments` op does not guarantee `queue_position` order (backlog-md has no `get_queue`) | `5e18f24` — conditional composition: abstract requirement in shared template, concrete `queue view` selection in mirror; no new variable |
+| 3 | `5e18f24` | (E) rule consumed a `DARK_MODE_SCOPE` cursor never produced/advanced by the Orchestrator | `e179cc4` — activation produces cursor; Step 3 advances it, re-emits `DARK_MODE_SCOPE`, un-gates next successor |
+| 4 | `e179cc4` | none | clean; all 9 threads resolved; gate SATISFIED (no fix needed) |
 
 ## Runtime Verification
 
