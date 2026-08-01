@@ -209,16 +209,28 @@ def record_epoch(
                 backlog_item_id=epoch.backlog_item_id,
             )
             summary.composition_diagnostics.extend(read_result.diagnostics)
-            composition = _compose_tool_events(
-                read_result.events,
-                epoch_id=epoch.epoch_id,
-                backlog_item_id=epoch.backlog_item_id,
-            )
-            summary.composed_selected_event_count = composition.selected_event_count
-            summary.composed_ignored_event_count = composition.ignored_event_count
-            summary.composition_diagnostics.extend(composition.diagnostics)
-            epoch = apply_composition_patch(epoch, composition)
-            summary.composition_applied = True
+            if read_result.status == "unavailable":
+                # A segment I/O failure: read_events already reports no
+                # events for this status (never a partial/undercounted
+                # subset). Skip composition entirely so the original
+                # close-supplied payload persists unmerged, matching the
+                # documented fail-open contract, rather than recording an
+                # undercounted roll-up as the immutable epoch.
+                summary.composition_diagnostics.append(
+                    "tool-event composition skipped: journal read unavailable "
+                    "(segment I/O failure)"
+                )
+            else:
+                composition = _compose_tool_events(
+                    read_result.events,
+                    epoch_id=epoch.epoch_id,
+                    backlog_item_id=epoch.backlog_item_id,
+                )
+                summary.composed_selected_event_count = composition.selected_event_count
+                summary.composed_ignored_event_count = composition.ignored_event_count
+                summary.composition_diagnostics.extend(composition.diagnostics)
+                epoch = apply_composition_patch(epoch, composition)
+                summary.composition_applied = True
         except ToolEventCompositionError:
             raise
         except Exception as exc:  # fail-open: composition I/O never blocks completion

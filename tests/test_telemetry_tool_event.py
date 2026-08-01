@@ -261,6 +261,127 @@ class ToolTelemetryEventTimestampTests(unittest.TestCase):
             ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "timestamp": "not-a-date"})
 
 
+class ToolTelemetryEventIdIngestionTests(unittest.TestCase):
+    """Review fix 1 (PR #273, PRRT_kwDORzpWpM6Vnq_G): the frozen schema permits
+    any non-empty, non-whitespace-only ``event_id`` (pattern '\\S'). A UUID must
+    only be generated when the field is omitted, never forced onto an
+    already-supplied schema-valid ID."""
+
+    def test_arbitrary_schema_valid_event_id_is_preserved(self) -> None:
+        event = ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "event_id": "tool-call-17"})
+        self.assertEqual(event.event_id, "tool-call-17")
+
+    def test_uuid_is_generated_only_when_event_id_omitted(self) -> None:
+        event = ToolTelemetryEvent.from_mapping(_minimal_kwargs())
+        self.assertEqual(len(event.event_id), 32)
+
+    def test_whitespace_only_event_id_is_rejected(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "event_id": "   "})
+
+    def test_empty_event_id_is_rejected(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "event_id": ""})
+
+    def test_non_string_event_id_is_rejected(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "event_id": 12345})
+
+
+class ToolTelemetryEventWorkSizingSnapshotIngestionTests(unittest.TestCase):
+    """Review fix 6 (PR #273, PRRT_kwDORzpWpM6Vnq_l): the frozen schema allows
+    only an object or null for ``work_sizing_snapshot``; a non-object value must
+    fail strict ingestion rather than silently coercing to None."""
+
+    def test_null_work_sizing_snapshot_is_accepted(self) -> None:
+        event = ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "work_sizing_snapshot": None})
+        self.assertIsNone(event.work_sizing_snapshot)
+
+    def test_object_work_sizing_snapshot_is_parsed(self) -> None:
+        event = ToolTelemetryEvent.from_mapping(
+            {**_minimal_kwargs(), "work_sizing_snapshot": {"task_size_label": "M"}}
+        )
+        self.assertEqual(event.work_sizing_snapshot.task_size_label, "M")
+
+    def test_string_work_sizing_snapshot_is_rejected(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "work_sizing_snapshot": "M"})
+
+    def test_list_work_sizing_snapshot_is_rejected(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "work_sizing_snapshot": ["M"]})
+
+    def test_numeric_work_sizing_snapshot_is_rejected(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "work_sizing_snapshot": 42})
+
+
+class ToolTelemetryEventWorkspaceReferenceValidationTests(unittest.TestCase):
+    """Review fix 2 (PR #273, PRRT_kwDORzpWpM6Vnq_M): ``evidence_path`` and
+    ``artifact_refs`` must be validated as repo-local, sanitized references
+    against the CLI workspace before journal append — rejecting absolute
+    paths, ``..`` traversal, and post-symlink-resolution escapes."""
+
+    def setUp(self) -> None:
+        import tempfile
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.workspace = Path(self._tmp.name)
+
+    def test_repo_local_evidence_path_is_accepted(self) -> None:
+        from autoharness.telemetry.tool_event import validate_event_workspace_references
+
+        event = ToolTelemetryEvent(**_minimal_kwargs(evidence_path="docs/evidence.md"))
+        validate_event_workspace_references(event, self.workspace)  # must not raise
+
+    def test_repo_local_artifact_ref_is_accepted(self) -> None:
+        from autoharness.telemetry.tool_event import validate_event_workspace_references
+
+        event = ToolTelemetryEvent(**_minimal_kwargs(artifact_refs=("docs/evidence.md",)))
+        validate_event_workspace_references(event, self.workspace)  # must not raise
+
+    def test_absolute_evidence_path_is_rejected(self) -> None:
+        from autoharness.telemetry.tool_event import validate_event_workspace_references
+
+        absolute = str((self.workspace / "secret.txt").resolve())
+        event = ToolTelemetryEvent(**_minimal_kwargs(evidence_path=absolute))
+        with self.assertRaises(ToolTelemetryEventError):
+            validate_event_workspace_references(event, self.workspace)
+
+    def test_traversal_evidence_path_is_rejected(self) -> None:
+        from autoharness.telemetry.tool_event import validate_event_workspace_references
+
+        event = ToolTelemetryEvent(**_minimal_kwargs(evidence_path="../../secret"))
+        with self.assertRaises(ToolTelemetryEventError):
+            validate_event_workspace_references(event, self.workspace)
+
+    def test_traversal_artifact_ref_is_rejected(self) -> None:
+        from autoharness.telemetry.tool_event import validate_event_workspace_references
+
+        event = ToolTelemetryEvent(**_minimal_kwargs(artifact_refs=("../outside.txt",)))
+        with self.assertRaises(ToolTelemetryEventError):
+            validate_event_workspace_references(event, self.workspace)
+
+    def test_symlink_escape_is_rejected(self) -> None:
+        import os
+
+        from autoharness.telemetry.tool_event import validate_event_workspace_references
+
+        outside_dir = Path(self._tmp.name).parent / f"outside-{os.getpid()}"
+        outside_dir.mkdir(exist_ok=True)
+        self.addCleanup(lambda: outside_dir.rmdir() if outside_dir.exists() else None)
+        link_path = self.workspace / "escape-link"
+        try:
+            link_path.symlink_to(outside_dir, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            raise unittest.SkipTest("symlink creation not permitted in this environment")
+        self.addCleanup(lambda: link_path.unlink() if link_path.exists() else None)
+        event = ToolTelemetryEvent(**_minimal_kwargs(evidence_path="escape-link/secret.txt"))
+        with self.assertRaises(ToolTelemetryEventError):
+            validate_event_workspace_references(event, self.workspace)
+
+
 class ToolTelemetryEventSchemaConformanceTests(unittest.TestCase):
     """Cross-check ``to_dict()`` output against the ratified JSON schema."""
 

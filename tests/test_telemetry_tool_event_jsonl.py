@@ -174,6 +174,45 @@ class BoundedRotationRetentionTests(ToolEventJsonlTestCase):
         self.assertLessEqual(len(sealed), 2)
 
 
+class SegmentIOFailureTests(ToolEventJsonlTestCase):
+    """Review fix 3 (PR #273, PRRT_kwDORzpWpM6Vnq_P): a segment I/O failure must
+    surface as an ``unavailable`` read status with no events returned, rather
+    than silently reducing to a diagnostic while a partial/undercounted event
+    set is still handed back to the caller (record.py's composition path)."""
+
+    def test_segment_io_failure_returns_unavailable_status_with_no_events(self) -> None:
+        good = _event(epoch_id="c" * 32)
+        tool_event_jsonl.append_event(good, self.jsonl_path)
+        with mock.patch("pathlib.Path.open", side_effect=OSError("permission denied")):
+            result = tool_event_jsonl.read_events(self.jsonl_path, epoch_id="c" * 32)
+        self.assertEqual(result.status, "unavailable")
+        self.assertEqual(result.events, ())
+        self.assertTrue(any("unavailable" in diag for diag in result.diagnostics))
+
+    def test_partial_segment_failure_still_reports_unavailable_not_partial_ok(self) -> None:
+        # One sealed segment is unreadable while another segment/the active
+        # segment is perfectly readable: the read must not silently return the
+        # readable subset as if it were the complete correlated set.
+        with mock.patch.object(tool_event_jsonl, "_MAX_SEGMENT_BYTES", 50):
+            for index in range(6):
+                tool_event_jsonl.append_event(_event(epoch_id=f"{index:032d}"), self.jsonl_path)
+        sealed = [path for _generation, path in tool_event_jsonl.sealed_segments(self.jsonl_path)]
+        self.assertGreater(len(sealed), 0)
+        broken_segment = sealed[0]
+
+        real_open = Path.open
+
+        def _flaky_open(self, *args, **kwargs):
+            if self == broken_segment:
+                raise OSError("simulated unreadable segment")
+            return real_open(self, *args, **kwargs)
+
+        with mock.patch("pathlib.Path.open", new=_flaky_open):
+            result = tool_event_jsonl.read_events(self.jsonl_path, epoch_id="000000000000000000000000000005")
+        self.assertEqual(result.status, "unavailable")
+        self.assertEqual(result.events, ())
+
+
 class ExactCorrelationSelectionTests(ToolEventJsonlTestCase):
     def test_epoch_id_event_never_matches_via_backlog_item_id(self) -> None:
         event = _event(epoch_id="b" * 32, backlog_item_id="084.003-T")

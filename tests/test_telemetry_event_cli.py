@@ -164,6 +164,56 @@ class TelemetryEventCliTests(unittest.TestCase):
             self._run_event("--context-ref", str(begin.context_ref))
         self.assertEqual(ctx.exception.code, 2)
 
+    def test_absolute_evidence_path_is_rejected_before_journal_append(self) -> None:
+        # Review fix 2 (PR #273, PRRT_kwDORzpWpM6Vnq_M): the CLI must validate
+        # evidence_path/artifact_refs against the workspace before any journal
+        # append, rejecting absolute paths and traversal.
+        self._write_config(_ENABLED_CONFIG)
+        begin = self._begin(task_id="084.006-T", epoch_id="d" * 32)
+        payload = dict(_EVENT_PAYLOAD)
+        payload["evidence_path"] = str((self.workspace / "secret.txt").resolve())
+        self.event_payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaises(SystemExit) as ctx:
+            self._run_event("--context-ref", str(begin.context_ref))
+        self.assertEqual(ctx.exception.code, 2)
+
+        config = load_workspace_telemetry_config(self.workspace)
+        journal_path = journal_path_for_config(config)
+        result = read_events(journal_path, epoch_id="d" * 32)
+        self.assertEqual(result.events, ())
+
+    def test_traversal_artifact_ref_is_rejected_before_journal_append(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        begin = self._begin(task_id="084.006-T", epoch_id="e" * 32)
+        payload = dict(_EVENT_PAYLOAD)
+        payload["artifact_refs"] = ["../../secret"]
+        self.event_payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaises(SystemExit) as ctx:
+            self._run_event("--context-ref", str(begin.context_ref))
+        self.assertEqual(ctx.exception.code, 2)
+
+        config = load_workspace_telemetry_config(self.workspace)
+        journal_path = journal_path_for_config(config)
+        result = read_events(journal_path, epoch_id="e" * 32)
+        self.assertEqual(result.events, ())
+
+    def test_repo_local_evidence_path_and_artifact_refs_are_recorded(self) -> None:
+        self._write_config(_ENABLED_CONFIG)
+        begin = self._begin(task_id="084.006-T", epoch_id="f" * 32)
+        payload = dict(_EVENT_PAYLOAD)
+        payload["evidence_path"] = "docs/telemetry-reference.md"
+        payload["artifact_refs"] = ["docs/telemetry-reference.md"]
+        self.event_payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        self._run_event("--context-ref", str(begin.context_ref))
+
+        config = load_workspace_telemetry_config(self.workspace)
+        journal_path = journal_path_for_config(config)
+        result = read_events(journal_path, epoch_id="f" * 32)
+        self.assertEqual(len(result.events), 1)
+
     def test_sink_failure_is_a_warning_not_a_crash(self) -> None:
         self._write_config(_ENABLED_CONFIG)
         begin = self._begin(task_id="084.006-T", epoch_id="8" * 32)

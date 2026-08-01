@@ -18,6 +18,7 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 from autoharness.telemetry.epoch import WorkSizingSnapshot
@@ -61,6 +62,10 @@ _WELL_KNOWN_ROUTE_KINDS = frozenset(
 _WELL_KNOWN_FRESHNESS_STATES = frozenset({"fresh", "stale", "unavailable", "unknown"})
 _X_EXTENSION_PATTERN = re.compile(r"^x-[a-z0-9-]+$")
 _EPOCH_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+# Schema contract for event_id: "type": "string", "minLength": 1, "pattern": "\\S"
+# — any non-empty, non-whitespace-only string, NOT a UUID requirement. A UUID
+# is only ever a convenience default when the field is omitted.
+_EVENT_ID_NONWHITESPACE_PATTERN = re.compile(r"\S")
 
 # Names of every nullable non-negative quantity that requires same-named
 # metric_sources/metric_quality provenance once it is "populated" (a value
@@ -194,6 +199,24 @@ def _normalize_uuid_hex(value: Any, field_name: str) -> str | None:
         raise ToolTelemetryEventError(
             f"'{field_name}' must be parseable by uuid.UUID(); got {raw!r}."
         ) from exc
+
+
+def _normalize_event_id(value: Any, field_name: str = "event_id") -> str:
+    """Validate a caller-supplied ``event_id`` against the frozen schema
+    contract: any non-empty, non-whitespace-only string (pattern '\\S'). This
+    is deliberately NOT a UUID requirement -- ``parent_event_id`` already
+    accepts arbitrary schema-valid IDs (e.g. ``"tool-call-17"``), and
+    ``event_id`` must accept the same values. A UUID is only ever generated as
+    a convenience default when the field is omitted entirely."""
+    if (
+        not isinstance(value, str)
+        or len(value) < 1
+        or not _EVENT_ID_NONWHITESPACE_PATTERN.search(value)
+    ):
+        raise ToolTelemetryEventError(
+            f"'{field_name}' must be a non-empty, non-whitespace-only string; got {value!r}."
+        )
+    return value
 
 
 def _normalize_nonempty_str(value: Any, field_name: str) -> str:
@@ -634,14 +657,20 @@ class ToolTelemetryEvent:
             )
 
         event_id = data.get("event_id")
-        event_id = uuid.uuid4().hex if event_id is None else _normalize_uuid_hex(event_id, "event_id")
+        event_id = uuid.uuid4().hex if event_id is None else _normalize_event_id(event_id, "event_id")
         epoch_id = _normalize_uuid_hex(data.get("epoch_id"), "epoch_id")
         timestamp = _normalize_timestamp(data.get("timestamp"))
 
         raw_sizing = data.get("work_sizing_snapshot")
-        work_sizing_snapshot = (
-            WorkSizingSnapshot.from_mapping(raw_sizing) if isinstance(raw_sizing, Mapping) else None
-        )
+        if raw_sizing is None:
+            work_sizing_snapshot = None
+        elif isinstance(raw_sizing, Mapping):
+            work_sizing_snapshot = WorkSizingSnapshot.from_mapping(raw_sizing)
+        else:
+            raise ToolTelemetryEventError(
+                "'work_sizing_snapshot' must be an object or null (frozen schema contract); "
+                f"got {type(raw_sizing).__name__}."
+            )
 
         metric_sources = _normalize_metric_map(
             data.get("metric_sources"), "metric_sources", METRIC_SOURCE_VALUES
@@ -739,3 +768,49 @@ class ToolTelemetryEvent:
             redaction_applied=_normalize_bool(data.get("redaction_applied"), "redaction_applied", False),
             secret_scan_status=data.get("secret_scan_status"),
         )
+
+
+def _reject_if_escapes_workspace(root: Path, value: str, field_name: str) -> None:
+    """Reject a repo-local reference that is absolute, traverses outside
+    ``root``, or resolves outside ``root`` after following symlinks.
+
+    Mirrors the ``_is_within``/``resolve()`` containment convention already
+    used by :mod:`autoharness.telemetry.context` (``resolve_context_ref``):
+    ``Path.resolve()`` follows symlinks, so a symlink planted inside the
+    workspace that points outside it is caught the same way plain ``..``
+    traversal is.
+    """
+    raw = Path(value)
+    if raw.is_absolute():
+        raise ToolTelemetryEventError(
+            f"'{field_name}' must be a repo-local path, not absolute; got {value!r}."
+        )
+    candidate = (root / raw).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        raise ToolTelemetryEventError(
+            f"'{field_name}' escapes the workspace root (traversal or symlink escape): {value!r}."
+        ) from None
+
+
+def validate_event_workspace_references(
+    event: "ToolTelemetryEvent", workspace_root: Path | str
+) -> None:
+    """Validate ``evidence_path``/``artifact_refs`` against the CLI workspace
+    before journal append (R4 safety invariant: "workspace-contained, bounded,
+    sanitized"; schema descriptions: "Repo-local path to sanitized retained
+    evidence" / "Safe paths/IDs involved, not raw content").
+
+    Rejects absolute paths, ``..`` traversal, and post-symlink-resolution
+    escapes for both ``evidence_path`` and every ``artifact_refs`` entry.
+    Raises :class:`ToolTelemetryEventError` — the same fail-closed error class
+    used for every other malformed-input rejection in this module — so callers
+    (the CLI) treat an unsafe reference exactly like any other invalid
+    payload, never silently persisting it.
+    """
+    root = Path(workspace_root).resolve()
+    if event.evidence_path is not None:
+        _reject_if_escapes_workspace(root, event.evidence_path, "evidence_path")
+    for index, ref in enumerate(event.artifact_refs):
+        _reject_if_escapes_workspace(root, ref, f"artifact_refs[{index}]")

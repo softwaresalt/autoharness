@@ -50,6 +50,7 @@ Composition rules (docs/plans/2026-07-31-token-efficiency-telemetry-emission-pla
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from datetime import datetime
 from typing import Any, Mapping, Sequence
 
 from autoharness.telemetry.epoch import (
@@ -209,9 +210,49 @@ def _max_metric(events: Sequence[ToolTelemetryEvent], name: str) -> int:
     return max(values) if values else 0
 
 
+def _metric_contributes(value: Any) -> bool:
+    """A metric only contributes to aggregated provenance quality when it is
+    strictly positive (schema ``exclusiveMinimum: 0`` semantics, mirroring
+    :func:`autoharness.telemetry.tool_event._metric_populated`): a ``None`` or
+    observed-zero value is "not observed" and must never downgrade a positive
+    aggregate contributed by other events (Review fix 5, PR #273,
+    PRRT_kwDORzpWpM6Vnq_h)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
 def _metric_quality_for(events: Sequence[ToolTelemetryEvent], name: str) -> str:
-    contributing = [event for event in events if getattr(event, name) is not None]
+    contributing = [event for event in events if _metric_contributes(getattr(event, name))]
     return _worst_quality([event.metric_quality.get(name) for event in contributing])
+
+
+def _parse_event_timestamp(event: ToolTelemetryEvent) -> datetime:
+    return datetime.fromisoformat(event.timestamp.replace("Z", "+00:00"))
+
+
+def _non_monotonic_diagnostics(events: Sequence[ToolTelemetryEvent], name: str) -> list[str]:
+    """Ratified plan Review Fix #4: cumulative token totals use the maximum
+    populated value per correlated stream (order-independent), but timestamp
+    order is used to diagnose a later lower value as a non-monotonic emitter
+    warning. Cumulative values are never summed and the max aggregation is
+    unaffected — this only adds visibility."""
+    ordered = sorted(
+        (event for event in events if getattr(event, name) is not None),
+        key=_parse_event_timestamp,
+    )
+    diagnostics: list[str] = []
+    previous_value: int | None = None
+    previous_event_id: str | None = None
+    for event in ordered:
+        value = getattr(event, name)
+        if previous_value is not None and value < previous_value:
+            diagnostics.append(
+                f"non-monotonic emitter detected for '{name}': value decreased from "
+                f"{previous_value} (event {previous_event_id}) to {value} (event "
+                f"{event.event_id}) in timestamp order; max aggregation retained."
+            )
+        previous_value = value
+        previous_event_id = event.event_id
+    return diagnostics
 
 
 def _compose_route(events: Sequence[ToolTelemetryEvent]) -> RouteConfiguration:
@@ -219,7 +260,9 @@ def _compose_route(events: Sequence[ToolTelemetryEvent]) -> RouteConfiguration:
     return RouteConfiguration(models=(), route_kinds=route_kinds)
 
 
-def _compose_economics(events: Sequence[ToolTelemetryEvent]) -> EconomicPayload:
+def _compose_economics(
+    events: Sequence[ToolTelemetryEvent],
+) -> tuple[EconomicPayload, list[str]]:
     values: dict[str, int] = {
         name: _sum_metric(events, name)
         for name in (
@@ -243,7 +286,11 @@ def _compose_economics(events: Sequence[ToolTelemetryEvent]) -> EconomicPayload:
             sources[name] = "derived"
             quality[name] = _metric_quality_for(events, name)
 
-    return EconomicPayload(
+    diagnostics: list[str] = []
+    diagnostics.extend(_non_monotonic_diagnostics(events, "cumulative_input_tokens"))
+    diagnostics.extend(_non_monotonic_diagnostics(events, "cumulative_output_tokens"))
+
+    economics = EconomicPayload(
         input_tokens=values["input_tokens"],
         output_tokens=values["output_tokens"],
         cached_input_tokens=values["cached_input_tokens"],
@@ -257,6 +304,7 @@ def _compose_economics(events: Sequence[ToolTelemetryEvent]) -> EconomicPayload:
         metric_sources=sources,
         metric_quality=quality,
     )
+    return economics, diagnostics
 
 
 def _expected_observed_tool_counts(
@@ -425,7 +473,8 @@ def compose_tool_events(
         )
 
     route = _compose_route(selected)
-    economics = _compose_economics(selected)
+    economics, economics_diagnostics = _compose_economics(selected)
+    diagnostics.extend(economics_diagnostics)
     operations, outcome = _compose_operations_and_outcome(selected)
 
     return ToolEventComposition(

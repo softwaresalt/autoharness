@@ -266,6 +266,7 @@ def read_events(
 
     diagnostics: list[str] = []
     by_id: dict[str, tuple[ToolTelemetryEvent, str]] = {}
+    segment_io_failure = False
     for segment in segment_paths:
         try:
             with segment.open("r", encoding="utf-8") as handle:
@@ -292,6 +293,15 @@ def read_events(
                         )
         except OSError as exc:
             diagnostics.append(f"tool event journal unavailable: {exc}")
+            segment_io_failure = True
+
+    if segment_io_failure:
+        # A segment I/O failure means the scanned event set is incomplete —
+        # never hand back a partial/undercounted subset as if it were the
+        # full correlated set (the composer would then persist an
+        # undercounted roll-up as an immutable epoch). Report unavailable
+        # with no events so the record path skips composition for this read.
+        return ToolEventReadResult(status="unavailable", events=(), diagnostics=tuple(diagnostics))
 
     selected = [
         event

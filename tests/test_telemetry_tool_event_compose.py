@@ -71,6 +71,61 @@ class CumulativeNotSummedTests(unittest.TestCase):
         self.assertEqual(result.economics.cumulative_input_tokens, 250)
         self.assertEqual(result.economics.cumulative_output_tokens, 90)
 
+    def test_non_monotonic_cumulative_decrease_emits_diagnostic_but_keeps_max(self) -> None:
+        # Ratified plan Review Fix #4: a timestamp-ordered decrease in either
+        # cumulative token stream must be surfaced as a diagnostic while the
+        # composed value still uses the maximum (never summed, never dropped).
+        events = [
+            _event(
+                timestamp="2026-07-31T00:00:00+00:00",
+                cumulative_input_tokens=100,
+                cumulative_output_tokens=40,
+            ),
+            _event(
+                timestamp="2026-07-31T00:00:01+00:00",
+                cumulative_input_tokens=250,
+                cumulative_output_tokens=90,
+            ),
+            _event(
+                timestamp="2026-07-31T00:00:02+00:00",
+                cumulative_input_tokens=180,
+                cumulative_output_tokens=60,
+            ),
+        ]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertEqual(result.economics.cumulative_input_tokens, 250)
+        self.assertEqual(result.economics.cumulative_output_tokens, 90)
+        self.assertTrue(
+            any(
+                "cumulative_input_tokens" in diag and "non-monotonic" in diag
+                for diag in result.diagnostics
+            ),
+            result.diagnostics,
+        )
+        self.assertTrue(
+            any(
+                "cumulative_output_tokens" in diag and "non-monotonic" in diag
+                for diag in result.diagnostics
+            ),
+            result.diagnostics,
+        )
+
+    def test_monotonic_cumulative_stream_emits_no_diagnostic(self) -> None:
+        events = [
+            _event(
+                timestamp="2026-07-31T00:00:00+00:00",
+                cumulative_input_tokens=100,
+                cumulative_output_tokens=40,
+            ),
+            _event(
+                timestamp="2026-07-31T00:00:01+00:00",
+                cumulative_input_tokens=250,
+                cumulative_output_tokens=90,
+            ),
+        ]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertFalse(any("non-monotonic" in diag for diag in result.diagnostics))
+
     def test_context_tokens_before_uses_min_and_after_uses_max(self) -> None:
         events = [
             _event(context_tokens_before=1000, context_tokens_after=1200),
@@ -115,6 +170,27 @@ class ProvenanceCorrectnessTests(unittest.TestCase):
         self.assertEqual(tool_event_compose._normalize_quality(None), "observed")
         self.assertEqual(tool_event_compose._worst_quality(["observed", "estimated"]), "estimated")
         self.assertEqual(tool_event_compose._worst_quality([]), "observed")
+
+    def test_zero_valued_metric_does_not_downgrade_provenance_quality(self) -> None:
+        # Review fix 5 (PR #273, PRRT_kwDORzpWpM6Vnq_h): a zero-valued metric is
+        # "not observed" (schema exclusiveMinimum: 0 semantics) and must never
+        # contribute to aggregated provenance quality, even when it carries an
+        # "unavailable" quality label. Only strictly-positive contributors count.
+        events = [
+            _event(
+                input_tokens=10,
+                metric_sources={"input_tokens": "host_reported"},
+                metric_quality={"input_tokens": "observed"},
+            ),
+            _event(
+                input_tokens=0,
+                metric_sources={"input_tokens": "unavailable"},
+                metric_quality={"input_tokens": "unavailable"},
+            ),
+        ]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertEqual(result.economics.input_tokens, 10)
+        self.assertEqual(result.economics.metric_quality["input_tokens"], "observed")
 
 
 class ExplicitExpectationSemanticsTests(unittest.TestCase):

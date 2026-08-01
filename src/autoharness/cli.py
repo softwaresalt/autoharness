@@ -1048,7 +1048,11 @@ def _telemetry_event_command(rest: list[str]) -> None:
 
     from autoharness.telemetry.context import TelemetryContextError, load_context_ref
     from autoharness.telemetry.record import load_workspace_telemetry_config
-    from autoharness.telemetry.tool_event import ToolTelemetryEvent, ToolTelemetryEventError
+    from autoharness.telemetry.tool_event import (
+        ToolTelemetryEvent,
+        ToolTelemetryEventError,
+        validate_event_workspace_references,
+    )
     from autoharness.telemetry.tool_event_jsonl import ToolEventRecordSummary, record_tool_event
 
     # Load telemetry config FIRST — fail-open, never raises.
@@ -1089,6 +1093,11 @@ def _telemetry_event_command(rest: list[str]) -> None:
         context_payload = load_context_ref(config, parsed["workspace"], parsed["context_ref"])
         payload = _merge_telemetry_context_into_event_payload(payload, context_payload)
         event = ToolTelemetryEvent.from_mapping(payload)
+        # Validate evidence_path/artifact_refs are repo-local, sanitized
+        # references against the CLI workspace BEFORE any journal append
+        # (R4 safety invariant) — an unsafe reference is rejected exactly
+        # like any other malformed payload, never silently persisted.
+        validate_event_workspace_references(event, parsed["workspace"])
     except TelemetryContextError as exc:
         print(f"Invalid telemetry context: {exc}", file=sys.stderr)
         sys.exit(2)
