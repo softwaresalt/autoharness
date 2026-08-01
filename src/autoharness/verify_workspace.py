@@ -709,6 +709,16 @@ FOUNDATION_ASSERTIONS = [
             "reviewed HEAD SHA",
         ],
     },
+    {
+        "key": "orchestrator_invocation_routing_directive",
+        "path": ".github/agents/_orchestrator.agent.md",
+        "must_contain": [
+            "P-013.5",
+            "config.model_routing.stage",
+            "config.model_routing.ship",
+            "ROUTING_DEGRADED",
+        ],
+    },
 ]
 
 DARK_FACTORY_ASSERTIONS = [
@@ -2314,6 +2324,128 @@ def _add_frontmatter_tier_check(
     }
 
 
+def _add_frontmatter_model_routing_check(
+    report: dict[str, Any],
+    key: str,
+    file_path: Path,
+) -> None:
+    """P-013.5: validate that an installed agent's frontmatter declares a
+    non-empty, fully-resolved model_family and model_provider. Gated on
+    file_path.exists() by the caller (mirrors the *_workspace_identity
+    pattern) so workspaces/fixtures that omit one of the three pipeline
+    agent files never register a false failure for this check."""
+    content = file_path.read_text(encoding="utf-8")
+    if not content.startswith("---"):
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "errors": ["no YAML frontmatter (file does not begin with ---)"],
+        }
+        return
+
+    end_marker = content.find("\n---", 3)
+    if end_marker == -1:
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "errors": ["unclosed YAML frontmatter (no closing ---)"],
+        }
+        return
+
+    frontmatter_text = content[3:end_marker].strip()
+    try:
+        frontmatter = yaml.safe_load(frontmatter_text) or {}
+    except yaml.YAMLError as exc:
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "errors": [f"invalid YAML frontmatter: {exc}"],
+        }
+        return
+
+    errors: list[str] = []
+    for field in ("model_family", "model_provider"):
+        value = frontmatter.get(field)
+        if value is None or (isinstance(value, str) and value.strip() == ""):
+            errors.append(f"missing or empty field: {field}")
+        elif isinstance(value, str) and "{{" in value and "}}" in value:
+            errors.append(f"unresolved placeholder in {field}: {value!r}")
+
+    report["targeted_checks"][key] = {
+        "path": str(file_path),
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
+def _resolve_role_route_field(
+    route: dict[str, Any], tier_fallback: Any, field: str
+) -> Any:
+    """Resolve a single role-route field (model_family/model_provider/
+    reasoning_effort) with per-field fallback to the tier route. A tier route
+    may be a legacy plain model-identifier string (treated as `model` and
+    `model_family`) or an object with model/model_family/model_provider/
+    reasoning_effort."""
+    value = route.get(field) if isinstance(route, dict) else None
+    if isinstance(value, str) and value.strip():
+        return value
+
+    if isinstance(tier_fallback, str) and tier_fallback.strip():
+        tier_dict: dict[str, Any] = {"model": tier_fallback, "model_family": tier_fallback}
+    elif isinstance(tier_fallback, dict):
+        tier_dict = tier_fallback
+    else:
+        tier_dict = {}
+
+    fallback_value = tier_dict.get(field)
+    if field == "model_family" and not (isinstance(fallback_value, str) and fallback_value.strip()):
+        # Legacy tier objects/strings may only declare `model`; treat it as
+        # the model_family fallback when model_family itself is unset.
+        fallback_value = tier_dict.get("model")
+    return fallback_value
+
+
+# Role -> fallback tier mapping for P-013.5 role-route resolution. Stage is a
+# frontier-tier role (falls back to tier3); Ship is a standard-tier role
+# (falls back to tier2). This mirrors the dogfood config.yaml assignment and
+# preserves P-013's existing tier taxonomy for workspaces that never declare
+# an explicit stage/ship route.
+ROLE_ROUTE_TIER_FALLBACK = {
+    "stage": "tier3",
+    "ship": "tier2",
+}
+
+
+def _add_role_route_resolution_check(
+    report: dict[str, Any],
+    key: str,
+    config: dict[str, Any],
+) -> None:
+    """P-013.5: verify that the stage and ship role routes each resolve to a
+    non-empty model_family, either from an explicit model_routing.stage /
+    model_routing.ship route or via per-field fallback to model_routing.tier3
+    / model_routing.tier2 respectively. Fails closed: an unresolvable role
+    route is a verification failure, not a silent pass."""
+    model_routing = config.get("model_routing") or {}
+    errors: list[str] = []
+    for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
+        route = model_routing.get(role) or {}
+        if not isinstance(route, dict):
+            route = {}
+        tier_fallback = model_routing.get(fallback_tier_key)
+        resolved_family = _resolve_role_route_field(route, tier_fallback, "model_family")
+        if not (isinstance(resolved_family, str) and resolved_family.strip()):
+            errors.append(
+                f"{role} role route does not resolve: no model_family from "
+                f"model_routing.{role} or fallback model_routing.{fallback_tier_key}"
+            )
+
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
 def _add_text_check(
     report: dict[str, Any],
     key: str,
@@ -3448,6 +3580,26 @@ def verify_workspace(
         "orchestrator_tier_fields",
         workspace_path / ".github/agents/_orchestrator.agent.md",
     )
+
+    # P-013.5: model routing frontmatter fields (104.007-T). Gated on
+    # file_path.exists() per agent (unlike orchestrator_tier_fields, which is
+    # unconditional) so workspaces/fixtures lacking one or more of the three
+    # pipeline agent files never register a false failure for this check.
+    for agent_file, check_key in [
+        (".github/agents/_orchestrator.agent.md", "orchestrator_model_routing_fields"),
+        (".github/agents/_stage.agent.md", "stage_model_routing_fields"),
+        (".github/agents/_ship.agent.md", "ship_model_routing_fields"),
+    ]:
+        agent_path = workspace_path / agent_file
+        if agent_path.exists():
+            _add_frontmatter_model_routing_check(report, check_key, agent_path)
+
+    # P-013.5: role-route resolution (104.008-T). Only evaluated when the
+    # workspace declares a model_routing block at all -- a workspace with no
+    # model_routing configuration is out of scope for this check (it has not
+    # opted into role-based routing) and must not register a false failure.
+    if isinstance(config, dict) and isinstance(config.get("model_routing"), dict):
+        _add_role_route_resolution_check(report, "role_route_resolution", config)
 
     project_name = variables.get("PROJECT_NAME", workspace_path.name)
     project_name_pattern = re.compile(
