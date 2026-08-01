@@ -25,19 +25,20 @@ Composition rules (docs/plans/2026-07-31-token-efficiency-telemetry-emission-pla
   ``context_tokens_after`` uses the maximum (the latest) (decision 2, §R2).
 * Route kinds and tool/tool-surface/retrieval-pack sets are aggregated as sorted
   unique values, which is inherently independent of event arrival order.
-* An event's ``expected_tool`` records one explicit expected opportunity. It is
-  observed only by a correlated invocation event (an event that is not
-  :attr:`ToolTelemetryEvent.is_expectation_only`) reporting the same
-  ``tool_name`` within the same correlated event set (decision 7). The
-  persisted epoch schema tracks expected/observed/missing tool counts as flat
-  per-tool maps with no per-operation dimension, so "the same logical
-  operation" is satisfied by the epoch-level correlation already applied before
-  composition (an expectation and its satisfying invocation both belong to the
-  same correlated epoch/backlog-item event set); matching is then by tool name,
-  mirroring :func:`autoharness.telemetry.gaps.summarize_tool_gaps`. Missing
-  counts are clamped at zero and never go negative. Failed and degraded
-  invocations are counted separately from "missing" — a failed or degraded
-  invocation of an expected tool still satisfies the expectation.
+* An event's ``expected_tool`` records one explicit expected opportunity
+  (decision 7). Satisfaction uses explicit event links (``## Review Fixes``
+  item 2, a ratified P1 fix): a direct invocation event whose own
+  ``expected_tool`` equals its own ``tool_name`` counts one expected and one
+  observed opportunity in the same event. A separate, standalone expectation
+  event is identified by its ``event_id``; a later invocation or retry
+  satisfies it only when that invocation's ``parent_event_id`` equals the
+  expectation event's ``event_id`` and its ``tool_name`` equals the
+  expectation's ``expected_tool``. Multiple retries under one expectation count
+  one expected opportunity and at most one observed opportunity — unlinked
+  events never satisfy an expectation. Missing counts are clamped at zero and
+  never go negative. Failed and degraded invocations are counted separately
+  from "missing" — a failed or degraded invocation of an expected tool still
+  satisfies the expectation.
 * Populated (nonzero) composer-derived economics metrics carry
   ``metric_sources``/``metric_quality`` entries; the source is always
   ``"derived"`` (the epoch-level value is an aggregate over per-tool events, not
@@ -261,26 +262,78 @@ def _compose_economics(events: Sequence[ToolTelemetryEvent]) -> EconomicPayload:
 def _expected_observed_tool_counts(
     events: Sequence[ToolTelemetryEvent],
 ) -> tuple[dict[str, int], dict[str, int]]:
-    """Flat per-tool expected/observed counts within the correlated event set.
+    """Per-tool expected/observed counts using explicit ``parent_event_id`` linkage.
 
-    The persisted epoch schema (``OperationalReality.expected_tool_counts`` /
-    ``observed_tool_counts``) is keyed only by tool name — it has no per-operation
-    dimension. "The same logical operation" (decision 7) is therefore satisfied
-    by the epoch-level correlation already applied by the caller (an expectation
-    and its satisfying invocation must both belong to the same correlated
-    epoch/backlog-item event set); within that set, matching is by tool name,
-    mirroring :func:`autoharness.telemetry.gaps.summarize_tool_gaps`, which then
-    further restricts ``observed_tool_counts`` to tools with a positive
-    expectation so unexpected tool usage never inflates expected-tool
-    accounting.
+    Ratified accounting (plan ``## Review Fixes`` item 2 — a P1 fix that gated
+    the plan's PASS verdict; a flat, unlinked tool-name match was explicitly
+    rejected):
+
+    * A direct invocation event (not :attr:`ToolTelemetryEvent.is_expectation_only`)
+      whose own ``expected_tool`` equals its own ``tool_name`` counts one
+      expected AND one observed opportunity for that tool, in the same event.
+    * A standalone expectation-only event (``operation == "expect"``,
+      ``status == "skipped"``) with ``expected_tool`` set counts one expected
+      opportunity. It is satisfied — at most one observed opportunity — only by
+      a later invocation event whose ``parent_event_id`` equals that
+      expectation event's ``event_id`` and whose ``tool_name`` equals the
+      expectation's ``expected_tool``. Multiple retries linked to the same
+      expectation event (same ``parent_event_id``) count one expected
+      opportunity and at most one observed opportunity — never per-retry.
+    * Unlinked events — an invocation with no ``parent_event_id``, or a
+      ``parent_event_id`` that does not resolve to an expectation-only event in
+      this correlated set — never satisfy an expectation. They may still
+      contribute to ``expected_tool_counts`` if they independently declare an
+      unrelated ``expected_tool``, but never inflate ``observed_tool_counts``
+      for an expectation they are not linked to.
     """
     expected_tool_counts: dict[str, int] = {}
     observed_tool_counts: dict[str, int] = {}
+
+    expectations_by_id: dict[str, ToolTelemetryEvent] = {
+        event.event_id: event
+        for event in events
+        if event.is_expectation_only and event.expected_tool is not None
+    }
+    satisfied_expectation_ids: set[str] = set()
+
     for event in events:
-        if event.expected_tool is not None:
-            expected_tool_counts[event.expected_tool] = expected_tool_counts.get(event.expected_tool, 0) + 1
-        if not event.is_expectation_only:
+        if event.is_expectation_only:
+            if event.expected_tool is not None:
+                expected_tool_counts[event.expected_tool] = (
+                    expected_tool_counts.get(event.expected_tool, 0) + 1
+                )
+            continue
+
+        # A real invocation event (never expectation-only).
+        if event.expected_tool is not None and event.expected_tool == event.tool_name:
+            # Self-declared: the same event is both the expectation and its
+            # own satisfying invocation.
+            expected_tool_counts[event.expected_tool] = (
+                expected_tool_counts.get(event.expected_tool, 0) + 1
+            )
             observed_tool_counts[event.tool_name] = observed_tool_counts.get(event.tool_name, 0) + 1
+            continue
+
+        if event.expected_tool is not None:
+            # Declares an expectation unrelated to its own tool_name; counts
+            # as an expected opportunity but never self-satisfies.
+            expected_tool_counts[event.expected_tool] = (
+                expected_tool_counts.get(event.expected_tool, 0) + 1
+            )
+
+        if event.parent_event_id is not None:
+            expectation = expectations_by_id.get(event.parent_event_id)
+            if (
+                expectation is not None
+                and expectation.expected_tool == event.tool_name
+                and expectation.event_id not in satisfied_expectation_ids
+            ):
+                observed_tool_counts[event.tool_name] = (
+                    observed_tool_counts.get(event.tool_name, 0) + 1
+                )
+                satisfied_expectation_ids.add(expectation.event_id)
+        # else: unlinked invocation — never satisfies any expectation here.
+
     return expected_tool_counts, observed_tool_counts
 
 

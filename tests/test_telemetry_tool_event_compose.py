@@ -118,20 +118,37 @@ class ProvenanceCorrectnessTests(unittest.TestCase):
 
 
 class ExplicitExpectationSemanticsTests(unittest.TestCase):
-    def test_expectation_satisfied_by_matching_operation_and_tool_invocation(self) -> None:
+    def test_direct_invocation_with_self_expected_tool_counts_expected_and_observed(self) -> None:
+        # Review Fixes #2, case 1: a direct invocation event (never
+        # expectation-only) whose own expected_tool equals its own tool_name
+        # counts one expected AND one observed opportunity in the same event —
+        # no separate expectation event or parent_event_id link is needed.
         events = [
-            _event(
-                operation="expect",
-                status="skipped",
-                tool_name="engram.map_code",
-                expected_tool="engram.map_code",
-            ),
-            _event(operation="code_search", tool_name="engram.map_code", status="success"),
+            _event(operation="code_search", tool_name="engram.map_code", expected_tool="engram.map_code", status="success"),
         ]
         result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
-        # Both the expectation event and the matching invocation share the
-        # "code_search"/"engram.map_code" pair semantics via expected_tool, so
-        # this asserts the invocation is observed and nothing is missing.
+        self.assertEqual(result.operations.expected_tool_counts.get("engram.map_code"), 1)
+        self.assertEqual(result.operations.observed_tool_counts.get("engram.map_code"), 1)
+        self.assertEqual(result.operations.missing_expected_tool_counts.get("engram.map_code", 0), 0)
+
+    def test_expectation_satisfied_by_parent_event_id_linked_invocation(self) -> None:
+        # Review Fixes #2, case 2: a standalone expectation-only event is
+        # identified by its event_id; a later invocation satisfies it only
+        # when parent_event_id equals that expectation event's event_id and
+        # tool_name matches the expectation's expected_tool.
+        expectation = _event(
+            event_id="e" * 32,
+            operation="expect",
+            status="skipped",
+            expected_tool="engram.map_code",
+        )
+        invocation = _event(
+            operation="code_search",
+            tool_name="engram.map_code",
+            status="success",
+            parent_event_id="e" * 32,
+        )
+        result = tool_event_compose.compose_tool_events([expectation, invocation], epoch_id="1" * 32)
         self.assertEqual(result.operations.expected_tool_counts.get("engram.map_code"), 1)
         self.assertEqual(result.operations.observed_tool_counts.get("engram.map_code"), 1)
         self.assertEqual(result.operations.missing_expected_tool_counts.get("engram.map_code", 0), 0)
@@ -151,15 +168,44 @@ class ExplicitExpectationSemanticsTests(unittest.TestCase):
         self.assertEqual(result.operations.missing_expected_tool_counts.get("engram.map_code"), 1)
         self.assertEqual(len(result.operations.cli_tools), 0)
 
-    def test_invocation_in_a_different_correlated_epoch_does_not_satisfy_expectation(self) -> None:
-        # Flat per-tool matching (mirroring gaps.summarize_tool_gaps) applies
-        # within the correlated event set; "same logical operation" is
-        # satisfied by epoch-level correlation, so an invocation of the same
-        # tool under a *different* epoch is excluded from the correlated set
-        # entirely and never satisfies this epoch's expectation.
+    def test_unlinked_invocation_never_satisfies_expectation(self) -> None:
+        # Review Fixes #2: unlinked events never satisfy an expectation. A
+        # same-tool invocation with no parent_event_id at all (never even
+        # attempting to link) leaves the expectation missing.
         events = [
-            _event(operation="expect", status="skipped", expected_tool="engram.map_code"),
-            _event(epoch_id="2" * 32, operation="doc_lookup", tool_name="engram.map_code", status="success"),
+            _event(event_id="e" * 32, operation="expect", status="skipped", expected_tool="engram.map_code"),
+            _event(operation="doc_lookup", tool_name="engram.map_code", status="success"),
+        ]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertEqual(result.operations.expected_tool_counts.get("engram.map_code"), 1)
+        self.assertEqual(result.operations.observed_tool_counts.get("engram.map_code", 0), 0)
+        self.assertEqual(result.operations.missing_expected_tool_counts.get("engram.map_code"), 1)
+
+    def test_invocation_with_wrong_parent_event_id_never_satisfies_expectation(self) -> None:
+        # An invocation whose parent_event_id points at an event_id that is
+        # not a standalone expectation event (or does not exist at all in the
+        # correlated set) is unlinked and never satisfies an expectation.
+        events = [
+            _event(event_id="e" * 32, operation="expect", status="skipped", expected_tool="engram.map_code"),
+            _event(operation="doc_lookup", tool_name="engram.map_code", status="success", parent_event_id="f" * 32),
+        ]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertEqual(result.operations.observed_tool_counts.get("engram.map_code", 0), 0)
+        self.assertEqual(result.operations.missing_expected_tool_counts.get("engram.map_code"), 1)
+
+    def test_invocation_in_a_different_correlated_epoch_does_not_satisfy_expectation(self) -> None:
+        # An invocation event under a *different* epoch is excluded from the
+        # correlated set entirely and never satisfies this epoch's expectation,
+        # regardless of any parent_event_id it might carry.
+        events = [
+            _event(event_id="e" * 32, operation="expect", status="skipped", expected_tool="engram.map_code"),
+            _event(
+                epoch_id="2" * 32,
+                operation="doc_lookup",
+                tool_name="engram.map_code",
+                status="success",
+                parent_event_id="e" * 32,
+            ),
         ]
         result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
         self.assertEqual(result.operations.expected_tool_counts.get("engram.map_code"), 1)
@@ -168,15 +214,36 @@ class ExplicitExpectationSemanticsTests(unittest.TestCase):
 
 
 class OverObservationTests(unittest.TestCase):
-    def test_more_invocations_than_expected_never_go_negative_or_double_count(self) -> None:
+    def test_multiple_retries_under_one_expectation_count_one_expected_and_at_most_one_observed(self) -> None:
+        # Review Fixes #2: multiple retries linked to the same expectation
+        # event (same parent_event_id) count one expected opportunity and at
+        # most one observed opportunity — never per-retry, never double
+        # counted, never negative.
         events = [
-            _event(operation="expect", status="skipped", expected_tool="engram.map_code"),
-            _event(operation="code_search", tool_name="engram.map_code", status="success"),
-            _event(operation="code_search", tool_name="engram.map_code", status="success"),
-            _event(operation="code_search", tool_name="engram.map_code", status="success"),
+            _event(event_id="e" * 32, operation="expect", status="skipped", expected_tool="engram.map_code"),
+            _event(operation="code_search", tool_name="engram.map_code", status="success", parent_event_id="e" * 32),
+            _event(operation="code_search", tool_name="engram.map_code", status="success", parent_event_id="e" * 32),
+            _event(operation="code_search", tool_name="engram.map_code", status="success", parent_event_id="e" * 32),
         ]
         result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
         self.assertEqual(result.operations.expected_tool_counts.get("engram.map_code"), 1)
+        self.assertEqual(result.operations.observed_tool_counts.get("engram.map_code"), 1)
+        self.assertEqual(result.operations.missing_expected_tool_counts.get("engram.map_code", 0), 0)
+        self.assertGreaterEqual(result.operations.missing_expected_tool_count, 0)
+
+    def test_multiple_self_declared_invocations_of_same_tool_each_count_expected_and_observed(self) -> None:
+        # Unlike the linked-retry case above, three *independent* self-declared
+        # direct-invocation events (no shared parent expectation) each
+        # legitimately declare and satisfy their own expected opportunity, so
+        # expected/observed grow together and nothing is ever missing or
+        # negative.
+        events = [
+            _event(operation="code_search", tool_name="engram.map_code", expected_tool="engram.map_code", status="success"),
+            _event(operation="code_search", tool_name="engram.map_code", expected_tool="engram.map_code", status="success"),
+            _event(operation="code_search", tool_name="engram.map_code", expected_tool="engram.map_code", status="success"),
+        ]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertEqual(result.operations.expected_tool_counts.get("engram.map_code"), 3)
         self.assertEqual(result.operations.observed_tool_counts.get("engram.map_code"), 3)
         self.assertEqual(result.operations.missing_expected_tool_counts.get("engram.map_code", 0), 0)
         self.assertGreaterEqual(result.operations.missing_expected_tool_count, 0)
@@ -185,8 +252,8 @@ class OverObservationTests(unittest.TestCase):
 class FailedDegradedSeparateFromMissingTests(unittest.TestCase):
     def test_failed_and_degraded_invocations_still_satisfy_expectation(self) -> None:
         events = [
-            _event(operation="expect", status="skipped", expected_tool="engram.map_code"),
-            _event(operation="code_search", tool_name="engram.map_code", status="failed"),
+            _event(event_id="e" * 32, operation="expect", status="skipped", expected_tool="engram.map_code"),
+            _event(operation="code_search", tool_name="engram.map_code", status="failed", parent_event_id="e" * 32),
         ]
         result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
         self.assertEqual(result.operations.observed_tool_counts.get("engram.map_code"), 1)
@@ -196,8 +263,8 @@ class FailedDegradedSeparateFromMissingTests(unittest.TestCase):
 
     def test_degraded_invocation_counted_separately_not_as_missing(self) -> None:
         events = [
-            _event(operation="expect", status="skipped", expected_tool="engram.map_code"),
-            _event(operation="code_search", tool_name="engram.map_code", status="degraded"),
+            _event(event_id="e" * 32, operation="expect", status="skipped", expected_tool="engram.map_code"),
+            _event(operation="code_search", tool_name="engram.map_code", status="degraded", parent_event_id="e" * 32),
         ]
         result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
         self.assertEqual(result.operations.missing_expected_tool_counts.get("engram.map_code", 0), 0)
