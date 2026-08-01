@@ -7,7 +7,7 @@ tools: vscode, execute, read, agent, edit, search, web, 'microsoft-docs/*', 'bac
 max_subagent_tier: 3
 reasoning_effort: "xhigh"
 model_provider: "openai"
-model_family: "gpt-5.5"
+model_family: "gpt-5.6-sol"
 subagent_depth: 3
 ---
 

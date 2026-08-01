@@ -55,10 +55,10 @@ continuous_learning:
   promotion_threshold: 3
 
 model_routing:
-  tier1: "gpt-5.4-mini"
+  tier1: "gpt-5.6-luna"
   tier2: "claude-sonnet-5"
   tier3: "claude-opus-4.8"
-  orchestrator: "claude-opus-4.8"
+  orchestrator: "gpt-5.6-sol"
 
 ai_tools:
   copilot_cli:
