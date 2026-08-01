@@ -175,9 +175,10 @@ Before any pipeline work begins, verify tool availability per P-012. Probe requi
 **Trigger**: Stash has entries AND there is no queued shipment covering them.
 
 1. Confirm planning-overlap safety if a Ship shipment is active: Stage must not mutate the active Ship shipment manifest, must not create/use a parallel implementation branch or worktree, and may only use the explicit Stage spike/research worktree exception.
-2. Invoke the **Stage** subagent with stash context and operator preferences.
-3. Receive Stage's output: record the `shipment_id`.
-4. If Stage halts or fails: surface the failure to the operator. Do not proceed to Ship.
+2. **Resolve Stage's routed model (P-013.5, NON-NEGOTIABLE)**: resolve `config.model_routing.stage` (dogfood: `claude-opus-4.8` / `anthropic` / `high`), falling back per sub-field to `tier3` when a sub-field is unset. Declare the resolved `model_family`/`model_provider`/`reasoning_effort` as the invocation override when invoking Stage — not a baked `--model` CLI flag. If the runtime cannot honor a per-invocation override, emit `ROUTING_DEGRADED: Stage invocation could not honor resolved route claude-opus-4.8/anthropic — falling back to session default` and surface it to the operator.
+3. Invoke the **Stage** subagent with stash context, operator preferences, and the resolved model-routing directive from step 2.
+4. Receive Stage's output: record the `shipment_id`.
+5. If Stage halts or fails: surface the failure to the operator. Do not proceed to Ship.
 
 ### Step 1.5: Staging Artifact Merge Gate (NON-NEGOTIABLE)
 
@@ -202,9 +203,10 @@ After Stage completes and before routing to Ship, verify that all staging artifa
    * **Precedence**: dependency (blocks) suppression is a **hard eligibility gate** — a `queued` shipment with an unshipped blocking predecessor is never eligible, regardless of its queue position; queue position only orders among the already-eligible shipments. When the two disagree, eligibility wins.
    * **Scope-reconstruction caveat**: the ready-work listing selects the next **eligible** shipment only; it cannot reconstruct the full ordered sequence, because the `queued` status filter omits dependency-gated (blocked) successors — not because the listing returns a single item (it is a paginated list). Deriving the complete ordered shipment list (the P-017 ordered scope and restart cursor) requires listing shipments across **both `queued` and `blocked` statuses** (or an unfiltered shipment listing) plus dependency (blocks) traversal — dependency-gated successors sit at `status: blocked`, so a `queued`-only listing truncates the sequence. See the P-017 ordered `DARK_MODE_SCOPE` (recorded per the workflow policies) and the backlogit **Shipment Sequencing Protocol** for the derivation.
 2. Enforce P-001/P-016: confirm no other top-level release unit is `active`, no previously merged shipment is still awaiting required post-merge release closure, and no prohibited parallel implementation branch/worktree exists before routing a shipment to Ship. Required post-merge context compaction (**P-020**) is part of that closure set: because a shipment is no longer `active` after archival, read the previously merged shipment's **operational-closure artifact** in `docs/closure/` and route the next shipment only when its **compaction status** is `done` (or the non-blocking `degraded`); a `pending`, unset, or missing compaction status is an incomplete post-merge closure that blocks routing until compaction completes. Stage-only planning overlap remains allowed while Ship is awaiting closure only if it does not create a parallel implementation branch/worktree; explicit Stage spike/research worktrees remain the only exception.
-3. Invoke the **Ship** subagent with the `shipment_id`.
-4. Receive Ship's output: record merge SHA and any follow-up stash items.
-5. If Ship halts or fails: surface the failure to the operator.
+3. **Resolve Ship's routed model (P-013.5, NON-NEGOTIABLE)**: resolve `config.model_routing.ship` (dogfood: `claude-sonnet-5` / `anthropic` / `high`), falling back per sub-field to `tier2` when a sub-field is unset. Declare the resolved `model_family`/`model_provider`/`reasoning_effort` as the invocation override when invoking Ship — not a baked `--model` CLI flag. If the runtime cannot honor a per-invocation override, emit `ROUTING_DEGRADED: Ship invocation could not honor resolved route claude-sonnet-5/anthropic — falling back to session default` and surface it to the operator.
+4. Invoke the **Ship** subagent with the `shipment_id` and the resolved model-routing directive from step 3.
+5. Receive Ship's output: record merge SHA and any follow-up stash items.
+6. If Ship halts or fails: surface the failure to the operator.
 
 ### Step 3: Iteration Decision
 
@@ -244,7 +246,9 @@ Present the session outcome: shipments planned, executed, and archived; stash en
 
 ## Model Routing
 
-This agent operates at **Tier 3 (Frontier)** — orchestration and coordination.
+This agent operates at **Tier 3 (Frontier)** — orchestration and coordination — with an independent model override via `config.model_routing.orchestrator` (dogfood: `gpt-5.6-sol` / `openai` / `xhigh`).
+
+**P-013.5 — Invocation-time enforcement (Stage/Ship role routes)**: Steps 1 and 2 above each resolve `config.model_routing.stage` / `config.model_routing.ship` (dogfood: Stage → `claude-opus-4.8`/`anthropic`/`high`; Ship → `claude-sonnet-5`/`anthropic`/`high`), falling back per sub-field to `tier3` / `tier2` when a role route or sub-field is unset, and declare the resolved fields as the invocation override — never a baked `--model` CLI flag (Core Rule 3). When the runtime cannot honor a per-invocation override, this agent emits `ROUTING_DEGRADED` naming the subagent and the route that could not be honored, and surfaces it to the operator — never silently falls back to the current session model without declaring the degradation. `verify_workspace` fails closed (P-013.5) when a pipeline agent's installed `model_family`/`model_provider` is empty or an unresolved `{{...}}` placeholder, when this agent's installed definition lacks the routing directive, or when a declared `stage`/`ship` role route does not resolve.
 
 ## Subagent Depth
 

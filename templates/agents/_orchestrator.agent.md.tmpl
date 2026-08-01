@@ -217,11 +217,12 @@ When the `agent-intercom` capability pack is installed, broadcast the state summ
 **Skip if**: No stash entries remain.
 
 1. Confirm planning-overlap mode is safe: Stage must not mutate the active Ship shipment manifest, must not create/use a parallel implementation branch or worktree, and may only use the explicit Stage spike/research worktree exception.
-2. Invoke the **Stage** subagent:
-   * Pass the stash context and any operator-specified grouping preferences.
+2. **Resolve Stage's routed model (P-013.5, NON-NEGOTIABLE)**: before invoking Stage, resolve `config.model_routing.stage`, falling back per sub-field to `config.model_routing.tier3` when the `stage` route or an individual sub-field is absent or empty. This is intent-directive resolution, not a baked `--model` CLI flag (Core Rule 3): declare the resolved `model_family`/`model_provider`/`reasoning_effort` as the invocation override when the runtime supports honoring a per-invocation model directive for the Stage subagent. If the runtime cannot honor a per-invocation override, emit `ROUTING_DEGRADED: Stage invocation could not honor resolved route {model_family}/{model_provider} — falling back to session default` and surface it to the operator — never silently invoke Stage on the current session model without declaring the resolved route and the degradation.
+3. Invoke the **Stage** subagent:
+   * Pass the stash context, any operator-specified grouping preferences, and the resolved model-routing directive from step 2.
    * Stage's expected output: a `shipment_id` in `{{STATUS_QUEUED}}` status.
-3. Receive Stage's output: record the `shipment_id`.
-4. If Stage halts or fails:
+4. Receive Stage's output: record the `shipment_id`.
+5. If Stage halts or fails:
    * Surface the failure to the operator with the Stage session summary.
    * Do not proceed to Ship routing until Stage completes or the operator resolves the issue.
 
@@ -269,11 +270,12 @@ When the `agent-intercom` capability pack is installed, broadcast `[ORCHESTRATOR
    * **Precedence**: dependency (blocks) suppression is a **hard eligibility gate** — a `{{STATUS_QUEUED}}` shipment with an unshipped blocking predecessor is never eligible, regardless of its queue position; queue position only orders among the already-eligible shipments. When the two disagree, eligibility wins.
    * **Scope-reconstruction caveat**: the ready-work listing selects the next **eligible** shipment only; it cannot reconstruct the full ordered sequence, because the `{{STATUS_QUEUED}}` status filter omits dependency-gated (blocked) successors — not because the listing returns a single item (it is a paginated list). Deriving the complete ordered shipment list (the P-017 ordered scope and restart cursor) requires listing shipments across **both `{{STATUS_QUEUED}}` and `blocked` statuses** (or an unfiltered shipment listing) plus dependency (blocks) traversal — dependency-gated successors sit at `status: blocked`, so a `{{STATUS_QUEUED}}`-only listing truncates the sequence. See the P-017 ordered `DARK_MODE_SCOPE` (recorded per the workflow policies) and the backlogit **Shipment Sequencing Protocol** for the derivation.
 2. Enforce P-001/P-016: confirm no other top-level release unit is currently `Active`, no previously merged shipment is still awaiting required post-merge release closure, and no prohibited parallel implementation branch/worktree exists before routing a shipment to Ship. Required post-merge context compaction (**P-020**) is part of that closure set: because a shipment is no longer `Active` after archival, read the previously merged shipment's **operational-closure artifact** in `{{DOCS_CLOSURE}}/` and route the next shipment only when its **compaction status** is `done` (or the non-blocking `degraded`); a `pending`, unset, or missing compaction status is an incomplete post-merge closure that blocks routing until compaction completes. Stage-only planning overlap remains allowed while Ship is awaiting closure only if it does not create a parallel implementation branch/worktree; explicit Stage spike/research worktrees remain the only exception.
-3. Invoke the **Ship** subagent:
-   * Pass the `shipment_id` as the session scope.
+3. **Resolve Ship's routed model (P-013.5, NON-NEGOTIABLE)**: before invoking Ship, resolve `config.model_routing.ship`, falling back per sub-field to `config.model_routing.tier2` when the `ship` route or an individual sub-field is absent or empty. This is intent-directive resolution, not a baked `--model` CLI flag (Core Rule 3): declare the resolved `model_family`/`model_provider`/`reasoning_effort` as the invocation override when the runtime supports honoring a per-invocation model directive for the Ship subagent. If the runtime cannot honor a per-invocation override, emit `ROUTING_DEGRADED: Ship invocation could not honor resolved route {model_family}/{model_provider} — falling back to session default` and surface it to the operator — never silently invoke Ship on the current session model without declaring the resolved route and the degradation.
+4. Invoke the **Ship** subagent:
+   * Pass the `shipment_id` as the session scope, along with the resolved model-routing directive from step 3.
    * Ship's expected output: merged PR, archived shipment, and closure artifacts.
-4. Receive Ship's output: record the merge SHA and any follow-up stash items Ship created.
-5. If Ship halts or fails:
+5. Receive Ship's output: record the merge SHA and any follow-up stash items Ship created.
+6. If Ship halts or fails:
    * Surface the failure to the operator with the Ship session summary and PR/CI state.
    * Do not claim or invoke a second shipment until the active one is resolved.
 
@@ -365,6 +367,14 @@ This agent operates at **Tier 2 (Standard)** by default, but supports an indepen
 
 **Cross-provider routing**: The orchestrator can run on a different provider (e.g., OpenAI GPT-5.4) while routing Stage and Ship to Anthropic models. This works when the environment supports the `model_family` and `model_provider` frontmatter fields and the operator's subscription includes both providers.
 
+**P-013.5 — Invocation-time enforcement (Stage/Ship role routes)**: Steps 1 and 2 above each contain an explicit routing directive: before invoking Stage or Ship, this agent resolves `config.model_routing.stage` / `config.model_routing.ship` (falling back per sub-field to `tier3` / `tier2` respectively when the role route or a sub-field is unset) and declares the resolved `model_family`/`model_provider`/`reasoning_effort` as the invocation override. This turns the routing mapping below from an informal per-session promise into an enforced, verifiable directive:
+
+* **Resolve**: read the role route; apply tier fallback per unset sub-field.
+* **Declare**: pass the resolved fields as the invocation override when the runtime supports per-invocation model directives — never a baked provider-specific `--model` CLI flag (Core Rule 3).
+* **Degrade explicitly**: when the runtime cannot honor a per-invocation override, emit `ROUTING_DEGRADED` naming the subagent and the resolved route that could not be honored, and surface it to the operator — never silently fall back to the current session model without declaring the degradation.
+
+`verify_workspace` fails closed (P-013.5) when a pipeline agent's installed `model_family`/`model_provider` is empty or an unresolved `{{...}}` placeholder, when this Orchestrator's installed definition lacks the routing directive, or when a declared `stage`/`ship` role route does not resolve.
+
 **Configuration example** (in `.autoharness/config.yaml`):
 
 ```yaml
@@ -380,9 +390,17 @@ model_routing:
   tier3:
     model: claude-opus-4.8
     model_family: claude-opus-4.8
+  stage:
+    model_family: claude-opus-4.8
+    model_provider: anthropic
+    reasoning_effort: high
+  ship:
+    model_family: claude-sonnet-5
+    model_provider: anthropic
+    reasoning_effort: high
 ```
 
-**Environment support**: The `model_family` and `model_provider` frontmatter fields are supported by VS Code with GitHub Copilot (reads agent definition YAML metadata) and Copilot CLI. Other environments (Cursor, Claude Code) may ignore frontmatter model declarations and use their own model selection. In those environments, the operator may need to manually select the model when switching between orchestrator and subagent sessions.
+**Environment support**: The `model_family` and `model_provider` frontmatter fields are supported by VS Code with GitHub Copilot (reads agent definition YAML metadata) and Copilot CLI. Other environments (Cursor, Claude Code) may ignore frontmatter model declarations and use their own model selection. In those environments, the operator may need to manually select the model when switching between orchestrator and subagent sessions — this is exactly the `ROUTING_DEGRADED` condition above and must be declared, not silently absorbed.
 
 Tier 2 agents handle strict rule adherence, tool calling, and workflow coordination. When invoking Stage, this agent must request Tier 3 reasoning capacity — Stage performs high-ambiguity planning and backlog synthesis that requires frontier model depth.
 
