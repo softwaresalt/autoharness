@@ -7,18 +7,61 @@ the SQLite DB under ``.autoharness/metrics/``).
 **Emit-only boundary:** this sink stops at the file. The external relational
 schema and the ingestion path that consumes this stream are an agent-engram
 concern (design §4) and are intentionally NOT implemented here.
+
+**U2 (084.002-T) note:** the generic segment enumeration, no-replace seal,
+retention pruning, canonical-line scan, and atomic-append primitives now live
+in the internal ``_jsonl_segments`` module, shared with the ToolTelemetryEvent
+journal (``tool_event_jsonl.py``). This module's own orchestration functions
+(``scan_epoch_digest``, ``_revalidate_preflight``, ``append_epoch``,
+``_seal_active_segment``, ``_rollover_if_needed``, ``_prune_sealed_segments``)
+are kept byte-for-byte behaviorally identical to their pre-extraction form —
+only their low-level pure-helper calls now delegate to ``_jsonl_segments`` —
+so ``tests/test_telemetry_jsonl_sink.py`` continues to pass unmodified,
+including its direct patches of ``_MAX_SEGMENT_BYTES``,
+``_MAX_RETAINED_SEGMENTS``, ``_max_sealed_generation``, and ``os``.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import sys
-from dataclasses import dataclass
+# NOTE: ``os`` is imported here (rather than only inside ``_jsonl_segments``)
+# because the pinned test suite patches ``jsonl_sink.os.unlink`` directly
+# (``mock.patch.object(jsonl_sink.os, "unlink", ...)``). Since ``jsonl_sink.os``
+# and ``_jsonl_segments.os`` are the SAME singleton module object, this import
+# is required only so the attribute ``jsonl_sink.os`` resolves; the actual
+# seal/unlink calls live in ``_jsonl_segments.claim_seal``.
+import os  # noqa: F401
 from pathlib import Path
-from typing import Any
 
+from autoharness.telemetry import _jsonl_segments
+from autoharness.telemetry._jsonl_segments import (
+    JsonlPreflightScan,
+    SinkWriteResult,
+    TelemetryConflictError,
+    active_inode as _active_inode,
+    atomic_append_bytes as _atomic_append_bytes,
+    canonical_json as _canonical_json,
+    digest_record as _digest_record,
+    scan_single_file as _scan_single_file,
+    sealed_segment_path,
+    sealed_segments,
+    segment_read_paths,
+)
 from autoharness.telemetry.epoch import ExecutionEpoch
+
+__all__ = [
+    "JsonlPreflightScan",
+    "SinkWriteResult",
+    "TelemetryConflictError",
+    "append_epoch",
+    "canonical_payload_json",
+    "find_epoch_digest",
+    "payload_digest",
+    "scan_epoch_digest",
+    "sealed_segment_path",
+    "sealed_segments",
+    "segment_read_paths",
+]
 
 # --- Segment rollover / retention (module constants, NOT runtime config) ------
 #
@@ -46,84 +89,6 @@ _MAX_RETAINED_SEGMENTS = 8
 _GENERATION_WIDTH = 5
 
 
-class TelemetryConflictError(RuntimeError):
-    """Raised when a JSONL epoch replay conflicts with first-write content."""
-
-
-@dataclass(frozen=True)
-class SinkWriteResult:
-    status: str
-    payload_digest: str
-
-
-@dataclass(frozen=True)
-class JsonlPreflightScan:
-    existing_digest: str | None
-    scanned_offset: int
-    # Active-segment identity captured at scan time (finding 6). ``append_epoch``
-    # only trusts ``scanned_offset`` when the recorded generation still matches the
-    # current active segment; a rollover between preflight and append changes the
-    # generation and forces a full cross-segment rescan.
-    active_generation: int = 0
-    active_size: int = 0
-    # Inode/file-index identity of the active segment at scan time. The generation
-    # number (``max(sealed) + 1``) can briefly ABA back to the same value during
-    # the non-atomic two-step hard-link seal (link created, active not yet
-    # unlinked, then a fresh active recreated at the same generation). The inode of
-    # a freshly recreated active differs from the scanned one, so comparing it
-    # closes the ABA window and forces a full rescan when the underlying file was
-    # swapped. ``0`` means identity was unavailable and only generation+size apply.
-    active_inode: int = 0
-
-
-def _active_inode(jsonl_path: Path) -> int:
-    """Best-effort inode / Win32 file-index identity of the active segment.
-
-    ``os.stat().st_ino`` is a real file identity on POSIX and, since Python 3.5, on
-    Windows (the 64-bit file index from ``GetFileInformationByHandle``). Returns
-    ``0`` when the file is absent or identity cannot be determined, in which case
-    callers fall back to generation+size comparison.
-    """
-    try:
-        return jsonl_path.stat().st_ino
-    except OSError:
-        return 0
-
-
-def sealed_segment_path(jsonl_path: Path, generation: int) -> Path:
-    """Return the path of the sealed segment for ``generation`` beside the active."""
-    return jsonl_path.parent / f"{jsonl_path.name}.{generation:0{_GENERATION_WIDTH}d}"
-
-
-def sealed_segments(jsonl_path: Path) -> list[tuple[int, Path]]:
-    """Return ``(generation, path)`` for sealed segments, oldest generation first."""
-    parent = jsonl_path.parent
-    if not parent.exists():
-        return []
-    prefix = jsonl_path.name + "."
-    found: list[tuple[int, Path]] = []
-    for child in parent.iterdir():
-        name = child.name
-        if not name.startswith(prefix):
-            continue
-        suffix = name[len(prefix):]
-        if suffix.isdigit():
-            found.append((int(suffix), child))
-    found.sort(key=lambda item: item[0])
-    return found
-
-
-def segment_read_paths(jsonl_path: Path) -> list[Path]:
-    """Shared segment enumeration: retained sealed segments (oldest→newest) then
-    the active segment. This is the single source of truth for segment ordering,
-    reused by the replay scan and the reader so both span rotated history and
-    preserve first-write precedence (oldest record wins on dedupe)."""
-    paths = [path for _generation, path in sealed_segments(jsonl_path)]
-    if jsonl_path.exists():
-        paths.append(jsonl_path)
-    return paths
-
-
 def _max_sealed_generation(jsonl_path: Path) -> int:
     generations = sealed_segments(jsonl_path)
     return generations[-1][0] if generations else 0
@@ -139,55 +104,21 @@ def _active_generation(jsonl_path: Path) -> int:
     return _max_sealed_generation(jsonl_path) + 1
 
 
-def _claim_seal(active_path: Path, target_path: Path) -> None:
-    """No-replace seal of the active segment to ``target_path``.
-
-    ``os.link`` creates the sealed name as a second hard link to the active
-    inode, then the active name is unlinked. ``os.link`` raises ``FileExistsError``
-    if the target already exists, so a concurrent rollover that picked the same
-    generation can NEVER clobber an already-sealed segment — the loser retries the
-    next generation. It raises ``FileNotFoundError`` if the active segment was
-    already sealed away by another writer.
-
-    A writer that opened the active fd before the rollover may still land a late
-    append in the just-sealed inode; that is acceptable under the sink's
-    best-effort contract and is reconciled on read, not prevented by a lock.
-
-    If unlinking the active name fails *after* the link was created (a residual
-    cross-platform sharing violation), the partial seal is rolled back by removing
-    the just-created link so no duplicate half-sealed segment is left behind, and
-    the error propagates so the caller can retry the rollover on a later append.
-    """
-    os.link(str(active_path), str(target_path))
-    try:
-        os.unlink(str(active_path))
-    except FileNotFoundError:
-        # Active was concurrently sealed/rotated away; the link we just created
-        # still captured the content under ``target_path``, so the seal stands.
-        pass
-    except OSError:
-        try:
-            os.unlink(str(target_path))
-        except FileNotFoundError:
-            pass
-        raise
-
-
 def _seal_active_segment(jsonl_path: Path) -> int | None:
     """Seal the active segment under the next free generation, no-replace.
 
-    Returns the generation claimed, or ``None`` if the active segment was already
-    sealed by a concurrent writer, or if a partial-seal rollback deferred the seal
-    (the active still exceeds the threshold and the rollover is retried on the next
-    append). On a generation collision the true max is re-read and the next
-    generation attempted, so no global lock is needed and no sealed segment is ever
-    overwritten.
+    Returns the generation claimed, or ``None`` if the active segment was
+    already sealed by a concurrent writer, or if a partial-seal rollback
+    deferred the seal (the active still exceeds the threshold and the
+    rollover is retried on the next append). On a generation collision the
+    true max is re-read and the next generation attempted, so no global lock
+    is needed and no sealed segment is ever overwritten.
     """
     while True:
         generation = _max_sealed_generation(jsonl_path) + 1
         target = sealed_segment_path(jsonl_path, generation)
         try:
-            _claim_seal(jsonl_path, target)
+            _jsonl_segments.claim_seal(jsonl_path, target)
             return generation
         except FileExistsError:
             continue
@@ -247,52 +178,12 @@ def _prune_sealed_segments(jsonl_path: Path) -> None:
             pass
 
 
-def _canonical_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-
-
 def canonical_payload_json(epoch: ExecutionEpoch) -> str:
     return _canonical_json(epoch.to_record())
 
 
 def payload_digest(epoch: ExecutionEpoch) -> str:
-    import hashlib
-
-    return hashlib.sha256(canonical_payload_json(epoch).encode("utf-8")).hexdigest()
-
-
-def _digest_record(record: dict[str, Any]) -> str:
-    import hashlib
-
-    return hashlib.sha256(_canonical_json(record).encode("utf-8")).hexdigest()
-
-
-def _scan_single_file(
-    path: Path,
-    epoch_id: str,
-    start_offset: int,
-) -> tuple[str | None, int]:
-    """Scan one segment file for ``epoch_id``; return ``(digest, offset_reached)``."""
-    if not path.exists():
-        return None, 0
-    file_size = path.stat().st_size
-    offset = max(0, min(start_offset, file_size))
-    with path.open("rb") as handle:
-        handle.seek(offset)
-        for raw_line in handle:
-            if not raw_line.strip():
-                continue
-            try:
-                record = json.loads(raw_line.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
-                # A single corrupt historical line must not raise and permanently
-                # disable future JSONL emission (every append runs this preflight
-                # scan). The reader already skips malformed lines; mirror that
-                # resilience here and keep scanning.
-                continue
-            if isinstance(record, dict) and record.get("epoch_id") == epoch_id:
-                return _digest_record(record), handle.tell()
-        return None, handle.tell()
+    return _digest_record(epoch.to_record())
 
 
 def scan_epoch_digest(
@@ -319,7 +210,7 @@ def scan_epoch_digest(
 
     if start_offset <= 0:
         for _generation, sealed_path in sealed_segments(jsonl_path):
-            digest, _offset = _scan_single_file(sealed_path, epoch_id, 0)
+            digest, _offset = _scan_single_file(sealed_path, "epoch_id", epoch_id, 0)
             if digest is not None:
                 return JsonlPreflightScan(
                     existing_digest=digest,
@@ -329,7 +220,7 @@ def scan_epoch_digest(
                     active_inode=active_inode,
                 )
 
-    active_digest, active_offset = _scan_single_file(jsonl_path, epoch_id, start_offset)
+    active_digest, active_offset = _scan_single_file(jsonl_path, "epoch_id", epoch_id, start_offset)
     return JsonlPreflightScan(
         existing_digest=active_digest,
         scanned_offset=active_offset,
@@ -342,71 +233,6 @@ def scan_epoch_digest(
 def find_epoch_digest(jsonl_path: Path, epoch_id: str) -> str | None:
     """Return the digest for the first accepted JSONL record with ``epoch_id``."""
     return scan_epoch_digest(jsonl_path, epoch_id).existing_digest
-
-
-def _atomic_append_bytes(path: Path, data: bytes) -> None:
-    """Append ``data`` as a single atomic write, safe for concurrent writers.
-
-    On POSIX, a single ``os.write`` to an ``O_APPEND`` descriptor is atomic. On
-    Windows, ``O_APPEND`` via the C runtime performs a non-atomic seek+write, so
-    we open the file through Win32 ``CreateFileW`` with ``FILE_APPEND_DATA``
-    access, which the kernel guarantees appends atomically at end-of-file.
-    """
-    if sys.platform == "win32":
-        _win_atomic_append(path, data)
-        return
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
-    try:
-        written = os.write(fd, data)
-        if written != len(data):
-            raise OSError(
-                f"short JSONL append: wrote {written} of {len(data)} bytes to {path}"
-            )
-    finally:
-        os.close(fd)
-
-
-def _win_atomic_append(path: Path, data: bytes) -> None:
-    import ctypes
-    from ctypes import wintypes
-
-    FILE_APPEND_DATA = 0x0004
-    FILE_SHARE_READ = 0x00000001
-    FILE_SHARE_WRITE = 0x00000002
-    # FILE_SHARE_DELETE lets a concurrent rollover unlink/rename the active name
-    # while this append handle is open. Without it, an overlapping seal's
-    # ``os.unlink(active)`` raises a Win32 sharing violation after the hard link is
-    # created, leaving both names and aborting the pending mirror append. The sink
-    # supports concurrent writers on NTFS, so delete/rename sharing is required.
-    FILE_SHARE_DELETE = 0x00000004
-    OPEN_ALWAYS = 4
-    FILE_ATTRIBUTE_NORMAL = 0x80
-    INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateFileW.restype = wintypes.HANDLE
-    kernel32.CreateFileW.argtypes = [
-        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
-        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
-    ]
-    handle = kernel32.CreateFileW(
-        str(path), FILE_APPEND_DATA,
-        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-        None, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, None,
-    )
-    if handle == INVALID_HANDLE_VALUE:
-        raise OSError(ctypes.get_last_error(), f"CreateFileW failed for {path}")
-    try:
-        written = wintypes.DWORD(0)
-        ok = kernel32.WriteFile(handle, data, len(data), ctypes.byref(written), None)
-        if not ok:
-            raise OSError(ctypes.get_last_error(), f"WriteFile failed for {path}")
-        if written.value != len(data):
-            raise OSError(
-                f"short JSONL append: wrote {written.value} of {len(data)} bytes to {path}"
-            )
-    finally:
-        kernel32.CloseHandle(handle)
 
 
 def _revalidate_preflight(
