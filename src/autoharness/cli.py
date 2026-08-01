@@ -615,7 +615,7 @@ def _gate_copilot_review_command(rest: list[str]) -> None:
 
 
 TELEMETRY_USAGE = """\
-autoharness telemetry — pre-execution context and epoch recording
+autoharness telemetry — pre-execution context, epoch recording, and tool events
 
 Usage:
   autoharness telemetry begin --task-id <id> [--epoch-id <uuid>]
@@ -627,21 +627,42 @@ Usage:
                               [--commit-sha <sha>] [--capture-backlogit-sizing]
                               [--backlogit <path>]
   autoharness telemetry record [--from-json <path>] [--workspace <path>] [--json]
+                               [--context-ref <ref>] [--compose-tool-events]
+  autoharness telemetry event --context-ref <ref> [--from-json <path>]
+                              [--workspace <path>] [--json]
 
 Options:
   begin creates a stable pre-execution context artifact and returns a repo-local
   context_ref. When telemetry is disabled it is a structured no-op.
-  --from-json <path>  Read the epoch payload (a JSON object) from a file.
+  --from-json <path>  Read the epoch/event payload (a JSON object) from a file.
                       When omitted, the payload is read from stdin.
   --workspace, -w     Workspace root containing .autoharness/config.yaml. Default: .
   --json              Emit the dispatch summary as JSON.
+  --context-ref       A context_ref returned by `telemetry begin`. On `record`
+                      it freezes identity/sizing fields onto the close payload;
+                      on `event` it is required and freezes correlation/sizing
+                      fields onto the ToolTelemetryEvent payload.
+  --compose-tool-events
+                      Opt-in (record only): derive composer-owned
+                      route/economics/operations/outcome fields from the
+                      ToolTelemetryEvent journal correlated to this epoch and
+                      merge them in before dispatch. Fails closed (exit 2) if
+                      the close payload already supplies a composer-owned
+                      field ("hybrid" input); a missing/unreadable journal
+                      fails open and the close payload is recorded unmerged.
 
 The epoch payload is the serialized shape produced by the harness runtime at
-task close (route/economics/operations/outcome + task_id). See
-docs/telemetry-reference.md for the emission contract.
+task close (route/economics/operations/outcome + task_id). The event payload
+is one ToolTelemetryEvent record (schemas/tool-telemetry-event.schema.json).
+See docs/telemetry-reference.md for both emission contracts.
+
+`telemetry event` never re-reads backlogit: all correlation identity and
+sizing come from the frozen `--context-ref` begin-context artifact.
 
 Telemetry is fail-open and observational: an absent or `mode: none` telemetry
-block is a no-op (exit 0), and a failing sink is reported without blocking.
+block is a no-op (exit 0) before any payload is parsed or validated, and a
+failing sink is reported without blocking.
+
 
 Exit codes:
   0  epoch recorded, or telemetry disabled (no-op), or sink failed (fail-open).
@@ -716,6 +737,7 @@ def _parse_telemetry_record_args(args: list[str]) -> dict:
         "workspace": Path("."),
         "emit_json": False,
         "context_ref": None,
+        "compose_tool_events": False,
     }
     index = 0
     while index < len(args):
@@ -737,9 +759,46 @@ def _parse_telemetry_record_args(args: list[str]) -> dict:
             if index >= len(args):
                 raise ValueError("Missing value for --context-ref")
             parsed["context_ref"] = args[index]
+        elif arg == "--compose-tool-events":
+            parsed["compose_tool_events"] = True
         else:
             raise ValueError(f"Unknown telemetry record argument: {arg}")
         index += 1
+    return parsed
+
+
+def _parse_telemetry_event_args(args: list[str]) -> dict:
+    parsed: dict = {
+        "context_ref": None,
+        "from_json": None,
+        "workspace": Path("."),
+        "emit_json": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--context-ref":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --context-ref")
+            parsed["context_ref"] = args[index]
+        elif arg == "--from-json":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --from-json")
+            parsed["from_json"] = Path(args[index])
+        elif arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown telemetry event argument: {arg}")
+        index += 1
+    if parsed["context_ref"] is None:
+        raise ValueError("telemetry event requires --context-ref <ref>")
     return parsed
 
 
@@ -750,7 +809,7 @@ def _telemetry_command(args: list[str]) -> None:
         return
 
     subcommand = args[0]
-    if subcommand not in ("begin", "record"):
+    if subcommand not in ("begin", "record", "event"):
         print(f"Unknown telemetry subcommand: {subcommand}", file=sys.stderr)
         print(TELEMETRY_USAGE, file=sys.stderr)
         sys.exit(2)
@@ -761,8 +820,10 @@ def _telemetry_command(args: list[str]) -> None:
 
     if subcommand == "begin":
         _telemetry_begin_command(args[1:])
-    else:
+    elif subcommand == "record":
         _telemetry_record_command(args[1:])
+    else:
+        _telemetry_event_command(args[1:])
 
 
 def _telemetry_begin_command(rest: list[str]) -> None:
@@ -931,6 +992,123 @@ def _merge_telemetry_context_payload(payload: object, context_payload: dict) -> 
     return merged
 
 
+def _merge_telemetry_context_into_event_payload(payload: object, context_payload: dict) -> dict:
+    """Freeze correlation/sizing fields from a begin-context payload onto a
+    ToolTelemetryEvent payload (U6, 084.006-T).
+
+    ``telemetry event`` never re-reads backlogit: ``epoch_id``/``backlog_item_id``
+    and the optional identity fields (workspace/session/agent/phase/feature/
+    shipment/branch/commit_sha) plus the captured sizing snapshot all come from
+    the frozen context, exactly mirroring
+    :func:`_merge_telemetry_context_payload`'s epoch-record behavior.
+    """
+    from autoharness.telemetry.tool_event import ToolTelemetryEventError
+
+    if not isinstance(payload, dict):
+        raise ToolTelemetryEventError("ToolTelemetryEvent payload must be a JSON object (mapping).")
+    context_epoch_id = context_payload.get("epoch_id")
+    if payload.get("epoch_id") is not None and context_epoch_id is not None:
+        if str(payload.get("epoch_id")) != str(context_epoch_id):
+            raise ToolTelemetryEventError(
+                "Payload epoch_id disagrees with telemetry context epoch_id."
+            )
+    merged = dict(payload)
+    # Correlation anchors are always frozen from the pre-execution context so an
+    # event cannot disagree with, or omit, the claimed epoch/backlog-item identity.
+    for name in ("epoch_id", "backlog_item_id"):
+        if context_payload.get(name) is not None:
+            merged[name] = context_payload[name]
+    # Optional identity fields are only overridden when the context actually
+    # captured a value, mirroring the epoch-record merge above.
+    for name in (
+        "workspace_id",
+        "session_id",
+        "agent_role",
+        "phase",
+        "feature_id",
+        "shipment_id",
+        "branch",
+        "commit_sha",
+    ):
+        value = context_payload.get(name)
+        if value is not None:
+            merged[name] = value
+    if context_payload.get("sizing") is not None:
+        merged["work_sizing_snapshot"] = context_payload["sizing"]
+    return merged
+
+
+def _telemetry_event_command(rest: list[str]) -> None:
+    try:
+        parsed = _parse_telemetry_event_args(rest)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(TELEMETRY_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.telemetry.context import TelemetryContextError, load_context_ref
+    from autoharness.telemetry.record import load_workspace_telemetry_config
+    from autoharness.telemetry.tool_event import ToolTelemetryEvent, ToolTelemetryEventError
+    from autoharness.telemetry.tool_event_jsonl import ToolEventRecordSummary, record_tool_event
+
+    # Load telemetry config FIRST — fail-open, never raises.
+    config = load_workspace_telemetry_config(parsed["workspace"])
+
+    # When telemetry is disabled the command is a no-op SUCCESS (exit 0) — the
+    # payload is never read or validated, mirroring `telemetry record`.
+    if not config.enabled:
+        if parsed["emit_json"]:
+            print(json.dumps(ToolEventRecordSummary(enabled=False).to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print("Telemetry disabled (mode: none or absent); event not recorded.")
+        return
+
+    # Read the event payload from a file or stdin.
+    if parsed["from_json"] is not None:
+        try:
+            raw = parsed["from_json"].read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"Could not read event payload: {exc}", file=sys.stderr)
+            sys.exit(2)
+    else:
+        try:
+            raw = sys.stdin.read()
+        except UnicodeDecodeError as exc:
+            print(f"Could not read event payload from stdin: {exc}", file=sys.stderr)
+            sys.exit(2)
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"Invalid event payload — not valid JSON: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    # All payload shape/coercion failures are normalized to
+    # ToolTelemetryEventError → exit 2.
+    try:
+        context_payload = load_context_ref(config, parsed["workspace"], parsed["context_ref"])
+        payload = _merge_telemetry_context_into_event_payload(payload, context_payload)
+        event = ToolTelemetryEvent.from_mapping(payload)
+    except TelemetryContextError as exc:
+        print(f"Invalid telemetry context: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except ToolTelemetryEventError as exc:
+        print(f"Invalid event payload: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    summary = record_tool_event(event, config)
+
+    if parsed["emit_json"]:
+        print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False))
+    elif summary.written:
+        print(f"Recorded tool event {summary.event_id} ({summary.status}).")
+    elif summary.errors:
+        # Fail-open: a sink failure is reported as a warning, never a crash.
+        print(f"Tool event journal warning: {'; '.join(summary.errors)}", file=sys.stderr)
+    else:
+        print("Telemetry disabled (mode: none or absent); event not recorded.")
+
+
 def _telemetry_record_command(rest: list[str]) -> None:
     try:
         parsed = _parse_telemetry_record_args(rest)
@@ -949,6 +1127,7 @@ def _telemetry_record_command(rest: list[str]) -> None:
         load_workspace_telemetry_config,
         record_epoch,
     )
+    from autoharness.telemetry.tool_event_compose import ToolEventCompositionError
 
     # Load telemetry config FIRST. It is fail-open and never raises: an absent or
     # `mode: none` block, or ANY config-parse failure, yields a disabled config.
@@ -1000,7 +1179,11 @@ def _telemetry_record_command(rest: list[str]) -> None:
         print(f"Invalid epoch payload: {exc}", file=sys.stderr)
         sys.exit(2)
 
-    summary = record_epoch(epoch, config)
+    try:
+        summary = record_epoch(epoch, config, compose_tool_events=parsed["compose_tool_events"])
+    except ToolEventCompositionError as exc:
+        print(f"Invalid tool-event composition request: {exc}", file=sys.stderr)
+        sys.exit(2)
     if parsed["context_ref"] is not None and context_payload is not None:
         summary.context_ref = parsed["context_ref"]
         summary.context_digest = context_payload.get("context_digest")
