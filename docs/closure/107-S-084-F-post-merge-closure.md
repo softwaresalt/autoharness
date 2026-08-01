@@ -44,13 +44,18 @@ and carried the shipment through Copilot hardening, merge, and closure.
 | Local review (adversarial, code-review subagent) | **READY** — P0=0, P1=0 |
 | §1.9 pre-merge readiness (Checks 1–5) | **PASS** at HEAD `25ab0c8` |
 | P-018 copilot-review gate | **SATISFIED** (exit 0, 0 unresolved threads; re-run unconditionally immediately before merge — still SATISFIED, HEAD unchanged) |
-| Copilot shadow review | round 2 — 6 threads, all fixed via TDD + replied with fixing SHA + resolved via GraphQL; final review submitted `2026-08-01T19:22:25Z` against `25ab0c8` |
+| Copilot shadow review | sole hosted Copilot review round on PR #273 — 6 threads, all fixed via TDD + replied with fixing SHA + resolved via GraphQL; final review submitted `2026-08-01T19:22:25Z` against `25ab0c8` |
 | CI (`ci gate`, `detect code changes`, `test`) | all **pass** on final HEAD; mergeState CLEAN / MERGEABLE |
 | Full build (`uv build`) | succeeded |
 | Full unittest gate (`PYTHONPATH=src uv run python -m unittest discover -s tests`) | **905 passed, 7 skipped, 0 failed** |
-| Review-fix cycles | **2 / 3** — cycle 1 (prior session): parent_event_id P1 fix (`1c09212`); cycle 2 (this session): 6-thread Copilot hardening batch (`25ab0c8`). Fix-CI cycles: 0 / 5 |
+| Review-fix cycles | **2 / 3** — cycle 1 (prior session, local task-level fix, not a hosted Copilot PR comment): parent_event_id P1 fix (`1c09212`) resolving a gap against the plan's own ratified Review Fix #2; cycle 2 (this session, sole hosted Copilot review round): 6-thread hardening batch (`25ab0c8`). Fix-CI cycles: 0 / 5 |
 
-## Copilot Review Round 2 (P-018 engaged, this session)
+## Hosted Copilot Review Round (P-018 engaged, this session)
+
+PR #273's sole hosted Copilot review round (6 threads, all resolved). The
+earlier `parent_event_id` fix (`1c09212`) was a local task-level fix against
+the plan's own ratified Review Fix #2, not a hosted Copilot PR comment, and is
+tracked separately in the review-fix-cycle count above.
 
 | # | Thread | File | Finding | Resolution |
 | --- | --- | --- | --- | --- |
@@ -162,8 +167,8 @@ Safe-close used per-item / single-artifact operations only. The cascade command
 
 - **Healthy signals**:
   - Feature PR #273 merged with a merge commit (two parents; P-009 preserved).
-  - Local review READY (P0=0/P1=0); §1.9 all-checks PASS; P-018 SATISFIED across
-    both Copilot rounds (6 threads round 2, all resolved).
+  - Local review READY (P0=0/P1=0); §1.9 all-checks PASS; P-018 SATISFIED for
+    the sole hosted Copilot review round (6 threads, all resolved).
   - CI green at every merge gate; CLI smoke probe PASS; full unittest suite
     905 passed / 7 skipped / 0 failed; `uv build` succeeded.
   - Backlog safe-close archived the shipment without the forbidden cascade;
@@ -197,8 +202,10 @@ Safe-close used per-item / single-artifact operations only. The cascade command
   any future refinement ideas would route through Stage.
 
 **Closure verdict: READY.** Merge confirmed (P-009 preserved, two-parent commit
-`364f6b0`), local review + §1.9 + P-018 gates passed across both Copilot rounds,
-runtime CLI probe PASS + full suite 905 passed/7 skipped/0 failed, single-artifact
-safe-close complete with the protected feature `084-F` intact throughout
-(including recovery from an in-session main-branch mis-commit), and P-020 context
-compaction is being invoked as the immediate next step in this closure pass.
+`364f6b0`), local review + §1.9 + P-018 gates passed (sole hosted Copilot review
+round on PR #273, plus a separate local task-level fix), runtime CLI probe PASS
++ full suite 905 passed/7 skipped/0 failed, single-artifact safe-close complete
+with the protected feature `084-F` intact throughout (including recovery from
+an in-session main-branch mis-commit), and P-020 context compaction is
+recorded `done` (see the Context Compaction section above for the compacted
+memory and decided-plan artifacts produced in this same pass).

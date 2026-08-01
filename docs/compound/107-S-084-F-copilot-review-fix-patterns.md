@@ -8,7 +8,11 @@ related_feature: 084-F
 
 # Compound Learning: Six hardening fixes for `ToolTelemetryEvent` ingestion and composition
 
-Captured from PR #273's second Copilot review round (6 threads, all resolved).
+Captured from PR #273's hosted Copilot review (6 threads, all resolved) — the
+sole hosted Copilot review round on that PR. (A separate, earlier
+`parent_event_id`-linkage fix, commit `1c09212`, came from implementing the
+plan's own ratified `## Review Fixes` item during task build/local review —
+not from a hosted Copilot PR comment — and is not one of the six.)
 Each fix corrects a place where implementation drifted from the frozen schema
 contract or from safe-composition semantics. Recorded here so future telemetry
 schema/composer work reuses the same reasoning instead of re-deriving it.
@@ -20,8 +24,11 @@ The frozen schema (`schemas/tool-telemetry-event.schema.json`) declares
 original `from_mapping()` unconditionally ran every provided value through a
 UUID normalizer, silently replacing arbitrary caller-supplied IDs (e.g. IDs
 correlated with an external system) with a generated UUID. **Fix**: only
-generate a UUID when `event_id` is omitted/empty; otherwise preserve the
-caller's value verbatim once it passes the non-whitespace pattern. Lesson:
+generate a UUID when `event_id` is omitted entirely (`None`); an explicitly
+provided empty string is still rejected by `_normalize_event_id` (the schema's
+`minLength: 1` / non-whitespace pattern applies to any provided value — empty
+is not treated as "omitted"). Otherwise preserve the caller's value verbatim
+once it passes the non-whitespace pattern. Lesson:
 when a frozen schema and an ingestion helper disagree on strictness, the
 schema wins — don't let a convenience normalizer quietly narrow a public
 contract.

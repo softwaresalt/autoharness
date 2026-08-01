@@ -23,9 +23,11 @@ clarifications applied via `## Review Fixes` → cycle 2 **PASS**,
 decisions, surviving implementation units, and rationale; the verbose original
 — including both review cycles and the full persona-coverage table — is
 archived at `docs/archive/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md`.
-Two Copilot review rounds on PR #273 refined the implementation further after
-harvest (round 1: `parent_event_id`-linked expected-tool accounting, commit
-`1c09212`; round 2: 6 hardening fixes, commit `25ab0c8` — see
+Two post-harvest hardening passes on PR #273 refined the implementation
+further after harvest (pass 1: `parent_event_id`-linked expected-tool
+accounting via the plan's own ratified Review Fix #2, local task-level fix,
+commit `1c09212`; pass 2: the sole hosted Copilot review round, 6 hardening
+fixes, commit `25ab0c8` — see
 `docs/compound/107-S-084-F-copilot-review-fix-patterns.md`).
 
 ## Scope
@@ -82,11 +84,14 @@ intercom adapters (082-F), or add benchmark scenarios (085-F).
    emitter warning — cumulative values are never summed (formalized further by
    PR #273 review-fix #4, `_non_monotonic_diagnostics()`).
 
-## Post-Harvest PR Hardening (2 Copilot rounds, both resolved)
+## Post-Harvest PR Hardening (2 passes: 1 local task-level fix + 1 hosted Copilot review round, both resolved)
 
-- **Round 1** (`1c09212`): implemented `parent_event_id`-linked expected-tool
-  accounting per Review-Fix #2 above.
-- **Round 2** (`25ab0c8`, 6 threads): (1) preserve caller-supplied `event_id`,
+- **Pass 1 — local task-level fix** (`1c09212`, not a hosted Copilot PR
+  comment): implemented `parent_event_id`-linked expected-tool accounting per
+  Review-Fix #2 above, resolving a gap against the plan's own ratified
+  requirement found during task build/local review.
+- **Pass 2 — hosted Copilot review round** (`25ab0c8`, 6 threads, PR #273's
+  sole hosted Copilot review round): (1) preserve caller-supplied `event_id`,
   UUID-generate only when omitted; (2) workspace-containment validation for
   `evidence_path`/`artifact_refs` including symlink-escape checks; (3)
   `read_events()` returns `unavailable` (not a partial set) on any segment I/O
@@ -135,11 +140,12 @@ merge commit `364f6b07abc2418ec9f696603d5da4b9cf879256`.
   clarifications (authoritative post-retention record; expected-tool machine
   correlation key; distinct trust boundaries for strict rejection vs.
   fail-closed provenance normalization) resolved; cycle 2 = PASS.
-- **r2 — PR #273 Copilot review round 1** (`1c09212`, 084.004-T): implemented
-  `parent_event_id`-linked expected-tool accounting.
-- **r3 — PR #273 Copilot review round 2** (`25ab0c8`, post-harvest, this
-  shipment's Ship-side closure): 6 hardening fixes listed above; all replied +
-  resolved; P-018 gate `SATISFIED`.
+- **r2 — PR #273 local task-level fix** (`1c09212`, 084.004-T, not a hosted
+  Copilot PR comment): implemented `parent_event_id`-linked expected-tool
+  accounting.
+- **r3 — PR #273 hosted Copilot review round** (`25ab0c8`, post-harvest, sole
+  hosted Copilot review round on this PR): 6 hardening fixes listed above; all
+  replied + resolved; P-018 gate `SATISFIED`.
 
 ## Closure
 
