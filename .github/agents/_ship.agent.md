@@ -172,6 +172,7 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
 1. Identify the shipment or feature to work on (read-only — do not claim yet).
    * If a shipment exists, record its ID for use in step 4.
    * Otherwise, select queued tasks from the backlog.
+1a. **Queued/blocked-with-active-work early-warning (NON-NEGOTIABLE ordering: runs immediately after the shipment record is loaded, BEFORE the scope/status validation in step 2 and BEFORE the step 4 claim)**: This scan applies only when a shipment exists (`shipment_id` was recorded in step 1); in the no-shipment path (bare queued tasks selected directly from the backlog) there is no shipment record to check, so skip this early-warning. Load the shipment record and enumerate its manifest task IDs via `backlogit shipment get {shipment_id}` (→ `custom_fields.items`), then read each task's status via `backlogit get {task_id}` (CLI fallback path — the whole check uses the CLI since MCP is the unreliable surface being guarded). Filter `custom_fields.items` to task artifacts (exclude any non-task entry — backlogit task IDs end in `-T`, features in `-F`) before evaluating statuses: the shipment `items` list is untyped and the fallback/direct-assembly path can seed it with the covering feature ID, so an `active`/`done` feature entry must be excluded to avoid a false fail-closed halt. Only task artifacts are scanned (task-only manifest, per the 097-S contract); the covering feature is derived via `parent_id` and is **not** part of the scan. If the loaded shipment record status is `queued` or `blocked` while any manifest task is already `active` or `done`, halt with `SHIPMENT_STATE_INCONSISTENT: shipment {shipment_id} is {status} but task {task_id} is {task_status}` (detect-and-report only — no auto-repair) and record a P-005 event. Remediation: for a `queued` record, resolve and re-claim; for a `blocked` record, resolve the blocking gate and transition `blocked → queued` **before** any claim — never re-claim-to-`active` directly on a blocked record, which bypasses the documented blocking gate (`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md:32-44`); a genuinely stale record is archive-repaired instead. This runs **ahead of** the scope/status validation in step 2 so a `blocked`-with-active-work record is diagnosed before validation would reject it, and **ahead of** the step 4 claim so a successful `queued → active` claim cannot mask the inconsistency. Broadcast the result when intercom is available.
 2. Verify all tasks have clear scope and acceptance criteria. Task-only shipment
    manifests are valid: resolve each covering feature through the task's
    `parent_id` rather than requiring the parent feature to appear in the shipment.
@@ -204,6 +205,23 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
    - If on any other non-shipment branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
    - Note: all git commands above are run as separate sequential steps, not chained.
 4. Claim the shipment via `backlogit_claim_shipment` (first mutation, only after branch gate passes).
+5. **Post-claim shipment-status verification (P-005 fail-closed)**: This verification applies only when a shipment was claimed in step 4 (skip it for the no-shipment/bare-tasks path). Immediately after the claim and **before**
+   Step 2 moves any task to `active`, re-read the shipment record's own status (prefer the CLI fallback
+   `backlogit shipment get {shipment_id}` — MCP is the unreliable surface this guard exists to catch, e.g. the
+   `Transport closed` drops observed live) and assert it reached `active`.
+   - If the re-read status is `active`: log `CLAIM_VERIFY_OK: shipment {shipment_id} reached active` and proceed.
+   - If the re-read status is `queued`: retry the claim exactly once (CLI fallback
+     `backlogit shipment claim {shipment_id}`) and re-read. If it still is not `active`, halt fail-closed with
+     `CLAIM_VERIFY_FAILED: shipment {shipment_id} did not reach active after claim` and record a P-005 event.
+     Retry-once applies **only** to a `queued` re-read.
+   - If the re-read status is `blocked`: halt **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} is
+     blocked` — **no retry, no claim**. `blocked` is the repository's claim-prevention state and must transition
+     `blocked → queued` (after its gate clears) before `queued → active`
+     (`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md:32-44`); re-issuing a claim on a
+     `blocked` record would bypass that documented gate. Remediation requires resolving the blocking gate and
+     transitioning `blocked → queued` before any claim — never a direct re-claim-to-`active` on a blocked record.
+   Both halts fire **before** Step 2 moves any task to `active`. Broadcast the claim-verify result when intercom
+   is available.
 
 ### Step 1: Pre-Flight Checks
 
