@@ -261,8 +261,8 @@ artifacts:
   - path: ".github/instructions/role-enforcement.instructions.md"
     primitive: 5
     template: "instructions/role-enforcement.instructions.md.tmpl"
-    checksum: "31a4adc960da3ccaa202e894a9f1259ce341c71da18d1afbdd3e7e57c56028d6"
-    note: "role boundary self-check instruction (installed 067.005-T)"
+    checksum: "3dc03de998e838c00cac1064f7f0265df35bc5d69e156e7b3d491d444f66443b"
+    note: "role boundary self-check instruction (installed 067.005-T); checksum refreshed 108-S/104.005-T (P-013.5 Skill-Delegation Model Inheritance clause)"
   - path: ".github/instructions/concurrency.instructions.md"
     primitive: 5
     template: "instructions/concurrency.instructions.md.tmpl"
