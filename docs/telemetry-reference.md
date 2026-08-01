@@ -54,11 +54,61 @@ Reports filter only on persisted fields such as `session_id`, `backlog_item_id`,
 
 ## ToolTelemetryEvent v1.0
 
-`ToolTelemetryEvent v1.0` is a forward-only schema contract. It describes future granular event identity, correlation, optional `work_sizing_snapshot`, tool, timing, outcome, token economics, provenance maps, offload, retrieval health, evidence, and safety fields. live event model/sink/emission and deterministic event-to-epoch composition are deferred to 084-F if needed, not part of 079-F core.
+`ToolTelemetryEvent v1.0` is a forward-only schema contract. It describes future granular event identity, correlation, optional `work_sizing_snapshot`, tool, timing, outcome, token economics, provenance maps, offload, retrieval health, evidence, and safety fields. As of 079-F, live event model/sink/emission and deterministic event-to-epoch composition were deferred to 084-F if needed, not part of 079-F core. 084-F implemented that deferred scope; see [Tool-Event Emission and Composition (084-F)](#tool-event-emission-and-composition-084-f) below. The published schema (`schemas/tool-telemetry-event.schema.json`) itself did not change — 084-F only adds a runtime model, journal, composer, and CLI surface that implement the existing contract.
+
+## Tool-Event Emission and Composition (084-F)
+
+### Event Lifecycle
+
+1. **Begin** — Ship (or any host) runs `autoharness telemetry begin ... --json` as documented above, producing `context_ref` and a stable `epoch_id`.
+2. **Optional event emission** — while a task is in progress, tool use MAY emit individual `ToolTelemetryEvent` records with `autoharness telemetry event --context-ref <context_ref> --from-json <event-payload> --json`. Emission is entirely observational: it never blocks work, and a disabled telemetry config makes it a no-op before any payload is read or parsed (mirroring `telemetry record`'s disabled-mode contract). Correlation identity (`epoch_id`/`backlog_item_id`) and any other frozen context fields are merged onto the event from the begin context; the event payload's own identity fields must agree with the context or the call is rejected.
+3. **compose-on-record** — at task close, `autoharness telemetry record --context-ref <context_ref> --from-json <epoch-payload> --compose-tool-events --json` opts in to composing the retained, deduplicated events correlated to that context into the closing `ExecutionEpoch` before dispatch to sinks. Omitting `--compose-tool-events` reproduces today's close-payload-only behavior exactly, with zero journal reads.
+
+### Journal Retention and Rotation
+
+The event journal (`src/autoharness/telemetry/tool_event_jsonl.py`) is a bounded, segmented JSONL journal built on the same shared primitives extracted from the execution-epoch JSONL sink into `src/autoharness/telemetry/_jsonl_segments.py` (segment enumeration, no-replace rollover, retention pruning, canonical-line scan, file identity). It does not duplicate or diverge from the epoch mirror's rotation/retention model described above — see that section for the shared no-replace generation-claim and bounded-retention mechanics, which apply identically to the event journal. The journal path is derived from the enabled telemetry directory beside the configured epoch database; there is no separate event-journal configuration field. Appending an event is idempotent by `event_id`: an identical replay is a no-op, and a conflicting replay (same `event_id`, different canonical content) is rejected with a diagnostic rather than silently overwritten. Reads stream matches across the active segment plus all retained sealed segments (cross-segment correlation), skip malformed lines with a diagnostic instead of crashing, and are stable under non-ASCII content.
+
+### Composer Ownership and Hybrid Refusal
+
+Composition treats a fixed set of `ExecutionEpoch` fields as **composer-owned** once `--compose-tool-events` is requested: `route.route_kinds`; the token/context-area/COGS-adjacent economics metrics other than `cogs_usd` and `duration_seconds` (which remain close-owned); the entire `operations` payload class (`cli_tools`, `tool_surfaces`, `retrieval_packs`, routed/raw counts, avoided-read counts, `tool_output_bytes`, expected/observed/missing tool count maps, `degraded_tool_count`, `stale_or_unavailable_index_count`); and `outcome.tool_failure_count`/`tool_degraded_count`/`tool_gap_count` (`gate_exit_codes` stays close-owned). `cogs_usd`, `duration_seconds`, and `gate_exit_codes` are always close-payload owned, composed or not.
+
+If the close payload already supplies nonzero values for any composer-owned field **and** composition is requested, the record call fails closed with a controlled `ToolEventCompositionError` — this is a hybrid input and is refused rather than silently picking a winner, because merging on top of it would double count. Any other composition failure (a missing or unreadable event journal, or an unexpected error while reading/composing events) fails open instead: the diagnostic is recorded in the composition summary and the original, unmerged close payload is recorded exactly as it would be with `--compose-tool-events` omitted. A missing event journal therefore never blocks task completion — the existing close-payload-only path always remains fully valid.
+
+### Expectation Semantics
+
+An event carrying a non-null `expected_tool` records one explicit expected opportunity for that tool. Satisfaction uses explicit event links (the plan's `## Review Fixes` item 2): a direct invocation event (never expectation-only) whose own `expected_tool` equals its own `tool_name` counts one expected AND one observed opportunity in that same event. A separate, standalone expectation event (operation `expect`, status `skipped`) is identified by its `event_id`; a later invocation or retry satisfies it only when that invocation's `parent_event_id` equals the expectation event's `event_id` and its `tool_name` equals the expectation's `expected_tool`. Multiple retries linked to the same expectation event count one expected opportunity and at most one observed opportunity — never per-retry, never double counted. Unlinked events — an invocation with no `parent_event_id`, or a `parent_event_id` that does not resolve to a standalone expectation event in the correlated set — never satisfy an expectation, even when the tool name matches. A status-only expectation record never counts as an invocation by itself. The `parent_event_id` linkage above governs *how* an event may satisfy an expectation before the result folds into the persisted epoch schema's storage shape, which remains **flat per-tool maps with no per-operation dimension** (`expected_tool_counts`/`observed_tool_counts`/`missing_expected_tool_counts` are keyed by tool name only). Missing counts clamp at zero and never go negative. Failed and degraded invocations are counted separately from "missing": a failed or degraded invocation of an expected tool still satisfies that expectation and is never conflated with a tool that was never invoked at all.
+
+### Provenance
+
+Composition reuses the 095-S additive-provenance pattern (`docs/compound/095-S-derived-metric-provenance-additive-map.md`): every composer-populated metric stays strictly numeric, and provenance travels in the existing additive sibling `metric_sources`/`metric_quality` maps keyed by metric name — never inline or interleaved with the value. Populated composer-derived economics metrics report source `"derived"` (the value is an aggregate over per-tool events, not a single host report) and the worst (least-trusted) quality label contributed by any event for that metric name. Malformed or out-of-vocabulary labels normalize fail-closed rather than crashing or silently passing through.
+
+### Privacy and Safety
+
+Only schema-shaped fields may ever be persisted in the event journal: no raw tool output, prompts, stderr, or credentials are captured by `ToolTelemetryEvent`, matching the plan's Risks section (secret leakage — schema fields only, safe fingerprints and paths, no raw output). All journal and context artifacts stay workspace-contained; path-safe rules reject absolute paths, traversal, and symlink escapes exactly as they do for the existing begin-context artifacts.
+
+### Rollback
+
+Tool-event emission and composition are opt-in end to end. Omitting `telemetry event` calls during a task, or omitting `--compose-tool-events` at close, reverts to today's close-payload-only behavior with zero event-journal reads — there is no migration or backfill step, and the event journal is purely additive alongside the existing epoch sinks.
+
+### CLI Examples
+
+```bash
+# Emit a sanitized tool-use event mid-task (fails open; never blocks work)
+autoharness telemetry event --context-ref .autoharness/metrics/contexts/<ref>.json \
+  --from-json event-payload.json --json
+
+# Close the task, composing retained events into the epoch
+autoharness telemetry record --context-ref .autoharness/metrics/contexts/<ref>.json \
+  --from-json epoch-payload.json --compose-tool-events --json
+
+# Close the task without composition (unchanged, zero journal reads)
+autoharness telemetry record --context-ref .autoharness/metrics/contexts/<ref>.json \
+  --from-json epoch-payload.json --json
+```
 
 ## Cross-Pack Sequencing
 
-Shipment 092-S is fail-closed on the released backlogit hierarchical-sizing contract and task 079.013-T, plus the 079.014-T begin context, 079.016-T record-close/idempotency, and 079.015-T Ship host handoff tasks. 082-F maps real pack evidence before broad adapter implementation. 084-F implements live token-efficiency event emission if required. 085-F builds benchmark suites after stable telemetry inputs exist.
+Shipment 092-S is fail-closed on the released backlogit hierarchical-sizing contract and task 079.013-T, plus the 079.014-T begin context, 079.016-T record-close/idempotency, and 079.015-T Ship host handoff tasks. 082-F maps real pack evidence before broad adapter implementation. 084-F implements live token-efficiency event emission if required — see [Tool-Event Emission and Composition (084-F)](#tool-event-emission-and-composition-084-f) for the delivered contract. 085-F builds benchmark suites after stable telemetry inputs exist.
 
 ## Rollback and Disabled Mode
 

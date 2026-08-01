@@ -17,9 +17,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from autoharness.telemetry import jsonl_sink, sqlite_sink
+from autoharness.telemetry import jsonl_sink, sqlite_sink, tool_event_jsonl
 from autoharness.telemetry.config import TelemetryConfig, load_telemetry_config
 from autoharness.telemetry.epoch import ExecutionEpoch
+from autoharness.telemetry.tool_event_compose import (
+    ToolEventCompositionError,
+    apply_composition_patch,
+    compose_tool_events as _compose_tool_events,
+    detect_hybrid_fields,
+)
 
 
 @dataclass
@@ -38,6 +44,11 @@ class RecordSummary:
     idempotency_outcome: str | None = "disabled"
     errors: list[str] = field(default_factory=list)
     missing_provenance: dict[str, list[str]] = field(default_factory=dict)
+    composition_requested: bool = False
+    composition_applied: bool = False
+    composed_selected_event_count: int = 0
+    composed_ignored_event_count: int = 0
+    composition_diagnostics: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -56,6 +67,11 @@ class RecordSummary:
                 for section, metrics in self.missing_provenance.items()
             },
             "errors": list(self.errors),
+            "composition_requested": self.composition_requested,
+            "composition_applied": self.composition_applied,
+            "composed_selected_event_count": self.composed_selected_event_count,
+            "composed_ignored_event_count": self.composed_ignored_event_count,
+            "composition_diagnostics": list(self.composition_diagnostics),
         }
 
 
@@ -133,12 +149,94 @@ def _finalize_idempotency(summary: RecordSummary) -> None:
         summary.idempotency_outcome = "created" if summary.sqlite_written or summary.jsonl_written else "disabled"
 
 
-def record_epoch(epoch: ExecutionEpoch, config: TelemetryConfig) -> RecordSummary:
-    """Dispatch an epoch to every enabled sink, failing open on sink errors."""
+def record_epoch(
+    epoch: ExecutionEpoch,
+    config: TelemetryConfig,
+    *,
+    compose_tool_events: bool = False,
+) -> RecordSummary:
+    """Dispatch an epoch to every enabled sink, failing open on sink errors.
+
+    ``compose_tool_events`` is an opt-in flag (084.005-T / U5): when ``True``,
+    the U3 ToolTelemetryEvent journal derived from ``config`` is read, events
+    correlated to ``epoch.epoch_id``/``epoch.backlog_item_id`` are selected
+    (exact ``epoch_id`` match first; ``backlog_item_id`` fallback only for
+    events with no ``epoch_id`` at all — decision 5), and the resulting
+    composer-owned patch (route/economics/operations/outcome — see
+    :mod:`autoharness.telemetry.tool_event_compose`) is merged onto the
+    close-supplied epoch before it is dispatched to sinks. Every other
+    close-payload field (``gate_exit_codes``, ``cogs_usd``,
+    ``duration_seconds``, and all root-level identity fields) is preserved
+    verbatim (decision 6).
+
+    **Hybrid refusal (fail CLOSED):** if the close-supplied epoch already
+    populates a composer-owned field with a nonzero/non-empty value while
+    composition is requested, :class:`ToolEventCompositionError` is raised —
+    this is the one case where this function does NOT fail open, because
+    silently picking either side would double-count or silently discard data
+    (decision 6).
+
+    **Composition I/O failures fail OPEN:** a missing or unreadable journal,
+    or any other unexpected error while reading/composing events, is recorded
+    in ``composition_diagnostics`` and the original (unmerged) close payload
+    is recorded exactly as if composition had not been requested — a missing
+    event journal must never block task completion.
+
+    When ``compose_tool_events`` is left at its default (``False``), this
+    function's behavior is byte-for-byte identical to the pre-U5 code path.
+    """
     summary = RecordSummary(enabled=config.enabled, epoch_id=epoch.epoch_id)
     if not config.enabled:
         summary.idempotency_outcome = "disabled"
         return summary
+
+    summary.composition_requested = compose_tool_events
+    if compose_tool_events:
+        hybrid_fields = detect_hybrid_fields(epoch)
+        if hybrid_fields:
+            raise ToolEventCompositionError(
+                "compose_tool_events requested but the close payload already "
+                "supplies composer-owned field(s): "
+                + ", ".join(hybrid_fields)
+                + ". Refusing hybrid input to prevent double counting or silent "
+                "data loss (decision 6)."
+            )
+        try:
+            journal_path = tool_event_jsonl.journal_path_for_config(config)
+            read_result = tool_event_jsonl.read_events(
+                journal_path,
+                epoch_id=epoch.epoch_id,
+                backlog_item_id=epoch.backlog_item_id,
+            )
+            summary.composition_diagnostics.extend(read_result.diagnostics)
+            if read_result.status == "unavailable":
+                # A segment I/O failure: read_events already reports no
+                # events for this status (never a partial/undercounted
+                # subset). Skip composition entirely so the original
+                # close-supplied payload persists unmerged, matching the
+                # documented fail-open contract, rather than recording an
+                # undercounted roll-up as the immutable epoch.
+                summary.composition_diagnostics.append(
+                    "tool-event composition skipped: journal read unavailable "
+                    "(segment I/O failure)"
+                )
+            else:
+                composition = _compose_tool_events(
+                    read_result.events,
+                    epoch_id=epoch.epoch_id,
+                    backlog_item_id=epoch.backlog_item_id,
+                )
+                summary.composed_selected_event_count = composition.selected_event_count
+                summary.composed_ignored_event_count = composition.ignored_event_count
+                summary.composition_diagnostics.extend(composition.diagnostics)
+                epoch = apply_composition_patch(epoch, composition)
+                summary.composition_applied = True
+        except ToolEventCompositionError:
+            raise
+        except Exception as exc:  # fail-open: composition I/O never blocks completion
+            summary.composition_diagnostics.append(
+                f"tool-event composition unavailable: {exc}"
+            )
 
     summary.missing_provenance = _missing_provenance(epoch)
 
