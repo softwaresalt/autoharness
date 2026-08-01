@@ -4,7 +4,7 @@ tuned_at: "2026-07-09T20:21:26+00:00"
 autoharness_version: "1.4.11"
 autoharness_home: null
 profile_hash: "e5a71cf20952b26d42c5f8ca627c7a2e54c7744053e65268505399ea22913071"
-config_hash: "f0de8d5e21eeeee1e7866b0ecc5c420c2a72a5065fa386b7e4983a3b6ca5d590"
+config_hash: "1012be204fd7ee9ec8a6f316fc71fbeef4f40a5683248114e53ab08f650aec19"
 install_preset: "full"
 install_mode: "self-install"
 primary_stack_pack: "cli-tool"
@@ -99,7 +99,7 @@ artifacts:
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
-    checksum: "f0de8d5e21eeeee1e7866b0ecc5c420c2a72a5065fa386b7e4983a3b6ca5d590"
+    checksum: "1012be204fd7ee9ec8a6f316fc71fbeef4f40a5683248114e53ab08f650aec19"
   - path: ".autoharness/backlog-registry.yaml"
     primitive: 4
     template: "backlog/registries/backlogit.registry.yaml"
@@ -117,7 +117,7 @@ artifacts:
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "4286b2d59a6eaa19e49f071b42e9be7af342f58f7eb6f45134b88e64cb1c7fef"
+    checksum: "9525a090d3772870902480377cce26cc58b4e115b388d23efd9baef86a55bbe6"
     note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
   - path: "start.sh"
     primitive: 1

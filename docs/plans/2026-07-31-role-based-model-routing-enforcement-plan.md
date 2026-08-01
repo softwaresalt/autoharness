@@ -91,7 +91,7 @@ still plain strings) is reconciled in the same pass.
 | Installer skill | `.github/skills/install-harness/SKILL.md` | add `{{STAGE_*}}`/`{{SHIP_*}}` var rows + tier-fallback semantics |
 | Orchestrator agent | `templates/agents/_orchestrator.agent.md.tmpl` + regen `.github/agents/_orchestrator.agent.md` | invocation directive in Steps 1/2 + Model Routing section |
 | Delegation instruction | skill-delegation / subagent contract instruction (exact file to be located by Ship) | skills inherit routed agent session model; confirm routing before skill invocation |
-| Policy doc | `templates/policies/workflow-policies.md.tmpl` (+ installed `workflow-policies.md`) | P-013.5 + amendment log |
+| Policy doc | `templates/policies/workflow-policies.md.tmpl` | P-013.5 + amendment log |
 | Verifier (CLI) | `src/autoharness/verify_workspace.py` | fail-closed assertions (resolved model fields; directive presence; role-route resolution) |
 | Tests | `tests/test_verify_workspace.py` | red-green cases that fail when routing omitted/defaulted |
 | Docs | `docs/getting-started.md`, `docs/product-specs/orchestrator-model-routing-spec.md`, new `docs/compound/*` learning | variable tables + spec amendment + learning |
@@ -154,8 +154,10 @@ depends-on `104.004-T` (Installer) correctly sequences Installer before Orchestr
    wording).
 6. **T6 — Policy P-013.5** (policy family). Append P-013.5 (invocation-time
    model-routing enforcement: resolve-declare-or-degrade; fail-closed) to
-   `workflow-policies.md.tmpl` + amendment log; update installed copy. **AC:**
-   P-013.5 present in template and installed file with fail-closed + ROUTING_DEGRADED
+   `workflow-policies.md.tmpl` + amendment log. **AC:**
+   P-013.5 present in the template (the policy registry is template-only in this
+   repository; there is no installed `workflow-policies.md` mirror) with fail-closed
+   + ROUTING_DEGRADED
    semantics; canonical `| Field | Value |` policy table format. Depends on T4.
 7. **T7 — Verifier assertion: resolved model fields (red-green)** (verifier/tests).
    Extend the frontmatter check so pipeline agents (`_stage`, `_ship`,
