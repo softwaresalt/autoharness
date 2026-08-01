@@ -102,6 +102,24 @@ No provider-specific string is hardcoded in any `.tmpl`; all resolve from config
 
 Ordering encodes dependencies: schema → config → installer → consumers → verify → docs.
 
+**Plan unit → backlog ID map.** Units are numbered by dependency order, not by ID
+suffix. Note the intentional non-sequential assignment for T3/T4: **T3 (Installer) =
+`104.004-T`** and **T4 (Orchestrator) = `104.003-T`** — the ID suffixes are reversed
+relative to the unit ordinal, but the dependency edge `104.003-T` (Orchestrator)
+depends-on `104.004-T` (Installer) correctly sequences Installer before Orchestrator.
+
+| Unit | Scope | Backlog ID | Depends on (units → IDs) |
+| --- | --- | --- | --- |
+| T1 | Schema | `104.001-T` | — |
+| T2 | Config | `104.002-T` | T1 → `104.001-T` |
+| T3 | Installer | `104.004-T` | T1 → `104.001-T`, T2 → `104.002-T` |
+| T4 | Orchestrator | `104.003-T` | T3 → `104.004-T` |
+| T5 | Skill-delegation contract | `104.005-T` | T4 → `104.003-T` |
+| T6 | Policy P-013.5 | `104.006-T` | T4 → `104.003-T` |
+| T7 | Verifier: model fields | `104.007-T` | T2 → `104.002-T`, T3 → `104.004-T` |
+| T8 | Verifier: invocation directive | `104.008-T` | T4 → `104.003-T`, T1 → `104.001-T` |
+| T9 | Docs + compound learning | `104.009-T` | T3 → `104.004-T`, T4 → `104.003-T`, T6 → `104.006-T` |
+
 1. **T1 — Schema role routes + 1.0.0 skew reconciliation** (schema family). Add
    `stage`/`ship` object routes to both schema files; make `1.0.0` tiers
    `oneOf:[string,object]` to match the unversioned schema; keep sub-object
