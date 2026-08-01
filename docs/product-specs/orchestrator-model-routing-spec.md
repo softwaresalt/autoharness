@@ -21,6 +21,56 @@ status: implemented
 > validates only `max_subagent_tier`. Sections below reflect the original
 > 2026-05-07 design and are annotated inline where superseded.
 
+> **Amendment (2026-08-01) — P-013.5: invocation-time model-routing
+> enforcement (104-F / 108-S).** Config-resolved tier binding (above) governs
+> an agent's *installed* frontmatter, but did not make routing verifiable at
+> **invocation** time: the Orchestrator's Steps 1/2 previously invoked
+> Stage/Ship with no explicit model-override directive, so sub-sessions could
+> silently inherit the current session's model instead of the intended route.
+> P-013.5 closes this gap:
+>
+> - **First-class role routes.** `model_routing.stage` / `model_routing.ship`
+>   are new optional route objects (`model_provider`, `model_family`,
+>   `reasoning_effort`; `additionalProperties: false`; no required fields —
+>   mirrors the `alt_review` pattern) added to both `schemas/harness-config.schema.json`
+>   and `schemas/harness-config/1.0.0.schema.json`. When a route or one of its
+>   sub-fields is absent/empty, resolution falls back **per field** to
+>   `model_routing.tier3` (Stage) / `model_routing.tier2` (Ship) — P-013's tier
+>   taxonomy is preserved, nothing regresses for workspaces that never declare
+>   an explicit stage/ship route.
+> - **Installer variables.** `install-harness/SKILL.md`'s variable table gained
+>   `STAGE_REASONING_EFFORT` / `STAGE_PROVIDER` / `STAGE_FAMILY` and the
+>   `SHIP_*` equivalents, each with the same per-sub-field tier3/tier2
+>   fallback described above.
+> - **Orchestrator invocation directive.** Steps 1 and 2 of both
+>   `templates/agents/_orchestrator.agent.md.tmpl` and the installed
+>   `.github/agents/_orchestrator.agent.md` now include an explicit "Resolve
+>   routed model (P-013.5)" step before each subagent invocation: resolve
+>   `config.model_routing.stage` / `.ship`, declare the resolved
+>   `model_family`/`model_provider` as the invocation override, and emit
+>   `ROUTING_DEGRADED` explicitly when the runtime cannot honor a
+>   per-invocation model override — the Orchestrator must never silently fall
+>   back to its own session model.
+> - **Skill-delegation inheritance.** A new "Skill-Delegation Model
+>   Inheritance (P-013.5)" section in `role-enforcement.instructions.md`
+>   (template + installed) states that skills are leaf executors that inherit
+>   the invoking agent's already-routed session model, must not re-resolve
+>   per skill, and must carry forward any `ROUTING_DEGRADED` state rather than
+>   silently resolving on their own.
+> - **Policy.** `### P-013.5 — Invocation-Time Model-Routing Enforcement` was
+>   appended to the P-013 family in `templates/policies/workflow-policies.md.tmpl`
+>   (Resolve / Declare / Degrade-explicitly / Skill-inheritance /
+>   Fail-closed-verification / Violation-Action structure); Amendment Log
+>   bumped to `1.16.0`.
+> - **Fail-closed verification.** Three new gated `verify_workspace.py`
+>   checks — see Phase 3 below (`orchestrator_model_routing_fields` /
+>   `stage_model_routing_fields` / `ship_model_routing_fields`,
+>   `orchestrator_invocation_routing_directive`, `role_route_resolution`).
+>
+> Dogfood assignment for this repository: Stage → `claude-opus-4.8`
+> (anthropic, high), Ship → `claude-sonnet-5` (anthropic, high), per
+> `.autoharness/config.yaml`.
+
 1. Problem Statement
 
 The current agent architecture suffers from two critical flaws:
@@ -130,6 +180,29 @@ The following assertions and tests were added:
 **`p013_policy_in_workflow_policies`** (FOUNDATION_ASSERTIONS): Verifies the installed `workflow-policies.md` contains P-013 and `max_subagent_tier` text (confirming the policy was installed).
 
 **`test_all_agent_templates_have_max_subagent_tier_and_no_model_tier`** (test_verify_workspace.py): Confirms all agent template files declare `max_subagent_tier:` and that none declare `model_tier:` in their frontmatter. A companion **`test_no_agent_definition_declares_model_tier`** extends the same guard to installed instances under `.github/agents/`.
+
+**`orchestrator_model_routing_fields` / `stage_model_routing_fields` / `ship_model_routing_fields`**
+(`_add_frontmatter_model_routing_check()` in `verify_workspace.py`, wired per-agent gated on
+`file_path.exists()`): validates that each installed pipeline agent (`_orchestrator.agent.md`,
+`_stage.agent.md`, `_ship.agent.md`) declares a non-empty `model_family` and `model_provider`
+in its YAML frontmatter, with no unresolved `{{...}}` placeholder. Unlike `orchestrator_tier_fields`
+(called unconditionally), these three checks are only registered when the corresponding agent file
+exists, so partial fixtures/workspaces that omit one of the three pipeline agents never register a
+false failure. (104.007-T)
+
+**`orchestrator_invocation_routing_directive`** (FOUNDATION_ASSERTIONS, gated on
+`.github/agents/_orchestrator.agent.md` existing): verifies the installed Orchestrator's content
+references `P-013.5`, `config.model_routing.stage`, `config.model_routing.ship`, and
+`ROUTING_DEGRADED` — i.e., that the invocation-time routing directive was actually installed, not
+merely documented in the template source. (104.008-T)
+
+**`role_route_resolution`** (`_add_role_route_resolution_check()`, evaluated only when
+`.autoharness/config.yaml` declares a `model_routing` block at all): verifies that the `stage` and
+`ship` role routes each resolve to a non-empty `model_family`, either from an explicit
+`model_routing.stage`/`model_routing.ship` route or via per-field fallback to
+`model_routing.tier3`/`model_routing.tier2` respectively (`ROLE_ROUTE_TIER_FALLBACK`). Fails closed:
+an unresolvable role route (no route, no fallback with a usable `model`/`model_family`) is a
+verification failure rather than a silent pass. (104.008-T)
 
 **Implementation note on `assert_tier_hierarchy`**: The strict caller/callee tier dependency graph check (e.g., flagging Orchestrator if `max_subagent_tier < Stage's model_tier`) was reviewed during deliberation and deferred. A static dependency graph cannot be reliably inferred from agent templates alone without a formal invocation registry. The `orchestrator_tier_fields` frontmatter check and the P-013 policy prose enforce the intent; a future `assert_tier_hierarchy` can be added when the dependency graph is formalized.
 
