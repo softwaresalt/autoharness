@@ -82,6 +82,17 @@ model_routing:
     model_family: "{{ORCHESTRATOR_FAMILY}}"     # Orchestrator model override (default: gpt-5.4)
     reasoning_effort: "{{ORCHESTRATOR_REASONING_EFFORT}}"
     model_provider: "{{ORCHESTRATOR_PROVIDER}}"
+  # P-013.5: optional role routes for Stage/Ship invocation-time model routing.
+  # Absent/empty sub-fields fall back to tier3 (stage) / tier2 (ship) — do not
+  # remove this block to "disable" routing; leave sub-fields empty instead.
+  stage:
+    model_family: "{{STAGE_FAMILY}}"             # Stage role route (falls back to tier3 when empty)
+    model_provider: "{{STAGE_PROVIDER}}"
+    reasoning_effort: "{{STAGE_REASONING_EFFORT}}"
+  ship:
+    model_family: "{{SHIP_FAMILY}}"               # Ship role route (falls back to tier2 when empty)
+    model_provider: "{{SHIP_PROVIDER}}"
+    reasoning_effort: "{{SHIP_REASONING_EFFORT}}"
   anchor_review:
     model_provider: "{{ANCHOR_REVIEW_PROVIDER}}"       # Anchor reviewer provider (default: openai)
     model_family: "{{ANCHOR_REVIEW_FAMILY}}"           # Anchor reviewer family (default: gpt-5.6-sol)
