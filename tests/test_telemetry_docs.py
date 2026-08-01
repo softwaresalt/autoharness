@@ -60,6 +60,37 @@ class TelemetryDocsTests(unittest.TestCase):
         ):
             self.assertIn(phrase, text)
 
+    def test_reference_documents_tool_event_emission_and_composition(self) -> None:
+        text = (_ROOT / "docs" / "telemetry-reference.md").read_text(encoding="utf-8")
+        for phrase in (
+            # Lifecycle
+            "autoharness telemetry event",
+            "--compose-tool-events",
+            "compose-on-record",
+            # Journal cross-reference (not duplicated docs)
+            "_jsonl_segments",
+            "tool_event_jsonl",
+            # Composer ownership / hybrid refusal
+            "composer-owned",
+            "hybrid",
+            "fails closed",
+            "gate_exit_codes",
+            # Expectation semantics
+            "expected_tool",
+            "expect",
+            "skipped",
+            "flat per-tool",
+            # Provenance rule reuse
+            "095-S",
+            "additive",
+            # Privacy/safety
+            "no raw",
+            "credentials",
+            # Rollback
+            "zero journal reads",
+        ):
+            self.assertIn(phrase, text)
+
 
 if __name__ == "__main__":
     unittest.main()
