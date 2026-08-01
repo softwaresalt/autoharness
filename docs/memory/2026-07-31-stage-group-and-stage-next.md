@@ -13,7 +13,7 @@ shipment: "107-S"
 ## Outcome
 
 * Selected 084-F as the next actual unimplemented release unit after reconciling stale completed queue parents.
-* Created and reviewed `docs/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md`; P-006 hardening required and completed; final review decision PASS under declared single-agent persona degradation after one fix cycle.
+* Created and reviewed `docs/archive/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md`; P-006 hardening required and completed; final review decision PASS under declared single-agent persona degradation after one fix cycle.
 * Harvested eight S-sized tasks: 084.001-T through 084.008-T. Each is scoped to at most two hours and dependency-wired.
 * Created shipment 107-S, status queued. Manifest is task-only with exact members 084.001-T through 084.008-T. Covering feature 084-F is NOT a manifest member; coverage derives from task parent_id and 084-F is closed separately (corrected per PR #272 Copilot re-review; earlier text that listed 084-F as a member was inaccurate). It is not claimed.
 

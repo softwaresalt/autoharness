@@ -3,7 +3,7 @@
 Implements the ratified ``schemas/tool-telemetry-event.schema.json`` contract as
 an immutable runtime model. The schema is a frozen forward contract published by
 079-F; this module is a faithful runtime implementation of it and MUST NOT
-redesign or loosen it (docs/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md).
+redesign or loosen it (docs/plans/2026-07-31-token-efficiency-telemetry-emission-decided-plan.md).
 
 Mirrors the conventions established by :mod:`autoharness.telemetry.epoch`:
 frozen dataclass, ``from __future__ import annotations``, a controlled
@@ -173,7 +173,7 @@ def event_correlates(
     selected by an exact ``epoch_id`` match. The ``backlog_item_id`` fallback
     applies ONLY to events with NO ``epoch_id`` at all, so an event correlated to
     a different epoch is never attached here by a coincidentally-matching
-    ``backlog_item_id`` (docs/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md,
+    ``backlog_item_id`` (docs/plans/2026-07-31-token-efficiency-telemetry-emission-decided-plan.md,
     decision 5)."""
     if event.epoch_id is not None:
         return epoch_id is not None and event.epoch_id == epoch_id
@@ -551,7 +551,7 @@ class ToolTelemetryEvent:
     def is_expectation_only(self) -> bool:
         """True for a status-only expectation record: ``operation == "expect"``
         with ``status == "skipped"``. These never count as a tool invocation
-        (docs/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md,
+        (docs/plans/2026-07-31-token-efficiency-telemetry-emission-decided-plan.md,
         decision 7)."""
         return self.operation == "expect" and self.status == "skipped"
 
