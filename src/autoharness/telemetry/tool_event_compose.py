@@ -54,6 +54,7 @@ from typing import Any, Mapping, Sequence
 from autoharness.telemetry.epoch import (
     AbsoluteOutcome,
     EconomicPayload,
+    ExecutionEpoch,
     OperationalReality,
     RouteConfiguration,
 )
@@ -106,6 +107,17 @@ OUTCOME_COMPOSER_FIELDS: tuple[str, ...] = (
     "tool_degraded_count",
     "tool_gap_count",
 )
+
+
+class ToolEventCompositionError(ValueError):
+    """Raised when tool-event composition would be unsafe: today, only the
+    decision-6 hybrid refusal (a close payload already supplies a nonzero/
+    non-empty value for a composer-owned field while composition is requested).
+    This is a fail-CLOSED validation error — unlike composition I/O failures
+    (missing/unreadable journal), which fail OPEN and leave the close payload
+    unmerged, a hybrid payload must never be silently resolved by picking one
+    side, so the caller (record.py, then the CLI) must reject it outright.
+    """
 
 # gate_exit_codes, cogs_usd, and duration_seconds are explicitly close-payload
 # owned (decision 6) and never appear in the lists above.
@@ -388,3 +400,71 @@ def compose_from_context(
         epoch_id=str(epoch_id) if epoch_id is not None else None,
         backlog_item_id=str(backlog_item_id) if backlog_item_id is not None else None,
     )
+
+
+def _is_populated(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return bool(value)
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return value is not None
+
+
+def detect_hybrid_fields(epoch: ExecutionEpoch) -> tuple[str, ...]:
+    """Return every composer-owned field the close-supplied ``epoch`` already
+    populates with a nonzero/non-empty value.
+
+    U5 (``record.py``) calls this before composing: a non-empty result while
+    composition is requested is the decision-6 hybrid case and must fail
+    closed rather than silently pick either the close payload's value or the
+    composer's derived value.
+    """
+    hybrid: list[str] = []
+    for name in ROUTE_COMPOSER_FIELDS:
+        if _is_populated(getattr(epoch.route, name)):
+            hybrid.append(f"route.{name}")
+    for name in ECONOMICS_COMPOSER_FIELDS:
+        if _is_populated(getattr(epoch.economics, name)):
+            hybrid.append(f"economics.{name}")
+    for name in OPERATIONS_COMPOSER_FIELDS:
+        if _is_populated(getattr(epoch.operations, name)):
+            hybrid.append(f"operations.{name}")
+    for name in OUTCOME_COMPOSER_FIELDS:
+        if _is_populated(getattr(epoch.outcome, name)):
+            hybrid.append(f"outcome.{name}")
+    return tuple(hybrid)
+
+
+def apply_composition_patch(epoch: ExecutionEpoch, composition: ToolEventComposition) -> ExecutionEpoch:
+    """Merge a :class:`ToolEventComposition` patch onto ``epoch``.
+
+    Only the composer-owned attributes (the ``*_COMPOSER_FIELDS`` name lists)
+    are replaced; every other field — including the close-payload-owned
+    ``gate_exit_codes``, ``cogs_usd``, and ``duration_seconds`` (decision 6),
+    plus every root-level identity/correlation field — is preserved verbatim.
+    Provenance maps are merged by overlay: the patch only ever populates
+    composer-owned metric names, so overlaying it onto the (expected-empty)
+    existing map cannot clobber a close-owned metric's provenance entry.
+    """
+    route = replace(epoch.route, route_kinds=composition.route.route_kinds)
+    economics = replace(
+        epoch.economics,
+        **{name: getattr(composition.economics, name) for name in ECONOMICS_COMPOSER_FIELDS},
+        metric_sources={**epoch.economics.metric_sources, **composition.economics.metric_sources},
+        metric_quality={**epoch.economics.metric_quality, **composition.economics.metric_quality},
+    )
+    operations = replace(
+        epoch.operations,
+        **{name: getattr(composition.operations, name) for name in OPERATIONS_COMPOSER_FIELDS},
+        metric_sources={**epoch.operations.metric_sources, **composition.operations.metric_sources},
+        metric_quality={**epoch.operations.metric_quality, **composition.operations.metric_quality},
+    )
+    outcome = replace(
+        epoch.outcome,
+        **{name: getattr(composition.outcome, name) for name in OUTCOME_COMPOSER_FIELDS},
+        metric_sources={**epoch.outcome.metric_sources, **composition.outcome.metric_sources},
+        metric_quality={**epoch.outcome.metric_quality, **composition.outcome.metric_quality},
+    )
+    return replace(epoch, route=route, economics=economics, operations=operations, outcome=outcome)
