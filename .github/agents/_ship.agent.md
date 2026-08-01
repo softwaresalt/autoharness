@@ -254,20 +254,43 @@ For each task in the shipment/feature:
    - When `GRAPHTOR_OK`: Run `search_local_docs` or `search_semantic` to resolve any documentation questions about the feature scope before beginning implementation.
    - **Multi-pack routing**: Use Engram for code relationships and impact analysis; use graphtor-docs for documentation lookup, API references, and concept research. See `.github/instructions/agent-engram.instructions.md` and `.github/instructions/graphtor-docs.instructions.md`.
 4. **Execute**: Perform the template authoring, schema change, skill
-   development, or documentation work.
+   development, or documentation work. When step 2 carried a `context_ref`
+   (`created`/`idempotent_begin`), tool use during this step MAY optionally
+   emit sanitized ToolTelemetryEvent records:
+   `autoharness telemetry event --context-ref {context_ref} --from-json {event_payload_path} --json`.
+   Only schema-shaped fields belong in the event payload
+   (`schemas/tool-telemetry-event.schema.json`) — never raw tool output,
+   prompts, stderr, or credentials. Track whether at least one call reported
+   `written: true` during this task; step 7 uses this observed-success signal
+   — not the mere presence of a `context_ref` — to decide whether
+   `--compose-tool-events` is safe to request at close. Event emission is
+   entirely observational: a failed, skipped, or degraded `telemetry event`
+   call is reported but NEVER blocks execution, validation, review, or task
+   completion — proceed exactly as if telemetry were disabled.
 5. **Validate**: Run quality gates.
 6. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`, `test:`).
 7. **Record close telemetry**: If begin returned `status` `created` or
    `idempotent_begin` with an enabled `context_ref`, create the close-time epoch
    payload from task roll-up metrics and run
-   `autoharness telemetry record --context-ref {context_ref} --from-json {epoch_payload_path} --json`
-   before or as the task is marked done. Capture the close timestamp once and
+   `autoharness telemetry record --context-ref {context_ref} --from-json {epoch_payload_path} [--compose-tool-events] --json`
+   before or as the task is marked done. Add `--compose-tool-events` only when
+   step 4 observed at least one successful (`written: true`) `telemetry event`
+   call during this task; otherwise omit the flag and record the close payload
+   exactly as today. Capture the close timestamp once and
    reuse that exact value on every retry of this record call — never
    regenerate it per attempt. This keeps the payload digest stable across
    retries so a retried record replays as `idempotent_replay` rather than
    `conflict_rejected`. Skip the record close on `disabled`, `unavailable`, or
    `conflict`. The record path preserves the same stable epoch_id and never
-   re-reads backlogit size, hierarchy, or shipment membership.
+   re-reads backlogit size, hierarchy, or shipment membership. A
+   missing/unreadable event journal, or any other tool-event composition
+   failure, fails open and is reported without blocking: the close payload is
+   still recorded exactly as it would be without `--compose-tool-events`, so a
+   missing event journal never blocks task completion. A `--compose-tool-events`
+   request rejected as a hybrid payload (composer-owned fields already
+   populated in the close payload) is reported as a diagnostic and the task
+   still proceeds to completion without composition — telemetry never gates
+   the lifecycle.
 8. **Complete**: Move the task to done via `backlogit_move_item`.
 9. **Track**: Associate the commit via `backlogit_track_commit`.
 
