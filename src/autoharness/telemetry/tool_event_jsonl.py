@@ -41,7 +41,11 @@ from autoharness.telemetry._jsonl_segments import (
     segment_read_paths,
 )
 from autoharness.telemetry.config import TelemetryConfig
-from autoharness.telemetry.tool_event import ToolTelemetryEvent, ToolTelemetryEventError
+from autoharness.telemetry.tool_event import (
+    ToolTelemetryEvent,
+    ToolTelemetryEventError,
+    event_correlates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -237,17 +241,6 @@ class ToolEventReadResult:
     diagnostics: tuple[str, ...] = ()
 
 
-def _correlates(event: ToolTelemetryEvent, *, epoch_id: str | None, backlog_item_id: str | None) -> bool:
-    """Exact-correlation predicate: an event carrying an ``epoch_id`` is ONLY
-    ever selected by an exact ``epoch_id`` match. The ``backlog_item_id``
-    fallback applies ONLY to events with NO ``epoch_id`` at all, so an event
-    correlated to a different epoch is never attached here by a
-    coincidentally-matching backlog_item_id."""
-    if event.epoch_id is not None:
-        return epoch_id is not None and event.epoch_id == epoch_id
-    if backlog_item_id is not None and event.backlog_item_id is not None:
-        return event.backlog_item_id == backlog_item_id
-    return False
 
 
 def read_events(
@@ -303,7 +296,7 @@ def read_events(
     selected = [
         event
         for event, _digest in by_id.values()
-        if _correlates(event, epoch_id=epoch_id, backlog_item_id=backlog_item_id)
+        if event_correlates(event, epoch_id=epoch_id, backlog_item_id=backlog_item_id)
     ]
     status = "ok" if selected else "empty"
     return ToolEventReadResult(status=status, events=tuple(selected), diagnostics=tuple(diagnostics))

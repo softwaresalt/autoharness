@@ -160,6 +160,23 @@ class ToolTelemetryEventError(ValueError):
     """Raised when a ToolTelemetryEvent payload is malformed or invalid."""
 
 
+def event_correlates(
+    event: "ToolTelemetryEvent", *, epoch_id: str | None, backlog_item_id: str | None
+) -> bool:
+    """Exact-correlation predicate shared by the journal reader (U3) and the
+    event-to-epoch composer (U4): an event carrying an ``epoch_id`` is ONLY ever
+    selected by an exact ``epoch_id`` match. The ``backlog_item_id`` fallback
+    applies ONLY to events with NO ``epoch_id`` at all, so an event correlated to
+    a different epoch is never attached here by a coincidentally-matching
+    ``backlog_item_id`` (docs/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md,
+    decision 5)."""
+    if event.epoch_id is not None:
+        return epoch_id is not None and event.epoch_id == epoch_id
+    if backlog_item_id is not None and event.backlog_item_id is not None:
+        return event.backlog_item_id == backlog_item_id
+    return False
+
+
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 

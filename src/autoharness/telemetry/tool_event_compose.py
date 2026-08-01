@@ -1,0 +1,390 @@
+"""Deterministic event-to-epoch composer (U4, 084.004-T).
+
+Pure functions that take a set of deduplicated :class:`ToolTelemetryEvent`
+records plus a correlation context (an ``epoch_id``/``backlog_item_id`` pair, or
+the frozen begin-context payload produced by
+:mod:`autoharness.telemetry.context`) and derive composer-owned patches for the
+four :mod:`autoharness.telemetry.epoch` payload sections: :class:`RouteConfiguration`,
+:class:`EconomicPayload`, :class:`OperationalReality`, and :class:`AbsoluteOutcome`.
+
+This module performs no I/O — it is a pure roll-up over an in-memory event list.
+The record-path integration (loading the journal, selecting events, merging the
+patch into a closing epoch) is U5's job (``record.py``).
+
+Composition rules (docs/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md):
+
+* Correlation selection mirrors ``tool_event_jsonl.read_events``: an event
+  carrying an ``epoch_id`` is only ever selected by an exact ``epoch_id`` match;
+  the ``backlog_item_id`` fallback applies only to events with no ``epoch_id`` at
+  all (decision 5). Non-correlated candidates are ignored, never attached to the
+  wrong epoch.
+* Token/byte/count deltas are summed across selected events; cumulative running
+  totals (``cumulative_input_tokens``/``cumulative_output_tokens``) use the
+  maximum observed value (the final running total), never a sum.
+  ``context_tokens_before`` uses the minimum observed snapshot (the earliest);
+  ``context_tokens_after`` uses the maximum (the latest) (decision 2, §R2).
+* Route kinds and tool/tool-surface/retrieval-pack sets are aggregated as sorted
+  unique values, which is inherently independent of event arrival order.
+* An event's ``expected_tool`` records one explicit expected opportunity. It is
+  observed only by a correlated invocation event (an event that is not
+  :attr:`ToolTelemetryEvent.is_expectation_only`) reporting the same
+  ``tool_name`` within the same correlated event set (decision 7). The
+  persisted epoch schema tracks expected/observed/missing tool counts as flat
+  per-tool maps with no per-operation dimension, so "the same logical
+  operation" is satisfied by the epoch-level correlation already applied before
+  composition (an expectation and its satisfying invocation both belong to the
+  same correlated epoch/backlog-item event set); matching is then by tool name,
+  mirroring :func:`autoharness.telemetry.gaps.summarize_tool_gaps`. Missing
+  counts are clamped at zero and never go negative. Failed and degraded
+  invocations are counted separately from "missing" — a failed or degraded
+  invocation of an expected tool still satisfies the expectation.
+* Populated (nonzero) composer-derived economics metrics carry
+  ``metric_sources``/``metric_quality`` entries; the source is always
+  ``"derived"`` (the epoch-level value is an aggregate over per-tool events, not
+  a single host report) and the quality is the worst (least-trusted) quality
+  label reported by any contributing event for that same metric name, applying
+  the 095-S additive-provenance convention (docs/compound/095-S-derived-metric-provenance-additive-map.md).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field, replace
+from typing import Any, Mapping, Sequence
+
+from autoharness.telemetry.epoch import (
+    AbsoluteOutcome,
+    EconomicPayload,
+    OperationalReality,
+    RouteConfiguration,
+)
+from autoharness.telemetry.gaps import summarize_tool_gaps
+from autoharness.telemetry.tool_event import ToolTelemetryEvent, event_correlates
+
+# The composer-owned attribute names within each epoch payload section. U5 uses
+# these lists to merge only these attributes from the pure patch onto the
+# close-supplied payload objects (every other attribute stays close-payload
+# owned) and to detect "hybrid" input: a close payload that already supplies a
+# nonzero/non-empty value for one of these fields while composition is
+# requested must fail closed rather than silently pick one side (decision 6).
+ROUTE_COMPOSER_FIELDS: tuple[str, ...] = ("route_kinds",)
+
+ECONOMICS_COMPOSER_FIELDS: tuple[str, ...] = (
+    "input_tokens",
+    "output_tokens",
+    "cached_input_tokens",
+    "cumulative_input_tokens",
+    "cumulative_output_tokens",
+    "context_tokens_before",
+    "context_tokens_after",
+    "context_area_tokens",
+    "avoided_read_estimated_tokens",
+    "tool_output_estimated_tokens",
+)
+
+OPERATIONS_COMPOSER_FIELDS: tuple[str, ...] = (
+    "cli_tools",
+    "tool_surfaces",
+    "retrieval_packs",
+    "route_kind_counts",
+    "routed_lookup_count",
+    "raw_file_read_count",
+    "raw_search_count",
+    "avoided_file_read_count",
+    "tool_output_bytes",
+    "expected_tool_count",
+    "observed_expected_tool_count",
+    "missing_expected_tool_count",
+    "expected_tool_counts",
+    "observed_tool_counts",
+    "missing_expected_tool_counts",
+    "degraded_tool_count",
+    "stale_or_unavailable_index_count",
+)
+
+OUTCOME_COMPOSER_FIELDS: tuple[str, ...] = (
+    "tool_failure_count",
+    "tool_degraded_count",
+    "tool_gap_count",
+)
+
+# gate_exit_codes, cogs_usd, and duration_seconds are explicitly close-payload
+# owned (decision 6) and never appear in the lists above.
+
+# Worst-quality ranking, mirroring aggregation.py's _QUALITY_RANK so a single
+# metric's provenance degrades to the least-trusted label contributed by any
+# selected event, rather than silently picking an arbitrary one.
+_QUALITY_RANK: Mapping[str, int] = {
+    "observed": 0,
+    "derived": 1,
+    "estimated": 2,
+    "not_applicable": 3,
+    "unavailable": 4,
+}
+
+
+def _normalize_quality(value: Any) -> str:
+    """Coerce a raw per-event ``metric_quality`` label to the known vocabulary.
+
+    A missing label defaults to the optimistic ``"observed"`` (mirrors
+    ``aggregation._normalize_quality``); any present-but-invalid label degrades
+    fail-closed to ``"unavailable"`` rather than crashing the ranking lookup.
+    """
+    if value is None:
+        return "observed"
+    if isinstance(value, str) and value in _QUALITY_RANK:
+        return value
+    return "unavailable"
+
+
+def _worst_quality(qualities: Sequence[Any]) -> str:
+    ranked = [_normalize_quality(quality) for quality in qualities]
+    if not ranked:
+        return "observed"
+    return max(ranked, key=lambda quality: _QUALITY_RANK[quality])
+
+
+@dataclass(frozen=True)
+class ToolEventComposition:
+    """Pure composer output: composer-owned patches for the four epoch payload
+    sections, plus diagnostics describing the correlated event selection."""
+
+    route: RouteConfiguration
+    economics: EconomicPayload
+    operations: OperationalReality
+    outcome: AbsoluteOutcome
+    selected_event_count: int = 0
+    ignored_event_count: int = 0
+    diagnostics: tuple[str, ...] = field(default_factory=tuple)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "route": self.route.to_dict(),
+            "economics": self.economics.to_dict(),
+            "operations": self.operations.to_dict(),
+            "outcome": self.outcome.to_dict(),
+            "selected_event_count": self.selected_event_count,
+            "ignored_event_count": self.ignored_event_count,
+            "diagnostics": list(self.diagnostics),
+        }
+
+
+def _select_correlated(
+    events: Sequence[ToolTelemetryEvent],
+    *,
+    epoch_id: str | None,
+    backlog_item_id: str | None,
+) -> tuple[list[ToolTelemetryEvent], int]:
+    selected = [
+        event
+        for event in events
+        if event_correlates(event, epoch_id=epoch_id, backlog_item_id=backlog_item_id)
+    ]
+    return selected, len(events) - len(selected)
+
+
+def _sum_metric(events: Sequence[ToolTelemetryEvent], name: str) -> int:
+    return sum(int(getattr(event, name)) for event in events if getattr(event, name) is not None)
+
+
+def _min_metric(events: Sequence[ToolTelemetryEvent], name: str) -> int:
+    values = [int(getattr(event, name)) for event in events if getattr(event, name) is not None]
+    return min(values) if values else 0
+
+
+def _max_metric(events: Sequence[ToolTelemetryEvent], name: str) -> int:
+    values = [int(getattr(event, name)) for event in events if getattr(event, name) is not None]
+    return max(values) if values else 0
+
+
+def _metric_quality_for(events: Sequence[ToolTelemetryEvent], name: str) -> str:
+    contributing = [event for event in events if getattr(event, name) is not None]
+    return _worst_quality([event.metric_quality.get(name) for event in contributing])
+
+
+def _compose_route(events: Sequence[ToolTelemetryEvent]) -> RouteConfiguration:
+    route_kinds = tuple(sorted({event.route_kind for event in events if event.route_kind is not None}))
+    return RouteConfiguration(models=(), route_kinds=route_kinds)
+
+
+def _compose_economics(events: Sequence[ToolTelemetryEvent]) -> EconomicPayload:
+    values: dict[str, int] = {
+        name: _sum_metric(events, name)
+        for name in (
+            "input_tokens",
+            "output_tokens",
+            "cached_input_tokens",
+            "context_area_tokens",
+            "avoided_read_estimated_tokens",
+            "tool_output_estimated_tokens",
+        )
+    }
+    values["cumulative_input_tokens"] = _max_metric(events, "cumulative_input_tokens")
+    values["cumulative_output_tokens"] = _max_metric(events, "cumulative_output_tokens")
+    values["context_tokens_before"] = _min_metric(events, "context_tokens_before")
+    values["context_tokens_after"] = _max_metric(events, "context_tokens_after")
+
+    sources: dict[str, str] = {}
+    quality: dict[str, str] = {}
+    for name in ECONOMICS_COMPOSER_FIELDS:
+        if values.get(name, 0):
+            sources[name] = "derived"
+            quality[name] = _metric_quality_for(events, name)
+
+    return EconomicPayload(
+        input_tokens=values["input_tokens"],
+        output_tokens=values["output_tokens"],
+        cached_input_tokens=values["cached_input_tokens"],
+        cumulative_input_tokens=values["cumulative_input_tokens"],
+        cumulative_output_tokens=values["cumulative_output_tokens"],
+        context_tokens_before=values["context_tokens_before"],
+        context_tokens_after=values["context_tokens_after"],
+        context_area_tokens=values["context_area_tokens"],
+        avoided_read_estimated_tokens=values["avoided_read_estimated_tokens"],
+        tool_output_estimated_tokens=values["tool_output_estimated_tokens"],
+        metric_sources=sources,
+        metric_quality=quality,
+    )
+
+
+def _expected_observed_tool_counts(
+    events: Sequence[ToolTelemetryEvent],
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Flat per-tool expected/observed counts within the correlated event set.
+
+    The persisted epoch schema (``OperationalReality.expected_tool_counts`` /
+    ``observed_tool_counts``) is keyed only by tool name — it has no per-operation
+    dimension. "The same logical operation" (decision 7) is therefore satisfied
+    by the epoch-level correlation already applied by the caller (an expectation
+    and its satisfying invocation must both belong to the same correlated
+    epoch/backlog-item event set); within that set, matching is by tool name,
+    mirroring :func:`autoharness.telemetry.gaps.summarize_tool_gaps`, which then
+    further restricts ``observed_tool_counts`` to tools with a positive
+    expectation so unexpected tool usage never inflates expected-tool
+    accounting.
+    """
+    expected_tool_counts: dict[str, int] = {}
+    observed_tool_counts: dict[str, int] = {}
+    for event in events:
+        if event.expected_tool is not None:
+            expected_tool_counts[event.expected_tool] = expected_tool_counts.get(event.expected_tool, 0) + 1
+        if not event.is_expectation_only:
+            observed_tool_counts[event.tool_name] = observed_tool_counts.get(event.tool_name, 0) + 1
+    return expected_tool_counts, observed_tool_counts
+
+
+def _compose_operations_and_outcome(
+    events: Sequence[ToolTelemetryEvent],
+) -> tuple[OperationalReality, AbsoluteOutcome]:
+    invocation_events = [event for event in events if not event.is_expectation_only]
+    expected_tool_counts, observed_tool_counts = _expected_observed_tool_counts(events)
+
+    route_kind_counts: dict[str, int] = {}
+    for event in events:
+        if event.route_kind is not None:
+            route_kind_counts[event.route_kind] = route_kind_counts.get(event.route_kind, 0) + 1
+
+    # Failed and degraded invocations are counted separately from "missing" —
+    # a failed or degraded invocation of an expected tool still satisfies that
+    # expectation (it is present in invocation_pairs above), never conflated
+    # with a tool that was never invoked at all.
+    failed_count = sum(1 for event in invocation_events if event.status == "failed")
+    degraded_count = sum(1 for event in invocation_events if event.status == "degraded")
+    stale_count = sum(
+        1 for event in invocation_events if event.freshness_state in ("stale", "unavailable")
+    )
+
+    gap_summary = summarize_tool_gaps(
+        expected_tool_counts=expected_tool_counts,
+        observed_tool_counts=observed_tool_counts,
+        route_kind_counts=route_kind_counts,
+        raw_file_read_count=_sum_metric(events, "raw_file_read_count"),
+        raw_search_count=_sum_metric(events, "raw_search_count"),
+        routed_lookup_count=_sum_metric(events, "routed_lookup_count"),
+        avoided_file_read_count=_sum_metric(events, "avoided_file_read_count"),
+        tool_output_bytes=_sum_metric(events, "tool_output_bytes"),
+        degraded_tool_count=degraded_count,
+        stale_or_unavailable_index_count=stale_count,
+    )
+
+    cli_tools = tuple(sorted({event.tool_name for event in invocation_events}))
+    tool_surfaces = tuple(sorted({event.tool_surface for event in invocation_events}))
+    retrieval_packs = tuple(
+        sorted({event.retrieval_pack for event in events if event.retrieval_pack is not None})
+    )
+    # cli_tools/tool_surfaces/retrieval_packs are plain aggregated tuples, not
+    # part of epoch.py's _OPERATIONAL_METRICS provenance-required set, so no
+    # metric_sources/metric_quality entries are needed for them.
+    operations = replace(
+        gap_summary.operations,
+        cli_tools=cli_tools,
+        tool_surfaces=tool_surfaces,
+        retrieval_packs=retrieval_packs,
+    )
+
+    outcome_sources = dict(gap_summary.outcome.metric_sources)
+    outcome_quality = dict(gap_summary.outcome.metric_quality)
+    outcome_sources["tool_failure_count"] = "derived"
+    outcome_quality["tool_failure_count"] = "derived"
+    outcome_sources["tool_degraded_count"] = "derived"
+    outcome_quality["tool_degraded_count"] = "derived"
+    outcome = replace(
+        gap_summary.outcome,
+        tool_failure_count=failed_count,
+        tool_degraded_count=degraded_count,
+        metric_sources=outcome_sources,
+        metric_quality=outcome_quality,
+    )
+
+    return operations, outcome
+
+
+def compose_tool_events(
+    events: Sequence[ToolTelemetryEvent],
+    *,
+    epoch_id: str | None = None,
+    backlog_item_id: str | None = None,
+) -> ToolEventComposition:
+    """Pure roll-up: select correlated events, then derive composer-owned
+    route/economics/operations/outcome patches from them.
+
+    ``events`` may include events that do not correlate to the requested
+    ``epoch_id``/``backlog_item_id`` (e.g. a raw journal scan); those are
+    counted in ``ignored_event_count`` and excluded from every computed patch,
+    never attached to the wrong epoch (decision 5).
+    """
+    selected, ignored = _select_correlated(events, epoch_id=epoch_id, backlog_item_id=backlog_item_id)
+    diagnostics: list[str] = []
+    if ignored:
+        diagnostics.append(
+            f"{ignored} candidate event(s) ignored: no exact epoch_id/backlog_item_id correlation"
+        )
+
+    route = _compose_route(selected)
+    economics = _compose_economics(selected)
+    operations, outcome = _compose_operations_and_outcome(selected)
+
+    return ToolEventComposition(
+        route=route,
+        economics=economics,
+        operations=operations,
+        outcome=outcome,
+        selected_event_count=len(selected),
+        ignored_event_count=ignored,
+        diagnostics=tuple(diagnostics),
+    )
+
+
+def compose_from_context(
+    events: Sequence[ToolTelemetryEvent], context: Mapping[str, Any]
+) -> ToolEventComposition:
+    """Convenience wrapper over :func:`compose_tool_events` accepting a frozen
+    begin-context payload (as produced by
+    :mod:`autoharness.telemetry.context.begin_context` / loaded via
+    ``load_context_ref``) instead of bare correlation ids."""
+    epoch_id = context.get("epoch_id")
+    backlog_item_id = context.get("backlog_item_id")
+    return compose_tool_events(
+        events,
+        epoch_id=str(epoch_id) if epoch_id is not None else None,
+        backlog_item_id=str(backlog_item_id) if backlog_item_id is not None else None,
+    )
