@@ -11,7 +11,7 @@ This module performs no I/O — it is a pure roll-up over an in-memory event lis
 The record-path integration (loading the journal, selecting events, merging the
 patch into a closing epoch) is U5's job (``record.py``).
 
-Composition rules (docs/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md):
+Composition rules (docs/plans/2026-07-31-token-efficiency-telemetry-emission-decided-plan.md):
 
 * Correlation selection mirrors ``tool_event_jsonl.read_events``: an event
   carrying an ``epoch_id`` is only ever selected by an exact ``epoch_id`` match;

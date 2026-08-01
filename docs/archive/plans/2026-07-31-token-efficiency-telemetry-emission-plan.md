@@ -13,7 +13,15 @@ relevant_solutions:
 requires_plan_hardening: "yes"
 plan_review_verdict: "pass"
 tags: [telemetry, token-efficiency, primitive-7, 084-F]
+superseded_by: docs/plans/2026-07-31-token-efficiency-telemetry-emission-decided-plan.md
+archived_at: 2026-08-01
+archived_reason: "P-020 post-merge context compaction (107-S/084-F closure) — consolidated into decided-plan"
 ---
+
+> **Archived**: this verbose original (full deliberation + both plan-review
+> cycles) has been consolidated into
+> `docs/plans/2026-07-31-token-efficiency-telemetry-emission-decided-plan.md`.
+> Retained here for traceability.
 
 # Token-Efficiency Telemetry Event Emission and Deterministic Epoch Composition
 

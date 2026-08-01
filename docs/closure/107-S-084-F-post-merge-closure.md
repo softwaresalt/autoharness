@@ -7,7 +7,7 @@ merge_commit: 364f6b07abc2418ec9f696603d5da4b9cf879256
 merged_at: "2026-08-01T19:25:34Z"
 reviewed_head: 25ab0c8fcd3c60094890f48c590c8c7515397912
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 ---
 
 # 107-S / 084-F Post-Merge Closure — Token-efficiency telemetry event emission and deterministic epoch composition
@@ -121,11 +121,42 @@ Safe-close used per-item / single-artifact operations only. The cascade command
 
 ## Context Compaction (P-020)
 
-- **Status: pending at closure-doc authoring time** — `compact-context` (target:
-  all) invocation is performed as part of this same closure pass, immediately
-  following this document's commit, per the mandatory P-020 requirement. This
-  frontmatter field will read `done` (or `degraded` if the compaction run itself
-  fails — non-blocking either way) by the time the closure PR is opened.
+- **Status: `done`** (bounded Tier-1 per-release-unit post-merge floor).
+  Invoked `compact-context` (target: all). Assessment: `docs/memory` = 14 files
+  (< 40 file-count threshold; 82.5 KB, < 500 KB) — no over-threshold date-bucket
+  sweep due; `docs/plans` (29 files) and `docs/closure` (8 files) scanned.
+- **Memory**: the just-closed release unit's session memory
+  (`docs/memory/2026-08-01-ship-107-S-084-F-session.md`) qualified under the
+  completed-work rule (Phase 2). Compacted to
+  `docs/memory/compacted/2026-08-01-107S-084F-compacted.md`; verbose original
+  moved to `docs/archive/memory/2026-08-01-ship-107-S-084-F-session.md`.
+- **Plan consolidation**: `docs/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md`
+  was a candidate — feature `084-F` complete **and** the plan carried two
+  appended review-cycle sections (Phase 2 criterion). Converted to a
+  decided-plan at
+  `docs/plans/2026-07-31-token-efficiency-telemetry-emission-decided-plan.md`
+  (surviving implementation units, key decisions, post-harvest PR hardening,
+  protected invariants, rollback, r1–r3 revision log), and the verbose original
+  moved to
+  `docs/archive/plans/2026-07-31-token-efficiency-telemetry-emission-plan.md`
+  (`superseded_by` lineage recorded in its frontmatter). Because the move
+  changed the plan's path, every reference was repointed to a resolving
+  target: the **live** source files
+  (`src/autoharness/telemetry/tool_event.py`,
+  `src/autoharness/telemetry/tool_event_compose.py` — 4 docstring references)
+  now point at the **decided-plan**, while **historical** records (the 8
+  archived task snapshots `.backlogit/archive/084.001-T.md`–`084.008-T.md` and
+  the historical Stage session memory
+  `docs/memory/2026-07-31-stage-group-and-stage-next.md`) point at the
+  **archived** path. The append-only audit log
+  `.backlogit/logs/084-F.jsonl` was left untouched (immutable historical
+  record, same treatment as git history). No dangling reference to the old
+  `docs/plans/...` path remains. Targeted tests
+  (`test_telemetry_tool_event`, `test_telemetry_tool_event_compose` — 80 tests)
+  re-run green after the docstring edits.
+- **Closure records**: the only 084-F closure artifact is this document,
+  authored in this same pass; not over `threshold_days` old — no closure-record
+  compaction.
 
 ## Operational Closure
 
