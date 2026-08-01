@@ -15,8 +15,8 @@ compaction_status: done
 Shipment `106-S` added an in-repo mitigation for the backlogit
 *queued-with-active-work* inconsistency in the Ship agent's claim flow. Two guard
 tokens (`CLAIM_VERIFY_FAILED`, `SHIPMENT_STATE_INCONSISTENT`) were added to the
-Ship template + dogfood mirror, plus a regenerated manifest checksum and a 13-test
-TDD harness. Documentation/template change; no schema, CLI, or runtime-behavior
+Ship template + dogfood mirror, plus a regenerated manifest checksum and a
+10-method TDD harness (10 `unittest` test methods). Documentation/template change; no schema, CLI, or runtime-behavior
 code change. The *effective* runtime surface is the Ship agent's own claim
 sequence — verified by review/read-through + gate/test, not by executing code.
 The backlogit-internal transition guard is external and was routed upstream.
@@ -114,16 +114,25 @@ Safe-close used per-item / single-artifact operations only. The cascade command
   `docs/memory/compacted/2026-08-01-106S-102F-compacted.md` (Ship execution + 3
   review rounds + key learnings/gotchas + C11 disposition). No active-work
   checkpoints compacted (none active).
-- **Plan consolidation**: the 102-F plan
-  `docs/plans/2026-07-30-ship-claim-integrity-preflight-plan.md` was a candidate —
+- **Plan consolidation**: the 102-F plan (then at
+  `docs/plans/2026-07-30-ship-claim-integrity-preflight-plan.md`, now archived) was
+  a candidate —
   feature `102-F` complete **and** the plan carried appended `## Plan Review` +
   `## Revision Log` content (Phase 2 criterion). It was converted to a decided-plan
   at `docs/plans/2026-07-30-ship-claim-integrity-preflight-decided-plan.md`
   (actionable decisions, surviving units, constraints, rejected alternatives,
   rollback, r1 log), and the verbose original was moved to
   `docs/archive/plans/2026-07-30-ship-claim-integrity-preflight-plan.md`
-  (`supersedes` lineage recorded). This makes the `target: all` result complete —
-  both the memory and plan candidates for this release unit were processed.
+  (`supersedes` lineage recorded). Because that move changed the plan's path, every
+  reference to the former `docs/plans/2026-07-30-ship-claim-integrity-preflight-plan.md`
+  was repointed to a resolving target: the **live** feature
+  `.backlogit/queue/102-F.md` now references the decided-plan, while **historical**
+  records (archived tasks `.backlogit/archive/102.001-T.md` /
+  `.backlogit/archive/102.002-T.md` and the spike
+  `docs/decisions/2026-07-30-ship-claim-integrity-preflight-spike.md`) reference the
+  archived path — no dangling reference to the old path remains. This makes the
+  `target: all` result complete — both the memory and plan candidates for this
+  release unit were processed.
 - **Closure records**: the only 102-F closure artifact is this document, authored
   in this same pass; not over `threshold_days` old → no closure-record compaction.
 

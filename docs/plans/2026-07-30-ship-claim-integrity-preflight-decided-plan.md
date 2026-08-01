@@ -45,7 +45,10 @@ schema, or CLI-distribution change.
   Remediation: resolve the blocking gate and transition `blocked → queued` before
   any claim — never re-claim-to-`active` on a `blocked` record. Cite
   `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md:32-44`.
-- Both halts fire **before** Step 2 moves any task to `active`.
+- Both halts fire **before** the first task→`active` transition — template
+  **Step 4.1 Claim Task** (`templates/agents/_ship.agent.md.tmpl:264,297`; the
+  template's Step 2 is *Harness Generation*, not the task loop), which in the
+  dogfood mirror is **Step 2 Task Execution Loop**.
 
 ### Unit B — Queued/blocked-with-active-work intake early-warning (`102.002-T`, depends on A)
 

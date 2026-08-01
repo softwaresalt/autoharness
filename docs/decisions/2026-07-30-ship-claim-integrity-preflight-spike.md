@@ -7,7 +7,7 @@ conclusion: "proceed"
 confidence: "high"
 linked_parent_work_item: null
 promoted_to: ["plan"]
-plan_artifact: "docs/plans/2026-07-30-ship-claim-integrity-preflight-plan.md"
+plan_artifact: "docs/archive/plans/2026-07-30-ship-claim-integrity-preflight-plan.md"
 stash_ref: "6D6CACC1"
 tags:
   - "ship-agent"
@@ -159,7 +159,7 @@ grounded in an observable failure mode.
 
 ## Next Steps
 
-1. Promote to `impl-plan` → `docs/plans/2026-07-30-ship-claim-integrity-preflight-plan.md`.
+1. Promote to `impl-plan` → `docs/archive/plans/2026-07-30-ship-claim-integrity-preflight-plan.md`.
 2. Plan-review gate, then harvest into a covering feature + task-only shipment.
 3. Record the external portion (backlogit internal guard) as an upstream referral;
    optionally stash a deferred follow-up for true self-repair auto-mutation and for
