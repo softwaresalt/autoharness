@@ -62,12 +62,16 @@ Three coordinated layers, decided in `010-DL`:
    honor a per-invocation override, emit `ROUTING_DEGRADED` and surface to the
    operator — never silently default.
 3. **Fail-closed verification.** `verify_workspace` fails when (a) a pipeline
-   agent's `model_family`/`model_provider` is empty, non-string, or an
-   unresolved `{{...}}` placeholder, (b) the Orchestrator invocation protocol
-   lacks the routing directive (scoped presence check between the resolved
-   `config.model_routing.stage`/`.ship` anchor mentions, not a whole-file
-   `must_contain`), or (c) a declared role route does not resolve. Backed by
-   red-green tests.
+   agent's `model_family` is missing, non-string, empty, or an unresolved
+   `{{...}}` placeholder — `model_family` must always resolve because every
+   tier/role route default is non-empty — while `model_provider` is
+   intentionally **not** required to be non-empty (legacy/default installs
+   can legitimately render it empty) but must still be a string when present
+   and must not carry an unresolved placeholder; (b) the Orchestrator
+   invocation protocol lacks the routing directive (scoped presence check
+   between the resolved `config.model_routing.stage`/`.ship` anchor
+   mentions, not a whole-file `must_contain`); or (c) a declared role route
+   does not resolve. Backed by red-green tests.
 
 Codified as **P-013.5 (Invocation-time model-routing enforcement)** appended
 to the P-013 family in the template-only policy registry
