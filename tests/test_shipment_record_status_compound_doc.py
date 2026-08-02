@@ -51,7 +51,6 @@ class ShipmentRecordStatusCompoundDocTests(unittest.TestCase):
         self.assertIn("decision-gated", text)
         self.assertIn("self-repair", text)
         self.assertIn("EXTERNAL", text)
-        self.assertIn("active", text.lower() if False else text)  # keep simple
         self.assertIn("blocked → queued", text)
 
     def test_cross_references_spike_and_guards_doc(self) -> None:

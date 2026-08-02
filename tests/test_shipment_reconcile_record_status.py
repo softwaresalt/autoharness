@@ -145,6 +145,21 @@ class ShipmentRecordStatusClassificationTests(unittest.TestCase):
         self.assertIn("precedence", quality_region)
         self.assertIn("no new scan", quality_region.lower())
 
+    def test_active_and_done_record_status_explicitly_resolve_consistent(self) -> None:
+        """Review-fix (P1): the Required Protocol step must give an explicit
+        branch for record {{STATUS_ACTIVE}}/{{STATUS_DONE}} -- the normal
+        record status at the skill's own mandatory Ship Step 6 invocation site
+        -- rather than leaving it unmatched by the three named inconsistency
+        bullets."""
+        content = _content()
+        new_step_idx = content.index(_NEW_STEP_ANCHOR)
+        region = content[new_step_idx : new_step_idx + 1200]
+        self.assertIn("{{STATUS_ACTIVE}}", region)
+        self.assertIn("record-consistent", region)
+        # The explicit ACTIVE/DONE branch must be scoped as "always" so it is
+        # not confused with the queued/blocked exclusion branch below it.
+        self.assertIn("always", region)
+
     def test_no_stray_unresolved_double_brace_tokens(self) -> None:
         """The new prose must only ever use the already-established
         {{STATUS_*}} / {{OP_*}} placeholder tokens, never a bespoke unresolved
