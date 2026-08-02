@@ -3424,9 +3424,14 @@ class VerifyWorkspaceTests(unittest.TestCase):
             )
             self.assertTrue(_report_has_failures(report))
 
-    def test_verify_workspace_flags_empty_model_provider_field(self) -> None:
-        """P-013.5 fail-closed: an empty (not just unresolved) model_provider
-        must also fail — the field must be non-empty, not merely present."""
+    def test_verify_workspace_allows_empty_model_provider_field(self) -> None:
+        """P-013.5 review-fix: an empty model_provider must PASS, not fail.
+        The installer variable table's TIER_2_PROVIDER/TIER_3_PROVIDER (and
+        their stage/ship fallbacks) default to empty, so a schema-valid,
+        legacy, or default install can legitimately render an empty
+        model_provider. Requiring it non-empty regressed those installs
+        (found via Copilot review of PR #276) -- model_provider is optional;
+        only model_family is required non-empty."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             autoharness_home = root / "autoharness-home"
@@ -3439,10 +3444,53 @@ class VerifyWorkspaceTests(unittest.TestCase):
 
             targeted_checks = report["targeted_checks"]
             stage_check = targeted_checks["stage_model_routing_fields"]
+            self.assertTrue(stage_check["ok"], f"expected empty provider to pass: {stage_check}")
+
+    def test_verify_workspace_flags_unresolved_model_provider_placeholder(self) -> None:
+        """P-013.5 fail-closed: model_provider is optional (may be empty),
+        but an unresolved {{...}} placeholder in it still indicates a broken
+        install and must fail."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace, autoharness_home, stage_provider="{{STAGE_PROVIDER}}"
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            stage_check = targeted_checks["stage_model_routing_fields"]
             self.assertFalse(stage_check["ok"])
             self.assertTrue(
                 any("model_provider" in e for e in stage_check.get("errors", [])),
                 f"expected a model_provider error, got: {stage_check.get('errors')}",
+            )
+
+    def test_verify_workspace_model_routing_check_fails_closed_on_non_mapping_frontmatter(self) -> None:
+        """P-013.5 fail-closed: yaml.safe_load() can return a list, scalar, or
+        boolean for syntactically valid but structurally invalid frontmatter.
+        The check must report a clean targeted-check failure, not crash with
+        AttributeError (found via Copilot review of PR #276)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
+                "---\n- just\n- a\n- list\n---\n\n# Ship\n",
+                encoding="utf-8",
+            )
+
+            # Must not raise.
+            report = verify_workspace(workspace, autoharness_home)
+
+            ship_check = report["targeted_checks"]["ship_model_routing_fields"]
+            self.assertFalse(ship_check["ok"])
+            self.assertTrue(
+                any("mapping" in e for e in ship_check.get("errors", [])),
+                f"expected a mapping-type error, got: {ship_check.get('errors')}",
             )
 
     def test_verify_workspace_checks_orchestrator_invocation_directive_present(self) -> None:

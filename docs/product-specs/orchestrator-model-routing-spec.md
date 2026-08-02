@@ -184,8 +184,13 @@ The following assertions and tests were added:
 **`orchestrator_model_routing_fields` / `stage_model_routing_fields` / `ship_model_routing_fields`**
 (`_add_frontmatter_model_routing_check()` in `verify_workspace.py`, wired per-agent gated on
 `file_path.exists()`): validates that each installed pipeline agent (`_orchestrator.agent.md`,
-`_stage.agent.md`, `_ship.agent.md`) declares a non-empty `model_family` and `model_provider`
-in its YAML frontmatter, with no unresolved `{{...}}` placeholder. Unlike `orchestrator_tier_fields`
+`_stage.agent.md`, `_ship.agent.md`) declares a non-empty `model_family` in its YAML frontmatter,
+with no unresolved `{{...}}` placeholder in `model_family` or `model_provider`. `model_provider` is
+intentionally **not** required to be non-empty — the installer variable table's
+`TIER_2_PROVIDER`/`TIER_3_PROVIDER` (and their stage/ship fallbacks) default to empty, so a
+schema-valid, legacy, or default install can legitimately render an empty `model_provider` (found
+via Copilot review of PR #276; an earlier version of this check required both fields non-empty and
+regressed those installs). Unlike `orchestrator_tier_fields`
 (called unconditionally), these three checks are only registered when the corresponding agent file
 exists, so partial fixtures/workspaces that omit one of the three pipeline agents never register a
 false failure. (104.007-T)
@@ -197,7 +202,9 @@ references `P-013.5`, `config.model_routing.stage`, `config.model_routing.ship`,
 merely documented in the template source. (104.008-T)
 
 **`role_route_resolution`** (`_add_role_route_resolution_check()`, evaluated only when
-`.autoharness/config.yaml` declares a `model_routing` block at all): verifies that the `stage` and
+the workspace has explicitly opted into P-013.5 role routing — `model_routing.stage`
+or `model_routing.ship` is declared (even empty), or both `model_routing.tier2` and
+`.tier3` are present): verifies that the `stage` and
 `ship` role routes each resolve to a non-empty `model_family`, either from an explicit
 `model_routing.stage`/`model_routing.ship` route or via per-field fallback to
 `model_routing.tier3`/`model_routing.tier2` respectively (`ROLE_ROUTE_TIER_FALLBACK`). Fails closed:

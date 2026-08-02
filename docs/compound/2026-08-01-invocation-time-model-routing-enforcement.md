@@ -104,9 +104,15 @@ in the invoked agent's own frontmatter.
      source), confirming the directive was installed, not merely documented.
    - `role_route_resolution` — verifies the stage/ship role routes each
      resolve to a non-empty `model_family` via explicit route or tier
-     fallback; evaluated only when the workspace declares a `model_routing`
-     block at all (a workspace that has not opted into `model_routing`
-     configuration is out of scope for this check).
+     fallback; evaluated only when the workspace has **explicitly opted in**
+     to P-013.5 role routing — either `model_routing.stage`/`.ship` is
+     declared (even an empty object counts, since declaring the key signals
+     intent), or both `model_routing.tier2` and `.tier3` are present (the
+     fallback targets the check depends on). A `model_routing` block that
+     declares neither (e.g. `tier1`-only, or an empty `{}`) has not opted in
+     and is out of scope for this check — see "Review-Fix Hardening" below;
+     an earlier version of this check gated on any non-empty `model_routing`
+     block at all, which regressed schema-valid partial/legacy configs.
 
 ## Verification Pattern
 
@@ -135,6 +141,48 @@ provider or model-family string for the stage/ship routes — they remain
 at install time. Only the installed dogfood copies (`.autoharness/config.yaml`,
 `.github/agents/_orchestrator.agent.md`) carry resolved, environment-specific
 values.
+
+## Review-Fix Hardening (PR #276)
+
+Two rounds of adversarial review each found a real defect before merge —
+recorded here so future maintainers don't reintroduce them:
+
+**Local review (cycle 1/3, pre-PR)**: `role_route_resolution` initially fired
+whenever `model_routing` was any non-empty dict, including configs that only
+set `tier1` or were `{}`. Fixed by requiring explicit opt-in (see corrected
+gating description above).
+
+**Copilot review (PR #276, hosted)**: six further findings, all fixed:
+1. `.github/skills/install-harness/SKILL.md` is checksum-tracked but its
+   manifest entry wasn't refreshed after the T3/104.004-T edit — would have
+   caused `verify_workspace` to classify it as `user-modified` drift.
+   Refreshed.
+2. `_add_frontmatter_model_routing_check` crashed with `AttributeError` when
+   `yaml.safe_load()` returned a non-mapping (list/scalar/bool) for
+   syntactically-valid-but-structurally-wrong frontmatter. Added an
+   `isinstance(frontmatter, dict)` guard that fails closed with a clean
+   targeted-check result instead.
+3. Requiring `model_provider` unconditionally non-empty broke schema-valid
+   legacy/default installs: the installer table's `TIER_2_PROVIDER`/
+   `TIER_3_PROVIDER` (and their stage/ship fallbacks) default to **empty**.
+   `model_provider` is now optional — only an unresolved `{{...}}` placeholder
+   in it is an error; `model_family` remains required non-empty (every tier/
+   role route has a non-empty family default).
+4. Both `role-enforcement.instructions.md` (template + installed) stated
+   skills require the invoking agent's session to be "resolved and
+   non-degraded" before invocation — directly contradicting the very next
+   clause describing how a `ROUTING_DEGRADED` session must still propagate to
+   its skills. Reworded to "confirm and propagate" the current routing state
+   rather than requiring non-degraded as a precondition.
+5. `templates/agents/_orchestrator.agent.md.tmpl`'s configuration example
+   hardcoded concrete Anthropic model IDs and the `anthropic` provider string
+   — contradicting this PR's own "no provider-specific string is hardcoded in
+   any `.tmpl`" claim and Core Rule 3. Rewritten to use the actual
+   `{{STAGE_FAMILY}}`/`{{SHIP_FAMILY}}`/etc. template variables.
+6. This doc and `docs/product-specs/orchestrator-model-routing-spec.md` both
+   described the pre-fix (any-`model_routing`) gating behavior rather than
+   the corrected explicit-opt-in condition — both updated to match the
+   shipped implementation.
 
 ## Related
 

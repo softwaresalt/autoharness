@@ -375,30 +375,40 @@ This agent operates at **Tier 2 (Standard)** by default, but supports an indepen
 
 `verify_workspace` fails closed (P-013.5) when a pipeline agent's installed `model_family`/`model_provider` is empty or an unresolved `{{...}}` placeholder, when this Orchestrator's installed definition lacks the routing directive, or when a declared `stage`/`ship` role route does not resolve.
 
-**Configuration example** (in `.autoharness/config.yaml`):
+**Configuration shape** (in `.autoharness/config.yaml`, resolved from this
+template's own variables at install time — no vendor identifier is hardcoded
+here; see the variable table in `.github/skills/install-harness/SKILL.md` for
+each placeholder's source, default, and fallback):
 
 ```yaml
 model_routing:
   orchestrator:
-    model: gpt-5.4
-    model_family: gpt-5.4
-    model_provider: openai
-    reasoning_effort: high
+    model: "{{ORCHESTRATOR_FAMILY}}"
+    model_family: "{{ORCHESTRATOR_FAMILY}}"
+    model_provider: "{{ORCHESTRATOR_PROVIDER}}"
+    reasoning_effort: "{{ORCHESTRATOR_REASONING_EFFORT}}"
   tier2:
-    model: claude-sonnet-5
-    model_family: claude-sonnet-5
+    model: "{{TIER_2_FAMILY}}"
+    model_family: "{{TIER_2_FAMILY}}"
   tier3:
-    model: claude-opus-4.8
-    model_family: claude-opus-4.8
+    model: "{{TIER_3_FAMILY}}"
+    model_family: "{{TIER_3_FAMILY}}"
   stage:
-    model_family: claude-opus-4.8
-    model_provider: anthropic
-    reasoning_effort: high
+    model_family: "{{STAGE_FAMILY}}"
+    model_provider: "{{STAGE_PROVIDER}}"
+    reasoning_effort: "{{STAGE_REASONING_EFFORT}}"
   ship:
-    model_family: claude-sonnet-5
-    model_provider: anthropic
-    reasoning_effort: high
+    model_family: "{{SHIP_FAMILY}}"
+    model_provider: "{{SHIP_PROVIDER}}"
+    reasoning_effort: "{{SHIP_REASONING_EFFORT}}"
 ```
+
+An installed workspace resolves each placeholder to concrete values (for
+example, this repository's own dogfood `.autoharness/config.yaml` resolves
+`stage` to `claude-opus-4.8`/`anthropic` and `ship` to
+`claude-sonnet-5`/`anthropic`) — but the `.tmpl` source itself never bakes in
+a provider or model-family string, preserving environment agnosticism (Core
+Rule 3).
 
 **Environment support**: The `model_family` and `model_provider` frontmatter fields are supported by VS Code with GitHub Copilot (reads agent definition YAML metadata) and Copilot CLI. Other environments (Cursor, Claude Code) may ignore frontmatter model declarations and use their own model selection. In those environments, the operator may need to manually select the model when switching between orchestrator and subagent sessions — this is exactly the `ROUTING_DEGRADED` condition above and must be declared, not silently absorbed.
 

@@ -2330,7 +2330,9 @@ def _add_frontmatter_model_routing_check(
     file_path: Path,
 ) -> None:
     """P-013.5: validate that an installed agent's frontmatter declares a
-    non-empty, fully-resolved model_family and model_provider. Gated on
+    non-empty model_family with no unresolved {{...}} placeholder in either
+    model_family or model_provider. model_provider itself is intentionally
+    NOT required to be non-empty (see comment below). Gated on
     file_path.exists() by the caller (mirrors the *_workspace_identity
     pattern) so workspaces/fixtures that omit one of the three pipeline
     agent files never register a false failure for this check."""
@@ -2354,7 +2356,7 @@ def _add_frontmatter_model_routing_check(
 
     frontmatter_text = content[3:end_marker].strip()
     try:
-        frontmatter = yaml.safe_load(frontmatter_text) or {}
+        frontmatter = yaml.safe_load(frontmatter_text)
     except yaml.YAMLError as exc:
         report["targeted_checks"][key] = {
             "path": str(file_path),
@@ -2363,13 +2365,42 @@ def _add_frontmatter_model_routing_check(
         }
         return
 
+    if frontmatter is None:
+        frontmatter = {}
+    if not isinstance(frontmatter, dict):
+        # yaml.safe_load() can legitimately return a list, scalar, or boolean
+        # for syntactically valid but structurally invalid frontmatter (e.g.
+        # a bare "- a\n- b" block). Fail closed with a clean targeted-check
+        # result instead of letting frontmatter.get(...) raise AttributeError
+        # and crash verification entirely.
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "errors": [
+                f"frontmatter did not parse to a mapping (got {type(frontmatter).__name__})"
+            ],
+        }
+        return
+
     errors: list[str] = []
-    for field in ("model_family", "model_provider"):
-        value = frontmatter.get(field)
-        if value is None or (isinstance(value, str) and value.strip() == ""):
-            errors.append(f"missing or empty field: {field}")
-        elif isinstance(value, str) and "{{" in value and "}}" in value:
-            errors.append(f"unresolved placeholder in {field}: {value!r}")
+    # model_family must always resolve to a non-empty value: every tier and
+    # role route in the installer variable table (tier2/tier3/orchestrator/
+    # stage/ship) has a non-empty model_family default, so an empty or
+    # unresolved model_family always indicates a broken install.
+    family_value = frontmatter.get("model_family")
+    if family_value is None or (isinstance(family_value, str) and family_value.strip() == ""):
+        errors.append("missing or empty field: model_family")
+    elif isinstance(family_value, str) and "{{" in family_value and "}}" in family_value:
+        errors.append(f"unresolved placeholder in model_family: {family_value!r}")
+
+    # model_provider is intentionally NOT required to be non-empty: the
+    # installer variable table's TIER_2_PROVIDER/TIER_3_PROVIDER (and their
+    # stage/ship fallbacks) default to empty, so a schema-valid, legacy, or
+    # default install can legitimately render an empty model_provider. Only
+    # an unresolved {{...}} placeholder (a broken install) is an error here.
+    provider_value = frontmatter.get("model_provider")
+    if isinstance(provider_value, str) and "{{" in provider_value and "}}" in provider_value:
+        errors.append(f"unresolved placeholder in model_provider: {provider_value!r}")
 
     report["targeted_checks"][key] = {
         "path": str(file_path),

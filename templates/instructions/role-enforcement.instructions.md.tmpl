@@ -78,8 +78,11 @@ invocation directive (P-013.5). This applies uniformly when invoking agents
 **and** their skill workflows: the routing decision is made once, at
 agent-invocation time, not re-resolved per skill call.
 
-Before invoking any skill, the invoking agent MUST confirm its own routing is
-resolved and non-degraded for the current session:
+Before invoking any skill, the invoking agent MUST confirm and propagate its
+own current routing state for the session — either "resolved" or explicitly
+"`ROUTING_DEGRADED`" — rather than requiring a non-degraded state as a
+precondition (a degraded session must still be able to invoke its skills; it
+just carries the degradation forward, per step 3 below):
 
 1. **Confirm own routing first.** If the agent's own model route was resolved
    via an explicit invocation directive (Orchestrator Steps 1/2 for Stage/Ship;
