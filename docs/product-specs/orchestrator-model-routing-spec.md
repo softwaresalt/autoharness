@@ -195,11 +195,19 @@ regressed those installs). Unlike `orchestrator_tier_fields`
 exists, so partial fixtures/workspaces that omit one of the three pipeline agents never register a
 false failure. (104.007-T)
 
-**`orchestrator_invocation_routing_directive`** (FOUNDATION_ASSERTIONS, gated on
+**`orchestrator_invocation_routing_directive`**
+(`_add_orchestrator_invocation_routing_directive_check()` in `verify_workspace.py`, gated on
 `.github/agents/_orchestrator.agent.md` existing): verifies the installed Orchestrator's content
 references `P-013.5`, `config.model_routing.stage`, `config.model_routing.ship`, and
 `ROUTING_DEGRADED` — i.e., that the invocation-time routing directive was actually installed, not
-merely documented in the template source. (104.008-T)
+merely documented in the template source. This is a dedicated, scoped check rather than a whole-file
+FOUNDATION_ASSERTIONS `must_contain` match: it additionally requires `ROUTING_DEGRADED` to appear in
+the narrow window between the file's first `config.model_routing.stage` mention and its first
+`config.model_routing.ship` mention (i.e. inside Stage's own invocation paragraph, before Ship's
+route is even introduced), so a "Model Routing" summary paragraph that legitimately restates all
+four tokens for human readers cannot, by itself, satisfy the check if the actual Step 1/Step 2
+per-invocation directives were removed (found via Copilot review of PR #276 — the original
+whole-file `must_contain` version was satisfiable by the summary alone). (104.008-T)
 
 **`role_route_resolution`** (`_add_role_route_resolution_check()`, evaluated only when
 the workspace has explicitly opted into P-013.5 role routing — `model_routing.stage`
