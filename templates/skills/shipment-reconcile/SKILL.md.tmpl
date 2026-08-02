@@ -58,10 +58,33 @@ Every item in the manifest is classified as one of:
 > Classification semantics are mode-dependent. Pre-mode checks the queue
 > for status correctness; post-mode checks the archive for file presence only.
 
+### Shipment-Record-Status Classification (record scope, distinct from the five per-item classifications above)
+
+In addition to the five per-item classifications, pre-mode also classifies the
+shipment **record's own** `status` against the aggregate status of its manifest
+tasks. The four cases are **mutually exclusive**, partitioned first by the
+record's own status (`{{STATUS_QUEUED}}` vs `{{STATUS_BLOCKED}}`), with an
+explicit precedence rule for the blocked case:
+
+| Classification | Condition |
+|---|---|
+| `record-consistent` | Record status is compatible with member-task states (e.g. record `{{STATUS_QUEUED}}` with all tasks `{{STATUS_QUEUED}}`; record `{{STATUS_ACTIVE}}` with tasks `{{STATUS_ACTIVE}}`/`{{STATUS_QUEUED}}`; record `{{STATUS_DONE}}`/archived with tasks `{{STATUS_DONE}}`) |
+| `record-queued-with-active-work` | Record status is `{{STATUS_QUEUED}}` AND at least one manifest task is `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}` — the classic "silently-dropped claim" inconsistency |
+| `record-blocked-with-active-work` | Record status is `{{STATUS_BLOCKED}}` AND at least one manifest task is `{{STATUS_ACTIVE}}`. **Precedence**: when a `{{STATUS_BLOCKED}}` record has BOTH an `{{STATUS_ACTIVE}}` task and a `{{STATUS_DONE}}` task, classify here — active work takes precedence over `record-blocked-with-done-work` below, because it is the more severe/earlier-stage drift signal |
+| `record-blocked-with-done-work` | Record status is `{{STATUS_BLOCKED}}` AND no manifest task is `{{STATUS_ACTIVE}}` AND at least one manifest task is `{{STATUS_DONE}}` |
+
+These four cases are mutually exclusive: the record-status partition
+(`{{STATUS_QUEUED}}` vs `{{STATUS_BLOCKED}}`) combined with the
+active-over-done precedence rule guarantees exactly one classification applies
+to any given record + manifest-task-state combination. This check is
+**detect-and-report only — NO auto-repair**: it never mutates the shipment
+record or any task; operators must manually reconcile.
+
 The report ends with a `recommendation`:
 
-* `PROCEED` — all items are `matched` or `pre-archived`; no action needed
-* `HALT — operator reconcile required` — one or more missing, status-mismatch, or orphan items (pre-mode)
+* `PROCEED` — all items are `matched` or `pre-archived` AND the
+  shipment-record-status classification is `record-consistent`; no action needed
+* `HALT — operator reconcile required` — one or more missing, status-mismatch, or orphan items, OR a non-`record-consistent` shipment-record-status classification (pre-mode)
 * `HALT — restore archives` — missing archive files or unrestored deletions (post-mode)
 * `CLOSED` — safe-close archived every manifest item individually, archived the
   shipment record itself, and the protected set (parent feature + unshipped siblings)
@@ -122,13 +145,35 @@ double-archival and false-positive cascade flags).
    `shipment_id: {shipment_id}` but whose ID is NOT present in the manifest `items` list.
    Classify each such file as `orphan`.
 
-5. **Produce report** and store at
+5. **Shipment-record-status classification** (reuses in-hand data — NO new scan):
+   Using the shipment record's own `status` already loaded via `{{OP_GET_SHIPMENT_MCP}}`
+   in step 2, and the manifest tasks' statuses already read in step 3, classify the
+   record scope per the Shipment-Record-Status Classification table in the Output
+   section above:
+   * Record `{{STATUS_QUEUED}}` or `{{STATUS_BLOCKED}}` with all tasks in a
+     compatible state → `record-consistent`.
+   * Record `{{STATUS_QUEUED}}` AND any manifest task `{{STATUS_ACTIVE}}` or
+     `{{STATUS_DONE}}` → `record-queued-with-active-work`.
+   * Record `{{STATUS_BLOCKED}}` AND any manifest task `{{STATUS_ACTIVE}}` →
+     `record-blocked-with-active-work` (takes precedence over the case below when
+     both an active and a done task are present).
+   * Record `{{STATUS_BLOCKED}}` AND no task `{{STATUS_ACTIVE}}` AND any manifest
+     task `{{STATUS_DONE}}` → `record-blocked-with-done-work`.
+   This step is **detect-and-report only — NO auto-repair**: it never mutates the
+   shipment record or any task.
+
+6. **Produce report** and store at
    `{{BACKLOG_DIRECTORY}}/reconcile/{shipment_id}-{mode}-{timestamp}.md`.
 
-6. **Gate decision**:
-   * If all items are `matched` or `pre-archived` and no orphans exist → `recommendation: PROCEED`
-   * If any `missing`, `status-mismatch`, or `orphan` items exist →
-     `recommendation: HALT — operator reconcile required`
+7. **Gate decision**:
+   * If all items are `matched` or `pre-archived`, no orphans exist, AND the
+     shipment-record-status classification is `record-consistent` →
+     `recommendation: PROCEED`
+   * If any `missing`, `status-mismatch`, or `orphan` items exist, OR the
+     shipment-record-status classification is `record-queued-with-active-work`,
+     `record-blocked-with-active-work`, or `record-blocked-with-done-work` →
+     `recommendation: HALT — operator reconcile required`, naming the shipment id,
+     the record's own status, and the conflicting manifest task ids
    * On `HALT`: emit the report path, release the lock, and halt with
      `RECONCILE_FAIL`. Do NOT call `{{OP_SHIP_SHIPMENT_MCP}}`.
    * On `PROCEED` from Ship Step 6: retain the lock until post-mode completes.
@@ -275,6 +320,14 @@ If pre-mode cannot acquire the lock because another process holds it:
 * Safe-close reverts on cascade detection (`git restore`/`git revert`) and halts with a P-005 violation; it never auto-prunes the manifest
 * `mode: post` runs after the safe-close archive sequence in Ship Step 6
 * All five item classifications are represented in the schema
+* Pre-mode adds a shipment-record-status classification (`record-consistent` /
+  `record-queued-with-active-work` / `record-blocked-with-active-work` /
+  `record-blocked-with-done-work`) comparing the record's own status against its
+  manifest tasks' statuses, with the blocked+active-over-blocked+done precedence
+  rule stated explicitly; the four cases are mutually exclusive, computed with
+  no new scan (reuses data already read in steps 2–3); any non-`record-consistent`
+  classification HALTs the pre-mode recommendation, naming the shipment id,
+  record status, and conflicting task ids — detect-and-report only, no auto-repair
 * Lock is acquired before pre-mode and released after post-mode (or on any halt)
 * Report-and-halt in pre/post mode; safe-close mutation is strictly manifest-scoped with no auto-prune
 
