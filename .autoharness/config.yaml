@@ -70,6 +70,14 @@ model_routing:
     model_family: "claude-sonnet-5"
     model_provider: "anthropic"
     reasoning_effort: "high"
+  # P-013.6: explicit escalation route — distinct vendor/family from the
+  # Stage role route (claude-opus-4.8/anthropic, already == tier3) so an
+  # auto-escalation attempt is a genuine escalation, not a same-route no-op
+  # (ESCALATION_DEGRADED guard, 011-DL(b)/106-F).
+  escalation:
+    model_family: "gpt-5.6-sol"
+    model_provider: "openai"
+    reasoning_effort: "high"
 
 ai_tools:
   copilot_cli:

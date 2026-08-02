@@ -336,3 +336,35 @@ Before ending a session:
 | Tasks attempted in session | 20 | Halt, checkpoint, exit |
 | Consecutive failures | 3 | Halt, prompt operator |
 | Review-fix cycles per plan | 3 | Accept remaining findings, move on |
+
+### Escalation Protocol — Consecutive Planning Failures
+
+Upon 3 consecutive failures (the plan-review attempt counter reaching 3, or
+an equivalent 2-consecutive-FAIL gate elsewhere in the Required Steps), follow
+the auto-escalation directive below (P-013.6, `escalation-protocol.instructions.md`)
+before falling back to the operator-halt checkpoint:
+
+1. **Compile the escalation payload** per the escalation-payload contract
+   (threshold-kind + count, failure summary, last-N action/observation refs,
+   artifact refs, telemetry-evidence pointers, resumption checkpoint ref).
+2. **Resolve the escalation route**: `config.model_routing.escalation`
+   (`model_family` / `model_provider` / `reasoning_effort`), falling back
+   per field to `model_routing.tier3` when the `escalation` route or a
+   sub-field is unset.
+3. **Same-route guard**: Stage currently operates at `claude-opus-4.8`,
+   which already equals `tier3`, so an unset escalation route resolves to
+   the identical model family. Treat that resolution as `ESCALATION_DEGRADED`
+   (same-route no-op) per the canonical definition in
+   `escalation-protocol.instructions.md` rather than silently "escalating"
+   to an identical model.
+4. **Re-attempt** the failing unit of work at the resolved route when it is
+   not degraded; if it also fails, **hand off** the compiled payload to
+   engram (when available) as a terminal state.
+5. **`ESCALATION_DEGRADED` fallback**: when the route is unavailable, engram
+   is unavailable, or the same-route guard fires, halt and prompt the
+   operator exactly as before — this directive only interposes an
+   auto-escalation attempt ahead of the existing halt.
+
+This is a **reasoning escalation only** — it never self-authorizes promotion
+to plan, harvest, or shipment assembly (P-001/P-009/P-014/P-017/P-020
+preserved).
