@@ -11,7 +11,7 @@ verdict: PASS
 p0_count: 0
 p1_count: 0
 p2_count: 2
-review_fix_cycles: 1
+review_fix_cycles: 2
 requires_plan_hardening: yes
 hardening_present: yes
 ---
@@ -74,3 +74,39 @@ None. Specifically checked and cleared:
 ## Disposition
 PASS — proceed to harvest. Two P2 advisories folded into T3/T6/T9 acceptance
 criteria; no re-plan cycle required (1 review cycle, within the 3-cycle limit).
+
+## Review-fix pass — Copilot PR #283 (2026-08-02, cycle 2)
+
+Deterministic P-018 gate reported `UNRESOLVED_THREADS: BLOCK` with three
+Copilot-authored threads on PR #283. All three verified **valid** against their
+cited sources and corrected in-scope (planning/backlog only; no source/template
+mutation). Verdict **remains PASS** after correction — the fixes tighten
+acceptance criteria and the shipment manifest without altering the reviewed
+executable scope (nine tasks, dependency order preserved).
+
+- **C1 (valid) — Stage same-route escalation is a no-op.**
+  `docs/plans/...-plan.md:48`. Stage role route (`config.yaml:65-68` =
+  `claude-opus-4.8/anthropic/high`) already equals tier3 (`config.yaml:62`), so
+  an unset `model_routing.escalation` resolves Stage to the identical model —
+  no escalation to deeper reasoning. Fixed: Model reconciliation section now
+  defines a same-route guard; `ESCALATION_DEGRADED` (T3) gains a same-route
+  trigger; T7 detects a same-route resolution (fail-closed) and T8 pins the
+  Stage-case negative test. New failure-mode + mitigation added to plan
+  hardening.
+- **C2 (valid) — shipment manifest listed the covering feature.**
+  `.backlogit/queue/110-S.md:6`. Violated the durable 097-S task-only safe-close
+  contract (`docs/compound/097-S-shipment-task-only-safe-close.md:25-40`). Fixed:
+  removed `106-F` from `custom_fields.items` (now a nine-task manifest); covering
+  feature is derived via task `parent_id`. Checkpoint `add_order` and the shipment
+  log updated (correction event appended); plan "Add order" note rewritten to
+  reflect the task-only manifest.
+- **C3 (valid) — escalation contract placed in a two-agent-only instruction.**
+  `docs/plans/...-plan.md:58`. `role-enforcement.instructions.md` installs only
+  when both agents are present and is skipped for one-agent installs
+  (`install-harness/SKILL.md:1032`), leaving a Stage-only/Ship-only install
+  referencing an uninstalled contract. Fixed: T3 now targets a new
+  `escalation-protocol.instructions.md.tmpl` installed whenever **either** agent
+  exists; T2 adds the either-agent installer gating; T7 verifies the either-agent
+  install (fail-closed) and T8 covers the one-agent negative case.
+
+Cycle 2 of 3 (within limit). No P0/P1 introduced; original P2-1/P2-2 unchanged.
