@@ -45,16 +45,26 @@ Additive, detect-and-report, fail-safe. Extend pre-mode only.
 1. **New classification `record-status-inconsistent`** (shipment-record scope,
    distinct from the five per-item classifications). Add a `shipment-record-status`
    comparison that reads the shipment record's own `status` and cross-checks it
-   against the aggregate of its manifest tasks' statuses:
+   against the aggregate of its manifest tasks' statuses. The four cases are
+   **mutually exclusive**, partitioned first by the record's own status
+   (`queued` vs. `blocked`), with an explicit precedence rule for the
+   blocked case so `blocked` + `active` and `blocked` + `done` never both match:
    - `record-consistent` — record status is compatible with member-task states
      (e.g. record `queued` and all tasks `queued`; record `active` with tasks
      `active`/`queued`; record `done`/archived with tasks `done`).
-   - `record-queued-with-active-work` — record is `queued` (or `blocked`) while at
-     least one manifest task is `active` or `done`. This is the `103-S` failure
+   - `record-queued-with-active-work` — record status is `queued` AND at least
+     one manifest task is `active` or `done`. This is the `103-S` failure
      mode: a silently-dropped `claim_shipment` leaves the record `queued` while
-     per-task moves proceed.
-   - `record-blocked-with-done-work` — record is `blocked` while manifest tasks
-     are `done`.
+     per-task moves proceed. (Scoped to `queued` only — the `blocked` record
+     case is fully covered by the two classifications below, so this case does
+     not overlap with them.)
+   - `record-blocked-with-active-work` — record status is `blocked` AND at
+     least one manifest task is `active`. **Precedence**: when a `blocked`
+     record has both an `active` task and a `done` task, classify here —
+     `active` work is the more severe/earlier-stage drift signal and takes
+     precedence over `record-blocked-with-done-work`.
+   - `record-blocked-with-done-work` — record status is `blocked` AND no
+     manifest task is `active` AND at least one manifest task is `done`.
 2. **Gate wiring**: when the shipment-record-status check yields any inconsistent
    result, the pre-mode `recommendation` becomes
    `HALT — operator reconcile required` (reuse the existing pre-mode HALT path;
@@ -83,9 +93,11 @@ Additive, detect-and-report, fail-safe. Extend pre-mode only.
 
 - **T1 (skill template)** — Add the shipment-record-status classification +
   pre-mode compare step + gate wiring + Quality Criteria coverage to
-  `SKILL.md.tmpl`. Verify: new classification present in Output table; Pre-Mode
-  protocol step reads record status and compares to manifest tasks; recommendation
-  HALTs on inconsistency; no unresolved `{{...}}`.
+  `SKILL.md.tmpl`. Verify: new classification present in Output table; the four
+  cases are mutually exclusive with the blocked+active-over-blocked+done
+  precedence rule stated explicitly; Pre-Mode protocol step reads record status
+  and compares to manifest tasks; recommendation HALTs on inconsistency; no
+  unresolved `{{...}}`.
 - **T2 (docs / compound learning — part 3)** — Author the compound learning doc.
   Verify: file exists; captures the three signals; cross-refs the spike + 106-S.
   Depends on T1 (documents the shipped classification).

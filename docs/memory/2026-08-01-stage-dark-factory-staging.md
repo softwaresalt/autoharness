@@ -23,7 +23,9 @@ Route: claude-opus-4.8 / anthropic / high (P-013.5). Visibility: local session
 ## Outcome
 - **Shipment 109-S (QUEUED, the single eligible shipment)** — "Ship
   claim-integrity: shipment-record-status classification (105-F)".
-  Items: 105-F, 105.002-T (T1 template), 105.001-T (T2 docs/learning).
+  Manifest items (task-only): 105.002-T (T1 template), 105.001-T (T2
+  docs/learning); covering feature 105-F derived via task `parent_id`, not a
+  manifest item.
   Intra-feature order: T2 depends_on T1. No successor shipments (rest of scope is
   shipped/blocked-on-operator/operator-prioritization) → "exactly one eligible" holds.
 - **Deliberation 011-DL** — 34D50F2D gap analysis (surface for operator).
