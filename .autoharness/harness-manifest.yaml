@@ -107,7 +107,7 @@ artifacts:
   - path: ".github/agents/_stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "388bcbe79671538792f73ab3885aac75d2d9885457b5e5c224976607cb03f34a"
+    checksum: "468e6a843c2648197f02a4462c5cc24740ab8724e739e3605af83b49e53b5012"
     note: "source-controlled dogfood workflow agent; checksum refreshed 110-S/106.004-T (P-013.6 auto-escalation directive parity, Escalation Protocol — Consecutive Planning Failures)"
   - path: ".github/agents/_ship.agent.md"
     primitive: 4

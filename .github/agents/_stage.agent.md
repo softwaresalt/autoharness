@@ -351,12 +351,17 @@ before falling back to the operator-halt checkpoint:
    (`model_family` / `model_provider` / `reasoning_effort`), falling back
    per field to `model_routing.tier3` when the `escalation` route or a
    sub-field is unset.
-3. **Same-route guard**: Stage currently operates at `claude-opus-4.8`,
-   which already equals `tier3`, so an unset escalation route resolves to
-   the identical model family. Treat that resolution as `ESCALATION_DEGRADED`
-   (same-route no-op) per the canonical definition in
-   `escalation-protocol.instructions.md` rather than silently "escalating"
-   to an identical model.
+3. **Same-route guard**: Stage's explicit role route (`claude-opus-4.8`) is
+   identical to this workspace's `tier3` family. If the `escalation` route
+   were ever unset (or reset to an unset/matching value), resolution would
+   fall back to `tier3` and land on the same model family as Stage's own
+   route — that must be treated as `ESCALATION_DEGRADED` (same-route no-op)
+   per the canonical definition in `escalation-protocol.instructions.md`
+   rather than silently "escalating" to an identical model. This workspace's
+   `config.model_routing.escalation` currently declares an explicit, distinct
+   route (`gpt-5.6-sol`/`openai`/`high`) specifically to keep genuine
+   escalation available; re-verify this guard whenever the escalation or
+   tier3 route configuration changes.
 4. **Re-attempt** the failing unit of work at the resolved route when it is
    not degraded; if it also fails, **hand off** the compiled payload to
    engram (when available) as a terminal state.
