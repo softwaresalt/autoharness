@@ -709,16 +709,6 @@ FOUNDATION_ASSERTIONS = [
             "reviewed HEAD SHA",
         ],
     },
-    {
-        "key": "orchestrator_invocation_routing_directive",
-        "path": ".github/agents/_orchestrator.agent.md",
-        "must_contain": [
-            "P-013.5",
-            "config.model_routing.stage",
-            "config.model_routing.ship",
-            "ROUTING_DEGRADED",
-        ],
-    },
 ]
 
 DARK_FACTORY_ASSERTIONS = [
@@ -2386,26 +2376,111 @@ def _add_frontmatter_model_routing_check(
     # model_family must always resolve to a non-empty value: every tier and
     # role route in the installer variable table (tier2/tier3/orchestrator/
     # stage/ship) has a non-empty model_family default, so an empty or
-    # unresolved model_family always indicates a broken install.
+    # unresolved model_family always indicates a broken install. Require an
+    # actual string type (not just a falsy check) so a structurally-wrong
+    # frontmatter value such as `model_family: false`, `42`, `[]`, or `{}`
+    # -- which reaches neither of the old None/empty-string branches -- is
+    # correctly flagged instead of silently passing.
     family_value = frontmatter.get("model_family")
-    if family_value is None or (isinstance(family_value, str) and family_value.strip() == ""):
-        errors.append("missing or empty field: model_family")
-    elif isinstance(family_value, str) and "{{" in family_value and "}}" in family_value:
+    if not isinstance(family_value, str) or family_value.strip() == "":
+        errors.append(
+            f"missing or invalid field: model_family (expected a non-empty "
+            f"string, got {family_value!r})"
+        )
+    elif "{{" in family_value and "}}" in family_value:
         errors.append(f"unresolved placeholder in model_family: {family_value!r}")
 
     # model_provider is intentionally NOT required to be non-empty: the
     # installer variable table's TIER_2_PROVIDER/TIER_3_PROVIDER (and their
     # stage/ship fallbacks) default to empty, so a schema-valid, legacy, or
-    # default install can legitimately render an empty model_provider. Only
-    # an unresolved {{...}} placeholder (a broken install) is an error here.
+    # default install can legitimately render an empty model_provider. It
+    # must still be a string when present -- a non-string value such as
+    # `42`/`[]`/`{}` is a structurally broken frontmatter field regardless of
+    # emptiness rules, so it is flagged here rather than silently ignored.
     provider_value = frontmatter.get("model_provider")
-    if isinstance(provider_value, str) and "{{" in provider_value and "}}" in provider_value:
+    if provider_value is not None and not isinstance(provider_value, str):
+        errors.append(
+            f"invalid field: model_provider must be a string when present "
+            f"(got {type(provider_value).__name__}: {provider_value!r})"
+        )
+    elif isinstance(provider_value, str) and "{{" in provider_value and "}}" in provider_value:
         errors.append(f"unresolved placeholder in model_provider: {provider_value!r}")
 
     report["targeted_checks"][key] = {
         "path": str(file_path),
         "ok": not errors,
         "errors": errors,
+    }
+
+
+def _add_orchestrator_invocation_routing_directive_check(
+    report: dict[str, Any],
+    key: str,
+    file_path: Path,
+) -> None:
+    """P-013.5: verify the installed Orchestrator declares its Stage/Ship
+    invocation-time routing directive at BOTH invocation sites, not merely
+    somewhere in the file. A whole-file substring check (the original
+    implementation) is satisfiable by a single "Model Routing" summary
+    paragraph even after both per-step invocation directives are deleted --
+    found via Copilot review of PR #276. This check instead requires a
+    ROUTING_DEGRADED declaration to appear in the narrow window between the
+    file's first "config.model_routing.stage" mention and its first
+    "config.model_routing.ship" mention (i.e. inside Stage's own invocation
+    paragraph, before Ship's route is even introduced) -- a summary sentence
+    that mentions both routes back-to-back in the same clause has no room
+    for a distinct ROUTING_DEGRADED between them, so this scoping is not
+    satisfiable by summary text alone. The Ship side is checked from its
+    first mention to end-of-file (a looser bound is sufficient there because
+    the narrow Stage-side bound is what defeats the summary-only attack)."""
+    if not file_path.exists():
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "reason": "missing file",
+        }
+        return
+
+    content = file_path.read_text(encoding="utf-8")
+    required_tokens = [
+        "P-013.5",
+        "config.model_routing.stage",
+        "config.model_routing.ship",
+        "ROUTING_DEGRADED",
+    ]
+    missing = [token for token in required_tokens if token not in content]
+    scoping_errors: list[str] = []
+
+    if not missing:
+        stage_idx = content.find("config.model_routing.stage")
+        ship_idx = content.find("config.model_routing.ship")
+        if stage_idx == -1 or ship_idx == -1 or stage_idx >= ship_idx:
+            scoping_errors.append(
+                "config.model_routing.stage must appear, and precede, "
+                "config.model_routing.ship (Step 1 before Step 2)"
+            )
+        else:
+            stage_section = content[stage_idx:ship_idx]
+            if "ROUTING_DEGRADED" not in stage_section:
+                scoping_errors.append(
+                    "Stage invocation site does not declare its own "
+                    "ROUTING_DEGRADED fallback between the stage route "
+                    "resolution and the ship route resolution -- the "
+                    "per-step directive may have been removed while an "
+                    "unrelated summary mention remains"
+                )
+            ship_section = content[ship_idx:]
+            if "ROUTING_DEGRADED" not in ship_section:
+                scoping_errors.append(
+                    "Ship invocation site (config.model_routing.ship "
+                    "onward) does not declare a ROUTING_DEGRADED fallback"
+                )
+
+    report["targeted_checks"][key] = {
+        "path": str(file_path),
+        "ok": not missing and not scoping_errors,
+        "missing": missing,
+        "scoping_errors": scoping_errors,
     }
 
 
@@ -3611,6 +3686,21 @@ def verify_workspace(
         "orchestrator_tier_fields",
         workspace_path / ".github/agents/_orchestrator.agent.md",
     )
+
+    # P-013.5: Orchestrator invocation-time routing directive (104.008-T).
+    # Gated on file_path.exists() (mirrors the model-routing-fields loop
+    # below) so fixtures/workspaces lacking the installed Orchestrator agent
+    # never register a false failure. Uses a dedicated, scoped check rather
+    # than a whole-file FOUNDATION_ASSERTIONS must_contain match -- see
+    # _add_orchestrator_invocation_routing_directive_check's docstring for
+    # why the whole-file match was insufficient (Copilot review, PR #276).
+    orchestrator_agent_path = workspace_path / ".github/agents/_orchestrator.agent.md"
+    if orchestrator_agent_path.exists():
+        _add_orchestrator_invocation_routing_directive_check(
+            report,
+            "orchestrator_invocation_routing_directive",
+            orchestrator_agent_path,
+        )
 
     # P-013.5: model routing frontmatter fields (104.007-T). Gated on
     # file_path.exists() per agent (unlike orchestrator_tier_fields, which is
