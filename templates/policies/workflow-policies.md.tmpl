@@ -344,6 +344,22 @@ Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare 
 
 **Violation Action**: Record a P-013 violation (via P-005 telemetry) with the specific sub-policy identifier (P-013.1–P-013.4), halt the violating invocation, and surface the violation to the operator.
 
+### P-013.5 — Invocation-Time Model-Routing Enforcement
+
+**Purpose**: Close the gap between "the desired role→model mapping exists in config" and "the mapping is actually honored at invocation time." Role-based model routing must be resolved, declared, and verified — never an informal per-session promise that the operator has to remember to apply manually.
+
+**Resolve**: The Orchestrator resolves an optional first-class role route (`config.model_routing.stage` / `config.model_routing.ship`) before invoking Stage or Ship. Each sub-field (`model_family`, `model_provider`, `reasoning_effort`) falls back independently to the agent's config-bound tier (Stage → `tier3`, Ship → `tier2`) when the role route or that sub-field is absent or empty. This preserves the P-013.2/P-013.4 tier taxonomy — a role route is a targeted override, not a parallel tier system, and does not reintroduce a `model_tier` integer.
+
+**Declare**: The Orchestrator declares the resolved `model_family` / `model_provider` / `reasoning_effort` as an explicit invocation-time directive when invoking the subagent. Per Core Rule 3 (Environment Agnosticism), this is an intent directive plus resolved fields the runtime may honor — never a baked, environment-specific `--model` CLI flag.
+
+**Degrade explicitly, never silently default**: When the runtime cannot honor a per-invocation model override, the Orchestrator MUST emit `ROUTING_DEGRADED` naming the subagent and the resolved route that could not be honored, and surface it to the operator. Silently continuing on the current session model without declaring the degradation is a P-013.5 violation.
+
+**Skill inheritance**: Skills invoked by a routed agent inherit that agent's already-resolved session model; they are leaf executors and do not carry their own `model_family` field or re-resolve routing per skill call (see the skill-delegation contract in `role-enforcement.instructions.md`). A `ROUTING_DEGRADED` state on the invoking agent's session carries forward to every skill it invokes.
+
+**Fail-closed verification**: Harness verification fails when (a) an installed pipeline agent's (`_stage`, `_ship`, `_orchestrator`) `model_family` / `model_provider` is empty or an unresolved `{{...}}` placeholder; (b) the installed Orchestrator definition lacks the invocation-time routing directive; or (c) a declared `stage`/`ship` role route does not resolve (missing tier fallback target). These assertions are backed by red-green tests that fail against the pre-P-013.5 tree.
+
+**Violation Action**: Record a P-013.5 violation (via P-005 telemetry), halt the violating invocation, and surface the violation to the operator with the unresolved or silently-defaulted route named explicitly.
+
 ---
 
 ## P-014: Local Review Readiness Merge Gate
@@ -669,3 +685,4 @@ emitted.
 | 1.13.0  | {{DATE}}     | Added P-018      | Copilot review completion & thread resolution merge gate — deterministic, fail-closed, admin non-bypass, multi-round, bounded-timeout escape |
 | 1.14.0  | {{DATE}}     | Added P-019      | Local pre-push quality-gate enforcement — opt-in, single-pass, tool-absent→skip, shift-left counterpart of the CI aggregation gate |
 | 1.15.0  | {{DATE}}     | Added P-020      | Post-merge context compaction — mandatory compact-context invocation at Ship closure, invocation-vs-candidate-selection decoupling, skip=violation/closure-incomplete, failed-run non-blocking |
+| 1.16.0  | {{DATE}}     | Added P-013.5    | Invocation-time model-routing enforcement — resolve stage/ship role routes with per-sub-field tier fallback, declare-or-degrade invocation directive, fail-closed verification; preserves P-013 tier taxonomy |

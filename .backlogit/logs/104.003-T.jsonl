@@ -1,1 +1,3 @@
 {"timestamp":"2026-07-31T20:55:09.1967897-07:00","actor":"agent","item_id":"104.003-T","event_type":"estimate_history","delta":{"actor":"agent","size":"S"}}
+{"timestamp":"2026-08-01T13:31:43.8897995-07:00","actor":"backlogit","item_id":"104.003-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-01T13:46:36.3918172-07:00","actor":"backlogit","item_id":"104.003-T","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"origin/HEAD","gate_report_hash":"8ac746799d4f1672dc8d27729601a8a904e1db8002cd79148549cf16c5f6bbea","head_ref":"HEAD","head_sha":"c05fe8c9270dd2be75e0ffd15578447e254ebbb3","new_status":"done","old_status":"active","outcome":"passed","ran":true,"state_changed":true}}

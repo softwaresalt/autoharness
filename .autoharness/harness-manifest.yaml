@@ -117,8 +117,8 @@ artifacts:
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "9525a090d3772870902480377cce26cc58b4e115b388d23efd9baef86a55bbe6"
-    note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013"
+    checksum: "35957c5eeb8be2e2d1789cecb8eb19b530e805a46e339cc4923ef3a51e1c8756"
+    note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013; checksum refreshed 108-S/104.003-T (P-013.5 Stage/Ship invocation-time model-routing directive)"
   - path: "start.sh"
     primitive: 1
     template: "scripts/start.sh.tmpl"
@@ -156,8 +156,8 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "8d13256ec19a63af3f6ad3d71dcbd8fe18987a34552d958945b8cceb3b5362c2"
-    note: "pre-existing, source-controlled global artifact"
+    checksum: "e9256c9d8d6ad99c31fab2b15590cf1d626ead2f0d6222c69484f662c8d17d7f"
+    note: "global skill definition; checksum refreshed 108-S/104.004-T (STAGE_*/SHIP_* installer variable rows, P-013.5)"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
@@ -261,8 +261,8 @@ artifacts:
   - path: ".github/instructions/role-enforcement.instructions.md"
     primitive: 5
     template: "instructions/role-enforcement.instructions.md.tmpl"
-    checksum: "31a4adc960da3ccaa202e894a9f1259ce341c71da18d1afbdd3e7e57c56028d6"
-    note: "role boundary self-check instruction (installed 067.005-T)"
+    checksum: "378efc13bb2b73e400bd28fa0358968074b172b9bfc68c2202c47f9a0fb467a2"
+    note: "role boundary self-check instruction (installed 067.005-T); checksum refreshed 108-S/104.005-T (P-013.5 Skill-Delegation Model Inheritance clause), refreshed again 108-S/104.008-T review-fix (precondition wording clarified per Copilot review)"
   - path: ".github/instructions/concurrency.instructions.md"
     primitive: 5
     template: "instructions/concurrency.instructions.md.tmpl"

@@ -2314,6 +2314,244 @@ def _add_frontmatter_tier_check(
     }
 
 
+def _add_frontmatter_model_routing_check(
+    report: dict[str, Any],
+    key: str,
+    file_path: Path,
+) -> None:
+    """P-013.5: validate that an installed agent's frontmatter declares a
+    non-empty model_family with no unresolved {{...}} placeholder in either
+    model_family or model_provider. model_provider itself is intentionally
+    NOT required to be non-empty (see comment below). Gated on
+    file_path.exists() by the caller (mirrors the *_workspace_identity
+    pattern) so workspaces/fixtures that omit one of the three pipeline
+    agent files never register a false failure for this check."""
+    content = file_path.read_text(encoding="utf-8")
+    if not content.startswith("---"):
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "errors": ["no YAML frontmatter (file does not begin with ---)"],
+        }
+        return
+
+    end_marker = content.find("\n---", 3)
+    if end_marker == -1:
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "errors": ["unclosed YAML frontmatter (no closing ---)"],
+        }
+        return
+
+    frontmatter_text = content[3:end_marker].strip()
+    try:
+        frontmatter = yaml.safe_load(frontmatter_text)
+    except yaml.YAMLError as exc:
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "errors": [f"invalid YAML frontmatter: {exc}"],
+        }
+        return
+
+    if frontmatter is None:
+        frontmatter = {}
+    if not isinstance(frontmatter, dict):
+        # yaml.safe_load() can legitimately return a list, scalar, or boolean
+        # for syntactically valid but structurally invalid frontmatter (e.g.
+        # a bare "- a\n- b" block). Fail closed with a clean targeted-check
+        # result instead of letting frontmatter.get(...) raise AttributeError
+        # and crash verification entirely.
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "errors": [
+                f"frontmatter did not parse to a mapping (got {type(frontmatter).__name__})"
+            ],
+        }
+        return
+
+    errors: list[str] = []
+    # model_family must always resolve to a non-empty value: every tier and
+    # role route in the installer variable table (tier2/tier3/orchestrator/
+    # stage/ship) has a non-empty model_family default, so an empty or
+    # unresolved model_family always indicates a broken install. Require an
+    # actual string type (not just a falsy check) so a structurally-wrong
+    # frontmatter value such as `model_family: false`, `42`, `[]`, or `{}`
+    # -- which reaches neither of the old None/empty-string branches -- is
+    # correctly flagged instead of silently passing.
+    family_value = frontmatter.get("model_family")
+    if not isinstance(family_value, str) or family_value.strip() == "":
+        errors.append(
+            f"missing or invalid field: model_family (expected a non-empty "
+            f"string, got {family_value!r})"
+        )
+    elif "{{" in family_value and "}}" in family_value:
+        errors.append(f"unresolved placeholder in model_family: {family_value!r}")
+
+    # model_provider is intentionally NOT required to be non-empty: the
+    # installer variable table's TIER_2_PROVIDER/TIER_3_PROVIDER (and their
+    # stage/ship fallbacks) default to empty, so a schema-valid, legacy, or
+    # default install can legitimately render an empty model_provider. It
+    # must still be a string when present -- a non-string value such as
+    # `42`/`[]`/`{}` is a structurally broken frontmatter field regardless of
+    # emptiness rules, so it is flagged here rather than silently ignored.
+    provider_value = frontmatter.get("model_provider")
+    if provider_value is not None and not isinstance(provider_value, str):
+        errors.append(
+            f"invalid field: model_provider must be a string when present "
+            f"(got {type(provider_value).__name__}: {provider_value!r})"
+        )
+    elif isinstance(provider_value, str) and "{{" in provider_value and "}}" in provider_value:
+        errors.append(f"unresolved placeholder in model_provider: {provider_value!r}")
+
+    report["targeted_checks"][key] = {
+        "path": str(file_path),
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
+def _add_orchestrator_invocation_routing_directive_check(
+    report: dict[str, Any],
+    key: str,
+    file_path: Path,
+) -> None:
+    """P-013.5: verify the installed Orchestrator declares its Stage/Ship
+    invocation-time routing directive at BOTH invocation sites, not merely
+    somewhere in the file. A whole-file substring check (the original
+    implementation) is satisfiable by a single "Model Routing" summary
+    paragraph even after both per-step invocation directives are deleted --
+    found via Copilot review of PR #276. This check instead requires a
+    ROUTING_DEGRADED declaration to appear in the narrow window between the
+    file's first "config.model_routing.stage" mention and its first
+    "config.model_routing.ship" mention (i.e. inside Stage's own invocation
+    paragraph, before Ship's route is even introduced) -- a summary sentence
+    that mentions both routes back-to-back in the same clause has no room
+    for a distinct ROUTING_DEGRADED between them, so this scoping is not
+    satisfiable by summary text alone. The Ship side is checked from its
+    first mention to end-of-file (a looser bound is sufficient there because
+    the narrow Stage-side bound is what defeats the summary-only attack)."""
+    if not file_path.exists():
+        report["targeted_checks"][key] = {
+            "path": str(file_path),
+            "ok": False,
+            "reason": "missing file",
+        }
+        return
+
+    content = file_path.read_text(encoding="utf-8")
+    required_tokens = [
+        "P-013.5",
+        "config.model_routing.stage",
+        "config.model_routing.ship",
+        "ROUTING_DEGRADED",
+    ]
+    missing = [token for token in required_tokens if token not in content]
+    scoping_errors: list[str] = []
+
+    if not missing:
+        stage_idx = content.find("config.model_routing.stage")
+        ship_idx = content.find("config.model_routing.ship")
+        if stage_idx == -1 or ship_idx == -1 or stage_idx >= ship_idx:
+            scoping_errors.append(
+                "config.model_routing.stage must appear, and precede, "
+                "config.model_routing.ship (Step 1 before Step 2)"
+            )
+        else:
+            stage_section = content[stage_idx:ship_idx]
+            if "ROUTING_DEGRADED" not in stage_section:
+                scoping_errors.append(
+                    "Stage invocation site does not declare its own "
+                    "ROUTING_DEGRADED fallback between the stage route "
+                    "resolution and the ship route resolution -- the "
+                    "per-step directive may have been removed while an "
+                    "unrelated summary mention remains"
+                )
+            ship_section = content[ship_idx:]
+            if "ROUTING_DEGRADED" not in ship_section:
+                scoping_errors.append(
+                    "Ship invocation site (config.model_routing.ship "
+                    "onward) does not declare a ROUTING_DEGRADED fallback"
+                )
+
+    report["targeted_checks"][key] = {
+        "path": str(file_path),
+        "ok": not missing and not scoping_errors,
+        "missing": missing,
+        "scoping_errors": scoping_errors,
+    }
+
+
+def _resolve_role_route_field(
+    route: dict[str, Any], tier_fallback: Any, field: str
+) -> Any:
+    """Resolve a single role-route field (model_family/model_provider/
+    reasoning_effort) with per-field fallback to the tier route. A tier route
+    may be a legacy plain model-identifier string (treated as `model` and
+    `model_family`) or an object with model/model_family/model_provider/
+    reasoning_effort."""
+    value = route.get(field) if isinstance(route, dict) else None
+    if isinstance(value, str) and value.strip():
+        return value
+
+    if isinstance(tier_fallback, str) and tier_fallback.strip():
+        tier_dict: dict[str, Any] = {"model": tier_fallback, "model_family": tier_fallback}
+    elif isinstance(tier_fallback, dict):
+        tier_dict = tier_fallback
+    else:
+        tier_dict = {}
+
+    fallback_value = tier_dict.get(field)
+    if field == "model_family" and not (isinstance(fallback_value, str) and fallback_value.strip()):
+        # Legacy tier objects/strings may only declare `model`; treat it as
+        # the model_family fallback when model_family itself is unset.
+        fallback_value = tier_dict.get("model")
+    return fallback_value
+
+
+# Role -> fallback tier mapping for P-013.5 role-route resolution. Stage is a
+# frontier-tier role (falls back to tier3); Ship is a standard-tier role
+# (falls back to tier2). This mirrors the dogfood config.yaml assignment and
+# preserves P-013's existing tier taxonomy for workspaces that never declare
+# an explicit stage/ship route.
+ROLE_ROUTE_TIER_FALLBACK = {
+    "stage": "tier3",
+    "ship": "tier2",
+}
+
+
+def _add_role_route_resolution_check(
+    report: dict[str, Any],
+    key: str,
+    config: dict[str, Any],
+) -> None:
+    """P-013.5: verify that the stage and ship role routes each resolve to a
+    non-empty model_family, either from an explicit model_routing.stage /
+    model_routing.ship route or via per-field fallback to model_routing.tier3
+    / model_routing.tier2 respectively. Fails closed: an unresolvable role
+    route is a verification failure, not a silent pass."""
+    model_routing = config.get("model_routing") or {}
+    errors: list[str] = []
+    for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
+        route = model_routing.get(role) or {}
+        if not isinstance(route, dict):
+            route = {}
+        tier_fallback = model_routing.get(fallback_tier_key)
+        resolved_family = _resolve_role_route_field(route, tier_fallback, "model_family")
+        if not (isinstance(resolved_family, str) and resolved_family.strip()):
+            errors.append(
+                f"{role} role route does not resolve: no model_family from "
+                f"model_routing.{role} or fallback model_routing.{fallback_tier_key}"
+            )
+
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
 def _add_text_check(
     report: dict[str, Any],
     key: str,
@@ -3448,6 +3686,53 @@ def verify_workspace(
         "orchestrator_tier_fields",
         workspace_path / ".github/agents/_orchestrator.agent.md",
     )
+
+    # P-013.5: Orchestrator invocation-time routing directive (104.008-T).
+    # Gated on file_path.exists() (mirrors the model-routing-fields loop
+    # below) so fixtures/workspaces lacking the installed Orchestrator agent
+    # never register a false failure. Uses a dedicated, scoped check rather
+    # than a whole-file FOUNDATION_ASSERTIONS must_contain match -- see
+    # _add_orchestrator_invocation_routing_directive_check's docstring for
+    # why the whole-file match was insufficient (Copilot review, PR #276).
+    orchestrator_agent_path = workspace_path / ".github/agents/_orchestrator.agent.md"
+    if orchestrator_agent_path.exists():
+        _add_orchestrator_invocation_routing_directive_check(
+            report,
+            "orchestrator_invocation_routing_directive",
+            orchestrator_agent_path,
+        )
+
+    # P-013.5: model routing frontmatter fields (104.007-T). Gated on
+    # file_path.exists() per agent (unlike orchestrator_tier_fields, which is
+    # unconditional) so workspaces/fixtures lacking one or more of the three
+    # pipeline agent files never register a false failure for this check.
+    for agent_file, check_key in [
+        (".github/agents/_orchestrator.agent.md", "orchestrator_model_routing_fields"),
+        (".github/agents/_stage.agent.md", "stage_model_routing_fields"),
+        (".github/agents/_ship.agent.md", "ship_model_routing_fields"),
+    ]:
+        agent_path = workspace_path / agent_file
+        if agent_path.exists():
+            _add_frontmatter_model_routing_check(report, check_key, agent_path)
+
+    # P-013.5: role-route resolution (104.008-T). Evaluated only when the
+    # workspace has meaningfully opted into role-based routing: either an
+    # explicit stage/ship route key is declared (even empty -- declaring the
+    # key signals intent to use role routing), or both tier2 and tier3 are
+    # present (the fallback targets this check depends on). A model_routing
+    # block that declares neither (e.g. only tier1, or an empty {}) has not
+    # opted into P-013.5 role routing and must not register a false failure --
+    # confirmed via adversarial review: gating on "any model_routing dict"
+    # regressed schema-valid, pre-existing partial configs (e.g. tier1-only)
+    # that never adopted stage/ship routing.
+    model_routing_block = config.get("model_routing") if isinstance(config, dict) else None
+    if isinstance(model_routing_block, dict):
+        has_explicit_role_route = "stage" in model_routing_block or "ship" in model_routing_block
+        has_tier_fallback_foundation = (
+            "tier2" in model_routing_block and "tier3" in model_routing_block
+        )
+        if has_explicit_role_route or has_tier_fallback_foundation:
+            _add_role_route_resolution_check(report, "role_route_resolution", config)
 
     project_name = variables.get("PROJECT_NAME", workspace_path.name)
     project_name_pattern = re.compile(

@@ -3264,6 +3264,515 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["p013_policy_in_workflow_policies"]["ok"])
             self.assertTrue(targeted_checks["p014_local_review_policy"]["ok"])
 
+    # -- P-013.5: invocation-time model-routing enforcement (104.007-T / 104.008-T) --
+
+    def _write_minimal_verify_workspace_fixture(
+        self,
+        workspace: Path,
+        autoharness_home: Path,
+        *,
+        orchestrator_family: str = "gpt-5.6-sol",
+        orchestrator_provider: str = "openai",
+        stage_family: str = "claude-opus-4.8",
+        stage_provider: str = "anthropic",
+        ship_family: str = "claude-sonnet-5",
+        ship_provider: str = "anthropic",
+        orchestrator_extra_body: str = "",
+        model_routing: dict | None = None,
+    ) -> None:
+        """Shared fixture builder for P-013.5 targeted-check tests: a minimal
+        installed workspace with _orchestrator/_stage/_ship agent definitions
+        and a resolved config.yaml."""
+        (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+        (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+        (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+        (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+        (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+        (workspace / ".github" / "agents").mkdir(parents=True, exist_ok=True)
+
+        strict_schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "required": ["schema_version"],
+            "properties": {
+                "schema_version": {"type": "string", "const": "1.0.0"},
+            },
+        }
+        for schema_name in (
+            "harness-manifest.schema.json",
+            "harness-config.schema.json",
+            "workspace-profile.schema.json",
+        ):
+            (autoharness_home / "schemas" / schema_name).write_text(
+                json.dumps(strict_schema), encoding="utf-8"
+            )
+        for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+            (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                json.dumps(strict_schema), encoding="utf-8"
+            )
+
+        _write_yaml(
+            workspace / ".autoharness" / "harness-manifest.yaml",
+            {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-05-07T00:00:00Z",
+                "autoharness_version": "1.5.0",
+                "profile_hash": "abc",
+                "primitives_installed": [3, 8],
+                "capability_packs": [],
+                "artifacts": [],
+            },
+        )
+        config_body: dict = {"schema_version": "1.0.0"}
+        if model_routing is not None:
+            config_body["model_routing"] = model_routing
+        _write_yaml(workspace / ".autoharness" / "config.yaml", config_body)
+        _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+        (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
+            "---\n"
+            "name: _Orchestrator\n"
+            "max_subagent_tier: 3\n"
+            f'reasoning_effort: "high"\n'
+            f'model_provider: "{orchestrator_provider}"\n'
+            f'model_family: "{orchestrator_family}"\n'
+            "---\n\n"
+            "# Orchestrator\n\n"
+            "### Step 1: Route to Stage\n\n"
+            "Resolve routed model (P-013.5): resolve config.model_routing.stage "
+            "(fallback tier3) and declare the resolved model_family/model_provider "
+            "as the invocation override when invoking Stage. Emit ROUTING_DEGRADED "
+            "when the runtime cannot honor a per-invocation override.\n\n"
+            "### Step 2: Route to Ship\n\n"
+            "Resolve routed model (P-013.5): resolve config.model_routing.ship "
+            "(fallback tier2) and declare the resolved model_family/model_provider "
+            "as the invocation override when invoking Ship. Emit ROUTING_DEGRADED "
+            "when the runtime cannot honor a per-invocation override.\n"
+            f"{orchestrator_extra_body}",
+            encoding="utf-8",
+        )
+        (workspace / ".github" / "agents" / "_stage.agent.md").write_text(
+            "---\n"
+            "name: _Stage\n"
+            "max_subagent_tier: 3\n"
+            f'reasoning_effort: "high"\n'
+            f'model_provider: "{stage_provider}"\n'
+            f'model_family: "{stage_family}"\n'
+            "---\n\n"
+            "# Stage\n",
+            encoding="utf-8",
+        )
+        (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
+            "---\n"
+            "name: _Ship\n"
+            "max_subagent_tier: 2\n"
+            f'reasoning_effort: "high"\n'
+            f'model_provider: "{ship_provider}"\n'
+            f'model_family: "{ship_family}"\n'
+            "---\n\n"
+            "# Ship\n",
+            encoding="utf-8",
+        )
+
+    def test_verify_workspace_checks_stage_ship_orchestrator_model_routing_fields(self) -> None:
+        """P-013.5: installed _stage/_ship/_orchestrator agents must declare
+        non-empty model_family/model_provider with no unresolved placeholder."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+            targeted_checks = report["targeted_checks"]
+            for key in (
+                "orchestrator_model_routing_fields",
+                "stage_model_routing_fields",
+                "ship_model_routing_fields",
+            ):
+                self.assertIn(key, targeted_checks, f"expected targeted check {key!r} to be present")
+                self.assertTrue(
+                    targeted_checks[key]["ok"],
+                    f"{key} expected ok, got {targeted_checks[key]}",
+                )
+
+    def test_verify_workspace_flags_unresolved_model_routing_placeholder(self) -> None:
+        """P-013.5 fail-closed: an installed agent whose model_family is empty
+        or an unresolved {{...}} placeholder must fail verification, not pass
+        silently. Red before this task, green after."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            # Ship's model_family was never resolved by the installer.
+            self._write_minimal_verify_workspace_fixture(
+                workspace, autoharness_home, ship_family="{{SHIP_FAMILY}}"
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("ship_model_routing_fields", targeted_checks)
+            ship_check = targeted_checks["ship_model_routing_fields"]
+            self.assertFalse(ship_check["ok"], f"expected ship model routing check to fail: {ship_check}")
+            self.assertTrue(
+                any("model_family" in e and "{{" in e for e in ship_check.get("errors", [])),
+                f"expected an unresolved-placeholder error naming model_family, got: {ship_check.get('errors')}",
+            )
+            self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_allows_empty_model_provider_field(self) -> None:
+        """P-013.5 review-fix: an empty model_provider must PASS, not fail.
+        The installer variable table's TIER_2_PROVIDER/TIER_3_PROVIDER (and
+        their stage/ship fallbacks) default to empty, so a schema-valid,
+        legacy, or default install can legitimately render an empty
+        model_provider. Requiring it non-empty regressed those installs
+        (found via Copilot review of PR #276) -- model_provider is optional;
+        only model_family is required non-empty."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace, autoharness_home, stage_provider=""
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            stage_check = targeted_checks["stage_model_routing_fields"]
+            self.assertTrue(stage_check["ok"], f"expected empty provider to pass: {stage_check}")
+
+    def test_verify_workspace_flags_unresolved_model_provider_placeholder(self) -> None:
+        """P-013.5 fail-closed: model_provider is optional (may be empty),
+        but an unresolved {{...}} placeholder in it still indicates a broken
+        install and must fail."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace, autoharness_home, stage_provider="{{STAGE_PROVIDER}}"
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            stage_check = targeted_checks["stage_model_routing_fields"]
+            self.assertFalse(stage_check["ok"])
+            self.assertTrue(
+                any("model_provider" in e for e in stage_check.get("errors", [])),
+                f"expected a model_provider error, got: {stage_check.get('errors')}",
+            )
+
+    def test_verify_workspace_flags_non_string_model_family(self) -> None:
+        """P-013.5 fail-closed (Copilot review, PR #276): a structurally
+        invalid model_family value (boolean, number, list, mapping) reaches
+        neither the old None-check nor the old empty-string check and would
+        silently pass. Requiring an actual string type closes that gap."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+            (workspace / ".github" / "agents" / "_stage.agent.md").write_text(
+                "---\n"
+                "name: _Stage\n"
+                "max_subagent_tier: 3\n"
+                'reasoning_effort: "high"\n'
+                'model_provider: "anthropic"\n'
+                "model_family: false\n"
+                "---\n\n"
+                "# Stage\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            stage_check = targeted_checks["stage_model_routing_fields"]
+            self.assertFalse(stage_check["ok"])
+            self.assertTrue(
+                any("model_family" in e for e in stage_check.get("errors", [])),
+                f"expected a model_family error, got: {stage_check.get('errors')}",
+            )
+            self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_flags_non_string_model_provider(self) -> None:
+        """P-013.5 fail-closed (Copilot review, PR #276): model_provider must
+        be a string when present, even though it may be empty/absent. A
+        structurally invalid value (number, list, mapping) must be flagged,
+        not silently ignored."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
+                "---\n"
+                "name: _Ship\n"
+                "max_subagent_tier: 2\n"
+                'reasoning_effort: "high"\n'
+                "model_provider: 42\n"
+                'model_family: "claude-sonnet-5"\n'
+                "---\n\n"
+                "# Ship\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            ship_check = targeted_checks["ship_model_routing_fields"]
+            self.assertFalse(ship_check["ok"])
+            self.assertTrue(
+                any("model_provider" in e for e in ship_check.get("errors", [])),
+                f"expected a model_provider error, got: {ship_check.get('errors')}",
+            )
+            self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_model_routing_check_fails_closed_on_non_mapping_frontmatter(self) -> None:
+        """P-013.5 fail-closed: yaml.safe_load() can return a list, scalar, or
+        boolean for syntactically valid but structurally invalid frontmatter.
+        The check must report a clean targeted-check failure, not crash with
+        AttributeError (found via Copilot review of PR #276)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+            (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
+                "---\n- just\n- a\n- list\n---\n\n# Ship\n",
+                encoding="utf-8",
+            )
+
+            # Must not raise.
+            report = verify_workspace(workspace, autoharness_home)
+
+            ship_check = report["targeted_checks"]["ship_model_routing_fields"]
+            self.assertFalse(ship_check["ok"])
+            self.assertTrue(
+                any("mapping" in e for e in ship_check.get("errors", [])),
+                f"expected a mapping-type error, got: {ship_check.get('errors')}",
+            )
+
+    def test_verify_workspace_checks_orchestrator_invocation_directive_present(self) -> None:
+        """P-013.5 / T8: the installed Orchestrator must contain the
+        invocation-time routing directive (role-route resolution + declare +
+        ROUTING_DEGRADED fallback) referencing both stage and ship routes."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("orchestrator_invocation_routing_directive", targeted_checks)
+            self.assertTrue(targeted_checks["orchestrator_invocation_routing_directive"]["ok"])
+
+    def test_verify_workspace_flags_missing_orchestrator_invocation_directive(self) -> None:
+        """P-013.5 fail-closed: removing the routing directive from the
+        installed Orchestrator must fail verification. Red before this task,
+        green after."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+            # Overwrite with a definition that has no routing directive at all.
+            (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
+                "---\n"
+                "name: _Orchestrator\n"
+                "max_subagent_tier: 3\n"
+                'reasoning_effort: "high"\n'
+                'model_provider: "openai"\n'
+                'model_family: "gpt-5.6-sol"\n'
+                "---\n\n"
+                "# Orchestrator\n\n"
+                "### Step 1: Route to Stage\n\nInvoke the Stage subagent.\n\n"
+                "### Step 2: Route to Ship\n\nInvoke the Ship subagent.\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("orchestrator_invocation_routing_directive", targeted_checks)
+            self.assertFalse(targeted_checks["orchestrator_invocation_routing_directive"]["ok"])
+            self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_flags_invocation_directive_removed_but_summary_kept(self) -> None:
+        """P-013.5 fail-closed (Copilot review, PR #276): the routing-directive
+        check must not be satisfiable by a single "Model Routing" summary
+        paragraph that mentions all four required tokens once each, when the
+        actual per-step (Stage/Ship) invocation directives have been removed.
+        Red before this fix (the whole-file must_contain check passed on the
+        summary alone), green after (the check requires ROUTING_DEGRADED in
+        the narrow window between the first stage and first ship mention)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+            # Delete the Step 1/Step 2 invocation directives entirely, leaving
+            # only a summary sentence that mentions all four required tokens
+            # (mirrors the real _orchestrator.agent.md's "Model Routing"
+            # summary section, which legitimately restates the same tokens
+            # for human readers after the per-step directives).
+            (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
+                "---\n"
+                "name: _Orchestrator\n"
+                "max_subagent_tier: 3\n"
+                'reasoning_effort: "high"\n'
+                'model_provider: "openai"\n'
+                'model_family: "gpt-5.6-sol"\n'
+                "---\n\n"
+                "# Orchestrator\n\n"
+                "### Step 1: Route to Stage\n\nInvoke the Stage subagent.\n\n"
+                "### Step 2: Route to Ship\n\nInvoke the Ship subagent.\n\n"
+                "## Model Routing\n\n"
+                "**P-013.5**: Steps 1 and 2 above each resolve "
+                "`config.model_routing.stage` / `config.model_routing.ship`, "
+                "and this agent emits `ROUTING_DEGRADED` when the runtime "
+                "cannot honor a per-invocation override.\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("orchestrator_invocation_routing_directive", targeted_checks)
+            self.assertFalse(targeted_checks["orchestrator_invocation_routing_directive"]["ok"])
+            self.assertTrue(
+                targeted_checks["orchestrator_invocation_routing_directive"]["scoping_errors"]
+            )
+            self.assertTrue(_report_has_failures(report))
+
+
+        from autoharness.verify_workspace import _add_role_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier2": {"model": "claude-sonnet-5", "model_family": "claude-sonnet-5"},
+                "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+            }
+        }
+        _add_role_route_resolution_check(report, "role_route_resolution", config)
+        check = report["targeted_checks"]["role_route_resolution"]
+        self.assertTrue(check["ok"], f"expected fallback resolution to pass: {check}")
+        self.assertEqual(check.get("errors", []), [])
+
+    def test_role_route_resolution_helper_fails_when_unresolvable(self) -> None:
+        """P-013.5 fail-closed: when neither the role route nor its tier
+        fallback declares a model family, the route does not resolve."""
+        from autoharness.verify_workspace import _add_role_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                # tier3 present but declares no usable model identity, and no
+                # stage override either — stage cannot resolve to any model.
+                "tier3": {},
+            }
+        }
+        _add_role_route_resolution_check(report, "role_route_resolution", config)
+        check = report["targeted_checks"]["role_route_resolution"]
+        self.assertFalse(check["ok"], f"expected unresolvable stage route to fail: {check}")
+        self.assertTrue(
+            any("stage" in e for e in check.get("errors", [])),
+            f"expected an error naming the stage role, got: {check.get('errors')}",
+        )
+
+    def test_verify_workspace_flags_role_route_resolution_failure_end_to_end(self) -> None:
+        """P-013.5 fail-closed, end to end: a declared config with an
+        unresolvable ship role route must fail overall verification."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                model_routing={
+                    "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                    # Explicit opt-in to ship role routing (key present) with
+                    # no override and tier2 deliberately absent -> ship role
+                    # route cannot resolve to any model.
+                    "ship": {},
+                },
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("role_route_resolution", targeted_checks)
+            self.assertFalse(targeted_checks["role_route_resolution"]["ok"])
+            self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_skips_role_route_resolution_for_partial_legacy_config(self) -> None:
+        """P-013.5 fail-closed does not regress pre-existing, schema-valid
+        configs that never opted into role routing. A model_routing block
+        that only declares tier1 (or is empty) has not adopted stage/ship
+        routing and must not register a role_route_resolution failure --
+        found via adversarial review of the initial gate, which fired on any
+        non-empty model_routing dict."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                model_routing={"tier1": "gpt-5.4-mini"},
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertNotIn("role_route_resolution", report["targeted_checks"])
+
+    def test_verify_workspace_skips_role_route_resolution_for_empty_model_routing(self) -> None:
+        """Same regression guard as above for an empty model_routing block."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace, autoharness_home, model_routing={}
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertNotIn("role_route_resolution", report["targeted_checks"])
+
+    def test_verify_workspace_runs_role_route_resolution_when_tier2_and_tier3_present(self) -> None:
+        """When a config declares the full tier2/tier3 fallback foundation
+        (even without an explicit stage/ship override), the role-route
+        resolution check still runs and passes via fallback."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                model_routing={
+                    "tier2": {"model": "claude-sonnet-5", "model_family": "claude-sonnet-5"},
+                    "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                },
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("role_route_resolution", targeted_checks)
+            self.assertTrue(targeted_checks["role_route_resolution"]["ok"])
+
     def test_verify_workspace_flags_missing_release_closure_sequence_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

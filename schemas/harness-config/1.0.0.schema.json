@@ -525,6 +525,63 @@
             }
           ]
         },
+        "stage": {
+          "type": "object",
+          "description": "Optional first-class model route for the Stage agent (P-013.5, invocation-time model-routing enforcement). When set, Stage's invocation directive resolves to this route; when absent, empty, or any sub-field is unset, resolution falls back to model_routing.tier3 so P-013's tier taxonomy is preserved and nothing regresses.",
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "description": "Model provider for the Stage role route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier3's provider.",
+              "examples": [
+                "anthropic"
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "description": "Model family for the Stage role route (e.g., 'claude-opus-4.8'). Leave empty/absent to fall back to tier3's family.",
+              "examples": [
+                "claude-opus-4.8"
+              ]
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "description": "Reasoning effort for the Stage role route when the environment supports effort controls. Leave empty to use the model default or fall back to tier3's setting.",
+              "examples": [
+                "high",
+                "xhigh"
+              ]
+            }
+          }
+        },
+        "ship": {
+          "type": "object",
+          "description": "Optional first-class model route for the Ship agent (P-013.5, invocation-time model-routing enforcement). When set, Ship's invocation directive resolves to this route; when absent, empty, or any sub-field is unset, resolution falls back to model_routing.tier2 so P-013's tier taxonomy is preserved and nothing regresses.",
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "description": "Model provider for the Ship role route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier2's provider.",
+              "examples": [
+                "anthropic"
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "description": "Model family for the Ship role route (e.g., 'claude-sonnet-5'). Leave empty/absent to fall back to tier2's family.",
+              "examples": [
+                "claude-sonnet-5"
+              ]
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "description": "Reasoning effort for the Ship role route when the environment supports effort controls. Leave empty to use the model default or fall back to tier2's setting.",
+              "examples": [
+                "high"
+              ]
+            }
+          }
+        },
         "anchor_review": {
           "type": "object",
           "description": "First-class anchor reviewer route used by adversarial, plan, and code review flows. Defaults to OpenAI GPT-5.6 Sol where the operator environment supports it; skills must declare degradation when the route cannot be dispatched.",
