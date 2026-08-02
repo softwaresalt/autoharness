@@ -184,13 +184,57 @@ gating description above).
    the corrected explicit-opt-in condition — both updated to match the
    shipped implementation.
 
+**Copilot re-review (PR #276, second hosted round, after the six-finding push
+above)**: two further findings, both fixed:
+7. `orchestrator_invocation_routing_directive` was a whole-file
+   `must_contain` check, satisfiable by the "Model Routing" summary paragraph
+   alone even after both Step 1/Step 2 per-invocation directives were
+   deleted (the summary legitimately restates the same four tokens for human
+   readers). Replaced with a dedicated, scoped check that requires
+   `ROUTING_DEGRADED` to appear in the narrow window between the file's
+   first `config.model_routing.stage` mention and its first
+   `config.model_routing.ship` mention — i.e. inside Stage's own invocation
+   paragraph, before Ship's route is even introduced. A summary sentence
+   that mentions both routes back-to-back in the same clause has no room
+   for a distinct `ROUTING_DEGRADED` between them, so this scoping is not
+   satisfiable by summary text alone. **Lesson**: a `must_contain`-style
+   whole-file token check only proves presence, never placement — any check
+   whose safety property depends on tokens appearing at a *specific site*
+   (not just anywhere) needs a scoped/windowed check, not a flat substring
+   match.
+8. `_add_frontmatter_model_routing_check` accepted any non-string value
+   (`false`, `42`, `[]`, `{}`) as a valid `model_family`, since the original
+   check only tested for `None` or an empty string. Now requires an actual
+   string type for `model_family`, and requires `model_provider` to be a
+   string when present (still optional). The parallel config-side path
+   (`_resolve_role_route_field`/`_add_role_route_resolution_check`) was
+   independently confirmed safe: its final gate already requires
+   `isinstance(resolved_family, str) and .strip()`, and
+   `model_routing.stage`/`.ship`'s `model_family`/`model_provider` are
+   already typed `string` in `harness-config.schema.json`, so a non-string
+   config-side value is caught by schema validation before this check runs.
+   **Lesson**: a "falsy or empty-string" check is not the same as a "wrong
+   type" check — `False`/`0`/`[]`/`{}` are all falsy-adjacent but pass an
+   `is None or == ""` test unnoticed; prefer `not isinstance(x, str) or not
+   x.strip()` whenever the field's only valid representation is a string.
+
+This second round confirms a pattern worth generalizing: **every fail-closed
+FOUNDATION_ASSERTIONS-style check added for this feature was reviewed twice**
+(local adversarial review, then two rounds of hosted Copilot review) before
+converging on a version safe against deletion-while-leaving-decoys and
+type-confusion attacks. Future P-013.x-style verifier checks should budget for
+at least one hosted-review pass focused specifically on "can this check be
+satisfied without the invariant actually holding?"
+
 ## Related
 
 - `docs/compound/p013-orchestrator-model-routing.md` — original P-013 design
   (persona isolation + tier taxonomy + frontmatter schema).
 - `docs/product-specs/orchestrator-model-routing-spec.md` — amended with a
   2026-08-01 P-013.5 note and new Phase 3 assertion-coverage entries.
-- `docs/plans/2026-07-31-role-based-model-routing-enforcement-plan.md` —
-  reviewed plan; defines the exact T1–T9 task breakdown and the intentional
-  T3/T4 backlog-ID inversion (T3 Installer = `104.004-T`, T4 Orchestrator =
+- `docs/plans/2026-07-31-role-based-model-routing-enforcement-decided-plan.md`
+  (post-merge decided-plan, supersedes the archived original at
+  `docs/archive/plans/2026-07-31-role-based-model-routing-enforcement-plan.md`)
+  — defines the exact T1–T9 task breakdown and the intentional T3/T4
+  backlog-ID inversion (T3 Installer = `104.004-T`, T4 Orchestrator =
   `104.003-T`).
