@@ -30,8 +30,6 @@ tags:
   - "P-013.6"
 ---
 
-# External-guard Boundary — Telemetry-driven Auto-escalation Protocol (106-F)
-
 ## Decision
 
 For deliberation `011-DL` capability (b) — telemetry-driven auto-escalation —
