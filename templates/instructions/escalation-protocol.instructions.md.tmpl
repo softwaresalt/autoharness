@@ -1,0 +1,114 @@
+---
+description: "Telemetry-driven auto-escalation protocol (P-013.6) — the escalation-payload contract, the config-resolved escalation route, and the single canonical ESCALATION_DEGRADED definition shared by Stage and Ship"
+applyTo: '**'
+---
+
+# Escalation Protocol Instructions
+
+This instruction is installed whenever `_stage.agent.md` **or** `_ship.agent.md`
+is present in the workspace (either-agent condition — distinct from the
+two-agent-only `role-enforcement.instructions.md` gate). It defines the
+**escalation-payload contract** that a halting agent compiles when a
+consecutive-failure threshold is crossed, and the single canonical definition of
+`ESCALATION_DEGRADED` referenced by both agent templates so the term is defined
+once and never drifts between them.
+
+## Status: Protocol Contract, Runtime Trigger External (P-013.6)
+
+This document defines the **auto-escalation protocol contract** — the payload
+shape, the routing resolution rule, and the degraded-state fallback. It does
+**not** ship a live runtime trigger-evaluation engine or telemetry emitter/store;
+those are explicitly routed OUT (external-guard, per the 106-F plan). Automated
+firing of this protocol is gated on a future runtime substrate. Until that
+substrate exists, the existing manual operator-halt path (Stage/Ship Stop
+Conditions) remains the effective behavior; this contract is dormant, not fake —
+operators must not be misled into believing auto-escalation is live before a
+telemetry emitter/store is wired in.
+
+## Authority-Preservation Invariant (NON-NEGOTIABLE)
+
+Escalation under this protocol is a **reasoning escalation** — a request to
+re-attempt the failing unit of work with a stronger/deeper reasoning model — and
+is **never an authority escalation**. Compiling an escalation payload, resolving
+an escalation route, or handing off to engram MUST NOT, by itself:
+
+* authorize a shipment claim or task claim,
+* authorize a merge or admin-fallback merge,
+* authorize a source, template, schema, or backlog mutation beyond what the
+  invoking agent's own Role Boundary already permits,
+* bypass P-001 (release-unit sequencing), P-009 (merge-commit-only), P-014
+  (local review readiness), P-017 (dark factory contract), or P-020 (post-merge
+  compaction).
+
+The terminal state of an escalation is either a successful re-attempt at the
+resolved route, or a **halt + engram handoff** for operator/asynchronous review.
+It is never a silent, unsupervised expansion of what the halting agent is
+allowed to do.
+
+## Escalation-Payload Contract
+
+When a halting agent crosses its consecutive-failure threshold (see the
+invoking agent's own Stop Conditions table), it MUST compile an escalation
+payload containing the following fields before re-routing or halting:
+
+| Field | Description |
+|---|---|
+| `threshold_kind` | The stop-condition category that triggered escalation (e.g., `build_fix_attempts`, `consecutive_task_failures`, `review_fix_cycles`, `fix_ci_cycles`). |
+| `threshold_count` | The observed count that crossed the configured limit for `threshold_kind`. |
+| `failure_summary` | A concise, human-readable summary of what failed and the immediate suspected cause(s). |
+| `last_n_action_refs` | References (tool-call identifiers, commit SHAs, or log offsets) to the last N actions attempted, so a reviewer or re-attempting agent can reconstruct recent history without replaying it blind. |
+| `last_n_observation_refs` | References to the last N observed results (build/test output, review findings, CI check results) corresponding to `last_n_action_refs`. |
+| `artifact_refs` | Paths or identifiers of artifacts touched by the failing unit of work (files, backlog item IDs, PR number). Field name aligns with `schemas/tool-telemetry-event.schema.json#artifact_refs` so escalation payloads and tool telemetry events can be cross-referenced. |
+| `evidence_path` | Path to any structured telemetry evidence backing the failure (when telemetry is enabled), aligned with `schemas/tool-telemetry-event.schema.json#evidence_path`. Absent/empty when telemetry is disabled — this is not itself a failure condition. |
+| `resumption_checkpoint_ref` | A reference (checkpoint filename, memory doc path, or backlog comment) that lets the resolved escalation route (or the operator) resume the unit of work without losing state. |
+
+## Escalation Route Resolution (P-013.6)
+
+The escalation route resolves from `config.model_routing.escalation`
+(`{{ESCALATION_FAMILY}}` / `{{ESCALATION_PROVIDER}}` / `{{ESCALATION_REASONING_EFFORT}}`),
+falling back **per field** to `model_routing.tier3`
+(`{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` / `{{TIER_3_REASONING_EFFORT}}`) when
+the `escalation` route or a given sub-field is absent or empty. This mirrors the
+P-013.5 `stage`/`ship` role-route fallback pattern: a targeted override, never a
+parallel tier taxonomy.
+
+## `ESCALATION_DEGRADED` (canonical definition — defined once, referenced elsewhere)
+
+`ESCALATION_DEGRADED` is declared when **any** of the following hold:
+
+1. **Route unavailable.** The resolved escalation route cannot be dispatched by
+   the runtime (the model/provider is not available in this environment).
+2. **Engram unavailable.** The terminal engram handoff surface cannot be reached
+   (no MCP tool, no file-based fallback capable of receiving the handoff).
+3. **Same-route no-op.** The fully-resolved escalation tuple
+   `(model_family, model_provider, reasoning_effort)` equals the acting agent's
+   own already-resolved role route tuple (P-013.5) for this session — for
+   example, an agent whose role route is already pinned to `tier3` receiving an
+   unset `escalation` route that also falls back to `tier3` would "escalate" to
+   an identical model, which is not a real escalation.
+
+When `ESCALATION_DEGRADED` is declared, the halting agent MUST fall back to its
+existing **operator-halt** path (the Stop Conditions escalation prompt already
+defined in its own agent template) rather than proceeding as though escalation
+succeeded. `_stage.agent.md` and `_ship.agent.md` both reference this single
+definition rather than re-declaring it, preventing drift between the two
+templates.
+
+## Terminal Engram Handoff
+
+When the resolved route is available and not degraded, the halting agent
+re-attempts the failing unit of work at the resolved escalation route. If the
+re-attempt also fails, or the agent halts for any other reason after
+escalation, it MUST hand off the compiled escalation payload to engram (when
+available) as the terminal state, then halt for operator review. This handoff
+is informational/diagnostic — it carries no authority of its own (see the
+Authority-Preservation Invariant above).
+
+## Relationship to Other Policies
+
+* **P-013 / P-013.5**: This protocol extends the existing tier-escalation and
+  invocation-time routing enforcement machinery; it does not replace either.
+* **P-001 / P-009 / P-014 / P-017 / P-020**: Explicitly preserved — see the
+  Authority-Preservation Invariant.
+* **P-006 (Plan Hardening)**: Same-route degradation and dormant-until-runtime
+  status are documented failure modes for any plan extending this protocol.
