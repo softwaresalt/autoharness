@@ -46,9 +46,25 @@ to `109-S` only (`105.002-T` then `105.001-T`), routed to `claude-sonnet-5`.
 | P-018 copilot-review gate | **SATISFIED** (0 unresolved threads); re-run unconditionally immediately before merge — still **SATISFIED**, HEAD unchanged |
 | §1.9 pre-merge readiness (Checks 1–5) | **PASS** at final HEAD |
 | CI (`ci gate`, `detect code changes`, `test`) | all **pass** on final HEAD; mergeState CLEAN / MERGEABLE |
-| Full unittest gate (`uv run python -m pytest tests`) | **930 passed, 7 skipped, 0 failed** (final HEAD; baseline before this shipment was 922 passed / 7 skipped) |
+| Full canonical unittest gate (`PYTHONPATH=src python -m unittest discover -s tests`, per `docs/compound/097-S-canonical-unittest-gate.md`) | **Ran 937 tests, OK (skipped=7)** at final HEAD (re-run during closure to correct an earlier pytest-only record; see Correction note below) |
 | CLI smoke test (`uv run autoharness --help`) | OK |
-| Review-fix cycles | local cycle 1/3; Copilot review-comment cycle 1/3 (both pass-1 and pass-2 comments handled within a single push cycle — pass 2 required no additional push). Fix-CI cycles: 0/5 |
+| Review-fix cycles | local cycle 1/3; Copilot review-comment cycle 1/3 (both pass-1 and pass-2 comments handled within a single push cycle — pass 2 required no additional push). Closure-PR Copilot review found 3 additional actionable findings, fixed in this closure branch (see Correction note). Fix-CI cycles: 0/5 |
+
+> **Correction (closure-PR Copilot review)**: this closure branch's own
+> Copilot review found that (1) the initial closure evidence cited a
+> repository-root `pytest` run rather than the repository's CI-canonical
+> gate (`docs/compound/097-S-canonical-unittest-gate.md`: `PYTHONPATH=src
+> python -m unittest discover -s tests`) — corrected above; and (2) `109-S`,
+> `105.002-T`, and `105.001-T` had only been moved to `status: done` via
+> `backlogit move --status done` (which relocates the file into
+> `.backlogit/archive/` as a side effect in this backlogit version) but had
+> **not** had the explicit `backlogit archive <id>` command run, so none of
+> the three carried `archived_status`/`archived_from` metadata or the
+> terminal `status: archived` value required by P-007 archive integrity.
+> Fixed by running `backlogit archive 109-S`, `backlogit archive
+> 105.002-T`, and `backlogit archive 105.001-T` explicitly — all three now
+> carry correct archive metadata and `status: archived`. The Backlog
+> Reconciliation table below reflects the corrected end state.
 
 ## Runtime Verification
 
@@ -88,8 +104,8 @@ command `backlogit shipment ship 109-S` was **not** run.
 
 | Item | Final state |
 | --- | --- |
-| `105.002-T`, `105.001-T` (manifest tasks) | archived automatically by the registry's `done`→archive routing during task execution (individual `backlogit move --status done` per task, no cascade) |
-| `109-S` (shipment record) | moved to `done`, archived as a single artifact (`backlogit move 109-S --status done`), merge SHA recorded via `backlogit update 109-S --commit b9829d1...` |
+| `105.002-T`, `105.001-T` (manifest tasks) | moved to `done` individually (no cascade), then explicitly archived one at a time via `backlogit archive <id>` — both now carry `status: archived` with `archived_status: done` / `archived_from` metadata |
+| `109-S` (shipment record) | moved to `done`, merge SHA recorded via `backlogit update 109-S --commit b9829d1...`, then explicitly archived as a single artifact via `backlogit archive 109-S` — now carries `status: archived` with `archived_status: done` / `archived_from` metadata |
 | `105-F` (covering feature — **protected set**) | **preserved in `.backlogit/queue/` — NOT cascaded** |
 
 - **Protected set = {`105-F`}**: this is a task-only manifest (per the 097-S
@@ -98,11 +114,14 @@ command `backlogit shipment ship 109-S` was **not** run.
   only other `105`-prefixed archive entry is an unrelated pre-existing
   `105-S.md` from a different, older shipment numbering). Baseline gate
   (`105-F` present in queue before mutation, clean `git status --
-  .backlogit/`), verify-after-each (`git status -- .backlogit/` after the
-  shipment archival and again after the commit-tracking update), confirmed
-  `105-F` stayed in queue throughout, with the only queue→archive
-  relocation being `109-S.md` (the shipment, expected). Closure index
-  resynced (`backlogit sync` → 626 artifacts indexed).
+  .backlogit/`), verify-after-each (`git status -- .backlogit/` after every
+  archival step — the shipment `done`-move, the commit-tracking update, the
+  explicit `backlogit archive` call on the shipment, and the two explicit
+  `backlogit archive` calls on the tasks), confirmed `105-F` stayed in queue
+  throughout, with the only queue-affecting changes being the three
+  manifest artifacts (`109-S`, `105.002-T`, `105.001-T`) reaching their
+  correct `status: archived` end state. Closure index re-resynced after the
+  archive-metadata correction (`backlogit sync` → 626 artifacts indexed).
 
 ## Context Compaction (P-020)
 
@@ -127,8 +146,10 @@ command `backlogit shipment ship 109-S` was **not** run.
     all-checks PASS; P-018 SATISFIED across 2 Copilot review passes (2
     total findings, both resolved — 1 fixed, 1 declined with explicit
     rationale).
-  - CI green at every merge gate; CLI smoke probe PASS; full test suite 930
-    passed / 7 skipped / 0 failed (8 new tests added, no regressions).
+  - CI green at every merge gate; CLI smoke probe PASS; full canonical
+    unittest gate (`PYTHONPATH=src python -m unittest discover -s tests`)
+    937 tests, OK, skipped=7 (no regressions; 8 new tests added by this
+    shipment).
   - Backlog safe-close archived the shipment without the forbidden cascade;
     covering feature `105-F` preserved throughout.
 - **Failure signals to watch**:
@@ -154,10 +175,17 @@ command `backlogit shipment ship 109-S` was **not** run.
   triage as a new backlog item to harden `shipment-reconcile` per-item
   classification / safe-close against malformed (non-task-only) manifests.
   Not created by this session (Ship does not create backlog items, P-010).
+  Separately, the closure-PR's own Copilot review caught and this pass
+  corrected two closure-evidence defects (canonical test-gate command,
+  missing explicit archive step) — see Correction note above; no residual
+  action needed, both are now fixed in the repository state and this
+  record.
 
 **Closure verdict: READY.** Merge confirmed (P-009 preserved, two-parent
 commit `b9829d1`), local review + §1.9 + P-018 gates passed across 2 Copilot
-review passes on PR #280, runtime CLI probe PASS + full suite 930 passed / 7
-skipped / 0 failed, single-artifact safe-close complete with the protected
-feature `105-F` intact throughout, and P-020 context compaction is recorded
+review passes on PR #280, runtime CLI probe PASS + full canonical unittest
+gate (937 tests, OK, skipped=7), single-artifact safe-close complete
+(corrected during closure-PR review to run explicit `backlogit archive`
+per manifest artifact) with the protected feature `105-F` intact
+throughout, and P-020 context compaction is recorded
 `done` (see the Context Compaction section above).
