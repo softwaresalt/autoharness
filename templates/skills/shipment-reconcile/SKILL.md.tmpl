@@ -62,7 +62,16 @@ Every item in the manifest is classified as one of:
 
 In addition to the five per-item classifications, pre-mode also classifies the
 shipment **record's own** `status` against the aggregate status of its manifest
-tasks. **Scope**: the three named inconsistency cases below apply only when the
+**task** items. **Task-artifact filter (mandatory)**: the manifest `items` list
+is untyped and may include the covering feature id (e.g. a fallback-assembled
+manifest); this classification aggregates only items whose `artifact_type` is
+`task` (already read from each item's frontmatter during the per-item check
+above — no new read), excluding any non-task entry, so a covering feature that
+happens to be `{{STATUS_ACTIVE}}`/`{{STATUS_DONE}}` outside the shipment's own
+scope can never be misread as a "conflicting task". This mirrors the task-artifact
+filter the Ship agent's intake early-warning already applies to
+`custom_fields.items` (`templates/agents/_ship.agent.md.tmpl`). **Scope**: the
+three named inconsistency cases below apply only when the
 record's own status is `{{STATUS_QUEUED}}` or `{{STATUS_BLOCKED}}` — the two
 statuses where a manifest task already being `{{STATUS_ACTIVE}}`/`{{STATUS_DONE}}`
 is itself the drift signal (the queued/blocked record has not "caught up" to its
@@ -77,17 +86,18 @@ record status value maps to exactly one of them.
 
 | Classification | Condition |
 |---|---|
-| `record-consistent` | Record status is `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}`/archived (always consistent — the normal in-progress/closed lifecycle, out of scope for this check), OR record status is `{{STATUS_QUEUED}}`/`{{STATUS_BLOCKED}}` and none of the three inconsistency conditions below match (e.g. record `{{STATUS_QUEUED}}` with all tasks `{{STATUS_QUEUED}}`) |
-| `record-queued-with-active-work` | Record status is `{{STATUS_QUEUED}}` AND at least one manifest task is `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}` — the classic "silently-dropped claim" inconsistency |
-| `record-blocked-with-active-work` | Record status is `{{STATUS_BLOCKED}}` AND at least one manifest task is `{{STATUS_ACTIVE}}`. **Precedence**: when a `{{STATUS_BLOCKED}}` record has BOTH an `{{STATUS_ACTIVE}}` task and a `{{STATUS_DONE}}` task, classify here — active work takes precedence over `record-blocked-with-done-work` below, because it is the more severe/earlier-stage drift signal |
-| `record-blocked-with-done-work` | Record status is `{{STATUS_BLOCKED}}` AND no manifest task is `{{STATUS_ACTIVE}}` AND at least one manifest task is `{{STATUS_DONE}}` |
+| `record-consistent` | Record status is `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}`/archived (always consistent — the normal in-progress/closed lifecycle, out of scope for this check), OR record status is `{{STATUS_QUEUED}}`/`{{STATUS_BLOCKED}}` and none of the three inconsistency conditions below match (e.g. record `{{STATUS_QUEUED}}` with all task items `{{STATUS_QUEUED}}`) |
+| `record-queued-with-active-work` | Record status is `{{STATUS_QUEUED}}` AND at least one **task-artifact** manifest item is `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}` — the classic "silently-dropped claim" inconsistency |
+| `record-blocked-with-active-work` | Record status is `{{STATUS_BLOCKED}}` AND at least one **task-artifact** manifest item is `{{STATUS_ACTIVE}}`. **Precedence**: when a `{{STATUS_BLOCKED}}` record has BOTH an `{{STATUS_ACTIVE}}` task and a `{{STATUS_DONE}}` task, classify here — active work takes precedence over `record-blocked-with-done-work` below, because it is the more severe/earlier-stage drift signal |
+| `record-blocked-with-done-work` | Record status is `{{STATUS_BLOCKED}}` AND no **task-artifact** manifest item is `{{STATUS_ACTIVE}}` AND at least one **task-artifact** manifest item is `{{STATUS_DONE}}` |
 
 These four cases are mutually exclusive: every possible record-status value
 (`{{STATUS_QUEUED}}`, `{{STATUS_ACTIVE}}`, `{{STATUS_BLOCKED}}`, `{{STATUS_DONE}}`)
 is covered — `{{STATUS_ACTIVE}}`/`{{STATUS_DONE}}` always resolve to
 `record-consistent`, and for `{{STATUS_QUEUED}}`/`{{STATUS_BLOCKED}}` the
-active-over-done precedence rule guarantees exactly one of the remaining three
-cases applies. This check is **detect-and-report only — NO auto-repair**: it
+active-over-done precedence rule (applied only to task-artifact items) guarantees
+exactly one of the remaining three cases applies. This check is
+**detect-and-report only — NO auto-repair**: it
 never mutates the shipment record or any task; operators must manually
 reconcile.
 
@@ -145,8 +155,9 @@ double-archival and false-positive cascade flags).
 
 3. **Check each manifest item**:
    * Attempt to locate the file at `{{BACKLOG_DIRECTORY}}/queue/{id}.*`
-   * If found, read its frontmatter and compare `status` to `expected_status`
-     — classify as `matched` or `status-mismatch`
+   * If found, read its frontmatter (including `status` and `artifact_type`) and
+     compare `status` to `expected_status` — classify as `matched` or
+     `status-mismatch`
    * If NOT found in queue, check `{{BACKLOG_DIRECTORY}}/archive/{id}.*`
      — if archive file exists, classify as `pre-archived` (valid; item already shipped)
      — if no file in either location, classify as `missing`
@@ -158,20 +169,28 @@ double-archival and false-positive cascade flags).
 
 5. **Shipment-record-status classification** (reuses in-hand data — NO new scan):
    Using the shipment record's own `status` already loaded via `{{OP_GET_SHIPMENT_MCP}}`
-   in step 2, and the manifest tasks' statuses already read in step 3, classify the
+   in step 2, and the manifest items' statuses already read in step 3, classify the
    record scope per the Shipment-Record-Status Classification table in the Output
-   section above, evaluated in this order:
+   section above, evaluated in this order. **Filter to task artifacts first**: the
+   manifest `items` list is untyped and may include the covering feature id (e.g. a
+   fallback-assembled manifest); reuse the `artifact_type` already read from each
+   item's frontmatter in step 3 to exclude any non-task entry before aggregating
+   task statuses below — the same task-artifact filter the Ship agent's intake
+   early-warning applies to `custom_fields.items` (`templates/agents/_ship.agent.md.tmpl`)
+   — so a covering feature that is `{{STATUS_ACTIVE}}`/`{{STATUS_DONE}}` outside the
+   shipment's own manifest scope can never be misread as a "conflicting task" and
+   falsely halt an otherwise-consistent shipment.
    * Record `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}`/archived →
      `record-consistent` (always — this check is scoped to `{{STATUS_QUEUED}}`/
      `{{STATUS_BLOCKED}}` records only; an active/done record is the normal
      in-progress/closed lifecycle state, not evaluated further).
-   * Record `{{STATUS_QUEUED}}` AND any manifest task `{{STATUS_ACTIVE}}` or
+   * Record `{{STATUS_QUEUED}}` AND any manifest **task** is `{{STATUS_ACTIVE}}` or
      `{{STATUS_DONE}}` → `record-queued-with-active-work`.
-   * Record `{{STATUS_BLOCKED}}` AND any manifest task `{{STATUS_ACTIVE}}` →
+   * Record `{{STATUS_BLOCKED}}` AND any manifest **task** is `{{STATUS_ACTIVE}}` →
      `record-blocked-with-active-work` (takes precedence over the case below when
      both an active and a done task are present).
    * Record `{{STATUS_BLOCKED}}` AND no task `{{STATUS_ACTIVE}}` AND any manifest
-     task `{{STATUS_DONE}}` → `record-blocked-with-done-work`.
+     **task** is `{{STATUS_DONE}}` → `record-blocked-with-done-work`.
    * Record `{{STATUS_QUEUED}}` or `{{STATUS_BLOCKED}}` matching none of the above
      → `record-consistent` (e.g. record `{{STATUS_QUEUED}}` with all tasks
      `{{STATUS_QUEUED}}`).
@@ -339,7 +358,9 @@ If pre-mode cannot acquire the lock because another process holds it:
 * Pre-mode adds a shipment-record-status classification (`record-consistent` /
   `record-queued-with-active-work` / `record-blocked-with-active-work` /
   `record-blocked-with-done-work`) comparing the record's own status against its
-  manifest tasks' statuses, with the blocked+active-over-blocked+done precedence
+  manifest **task-artifact** items' statuses (filtered by `artifact_type` to
+  exclude any non-task manifest entry, e.g. a covering feature id, before
+  aggregating), with the blocked+active-over-blocked+done precedence
   rule stated explicitly; the four cases are mutually exclusive, computed with
   no new scan (reuses data already read in steps 2–3); any non-`record-consistent`
   classification HALTs the pre-mode recommendation, naming the shipment id,

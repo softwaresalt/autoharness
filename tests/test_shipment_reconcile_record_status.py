@@ -112,10 +112,25 @@ class ShipmentRecordStatusClassificationTests(unittest.TestCase):
         self.assertLess(orphan_idx, new_step_idx)
         self.assertLess(new_step_idx, report_idx)
 
+    def test_new_step_filters_to_task_artifacts_before_aggregating(self) -> None:
+        """Review-fix (Copilot, PR #280): the manifest `items` list is untyped
+        and may include the covering feature id (fallback-assembled manifest).
+        The classification must filter to task-artifact entries -- reusing the
+        artifact_type already read in step 3, no new read -- before
+        aggregating active/done status, mirroring the Ship agent's existing
+        task-artifact filter for its own intake early-warning scan."""
+        content = _content()
+        new_step_idx = content.index(_NEW_STEP_ANCHOR)
+        region = content[max(0, new_step_idx - 2500) : new_step_idx + 2000]
+        self.assertIn("task-artifact", region)
+        self.assertIn("artifact_type", region)
+        self.assertIn("covering feature", region)
+        self.assertIn("templates/agents/_ship.agent.md.tmpl", region)
+
     def test_new_step_is_detect_and_report_no_auto_repair(self) -> None:
         content = _content()
         new_step_idx = content.index(_NEW_STEP_ANCHOR)
-        region = content[new_step_idx : new_step_idx + 1500]
+        region = content[new_step_idx : new_step_idx + 2500]
         self.assertIn("detect-and-report", region)
         self.assertIn("NO auto-repair", region)
 
