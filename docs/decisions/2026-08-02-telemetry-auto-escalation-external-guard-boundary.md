@@ -1,6 +1,6 @@
 ---
 title: "External-guard boundary for the Telemetry-driven Auto-escalation Protocol"
-description: "Records what is routed OUT of autoharness for capability 011-DL(b): the live telemetry event emitter/sink/store, the runtime MAX_ITERATIONS threshold-evaluation engine, and any backlogit/agent-engram binary changes. States the protocol is dormant until a runtime telemetry substrate ships and defines re-entry criteria."
+description: "Records what is routed OUT of autoharness for capability 011-DL(b): the live telemetry event emitter/sink/store, the runtime MAX_ITERATIONS threshold-evaluation engine, and any backlogit/agent-engram binary changes. States that the agent-directed protocol steps are active now, while the runtime telemetry substrate remains external/dormant, and defines re-entry criteria."
 topic: "What stays IN the autoharness product boundary for auto-escalation (P-013.6), and what is explicitly routed OUT to runtime/external concerns?"
 depth: "standard"
 decision_status: "accepted"
@@ -84,19 +84,30 @@ external-guard concerns and are **not** built as part of 106-F/110-S:
   author as portable artifacts" and route the rest out — applies here to the
   telemetry emitter/store and the runtime evaluator.
 
-## Dormant-until-runtime status (non-negotiable framing)
+## Agent-directed steps active now; runtime telemetry substrate remains external (revised framing)
 
-P-013.6 and the escalation-protocol instruction are **inert** as installed:
-without a live telemetry emitter/store and threshold-evaluation engine, no
-automated trigger ever fires the protocol. The **existing manual
-operator-halt behavior** (each pipeline agent's Stop Conditions table) remains
-the actual, effective behavior today. This is not a stub or a fake feature —
-the payload contract, route resolution, and `ESCALATION_DEGRADED` semantics are
-real and independently testable (verify_workspace checks, T7/T8) — but
-operators must not be misled into believing automated escalation is *live*
-before a runtime substrate exists. Every installed artifact that documents this
-protocol (P-013.6, `escalation-protocol.instructions.md`, the Stage/Ship
-directives) states this dormant status explicitly.
+P-013.6's **agent-directed steps** — compile the escalation payload, resolve
+the escalation route, apply the same-route guard, and re-attempt before
+falling back to the operator-halt path — are **active now** in the installed
+`_stage.agent.md` and `_ship.agent.md`: each pipeline agent already tracks its
+own consecutive-failure/iteration counters as Stop Conditions prose, and
+crossing that existing threshold now triggers this directive directly, with
+no new runtime component required for the agent itself to follow it. This is
+a real, present-tense change to each agent's own stop-condition handling —
+not a stub, and not merely a future capability.
+
+What remains **external and dormant** is narrower than "the whole protocol":
+specifically, a standing, independent runtime telemetry event emitter/sink/
+queryable store, and an automated, non-agent threshold-evaluation engine that
+would watch that substrate and fire escalation without any acting agent
+participating in the decision. The payload contract, route resolution, and
+`ESCALATION_DEGRADED` semantics are real and independently testable
+(`verify_workspace` checks, T7/T8) regardless of whether that external
+substrate exists — but operators must not be misled into believing a machine
+independently monitors and fires this protocol; it is always the acting agent
+that compiles the payload and resolves the route. Every installed artifact
+that documents this protocol (P-013.6, `escalation-protocol.instructions.md`,
+the Stage/Ship directives) states this scoped-external status explicitly.
 
 ## Re-entry criteria (when a runtime substrate later ships)
 

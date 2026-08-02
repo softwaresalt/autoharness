@@ -13,17 +13,33 @@ consecutive-failure threshold is crossed, and the single canonical definition of
 `ESCALATION_DEGRADED` referenced by both agent templates so the term is defined
 once and never drifts between them.
 
-## Status: Protocol Contract, Runtime Trigger External (P-013.6)
+## Status: Protocol Contract Active Now; Runtime Telemetry Substrate External (P-013.6)
 
 This document defines the **auto-escalation protocol contract** — the payload
-shape, the routing resolution rule, and the degraded-state fallback. It does
-**not** ship a live runtime trigger-evaluation engine or telemetry emitter/store;
-those are explicitly routed OUT (external-guard, per the 106-F plan). Automated
-firing of this protocol is gated on a future runtime substrate. Until that
-substrate exists, the existing manual operator-halt path (Stage/Ship Stop
-Conditions) remains the effective behavior; this contract is dormant, not fake —
-operators must not be misled into believing auto-escalation is live before a
-telemetry emitter/store is wired in.
+shape, the routing resolution rule, and the degraded-state fallback. The
+**agent-directed steps are active now**: when an installed `_stage.agent.md`
+or `_ship.agent.md` crosses its own already-existing, agent-observed
+consecutive-failure/iteration threshold (each pipeline agent's own Stop
+Conditions table — no new runtime component is required for the agent itself
+to follow this directive), the halting agent compiles the escalation payload,
+resolves the escalation route, applies the same-route guard, and re-attempts
+before falling back to the operator-halt path. This is a real, present-tense
+behavior change to each agent's own stop-condition handling, not a future one.
+
+What remains **external and dormant** (routed OUT, per the 106-F plan) is
+narrower than "the whole protocol": specifically, (a) a standing, independent
+**runtime telemetry event emitter/sink/queryable store** that autonomously
+records events outside the acting agent's own reasoning loop, and (b) an
+**automated, non-agent threshold-evaluation engine** that would watch that
+telemetry substrate and fire escalation without any acting agent participating
+in the decision. Until that substrate exists, `evidence_path` /
+`artifact_refs` in the payload contract below are best-effort references (or
+absent, when telemetry is disabled) rather than guaranteed pointers into a
+live event store; the protocol does not depend on that substrate to function
+today. Operators must not be misled into believing a machine independently
+monitors and fires this protocol — it is always the acting agent, following
+its own already-tracked failure counters, that compiles the payload and
+resolves the route.
 
 ## Authority-Preservation Invariant (NON-NEGOTIABLE)
 

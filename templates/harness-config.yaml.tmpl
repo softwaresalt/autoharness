@@ -93,6 +93,16 @@ model_routing:
     model_family: "{{SHIP_FAMILY}}"               # Ship role route (falls back to tier2 when empty)
     model_provider: "{{SHIP_PROVIDER}}"
     reasoning_effort: "{{SHIP_REASONING_EFFORT}}"
+  # P-013.6: optional escalation route for telemetry-driven auto-escalation.
+  # Absent/empty sub-fields fall back per-field to tier3. If the resolved
+  # route equals a declared role route's resolved route, that is
+  # ESCALATION_DEGRADED (same-route no-op) -- declare a distinct family here
+  # to keep genuine escalation available; do not remove this block to
+  # "disable" escalation, leave sub-fields empty instead.
+  escalation:
+    model_family: "{{ESCALATION_FAMILY}}"          # Escalation route (falls back to tier3 when empty)
+    model_provider: "{{ESCALATION_PROVIDER}}"
+    reasoning_effort: "{{ESCALATION_REASONING_EFFORT}}"
   anchor_review:
     model_provider: "{{ANCHOR_REVIEW_PROVIDER}}"       # Anchor reviewer provider (default: openai)
     model_family: "{{ANCHOR_REVIEW_FAMILY}}"           # Anchor reviewer family (default: gpt-5.6-sol)

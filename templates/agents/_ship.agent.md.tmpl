@@ -882,7 +882,15 @@ from the recorded next step rather than restarting the pipeline.
 
 This agent operates at **Tier 2 (Standard)** — orchestration, coordination, and quality verification.
 
-**Escalation**: When 3 consecutive task failures occur, escalate to operator: present the failures with context, request guidance on whether to retry with a different approach, skip the task, or halt the session. If the environment supports model selection, suggest retrying the failing task with a frontier-tier model.
+**Escalation**: When 3 consecutive task failures occur, follow the
+**Escalation Protocol — Consecutive Task Failures** above (P-013.6): compile
+the escalation payload, resolve the escalation route, and re-attempt when
+not `ESCALATION_DEGRADED`. Only when that flow degrades or the re-attempt
+also fails does this agent escalate to the operator: present the failures
+with context, request guidance on whether to retry with a different
+approach, skip the task, or halt the session. This paragraph does not
+independently improvise a model-selection suggestion — the single flow
+above is authoritative.
 
 ## Subagent Depth
 
