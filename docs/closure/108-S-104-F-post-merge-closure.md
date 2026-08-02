@@ -128,10 +128,11 @@ command `backlogit shipment ship 108-S` was **not** run.
 - **Status: `done`** (mandatory per-merge invocation; bounded Tier-1
   per-release-unit post-merge floor). Invoked `compact-context` (target:
   all).
-- **Memory**: the just-closed release unit's session memory
-  (`docs/memory/2026-08-01-ship-108-S-104-F-session.md`) is the intended
-  candidate under the completed-work rule; this closure pass wrote it fresh
-  as part of the guaranteed Tier-1 consolidation.
+- **Memory**: the just-closed release unit's session memory (written fresh
+  as `docs/memory/2026-08-01-ship-108-S-104-F-session.md`) is the intended
+  candidate under the completed-work rule; this closure pass compacted it to
+  `docs/memory/compacted/2026-08-01-108S-104F-compacted.md` and moved the
+  verbose original to `docs/archive/memory/2026-08-01-ship-108-S-104-F-session.md`.
 - **Docs**: extended the existing compound learning
   (`docs/compound/2026-08-01-invocation-time-model-routing-enforcement.md`)
   with the round-2 Copilot findings and two generalized lessons (whole-file
@@ -141,6 +142,8 @@ command `backlogit shipment ship 108-S` was **not** run.
   implementation, so future maintainers reading either doc see the shipped
   behavior rather than an intermediate state.
 - **Plans**: `docs/plans/2026-07-31-role-based-model-routing-enforcement-plan.md`
+  (original, now archived at
+  `docs/archive/plans/2026-07-31-role-based-model-routing-enforcement-plan.md`)
   qualified as a candidate — feature `104-F` is complete (all 9 tasks done)
   and the plan carried an appended `## Plan Review` section. Consolidated
   into `docs/plans/2026-07-31-role-based-model-routing-enforcement-decided-plan.md`
