@@ -394,7 +394,8 @@ The review gate produces a verdict:
 **Cycle tracking**: Track the plan-review attempt count by appending a
 `<!-- plan-review-attempt: N -->` comment to the plan file after each FAIL.
 Read this counter before each re-invocation. Maximum 2 re-entry cycles per
-plan. After 2 consecutive FAILs (attempt count reaches 3), halt and require
+plan. After 2 consecutive FAILs (attempt count reaches 3), follow the
+**Escalation Protocol — Consecutive Planning Failures** below before requiring
 operator intervention.
 
 Record review findings so the harvested backlog carries the right context.
@@ -757,6 +758,44 @@ from the recorded next step rather than restarting the pipeline.
 * Never present the session summary (Step 6) before all applicable prior steps are confirmed complete
 * Do not write application code; produce decision, findings, or backlog artifacts only
 * Use workspace search tools before file-based search for codebase discovery; when `agent-engram` is installed, prefer the engram-first path
+
+## Escalation Protocol — Consecutive Planning Failures
+
+When a consecutive-failure threshold is crossed (e.g., the plan-review
+attempt counter reaches 3, or an equivalent 2-consecutive-FAIL gate
+elsewhere in this agent's Required Steps), do not silently re-attempt or
+halt without first following this auto-escalation directive
+(P-013.6, `escalation-protocol.instructions.md` when installed):
+
+1. **Compile the escalation payload** per the escalation-payload contract
+   (threshold-kind + count, failure summary, last-N action/observation
+   refs, artifact refs, telemetry-evidence pointers, resumption checkpoint
+   ref).
+2. **Resolve the escalation route**: `{{ESCALATION_FAMILY}}` /
+   `{{ESCALATION_PROVIDER}}` / `{{ESCALATION_REASONING_EFFORT}}`, falling
+   back per field to `{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` /
+   `{{TIER_3_REASONING_EFFORT}}` when the `escalation` route or a sub-field
+   is unset.
+3. **Same-route guard**: if the resolved escalation tuple equals this
+   agent's own role route tuple (Stage already operates at Tier 3 — see
+   Model Routing below — so an unset `escalation` route resolves to the
+   identical model), treat this as `ESCALATION_DEGRADED` (same-route
+   no-op) per the canonical definition in `escalation-protocol.instructions.md`.
+4. **Re-attempt** the failing unit of work at the resolved route when it is
+   not degraded; if it also fails, **hand off** the compiled payload to
+   engram (when available) as a terminal state.
+5. **`ESCALATION_DEGRADED` fallback**: when the route is unavailable, engram
+   is unavailable, or the same-route guard fires, fall back to the existing
+   operator-halt behavior described at each gate above (e.g., halt and
+   require operator intervention) exactly as before — this directive never
+   replaces that fallback, it only interposes an auto-escalation attempt
+   ahead of it.
+
+This is a **reasoning escalation only** — it never self-authorizes
+promotion to plan, harvest, shipment assembly, or any operation this
+agent's Role Boundary does not already permit (P-001/P-009/P-014/P-017/P-020
+preserved). Dark-mode-safe: this directive does not alter dark-factory
+approval semantics.
 
 ## Model Routing
 
