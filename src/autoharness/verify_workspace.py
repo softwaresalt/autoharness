@@ -2552,6 +2552,178 @@ def _add_role_route_resolution_check(
     }
 
 
+def _add_escalation_route_resolution_check(
+    report: dict[str, Any],
+    key: str,
+    config: dict[str, Any],
+    *,
+    stage_installed: bool = False,
+    ship_installed: bool = False,
+) -> None:
+    """P-013.6: verify that the escalation route resolves to a non-empty
+    model_family, either from an explicit model_routing.escalation route or
+    via per-field fallback to model_routing.tier3 (mirrors
+    _add_role_route_resolution_check's tier-fallback pattern for stage/ship).
+
+    Also detects the ESCALATION_DEGRADED same-route condition: when the
+    resolved escalation model_family equals the resolved model_family of an
+    already-declared stage/ship role route (P-013.5), an auto-escalation
+    attempt would silently re-run at an identical model -- not a real
+    escalation to deeper reasoning. Comparison is on model_family (the field
+    that actually determines reasoning capability); model_provider and
+    reasoning_effort are recorded for diagnostics but are not required to
+    match for the degraded condition to fire, since a bare tier3 string
+    fallback structurally lacks those sub-fields. Fails closed: an
+    unresolvable route, or an undeclared same-route no-op, is a verification
+    failure -- not a silent pass.
+
+    `stage_installed` / `ship_installed` widen the same-route comparison
+    beyond "has an explicit override key in model_routing" (Copilot review
+    finding): an *installed* Stage or Ship agent adopts its role-route
+    fallback chain per P-013.5 even with no `stage`/`ship` override key
+    present at all -- an installed Stage agent with no override still
+    resolves to `tier3`, and if escalation also falls back to `tier3` with
+    no distinct override, that is the exact same-route collision this guard
+    exists to catch. A role is compared whenever it has an explicit
+    override key OR its corresponding pipeline agent is installed."""
+    model_routing = config.get("model_routing") or {}
+    errors: list[str] = []
+
+    escalation_route = model_routing.get("escalation") or {}
+    if not isinstance(escalation_route, dict):
+        escalation_route = {}
+    tier3_fallback = model_routing.get("tier3")
+
+    resolved_family = _resolve_role_route_field(escalation_route, tier3_fallback, "model_family")
+    resolved_provider = _resolve_role_route_field(escalation_route, tier3_fallback, "model_provider")
+    resolved_effort = _resolve_role_route_field(escalation_route, tier3_fallback, "reasoning_effort")
+
+    if not (isinstance(resolved_family, str) and resolved_family.strip()):
+        errors.append(
+            "escalation route does not resolve: no model_family from "
+            "model_routing.escalation or fallback model_routing.tier3"
+        )
+
+    role_installed = {"stage": stage_installed, "ship": ship_installed}
+    same_route_roles: list[str] = []
+    if resolved_family:
+        for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
+            # In scope for the same-route comparison when the role has
+            # either an explicit override key declared in model_routing, or
+            # its corresponding pipeline agent is actually installed (and
+            # therefore live-adopts the P-013.5 fallback chain regardless of
+            # whether an override key exists).
+            if role not in model_routing and not role_installed.get(role, False):
+                continue
+            role_route = model_routing.get(role) or {}
+            if not isinstance(role_route, dict):
+                role_route = {}
+            role_tier_fallback = model_routing.get(fallback_tier_key)
+            role_family = _resolve_role_route_field(role_route, role_tier_fallback, "model_family")
+            if (
+                isinstance(role_family, str)
+                and role_family.strip()
+                and role_family == resolved_family
+            ):
+                same_route_roles.append(role)
+
+    if same_route_roles:
+        errors.append(
+            "ESCALATION_DEGRADED: resolved escalation model_family "
+            f"{resolved_family!r} equals the resolved role-route model_family "
+            f"for {', '.join(same_route_roles)} -- same-route no-op, not a "
+            "genuine escalation to deeper reasoning; declare an explicit "
+            "model_routing.escalation with a distinct model_family"
+        )
+
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+        "resolved_escalation_family": resolved_family,
+        "resolved_escalation_provider": resolved_provider,
+        "resolved_escalation_reasoning_effort": resolved_effort,
+        "same_route_roles": same_route_roles,
+    }
+
+
+def _add_escalation_directive_check(
+    report: dict[str, Any],
+    key: str,
+    workspace_path: Path,
+) -> None:
+    """P-013.6: verify the escalation-protocol.instructions.md instruction is
+    installed whenever either _stage.agent.md or _ship.agent.md is present
+    (either-agent condition, distinct from the two-agent-only
+    role-enforcement gate), and that each installed pipeline agent that is
+    present references both the auto-escalation directive and the P-013.6
+    policy identifier. Gated entirely on file existence: a workspace with
+    neither agent installed registers no failure; a workspace with only one
+    agent installed is checked for that agent alone."""
+    stage_path = workspace_path / ".github/agents/_stage.agent.md"
+    ship_path = workspace_path / ".github/agents/_ship.agent.md"
+    escalation_instruction_path = (
+        workspace_path / ".github/instructions/escalation-protocol.instructions.md"
+    )
+
+    stage_present = stage_path.exists()
+    ship_present = ship_path.exists()
+    if not stage_present and not ship_present:
+        return
+
+    errors: list[str] = []
+    # Fail-closed directive markers (Copilot review finding): bare P-013.6 /
+    # ESCALATION_DEGRADED substrings alone are satisfiable by an incidental
+    # mention with no real directive behind it. Require a stable combination
+    # of (a) the shared section heading fragment used by both templates
+    # ("Escalation Protocol —", em dash, regardless of heading level/suffix),
+    # (b) an explicit reference to the shared canonical instruction so the
+    # agent does not re-define the term locally, (c) the P-013.6 policy
+    # identifier and the ESCALATION_DEGRADED term itself, and (d) the two
+    # required-action phrases that name the actual compile/resolve steps
+    # ("escalation payload", "escalation route") plus the terminal handoff
+    # action ("hand off"). A stale or partial agent missing any of these
+    # verifiable markers must not pass.
+    required_tokens = [
+        "Escalation Protocol —",
+        "escalation-protocol.instructions.md",
+        "P-013.6",
+        "ESCALATION_DEGRADED",
+        "escalation payload",
+        "escalation route",
+        "hand off",
+    ]
+
+    for agent_name, agent_path, present in (
+        ("stage", stage_path, stage_present),
+        ("ship", ship_path, ship_present),
+    ):
+        if not present:
+            continue
+        content = agent_path.read_text(encoding="utf-8")
+        missing = [token for token in required_tokens if token not in content]
+        if missing:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) is missing the "
+                f"auto-escalation directive tokens: {missing}"
+            )
+
+    if not escalation_instruction_path.exists():
+        errors.append(
+            "escalation-protocol.instructions.md is not installed at "
+            f"{escalation_instruction_path} despite {'_stage.agent.md' if stage_present else ''}"
+            f"{' and ' if stage_present and ship_present else ''}"
+            f"{'_ship.agent.md' if ship_present else ''} being present "
+            "(either-agent install condition)"
+        )
+
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+        "stage_present": stage_present,
+        "ship_present": ship_present,
+    }
+
+
 def _add_text_check(
     report: dict[str, Any],
     key: str,
@@ -3733,6 +3905,32 @@ def verify_workspace(
         )
         if has_explicit_role_route or has_tier_fallback_foundation:
             _add_role_route_resolution_check(report, "role_route_resolution", config)
+
+    # P-013.6: escalation route resolution + same-route ESCALATION_DEGRADED
+    # detection (106.007-T). Evaluated under the same opt-in gating as
+    # role_route_resolution above -- either an explicit escalation/stage/ship
+    # route key is declared, or both tier2 and tier3 are present as fallback
+    # targets. A model_routing block that has not opted into role-based
+    # routing at all must not register a false failure.
+    if isinstance(model_routing_block, dict):
+        has_escalation_route = "escalation" in model_routing_block
+        if has_explicit_role_route or has_escalation_route or has_tier_fallback_foundation:
+            _add_escalation_route_resolution_check(
+                report,
+                "escalation_route_resolution",
+                config,
+                stage_installed=stage_agent.exists(),
+                ship_installed=ship_agent.exists(),
+            )
+
+    # P-013.6: escalation-directive presence (106.007-T). Gated entirely on
+    # file existence inside the check itself (mirrors the either-agent
+    # install condition for escalation-protocol.instructions.md, distinct
+    # from the two-agent-only role-enforcement gate) so workspaces with
+    # neither pipeline agent installed never register a false failure.
+    _add_escalation_directive_check(
+        report, "escalation_directive_present", workspace_path
+    )
 
     project_name = variables.get("PROJECT_NAME", workspace_path.name)
     project_name_pattern = re.compile(

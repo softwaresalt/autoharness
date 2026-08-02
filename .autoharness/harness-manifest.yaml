@@ -99,7 +99,7 @@ artifacts:
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
-    checksum: "1012be204fd7ee9ec8a6f316fc71fbeef4f40a5683248114e53ab08f650aec19"
+    checksum: "1d291e938eafff1d985c656d6d3786d2aee473affd7565585e21b5e445d2f2d1"
   - path: ".autoharness/backlog-registry.yaml"
     primitive: 4
     template: "backlog/registries/backlogit.registry.yaml"
@@ -107,13 +107,13 @@ artifacts:
   - path: ".github/agents/_stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "42ddfa22c12da6dc5d22befa0c66840471f7e7842ad3c0e8f6bde8da113ad63a"
-    note: "source-controlled dogfood workflow agent"
+    checksum: "468e6a843c2648197f02a4462c5cc24740ab8724e739e3605af83b49e53b5012"
+    note: "source-controlled dogfood workflow agent; checksum refreshed 110-S/106.004-T (P-013.6 auto-escalation directive parity, Escalation Protocol — Consecutive Planning Failures)"
   - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "880c22d5634b48ec62ff7fe72cce2dd58f71730b7abf41652102ad12c5045f06"
-    note: "source-controlled dogfood workflow agent"
+    checksum: "6d79fc36a90219f536b3a263af40b85c5e950d6f685b13bb878ab650420ca6fd"
+    note: "source-controlled dogfood workflow agent; checksum refreshed 110-S/106.005-T (P-013.6 auto-escalation directive added to Escalation Protocol — Consecutive Task Failures)"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
@@ -263,6 +263,11 @@ artifacts:
     template: "instructions/role-enforcement.instructions.md.tmpl"
     checksum: "378efc13bb2b73e400bd28fa0358968074b172b9bfc68c2202c47f9a0fb467a2"
     note: "role boundary self-check instruction (installed 067.005-T); checksum refreshed 108-S/104.005-T (P-013.5 Skill-Delegation Model Inheritance clause), refreshed again 108-S/104.008-T review-fix (precondition wording clarified per Copilot review)"
+  - path: ".github/instructions/escalation-protocol.instructions.md"
+    primitive: 5
+    template: "instructions/escalation-protocol.instructions.md.tmpl"
+    checksum: "1198c8d28884f8bb2f071261fbd6e03bca7a1564d36f64fc0d96adb2b702bd0d"
+    note: "telemetry-driven auto-escalation protocol instruction (P-013.6, installed 106.001-T/106.003-T, 110-S); either-agent install condition (Stage or Ship present), distinct from the two-agent-only role-enforcement gate; vars resolved ESCALATION_FAMILY=gpt-5.6-sol, ESCALATION_PROVIDER=openai, ESCALATION_REASONING_EFFORT=high"
   - path: ".github/instructions/concurrency.instructions.md"
     primitive: 5
     template: "instructions/concurrency.instructions.md.tmpl"

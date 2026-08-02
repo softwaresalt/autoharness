@@ -3773,6 +3773,435 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertIn("role_route_resolution", targeted_checks)
             self.assertTrue(targeted_checks["role_route_resolution"]["ok"])
 
+    # -- P-013.6: escalation route resolution (106.007-T / 106.008-T) --
+
+    def test_escalation_route_resolution_helper_passes_via_tier3_fallback(self) -> None:
+        """P-013.6: with no explicit model_routing.escalation declared, the
+        escalation route resolves via fallback to model_routing.tier3, and no
+        role route is declared so there is nothing to collide with."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected tier3-fallback resolution to pass: {check}")
+        self.assertEqual(check.get("errors", []), [])
+        self.assertEqual(check["resolved_escalation_family"], "claude-opus-4.8")
+        self.assertEqual(check["same_route_roles"], [])
+
+    def test_escalation_route_resolution_helper_fails_when_unresolvable(self) -> None:
+        """P-013.6 fail-closed: an explicitly declared but empty escalation
+        route, with no tier3 fallback, does not resolve to any model_family."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {"model_routing": {"escalation": {}}}
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(check["ok"], f"expected unresolvable escalation route to fail: {check}")
+        self.assertTrue(
+            any("escalation" in e for e in check.get("errors", [])),
+            f"expected an error naming the escalation route, got: {check.get('errors')}",
+        )
+
+    def test_escalation_route_resolution_helper_flags_same_route_as_degraded(self) -> None:
+        """P-013.6 / Copilot staging finding C1: when the resolved escalation
+        model_family is identical to a declared role route's resolved
+        model_family (Stage's explicit route equals tier3, and no distinct
+        escalation route is declared), the auto-escalation attempt would be a
+        same-route no-op -- this must fail as ESCALATION_DEGRADED, not pass
+        silently."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                "stage": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "model_provider": "anthropic",
+                    "reasoning_effort": "high",
+                },
+                # No explicit escalation route -> resolves via tier3 fallback,
+                # landing on the exact same model_family as stage's explicit
+                # route.
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(check["ok"], f"expected same-route escalation to fail: {check}")
+        self.assertIn("stage", check["same_route_roles"])
+        self.assertTrue(
+            any("ESCALATION_DEGRADED" in e for e in check["errors"]),
+            f"expected an ESCALATION_DEGRADED error, got: {check['errors']}",
+        )
+
+    def test_escalation_route_resolution_helper_flags_installed_agent_without_override_as_degraded(
+        self,
+    ) -> None:
+        """Copilot review finding (PR #284): a role with NO explicit override
+        key in model_routing at all must still be compared for same-route
+        collision when its corresponding pipeline agent is installed --
+        previously `if role not in model_routing: continue` skipped this
+        entirely. Here Stage has no `stage` key, but stage_installed=True, so
+        Stage's live P-013.5 fallback (tier3) must be compared against
+        escalation's own tier3 fallback and correctly flagged."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                # No explicit "stage" or "escalation" key -- both resolve via
+                # tier3 fallback and therefore collide.
+            }
+        }
+        _add_escalation_route_resolution_check(
+            report,
+            "escalation_route_resolution",
+            config,
+            stage_installed=True,
+            ship_installed=False,
+        )
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(
+            check["ok"], f"expected installed-agent fallback collision to fail: {check}"
+        )
+        self.assertIn("stage", check["same_route_roles"])
+
+    def test_escalation_route_resolution_helper_ignores_uninstalled_agent_without_override(
+        self,
+    ) -> None:
+        """The converse of the above: when neither stage_installed nor
+        ship_installed is True and neither role has an explicit override key,
+        no role is in scope for the same-route comparison, so a tier3-only
+        escalation fallback resolves cleanly with no collision."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+            }
+        }
+        _add_escalation_route_resolution_check(
+            report,
+            "escalation_route_resolution",
+            config,
+            stage_installed=False,
+            ship_installed=False,
+        )
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected no collision when neither agent installed: {check}")
+        self.assertEqual(check["same_route_roles"], [])
+
+    def test_escalation_route_resolution_helper_passes_with_distinct_route(self) -> None:
+        """A distinct, explicitly-declared escalation route with a different
+        model_family than any declared role route resolves cleanly and is not
+        flagged as same-route degraded."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                "stage": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                "ship": {"model": "claude-sonnet-5", "model_family": "claude-sonnet-5"},
+                "escalation": {
+                    "model": "gpt-5.6-sol",
+                    "model_family": "gpt-5.6-sol",
+                    "model_provider": "openai",
+                    "reasoning_effort": "high",
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected distinct escalation route to pass: {check}")
+        self.assertEqual(check["same_route_roles"], [])
+        self.assertEqual(check["resolved_escalation_provider"], "openai")
+
+    def test_verify_workspace_flags_escalation_route_resolution_failure_end_to_end(self) -> None:
+        """P-013.6 fail-closed, end to end: an explicitly declared but
+        unresolvable escalation route must fail overall verification."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                # No tier3 fallback declared -- an explicitly empty escalation
+                # route has nothing to resolve against and must fail closed.
+                model_routing={"escalation": {}},
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("escalation_route_resolution", targeted_checks)
+            self.assertFalse(targeted_checks["escalation_route_resolution"]["ok"])
+            self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_skips_escalation_route_resolution_for_partial_legacy_config(
+        self,
+    ) -> None:
+        """Same regression guard as role_route_resolution: a model_routing
+        block that never opted into escalation or role routing (e.g.
+        tier1-only) must not register an escalation_route_resolution
+        failure."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                model_routing={"tier1": "gpt-5.4-mini"},
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertNotIn("escalation_route_resolution", report["targeted_checks"])
+
+    def test_verify_workspace_runs_escalation_route_resolution_when_tier2_and_tier3_present(
+        self,
+    ) -> None:
+        """When a config declares the full tier2/tier3 fallback foundation
+        (even without an explicit escalation/stage/ship override), the
+        escalation-route resolution check still runs. Fail-closed regression
+        (Copilot review finding): the shared fixture installs both pipeline
+        agents, so a Stage/Ship agent with no explicit override still
+        live-adopts its P-013.5 fallback route (tier3/tier2) -- here Stage's
+        fallback route (tier3) resolves to the same model_family as
+        escalation's own tier3 fallback, so this must now correctly fail
+        closed as ESCALATION_DEGRADED rather than silently pass."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                model_routing={
+                    "tier2": {"model": "claude-sonnet-5", "model_family": "claude-sonnet-5"},
+                    "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                },
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("escalation_route_resolution", targeted_checks)
+            check = targeted_checks["escalation_route_resolution"]
+            self.assertFalse(check["ok"], f"expected same-route collision to fail closed: {check}")
+            self.assertIn("stage", check["same_route_roles"])
+
+    def test_verify_workspace_passes_escalation_route_resolution_with_distinct_route(
+        self,
+    ) -> None:
+        """Same tier2/tier3 foundation as above, but with an explicit,
+        distinct model_routing.escalation override -- the check runs (per
+        the tier2/tier3 opt-in gate) and passes because escalation resolves
+        to a model_family distinct from both installed agents' fallback
+        routes."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                model_routing={
+                    "tier2": {"model": "claude-sonnet-5", "model_family": "claude-sonnet-5"},
+                    "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                    "escalation": {"model": "gpt-5.6-sol", "model_family": "gpt-5.6-sol"},
+                },
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("escalation_route_resolution", targeted_checks)
+            check = targeted_checks["escalation_route_resolution"]
+            self.assertTrue(check["ok"], f"expected distinct escalation route to pass: {check}")
+            self.assertEqual(check["same_route_roles"], [])
+
+    # -- P-013.6: escalation-directive presence (106.007-T / 106.008-T) --
+
+    def test_escalation_directive_check_skipped_when_neither_agent_installed(self) -> None:
+        """Gated entirely on file existence: a workspace with neither
+        _stage.agent.md nor _ship.agent.md installed must not register the
+        escalation_directive_present check at all."""
+        from autoharness.verify_workspace import _add_escalation_directive_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            report: dict = {"targeted_checks": {}}
+            _add_escalation_directive_check(report, "escalation_directive_present", workspace_path)
+            self.assertNotIn("escalation_directive_present", report["targeted_checks"])
+
+    def test_escalation_directive_check_fails_when_directive_tokens_missing(self) -> None:
+        """When _stage.agent.md / _ship.agent.md are installed but lack the
+        P-013.6 / ESCALATION_DEGRADED tokens, and the escalation-protocol
+        instruction is not installed, the check fails naming both gaps."""
+        from autoharness.verify_workspace import _add_escalation_directive_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_stage.agent.md").write_text("# Stage\n", encoding="utf-8")
+            (agents_dir / "_ship.agent.md").write_text("# Ship\n", encoding="utf-8")
+
+            report: dict = {"targeted_checks": {}}
+            _add_escalation_directive_check(report, "escalation_directive_present", workspace_path)
+            check = report["targeted_checks"]["escalation_directive_present"]
+            self.assertFalse(check["ok"])
+            self.assertTrue(any("stage" in e for e in check["errors"]))
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+            self.assertTrue(any("escalation-protocol.instructions.md" in e for e in check["errors"]))
+
+    def test_escalation_directive_check_fails_on_bare_token_mention_without_real_directive(
+        self,
+    ) -> None:
+        """Fail-closed regression (Copilot review finding): a one-line file
+        that only incidentally mentions the two bare tokens `P-013.6` and
+        `ESCALATION_DEGRADED` -- with no compile/resolve/re-attempt/handoff
+        directive and no reference to the shared instruction -- must NOT
+        pass. Stable markers (section heading, shared instruction reference,
+        required-action phrases) are required in addition to the bare
+        tokens."""
+        from autoharness.verify_workspace import _add_escalation_directive_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            # Exactly the shape the prior (pre-fix) check would have blessed:
+            # bare token mentions with no real directive content.
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\nP-013.6 auto-escalation: emits ESCALATION_DEGRADED "
+                "when the escalation route is unavailable or same-route.\n",
+                encoding="utf-8",
+            )
+            instructions_dir = workspace_path / ".github" / "instructions"
+            instructions_dir.mkdir(parents=True, exist_ok=True)
+            (instructions_dir / "escalation-protocol.instructions.md").write_text(
+                "---\nname: escalation-protocol\n---\n\n# Escalation Protocol\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_escalation_directive_check(report, "escalation_directive_present", workspace_path)
+            check = report["targeted_checks"]["escalation_directive_present"]
+            self.assertFalse(
+                check["ok"],
+                f"expected a bare-token-only file (no real directive) to fail: {check}",
+            )
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
+    def test_escalation_directive_check_passes_with_only_ship_installed(self) -> None:
+        """Either-agent install condition: when only _ship.agent.md is
+        installed (no _stage.agent.md), the check evaluates ship alone and
+        passes when ship carries the directive tokens and the instruction is
+        installed."""
+        from autoharness.verify_workspace import _add_escalation_directive_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\n"
+                "### Escalation Protocol — Consecutive Task Failures\n\n"
+                "Upon 3 consecutive task failures, follow the auto-escalation "
+                "directive below (P-013.6, `escalation-protocol.instructions.md`):\n\n"
+                "1. Compile the escalation payload.\n"
+                "2. Resolve the escalation route.\n"
+                "3. Same-route guard: treat a same-route resolution as "
+                "`ESCALATION_DEGRADED`.\n"
+                "4. Re-attempt at the resolved route; if it also fails, "
+                "**hand off** the compiled payload to engram.\n",
+                encoding="utf-8",
+            )
+            instructions_dir = workspace_path / ".github" / "instructions"
+            instructions_dir.mkdir(parents=True, exist_ok=True)
+            (instructions_dir / "escalation-protocol.instructions.md").write_text(
+                "---\nname: escalation-protocol\n---\n\n# Escalation Protocol\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_escalation_directive_check(report, "escalation_directive_present", workspace_path)
+            check = report["targeted_checks"]["escalation_directive_present"]
+            self.assertTrue(check["ok"], f"expected ship-only install to pass: {check}")
+            self.assertFalse(check["stage_present"])
+            self.assertTrue(check["ship_present"])
+
+    def test_verify_workspace_flags_escalation_directive_failure_end_to_end(self) -> None:
+        """End to end: the shared minimal fixture installs _stage/_ship
+        agents without the P-013.6 directive tokens and without the
+        escalation-protocol instruction -- verify_workspace must surface this
+        as a targeted-check failure."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("escalation_directive_present", targeted_checks)
+            self.assertFalse(targeted_checks["escalation_directive_present"]["ok"])
+            self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_passes_escalation_directive_when_fully_installed(self) -> None:
+        """End to end: once both agents carry the directive tokens and the
+        escalation-protocol instruction is installed, the targeted check
+        passes."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+
+            directive_note = (
+                "\n\n### Escalation Protocol — Consecutive Task Failures\n\n"
+                "Upon 3 consecutive task failures, follow the auto-escalation "
+                "directive below (P-013.6, `escalation-protocol.instructions.md`):\n\n"
+                "1. Compile the escalation payload.\n"
+                "2. Resolve the escalation route.\n"
+                "3. Same-route guard: treat a same-route resolution as "
+                "`ESCALATION_DEGRADED`.\n"
+                "4. Re-attempt at the resolved route; if it also fails, "
+                "**hand off** the compiled payload to engram.\n"
+            )
+            for agent_file in ("_stage.agent.md", "_ship.agent.md"):
+                agent_path = workspace / ".github" / "agents" / agent_file
+                agent_path.write_text(
+                    agent_path.read_text(encoding="utf-8") + directive_note, encoding="utf-8"
+                )
+            instructions_dir = workspace / ".github" / "instructions"
+            instructions_dir.mkdir(parents=True, exist_ok=True)
+            (instructions_dir / "escalation-protocol.instructions.md").write_text(
+                "---\nname: escalation-protocol\n---\n\n# Escalation Protocol\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("escalation_directive_present", targeted_checks)
+            self.assertTrue(targeted_checks["escalation_directive_present"]["ok"])
+
     def test_verify_workspace_flags_missing_release_closure_sequence_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -561,12 +561,40 @@ this protocol is non-negotiable and has no local-record bypass.
 
 ### Escalation Protocol — Consecutive Task Failures
 
-Upon 3 consecutive task failures:
+Upon 3 consecutive task failures, follow the auto-escalation directive below
+(P-013.6, `escalation-protocol.instructions.md`) before falling back to the
+operator-halt checkpoint:
 
-1. Write a checkpoint to `docs/memory/` capturing the failed task IDs, root causes,
-   attempts made, and current branch state.
-2. Prompt the operator: `3 consecutive task failures. Session state preserved at
-   docs/memory/. Please review failure patterns and advise.`
-3. Halt and await operator guidance. Do not attempt further tasks without operator
-   direction. If the environment supports model selection, suggest retrying the
-   failing task with a frontier-tier model before halting.
+1. **Compile the escalation payload** per the escalation-payload contract
+   (threshold-kind + count = `consecutive_task_failures` / 3, failure summary,
+   last-N action/observation refs, artifact refs, telemetry-evidence pointers,
+   resumption checkpoint ref).
+2. **Resolve the escalation route**: `config.model_routing.escalation`
+   (`model_family` / `model_provider` / `reasoning_effort`), falling back
+   per field to `model_routing.tier3` when the `escalation` route or a
+   sub-field is unset. This is the config-resolved successor to ad hoc
+   "suggest a frontier-tier model" prose — the route is now declared, not
+   improvised.
+3. **Same-route guard**: if the resolved escalation tuple equals this
+   agent's own role route tuple (P-013.5) — Ship currently operates at
+   `claude-sonnet-5`/`anthropic`/`high`, distinct from `tier3`
+   (`claude-opus-4.8`), so an unset escalation route is a genuine
+   escalation for Ship, not a same-route no-op — treat any future
+   same-tuple resolution as `ESCALATION_DEGRADED` per the canonical
+   definition in `escalation-protocol.instructions.md`.
+4. **Re-attempt** the failing task at the resolved route when it is not
+   degraded; if it also fails, **hand off** the compiled payload to engram
+   (when available) as a terminal state.
+5. **`ESCALATION_DEGRADED` fallback / existing operator-halt path** (route
+   unavailable, engram unavailable, or same-route no-op):
+   a. Write a checkpoint to `docs/memory/` capturing the failed task IDs, root
+      causes, attempts made, and current branch state.
+   b. Prompt the operator: `3 consecutive task failures. Session state
+      preserved at docs/memory/. Please review failure patterns and advise.`
+   c. Halt and await operator guidance. Do not attempt further tasks without
+      operator direction.
+
+This is a **reasoning escalation only** — it never self-authorizes a shipment
+claim, task claim, merge, admin fallback, or any mutation this agent's Role
+Boundary does not already permit; it does not alter dark-mode merge/approval
+semantics (P-001/P-009/P-014/P-017/P-020 preserved).

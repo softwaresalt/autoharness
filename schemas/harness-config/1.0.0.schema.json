@@ -582,6 +582,35 @@
             }
           }
         },
+        "escalation": {
+          "type": "object",
+          "description": "Optional first-class model route for telemetry-driven auto-escalation (P-013.6). When set, the halting agent's escalation directive resolves to this route; when absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 so escalation targets deeper reasoning than the failing tier. If the resolved (model_family, model_provider, reasoning_effort) tuple equals the acting agent's own role route (e.g., a role route already pinned to tier3), resolution MUST be treated as ESCALATION_DEGRADED (same-route no-op) and fall back to the existing operator-halt path rather than silently \"escalating\" to an identical model.",
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "description": "Model provider for the escalation route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier3's provider.",
+              "examples": [
+                "anthropic"
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "description": "Model family for the escalation route (e.g., 'claude-opus-4.8'). Leave empty/absent to fall back to tier3's family.",
+              "examples": [
+                "claude-opus-4.8"
+              ]
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "description": "Reasoning effort for the escalation route when the environment supports effort controls. Leave empty to use the model default or fall back to tier3's setting.",
+              "examples": [
+                "high",
+                "max"
+              ]
+            }
+          }
+        },
         "anchor_review": {
           "type": "object",
           "description": "First-class anchor reviewer route used by adversarial, plan, and code review flows. Defaults to OpenAI GPT-5.6 Sol where the operator environment supports it; skills must declare degradation when the route cannot be dispatched.",
