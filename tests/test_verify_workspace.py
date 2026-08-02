@@ -3542,8 +3542,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 autoharness_home,
                 model_routing={
                     "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
-                    # tier2 deliberately absent and no ship override -> ship
-                    # role route cannot resolve to any model.
+                    # Explicit opt-in to ship role routing (key present) with
+                    # no override and tier2 deliberately absent -> ship role
+                    # route cannot resolve to any model.
+                    "ship": {},
                 },
             )
 
@@ -3553,6 +3555,64 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertIn("role_route_resolution", targeted_checks)
             self.assertFalse(targeted_checks["role_route_resolution"]["ok"])
             self.assertTrue(_report_has_failures(report))
+
+    def test_verify_workspace_skips_role_route_resolution_for_partial_legacy_config(self) -> None:
+        """P-013.5 fail-closed does not regress pre-existing, schema-valid
+        configs that never opted into role routing. A model_routing block
+        that only declares tier1 (or is empty) has not adopted stage/ship
+        routing and must not register a role_route_resolution failure --
+        found via adversarial review of the initial gate, which fired on any
+        non-empty model_routing dict."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                model_routing={"tier1": "gpt-5.4-mini"},
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertNotIn("role_route_resolution", report["targeted_checks"])
+
+    def test_verify_workspace_skips_role_route_resolution_for_empty_model_routing(self) -> None:
+        """Same regression guard as above for an empty model_routing block."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace, autoharness_home, model_routing={}
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertNotIn("role_route_resolution", report["targeted_checks"])
+
+    def test_verify_workspace_runs_role_route_resolution_when_tier2_and_tier3_present(self) -> None:
+        """When a config declares the full tier2/tier3 fallback foundation
+        (even without an explicit stage/ship override), the role-route
+        resolution check still runs and passes via fallback."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(
+                workspace,
+                autoharness_home,
+                model_routing={
+                    "tier2": {"model": "claude-sonnet-5", "model_family": "claude-sonnet-5"},
+                    "tier3": {"model": "claude-opus-4.8", "model_family": "claude-opus-4.8"},
+                },
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            targeted_checks = report["targeted_checks"]
+            self.assertIn("role_route_resolution", targeted_checks)
+            self.assertTrue(targeted_checks["role_route_resolution"]["ok"])
 
     def test_verify_workspace_flags_missing_release_closure_sequence_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

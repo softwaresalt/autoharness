@@ -3594,12 +3594,24 @@ def verify_workspace(
         if agent_path.exists():
             _add_frontmatter_model_routing_check(report, check_key, agent_path)
 
-    # P-013.5: role-route resolution (104.008-T). Only evaluated when the
-    # workspace declares a model_routing block at all -- a workspace with no
-    # model_routing configuration is out of scope for this check (it has not
-    # opted into role-based routing) and must not register a false failure.
-    if isinstance(config, dict) and isinstance(config.get("model_routing"), dict):
-        _add_role_route_resolution_check(report, "role_route_resolution", config)
+    # P-013.5: role-route resolution (104.008-T). Evaluated only when the
+    # workspace has meaningfully opted into role-based routing: either an
+    # explicit stage/ship route key is declared (even empty -- declaring the
+    # key signals intent to use role routing), or both tier2 and tier3 are
+    # present (the fallback targets this check depends on). A model_routing
+    # block that declares neither (e.g. only tier1, or an empty {}) has not
+    # opted into P-013.5 role routing and must not register a false failure --
+    # confirmed via adversarial review: gating on "any model_routing dict"
+    # regressed schema-valid, pre-existing partial configs (e.g. tier1-only)
+    # that never adopted stage/ship routing.
+    model_routing_block = config.get("model_routing") if isinstance(config, dict) else None
+    if isinstance(model_routing_block, dict):
+        has_explicit_role_route = "stage" in model_routing_block or "ship" in model_routing_block
+        has_tier_fallback_foundation = (
+            "tier2" in model_routing_block and "tier3" in model_routing_block
+        )
+        if has_explicit_role_route or has_tier_fallback_foundation:
+            _add_role_route_resolution_check(report, "role_route_resolution", config)
 
     project_name = variables.get("PROJECT_NAME", workspace_path.name)
     project_name_pattern = re.compile(
