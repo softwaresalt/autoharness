@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-01T23:14:19.514052-07:00","actor":"backlogit","item_id":"105-F","event_type":"status_changed","delta":{"from":"queued","reason":"child status rollup","to":"active"}}
+{"timestamp":"2026-08-02T12:11:01.4324262-07:00","actor":"backlogit","item_id":"105-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/105-F.md"}}
