@@ -17,7 +17,9 @@ blast_radius: elevated (result-integrity + multi-family: eval code / tests / doc
 Build a reproducible structural-navigation benchmark suite as an **additive layer** over the
 existing `src/autoharness/eval` A/B harness and the shipped telemetry read/report/aggregation
 APIs (ExecutionEpoch v1.1 / ToolTelemetryEvent v1.0). Deliver the deterministic replay core
-end to end; expose live-run mode as an additive opt-in. **No telemetry-contract, schema, or
+end to end. **Live-run mode is out of scope for this shipment** — it remains a deferred,
+additive opt-in extension point that this shipment documents (008) but does not implement or
+verify; no task here delivers a callable live path. **No telemetry-contract, schema, or
 CLI-distribution change.** Every task is width-isolated to a single family and scoped ≤ 2h.
 
 ## Grounding (shipped seams this plan consumes read-only)
@@ -50,10 +52,12 @@ and `phase` (`benchmark-baseline` / `benchmark-treatment`). Pins route, seed, N 
 `benchmark/` metrics dir), never the repository's authoritative `.autoharness/metrics` store, so
 benchmark epochs cannot pollute production telemetry aggregates. Synthetic `backlog_item_id`/
 `workspace_id` use a reserved `benchmark:` namespace prefix.
-- **Acceptance:** running a scenario produces exactly two correlated epochs readable via
-  `read_epoch_records`; arms are distinguishable by `phase`; determinism verified across repeats
-  for operations counters; **the authoritative metrics store is provably untouched** (benchmark
-  reader points only at the isolated benchmark sink dir).
+- **Acceptance:** running a scenario produces **exactly two correlated epochs per repeat** (one
+  baseline + one treatment), i.e. **2×N epochs total for N repeats**, each with a unique per-repeat
+  epoch identity — repeats never overwrite or collapse before persistence, so all repeats are
+  independently readable via `read_epoch_records`; arms are distinguishable by `phase`; determinism
+  verified across repeats for operations counters; **the authoritative metrics store is provably
+  untouched** (benchmark reader points only at the isolated benchmark sink dir).
 
 ### 085.003-T — Correctness scorer (family: code)  — dep: 001
 Separate-axis scorer grading each arm's produced target set against the scenario gold answer
@@ -64,14 +68,19 @@ Separate-axis scorer grading each arm's produced target set against the scenario
 ### 085.004-T — Telemetry metrics extraction + A/B delta adapter (family: code)  — dep: 002
 Adapter that reads persisted epochs via `read_epoch_records`, slices arms with
 `summarize_report(filters={phase: ...})`, and computes per-scenario + aggregate A/B deltas for
-tokens/context/cost/latency and routed-vs-raw/avoided-read/`net_offload_tokens`. Carries
-`metric_quality`/`derived_quality` through unchanged; deltas use aggregate-total slices (never
-averages of per-epoch ratios).
-- **Acceptance:** delta for a known fixture matches hand-computed aggregate-total math;
-  `metric_quality` provenance is preserved per field; `unavailable` operands yield `unavailable`
+tokens/context/cost/latency and routed-vs-raw/avoided-read/`net_offload_tokens`. Combines
+`metric_quality`/`derived_quality` across operands with a **deterministic delta-provenance rule**:
+the delta carries the **least-certain** quality across all operands (baseline, treatment, and every
+repeat), and any `unavailable` or `not_applicable` operand makes the delta `unavailable`
+(respectively `not_applicable`) — never a false-precision `observed`. Deltas use aggregate-total
+slices (never averages of per-epoch ratios).
+- **Acceptance:** delta for a known fixture matches hand-computed aggregate-total math; the
+  delta-provenance rule is applied per field (least-certain across operands); a mixed
+  observed/estimated comparison is labeled `estimated` (the least-certain operand), never
+  `observed`; `unavailable`/`not_applicable` operands yield `unavailable`/`not_applicable`
   deltas (not 0).
 
-### 085.005-T — Environment + repeatability controls (family: code/config)  — dep: 002
+### 085.005-T — Environment + repeatability controls (family: code)  — dep: 002
 Reproducibility controls on the harness: pinned route capture, seed pinning, warm/cold/stale
 index-state selection, `ENGRAM_DEGRADED` capture (`degraded_tool_count`,
 `stale_or_unavailable_index_count`), N-repeat dispersion, and a run manifest recording
@@ -82,7 +91,7 @@ sink-isolated.
   case (not dropped or errored); run manifest reproduces the corpus hash; repeated runs report
   dispersion.
 
-### 085.006-T — Honest reporting renderer (family: code)  — dep: 003, 004
+### 085.006-T — Honest reporting renderer (family: code)  — dep: 003, 004, 005
 Report renderer that composes correctness + efficiency deltas into per-scenario and aggregate
 output covering all three outcome classes. Enforces honest-reporting rules: distinguish
 `unavailable` from observed-zero; surface `metric_quality`/`derived_quality`; label estimated/
@@ -110,7 +119,7 @@ the deterministic core as the reproducible unit and live mode as an additive opt
 
 ## Dependency order
 
-`085-F` (parent) → 001 → {002, 003} → {004, 005} → 006 → {007, 008}
+`085-F` (parent) → 001 → {002, 003}; 002 → {004, 005}; {003, 004, 005} → 006 → {007, 008}
 
 Add order for shipment: 001, 002, 003, 004, 005, 006, 007, 008.
 
@@ -122,7 +131,7 @@ Add order for shipment: 001, 002, 003, 004, 005, 006, 007, 008.
 | 002 | code | eval/benchmark run harness (telemetry begin/record consumer) |
 | 003 | code | eval/benchmark correctness scorer |
 | 004 | code | eval/benchmark metrics/delta adapter (reader/report consumer) |
-| 005 | code/config | eval/benchmark reproducibility controls + run manifest |
+| 005 | code | eval/benchmark reproducibility controls + run manifest |
 | 006 | code | eval/benchmark honest reporting renderer |
 | 007 | test | tests/ only |
 | 008 | docs | docs/ only |
@@ -179,3 +188,7 @@ CLI change. No migration or backfill. Live-run mode is opt-in and off by default
   math (consumed read-only).
 - A new `telemetry report` CLI subcommand (not shipped by 092-S; benchmark uses the library API).
 - Ship-phase execution: implementation, branch/PR, build/test runs, commit/push (owned by Ship).
+- **Live-run mode implementation/verification.** Deferred: this shipment delivers only the
+  deterministic replay core. Live mode remains a documented (008), off-by-default, additive
+  opt-in extension point; no task here implements or verifies a callable live path. A future
+  increment owns live-run implementation and its own acceptance.

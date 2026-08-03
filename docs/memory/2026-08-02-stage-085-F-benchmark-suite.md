@@ -32,7 +32,8 @@ telemetry-contract / schema / CLI-distribution change; additive layer over `src/
 ## Backlog (all queued)
 
 `085-F` → 001 corpus/loader → {002 harness, 003 scorer} → {004 metrics-adapter, 005 env-controls}
-→ 006 honest-renderer → {007 tests, 008 docs}. 10 `blocks` edges. Families: code (001–006),
+→ 006 honest-renderer → {007 tests, 008 docs}. **11 `blocks` edges** (006 depends on 003, 004 **and
+005** — see cycle-2 review-fix). Families: code (001–006),
 test (007), docs (008); width-isolated; ≤2h each.
 
 ## Review
@@ -41,6 +42,19 @@ plan-review PASS after **1 fix cycle**. P1-1 (benchmark epochs could pollute the
 telemetry store) fixed in-plan via mandatory isolated benchmark `TelemetryConfig` sink +
 reserved `benchmark:` namespace (002 acceptance; 005 records sink path). P2-1/P2-2 folded into
 001/007/008 acceptance. Hardening present (result-integrity + multi-family blast radius; H1–H7).
+
+### Cycle 2 — external review-fix (PR #288 Copilot threads)
+
+Bounded Stage review-fix pass over 5 Copilot threads on PR #288 (`chore/stage-111-S`). All five
+valid; corrected in Stage-owned artifacts only (plan / task acceptance / DAG). Verdict remains
+**PASS after 2 fix cycles** (within the 3-cycle limit). No source/template/schema/shipment-manifest
+change; manifest still task-only 8 items; DAG acyclic.
+- Live-run "delivery" claim deferred → out-of-scope (Summary + Out-of-scope; no new task).
+- 085.002-T epoch cardinality clarified: 2×N epochs (one per arm per repeat), no overwrite.
+- 085.004-T delta-provenance rule: least-certain across operands; `unavailable`/`not_applicable`
+  propagates; no false-precision `observed`.
+- 085.006-T now depends on 085.005-T (added blocks edge; degraded-run producer contract).
+- 085.005-T family reclassified `code/config` → `code` (width-isolation consistency).
 
 ## Degraded mode
 
