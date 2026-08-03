@@ -157,6 +157,14 @@ def default_arm_executor(scenario: Scenario, arm: Arm, repeat_index: int, seed: 
         produced = scenario.gold_answer
         input_tokens = _seeded_tokens(scenario, arm, repeat_index, seed, base=4000)
         output_tokens = _seeded_tokens(scenario, arm, repeat_index, seed, base=300)
+        baseline_op_fields = (
+            "raw_file_read_count",
+            "raw_search_count",
+            "routed_lookup_count",
+            "expected_tool_count",
+            "observed_expected_tool_count",
+            "missing_expected_tool_count",
+        )
         operations = OperationalReality(
             cli_tools=("grep", "cat"),
             tool_surfaces=("filesystem",),
@@ -167,8 +175,8 @@ def default_arm_executor(scenario: Scenario, arm: Arm, repeat_index: int, seed: 
             observed_tool_counts={"raw_read": 1},
             observed_expected_tool_count=1,
             missing_expected_tool_count=0,
-            metric_sources={"tool_output_bytes": "observed"},
-            metric_quality={"tool_output_bytes": "observed"},
+            metric_sources={name: "estimated" for name in baseline_op_fields},
+            metric_quality={name: "estimated" for name in baseline_op_fields},
         )
         degraded = 0
         stale_or_unavailable = 0
@@ -189,6 +197,16 @@ def default_arm_executor(scenario: Scenario, arm: Arm, repeat_index: int, seed: 
             stale_or_unavailable = 0
         input_tokens = _seeded_tokens(scenario, arm, repeat_index, seed, base=400)
         output_tokens = _seeded_tokens(scenario, arm, repeat_index, seed, base=50)
+        treatment_op_fields = (
+            "raw_file_read_count",
+            "raw_search_count",
+            "routed_lookup_count",
+            "expected_tool_count",
+            "observed_expected_tool_count",
+            "missing_expected_tool_count",
+            "degraded_tool_count",
+            "stale_or_unavailable_index_count",
+        )
         operations = OperationalReality(
             cli_tools=("engram",),
             tool_surfaces=("engram",),
@@ -201,8 +219,8 @@ def default_arm_executor(scenario: Scenario, arm: Arm, repeat_index: int, seed: 
             missing_expected_tool_count=1 if is_cold else 0,
             degraded_tool_count=degraded,
             stale_or_unavailable_index_count=stale_or_unavailable,
-            metric_sources={"tool_output_bytes": "observed"},
-            metric_quality={"tool_output_bytes": "observed"},
+            metric_sources={name: "estimated" for name in treatment_op_fields},
+            metric_quality={name: "estimated" for name in treatment_op_fields},
         )
 
     avoided = _seeded_tokens(scenario, arm, repeat_index, seed, base=1200 if arm == "treatment" else 0)
