@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-03T15:32:11.5238267-07:00","actor":"backlogit","item_id":"113-S","event_type":"shipment_created","delta":{"items":["108.001-T","108.002-T","108.003-T"],"title":"S2 — backlogit telemetry evidence mapping + complexity dimension (108-F)"}}
+{"timestamp":"2026-08-03T15:59:58.2118949-07:00","actor":"backlogit","item_id":"113-S","event_type":"shipment_item_added","delta":{"item_id":"108.004-T"}}
