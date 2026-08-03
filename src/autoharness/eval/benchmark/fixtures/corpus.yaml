@@ -1,0 +1,73 @@
+# Representative structural-navigation benchmark corpus (085.001-T).
+#
+# Balanced-class invariant: at least one scenario of each class
+# (positive / neutral / negative) is present. Index-state coverage spans
+# warm/cold/stale so degraded-index runs are exercised and retained
+# (H5/R5, mandatory invariant: degraded/cold-index runs retained, not dropped).
+version: "1.0.0"
+scenarios:
+  - id: "pos-config-lookup-warm"
+    scenario_class: "positive"
+    task: "Locate the telemetry sink configuration loader."
+    gold_answer:
+      - "src/autoharness/telemetry/config.py"
+    index_state: "warm"
+    rationale: >
+      A clean, unambiguous navigation task with a warm index: both arms are
+      expected to recall the single correct target exactly. Establishes the
+      positive-class baseline for an efficiency win with no correctness risk.
+
+  - id: "pos-cold-index-miss"
+    scenario_class: "positive"
+    task: "Locate the epoch dataclass definition under a cold benchmark index."
+    gold_answer:
+      - "src/autoharness/telemetry/epoch.py"
+    index_state: "cold"
+    rationale: >
+      Same navigation-task shape as pos-config-lookup-warm, but the index is
+      cold. Exercises H5 (a degraded/cold-index treatment run must be captured
+      and classified, never dropped as an error) and H3 (an efficiency "win"
+      must be suppressed when the routed arm regresses on correctness under a
+      cold index) without needing a fourth scenario class.
+
+  - id: "neutral-ambiguous-term-warm"
+    scenario_class: "neutral"
+    task: "Find where 'reader' is implemented (ambiguous: telemetry vs. eval)."
+    gold_answer:
+      - "src/autoharness/telemetry/reader.py"
+      - "src/autoharness/eval/reviewer.py"
+    index_state: "warm"
+    rationale: >
+      An intentionally ambiguous query with two plausible correct targets.
+      Under this scenario's warm index, both arms are exact (the baseline
+      oracle always recalls the full gold set, and the routed treatment
+      arm's default executor also recalls it exactly whenever the index is
+      warm) — this scenario's neutral trait is the query's inherent
+      ambiguity/multi-target nature, not partial recall. The partial-recall
+      degraded mode is specifically exercised by the
+      neutral-stale-partial-recall scenario below, where a stale index
+      causes the treatment arm to drop the last gold target.
+
+  - id: "neutral-stale-partial-recall"
+    scenario_class: "neutral"
+    task: "Find every module that computes an aggregate telemetry total."
+    gold_answer:
+      - "src/autoharness/telemetry/aggregation.py"
+      - "src/autoharness/telemetry/report.py"
+    index_state: "stale"
+    rationale: >
+      A multi-target recall task under a stale (not fully cold) index.
+      Documents the partial-recall degraded mode distinct from the full-miss
+      cold case above, so both stale and cold degraded runs are represented
+      per the reproducibility controls (085.005-T) index-state coverage.
+
+  - id: "neg-nonexistent-symbol-warm"
+    scenario_class: "negative"
+    task: "Locate the (nonexistent) 'quantum_router' module."
+    gold_answer: []
+    index_state: "warm"
+    rationale: >
+      The correct answer is the empty set — there is no such module. This is
+      the negative class's defining trait: correctly reporting "not found" is
+      the success condition, guarding against a corpus that only rewards
+      arms for producing *something* (R2/H2 balanced-class invariant).
