@@ -256,6 +256,40 @@ class BuildReportIdentityValidationTests(unittest.TestCase):
             build_report(self.corpus, self.results, self.manifest, bad_read_result)
         self.assertIn("workspace_id", str(ctx.exception))
 
+    def test_cross_run_session_id_mismatch_rejected(self) -> None:
+        # A different run_id but an unchanged (shared/default) workspace_id
+        # simulates the exact gap the reviewer flagged: two runs sharing a
+        # workspace_id must still be distinguishable.
+        mutated_records = []
+        mutated_one = False
+        for record in self.read_result.records:
+            if not mutated_one and str(record.get("backlog_item_id", "")).startswith(BENCHMARK_NAMESPACE_PREFIX):
+                record = dict(record)
+                record["session_id"] = "a-different-run-id"
+                mutated_one = True
+            mutated_records.append(record)
+        self.assertTrue(mutated_one)
+        bad_read_result = dataclasses.replace(self.read_result, records=tuple(mutated_records))
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, self.results, self.manifest, bad_read_result)
+        self.assertIn("run_id", str(ctx.exception))
+
+    def test_duplicate_sink_record_rejected(self) -> None:
+        # Two matching records for the same expected scenario/repeat/arm
+        # identity (e.g. a read_result assembled by merging two runs) must
+        # be refused rather than silently summed by scenario_arm_records().
+        target = None
+        for record in self.read_result.records:
+            if str(record.get("backlog_item_id", "")).startswith(BENCHMARK_NAMESPACE_PREFIX):
+                target = record
+                break
+        self.assertIsNotNone(target)
+        duplicated_records = self.read_result.records + (dict(target),)
+        bad_read_result = dataclasses.replace(self.read_result, records=duplicated_records)
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, self.results, self.manifest, bad_read_result)
+        self.assertIn("more than one record", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

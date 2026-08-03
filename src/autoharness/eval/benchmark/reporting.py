@@ -27,11 +27,13 @@ plan's honest-reporting rules:
   objects with nothing upstream binding them together. :func:`build_report`
   fails closed (raises :class:`ReportIdentityError`) unless it can verify
   they all describe **one** run: the corpus hash, scenario/repeat counts,
-  and a ``workspace_id``-tied cross-check of the actual sink records all
-  must agree. This is a whole-run identity check, not a field-level
-  provenance label — a mismatch is a caller programming error and must
-  surface loudly rather than silently blend two runs into one plausible
-  report (H1 governs missing/uncertain *field* data, not whole-run mixing).
+  exact-cardinality sink-record presence, and a unique per-run ``run_id``
+  (stamped onto every epoch's ``session_id`` at write time — distinct from
+  the possibly-reused ``workspace_id``) all must agree. This is a
+  whole-run identity check, not a field-level provenance label — a
+  mismatch is a caller programming error and must surface loudly rather
+  than silently blend two runs into one plausible report (H1 governs
+  missing/uncertain *field* data, not whole-run mixing).
 """
 
 from __future__ import annotations
@@ -84,7 +86,7 @@ def _validate_run_identity(
 ) -> None:
     """Fail closed unless ``corpus``/``results``/``manifest``/``read_result`` are one run (H6).
 
-    Four checks, each raising :class:`ReportIdentityError` on failure:
+    Five checks, each raising :class:`ReportIdentityError` on failure:
 
     1. ``corpus.manifest_hash == manifest.corpus_hash`` — the corpus
        revision matches the one the manifest was recorded against.
@@ -92,14 +94,31 @@ def _validate_run_identity(
        ``corpus``'s scenario ids — no missing or extra scenarios.
     3. Every scenario's repeat-run count in ``results`` equals
        ``manifest.repeats``.
-    4. ``read_result`` actually holds this run's sink records: every
-       expected ``benchmark:<scenario_id>:<repeat_index>:<arm>`` epoch is
-       present and carries ``workspace_id == manifest.workspace_id`` — a
-       run identity tied to the sink records themselves, not merely to the
-       caller's say-so. A failed/empty/disabled read or any missing or
-       cross-workspace record is refused rather than silently rendered as
-       an ``unavailable`` field (whole-run mixing is not a field-level
-       provenance gap).
+    4. ``read_result`` actually holds this run's sink records: for every
+       expected ``benchmark:<scenario_id>:<repeat_index>:<arm>`` epoch,
+       **exactly one** matching record is present (never zero, never more
+       than one — a duplicate/extra matching record would otherwise be
+       silently summed into the aggregate by
+       :func:`~autoharness.eval.benchmark.metrics.scenario_arm_records`).
+    5. Every one of those records carries ``session_id == manifest.run_id``
+       (review-fix; see ``run_id`` below) and, as a secondary check,
+       ``workspace_id == manifest.workspace_id``.
+
+    A failed/unavailable/disabled read, a missing record, a duplicate
+    record, or any run_id/workspace_id mismatch is refused outright rather
+    than silently rendered as an ``unavailable`` field (whole-run mixing is
+    not a field-level provenance gap governed by H1).
+
+    Why ``run_id`` and not just ``workspace_id``: ``workspace_id`` defaults
+    to a fixed constant (``DEFAULT_WORKSPACE_ID``) unless a caller supplies
+    a distinct value per call, so two separate ``run_benchmark`` invocations
+    against the same corpus/repeat shape (e.g. different seeds) can share
+    an identical ``workspace_id`` — a ``workspace_id``-only check would not
+    catch a ``results``/``read_result`` pair silently swapped between them.
+    ``run_id`` is a fresh ``uuid4`` hex minted once per ``run_benchmark``
+    call (never reused, never caller-suppliable) and stamped onto every
+    epoch's ``session_id`` field, so it is a positive, run-unique
+    correlation key rather than a caller-controlled, possibly-shared label.
     """
     if corpus.manifest_hash != manifest.corpus_hash:
         raise ReportIdentityError(
@@ -144,23 +163,43 @@ def _validate_run_identity(
             records_by_backlog_id.setdefault(backlog_item_id, []).append(record)
 
     missing: list[str] = []
+    duplicated: list[str] = []
+    mismatched_run_id: list[str] = []
     mismatched_workspace: list[str] = []
     for scenario_id in corpus_ids:
         for repeat_index in range(manifest.repeats):
             for arm in ARMS:
                 backlog_item_id = f"{BENCHMARK_NAMESPACE_PREFIX}{scenario_id}:{repeat_index}:{arm}"
-                matches = records_by_backlog_id.get(backlog_item_id)
+                matches = records_by_backlog_id.get(backlog_item_id, [])
                 if not matches:
                     missing.append(backlog_item_id)
                     continue
-                for record in matches:
-                    if record.get("workspace_id") != manifest.workspace_id:
-                        mismatched_workspace.append(backlog_item_id)
+                if len(matches) > 1:
+                    duplicated.append(backlog_item_id)
+                    continue
+                (record,) = matches
+                if record.get("session_id") != manifest.run_id:
+                    mismatched_run_id.append(backlog_item_id)
+                if record.get("workspace_id") != manifest.workspace_id:
+                    mismatched_workspace.append(backlog_item_id)
 
     if missing:
         raise ReportIdentityError(
             f"read_result is missing {len(missing)} epoch record(s) expected for this run "
             f"(e.g. {missing[:3]}); read_result does not appear to be this run's sink."
+        )
+    if duplicated:
+        raise ReportIdentityError(
+            f"read_result has more than one record for {len(duplicated)} expected epoch "
+            f"identity/identities (e.g. {duplicated[:3]}); refusing to silently sum "
+            "duplicate/extra records into the aggregate."
+        )
+    if mismatched_run_id:
+        raise ReportIdentityError(
+            f"{len(mismatched_run_id)} epoch record(s) matched this run's scenario/repeat/arm "
+            f"identity but carry a session_id other than manifest.run_id ({manifest.run_id!r}) "
+            f"(e.g. {mismatched_run_id[:3]}); read_result appears to mix records from a "
+            "different run."
         )
     if mismatched_workspace:
         raise ReportIdentityError(

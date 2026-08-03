@@ -177,7 +177,26 @@ class RunBenchmarkTests(unittest.TestCase):
         payload = manifest.to_dict()
         self.assertIn("scenario_classifications", payload)
         self.assertIn("dispersion", payload)
+        self.assertIn("run_id", payload)
+        self.assertEqual(payload["run_id"], manifest.run_id)
         self.assertEqual(payload["corpus_hash"], self.corpus.manifest_hash)
+
+    def test_run_id_is_unique_per_invocation_and_stamped_on_epochs(self) -> None:
+        # H6 review-fix: run_id must be a fresh, run-unique correlation key
+        # (not a caller-suppliable/reusable label like workspace_id) stamped
+        # onto every persisted epoch's session_id.
+        results_a, manifest_a = run_benchmark(
+            self.corpus, self.workspace_root / "sink-a", repeats=1, seed=0, workspace_root=self.workspace_root
+        )
+        results_b, manifest_b = run_benchmark(
+            self.corpus, self.workspace_root / "sink-b", repeats=1, seed=0, workspace_root=self.workspace_root
+        )
+        self.assertNotEqual(manifest_a.run_id, manifest_b.run_id)
+        self.assertEqual(manifest_a.workspace_id, manifest_b.workspace_id)  # both defaulted, shared label
+        for repeat_runs in results_a.values():
+            for run in repeat_runs:
+                self.assertEqual(run.baseline.epoch.session_id, manifest_a.run_id)
+                self.assertEqual(run.treatment.epoch.session_id, manifest_a.run_id)
 
 
 class ClassifyAndDispersionUnitTests(unittest.TestCase):

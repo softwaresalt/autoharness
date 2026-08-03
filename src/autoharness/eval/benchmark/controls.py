@@ -6,9 +6,19 @@ resolve_frozen_state`), seed pinning, warm/cold/stale index-state
 classification, ``ENGRAM_DEGRADED``-style capture
 (``degraded_tool_count`` / ``stale_or_unavailable_index_count`` roll-ups),
 N-repeat dispersion, and a :class:`RunManifest` recording
-``workspace_id`` / ``commit_sha`` / corpus-hash / route / seed — plus the
-**isolated benchmark sink path** (review-fix R1c) so a published result is
-independently reproducible and provably sink-isolated.
+``workspace_id`` / ``run_id`` / ``commit_sha`` / corpus-hash / route / seed —
+plus the **isolated benchmark sink path** (review-fix R1c) so a published
+result is independently reproducible and provably sink-isolated.
+
+``run_id`` (review-fix, H6) is a fresh ``uuid4`` hex minted once per
+``run_benchmark`` call and stamped onto every epoch this run persists (via
+the existing, previously-unused
+:class:`~autoharness.telemetry.epoch.ExecutionEpoch.session_id` field) —
+unlike ``workspace_id``, which a caller may reuse verbatim across separate
+runs (the harness default is a fixed constant), ``run_id`` is unique per
+*invocation* and gives reporting a positive way to tie sink records back to
+*this specific* run rather than merely to *a* run sharing the same
+workspace/corpus/repeat shape.
 
 Mandatory invariant (H5/R5): a degraded/cold-index treatment run is captured
 and classified — **never dropped or treated as an error**. A scenario whose
@@ -20,6 +30,7 @@ a cold index is a ``negative`` outcome, not a silently-dropped success).
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean as _mean
@@ -146,6 +157,7 @@ class RunManifest:
     """A reproducible record of one benchmark run's controls."""
 
     workspace_id: str
+    run_id: str
     commit_sha: str | None
     corpus_hash: str
     route: tuple[str, ...]
@@ -161,6 +173,7 @@ class RunManifest:
     def to_dict(self) -> dict[str, Any]:
         return {
             "workspace_id": self.workspace_id,
+            "run_id": self.run_id,
             "commit_sha": self.commit_sha,
             "corpus_hash": self.corpus_hash,
             "route": list(self.route),
@@ -240,6 +253,7 @@ def run_benchmark(
     resolved = resolve_frozen_state(FrozenState(base="HEAD", head="HEAD"), cwd=workspace_root_path)
     commit_sha = resolved.resolved_sha if resolved is not None else None
     ws_id = workspace_id or DEFAULT_WORKSPACE_ID
+    run_id = uuid.uuid4().hex
 
     results = run_corpus(
         corpus.scenarios,
@@ -248,6 +262,7 @@ def run_benchmark(
         seed=seed,
         executor=executor,
         workspace_id=ws_id,
+        run_id=run_id,
     )
 
     degraded_total = sum(
@@ -272,6 +287,7 @@ def run_benchmark(
 
     manifest = RunManifest(
         workspace_id=ws_id,
+        run_id=run_id,
         commit_sha=commit_sha,
         corpus_hash=corpus.manifest_hash,
         route=DEFAULT_ROUTE,

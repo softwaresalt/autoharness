@@ -331,6 +331,7 @@ def run_scenario(
     seed: int = 0,
     executor: ArmExecutor = default_arm_executor,
     workspace_id: str | None = None,
+    run_id: str | None = None,
 ) -> tuple[RepeatRun, ...]:
     """Run ``scenario`` under both arms for ``repeats`` repeats.
 
@@ -341,6 +342,14 @@ def run_scenario(
     every repeat remains independently readable via
     :func:`~autoharness.telemetry.reader.read_epoch_records`). Arms are
     distinguishable by ``phase``.
+
+    ``run_id`` (review-fix, H6), when given, is stamped onto every persisted
+    epoch's ``session_id`` field. Unlike ``workspace_id`` — which a caller
+    may reuse verbatim across unrelated runs — ``run_id`` is expected to be
+    unique per invocation (see
+    :func:`~autoharness.eval.benchmark.controls.run_benchmark`), giving
+    reporting a positive per-run correlation key distinct from the
+    per-scenario/repeat/arm ``backlog_item_id`` convention.
 
     Raises:
         BenchmarkHarnessError: an enabled ``telemetry_config`` accepted an
@@ -367,6 +376,7 @@ def run_scenario(
                 backlog_item_id=backlog_item_id,
                 phase=PHASE_BY_ARM[arm],
                 workspace_id=ws_id,
+                session_id=run_id,
                 route=RouteConfiguration(
                     models=("benchmark-deterministic-replay",),
                     route_kinds=(arm,),
@@ -420,6 +430,7 @@ def run_corpus(
     seed: int = 0,
     executor: ArmExecutor = default_arm_executor,
     workspace_id: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, tuple[RepeatRun, ...]]:
     """Run every scenario in a corpus; returns per-scenario repeat runs, keyed by id."""
     return {
@@ -430,6 +441,7 @@ def run_corpus(
             seed=seed,
             executor=executor,
             workspace_id=workspace_id,
+            run_id=run_id,
         )
         for scenario in scenarios
     }
