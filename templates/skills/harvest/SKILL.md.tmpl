@@ -105,6 +105,41 @@ Before creating anything, apply backlog shaping rules:
 4. Preserve plan references so downstream execution can trace work
    back to the plan.
 
+**Size + complexity are mandatory, non-conflated, two-axis metadata
+(NON-NEGOTIABLE):** Every emitted task-kind work item MUST carry both a
+`size` value (effort/volume: `XS`, `S`, `M`, `L`, `XL`) and a `complexity`
+value (difficulty/uncertainty: `trivial`, `low`, `medium`, `high`). These are
+two independent axes, never a single combined scalar — see
+`{{DOCS_ROOT}}/size-complexity-reference.md` for the full non-conflation
+contract, enum tables, and the provenance-completeness rule. When the
+`backlogit` capability pack defines a native `size_source`/`size_ruleset_version`
+pair, set `size_source: agent` and a non-empty `size_ruleset_version` alongside
+`size` — provenance fields are recorded together or not at all.
+
+**Enum validation gate (fail-closed):** Validate `size` against
+`XS|S|M|L|XL` and `complexity` against `trivial|low|medium|high` before
+emitting or writing any work item. Reject and halt on any other value rather
+than silently coercing or defaulting it. This validation is an extension of
+the existing P-003 granularity gate below, not a separate check — a task
+that fails size/complexity validation is exactly as unready for staging as
+one missing an acceptance criterion.
+
+**Two-axis granularity gate (extends the 2-hour rule, P-003):** The 2-hour
+rule from shaping rule 1 above is evaluated on BOTH axes independently, never
+on size alone:
+
+* A `size` estimate implying more than 2 hours of human-equivalent effort
+  requires splitting the task, regardless of its `complexity`.
+* A `complexity: high` task requires de-risking (via further decomposition,
+  a spike, or additional deliberation) or an explicit split before being
+  emitted as a single executable task — even when its `size` is small. High
+  complexity is never a reason to skip the granularity check just because
+  the size looks small.
+
+Do not conflate the two axes: never derive `complexity` from `size` (or vice
+versa), and never emit a single blended difficulty/effort scalar in place of
+the two distinct fields.
+
 **Parent-first ordering (NON-NEGOTIABLE):** Tasks require a `{{FIELD_PARENT_ID}}`
 referencing an existing feature. The root feature MUST be created before any
 tasks are created. If the harvest context does not include an existing parent
@@ -123,7 +158,8 @@ Ship can assemble the shipment correctly.
 
 If `${input:dry_run}` is `true`:
 
-1. Produce the proposed feature, task, subtask, and dependency structure.
+1. Produce the proposed feature, task, subtask, and dependency structure,
+   including the proposed `size` and `complexity` value for every task.
 2. Broadcast the dry-run counts.
 3. Do not call backlog mutation tools.
 
@@ -134,7 +170,10 @@ If `${input:dry_run}` is `false`:
    items with matching titles.
 2. Create the root feature via `{{OP_CREATE_MCP}}` or
    `{{OP_CREATE_CLI}}`.
-3. Create one task per implementation unit under that feature.
+3. Create one task per implementation unit under that feature. Set `size`
+   and `complexity` (and `size_source`/`size_ruleset_version` provenance
+   when the backlog tool supports them) on every task, validated per the
+   enum validation gate above.
 4. Create granular subtasks under each task.
 5. Wire dependencies when the backlog tool supports dependency operations
    (check the backlog registry for availability).
@@ -157,6 +196,9 @@ If `${input:dry_run}` is `false`:
   happens downstream in Stage (Step 5.5) or Ship (fallback path).
 * Keep descriptions self-contained enough for the next executor to act
   without reopening the plan for basic context.
+* Never emit a task without both `size` and `complexity` set and enum-validated.
+* Never combine `size` and `complexity` into one field or derive one axis from
+  the other — see `{{DOCS_ROOT}}/size-complexity-reference.md`.
 
 ## Model Routing
 
