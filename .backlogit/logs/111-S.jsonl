@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-02T22:52:24.7578156-07:00","actor":"backlogit","item_id":"111-S","event_type":"shipment_created","delta":{"items":["085.001-T","085.002-T","085.003-T","085.004-T","085.005-T","085.006-T","085.007-T","085.008-T"],"title":"structural-navigation-benchmark-suite"}}
+{"timestamp":"2026-08-02T23:46:23.5018936-07:00","actor":"backlogit","item_id":"111-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
