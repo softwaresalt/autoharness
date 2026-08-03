@@ -64,6 +64,15 @@ def _default_metrics_root(workspace_root: Path) -> Path:
     return (workspace_root / DEFAULT_DATABASE_PATH).parent.resolve()
 
 
+def _is_within(root: Path, candidate: Path) -> bool:
+    """True when ``candidate`` resolves inside (or equals) ``root``."""
+    try:
+        candidate.relative_to(root)
+        return True
+    except ValueError:
+        return candidate == root
+
+
 def isolated_benchmark_telemetry_config(
     sink_root: Path | str,
     *,
@@ -73,20 +82,37 @@ def isolated_benchmark_telemetry_config(
     """Build a :class:`TelemetryConfig` confined to an isolated benchmark sink.
 
     Refuses (raises :class:`BenchmarkHarnessError`) to build a config whose
-    resolved sink directory is the workspace's default authoritative metrics
-    store (``.autoharness/metrics``) — the mandatory sink-isolation invariant.
-    Any other in-workspace-or-not directory dedicated to the benchmark run is
-    accepted; callers are expected to pass a run-scoped ``benchmark/`` path
-    (e.g. a temp directory or ``.autoharness/benchmark-runs/<run-id>``).
+    resolved sink directory is, or lives under, the workspace's default
+    authoritative metrics store (``.autoharness/metrics``) — the mandatory
+    sink-isolation invariant. The check is containment-based (review-fix),
+    not exact-match-only: a subdirectory of the production metrics root
+    (e.g. ``.autoharness/metrics/subdir``) is rejected too, not just the
+    exact production path itself.
+
+    A relative ``sink_root`` resolves against ``workspace_root`` (review-fix:
+    previously resolved against the process CWD regardless of
+    ``workspace_root``, which was misleading given ``workspace_root`` is the
+    documented resolution base). An absolute ``sink_root`` is honored as
+    given. The sink is deliberately allowed to live **outside**
+    ``workspace_root`` entirely (e.g. a dedicated temp directory, or a
+    ``benchmark-runs/`` area outside the project workspace) — that is the
+    isolation this function exists to provide, not a defect: the only
+    location that is forbidden is the authoritative production metrics
+    store (and its subdirectories) itself. Any other in-workspace-or-not
+    directory dedicated to the benchmark run is accepted; callers are
+    expected to pass a run-scoped ``benchmark/`` path (e.g. a temp directory
+    or ``.autoharness/benchmark-runs/<run-id>``).
     """
-    root = Path(sink_root).resolve()
     workspace = Path(workspace_root).resolve() if workspace_root is not None else Path.cwd().resolve()
+    sink_root_path = Path(sink_root)
+    root = sink_root_path if sink_root_path.is_absolute() else (workspace / sink_root_path)
+    root = root.resolve()
     default_root = _default_metrics_root(workspace)
-    if root == default_root:
+    if _is_within(default_root, root):
         raise BenchmarkHarnessError(
-            f"Refusing to point the benchmark telemetry sink at the authoritative "
-            f"production metrics store ({default_root}); pass a dedicated "
-            "run-scoped benchmark sink directory instead (sink isolation, R1c)."
+            f"Refusing to point the benchmark telemetry sink at (or under) the "
+            f"authoritative production metrics store ({default_root}); pass a "
+            "dedicated run-scoped benchmark sink directory instead (sink isolation, R1c)."
         )
     database_path = root / "execution_epochs.db"
     jsonl_path = root / "execution_epochs.jsonl"
@@ -97,6 +123,7 @@ def isolated_benchmark_telemetry_config(
         emit_jsonl=emit_jsonl,
         jsonl_path=jsonl_path,
     )
+
 
 
 @dataclass(frozen=True)
@@ -304,6 +331,16 @@ def run_scenario(
     every repeat remains independently readable via
     :func:`~autoharness.telemetry.reader.read_epoch_records`). Arms are
     distinguishable by ``phase``.
+
+    Raises:
+        BenchmarkHarnessError: an enabled ``telemetry_config`` accepted an
+            epoch write into neither its sqlite nor its jsonl sink
+            (review-fix). :func:`~autoharness.telemetry.record.record_epoch`
+            is deliberately fail-open at the sink layer and reports failures
+            through :class:`~autoharness.telemetry.record.RecordSummary`
+            rather than raising; without this check, a total sink failure
+            would let ``run_scenario`` return a successful result with fewer
+            than the promised 2xN epochs actually persisted.
     """
     if repeats < 1:
         raise BenchmarkHarnessError("repeats must be >= 1.")
@@ -329,6 +366,22 @@ def run_scenario(
                 outcome=outcome.outcome,
             )
             summary = record_epoch(epoch, telemetry_config)
+            if telemetry_config.enabled and not summary.sqlite_written and not summary.jsonl_written:
+                # record_epoch is deliberately fail-open at the telemetry-sink
+                # layer (a single sink failure never crashes a caller) and
+                # reports the outcome through RecordSummary rather than
+                # raising. The benchmark harness promises exactly 2xN
+                # persisted epochs for N repeats (mandatory invariant); if
+                # every configured sink rejected this epoch, continuing
+                # silently would let the run report success with fewer than
+                # 2xN epochs actually persisted. Fail closed here instead
+                # (review-fix).
+                raise BenchmarkHarnessError(
+                    f"Benchmark epoch for {backlog_item_id!r} was not persisted by any "
+                    f"configured sink (sqlite_status={summary.sqlite_status!r}, "
+                    f"jsonl_status={summary.jsonl_status!r}); refusing to continue since the "
+                    "2xN persisted-epochs invariant would be violated."
+                )
             arm_runs[arm] = ArmRun(
                 scenario_id=scenario.id,
                 arm=arm,

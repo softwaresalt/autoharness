@@ -85,6 +85,28 @@ class ScenarioCorpusTests(unittest.TestCase):
         with self.assertRaises(CorpusError):
             load_corpus({"scenarios": scenarios})
 
+    def test_negative_scenario_with_nonempty_gold_answer_rejected(self) -> None:
+        # Review-fix (Copilot thread PRRT_kwDORzpWpM6V5nzv): the
+        # balanced-class check alone does not stop a mislabeled scenario
+        # from evading the anti-cherry-picking invariant — a 'negative'
+        # scenario's gold_answer must be validated as empty too.
+        scenarios = [dict(s) for s in _BALANCED["scenarios"]]
+        scenarios[2]["gold_answer"] = ["unexpected.py"]
+        with self.assertRaises(CorpusError):
+            load_corpus({"scenarios": scenarios})
+
+    def test_positive_scenario_with_empty_gold_answer_rejected(self) -> None:
+        scenarios = [dict(s) for s in _BALANCED["scenarios"]]
+        scenarios[0]["gold_answer"] = []
+        with self.assertRaises(CorpusError):
+            load_corpus({"scenarios": scenarios})
+
+    def test_neutral_scenario_with_empty_gold_answer_rejected(self) -> None:
+        scenarios = [dict(s) for s in _BALANCED["scenarios"]]
+        scenarios[1]["gold_answer"] = []
+        with self.assertRaises(CorpusError):
+            load_corpus({"scenarios": scenarios})
+
     def test_manifest_hash_deterministic(self) -> None:
         corpus_a = load_corpus(_BALANCED)
         corpus_b = load_corpus(_BALANCED)

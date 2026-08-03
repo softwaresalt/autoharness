@@ -13,9 +13,15 @@ scenario and does not score anything. It mirrors the existing
 
 The loader enforces the **balanced-class invariant**: a corpus must declare at
 least one scenario of each class (``positive``, ``neutral``, ``negative``) so a
-published benchmark result cannot cherry-pick only favorable cases (H2/R2). It
-also computes a canonical, deterministic **corpus manifest hash** over the
-sorted scenario ids so a published result is independently reproducible.
+published benchmark result cannot cherry-pick only favorable cases (H2/R2).
+Beyond the class tally, each scenario's ``gold_answer`` is validated against
+its own declared ``scenario_class`` (review-fix): a ``negative`` scenario must
+declare an **empty** gold answer (the correct behavior is finding nothing),
+and a ``positive``/``neutral`` scenario must declare **at least one** gold
+target — otherwise a nominally balanced corpus could still evade the
+anti-cherry-picking invariant via a mislabeled scenario. It also computes a
+canonical, deterministic **corpus manifest hash** over the sorted scenario ids
+so a published result is independently reproducible.
 """
 
 from __future__ import annotations
@@ -112,6 +118,25 @@ def _parse_scenario(raw: Any, index: int) -> Scenario:
             f"got {index_state!r}."
         )
     rationale = _require_nonempty_str(raw.get("rationale"), f"scenarios[{index}].rationale")
+
+    # Review-fix: the balanced-class invariant validates only that each class
+    # *label* is present somewhere in the corpus — it does not, on its own,
+    # stop a mislabeled scenario from evading the classes' actual meaning
+    # (H2/R2: negative means "the correct answer is nothing", positive/neutral
+    # mean "there is at least one correct target"). Enforce that contract
+    # directly on every scenario, not just on the aggregate class tally.
+    if scenario_class == "negative" and gold_answer:
+        raise CorpusError(
+            f"scenarios[{index}] ({scenario_id!r}) is scenario_class 'negative' but declares a "
+            f"non-empty gold_answer {list(gold_answer)!r}; a negative scenario's gold answer must "
+            "be the empty set (the correct behavior is to find nothing)."
+        )
+    if scenario_class != "negative" and not gold_answer:
+        raise CorpusError(
+            f"scenarios[{index}] ({scenario_id!r}) is scenario_class {scenario_class!r} but "
+            "declares an empty gold_answer; only a 'negative' scenario may have an empty gold "
+            "answer — positive/neutral scenarios must declare at least one gold target."
+        )
 
     return Scenario(
         id=scenario_id,
