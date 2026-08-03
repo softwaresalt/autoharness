@@ -78,23 +78,30 @@ class MetricsAdapterError(ValueError):
 def _record_field_quality(record: Mapping[str, Any], section: str, field_name: str) -> str:
     """Worst-case quality label for one field on one record.
 
-    A field with an explicit, recognized ``metric_quality`` label uses it
-    verbatim. A field that is absent or the ``unavailable`` sentinel is
-    ``unavailable``. A field whose numeric value is exactly zero and has no
-    label is treated as ``observed`` (a zero-count is a legitimate observation,
-    not a provenance gap — mirrors the shipped ``_metric_is_populated``
-    contract). Any other populated-but-unlabeled value is a genuine provenance
-    gap and degrades to ``unavailable`` rather than defaulting to false
-    precision.
+    Value presence is checked *before* trusting any ``metric_quality`` label
+    (review-fix): a field that is absent or the ``unavailable`` sentinel is
+    ``unavailable`` regardless of what the quality map claims — an
+    operational record such as
+    ``{"operations": {"metric_quality": {"raw_search_count": "estimated"}}}``
+    with no ``raw_search_count`` key at all must not be reported as an
+    "estimated" zero (that would produce an estimated total of zero for a
+    value that was never recorded, violating the unavailable-not-zero
+    invariant). Only once the value is confirmed present does an explicit,
+    recognized ``metric_quality`` label get trusted verbatim. A field whose
+    numeric value is exactly zero and has no label is treated as ``observed``
+    (a zero-count is a legitimate observation, not a provenance gap — mirrors
+    the shipped ``_metric_is_populated`` contract). Any other
+    populated-but-unlabeled value is a genuine provenance gap and degrades to
+    ``unavailable`` rather than defaulting to false precision.
     """
     section_data = record.get(section) or {}
+    value = section_data.get(field_name)
+    if value is None or value == UNAVAILABLE:
+        return UNAVAILABLE
     quality_map = section_data.get("metric_quality")
     label = quality_map.get(field_name) if isinstance(quality_map, Mapping) else None
     if isinstance(label, str) and label in _QUALITY_RANK:
         return label
-    value = section_data.get(field_name)
-    if value is None or value == UNAVAILABLE:
-        return UNAVAILABLE
     if isinstance(value, (int, float)) and value == 0:
         return "observed"
     return UNAVAILABLE
@@ -138,19 +145,30 @@ def scenario_arm_records(
 
     Correlates via the ``benchmark:<scenario_id>:<repeat_index>:<arm>``
     ``backlog_item_id`` convention (:mod:`autoharness.eval.benchmark.harness`).
-    Matching is prefix/suffix-based (not exact-equality, unlike
-    :func:`~autoharness.telemetry.report.filter_records`) because the
-    per-repeat index must vary within a slice while the scenario id and arm
-    stay fixed.
+
+    Matching parses the exact ``<scenario_id>`` segment rather than using a
+    naive prefix/suffix ``str.startswith``/``str.endswith`` check
+    (review-fix): a colon-delimited scenario id that is itself a prefix of
+    another scenario id — e.g. ``a`` and ``a:b`` — would otherwise conflate
+    the two, since ``benchmark:a:b:0:baseline`` both starts with
+    ``benchmark:a:`` and ends with ``:baseline``, double-counting the ``a:b``
+    epochs into the ``a`` slice's aggregate. The repeat-index segment (the
+    last colon-delimited token before the arm) is parsed off first and must
+    be all-digits; everything remaining must equal ``scenario_id`` exactly.
     """
-    prefix = f"{BENCHMARK_NAMESPACE_PREFIX}{scenario_id}:"
+    prefix = BENCHMARK_NAMESPACE_PREFIX
     suffix = f":{arm}"
-    return tuple(
-        dict(record)
-        for record in records
-        if str(record.get("backlog_item_id", "")).startswith(prefix)
-        and str(record.get("backlog_item_id", "")).endswith(suffix)
-    )
+    matched: list[dict[str, Any]] = []
+    for record in records:
+        backlog_item_id = str(record.get("backlog_item_id", ""))
+        if not backlog_item_id.startswith(prefix) or not backlog_item_id.endswith(suffix):
+            continue
+        middle = backlog_item_id[len(prefix) : -len(suffix)]
+        candidate_scenario_id, sep, repeat_part = middle.rpartition(":")
+        if not sep or not repeat_part.isdigit() or candidate_scenario_id != scenario_id:
+            continue
+        matched.append(dict(record))
+    return tuple(matched)
 
 
 @dataclass(frozen=True)

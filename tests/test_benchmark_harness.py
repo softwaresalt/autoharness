@@ -110,6 +110,13 @@ class RunScenarioTests(unittest.TestCase):
                 self.assertEqual(quality, "estimated", f"{arm}.{name} should be labeled estimated")
             for name, quality in outcome.economics.metric_quality.items():
                 self.assertEqual(quality, "estimated", f"{arm} economics.{name} should be labeled estimated")
+            # Review-fix (Copilot thread PRRT_kwDORzpWpM6V5UuI): context_area_tokens
+            # is never actually measured by this executor (left at the
+            # dataclass default of 0), so it must be explicitly present in
+            # the estimated-quality label set — otherwise its unset zero
+            # would read as a legitimate "observed" zero-count instead of
+            # the unmeasured proxy it actually is (H4).
+            self.assertIn("context_area_tokens", outcome.economics.metric_quality)
 
     def test_production_metrics_db_untouched(self) -> None:
         production_db = self.workspace_root / DEFAULT_DATABASE_PATH

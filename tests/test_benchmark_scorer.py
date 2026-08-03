@@ -95,6 +95,27 @@ class RegressedTests(unittest.TestCase):
         treatment = score_arm("s1", "treatment", ["a.py", "b.py"], ["a.py", "b.py"])
         self.assertFalse(regressed(baseline, treatment))
 
+    def test_precision_drop_with_unchanged_recall_is_regression(self) -> None:
+        # Review-fix (Copilot thread PRRT_kwDORzpWpM6V5Utv): baseline {a} and
+        # treatment {a, spurious} against gold {a, b} have equal hit counts
+        # (1) — recall is unchanged (0.5 for both) — but treatment's
+        # precision drops from 1.0 (1/1) to 0.5 (1/2). This must be a
+        # regression, or reporting could emit an efficiency "win" over a
+        # noisier treatment, violating H3.
+        baseline = score_arm("s1", "baseline", ["a.py"], ["a.py", "b.py"])
+        treatment = score_arm("s1", "treatment", ["a.py", "spurious.py"], ["a.py", "b.py"])
+        self.assertEqual(baseline.recall, treatment.recall)
+        self.assertGreater(baseline.precision, treatment.precision)
+        self.assertTrue(regressed(baseline, treatment))
+
+    def test_equal_precision_and_recall_is_not_regression(self) -> None:
+        # Same hit count and same false-positive count (zero, for both) —
+        # not a regression; guards the precision-drop fix above against a
+        # false positive on ordinary equal-quality arms.
+        baseline = score_arm("s1", "baseline", ["a.py"], ["a.py", "b.py"])
+        treatment = score_arm("s1", "treatment", ["a.py"], ["a.py", "b.py"])
+        self.assertFalse(regressed(baseline, treatment))
+
 
 if __name__ == "__main__":
     unittest.main()

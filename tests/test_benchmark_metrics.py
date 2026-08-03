@@ -79,13 +79,12 @@ class MetricsIntegrationTests(unittest.TestCase):
 
     def test_estimated_operand_yields_estimated_quality(self) -> None:
         delta = compute_scenario_delta(self.read_result.records, "pos-config-lookup-warm")
-        for name, field_delta in delta.fields.items():
-            if name == "context_area_tokens":
-                # Never populated by the synthetic executor — a real,
-                # legitimate zero-count observation (H4: zero-with-no-label
-                # is "observed", not a provenance gap), not "estimated".
-                self.assertEqual(field_delta.quality, "observed")
-                continue
+        for field_delta in delta.fields.values():
+            # Every economics field the synthetic executor populates —
+            # including context_area_tokens, which is never actually
+            # measured (left at the dataclass default of 0) — is labeled
+            # "estimated" (H4: an unmeasured proxy must never look
+            # "observed" just because its default happens to be zero).
             self.assertIn(field_delta.quality, ("estimated", NOT_APPLICABLE, UNAVAILABLE))
 
     def test_compute_corpus_deltas_covers_every_scenario(self) -> None:
@@ -178,6 +177,49 @@ class MalformedQualityLabelFailClosedTests(unittest.TestCase):
         field_delta = scope_delta.fields["input_tokens"]
         self.assertEqual(field_delta.delta, UNAVAILABLE)
         self.assertEqual(field_delta.quality, UNAVAILABLE)
+
+    def test_recognized_label_with_absent_value_still_fails_closed_to_unavailable(self) -> None:
+        # Review-fix (Copilot thread PRRT_kwDORzpWpM6V5Usj): a recognized
+        # quality label must not be trusted before the field's value is
+        # confirmed present. An operational record such as
+        # {"operations": {"metric_quality": {"raw_search_count": "estimated"}}}
+        # has no raw_search_count key at all — trusting the label verbatim
+        # would report an "estimated" quality for a value that was never
+        # recorded, producing an estimated total of zero and violating the
+        # unavailable-not-zero invariant (H1).
+        record = {"operations": {"metric_quality": {"raw_search_count": "estimated"}}}
+        self.assertEqual(_record_field_quality(record, "operations", "raw_search_count"), UNAVAILABLE)
+
+
+class ScenarioArmRecordsColonCollisionTests(unittest.TestCase):
+    """Review-fix (Copilot thread PRRT_kwDORzpWpM6V5UsG): exact scenario-id segment parsing.
+
+    A naive prefix/suffix match on ``backlog_item_id`` conflates a scenario
+    id that is itself a colon-delimited prefix of another scenario id — e.g.
+    ``a`` and ``a:b`` — because ``benchmark:a:b:0:baseline`` both starts with
+    ``benchmark:a:`` and ends with ``:baseline``. ``scenario_arm_records``
+    must parse the repeat-index segment off first and match the remaining
+    scenario-id segment for exact equality, not just prefix/suffix
+    containment.
+    """
+
+    def test_short_scenario_id_does_not_absorb_colon_extended_scenario_id(self) -> None:
+        records = (
+            {"backlog_item_id": "benchmark:a:0:baseline", "economics": {"input_tokens": 10}},
+            {"backlog_item_id": "benchmark:a:b:0:baseline", "economics": {"input_tokens": 999}},
+        )
+        matched = scenario_arm_records(records, "a", "baseline")
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]["backlog_item_id"], "benchmark:a:0:baseline")
+
+    def test_colon_extended_scenario_id_matches_only_its_own_records(self) -> None:
+        records = (
+            {"backlog_item_id": "benchmark:a:0:baseline", "economics": {"input_tokens": 10}},
+            {"backlog_item_id": "benchmark:a:b:0:baseline", "economics": {"input_tokens": 999}},
+        )
+        matched = scenario_arm_records(records, "a:b", "baseline")
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]["backlog_item_id"], "benchmark:a:b:0:baseline")
 
 
 if __name__ == "__main__":

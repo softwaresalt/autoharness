@@ -13,7 +13,11 @@ from autoharness.eval.benchmark.controls import (
     compute_dispersion,
     run_benchmark,
 )
-from autoharness.eval.benchmark.harness import isolated_benchmark_telemetry_config, run_corpus
+from autoharness.eval.benchmark.harness import (
+    BenchmarkHarnessError,
+    isolated_benchmark_telemetry_config,
+    run_corpus,
+)
 from autoharness.eval.benchmark.scenarios import load_default_corpus
 
 
@@ -51,6 +55,26 @@ class RunBenchmarkTests(unittest.TestCase):
                 self.corpus, non_repo / "sink", repeats=1, seed=0, workspace_root=non_repo
             )
             self.assertIsNone(manifest.commit_sha)
+
+    def test_reused_nonempty_sink_is_rejected(self) -> None:
+        # Review-fix (Copilot thread PRRT_kwDORzpWpM6V5Us5): a sink_root that
+        # already holds epoch records from a prior run_benchmark call must be
+        # rejected, not silently appended to — otherwise a later
+        # read_epoch_records/metrics/reporting pass would aggregate both
+        # runs together while the manifest still reports only the current
+        # call's `repeats`, corrupting reproducibility.
+        run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        with self.assertRaises(BenchmarkHarnessError):
+            run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+
+    def test_fresh_sink_per_run_is_accepted(self) -> None:
+        # Guards the rejection fix above against a false positive: two
+        # distinct, run-scoped sink_root directories must both succeed.
+        run_benchmark(self.corpus, self.sink_root / "run-1", repeats=1, seed=0, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root / "run-2", repeats=1, seed=0, workspace_root=Path.cwd()
+        )
+        self.assertEqual(manifest.repeats, 1)
 
     def test_cold_index_scenario_captured_and_classified_negative(self) -> None:
         _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())

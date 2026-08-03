@@ -141,7 +141,11 @@ def default_arm_executor(scenario: Scenario, arm: Arm, repeat_index: int, seed: 
     ``stale`` (drops the last gold target), and misses entirely under
     ``cold`` (the degraded/cold-index case, H5) — all marked with
     ``metric_quality: estimated`` because these are synthesized, not observed,
-    values (H4).
+    values (H4). This executor never measures ``context_area_tokens`` (it is
+    left at the dataclass default of ``0``), so it is included in the
+    estimated-quality label set too (review-fix): without an explicit label
+    an unset-but-zero field reads as a legitimate ``observed`` zero-count
+    rather than the unmeasured proxy it actually is, contradicting H4.
     """
     estimated_quality = {
         name: "estimated"
@@ -150,6 +154,7 @@ def default_arm_executor(scenario: Scenario, arm: Arm, repeat_index: int, seed: 
             "output_tokens",
             "cogs_usd",
             "duration_seconds",
+            "context_area_tokens",
             "avoided_read_estimated_tokens",
             "tool_output_estimated_tokens",
         )

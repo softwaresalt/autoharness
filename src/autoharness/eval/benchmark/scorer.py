@@ -110,11 +110,29 @@ def regressed(baseline: CorrectnessScore, treatment: CorrectnessScore) -> bool:
     strictly less of the gold answer than the baseline while the baseline was
     at least as good. This keeps H3 (no efficiency win when correctness
     regresses) decidable purely from two :class:`CorrectnessScore` values.
+
+    A precision-only regression is also caught (review-fix): when recall is
+    unchanged (equal hit counts against the same gold set) but the treatment
+    produced strictly more false positives than the baseline, correctness has
+    regressed even though the raw hit count looks identical. Example:
+    baseline produces ``{a}`` and treatment produces ``{a, spurious}`` against
+    gold ``{a, b}`` — both have 1 hit (equal recall), but treatment's
+    precision drops from 1.0 to 0.5. Without this check, an unchanged hit
+    count would let ``regressed`` return ``False`` and reporting could then
+    emit an efficiency ``win`` over a treatment that got noisier, violating
+    H3.
     """
-    baseline_hits = len(_as_frozen(baseline.produced) & _as_frozen(baseline.gold))
-    treatment_hits = len(_as_frozen(treatment.produced) & _as_frozen(treatment.gold))
+    baseline_produced = _as_frozen(baseline.produced)
+    treatment_produced = _as_frozen(treatment.produced)
+    baseline_hits = len(baseline_produced & _as_frozen(baseline.gold))
+    treatment_hits = len(treatment_produced & _as_frozen(treatment.gold))
     if treatment_hits < baseline_hits:
         return True
+    if treatment_hits == baseline_hits:
+        baseline_false_positives = len(baseline_produced) - baseline_hits
+        treatment_false_positives = len(treatment_produced) - treatment_hits
+        if treatment_false_positives > baseline_false_positives:
+            return True
     # Equal hit-count but the baseline was an exact match and treatment is not:
     # still a regression (e.g. baseline correctly found nothing, treatment
     # spuriously produced something extra).

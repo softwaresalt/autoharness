@@ -39,9 +39,14 @@ scenarios:
     index_state: "warm"
     rationale: >
       An intentionally ambiguous query with two plausible correct targets.
-      Neither arm is expected to achieve full recall; this is the neutral
-      class's defining trait — a partial-match case for the correctness
-      scorer's precision/recall axis (085.003-T).
+      Under this scenario's warm index, both arms are exact (the baseline
+      oracle always recalls the full gold set, and the routed treatment
+      arm's default executor also recalls it exactly whenever the index is
+      warm) — this scenario's neutral trait is the query's inherent
+      ambiguity/multi-target nature, not partial recall. The partial-recall
+      degraded mode is specifically exercised by the
+      neutral-stale-partial-recall scenario below, where a stale index
+      causes the treatment arm to drop the last gold target.
 
   - id: "neutral-stale-partial-recall"
     scenario_class: "neutral"

@@ -31,8 +31,12 @@ guard against R2 (a cherry-picked corpus that only reports favorable cases):
 - **`positive`** — a clean, answerable navigation task with a single unambiguous gold target.
   Establishes the case where an efficiency win is possible without correctness risk.
 - **`neutral`** — an intentionally ambiguous or multi-target task (more than one plausible correct
-  answer). Neither arm is expected to achieve full recall; this exercises the correctness scorer's
-  partial-match axis rather than a binary right/wrong outcome.
+  answer). This class's defining trait is the query's inherent ambiguity/multi-target nature, not
+  guaranteed partial recall — under a warm index both arms can still be exact (the shipped fixture's
+  `neutral-ambiguous-term-warm` scenario is exactly this case). The correctness scorer's
+  partial-match axis is specifically exercised by pairing the `neutral` class with a degraded index
+  state instead (the shipped fixture's `neutral-stale-partial-recall` scenario, under a `stale`
+  index).
 - **`negative`** — the gold answer is the **empty set** — there is no such symbol/module. Correctly
   reporting "not found" is the success condition here. Without this class, a corpus could reward
   an arm purely for producing *something*, regardless of whether nothing was the right answer.

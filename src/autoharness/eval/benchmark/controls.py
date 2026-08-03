@@ -29,6 +29,7 @@ from autoharness.eval.benchmark.harness import (
     ARMS,
     Arm,
     ArmExecutor,
+    BenchmarkHarnessError,
     RepeatRun,
     default_arm_executor,
     isolated_benchmark_telemetry_config,
@@ -37,6 +38,7 @@ from autoharness.eval.benchmark.harness import (
 from autoharness.eval.benchmark.scenarios import Scenario, ScenarioCorpus
 from autoharness.eval.runner import FrozenState, resolve_frozen_state
 from autoharness.telemetry.config import TelemetryConfig
+from autoharness.telemetry.reader import read_epoch_records
 
 
 def _outcome_classification(scenario: Scenario, *, degraded: bool) -> str:
@@ -194,11 +196,47 @@ def run_benchmark(
     existing eval frozen-state seam (never raises; ``None`` when git is
     unavailable), and builds the isolated benchmark telemetry sink via
     :func:`~autoharness.eval.benchmark.harness.isolated_benchmark_telemetry_config`.
+
+    Raises:
+        BenchmarkHarnessError: ``sink_root`` already holds epoch records from
+            a prior run (see the "reject a reused sink" note below), or
+            ``sink_root`` resolves to the authoritative production metrics
+            store (sink isolation, raised by
+            :func:`isolated_benchmark_telemetry_config`).
+
+    ``sink_root`` MUST be fresh (no pre-existing epoch records) for every
+    call — this run's manifest fields (``repeats``, degraded/stale totals,
+    dispersion) are only valid for the records this specific invocation
+    writes, and reusing a sink would let them silently accumulate across
+    runs while the manifest keeps reporting only the current call's
+    ``repeats`` (a reproducibility integrity gap). Pass a distinct,
+    run-scoped directory per call (e.g. a fresh temp directory or a
+    UUID-suffixed path).
     """
     workspace_root_path = Path(workspace_root).resolve() if workspace_root is not None else Path.cwd().resolve()
     telemetry_config: TelemetryConfig = isolated_benchmark_telemetry_config(
         sink_root, workspace_root=workspace_root_path
     )
+
+    # Reject a reused, non-empty sink (review-fix): run_benchmark's manifest
+    # (repeats, degraded/stale totals, dispersion) is only valid for the
+    # records this specific invocation writes. Appending to a sink that
+    # already holds epochs from a prior run would let a later
+    # read_epoch_records/metrics/reporting pass silently aggregate both runs
+    # together while the manifest still reports only the current run's
+    # `repeats` — a reproducibility integrity gap. Every run_benchmark call
+    # therefore requires a fresh, empty sink_root; callers must pass a
+    # distinct run-scoped directory (e.g. a temp dir or a UUID-suffixed path)
+    # per run.
+    existing = read_epoch_records(telemetry_config)
+    if existing.status == "ok" and existing.records:
+        raise BenchmarkHarnessError(
+            f"Refusing to run into a non-empty benchmark sink ({telemetry_config.database_path}); "
+            f"it already holds {len(existing.records)} epoch record(s) from a prior run. Pass a "
+            "fresh, run-scoped sink_root so this run's manifest (repeats, degraded/stale totals, "
+            "dispersion) stays valid for exactly the records this invocation writes."
+        )
+
     resolved = resolve_frozen_state(FrozenState(base="HEAD", head="HEAD"), cwd=workspace_root_path)
     commit_sha = resolved.resolved_sha if resolved is not None else None
     ws_id = workspace_id or DEFAULT_WORKSPACE_ID
