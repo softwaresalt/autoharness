@@ -148,6 +148,8 @@ def default_arm_executor(scenario: Scenario, arm: Arm, repeat_index: int, seed: 
         for name in (
             "input_tokens",
             "output_tokens",
+            "cogs_usd",
+            "duration_seconds",
             "avoided_read_estimated_tokens",
             "tool_output_estimated_tokens",
         )
