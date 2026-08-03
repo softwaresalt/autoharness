@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-03T15:29:00.9834818-07:00","actor":"agent","item_id":"107.003-T","event_type":"estimate_history","delta":{"actor":"agent","size":"S","size_ruleset_version":"ah-stage-sizing-v1","size_source":"agent"}}
+{"timestamp":"2026-08-03T15:31:12.0509935-07:00","actor":"stage","item_id":"107.003-T","event_type":"comment","delta":{"comment":"Planned complexity=low (enum validated). Native complexity field pending 107.005-T. size=S (effort) tracked separately; not conflated with complexity."}}
