@@ -61,3 +61,25 @@ This was correctly applied proactively during `110-S`'s closure (all 9
 manifest tasks + the shipment + the covering feature were explicitly
 archived one at a time, each verified to still carry the protected-set
 invariant — see `docs/closure/110-S-106-F-post-merge-closure.md`).
+
+## Second occurrence (111-S / 085-F)
+
+The gap recurred during `111-S`'s closure: the 8 manifest tasks had already
+been physically relocated to `.backlogit/archive/` by the feature branch's
+own task-loop commits (via `move --status done`), and this was
+misread as "already archived" (the pre-archived-item skip rule was
+misapplied — that rule is for items already carrying `status: archived`,
+not merely items whose *file* lives under `archive/`). The same
+misclassification then repeated for the covering feature `085-F`
+(archived via `move --status done` only). A Copilot review thread on the
+`111-S` post-merge closure PR caught the task-level gap; the symmetric
+feature-level gap was found proactively in the same fix pass. See
+`docs/closure/111-S-085-F-post-merge-closure.md`.
+
+**This compound-doc reminder alone was insufficient to prevent recurrence.**
+Recorded follow-up: add an explicit pre-flight status check as a hard step
+in the Step 5 Closure Tasks safe-close procedure — for every candidate
+"pre-archived" item, run `backlogit get <id>` (or read the file's `status`
+field) and treat `status: done` (even under `archive/` on disk) as **not
+archived**; only `status: archived` with `archived_status`/`archived_from`
+present may be skipped. Do not infer archived-ness from file location.
