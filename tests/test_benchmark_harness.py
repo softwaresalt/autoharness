@@ -61,18 +61,18 @@ class SinkIsolationTests(unittest.TestCase):
             # segments and otherwise fail a naive string/Path equality check.
             self.assertEqual(config.database_path, sink_root.resolve() / "execution_epochs.db")
 
-    def test_accepts_dedicated_benchmark_sink_outside_workspace(self) -> None:
-        # The isolation invariant forbids only the production metrics store
-        # (and its subdirectories) — a sink deliberately outside
-        # workspace_root entirely (e.g. a separate temp directory) is a
-        # legitimate, intended use of this isolation (not a defect to be
-        # rejected): that separation is what makes the sink "isolated".
+    def test_refuses_dedicated_benchmark_sink_outside_workspace(self) -> None:
+        # Review-fix (Copilot thread PRRT_kwDORzpWpM6V55em, reiterating
+        # PRRT_kwDORzpWpM6V5nyp): a sink outside workspace_root entirely
+        # bypasses the workspace-containment boundary enforced for ordinary
+        # telemetry (autoharness.telemetry.config) — reject it, matching
+        # that precedent, rather than treating "elsewhere on disk" as
+        # "isolated".
         with tempfile.TemporaryDirectory() as workspace_tmp, tempfile.TemporaryDirectory() as sink_tmp:
             workspace_root = Path(workspace_tmp)
             sink_root = Path(sink_tmp) / "outside-benchmark-sink"
-            config = isolated_benchmark_telemetry_config(sink_root, workspace_root=workspace_root)
-            self.assertTrue(config.enabled)
-            self.assertEqual(config.database_path, sink_root.resolve() / "execution_epochs.db")
+            with self.assertRaises(BenchmarkHarnessError):
+                isolated_benchmark_telemetry_config(sink_root, workspace_root=workspace_root)
 
 
 class RunScenarioTests(unittest.TestCase):

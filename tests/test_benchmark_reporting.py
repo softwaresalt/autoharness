@@ -27,7 +27,7 @@ class BuildReportTests(unittest.TestCase):
         self.sink_root = self.workspace_root / "sink"
         self.corpus = load_default_corpus()
         self.results, self.manifest = run_benchmark(
-            self.corpus, self.sink_root, repeats=2, seed=1, workspace_root=Path.cwd()
+            self.corpus, self.sink_root, repeats=2, seed=1, workspace_root=self.workspace_root
         )
         config = TelemetryConfig(
             enabled=True,
@@ -96,7 +96,7 @@ class RenderHonestReportTests(unittest.TestCase):
         self.sink_root = self.workspace_root / "sink"
         self.corpus = load_default_corpus()
         self.results, self.manifest = run_benchmark(
-            self.corpus, self.sink_root, repeats=1, seed=3, workspace_root=Path.cwd()
+            self.corpus, self.sink_root, repeats=1, seed=3, workspace_root=self.workspace_root
         )
         config = TelemetryConfig(
             enabled=True,

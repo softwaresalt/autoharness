@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -30,23 +31,50 @@ class RunBenchmarkTests(unittest.TestCase):
         self.corpus = load_default_corpus()
 
     def test_manifest_reproduces_corpus_hash(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root
+        )
         self.assertEqual(manifest.corpus_hash, self.corpus.manifest_hash)
 
     def test_manifest_pins_route_and_seed(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=42, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=42, workspace_root=self.workspace_root
+        )
         self.assertEqual(manifest.route, DEFAULT_ROUTE)
         self.assertEqual(manifest.seed, 42)
 
     def test_manifest_records_isolated_sink_paths(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root
+        )
         self.assertIn("execution_epochs.db", manifest.sink_database_path)
         self.assertNotIn(".autoharness", manifest.sink_database_path)
 
     def test_manifest_resolves_commit_sha_via_git(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
-        self.assertIsNotNone(manifest.commit_sha)
-        self.assertEqual(len(manifest.commit_sha or ""), 40)
+        # A dedicated, throwaway git repo (never the real project working
+        # tree) so the sink can be nested inside workspace_root (required by
+        # the workspace-containment check) while still resolving a real
+        # commit_sha.
+        with tempfile.TemporaryDirectory() as tmp:
+            git_repo_root = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=git_repo_root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"], cwd=git_repo_root, check=True
+            )
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=git_repo_root, check=True)
+            (git_repo_root / "README.md").write_text("throwaway repo for commit-sha resolution test\n")
+            subprocess.run(["git", "add", "."], cwd=git_repo_root, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=git_repo_root, check=True)
+
+            _, manifest = run_benchmark(
+                self.corpus,
+                git_repo_root / "benchmark-sink",
+                repeats=1,
+                seed=0,
+                workspace_root=git_repo_root,
+            )
+            self.assertIsNotNone(manifest.commit_sha)
+            self.assertEqual(len(manifest.commit_sha or ""), 40)
 
     def test_manifest_resolves_none_commit_sha_outside_git_repo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -63,28 +91,34 @@ class RunBenchmarkTests(unittest.TestCase):
         # read_epoch_records/metrics/reporting pass would aggregate both
         # runs together while the manifest still reports only the current
         # call's `repeats`, corrupting reproducibility.
-        run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root)
         with self.assertRaises(BenchmarkHarnessError):
-            run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+            run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root)
 
     def test_fresh_sink_per_run_is_accepted(self) -> None:
         # Guards the rejection fix above against a false positive: two
         # distinct, run-scoped sink_root directories must both succeed.
-        run_benchmark(self.corpus, self.sink_root / "run-1", repeats=1, seed=0, workspace_root=Path.cwd())
+        run_benchmark(
+            self.corpus, self.sink_root / "run-1", repeats=1, seed=0, workspace_root=self.workspace_root
+        )
         _, manifest = run_benchmark(
-            self.corpus, self.sink_root / "run-2", repeats=1, seed=0, workspace_root=Path.cwd()
+            self.corpus, self.sink_root / "run-2", repeats=1, seed=0, workspace_root=self.workspace_root
         )
         self.assertEqual(manifest.repeats, 1)
 
     def test_cold_index_scenario_captured_and_classified_negative(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root
+        )
         cold = next(c for c in manifest.scenario_classifications if c.scenario_id == "pos-cold-index-miss")
         self.assertTrue(cold.degraded)
         self.assertTrue(cold.retained)
         self.assertEqual(cold.outcome_classification, "negative")
 
     def test_stale_scenario_retained_not_demoted_from_degraded_flag(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root
+        )
         stale = next(
             c for c in manifest.scenario_classifications if c.scenario_id == "neutral-stale-partial-recall"
         )
@@ -96,40 +130,50 @@ class RunBenchmarkTests(unittest.TestCase):
         self.assertEqual(stale.outcome_classification, "neutral")
 
     def test_warm_scenario_not_degraded(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root
+        )
         warm = next(c for c in manifest.scenario_classifications if c.scenario_id == "pos-config-lookup-warm")
         self.assertFalse(warm.degraded)
         self.assertEqual(warm.outcome_classification, "positive")
 
     def test_degraded_and_stale_totals_are_nonzero(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root
+        )
         self.assertGreaterEqual(manifest.degraded_tool_count_total, 1)
         self.assertGreaterEqual(manifest.stale_or_unavailable_index_count_total, 2)
 
     def test_dispersion_present_when_repeats_greater_than_one(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=3, seed=1, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=3, seed=1, workspace_root=self.workspace_root
+        )
         self.assertTrue(manifest.dispersion)
         for d in manifest.dispersion:
             self.assertEqual(len(d.values), 3)
             self.assertGreaterEqual(d.spread, 0.0)
 
     def test_no_dispersion_when_repeats_equal_one(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=1, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=1, workspace_root=self.workspace_root
+        )
         self.assertEqual(manifest.dispersion, ())
 
     def test_repeated_runs_with_same_seed_reproduce_identical_dispersion(self) -> None:
         _, manifest_a = run_benchmark(
-            self.corpus, self.sink_root / "a", repeats=3, seed=9, workspace_root=Path.cwd()
+            self.corpus, self.sink_root / "a", repeats=3, seed=9, workspace_root=self.workspace_root
         )
         _, manifest_b = run_benchmark(
-            self.corpus, self.sink_root / "b", repeats=3, seed=9, workspace_root=Path.cwd()
+            self.corpus, self.sink_root / "b", repeats=3, seed=9, workspace_root=self.workspace_root
         )
         dispersion_a = {(d.scenario_id, d.arm): d.values for d in manifest_a.dispersion}
         dispersion_b = {(d.scenario_id, d.arm): d.values for d in manifest_b.dispersion}
         self.assertEqual(dispersion_a, dispersion_b)
 
     def test_manifest_to_dict_shape(self) -> None:
-        _, manifest = run_benchmark(self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=Path.cwd())
+        _, manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=1, seed=0, workspace_root=self.workspace_root
+        )
         payload = manifest.to_dict()
         self.assertIn("scenario_classifications", payload)
         self.assertIn("dispersion", payload)

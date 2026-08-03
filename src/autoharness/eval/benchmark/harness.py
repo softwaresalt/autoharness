@@ -17,12 +17,15 @@ and ``phase`` (``benchmark-baseline`` / ``benchmark-treatment``).
 
 **Sink isolation (review-fix R1c, mandatory invariant):** every benchmark run
 targets an isolated :class:`~autoharness.telemetry.config.TelemetryConfig`
-whose sink lives under a run-scoped ``benchmark/`` directory — **never** the
-repository's authoritative ``.autoharness/metrics`` store — so benchmark
-epochs can never pollute production telemetry aggregates.
-:func:`isolated_benchmark_telemetry_config` refuses to build a config pointed
-at the default production metrics path. Synthetic ``backlog_item_id`` /
-``workspace_id`` values use a reserved ``benchmark:`` namespace prefix.
+whose sink lives under a run-scoped ``benchmark/`` directory inside the
+workspace — **never** the repository's authoritative ``.autoharness/metrics``
+store — so benchmark epochs can never pollute production telemetry
+aggregates. :func:`isolated_benchmark_telemetry_config` requires the
+resolved sink directory to stay within ``workspace_root`` (matching the
+containment boundary enforced for ordinary telemetry in
+:mod:`autoharness.telemetry.config`) and refuses to build a config pointed at
+(or under) the default production metrics path. Synthetic ``backlog_item_id``
+/ ``workspace_id`` values use a reserved ``benchmark:`` namespace prefix.
 """
 
 from __future__ import annotations
@@ -81,32 +84,39 @@ def isolated_benchmark_telemetry_config(
 ) -> TelemetryConfig:
     """Build a :class:`TelemetryConfig` confined to an isolated benchmark sink.
 
-    Refuses (raises :class:`BenchmarkHarnessError`) to build a config whose
-    resolved sink directory is, or lives under, the workspace's default
-    authoritative metrics store (``.autoharness/metrics``) — the mandatory
-    sink-isolation invariant. The check is containment-based (review-fix),
-    not exact-match-only: a subdirectory of the production metrics root
-    (e.g. ``.autoharness/metrics/subdir``) is rejected too, not just the
-    exact production path itself.
+    The resolved sink directory must stay **within** ``workspace_root``
+    (review-fix, matching the workspace-containment boundary enforced for
+    ordinary telemetry in :mod:`autoharness.telemetry.config`) **and** must
+    not be, or live under, the workspace's default authoritative metrics
+    store (``.autoharness/metrics``) — the mandatory sink-isolation
+    invariant. Both checks are containment-based, not exact-match-only: a
+    subdirectory of the production metrics root (e.g.
+    ``.autoharness/metrics/subdir``) is rejected too, not just the exact
+    production path itself. Both violations raise
+    :class:`BenchmarkHarnessError` (fail closed — unlike
+    :mod:`~autoharness.telemetry.config`'s fail-*open*-to-disabled behavior
+    for ordinary telemetry, a benchmark run must never silently execute with
+    telemetry quietly disabled).
 
     A relative ``sink_root`` resolves against ``workspace_root`` (review-fix:
     previously resolved against the process CWD regardless of
     ``workspace_root``, which was misleading given ``workspace_root`` is the
     documented resolution base). An absolute ``sink_root`` is honored as
-    given. The sink is deliberately allowed to live **outside**
-    ``workspace_root`` entirely (e.g. a dedicated temp directory, or a
-    ``benchmark-runs/`` area outside the project workspace) — that is the
-    isolation this function exists to provide, not a defect: the only
-    location that is forbidden is the authoritative production metrics
-    store (and its subdirectories) itself. Any other in-workspace-or-not
-    directory dedicated to the benchmark run is accepted; callers are
-    expected to pass a run-scoped ``benchmark/`` path (e.g. a temp directory
-    or ``.autoharness/benchmark-runs/<run-id>``).
+    given, but is still subject to the workspace-containment check above.
+    Callers are expected to pass a run-scoped path inside the workspace
+    (e.g. ``.autoharness/benchmark-runs/<run-id>``, or a temp directory
+    created under the workspace root).
     """
     workspace = Path(workspace_root).resolve() if workspace_root is not None else Path.cwd().resolve()
     sink_root_path = Path(sink_root)
     root = sink_root_path if sink_root_path.is_absolute() else (workspace / sink_root_path)
     root = root.resolve()
+    if not _is_within(workspace, root):
+        raise BenchmarkHarnessError(
+            f"Refusing to point the benchmark telemetry sink ({root}) outside the "
+            f"workspace root ({workspace}); pass a sink_root that resolves inside the "
+            "workspace (workspace-containment, matching autoharness.telemetry.config)."
+        )
     default_root = _default_metrics_root(workspace)
     if _is_within(default_root, root):
         raise BenchmarkHarnessError(
