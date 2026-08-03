@@ -13,6 +13,7 @@ from autoharness.eval.benchmark.metrics import NOT_APPLICABLE
 from autoharness.eval.benchmark.reporting import (
     BenchmarkReport,
     ReportIdentityError,
+    RepeatCorrectnessVarianceError,
     build_report,
     render_honest_report,
 )
@@ -289,6 +290,59 @@ class BuildReportIdentityValidationTests(unittest.TestCase):
         with self.assertRaises(ReportIdentityError) as ctx:
             build_report(self.corpus, self.results, self.manifest, bad_read_result)
         self.assertIn("more than one record", str(ctx.exception))
+
+
+class RepeatCorrectnessVarianceTests(unittest.TestCase):
+    """Review-fix (Copilot thread PRRT_kwDORzpWpM6WFzL7): correctness must be
+    scored across every repeat, not just repeat 0 — a later repeat's
+    regression must not slip past the H3 no-win rule."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.workspace_root = Path(self._tmp.name)
+        self.sink_root = self.workspace_root / "sink"
+        self.corpus = load_default_corpus()
+        self.results, self.manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=2, seed=1, workspace_root=self.workspace_root
+        )
+        config = TelemetryConfig(
+            enabled=True,
+            mode="sqlite",
+            database_path=Path(self.manifest.sink_database_path),
+            emit_jsonl=True,
+            jsonl_path=Path(self.manifest.sink_jsonl_path) if self.manifest.sink_jsonl_path else None,
+        )
+        self.read_result = read_epoch_records(config)
+
+    def test_variance_across_repeats_fails_closed(self) -> None:
+        scenario_id = "pos-config-lookup-warm"
+        repeat_runs = self.results[scenario_id]
+        self.assertGreaterEqual(len(repeat_runs), 2)
+        # Corrupt repeat 1's treatment produced_answer so its correctness
+        # score disagrees with repeat 0's — the exact violation of the
+        # deterministic-core assumption this check exists to catch. Only
+        # produced_answer is mutated; the sink/epoch identity fields used by
+        # _validate_run_identity (H6) are untouched, so this isolates the H3
+        # per-repeat variance check.
+        mutated_treatment = dataclasses.replace(
+            repeat_runs[1].treatment, produced_answer=("not-the-gold-answer-at-all",)
+        )
+        mutated_repeat = dataclasses.replace(repeat_runs[1], treatment=mutated_treatment)
+        mutated_results = dict(self.results)
+        mutated_results[scenario_id] = (repeat_runs[0], mutated_repeat) + repeat_runs[2:]
+
+        with self.assertRaises(RepeatCorrectnessVarianceError) as ctx:
+            build_report(self.corpus, mutated_results, self.manifest, self.read_result)
+        self.assertIn(scenario_id, str(ctx.exception))
+
+    def test_no_variance_when_all_repeats_agree(self) -> None:
+        # Control: the unmodified fixture (every repeat's produced_answer is
+        # identical for the deterministic default_arm_executor) must build
+        # cleanly — this is not a fixed-verdict change, only a fail-closed
+        # guard for genuine cross-repeat disagreement.
+        report = build_report(self.corpus, self.results, self.manifest, self.read_result)
+        self.assertEqual(len(report.scenario_reports), len(self.corpus.scenarios))
 
 
 if __name__ == "__main__":

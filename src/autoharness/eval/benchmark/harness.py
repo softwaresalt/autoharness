@@ -76,6 +76,53 @@ def _is_within(root: Path, candidate: Path) -> bool:
         return candidate == root
 
 
+#: The ``.autoharness/metrics``-style path segments of the production
+#: metrics store, workspace-root-agnostic (mirrors DEFAULT_DATABASE_PATH's
+#: parent). Used by :func:`_require_isolated_enabled_telemetry_config`,
+#: which has no ``workspace_root`` to resolve against.
+_PRODUCTION_METRICS_SEGMENTS: tuple[str, ...] = Path(DEFAULT_DATABASE_PATH).parent.parts
+
+
+def _path_contains_segments(path: Path, segments: tuple[str, ...]) -> bool:
+    """True when ``segments`` appears as a consecutive run of parts in ``path``."""
+    parts = path.resolve().parts
+    n = len(segments)
+    return any(parts[i : i + n] == segments for i in range(len(parts) - n + 1))
+
+
+def _require_isolated_enabled_telemetry_config(telemetry_config: TelemetryConfig) -> None:
+    """Fail closed unless ``telemetry_config`` is enabled and not production-scoped (review-fix).
+
+    :func:`run_scenario`/:func:`run_corpus` are public execution APIs that
+    accept an arbitrary :class:`~autoharness.telemetry.config.TelemetryConfig`
+    — the mandatory sink-isolation invariant must not depend on every caller
+    voluntarily routing through :func:`isolated_benchmark_telemetry_config`.
+    Without this check: a **disabled** config would let ``run_scenario``
+    return "successful" :class:`ArmRun`\\ s with **zero** persisted epochs
+    (the total-sink-failure check in ``run_scenario`` is itself gated on
+    ``telemetry_config.enabled``, so a disabled config never trips it); a
+    config pointed at (or under) the **production metrics store** would
+    silently contaminate real telemetry with fabricated benchmark data.
+    Both are rejected here, unconditionally, regardless of which helper (if
+    any) constructed the config.
+    """
+    if not telemetry_config.enabled or telemetry_config.database_path is None:
+        raise BenchmarkHarnessError(
+            "run_scenario/run_corpus require an enabled TelemetryConfig with a database_path "
+            f"(got enabled={telemetry_config.enabled!r}, database_path="
+            f"{telemetry_config.database_path!r}); a disabled/no-op config would silently "
+            "persist zero epochs while still reporting a 'successful' run (sink-isolation "
+            "invariant, review-fix). Construct one via isolated_benchmark_telemetry_config."
+        )
+    if _path_contains_segments(telemetry_config.database_path, _PRODUCTION_METRICS_SEGMENTS):
+        raise BenchmarkHarnessError(
+            "Refusing to run the benchmark harness against the authoritative production "
+            f"metrics store ({telemetry_config.database_path}); construct telemetry_config via "
+            "isolated_benchmark_telemetry_config (or an equivalent dedicated, run-scoped sink) "
+            "instead (sink isolation, review-fix)."
+        )
+
+
 def isolated_benchmark_telemetry_config(
     sink_root: Path | str,
     *,
@@ -352,15 +399,20 @@ def run_scenario(
     per-scenario/repeat/arm ``backlog_item_id`` convention.
 
     Raises:
-        BenchmarkHarnessError: an enabled ``telemetry_config`` accepted an
-            epoch write into neither its sqlite nor its jsonl sink
-            (review-fix). :func:`~autoharness.telemetry.record.record_epoch`
-            is deliberately fail-open at the sink layer and reports failures
+        BenchmarkHarnessError: ``telemetry_config`` is disabled, has no
+            ``database_path``, or is pointed at (or under) the production
+            metrics store (review-fix) — see
+            :func:`_require_isolated_enabled_telemetry_config`. Also raised
+            when an enabled ``telemetry_config`` accepted an epoch write
+            into neither its sqlite nor its jsonl sink (review-fix).
+            :func:`~autoharness.telemetry.record.record_epoch` is
+            deliberately fail-open at the sink layer and reports failures
             through :class:`~autoharness.telemetry.record.RecordSummary`
             rather than raising; without this check, a total sink failure
             would let ``run_scenario`` return a successful result with fewer
             than the promised 2xN epochs actually persisted.
     """
+    _require_isolated_enabled_telemetry_config(telemetry_config)
     if repeats < 1:
         raise BenchmarkHarnessError("repeats must be >= 1.")
 

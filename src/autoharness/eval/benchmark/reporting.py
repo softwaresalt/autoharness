@@ -19,6 +19,12 @@ plan's honest-reporting rules:
   scenario, the efficiency verdict is forced to
   ``"no-win-correctness-regression"`` **regardless of any favorable token
   delta** — a cheaper-but-wrong treatment run is never reported as a win.
+  Correctness is scored across **every** repeat, not just one (review-fix):
+  scoring only repeat 0 while the efficiency delta aggregates *all* repeats
+  could let a later repeat's regression slip past this rule; any
+  cross-repeat disagreement fails closed
+  (:class:`RepeatCorrectnessVarianceError`) instead of silently reporting
+  one repeat as representative.
 - **H5 (retain degraded/negative runs)**: every scenario in the corpus is
   included in the report — including negative-class and degraded/cold-index
   scenarios — never filtered out because the run "failed".
@@ -75,6 +81,17 @@ class ReportIdentityError(ValueError):
     mismatched combination (e.g. a stale ``results`` from a prior run, a
     ``corpus`` revision that no longer matches ``manifest``, or a
     ``read_result`` read from a different sink).
+    """
+
+
+class RepeatCorrectnessVarianceError(ValueError):
+    """Raised when a scenario's correctness score varies across repeats (H3, review-fix).
+
+    ``compose_scenario_report`` assumes every repeat scores identically for
+    correctness (the shipped executor is deterministic on that axis); a
+    caller-supplied executor that legitimately varies correctness by
+    ``repeat_index`` violates that assumption and is refused rather than
+    silently reported from a single, possibly-non-representative repeat.
     """
 
 
@@ -290,28 +307,67 @@ def compose_scenario_report(
     *,
     outcome_classification: str,
     degraded: bool,
-    baseline_produced: tuple[str, ...],
-    treatment_produced: tuple[str, ...],
+    baseline_produced_by_repeat: tuple[tuple[str, ...], ...],
+    treatment_produced_by_repeat: tuple[tuple[str, ...], ...],
     delta: ScopeDelta,
 ) -> ScenarioReport:
-    """Compose one scenario's report from its produced answers + precomputed delta.
+    """Compose one scenario's report from every repeat's produced answers + a precomputed delta.
 
-    Correctness scoring is representative (repeat 0's produced answers) —
-    the shipped :func:`~autoharness.eval.benchmark.harness.default_arm_executor`
-    is deterministic across repeats for correctness (only economics fields
-    disperse per repeat via seeded jitter), so scoring any single repeat is
-    equivalent to scoring every repeat. A live-mode executor that varies
-    correctness per repeat is explicitly out of scope (deferred).
+    Correctness is scored for **every** repeat (review-fix, H3+H6), not just
+    a single representative one: the shipped
+    :func:`~autoharness.eval.benchmark.harness.default_arm_executor` is
+    deterministic across repeats for correctness (only economics fields
+    disperse per repeat via seeded jitter), so every repeat's score is
+    *expected* to agree — but ``build_report``/``run_benchmark`` accept an
+    arbitrary ``ArmExecutor``, and a live-mode executor may legitimately
+    vary correctness by ``repeat_index``. Scoring only repeat 0 would let a
+    later repeat's regression go undetected while the aggregate efficiency
+    delta (computed across *all* repeats) still claims a "win" — violating
+    H3.
+
+    Two safeguards, both fail-closed:
+
+    1. If any repeat's baseline or treatment score disagrees with repeat
+       0's, this raises :class:`RepeatCorrectnessVarianceError` rather than
+       silently reporting only one (possibly non-representative) repeat's
+       score — the deterministic-core assumption above is enforced, not
+       merely asserted in a docstring.
+    2. Independently of (1) — belt-and-suspenders — the efficiency win is
+       suppressed whenever *any* repeat's baseline/treatment pair regressed,
+       not just repeat 0's.
+
+    Raises:
+        RepeatCorrectnessVarianceError: a treatment/baseline pair's
+            correctness score differs across repeats (see above).
     """
-    baseline_score = score_arm(scenario.id, "baseline", baseline_produced, scenario.gold_answer)
-    treatment_score = score_arm(scenario.id, "treatment", treatment_produced, scenario.gold_answer)
-    regression = regressed(baseline_score, treatment_score)
+    baseline_scores = tuple(
+        score_arm(scenario.id, "baseline", produced, scenario.gold_answer)
+        for produced in baseline_produced_by_repeat
+    )
+    treatment_scores = tuple(
+        score_arm(scenario.id, "treatment", produced, scenario.gold_answer)
+        for produced in treatment_produced_by_repeat
+    )
+    if any(score != baseline_scores[0] for score in baseline_scores[1:]) or any(
+        score != treatment_scores[0] for score in treatment_scores[1:]
+    ):
+        raise RepeatCorrectnessVarianceError(
+            f"scenario {scenario.id!r}: correctness score varies across repeats — the "
+            "deterministic-core assumption (every repeat scores identically) does not hold "
+            "for this run's executor. Refusing to report only one repeat's score as "
+            "representative; a live-mode/varying-correctness executor is out of scope "
+            "(deferred) for this reporting path."
+        )
+    baseline_score = baseline_scores[0]
+    treatment_score = treatment_scores[0]
+    regression = any(regressed(b, t) for b, t in zip(baseline_scores, treatment_scores))
 
     if regression:
         verdict: Verdict = "no-win-correctness-regression"
         reason: str | None = (
-            "correctness regressed under treatment (scorer.regressed()==True); "
-            "efficiency win suppressed regardless of any favorable token delta (H3)"
+            "correctness regressed under treatment on at least one repeat "
+            "(scorer.regressed()==True); efficiency win suppressed regardless of any "
+            "favorable token delta (H3)"
         )
     else:
         verdict, reason = _efficiency_verdict(delta)
@@ -349,6 +405,8 @@ def build_report(
         ReportIdentityError: ``corpus``/``results``/``manifest``/``read_result``
             are not verifiably the same run (H6) — see
             :func:`_validate_run_identity` for the specific checks.
+        RepeatCorrectnessVarianceError: a scenario's correctness score
+            varies across repeats (H3) — see :func:`compose_scenario_report`.
     """
     _validate_run_identity(corpus, results, manifest, read_result)
     scenario_ids = tuple(scenario.id for scenario in corpus.scenarios)
@@ -359,7 +417,6 @@ def build_report(
     reports = []
     for scenario in corpus.scenarios:
         repeat_runs = results[scenario.id]
-        representative = repeat_runs[0]
         classification = classification_by_id.get(scenario.id)
         outcome_classification = (
             classification.outcome_classification if classification is not None else scenario.scenario_class
@@ -370,8 +427,8 @@ def build_report(
                 scenario,
                 outcome_classification=outcome_classification,
                 degraded=degraded,
-                baseline_produced=representative.baseline.produced_answer,
-                treatment_produced=representative.treatment.produced_answer,
+                baseline_produced_by_repeat=tuple(run.baseline.produced_answer for run in repeat_runs),
+                treatment_produced_by_repeat=tuple(run.treatment.produced_answer for run in repeat_runs),
                 delta=per_scenario_deltas[scenario.id],
             )
         )

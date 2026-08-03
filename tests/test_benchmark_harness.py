@@ -15,7 +15,7 @@ from autoharness.eval.benchmark.harness import (
     run_scenario,
 )
 from autoharness.eval.benchmark.scenarios import load_default_corpus
-from autoharness.telemetry.config import DEFAULT_DATABASE_PATH
+from autoharness.telemetry.config import DEFAULT_DATABASE_PATH, TelemetryConfig
 from autoharness.telemetry.reader import read_epoch_records
 
 
@@ -73,6 +73,33 @@ class SinkIsolationTests(unittest.TestCase):
             sink_root = Path(sink_tmp) / "outside-benchmark-sink"
             with self.assertRaises(BenchmarkHarnessError):
                 isolated_benchmark_telemetry_config(sink_root, workspace_root=workspace_root)
+
+    def test_run_scenario_refuses_disabled_telemetry_config(self) -> None:
+        # Review-fix (Copilot thread PRRT_kwDORzpWpM6WFzLb): run_scenario
+        # accepted an arbitrary TelemetryConfig with no enforcement — a
+        # disabled config would silently "succeed" with 0 persisted epochs
+        # rather than failing closed on the missing sink.
+        corpus = load_default_corpus()
+        scenario = corpus.get("pos-config-lookup-warm")
+        disabled_config = TelemetryConfig(enabled=False, database_path=None)
+        with self.assertRaises(BenchmarkHarnessError):
+            run_scenario(scenario, disabled_config, repeats=1, seed=1)
+
+    def test_run_scenario_refuses_production_metrics_path(self) -> None:
+        # Review-fix (Copilot thread PRRT_kwDORzpWpM6WFzLb): a
+        # TelemetryConfig pointed at the production metrics database must be
+        # rejected by run_scenario itself, not merely by the
+        # isolated_benchmark_telemetry_config helper — otherwise a caller
+        # bypassing that helper could contaminate real telemetry.
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace_root = Path(tmp)
+            production_path = workspace_root / DEFAULT_DATABASE_PATH
+            production_path.parent.mkdir(parents=True, exist_ok=True)
+            production_config = TelemetryConfig(enabled=True, database_path=production_path)
+            corpus = load_default_corpus()
+            scenario = corpus.get("pos-config-lookup-warm")
+            with self.assertRaises(BenchmarkHarnessError):
+                run_scenario(scenario, production_config, repeats=1, seed=1)
 
 
 class RunScenarioTests(unittest.TestCase):
