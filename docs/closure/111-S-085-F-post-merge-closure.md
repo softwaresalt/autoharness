@@ -96,26 +96,46 @@ command `backlogit shipment ship 111-S` was **not** run.
 
 | Item | Final state |
 | --- | --- |
-| 8 manifest tasks (`085.001-T`–`085.008-T`) | already archived (`status: done`) as part of the merged feature branch's own commit history at merge time — no re-archival needed; verified all 8 carry `status: done` in `.backlogit/archive/`. |
-| `111-S` (shipment record) | explicitly archived as a single artifact via `backlogit archive 111-S` on the post-merge closure branch. |
-| `085-F` (covering feature) | moved to `done` via `backlogit move 085-F --status done`, which (per this CLI's terminal-status side effect) relocated the file to `.backlogit/archive/085-F.md`. Confirmed via enumeration of `.backlogit/queue/085*` and `.backlogit/archive/085*` that the shipment manifest is this feature's entire task set (no other siblings), so terminal closure of `085-F` alongside `111-S` is within this shipment's explicit scope. |
+| 8 manifest tasks (`085.001-T`–`085.008-T`) | explicitly archived one at a time via `backlogit archive <id>` — each now carries `status: archived` with `archived_status: done` / `archived_from: .backlogit/queue/<id>.md` metadata. |
+| `111-S` (shipment record) | explicitly archived as a single artifact via `backlogit archive 111-S` — carries `status: archived` / `archived_status: active` / `archived_from`. |
+| `085-F` (covering feature) | moved to `done` then explicitly archived via `backlogit archive 085-F` — carries `status: archived` / `archived_status: done` / `archived_from`. Confirmed via enumeration of `.backlogit/queue/085*` and `.backlogit/archive/085*` that the shipment manifest is this feature's entire task set (no other siblings), so terminal closure of `085-F` alongside `111-S` is within this shipment's explicit scope. |
 
 - Baseline gate: `git status --short -- .backlogit/` clean before mutation;
   `085-F` present in `.backlogit/queue/` before any archival step.
-- Verify-after-each: `git status --short -- .backlogit/` checked after both
-  the `111-S` archive and the `085-F` move/archive — only `085-F.md` and
-  `111-S.md` (plus their log files) changed at any point; no other
-  `.backlogit/` path (other backlog items, stash, deliberations) was
+- Verify-after-each: `git status --short -- .backlogit/` checked after
+  every single archival call (`111-S`, each of the 8 tasks, `085-F`) —
+  each step touched only that item's own archive file + log file; no other
+  `.backlogit/` path (other backlog items, stash, deliberations) was ever
   touched.
-- **Process correction**: the `111-S` archival was first (mistakenly)
+- **Process correction 1**: the `111-S` archival was first (mistakenly)
   committed directly on local `main` before the post-merge closure branch
   existed. Caught before pushing; recovered via `git reset --hard` to the
   merge commit (which also safely undid the premature file-move side
   effect) and redone correctly on
   `post-merge/structural-navigation-benchmark-suite`. See
   `docs/compound/2026-08-03-post-merge-closure-branch-before-first-commit.md`.
+- **Process correction 2 (caught by Copilot review on the closure PR)**:
+  the initial closure pass treated the 8 manifest tasks as "already
+  archived" merely because their files physically resided under
+  `.backlogit/archive/` (a `move --status done` side effect from the
+  feature branch's own task loop) and, symmetrically, treated `085-F` as
+  closed after only `move --status done`. Per the documented
+  `move`-vs-`archive` distinction
+  (`docs/compound/2026-08-02-backlogit-done-move-vs-explicit-archive.md`,
+  first surfaced during `110-S`), physical file location under `archive/`
+  is not equivalent to the explicit archive transition
+  (`status: archived` + `archived_status`/`archived_from`). A Copilot
+  review thread on this closure PR caught the gap for the 8 tasks; the
+  symmetric gap on `085-F` was then proactively found and fixed in the
+  same pass. All 9 items (8 tasks + feature) plus the shipment were then
+  explicitly archived and re-verified. This is the second occurrence of
+  this exact pattern (see `110-S`'s closure, which applied the lesson
+  proactively) — the convention needs stronger enforcement than a
+  compound-doc reminder; see the updated compound entry for a proposed
+  pre-flight check.
 - Closure index resync: `backlogit sync` run after all archival mutations —
-  `Indexed 646 artifacts` (`CLOSURE_INDEX_SYNC_OK`).
+  `Indexed 646 artifacts` (`CLOSURE_INDEX_SYNC_OK`), re-run after the
+  correction commit.
 
 ## Context Compaction (P-020)
 
@@ -142,14 +162,21 @@ command `backlogit shipment ship 111-S` was **not** run.
   - CI green at every merge gate; CLI smoke probe PASS; full canonical
     unittest gate 1065 passed / 7 skipped / 0 failed (no regressions; 98
     new benchmark-suite tests added).
-  - Backlog safe-close archived the shipment and covering feature
-    individually without the forbidden cascade command; 8 manifest tasks
-    were already correctly archived from the feature branch's own history.
+  - Backlog safe-close explicitly archived all 8 manifest tasks, the
+    shipment, and the covering feature individually without the forbidden
+    cascade command; all now carry proper `archived_status`/`archived_from`
+    metadata.
 - **Failure signals to watch**:
-  - None new. A local process error (committing archival work directly on
-    `main` before creating the closure branch) occurred but was caught
-    before any push and fully corrected — no artifact ever reached
-    `origin/main` in a bad state.
+  - Two local process errors occurred this session, both caught and fully
+    corrected before any bad state reached `origin/main`: (1) committing
+    archival work directly on `main` before creating the closure branch;
+    (2) initially treating `move --status done`'s archive-folder file
+    relocation as equivalent to the explicit `archive` transition for the
+    8 tasks and (symmetrically) for `085-F` — caught by a Copilot review
+    thread on this closure PR and fixed in the same pass. This is the
+    second occurrence of the move-vs-archive gap (see `110-S`'s closure);
+    the compound-doc reminder alone was insufficient to prevent recurrence,
+    so a stronger pre-flight check is recorded as a follow-up.
 - **Releasability** (`runtime_validation.releasability.required: false`,
   `status_when_satisfied: READY`): monitoring — the change is purely
   additive (a new library package, no shipped file modified, no
@@ -179,11 +206,22 @@ command `backlogit shipment ship 111-S` was **not** run.
 commit `806f2fc`), local review + 6 rounds of Copilot review (15/15
 findings fixed) + §1.9 + P-018 gates passed at final HEAD `938c178`,
 runtime CLI probe PASS + full canonical unittest gate (1065 passed / 7
-skipped / 0 failed), single-artifact safe-close complete for the shipment
-and the covering feature (8 manifest tasks already correctly archived, no
+skipped / 0 failed), single-artifact safe-close complete for the shipment,
+the covering feature, and all 8 manifest tasks (each explicitly archived
+with correct `archived_status`/`archived_from` metadata after a Copilot
+review thread on this closure PR caught an initial move-vs-archive gap; no
 cascade corruption, no scope leakage into any other backlog item), and
 P-020 context compaction is recorded `done` (see Context Compaction section
 above).
+
+## Follow-up: strengthen move-vs-archive enforcement
+
+This is the second occurrence (after `110-S`) of treating a `move --status
+done` file relocation as equivalent to an explicit `archive` transition.
+Recorded as a non-blocking follow-up for a future chore: add a pre-flight
+`backlogit get <id>` status-field check (`archived` vs `done`) as an
+explicit script/gate step in the Step 5 Closure Tasks procedure, rather than
+relying solely on the compound-doc reminder.
 
 **Remaining approval blocker**: this post-merge closure PR requires its own
 **separate, explicit operator approval** before merge (P-014 — the PR #289
