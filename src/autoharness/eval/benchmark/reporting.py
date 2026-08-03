@@ -22,6 +22,16 @@ plan's honest-reporting rules:
 - **H5 (retain degraded/negative runs)**: every scenario in the corpus is
   included in the report — including negative-class and degraded/cold-index
   scenarios — never filtered out because the run "failed".
+- **H6 (same-run identity, review-fix)**: ``corpus``, ``results``,
+  ``manifest``, and ``read_result`` are four independently-suppliable
+  objects with nothing upstream binding them together. :func:`build_report`
+  fails closed (raises :class:`ReportIdentityError`) unless it can verify
+  they all describe **one** run: the corpus hash, scenario/repeat counts,
+  and a ``workspace_id``-tied cross-check of the actual sink records all
+  must agree. This is a whole-run identity check, not a field-level
+  provenance label — a mismatch is a caller programming error and must
+  surface loudly rather than silently blend two runs into one plausible
+  report (H1 governs missing/uncertain *field* data, not whole-run mixing).
 """
 
 from __future__ import annotations
@@ -30,6 +40,7 @@ from dataclasses import dataclass
 from typing import Mapping
 
 from autoharness.eval.benchmark.controls import RunManifest
+from autoharness.eval.benchmark.harness import ARMS, BENCHMARK_NAMESPACE_PREFIX
 from autoharness.eval.benchmark.metrics import (
     AGGREGATE_SCOPE,
     NOT_APPLICABLE,
@@ -52,6 +63,112 @@ _SENTINELS = (UNAVAILABLE, NOT_APPLICABLE)
 _VERDICT_FIELDS: tuple[str, str] = ("input_tokens", "output_tokens")
 
 Verdict = str  # "win" | "loss" | "neutral" | "inconclusive" | "no-win-correctness-regression"
+
+
+class ReportIdentityError(ValueError):
+    """Raised when ``build_report``'s inputs are not verifiably one run (H6).
+
+    ``corpus``/``results``/``manifest``/``read_result`` are independently
+    supplied; this is raised instead of silently composing a report from a
+    mismatched combination (e.g. a stale ``results`` from a prior run, a
+    ``corpus`` revision that no longer matches ``manifest``, or a
+    ``read_result`` read from a different sink).
+    """
+
+
+def _validate_run_identity(
+    corpus: ScenarioCorpus,
+    results: Mapping[str, tuple],
+    manifest: RunManifest,
+    read_result: TelemetryReadResult,
+) -> None:
+    """Fail closed unless ``corpus``/``results``/``manifest``/``read_result`` are one run (H6).
+
+    Four checks, each raising :class:`ReportIdentityError` on failure:
+
+    1. ``corpus.manifest_hash == manifest.corpus_hash`` — the corpus
+       revision matches the one the manifest was recorded against.
+    2. ``results`` and ``manifest.scenario_classifications`` cover exactly
+       ``corpus``'s scenario ids — no missing or extra scenarios.
+    3. Every scenario's repeat-run count in ``results`` equals
+       ``manifest.repeats``.
+    4. ``read_result`` actually holds this run's sink records: every
+       expected ``benchmark:<scenario_id>:<repeat_index>:<arm>`` epoch is
+       present and carries ``workspace_id == manifest.workspace_id`` — a
+       run identity tied to the sink records themselves, not merely to the
+       caller's say-so. A failed/empty/disabled read or any missing or
+       cross-workspace record is refused rather than silently rendered as
+       an ``unavailable`` field (whole-run mixing is not a field-level
+       provenance gap).
+    """
+    if corpus.manifest_hash != manifest.corpus_hash:
+        raise ReportIdentityError(
+            f"corpus.manifest_hash ({corpus.manifest_hash!r}) does not match "
+            f"manifest.corpus_hash ({manifest.corpus_hash!r}); results/manifest were not "
+            "produced from this corpus revision."
+        )
+
+    corpus_ids = {scenario.id for scenario in corpus.scenarios}
+    result_ids = set(results.keys())
+    if corpus_ids != result_ids:
+        raise ReportIdentityError(
+            "results does not cover exactly corpus's scenarios "
+            f"(missing={sorted(corpus_ids - result_ids)}, extra={sorted(result_ids - corpus_ids)})."
+        )
+
+    classification_ids = {c.scenario_id for c in manifest.scenario_classifications}
+    if classification_ids != corpus_ids:
+        raise ReportIdentityError(
+            "manifest.scenario_classifications does not cover exactly corpus's scenarios "
+            f"(missing={sorted(corpus_ids - classification_ids)}, "
+            f"extra={sorted(classification_ids - corpus_ids)})."
+        )
+
+    for scenario_id, repeat_runs in results.items():
+        if len(repeat_runs) != manifest.repeats:
+            raise ReportIdentityError(
+                f"results[{scenario_id!r}] has {len(repeat_runs)} repeat run(s); "
+                f"manifest.repeats={manifest.repeats}."
+            )
+
+    if read_result.status not in ("ok", "empty"):
+        raise ReportIdentityError(
+            f"read_result.status={read_result.status!r} is not a successful telemetry read; "
+            "refusing to compose a report from a failed/unavailable/disabled read."
+        )
+
+    records_by_backlog_id: dict[str, list[Mapping[str, object]]] = {}
+    for record in read_result.records:
+        backlog_item_id = record.get("backlog_item_id")
+        if isinstance(backlog_item_id, str) and backlog_item_id.startswith(BENCHMARK_NAMESPACE_PREFIX):
+            records_by_backlog_id.setdefault(backlog_item_id, []).append(record)
+
+    missing: list[str] = []
+    mismatched_workspace: list[str] = []
+    for scenario_id in corpus_ids:
+        for repeat_index in range(manifest.repeats):
+            for arm in ARMS:
+                backlog_item_id = f"{BENCHMARK_NAMESPACE_PREFIX}{scenario_id}:{repeat_index}:{arm}"
+                matches = records_by_backlog_id.get(backlog_item_id)
+                if not matches:
+                    missing.append(backlog_item_id)
+                    continue
+                for record in matches:
+                    if record.get("workspace_id") != manifest.workspace_id:
+                        mismatched_workspace.append(backlog_item_id)
+
+    if missing:
+        raise ReportIdentityError(
+            f"read_result is missing {len(missing)} epoch record(s) expected for this run "
+            f"(e.g. {missing[:3]}); read_result does not appear to be this run's sink."
+        )
+    if mismatched_workspace:
+        raise ReportIdentityError(
+            f"{len(mismatched_workspace)} epoch record(s) matched this run's scenario/repeat/arm "
+            f"identity but carry a workspace_id other than manifest.workspace_id "
+            f"({manifest.workspace_id!r}) (e.g. {mismatched_workspace[:3]}); read_result appears to "
+            "mix records from a different run."
+        )
 
 
 def _efficiency_verdict(delta: ScopeDelta) -> tuple[Verdict, str | None]:
@@ -188,7 +305,13 @@ def build_report(
     :func:`~autoharness.telemetry.reader.read_epoch_records` read of the same
     isolated sink the run wrote to. Every scenario in ``corpus`` is included
     in the output, regardless of class or outcome (H5) — nothing is filtered.
+
+    Raises:
+        ReportIdentityError: ``corpus``/``results``/``manifest``/``read_result``
+            are not verifiably the same run (H6) — see
+            :func:`_validate_run_identity` for the specific checks.
     """
+    _validate_run_identity(corpus, results, manifest, read_result)
     scenario_ids = tuple(scenario.id for scenario in corpus.scenarios)
     per_scenario_deltas = compute_corpus_deltas(read_result, scenario_ids)
     aggregate_delta = compute_aggregate_delta(read_result, scenario_ids)

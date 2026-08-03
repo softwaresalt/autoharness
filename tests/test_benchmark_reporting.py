@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import dataclasses
 import tempfile
 import unittest
 from pathlib import Path
 
 from autoharness.eval.benchmark.controls import run_benchmark
+from autoharness.eval.benchmark.harness import BENCHMARK_NAMESPACE_PREFIX
 from autoharness.eval.benchmark.metrics import NOT_APPLICABLE
 from autoharness.eval.benchmark.reporting import (
     BenchmarkReport,
+    ReportIdentityError,
     build_report,
     render_honest_report,
 )
@@ -166,6 +169,92 @@ class EfficiencyVerdictSentinelTests(unittest.TestCase):
         verdict, reason = _efficiency_verdict(delta)
         self.assertEqual(verdict, "inconclusive")
         self.assertIsNotNone(reason)
+
+
+class BuildReportIdentityValidationTests(unittest.TestCase):
+    """H6 review-fix: build_report fails closed on cross-run/mismatched inputs."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.workspace_root = Path(self._tmp.name)
+        self.sink_root = self.workspace_root / "sink"
+        self.corpus = load_default_corpus()
+        self.results, self.manifest = run_benchmark(
+            self.corpus, self.sink_root, repeats=2, seed=1, workspace_root=self.workspace_root
+        )
+        config = TelemetryConfig(
+            enabled=True,
+            mode="sqlite",
+            database_path=Path(self.manifest.sink_database_path),
+            emit_jsonl=True,
+            jsonl_path=Path(self.manifest.sink_jsonl_path) if self.manifest.sink_jsonl_path else None,
+        )
+        self.read_result = read_epoch_records(config)
+        # Sanity: the unmodified fixture must build cleanly before each test
+        # mutates exactly one input to prove that specific check fires.
+        build_report(self.corpus, self.results, self.manifest, self.read_result)
+
+    def test_corpus_hash_mismatch_rejected(self) -> None:
+        bad_manifest = dataclasses.replace(self.manifest, corpus_hash="not-the-real-hash")
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, self.results, bad_manifest, self.read_result)
+        self.assertIn("manifest_hash", str(ctx.exception))
+
+    def test_results_missing_scenario_rejected(self) -> None:
+        some_id = next(iter(self.results))
+        truncated_results = {k: v for k, v in self.results.items() if k != some_id}
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, truncated_results, self.manifest, self.read_result)
+        self.assertIn("missing=", str(ctx.exception))
+
+    def test_results_extra_scenario_rejected(self) -> None:
+        some_id = next(iter(self.results))
+        padded_results = dict(self.results)
+        padded_results["not-a-real-scenario"] = self.results[some_id]
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, padded_results, self.manifest, self.read_result)
+        self.assertIn("extra=", str(ctx.exception))
+
+    def test_repeat_count_mismatch_rejected(self) -> None:
+        some_id = next(iter(self.results))
+        short_results = dict(self.results)
+        short_results[some_id] = self.results[some_id][:1]
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, short_results, self.manifest, self.read_result)
+        self.assertIn("repeat run", str(ctx.exception))
+
+    def test_failed_read_result_rejected(self) -> None:
+        bad_read_result = dataclasses.replace(self.read_result, status="unavailable", records=())
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, self.results, self.manifest, bad_read_result)
+        self.assertIn("status", str(ctx.exception))
+
+    def test_missing_sink_records_rejected(self) -> None:
+        some_id = next(iter(self.results))
+        some_id_prefix = f"benchmark:{some_id}:"
+        filtered_records = tuple(
+            r for r in self.read_result.records if not str(r.get("backlog_item_id", "")).startswith(some_id_prefix)
+        )
+        bad_read_result = dataclasses.replace(self.read_result, records=filtered_records)
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, self.results, self.manifest, bad_read_result)
+        self.assertIn("missing", str(ctx.exception))
+
+    def test_cross_run_workspace_id_mismatch_rejected(self) -> None:
+        mutated_records = []
+        mutated_one = False
+        for record in self.read_result.records:
+            if not mutated_one and str(record.get("backlog_item_id", "")).startswith(BENCHMARK_NAMESPACE_PREFIX):
+                record = dict(record)
+                record["workspace_id"] = "benchmark:a-different-run"
+                mutated_one = True
+            mutated_records.append(record)
+        self.assertTrue(mutated_one)
+        bad_read_result = dataclasses.replace(self.read_result, records=tuple(mutated_records))
+        with self.assertRaises(ReportIdentityError) as ctx:
+            build_report(self.corpus, self.results, self.manifest, bad_read_result)
+        self.assertIn("workspace_id", str(ctx.exception))
 
 
 if __name__ == "__main__":
