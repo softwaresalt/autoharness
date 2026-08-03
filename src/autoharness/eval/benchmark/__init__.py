@@ -14,7 +14,7 @@ benchmark core end to end:
 
 **Live-run mode is out of scope.** No task in this package implements or verifies
 a callable live-agent path; it remains a documented, off-by-default, additive
-extension point (see ``docs/benchmark-suite-methodology.md``).
+extension point (see ``docs/design-docs/structural-navigation-benchmark-methodology.md``).
 
 **No telemetry-contract, schema, or CLI-distribution change.** Every module here
 consumes the shipped telemetry/eval APIs read-only.

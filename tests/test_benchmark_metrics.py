@@ -10,9 +10,12 @@ from autoharness.eval.benchmark.harness import isolated_benchmark_telemetry_conf
 from autoharness.eval.benchmark.metrics import (
     AGGREGATE_SCOPE,
     NOT_APPLICABLE,
+    _record_field_quality,
+    _worst_quality,
     compute_aggregate_delta,
     compute_corpus_deltas,
     compute_scenario_delta,
+    compute_scope_delta,
     scenario_arm_records,
 )
 from autoharness.eval.benchmark.scenarios import load_default_corpus
@@ -127,6 +130,54 @@ class MetricsIntegrationTests(unittest.TestCase):
     def test_net_offload_tokens_present(self) -> None:
         delta = compute_scenario_delta(self.read_result.records, "pos-config-lookup-warm")
         self.assertIn("net_offload_tokens", delta.fields)
+
+
+class MalformedQualityLabelFailClosedTests(unittest.TestCase):
+    """085.007-T acceptance: an unrecognized quality label degrades fail-closed.
+
+    A ``metric_quality`` label that is present but not one of the recognized
+    vocabulary values (``observed``/``derived``/``estimated``/
+    ``not_applicable``/``unavailable``) must never be trusted verbatim — it is
+    a genuine provenance gap, and the field must fail closed to
+    ``unavailable`` for a populated (non-zero) value. A malformed label
+    alongside a legitimate, unlabeled *zero* value still resolves to
+    ``observed`` (a zero-count is a real observation on its own terms,
+    independent of the malformed label) — this is intentional, asserted
+    behavior, not an oversight.
+    """
+
+    def test_malformed_label_with_nonzero_value_fails_closed_to_unavailable(self) -> None:
+        record = {"economics": {"input_tokens": 42, "metric_quality": {"input_tokens": "super-duper-certain"}}}
+        self.assertEqual(_record_field_quality(record, "economics", "input_tokens"), UNAVAILABLE)
+
+    def test_malformed_label_with_zero_value_resolves_observed(self) -> None:
+        record = {"economics": {"input_tokens": 0, "metric_quality": {"input_tokens": "super-duper-certain"}}}
+        self.assertEqual(_record_field_quality(record, "economics", "input_tokens"), "observed")
+
+    def test_worst_quality_across_records_fails_closed_on_any_malformed_label(self) -> None:
+        records = (
+            {"economics": {"input_tokens": 10, "metric_quality": {"input_tokens": "observed"}}},
+            {"economics": {"input_tokens": 20, "metric_quality": {"input_tokens": "bogus-label"}}},
+        )
+        self.assertEqual(_worst_quality(records, "economics", "input_tokens"), UNAVAILABLE)
+
+    def test_field_delta_with_malformed_label_operand_yields_unavailable_delta(self) -> None:
+        def _record(epoch_id: str, input_tokens: int, quality_label: str) -> dict:
+            return {
+                "epoch_id": epoch_id,
+                "timestamp": "2026-08-03T00:00:00+00:00",
+                "economics": {
+                    "input_tokens": input_tokens,
+                    "metric_quality": {"input_tokens": quality_label},
+                },
+            }
+
+        baseline = (_record("baseline-1", 100, "estimated"),)
+        treatment = (_record("treatment-1", 10, "not-a-real-label"),)
+        scope_delta = compute_scope_delta(baseline, treatment, scope="malformed-label-probe")
+        field_delta = scope_delta.fields["input_tokens"]
+        self.assertEqual(field_delta.delta, UNAVAILABLE)
+        self.assertEqual(field_delta.quality, UNAVAILABLE)
 
 
 if __name__ == "__main__":
