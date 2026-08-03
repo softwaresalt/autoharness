@@ -101,8 +101,18 @@ def _record_field_quality(record: Mapping[str, Any], section: str, field_name: s
 
 
 def _worst_quality(records: Iterable[Mapping[str, Any]], section: str, field_name: str) -> str:
+    """Least-certain-wins quality across ``records``.
+
+    An **empty** record set carries no data at all — the field is
+    ``unavailable``, not the false-precision ``observed`` a naive "start
+    optimistic, degrade on evidence" fold would otherwise return (H1: missing
+    data is never rendered as an observed zero).
+    """
+    records_tuple = tuple(records)
+    if not records_tuple:
+        return UNAVAILABLE
     worst = "observed"
-    for record in records:
+    for record in records_tuple:
         label = _record_field_quality(record, section, field_name)
         if _QUALITY_RANK[label] > _QUALITY_RANK[worst]:
             worst = label
