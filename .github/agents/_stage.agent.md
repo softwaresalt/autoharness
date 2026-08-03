@@ -276,6 +276,19 @@ guard prevents risky plans from silently bypassing every gate.
 2. Enforce the 2-hour rule: each task targets a single template family or concern.
 3. Width isolation: do not combine template work with CLI work or schema work
    in the same task.
+4. **Size + complexity mandatory at task creation (NON-NEGOTIABLE):** every task
+   you create MUST set `size` (effort/volume: `XS`, `S`, `M`, `L`, `XL`) with
+   `size_source: agent` and a non-empty `size_ruleset_version`, and `complexity`
+   (difficulty/uncertainty: `trivial`, `low`, `medium`, `high`). Validate both
+   enums before write; reject and halt on any invalid value rather than
+   coercing or defaulting it. These are two independent axes — never conflate
+   them into a single scalar, and never derive one from the other. Apply the
+   two-axis 2-hour/granularity gate: a `size` estimate implying more than 2
+   hours of human-equivalent effort forces a split regardless of `complexity`,
+   and `complexity: high` forces a split or de-risking step (spike, further
+   decomposition, or additional deliberation) regardless of `size`. See
+   `docs/size-complexity-reference.md` for the full non-conflation contract
+   and the provenance-completeness rule.
 
 ### Step 5: Shipment Assembly (MANDATORY when backlogit + shipments)
 

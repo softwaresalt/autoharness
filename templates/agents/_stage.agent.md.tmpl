@@ -449,6 +449,21 @@ Each task includes:
 * Parent sub-epic reference
 * Acceptance criteria
 * Suggested execution posture (test-first, characterization-first, migration-first, spike)
+* `size` and `complexity` (see below)
+
+**Size + complexity mandatory at task creation (NON-NEGOTIABLE):** every task
+you create MUST set `size` (effort/volume: `XS`, `S`, `M`, `L`, `XL`) with
+`size_source: agent` and a non-empty `size_ruleset_version`, and `complexity`
+(difficulty/uncertainty: `trivial`, `low`, `medium`, `high`). Validate both
+enums before write; reject and halt on any invalid value rather than
+coercing or defaulting it. These are two independent axes — never conflate
+them into a single scalar, and never derive one from the other. Apply the
+two-axis 2-hour/granularity gate: a `size` estimate implying more than 2
+hours of human-equivalent effort forces a split regardless of `complexity`,
+and `complexity: high` forces a split or de-risking step (spike, further
+decomposition, or additional deliberation) regardless of `size`. See
+`{{DOCS_ROOT}}/size-complexity-reference.md` for the full non-conflation
+contract and the provenance-completeness rule.
 
 When the `backlogit` capability pack is installed and dependency operations are supported, create
 explicit dependency edges between tasks that must run in sequence instead of encoding that ordering
@@ -743,6 +758,8 @@ from the recorded next step rather than restarting the pipeline.
 * Never create tasks exceeding the 2-hour rule
 * Never bundle multiple skill domains in a single task
 * Every task must have at least one acceptance criterion
+* Never create a task without both `size` and `complexity` set and enum-validated
+* Never conflate `size` and `complexity` into a single scalar or derive one axis from the other
 * Halt on P-003 violations rather than creating partial hierarchies
 * Halt on P-006 violations — do not skip plan-harden when impl-plan declares hardening is required
 * Never skip the framing phase — understanding the problem is not optional
