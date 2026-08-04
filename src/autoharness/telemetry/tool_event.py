@@ -1,9 +1,11 @@
-"""ToolTelemetryEvent v1.0 runtime model (U1, 084.001-T).
+"""ToolTelemetryEvent runtime model (U1, 084.001-T; v1.1.0 per 108.002-T/108.004-T).
 
 Implements the ratified ``schemas/tool-telemetry-event.schema.json`` contract as
 an immutable runtime model. The schema is a frozen forward contract published by
 079-F; this module is a faithful runtime implementation of it and MUST NOT
 redesign or loosen it (docs/plans/2026-07-31-token-efficiency-telemetry-emission-decided-plan.md).
+108.002-T/108.004-T additively bumped the contract to v1.1.0 (`task_complexity_label`/
+`complexity_source`); legacy v1.0.0 payloads are normalized forward on read.
 
 Mirrors the conventions established by :mod:`autoharness.telemetry.epoch`:
 frozen dataclass, ``from __future__ import annotations``, a controlled
@@ -23,7 +25,12 @@ from typing import Any, Mapping
 
 from autoharness.telemetry.epoch import WorkSizingSnapshot
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
+# Legacy schema_version values normalized forward on read by from_mapping()
+# (mirrors autoharness.telemetry.epoch's v1.0->v1.1 legacy-normalization
+# pattern). A legacy 1.0.0 record never had task_complexity_label/
+# complexity_source, so both simply default to None/absent on normalization.
+LEGACY_SCHEMA_VERSIONS = frozenset({"1.0.0"})
 
 TOOL_SURFACES = frozenset({"mcp", "cli", "shell", "builtin", "api", "unknown"})
 STATUSES = frozenset({"success", "degraded", "blocked", "skipped", "failed", "operator_required"})
@@ -46,6 +53,12 @@ METRIC_QUALITY_VALUES = frozenset(
     {"observed", "estimated", "derived", "unavailable", "not_applicable"}
 )
 SECRET_SCAN_STATUSES = frozenset({"not_run", "passed", "flagged", "unavailable"})
+
+# task_complexity_label vocabulary (108.002-T): backlogit's task-only complexity
+# enum, structurally separate from size (WorkSizingSnapshot). complexity_source
+# reuses the METRIC_SOURCE_VALUES vocabulary rather than defining its own, since
+# it is provenance metadata of the same shape as every other *_source field.
+TASK_COMPLEXITY_LABELS = frozenset({"trivial", "low", "medium", "high"})
 
 # route_kind / freshness_state are well-known enums extensible via an "x-*" prefix.
 _WELL_KNOWN_ROUTE_KINDS = frozenset(
@@ -113,6 +126,8 @@ _SCHEMA_PROPERTY_NAMES = frozenset(
         "feature_id",
         "shipment_id",
         "work_sizing_snapshot",
+        "task_complexity_label",
+        "complexity_source",
         "tool_surface",
         "server_name",
         "tool_name",
@@ -377,6 +392,8 @@ class ToolTelemetryEvent:
     feature_id: str | None = None
     shipment_id: str | None = None
     work_sizing_snapshot: WorkSizingSnapshot | None = None
+    task_complexity_label: str | None = None
+    complexity_source: str | None = None
     server_name: str | None = None
     tool_version: str | None = None
     argv_fingerprint: str | None = None
@@ -504,6 +521,29 @@ class ToolTelemetryEvent:
                 "'work_sizing_snapshot' must be a WorkSizingSnapshot instance or None."
             )
 
+        if self.task_complexity_label is not None and (
+            not isinstance(self.task_complexity_label, str)
+            or self.task_complexity_label not in TASK_COMPLEXITY_LABELS
+        ):
+            raise ToolTelemetryEventError(
+                f"'task_complexity_label' must be one of {sorted(TASK_COMPLEXITY_LABELS)} or null; "
+                f"got {self.task_complexity_label!r}."
+            )
+        if self.complexity_source is not None and (
+            not isinstance(self.complexity_source, str)
+            or self.complexity_source not in METRIC_SOURCE_VALUES
+        ):
+            raise ToolTelemetryEventError(
+                f"'complexity_source' must be one of {sorted(METRIC_SOURCE_VALUES)} or null; "
+                f"got {self.complexity_source!r}."
+            )
+        if self.task_complexity_label is not None and self.complexity_source is None:
+            raise ToolTelemetryEventError(
+                "'complexity_source' is required (non-null) whenever 'task_complexity_label' "
+                "is populated; a labelled value with no recorded provenance defeats the "
+                "purpose of complexity_source and is refused."
+            )
+
         if self.exit_code is not None and (
             isinstance(self.exit_code, bool) or not isinstance(self.exit_code, int)
         ):
@@ -576,6 +616,8 @@ class ToolTelemetryEvent:
             "work_sizing_snapshot": (
                 self.work_sizing_snapshot.to_dict() if self.work_sizing_snapshot is not None else None
             ),
+            "task_complexity_label": self.task_complexity_label,
+            "complexity_source": self.complexity_source,
             "tool_surface": self.tool_surface,
             "server_name": self.server_name,
             "tool_name": self.tool_name,
@@ -633,10 +675,17 @@ class ToolTelemetryEvent:
             )
 
         schema_version = data.get("schema_version", SCHEMA_VERSION)
-        if schema_version != SCHEMA_VERSION:
+        legacy = schema_version in LEGACY_SCHEMA_VERSIONS
+        if not legacy and schema_version != SCHEMA_VERSION:
             raise ToolTelemetryEventError(
-                f"'schema_version' must be {SCHEMA_VERSION!r}; got {schema_version!r}."
+                f"'schema_version' must be {SCHEMA_VERSION!r} (legacy {sorted(LEGACY_SCHEMA_VERSIONS)} is "
+                f"normalized on read); got {schema_version!r}."
             )
+        # Legacy 1.0.0 records are normalized forward: they predate
+        # task_complexity_label/complexity_source, so schema_version is
+        # rewritten to current rather than replayed as a stale hybrid value
+        # (mirrors autoharness.telemetry.epoch's v1.0->v1.1 normalization).
+        schema_version = SCHEMA_VERSION if legacy else schema_version
 
         for required_name in ("tool_surface", "tool_name", "operation", "status", "sensitivity"):
             if required_name not in data or data.get(required_name) is None:
@@ -697,6 +746,8 @@ class ToolTelemetryEvent:
             feature_id=_normalize_optional_str(data.get("feature_id"), "feature_id"),
             shipment_id=_normalize_optional_str(data.get("shipment_id"), "shipment_id"),
             work_sizing_snapshot=work_sizing_snapshot,
+            task_complexity_label=data.get("task_complexity_label"),
+            complexity_source=data.get("complexity_source"),
             tool_surface=tool_surface,
             sensitivity=sensitivity,
             server_name=_normalize_optional_str(data.get("server_name"), "server_name"),
