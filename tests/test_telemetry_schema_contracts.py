@@ -494,6 +494,50 @@ class ToolTelemetryEventSchemaContractTests(unittest.TestCase):
         event["freshness_state"] = "custom-freshness"
         self.assertFalse(validator.is_valid(event))
 
+    def test_tool_event_complexity_dimension_is_structurally_separate(self) -> None:
+        """108.002-T: task_complexity_label/complexity_source are top-level,
+        non-conflated fields — NOT nested inside work_sizing_snapshot — on
+        both schema mirrors."""
+        for path in (_TOOL_EVENT_ROOT, _TOOL_EVENT_VERSIONED):
+            schema = _load_schema(path)
+            self.assertIn("task_complexity_label", schema["properties"])
+            self.assertIn("complexity_source", schema["properties"])
+            sizing_props = schema["properties"]["work_sizing_snapshot"]["anyOf"][0]["properties"]
+            self.assertNotIn("task_complexity_label", sizing_props)
+            self.assertNotIn("complexity_source", sizing_props)
+
+    def test_tool_event_complexity_label_accepts_enum_and_null(self) -> None:
+        validator = _validator(_TOOL_EVENT_ROOT)
+
+        for value in ("trivial", "low", "medium", "high", None):
+            event = _minimal_tool_event()
+            event["task_complexity_label"] = value
+            event["complexity_source"] = "backlogit" if value is not None else None
+            self.assertTrue(validator.is_valid(event), value)
+
+    def test_tool_event_complexity_label_rejects_unknown_value(self) -> None:
+        validator = _validator(_TOOL_EVENT_ROOT)
+
+        event = _minimal_tool_event()
+        event["task_complexity_label"] = "very-high"
+        self.assertFalse(validator.is_valid(event))
+
+    def test_tool_event_complexity_source_uses_metric_sources_vocabulary(self) -> None:
+        validator = _validator(_TOOL_EVENT_ROOT)
+
+        event = _minimal_tool_event()
+        event["task_complexity_label"] = "high"
+        event["complexity_source"] = "not-a-real-source"
+        self.assertFalse(validator.is_valid(event))
+
+        event["complexity_source"] = "backlogit"
+        self.assertTrue(validator.is_valid(event))
+
+    def test_tool_event_minimal_event_omitting_complexity_stays_valid(self) -> None:
+        validator = _validator(_TOOL_EVENT_ROOT)
+
+        self.assertTrue(validator.is_valid(_minimal_tool_event()))
+
     def test_tool_event_schema_documents_forward_contract_only(self) -> None:
         schema = _load_schema(_TOOL_EVENT_ROOT)
         description = schema["description"]

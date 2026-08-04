@@ -56,6 +56,29 @@ Reports filter only on persisted fields such as `session_id`, `backlog_item_id`,
 
 `ToolTelemetryEvent v1.0` is a forward-only schema contract. It describes future granular event identity, correlation, optional `work_sizing_snapshot`, tool, timing, outcome, token economics, provenance maps, offload, retrieval health, evidence, and safety fields. As of 079-F, live event model/sink/emission and deterministic event-to-epoch composition were deferred to 084-F if needed, not part of 079-F core. 084-F implemented that deferred scope; see [Tool-Event Emission and Composition (084-F)](#tool-event-emission-and-composition-084-f) below. The published schema (`schemas/tool-telemetry-event.schema.json`) itself did not change — 084-F only adds a runtime model, journal, composer, and CLI surface that implement the existing contract.
 
+### Non-conflated complexity dimension (108-F)
+
+108-F (108.002-T/108.004-T) added two additive, optional, top-level fields — **not** a
+version bump, since both are nullable and every previously-valid record stays valid:
+
+* `task_complexity_label` — `trivial | low | medium | high | null`, backlogit's task-only
+  implementation-difficulty/uncertainty label.
+* `complexity_source` — provenance for the label, drawn from the same `metric_sources`
+  vocabulary used elsewhere in this schema (e.g. `backlogit`, `operator`, `unavailable`).
+
+Both fields are **structurally separate top-level properties**, deliberately NOT nested
+inside `work_sizing_snapshot`: `size` (implementation volume/effort, feature/shipment/task
+scoped) and `complexity` (implementation difficulty/uncertainty, task-only) answer different
+questions and must never be combined into one field or scalar
+([size-complexity-reference.md](size-complexity-reference.md)). Feature- and shipment-level
+`task_complexity_label` is `not_applicable` — backlogit's `complexity` field is task-only. See
+[docs/telemetry/backlogit-evidence-map.md](telemetry/backlogit-evidence-map.md) for the full
+backlogit-evidence-to-field mapping and
+[docs/telemetry/backlogit-sensitivity-guardrails.md](telemetry/backlogit-sensitivity-guardrails.md)
+for sensitivity/redaction guardrails on backlogit-sourced evidence. The live runtime model
+(`src/autoharness/telemetry/tool_event.py`), composer, and JSONL journal all round-trip these
+fields (108.004-T); no emitter call sites changed (084-F still owns emission).
+
 ## Tool-Event Emission and Composition (084-F)
 
 ### Event Lifecycle

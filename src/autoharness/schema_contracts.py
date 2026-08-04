@@ -39,6 +39,14 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "contract_name": "tool-telemetry-event",
         "schema_file": "tool-telemetry-event.schema.json",
         "versioned_schema_dir": "tool-telemetry-event",
+        # Schema-version decision (108.002-T): `task_complexity_label` +
+        # `complexity_source` are additive, optional (nullable), and
+        # backward-compatible with every previously-valid 1.0.0 record — no
+        # currently-valid document is invalidated by their presence or
+        # absence. Per the additive-optional convention, this does NOT bump
+        # `current_version`/`known_versions`; 1.0.0 remains current. A new
+        # versioned schema file would only be added (without deleting
+        # `1.0.0.schema.json`) if a future change were non-additive.
         "current_version": "1.0.0",
         "known_versions": ("1.0.0",),
         "compatibility_model": "versioned-contract",

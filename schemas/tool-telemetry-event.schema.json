@@ -960,6 +960,43 @@
       ],
       "description": "Optional immutable pre_execution work sizing snapshot."
     },
+    "task_complexity_label": {
+      "anyOf": [
+        {
+          "enum": [
+            "trivial",
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Task-level implementation-difficulty/uncertainty label (backlogit task-only complexity), structurally SEPARATE from work_sizing_snapshot so size (volume/effort) and complexity (difficulty/uncertainty) never conflate. Feature- and shipment-level complexity is not_applicable (backlogit complexity is task-only). Null when unavailable."
+    },
+    "complexity_source": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "host_reported",
+            "estimated",
+            "derived",
+            "unavailable",
+            "not_applicable",
+            "host",
+            "backlogit",
+            "operator"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Provenance for task_complexity_label, using the same metric_sources vocabulary as other provenance fields; null when unavailable. Independent of work_sizing_snapshot's sizing_sources map."
+    },
     "tool_surface": {
       "enum": [
         "mcp",
