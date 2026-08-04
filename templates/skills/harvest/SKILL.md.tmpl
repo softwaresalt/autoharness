@@ -106,33 +106,55 @@ Before creating anything, apply backlog shaping rules:
    back to the plan.
 
 **Size + complexity are mandatory, non-conflated, two-axis metadata
-(NON-NEGOTIABLE):** Every emitted task-kind work item MUST carry both a
+(NON-NEGOTIABLE):** Every emitted task-kind work item MUST be assigned both a
 `size` value (effort/volume: `XS`, `S`, `M`, `L`, `XL`) and a `complexity`
 value (difficulty/uncertainty: `trivial`, `low`, `medium`, `high`). These are
 two independent axes, never a single combined scalar. This section is
-self-contained — the rules below (enum validation gate, two-axis granularity
-gate, provenance-completeness rule) are the complete normative contract for
-this skill and do not depend on any file outside this template. When the
-autoharness repository's own `docs/size-complexity-reference.md` is present in
-the current workspace (as it is in the autoharness dogfood repository itself),
-treat it as supplementary rationale and worked examples only — it is not
-copied into every installed target workspace, so it must never be a required
-read for following the rules here. When the
-`backlogit` capability pack defines a native `size_source`/`size_ruleset_version`
-pair, set `size_source: agent` and a non-empty `size_ruleset_version` alongside
-`size` — provenance fields are recorded together or not at all.
+self-contained — the rules below (structured-emission capability gate, enum
+validation gate, two-axis granularity gate, provenance-completeness rule) are
+the complete normative contract for this skill and do not depend on any file
+outside this template. When the autoharness repository's own
+`docs/size-complexity-reference.md` is present in the current workspace (as it
+is in the autoharness dogfood repository itself), treat it as supplementary
+rationale and worked examples only — it is not copied into every installed
+target workspace, so it must never be a required read for following the
+rules here.
+
+**Structured-emission capability gate:** Whether `size`/`complexity` are
+written as structured backlog fields depends on the active backlog registry —
+check `features.sizing` (and the `size`/`complexity` entries under the
+registry's `create_task`/`update_task` `params` and `field_mapping`) before
+assuming support:
+
+* When the registry advertises `features.sizing: true` (for example,
+  `backlogit`), write `size` and `complexity` as structured fields on every
+  task-kind work item, validated per the enum gate below. When the registry
+  also defines native `size_source`/`size_ruleset_version` params, set
+  `size_source: agent` and a non-empty `size_ruleset_version` alongside
+  `size` — provenance fields are recorded together or not at all.
+* When the registry does not advertise `features.sizing` (absent or `false` —
+  for example, `backlog-md`, whose `create_task`/`update_task` operations
+  expose no structured size/complexity params), the backend has no
+  structured slot for these values. Preserve both values anyway by embedding
+  them as clearly labeled prose in the task description (for example,
+  `Size: M | Complexity: medium`), still enum-validated, and flag this
+  degradation explicitly in the harvest report so operators know structured
+  provenance is unavailable for this backend. Do not skip assigning size and
+  complexity, and do not halt task creation, merely because the backend
+  lacks structured fields.
 
 **Enum validation gate (fail-closed):** Validate `size` against
 `XS|S|M|L|XL` and `complexity` against `trivial|low|medium|high` before
-emitting or writing any work item. Reject and halt on any other value rather
-than silently coercing or defaulting it. This validation is an extension of
-the existing P-003 granularity gate below, not a separate check — a task
-that fails size/complexity validation is exactly as unready for staging as
-one missing an acceptance criterion.
+emitting or writing any work item, whether as structured fields or as
+prose-embedded values per the capability gate above. Reject and halt on any
+other value rather than silently coercing or defaulting it. This validation
+is an extension of the existing P-003 granularity gate below, not a separate
+check — a task that fails size/complexity validation is exactly as unready
+for staging as one missing an acceptance criterion.
 
 **Two-axis granularity gate (extends the 2-hour rule, P-003):** The 2-hour
 rule from shaping rule 1 above is evaluated on BOTH axes independently, never
-on size alone:
+on size alone, regardless of backend:
 
 * A `size` estimate implying more than 2 hours of human-equivalent effort
   requires splitting the task, regardless of its `complexity`.
@@ -177,9 +199,11 @@ If `${input:dry_run}` is `false`:
 2. Create the root feature via `{{OP_CREATE_MCP}}` or
    `{{OP_CREATE_CLI}}`.
 3. Create one task per implementation unit under that feature. Set `size`
-   and `complexity` (and `size_source`/`size_ruleset_version` provenance
-   when the backlog tool supports them) on every task, validated per the
-   enum validation gate above.
+   and `complexity` per the structured-emission capability gate above
+   (structured fields, plus `size_source`/`size_ruleset_version` provenance
+   when the registry defines those params, when `features.sizing: true`;
+   otherwise prose-embedded in the description), validated per the enum
+   validation gate above.
 4. Create granular subtasks under each task.
 5. Wire dependencies when the backlog tool supports dependency operations
    (check the backlog registry for availability).

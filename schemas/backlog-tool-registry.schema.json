@@ -103,7 +103,11 @@
         "labels": { "type": "string", "default": "labels" },
         "assignee": { "type": "string", "default": "assigned_to" },
         "priority": { "type": "string", "default": "priority" },
-        "artifact_type": { "type": "string", "default": "artifact_type" }
+        "artifact_type": { "type": "string", "default": "artifact_type" },
+        "size": { "type": "string", "description": "Structured effort/volume field, present only when features.sizing is true" },
+        "complexity": { "type": "string", "description": "Structured difficulty/uncertainty field, present only when features.sizing is true" },
+        "size_source": { "type": "string", "description": "Provenance of the size estimate (human/agent/derived), present only when features.sizing is true" },
+        "size_ruleset_version": { "type": "string", "description": "Named ruleset version used to produce the size estimate, present only when features.sizing is true" }
       }
     },
     "status_values": {
@@ -134,7 +138,8 @@
         "sections": { "type": "boolean", "default": false },
         "templates": { "type": "boolean", "default": false },
         "commit_tracking": { "type": "boolean", "default": false },
-        "shipments": { "type": "boolean", "default": false }
+        "shipments": { "type": "boolean", "default": false },
+        "sizing": { "type": "boolean", "default": false, "description": "True when create_task/update_task expose structured size and complexity parameters (see field_mapping.size, field_mapping.complexity)" }
       }
     }
   },

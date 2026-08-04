@@ -452,18 +452,36 @@ Each task includes:
 * `size` and `complexity` (see below)
 
 **Size + complexity mandatory at task creation (NON-NEGOTIABLE):** every task
-you create MUST set `size` (effort/volume: `XS`, `S`, `M`, `L`, `XL`) with
-`size_source: agent` and a non-empty `size_ruleset_version`, and `complexity`
-(difficulty/uncertainty: `trivial`, `low`, `medium`, `high`). Validate both
-enums before write; reject and halt on any invalid value rather than
-coercing or defaulting it. These are two independent axes — never conflate
-them into a single scalar, and never derive one from the other. Apply the
-two-axis 2-hour/granularity gate: a `size` estimate implying more than 2
-hours of human-equivalent effort forces a split regardless of `complexity`,
-and `complexity: high` forces a split or de-risking step (spike, further
-decomposition, or additional deliberation) regardless of `size`. This section
-is the complete normative contract and does not depend on any file outside
-this template. When the autoharness repository's own
+you create MUST be assigned both `size` (effort/volume: `XS`, `S`, `M`, `L`,
+`XL`) and `complexity` (difficulty/uncertainty: `trivial`, `low`, `medium`,
+`high`). These are two independent axes — never conflate them into a single
+scalar, and never derive one from the other. Apply the two-axis
+2-hour/granularity gate regardless of backend: a `size` estimate implying
+more than 2 hours of human-equivalent effort forces a split regardless of
+`complexity`, and `complexity: high` forces a split or de-risking step
+(spike, further decomposition, or additional deliberation) regardless of
+`size`.
+
+**Structured-emission capability gate:** Whether `size`/`complexity` are
+written as structured backlog fields depends on the active backlog
+registry's `features.sizing` flag (check the registry's `create_task`/
+`update_task` `params` and `field_mapping` before assuming support):
+
+* When `features.sizing: true` (for example, `backlogit`), set `size` and
+  `complexity` as structured fields, with `size_source: agent` and a
+  non-empty `size_ruleset_version` when the registry defines those
+  provenance params. Validate both enums before write; reject and halt on
+  any invalid value rather than coercing or defaulting it.
+* When `features.sizing` is absent or `false` (for example, `backlog-md`,
+  whose task operations expose no structured size/complexity params),
+  preserve both enum-validated values as clearly labeled prose in the task
+  description instead (for example, `Size: M | Complexity: medium`), and
+  flag this degradation explicitly in the harvest/Stage report. Do not skip
+  assigning size and complexity, and do not halt task creation, merely
+  because the backend lacks structured fields.
+
+This section is the complete normative contract and does not depend on any
+file outside this template. When the autoharness repository's own
 `docs/size-complexity-reference.md` is present in the current workspace (as
 it is in the autoharness dogfood repository itself), treat it as
 supplementary rationale and worked examples only — it is not copied into

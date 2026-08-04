@@ -22,6 +22,10 @@ operations:
       parent_id: "parent_id"
       labels: "labels"
       assignee: "assigned_to"
+      size: "size"
+      complexity: "complexity"
+      size_source: "size_source"
+      size_ruleset_version: "size_ruleset_version"
 
   list_tasks:
     mcp_tool: "backlogit_list_items"
@@ -49,6 +53,10 @@ operations:
       labels: "labels"
       assignee: "assigned_to"
       priority: "priority"
+      size: "size"
+      complexity: "complexity"
+      size_source: "size_source"
+      size_ruleset_version: "size_ruleset_version"
 
   move_task:
     mcp_tool: "backlogit_move_item"
@@ -405,6 +413,10 @@ field_mapping:
   assignee: "assigned_to"
   priority: "priority"
   artifact_type: "artifact_type"
+  size: "size"
+  complexity: "complexity"
+  size_source: "size_source"
+  size_ruleset_version: "size_ruleset_version"
 
 status_values:
   queued: "queued"
@@ -434,3 +446,4 @@ features:
   deliberation: true
   discovery: true
   lifecycle_hygiene: true
+  sizing: true
