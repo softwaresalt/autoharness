@@ -79,7 +79,9 @@ are defensible:
 * `task_size_label` and `task_complexity_label` may be correlated with each other and with
   outcome/economics fields **only at task granularity**, because backlogit's own `complexity`
   custom field is task-artifact-type only (`.backlogit/header-def.yaml`). Feature- and
-  shipment-level `task_complexity_label` is always `not_applicable` — there is no backlogit
+  shipment-level `task_complexity_label` is always `null` (the field's enum is
+  `trivial|low|medium|high|null`; there is no `not_applicable` enum member for the label
+  itself — `complexity_source: not_applicable` records why) — there is no backlogit
   source for a feature- or shipment-level complexity value, and inventing one by averaging or
   rolling up task-level labels would imply a precision (and a semantic — "average difficulty"
   is not a coherent concept) the source data does not support.

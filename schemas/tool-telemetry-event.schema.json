@@ -974,7 +974,7 @@
           "type": "null"
         }
       ],
-      "description": "Task-level implementation-difficulty/uncertainty label (backlogit task-only complexity), structurally SEPARATE from work_sizing_snapshot so size (volume/effort) and complexity (difficulty/uncertainty) never conflate. Feature- and shipment-level complexity is not_applicable (backlogit complexity is task-only). Null when unavailable."
+      "description": "Task-level implementation-difficulty/uncertainty label (backlogit task-only complexity), structurally SEPARATE from work_sizing_snapshot so size (volume/effort) and complexity (difficulty/uncertainty) never conflate. Null for feature- and shipment-level scope (backlogit complexity is task-only) and whenever otherwise unavailable; pair with complexity_source: not_applicable/unavailable to record why."
     },
     "complexity_source": {
       "anyOf": [

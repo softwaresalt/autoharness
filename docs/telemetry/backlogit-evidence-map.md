@@ -135,9 +135,9 @@ Copilot CLI session.
 | `branch` | `ExecutionEpoch.branch` | `backlogit` | `observed` | observed | epoch |
 | `repository` | no direct `ExecutionEpoch` field (epoch correlation uses `workspace_id`, not a repository string) | `backlogit` | `unavailable` | unavailable | epoch |
 | `total_tokens` | `EconomicPayload` has no single combined-total field (`input_tokens` + `output_tokens` are tracked separately); `total_tokens` is a derived sum at epoch granularity if both components are separately sourced | `backlogit` | `derived` | derived | epoch |
-| `prompt_tokens` | `EconomicPayload.input_tokens` (session-aggregate, not per-call) | `backlogit` | `estimated` | unavailable at event granularity; usable as `derived`/`estimated` roll-up input at epoch granularity | epoch |
-| `completion_tokens` | `EconomicPayload.output_tokens` (session-aggregate) | `backlogit` | `estimated` | unavailable at event granularity; epoch-level roll-up input | epoch |
-| `cached_tokens` | `EconomicPayload.cached_input_tokens` (session-aggregate) | `backlogit` | `estimated` | epoch-level roll-up input | epoch |
+| `prompt_tokens` | `EconomicPayload.input_tokens` (session-aggregate, not per-call; unavailable at event granularity, usable as a `derived`/`estimated` roll-up input at epoch granularity) | `backlogit` | `estimated` | derived | epoch |
+| `completion_tokens` | `EconomicPayload.output_tokens` (session-aggregate; unavailable at event granularity, epoch-level roll-up input) | `backlogit` | `estimated` | derived | epoch |
+| `cached_tokens` | `EconomicPayload.cached_input_tokens` (session-aggregate; epoch-level roll-up input) | `backlogit` | `estimated` | derived | epoch |
 | `model_calls` | no direct `ExecutionEpoch` field; conceptually distinct from `tool_calls` | `backlogit` | `unavailable` | unavailable | epoch |
 | `tool_calls` | see `tool_usage.call_count` note above — same aggregate-misattribution caution applies | `backlogit` | `unavailable` | unavailable | epoch |
 | `tokens_by_model` | no direct `ExecutionEpoch` field (`RouteConfiguration.models` records which models were involved, not a token breakdown by model) | `backlogit` | `unavailable` | unavailable | epoch |
@@ -169,10 +169,10 @@ record per session (not per call).
 
 | backlogit field | Target | `metric_sources` | `metric_quality` | evidence-class | granularity |
 |---|---|---|---|---|---|
-| `total_api_duration_ms` | `EconomicPayload.duration_seconds` (unit conversion required; session-aggregate, not per-call) | `backlogit` | `estimated` | epoch-level roll-up input | epoch |
+| `total_api_duration_ms` | `EconomicPayload.duration_seconds` (unit conversion required; session-aggregate, not per-call; epoch-level roll-up input) | `backlogit` | `estimated` | derived | epoch |
 | `total_premium_requests` | `EconomicPayload.cogs_usd` — **no established premium-request-to-USD conversion exists in this codebase**; do not fabricate one | `backlogit` | `unavailable` | unavailable | epoch |
-| `model_metrics[model].{input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,reasoning_tokens,request_count,request_cost}` | per-model token/request breakdown; no direct `ExecutionEpoch` field decomposes economics by model today (`EconomicPayload` is a single aggregate, not per-model) | `backlogit` | `unavailable` | unavailable at current schema; would require a schema extension to represent per-model breakdown (out of scope for 108-F) | epoch |
-| `current_tokens` / `system_tokens` / `conversation_tokens` / `tool_definitions_tokens` | context-window composition snapshot at shutdown; conceptually adjacent to `EconomicPayload.context_tokens_before`/`context_tokens_after` but measured at a different boundary (session shutdown vs per-operation before/after) — not a safe direct alias | `backlogit` | `unavailable` | unavailable (granularity/boundary mismatch) | epoch |
+| `model_metrics[model].{input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,reasoning_tokens,request_count,request_cost}` | per-model token/request breakdown; no direct `ExecutionEpoch` field decomposes economics by model today (`EconomicPayload` is a single aggregate, not per-model; would require a schema extension to represent per-model breakdown, out of scope for 108-F) | `backlogit` | `unavailable` | unavailable | epoch |
+| `current_tokens` / `system_tokens` / `conversation_tokens` / `tool_definitions_tokens` | context-window composition snapshot at shutdown; conceptually adjacent to `EconomicPayload.context_tokens_before`/`context_tokens_after` but measured at a different boundary (session shutdown vs per-operation before/after) — not a safe direct alias; granularity/boundary mismatch | `backlogit` | `unavailable` | unavailable | epoch |
 | `tool_call_count` | same aggregate-misattribution caution as `session_summary.tool_calls` / `tool_usage.call_count` | `backlogit` | `unavailable` | unavailable | epoch |
 
 ## Mapping: shipment `size_composition` and task `complexity`
@@ -192,7 +192,9 @@ telemetry JSONL/SQLite surfaces above — a planning-time (not runtime-observed)
 feature/shipment/task-scoped via `WorkSizingSnapshot`. `complexity` answers "how hard/uncertain"
 and is **task-only** in backlogit's own contract
 ([size-complexity-reference.md](../size-complexity-reference.md)) — feature- and
-shipment-level `task_complexity_label` is always `not_applicable`
+shipment-level `task_complexity_label` is always `null` (the field's enum is
+`trivial|low|medium|high|null`; there is no `not_applicable` enum member), paired with
+`complexity_source: not_applicable` to record why
 ([backlogit-sensitivity-guardrails.md](backlogit-sensitivity-guardrails.md) restates this for
 the safety boundary). The two axes are never combined into one scalar or nested inside each
 other's payload.

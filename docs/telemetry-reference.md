@@ -71,7 +71,9 @@ inside `work_sizing_snapshot`: `size` (implementation volume/effort, feature/shi
 scoped) and `complexity` (implementation difficulty/uncertainty, task-only) answer different
 questions and must never be combined into one field or scalar
 ([size-complexity-reference.md](size-complexity-reference.md)). Feature- and shipment-level
-`task_complexity_label` is `not_applicable` — backlogit's `complexity` field is task-only. See
+`task_complexity_label` is `null` (the field's enum is `trivial|low|medium|high|null`, with
+no `not_applicable` label value) paired with `complexity_source: not_applicable` — backlogit's
+`complexity` field is task-only. See
 [docs/telemetry/backlogit-evidence-map.md](telemetry/backlogit-evidence-map.md) for the full
 backlogit-evidence-to-field mapping and
 [docs/telemetry/backlogit-sensitivity-guardrails.md](telemetry/backlogit-sensitivity-guardrails.md)
