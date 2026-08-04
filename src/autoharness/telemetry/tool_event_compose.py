@@ -25,6 +25,12 @@ Composition rules (docs/plans/2026-07-31-token-efficiency-telemetry-emission-dec
   ``context_tokens_after`` uses the maximum (the latest) (decision 2, §R2).
 * Route kinds and tool/tool-surface/retrieval-pack sets are aggregated as sorted
   unique values, which is inherently independent of event arrival order.
+* ``task_complexity_label`` (108.002-T/108.004-T) is task-level (event)
+  evidence, structurally separate from ``work_sizing_snapshot``, with no
+  corresponding ``ExecutionEpoch`` payload slot — it is never summed,
+  maxed, or otherwise aggregated into a composed patch. When correlated
+  events disagree on the label, a diagnostic surfaces the divergence
+  (``_complexity_diagnostics``); the composed patch itself is unaffected.
 * An event's ``expected_tool`` records one explicit expected opportunity
   (decision 7). Satisfaction uses explicit event links (``## Review Fixes``
   item 2, a ratified P1 fix): a direct invocation event whose own
@@ -260,6 +266,23 @@ def _compose_route(events: Sequence[ToolTelemetryEvent]) -> RouteConfiguration:
     return RouteConfiguration(models=(), route_kinds=route_kinds)
 
 
+def _complexity_diagnostics(events: Sequence[ToolTelemetryEvent]) -> list[str]:
+    """108.004-T: ``task_complexity_label`` is task-level (event) evidence with
+    no corresponding ``ExecutionEpoch`` slot — it is never aggregated into an
+    epoch payload section. The composer still threads the field through by
+    surfacing a diagnostic when correlated events disagree on the label,
+    mirroring the non-monotonic-emitter visibility pattern used for cumulative
+    token fields: this never changes the composed patch, it only surfaces a
+    signal for a human/reviewer that the correlated event set is not
+    complexity-consistent."""
+    labels = sorted({event.task_complexity_label for event in events if event.task_complexity_label is not None})
+    if len(labels) > 1:
+        return [
+            f"divergent task_complexity_label values across {len(events)} correlated event(s): {labels}"
+        ]
+    return []
+
+
 def _compose_economics(
     events: Sequence[ToolTelemetryEvent],
 ) -> tuple[EconomicPayload, list[str]]:
@@ -475,6 +498,7 @@ def compose_tool_events(
     route = _compose_route(selected)
     economics, economics_diagnostics = _compose_economics(selected)
     diagnostics.extend(economics_diagnostics)
+    diagnostics.extend(_complexity_diagnostics(selected))
     operations, outcome = _compose_operations_and_outcome(selected)
 
     return ToolEventComposition(

@@ -47,6 +47,12 @@ METRIC_QUALITY_VALUES = frozenset(
 )
 SECRET_SCAN_STATUSES = frozenset({"not_run", "passed", "flagged", "unavailable"})
 
+# task_complexity_label vocabulary (108.002-T): backlogit's task-only complexity
+# enum, structurally separate from size (WorkSizingSnapshot). complexity_source
+# reuses the METRIC_SOURCE_VALUES vocabulary rather than defining its own, since
+# it is provenance metadata of the same shape as every other *_source field.
+TASK_COMPLEXITY_LABELS = frozenset({"trivial", "low", "medium", "high"})
+
 # route_kind / freshness_state are well-known enums extensible via an "x-*" prefix.
 _WELL_KNOWN_ROUTE_KINDS = frozenset(
     {
@@ -113,6 +119,8 @@ _SCHEMA_PROPERTY_NAMES = frozenset(
         "feature_id",
         "shipment_id",
         "work_sizing_snapshot",
+        "task_complexity_label",
+        "complexity_source",
         "tool_surface",
         "server_name",
         "tool_name",
@@ -377,6 +385,8 @@ class ToolTelemetryEvent:
     feature_id: str | None = None
     shipment_id: str | None = None
     work_sizing_snapshot: WorkSizingSnapshot | None = None
+    task_complexity_label: str | None = None
+    complexity_source: str | None = None
     server_name: str | None = None
     tool_version: str | None = None
     argv_fingerprint: str | None = None
@@ -504,6 +514,17 @@ class ToolTelemetryEvent:
                 "'work_sizing_snapshot' must be a WorkSizingSnapshot instance or None."
             )
 
+        if self.task_complexity_label is not None and self.task_complexity_label not in TASK_COMPLEXITY_LABELS:
+            raise ToolTelemetryEventError(
+                f"'task_complexity_label' must be one of {sorted(TASK_COMPLEXITY_LABELS)} or null; "
+                f"got {self.task_complexity_label!r}."
+            )
+        if self.complexity_source is not None and self.complexity_source not in METRIC_SOURCE_VALUES:
+            raise ToolTelemetryEventError(
+                f"'complexity_source' must be one of {sorted(METRIC_SOURCE_VALUES)} or null; "
+                f"got {self.complexity_source!r}."
+            )
+
         if self.exit_code is not None and (
             isinstance(self.exit_code, bool) or not isinstance(self.exit_code, int)
         ):
@@ -576,6 +597,8 @@ class ToolTelemetryEvent:
             "work_sizing_snapshot": (
                 self.work_sizing_snapshot.to_dict() if self.work_sizing_snapshot is not None else None
             ),
+            "task_complexity_label": self.task_complexity_label,
+            "complexity_source": self.complexity_source,
             "tool_surface": self.tool_surface,
             "server_name": self.server_name,
             "tool_name": self.tool_name,
@@ -697,6 +720,8 @@ class ToolTelemetryEvent:
             feature_id=_normalize_optional_str(data.get("feature_id"), "feature_id"),
             shipment_id=_normalize_optional_str(data.get("shipment_id"), "shipment_id"),
             work_sizing_snapshot=work_sizing_snapshot,
+            task_complexity_label=data.get("task_complexity_label"),
+            complexity_source=data.get("complexity_source"),
             tool_surface=tool_surface,
             sensitivity=sensitivity,
             server_name=_normalize_optional_str(data.get("server_name"), "server_name"),

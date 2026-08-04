@@ -228,5 +228,27 @@ class ExactCorrelationSelectionTests(ToolEventJsonlTestCase):
         self.assertEqual(len(result.events), 1)
 
 
+class TaskComplexityRoundTripTests(ToolEventJsonlTestCase):
+    """108.004-T: task_complexity_label/complexity_source survive the
+    append/read journal round-trip unchanged."""
+
+    def test_complexity_fields_round_trip_through_append_and_read(self) -> None:
+        event = _event(task_complexity_label="high", complexity_source="backlogit")
+        tool_event_jsonl.append_event(event, self.jsonl_path)
+        result = tool_event_jsonl.read_events(self.jsonl_path, backlog_item_id="084.003-T")
+        self.assertEqual(len(result.events), 1)
+        rebuilt = result.events[0]
+        self.assertEqual(rebuilt.task_complexity_label, "high")
+        self.assertEqual(rebuilt.complexity_source, "backlogit")
+
+    def test_event_omitting_complexity_fields_round_trips_as_none(self) -> None:
+        event = _event()
+        tool_event_jsonl.append_event(event, self.jsonl_path)
+        result = tool_event_jsonl.read_events(self.jsonl_path, backlog_item_id="084.003-T")
+        self.assertEqual(len(result.events), 1)
+        self.assertIsNone(result.events[0].task_complexity_label)
+        self.assertIsNone(result.events[0].complexity_source)
+
+
 if __name__ == "__main__":
     unittest.main()

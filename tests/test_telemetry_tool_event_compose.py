@@ -419,5 +419,40 @@ class RouteAndOperationsAggregationTests(unittest.TestCase):
         self.assertEqual(result.operations.tool_output_bytes, 750)
 
 
+class TaskComplexityCompositionTests(unittest.TestCase):
+    """108.004-T: task_complexity_label is task-level (event) evidence with no
+    ExecutionEpoch payload slot — the composer threads it through as a
+    diagnostic-only signal, never as an aggregated economics/operations/
+    outcome field."""
+
+    def test_agreeing_complexity_labels_produce_no_diagnostic(self) -> None:
+        events = [
+            _event(task_complexity_label="high", complexity_source="backlogit"),
+            _event(task_complexity_label="high", complexity_source="backlogit"),
+        ]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertEqual(result.diagnostics, ())
+
+    def test_divergent_complexity_labels_produce_a_diagnostic(self) -> None:
+        events = [
+            _event(task_complexity_label="low", complexity_source="backlogit"),
+            _event(task_complexity_label="high", complexity_source="operator"),
+        ]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertEqual(len(result.diagnostics), 1)
+        self.assertIn("divergent task_complexity_label", result.diagnostics[0])
+
+    def test_complexity_label_is_not_present_on_any_composed_payload_section(self) -> None:
+        events = [_event(task_complexity_label="medium", complexity_source="backlogit")]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        for section in (result.route, result.economics, result.operations, result.outcome):
+            self.assertNotIn("task_complexity_label", section.to_dict())
+
+    def test_null_complexity_labels_produce_no_diagnostic(self) -> None:
+        events = [_event(), _event()]
+        result = tool_event_compose.compose_tool_events(events, epoch_id="1" * 32)
+        self.assertEqual(result.diagnostics, ())
+
+
 if __name__ == "__main__":
     unittest.main()

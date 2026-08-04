@@ -316,6 +316,62 @@ class ToolTelemetryEventWorkSizingSnapshotIngestionTests(unittest.TestCase):
             ToolTelemetryEvent.from_mapping({**_minimal_kwargs(), "work_sizing_snapshot": 42})
 
 
+class ToolTelemetryEventTaskComplexityTests(unittest.TestCase):
+    """108.004-T: task_complexity_label/complexity_source round-trip,
+    structurally separate from work_sizing_snapshot, nullable-safe."""
+
+    def test_defaults_to_none(self) -> None:
+        event = ToolTelemetryEvent(**_minimal_kwargs())
+        self.assertIsNone(event.task_complexity_label)
+        self.assertIsNone(event.complexity_source)
+
+    def test_accepts_each_enum_value(self) -> None:
+        for label in ("trivial", "low", "medium", "high"):
+            event = ToolTelemetryEvent(
+                **_minimal_kwargs(task_complexity_label=label, complexity_source="backlogit")
+            )
+            self.assertEqual(event.task_complexity_label, label)
+            self.assertEqual(event.complexity_source, "backlogit")
+
+    def test_rejects_invalid_label(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent(**_minimal_kwargs(task_complexity_label="very-high"))
+
+    def test_rejects_invalid_complexity_source(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent(
+                **_minimal_kwargs(task_complexity_label="high", complexity_source="made_up")
+            )
+
+    def test_label_and_source_are_independent_of_work_sizing_snapshot(self) -> None:
+        event = ToolTelemetryEvent(
+            **_minimal_kwargs(
+                task_complexity_label="high",
+                complexity_source="backlogit",
+                work_sizing_snapshot=WorkSizingSnapshot(task_size_label="XS"),
+            )
+        )
+        self.assertEqual(event.work_sizing_snapshot.task_size_label, "XS")
+        self.assertEqual(event.task_complexity_label, "high")
+        record = event.to_dict()
+        self.assertNotIn("task_complexity_label", record["work_sizing_snapshot"])
+        self.assertEqual(record["task_complexity_label"], "high")
+
+    def test_round_trip_preserves_label_and_source(self) -> None:
+        event = ToolTelemetryEvent(
+            **_minimal_kwargs(task_complexity_label="medium", complexity_source="operator")
+        )
+        rebuilt = ToolTelemetryEvent.from_mapping(event.to_dict())
+        self.assertEqual(rebuilt.task_complexity_label, "medium")
+        self.assertEqual(rebuilt.complexity_source, "operator")
+        self.assertEqual(rebuilt.to_dict(), event.to_dict())
+
+    def test_record_omitting_complexity_fields_stays_valid(self) -> None:
+        event = ToolTelemetryEvent.from_mapping(_minimal_kwargs())
+        self.assertIsNone(event.task_complexity_label)
+        self.assertIsNone(event.complexity_source)
+
+
 class ToolTelemetryEventWorkspaceReferenceValidationTests(unittest.TestCase):
     """Review fix 2 (PR #273, PRRT_kwDORzpWpM6Vnq_M): ``evidence_path`` and
     ``artifact_refs`` must be validated as repo-local, sanitized references
@@ -425,6 +481,27 @@ class ToolTelemetryEventSchemaConformanceTests(unittest.TestCase):
             sensitivity="internal",
             backlog_item_id="084.001-T",
             expected_tool="map_code",
+        )
+        self._validate(event.to_dict())
+
+    def test_event_with_complexity_label_validates_against_schema(self) -> None:
+        event = ToolTelemetryEvent(
+            **_minimal_kwargs(
+                epoch_id="d" * 32,
+                task_complexity_label="high",
+                complexity_source="backlogit",
+            )
+        )
+        self._validate(event.to_dict())
+
+    def test_event_with_complexity_and_work_sizing_snapshot_both_populate_independently(self) -> None:
+        event = ToolTelemetryEvent(
+            **_minimal_kwargs(
+                epoch_id="e" * 32,
+                task_complexity_label="low",
+                complexity_source="operator",
+                work_sizing_snapshot=WorkSizingSnapshot(task_size_label="XL"),
+            )
         )
         self._validate(event.to_dict())
 
