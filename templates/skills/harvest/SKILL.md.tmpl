@@ -109,9 +109,15 @@ Before creating anything, apply backlog shaping rules:
 (NON-NEGOTIABLE):** Every emitted task-kind work item MUST carry both a
 `size` value (effort/volume: `XS`, `S`, `M`, `L`, `XL`) and a `complexity`
 value (difficulty/uncertainty: `trivial`, `low`, `medium`, `high`). These are
-two independent axes, never a single combined scalar — see
-`{{DOCS_ROOT}}/size-complexity-reference.md` for the full non-conflation
-contract, enum tables, and the provenance-completeness rule. When the
+two independent axes, never a single combined scalar. This section is
+self-contained — the rules below (enum validation gate, two-axis granularity
+gate, provenance-completeness rule) are the complete normative contract for
+this skill and do not depend on any file outside this template. When the
+autoharness repository's own `docs/size-complexity-reference.md` is present in
+the current workspace (as it is in the autoharness dogfood repository itself),
+treat it as supplementary rationale and worked examples only — it is not
+copied into every installed target workspace, so it must never be a required
+read for following the rules here. When the
 `backlogit` capability pack defines a native `size_source`/`size_ruleset_version`
 pair, set `size_source: agent` and a non-empty `size_ruleset_version` alongside
 `size` — provenance fields are recorded together or not at all.
@@ -198,7 +204,8 @@ If `${input:dry_run}` is `false`:
   without reopening the plan for basic context.
 * Never emit a task without both `size` and `complexity` set and enum-validated.
 * Never combine `size` and `complexity` into one field or derive one axis from
-  the other — see `{{DOCS_ROOT}}/size-complexity-reference.md`.
+  the other. This rule is fully stated above and does not require any external
+  file to be present in the installed workspace.
 
 ## Model Routing
 

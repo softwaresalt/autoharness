@@ -461,9 +461,14 @@ them into a single scalar, and never derive one from the other. Apply the
 two-axis 2-hour/granularity gate: a `size` estimate implying more than 2
 hours of human-equivalent effort forces a split regardless of `complexity`,
 and `complexity: high` forces a split or de-risking step (spike, further
-decomposition, or additional deliberation) regardless of `size`. See
-`{{DOCS_ROOT}}/size-complexity-reference.md` for the full non-conflation
-contract and the provenance-completeness rule.
+decomposition, or additional deliberation) regardless of `size`. This section
+is the complete normative contract and does not depend on any file outside
+this template. When the autoharness repository's own
+`docs/size-complexity-reference.md` is present in the current workspace (as
+it is in the autoharness dogfood repository itself), treat it as
+supplementary rationale and worked examples only — it is not copied into
+every installed target workspace, so it is never a required read for
+following the rules above.
 
 When the `backlogit` capability pack is installed and dependency operations are supported, create
 explicit dependency edges between tasks that must run in sequence instead of encoding that ordering

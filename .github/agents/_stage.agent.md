@@ -286,9 +286,10 @@ guard prevents risky plans from silently bypassing every gate.
    two-axis 2-hour/granularity gate: a `size` estimate implying more than 2
    hours of human-equivalent effort forces a split regardless of `complexity`,
    and `complexity: high` forces a split or de-risking step (spike, further
-   decomposition, or additional deliberation) regardless of `size`. See
-   `docs/size-complexity-reference.md` for the full non-conflation contract
-   and the provenance-completeness rule.
+   decomposition, or additional deliberation) regardless of `size`. This
+   requirement is fully self-contained above; `docs/size-complexity-reference.md`
+   (present in this repository) is supplementary rationale and worked examples
+   only, not a substitute for the rules stated here.
 
 ### Step 5: Shipment Assembly (MANDATORY when backlogit + shipments)
 

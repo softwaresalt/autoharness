@@ -107,8 +107,8 @@ artifacts:
   - path: ".github/agents/_stage.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "43400570b083d9cac3969ddaa52d26d8a0ffec631d9e160fd86cc24a119edf98"
-    note: "source-controlled dogfood workflow agent; checksum refreshed 112-S/107.004-T (size+complexity mandatory at task creation, two-axis 2-hour/granularity gate, non-conflation)"
+    checksum: "116e4330b635f0cc43b193c2038d16724947c0324dd15dac742fd3cb45f47e06"
+    note: "source-controlled dogfood workflow agent; checksum refreshed 112-S/107.004-T (size+complexity mandatory at task creation, two-axis 2-hour/granularity gate, non-conflation; Copilot PR #292 review fix: self-contained contract, size-complexity-reference.md framed as supplementary rationale present in this repository)"
   - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
