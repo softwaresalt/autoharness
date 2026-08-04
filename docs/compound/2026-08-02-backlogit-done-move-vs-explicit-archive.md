@@ -83,3 +83,23 @@ in the Step 5 Closure Tasks safe-close procedure — for every candidate
 field) and treat `status: done` (even under `archive/` on disk) as **not
 archived**; only `status: archived` with `archived_status`/`archived_from`
 present may be skipped. Do not infer archived-ness from file location.
+
+## Third occurrence (112-S / 107-F) — pre-flight check applied successfully
+
+The gap recurred a third time during `112-S`'s closure: all 5 manifest
+tasks (`107.001-T`–`107.005-T`) had again been physically relocated to
+`.backlogit/archive/` by the feature branch's own task-loop commits, with
+`status: done` still recorded. This time, the documented pre-flight check
+(reading/grepping the `status` field of each candidate file for
+`archived` vs `done` **before** any skip decision) was run proactively as a
+first step, before treating any file as "pre-archived" — no Copilot review
+thread was needed to catch it, and no corruption occurred. All 5 tasks were
+then explicitly archived one at a time. See
+`docs/closure/112-S-107-F-post-merge-closure.md`.
+
+This confirms the pre-flight check works when actually performed, but the
+recurrence (third time) shows the check is still easy to skip without
+enforcement. The `111-S` closure's recorded follow-up — add a scripted/hard
+pre-flight status-check step to the Step 5 Closure Tasks procedure rather
+than relying on an agent remembering to consult this compound doc — remains
+open and is reinforced by this third occurrence.
