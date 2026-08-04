@@ -103,3 +103,34 @@ enforcement. The `111-S` closure's recorded follow-up — add a scripted/hard
 pre-flight status-check step to the Step 5 Closure Tasks procedure rather
 than relying on an agent remembering to consult this compound doc — remains
 open and is reinforced by this third occurrence.
+
+## Fourth occurrence (113-S / 108-F) — gap caught only after an initial skip
+
+The gap recurred a fourth time during `113-S`'s closure: all 4 manifest
+tasks (`108.001-T`–`108.004-T`) had again been physically relocated to
+`.backlogit/archive/` by the feature branch's own task-loop commits, with
+`status: done` still recorded. Unlike the `112-S` closure, this session's
+first pass reflexively applied the "pre-archived items are skipped" rule
+based on file location alone (`Get-ChildItem .backlogit/archive/108.00*.md`
+returning results) before reading the `status` field — the same
+misclassification recorded in the second occurrence. The gap was only
+caught because the shipment/feature archival step's own pre-flight
+(reading `status:` on the shipment and feature files) prompted a check of
+the sibling task files' `status:` field as well, which surfaced `status:
+done` (not `archived`) on all 4. All 4 tasks were then explicitly archived
+one at a time via `backlogit archive <id>`, verified to now carry `status:
+archived` + `archived_status: done` + `archived_from`, with the protected
+sibling feature `082-F` re-confirmed untouched (`status: blocked`,
+queue-resident) after each call. See
+`docs/closure/113-S-108-F-post-merge-closure.md`.
+
+This is the fourth recorded occurrence of the same gap. The pattern is now
+unambiguous: an agent's first instinct is to treat "file physically under
+`archive/`" as sufficient evidence of the explicit-archive transition,
+independent of how many times this doc has been read. The `111-S`/`112-S`
+follow-up (a scripted, hard pre-flight `status:` field check run
+unconditionally against every manifest task **before** any skip decision,
+not left to agent discretion or compound-doc recall) remains open and
+should be treated as a priority hardening item for the Step 5 Closure
+Tasks procedure — narrative documentation alone has now failed to prevent
+recurrence four times.
