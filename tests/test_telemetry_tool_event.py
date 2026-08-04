@@ -371,6 +371,46 @@ class ToolTelemetryEventTaskComplexityTests(unittest.TestCase):
         self.assertIsNone(event.task_complexity_label)
         self.assertIsNone(event.complexity_source)
 
+    def test_complexity_source_required_when_label_populated_construction(self) -> None:
+        """Review-fix cycle 2 (PR #294): a populated label with no source is refused
+        at construction time -- defeats the purpose of complexity_source otherwise."""
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent(**_minimal_kwargs(task_complexity_label="high"))
+
+    def test_complexity_source_required_when_label_populated_from_mapping(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent.from_mapping(
+                {**_minimal_kwargs(), "task_complexity_label": "high", "complexity_source": None}
+            )
+
+    def test_null_label_never_requires_a_source(self) -> None:
+        event = ToolTelemetryEvent(**_minimal_kwargs(complexity_source="operator"))
+        self.assertIsNone(event.task_complexity_label)
+        self.assertEqual(event.complexity_source, "operator")
+
+    def test_non_string_label_raises_controlled_error_not_typeerror(self) -> None:
+        """Review-fix cycle 2 (PR #294): a JSON array/object supplied for either new
+        field must raise ToolTelemetryEventError (normalized to CLI exit 2), never an
+        unhandled TypeError from an unhashable-value set-membership check."""
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent(**_minimal_kwargs(task_complexity_label=["high"]))
+
+    def test_non_string_complexity_source_raises_controlled_error_not_typeerror(self) -> None:
+        with self.assertRaises(ToolTelemetryEventError):
+            ToolTelemetryEvent(
+                **_minimal_kwargs(task_complexity_label="high", complexity_source={"bad": "shape"})
+            )
+
+    def test_legacy_1_0_0_schema_version_normalizes_forward_on_read(self) -> None:
+        """Review-fix cycle 2 (PR #294): a pre-108-F journal entry declares
+        schema_version 1.0.0 and never had the new fields; from_mapping must
+        normalize it forward rather than rejecting it as an unsupported version."""
+        legacy_payload = {**_minimal_kwargs(), "schema_version": "1.0.0"}
+        event = ToolTelemetryEvent.from_mapping(legacy_payload)
+        self.assertEqual(event.schema_version, SCHEMA_VERSION)
+        self.assertIsNone(event.task_complexity_label)
+        self.assertIsNone(event.complexity_source)
+
 
 class ToolTelemetryEventWorkspaceReferenceValidationTests(unittest.TestCase):
     """Review fix 2 (PR #273, PRRT_kwDORzpWpM6Vnq_M): ``evidence_path`` and

@@ -36,7 +36,17 @@ structurally different record types for them:
 
 * **`event`** — genuine **per-invocation** evidence: one row per completed tool call. Only
   `tool_call_fact` is per-invocation evidence in backlogit 1.8. This is the ONLY granularity
-  that may populate `ToolTelemetryEvent` per-operation fields directly with `observed` quality.
+  that may populate `ToolTelemetryEvent` per-operation fields directly with `observed` quality
+  **from the telemetry harvester**. A second, structurally distinct source also carries
+  `observed` quality at `event` granularity without going through the harvester at all:
+  planning-time state (`size_composition`, task `custom_fields.complexity`) read directly via
+  `backlogit shipment get`/`backlogit get` and captured once into a `ToolTelemetryEvent`'s
+  embedded `work_sizing_snapshot`/`task_complexity_label` at the `pre_execution` boundary. This
+  is a direct, unaggregated read of current planning state (not a derived/computed roll-up), so
+  it satisfies `observed` quality the same way `tool_call_fact` does — it is simply captured by
+  a different mechanism (a one-time snapshot read, not a harvested call record). See the
+  dedicated mapping section below for this source; the "Summary" section further down describes
+  only the `tool_call_fact` harvester path and is not making a claim about this snapshot path.
 * **`epoch`** — **per-session or per-tool-in-session aggregate** evidence: totals, counts, and
   derived ratios computed over many calls. `session_summary`, `tool_usage`, and `session_fact`
   are all aggregate-granularity. Aggregate evidence belongs at `ExecutionEpoch` economics
@@ -199,16 +209,20 @@ shipment-level `task_complexity_label` is always `null` (the field's enum is
 the safety boundary). The two axes are never combined into one scalar or nested inside each
 other's payload.
 
-## Summary: what `observed` evidence backlogit 1.8 actually gives autoharness at event granularity
+## Summary: what `observed` evidence backlogit 1.8's telemetry harvester gives autoharness at event granularity
 
 Restated for emphasis, since this is the finding that corrected the original (pre-re-review)
-plan draft: genuine per-invocation `observed` evidence from backlogit 1.8 is limited to
-`tool_call_fact`'s fields — `tool_name`, `server_name`, `model`, `is_builtin`, `started_at`,
-`completed_at`, `duration_ms`, `success`, and the optional `branch`/`repository`/`turn_id`
-correlation fields. **No per-call token evidence exists.** Everything else useful
-(tokens, model-level breakdowns, derived utilization/depletion metrics) is aggregate,
-session-granularity evidence that belongs at `ExecutionEpoch` economics granularity or is
-presently unrepresentable in either ratified schema.
+plan draft: genuine per-invocation `observed` evidence from backlogit 1.8's **telemetry
+harvester** is limited to `tool_call_fact`'s fields — `tool_name`, `server_name`, `model`,
+`is_builtin`, `started_at`, `completed_at`, `duration_ms`, `success`, and the optional
+`branch`/`repository`/`turn_id` correlation fields. **No per-call token evidence exists.**
+Everything else useful (tokens, model-level breakdowns, derived utilization/depletion metrics)
+is aggregate, session-granularity evidence that belongs at `ExecutionEpoch` economics
+granularity or is presently unrepresentable in either ratified schema. This restatement is
+scoped to the harvester path only — it does not apply to the separately-sourced, directly-read
+planning-time snapshot (`size_composition`/task `complexity`) described in the granularity
+dimension section above and the dedicated mapping section below, which also carries `observed`
+quality at `event` granularity through a different (non-harvester) mechanism.
 
 ## Cross-references
 

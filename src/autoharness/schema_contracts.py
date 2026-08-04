@@ -39,16 +39,24 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "contract_name": "tool-telemetry-event",
         "schema_file": "tool-telemetry-event.schema.json",
         "versioned_schema_dir": "tool-telemetry-event",
-        # Schema-version decision (108.002-T): `task_complexity_label` +
-        # `complexity_source` are additive, optional (nullable), and
-        # backward-compatible with every previously-valid 1.0.0 record — no
-        # currently-valid document is invalidated by their presence or
-        # absence. Per the additive-optional convention, this does NOT bump
-        # `current_version`/`known_versions`; 1.0.0 remains current. A new
-        # versioned schema file would only be added (without deleting
-        # `1.0.0.schema.json`) if a future change were non-additive.
-        "current_version": "1.0.0",
-        "known_versions": ("1.0.0",),
+        # Schema-version decision (108.002-T/108.004-T, revised in PR #294
+        # review-fix cycle 2): `task_complexity_label` + `complexity_source`
+        # are new top-level properties on a schema with `additionalProperties:
+        # false`. Even though both are nullable, adding them in place would
+        # make the SAME "1.0.0" version identifier mean two different byte-
+        # level contracts (an old 1.0.0 validator rejects any record
+        # containing the new properties; a patched-in-place 1.0.0 validator
+        # accepts them) -- an ambiguous version identifier. Bumped to 1.1.0
+        # instead: the published `1.0.0.schema.json` is restored to its
+        # original pre-108-F bytes (never mutated in place) and a new
+        # `1.1.0.schema.json` mirror carries the additive fields. The root
+        # schema and the runtime `SCHEMA_VERSION` constant both track current
+        # (1.1.0); `ToolTelemetryEvent.from_mapping` normalizes legacy 1.0.0
+        # payloads forward on read (mirroring the execution-epoch v1.0->v1.1
+        # legacy-normalization pattern) so old journal entries remain
+        # readable.
+        "current_version": "1.1.0",
+        "known_versions": ("1.0.0", "1.1.0"),
         "compatibility_model": "versioned-contract",
     },
     "manifest": {

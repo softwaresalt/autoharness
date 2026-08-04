@@ -20,6 +20,9 @@ _EXECUTION_EPOCH_VERSIONED = (
 )
 _TOOL_EVENT_ROOT = _REPO_ROOT / "schemas" / "tool-telemetry-event.schema.json"
 _TOOL_EVENT_VERSIONED = (
+    _REPO_ROOT / "schemas" / "tool-telemetry-event" / "1.1.0.schema.json"
+)
+_TOOL_EVENT_LEGACY_VERSIONED = (
     _REPO_ROOT / "schemas" / "tool-telemetry-event" / "1.0.0.schema.json"
 )
 
@@ -66,7 +69,7 @@ def _minimal_epoch_record() -> dict[str, Any]:
 
 def _minimal_tool_event() -> dict[str, Any]:
     return {
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "event_id": "event-1",
         "epoch_id": "0123456789abcdef0123456789abcdef",
         "timestamp": "2026-07-23T19:41:39Z",
@@ -275,11 +278,22 @@ class ToolTelemetryEventSchemaContractTests(unittest.TestCase):
 
         self.assertTrue(root["$id"].endswith("/schemas/tool-telemetry-event.schema.json"))
         self.assertTrue(
-            versioned["$id"].endswith("/schemas/tool-telemetry-event/1.0.0.schema.json")
+            versioned["$id"].endswith("/schemas/tool-telemetry-event/1.1.0.schema.json")
         )
         root.pop("$id", None)
         versioned.pop("$id", None)
         self.assertEqual(root, versioned)
+
+    def test_tool_event_legacy_1_0_0_mirror_is_preserved_unchanged(self) -> None:
+        """108.002-T review-fix cycle 2: the published 1.0.0 mirror must never be
+        mutated in place -- a strict (additionalProperties: false) schema makes any
+        in-place property addition an ambiguous same-version-identifier change. The
+        legacy file must lack the new complexity fields and keep its original const."""
+        legacy = _load_schema(_TOOL_EVENT_LEGACY_VERSIONED)
+
+        self.assertEqual(legacy["properties"]["schema_version"]["const"], "1.0.0")
+        self.assertNotIn("task_complexity_label", legacy["properties"])
+        self.assertNotIn("complexity_source", legacy["properties"])
 
     def test_tool_event_registration_points_at_v1_schema(self) -> None:
         contract = SCHEMA_CONTRACTS["tool-telemetry-event"]
@@ -287,14 +301,15 @@ class ToolTelemetryEventSchemaContractTests(unittest.TestCase):
         self.assertEqual(contract["contract_name"], "tool-telemetry-event")
         self.assertEqual(contract["schema_file"], "tool-telemetry-event.schema.json")
         self.assertEqual(contract["versioned_schema_dir"], "tool-telemetry-event")
-        self.assertEqual(contract["current_version"], "1.0.0")
+        self.assertEqual(contract["current_version"], "1.1.0")
+        self.assertIn("1.1.0", contract["known_versions"])
         self.assertIn("1.0.0", contract["known_versions"])
 
     def test_tool_event_const_required_and_server_name_nullable(self) -> None:
         schema = _load_schema(_TOOL_EVENT_ROOT)
         validator = _validator(_TOOL_EVENT_ROOT)
 
-        self.assertEqual(schema["properties"]["schema_version"]["const"], "1.0.0")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], "1.1.0")
         self.assertEqual(
             set(schema["required"]),
             {
@@ -322,8 +337,28 @@ class ToolTelemetryEventSchemaContractTests(unittest.TestCase):
         self.assertFalse(validator.is_valid(missing_required_nullable))
 
         wrong_version = _minimal_tool_event()
-        wrong_version["schema_version"] = "1.1.0"
+        # The legacy const is no longer valid against the current (1.1.0) JSON
+        # Schema -- only autoharness.telemetry.tool_event's Python runtime
+        # normalizes legacy 1.0.0 payloads forward on read.
+        wrong_version["schema_version"] = "1.0.0"
         self.assertFalse(validator.is_valid(wrong_version))
+
+    def test_tool_event_complexity_source_required_when_label_populated(self) -> None:
+        """108.002-T review-fix cycle 2: a populated task_complexity_label with a
+        null/absent complexity_source is refused at the JSON Schema level."""
+        validator = _validator(_TOOL_EVENT_ROOT)
+
+        labelled_no_source = _minimal_tool_event()
+        labelled_no_source["task_complexity_label"] = "high"
+        self.assertFalse(validator.is_valid(labelled_no_source))
+
+        labelled_with_source = _minimal_tool_event()
+        labelled_with_source["task_complexity_label"] = "high"
+        labelled_with_source["complexity_source"] = "backlogit"
+        self.assertTrue(validator.is_valid(labelled_with_source))
+
+        # Null label never requires a source.
+        self.assertTrue(validator.is_valid(_minimal_tool_event()))
 
     def test_tool_event_identity_and_correlation_invariants(self) -> None:
         validator = _validator(_TOOL_EVENT_ROOT)

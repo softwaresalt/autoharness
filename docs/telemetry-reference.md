@@ -58,13 +58,22 @@ Reports filter only on persisted fields such as `session_id`, `backlog_item_id`,
 
 ### Non-conflated complexity dimension (108-F)
 
-108-F (108.002-T/108.004-T) added two additive, optional, top-level fields — **not** a
-version bump, since both are nullable and every previously-valid record stays valid:
+108-F (108.002-T/108.004-T) added two additive, top-level fields, bumping the schema to
+**v1.1.0** (schemas with `additionalProperties: false` make any new property — even a nullable
+one — a version-identifying change, since an old-version validator rejects the new property's
+presence while an in-place-patched validator of the same version string would accept it; see
+`schemas/tool-telemetry-event/1.0.0.schema.json`, preserved unchanged, and the new
+`schemas/tool-telemetry-event/1.1.0.schema.json`). Legacy 1.0.0 records are normalized forward
+on read by the runtime model (`ToolTelemetryEvent.from_mapping`), mirroring
+`autoharness.telemetry.epoch`'s v1.0→v1.1 legacy-normalization pattern:
 
 * `task_complexity_label` — `trivial | low | medium | high | null`, backlogit's task-only
   implementation-difficulty/uncertainty label.
 * `complexity_source` — provenance for the label, drawn from the same `metric_sources`
   vocabulary used elsewhere in this schema (e.g. `backlogit`, `operator`, `unavailable`).
+  Required (non-null) whenever `task_complexity_label` is non-null — a populated label with no
+  recorded provenance is refused by both the JSON Schema conditional and
+  `ToolTelemetryEvent.__post_init__`.
 
 Both fields are **structurally separate top-level properties**, deliberately NOT nested
 inside `work_sizing_snapshot`: `size` (implementation volume/effort, feature/shipment/task
