@@ -123,3 +123,4 @@ features:
   dependencies: true
   sections: false
   templates: false
+  sizing: false

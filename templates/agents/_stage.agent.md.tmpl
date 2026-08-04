@@ -449,6 +449,56 @@ Each task includes:
 * Parent sub-epic reference
 * Acceptance criteria
 * Suggested execution posture (test-first, characterization-first, migration-first, spike)
+* `size` and `complexity` (see below)
+
+**Size + complexity mandatory at task creation (NON-NEGOTIABLE):** every task
+you create MUST be assigned both `size` (effort/volume: `XS`, `S`, `M`, `L`,
+`XL`) and `complexity` (difficulty/uncertainty: `trivial`, `low`, `medium`,
+`high`). These are two independent axes — never conflate them into a single
+scalar, and never derive one from the other. Apply the two-axis
+2-hour/granularity gate regardless of backend: a `size` estimate implying
+more than 2 hours of human-equivalent effort forces a split regardless of
+`complexity`, and `complexity: high` forces a split or de-risking step
+(spike, further decomposition, or additional deliberation) regardless of
+`size`.
+
+**Structured-emission capability gate:** Whether `size`/`complexity` are
+written as structured backlog fields, and in how many calls, depends on the
+active backlog registry's `features.sizing` flag and the exact `params`
+declared per operation (check `create_task` vs. `update_task` before
+assuming support or call-sequencing):
+
+* When `features.sizing: true` (for example, `backlogit`), set `size` and
+  `complexity` as structured fields, validated per the enum rule above —
+  but do not assume they can be set at task-creation time or in one call.
+  `backlogit` 1.8.0's `create_task` operation accepts no sizing params at
+  all, and its `update_task` operation treats `size` (with `size_source`/
+  `size_ruleset_version` together) and `complexity` as two separate,
+  mutually exclusive, body-preserving mutation seams that cannot be
+  combined with each other or with any other field update in one call. The
+  required sequence for a registry with this shape is: (1) create the task
+  with no sizing params, (2) a follow-up update call setting `size` (+
+  `size_source: agent` and a non-empty `size_ruleset_version` when the
+  registry defines those provenance params, together as one call), (3) a
+  further, separate update call setting `complexity`. Reject and halt on
+  any invalid enum value at any step rather than coercing or defaulting it.
+  Always inspect the registry's actual per-operation `params` before
+  assuming a different sequence is safe.
+* When `features.sizing` is absent or `false` (for example, `backlog-md`,
+  whose task operations expose no structured size/complexity params),
+  preserve both enum-validated values as clearly labeled prose in the task
+  description instead (for example, `Size: M | Complexity: medium`), and
+  flag this degradation explicitly in the harvest/Stage report. Do not skip
+  assigning size and complexity, and do not halt task creation, merely
+  because the backend lacks structured fields.
+
+This section is the complete normative contract and does not depend on any
+file outside this template. When the autoharness repository's own
+`docs/size-complexity-reference.md` is present in the current workspace (as
+it is in the autoharness dogfood repository itself), treat it as
+supplementary rationale and worked examples only — it is not copied into
+every installed target workspace, so it is never a required read for
+following the rules above.
 
 When the `backlogit` capability pack is installed and dependency operations are supported, create
 explicit dependency edges between tasks that must run in sequence instead of encoding that ordering
@@ -743,6 +793,8 @@ from the recorded next step rather than restarting the pipeline.
 * Never create tasks exceeding the 2-hour rule
 * Never bundle multiple skill domains in a single task
 * Every task must have at least one acceptance criterion
+* Never create a task without both `size` and `complexity` set and enum-validated
+* Never conflate `size` and `complexity` into a single scalar or derive one axis from the other
 * Halt on P-003 violations rather than creating partial hierarchies
 * Halt on P-006 violations — do not skip plan-harden when impl-plan declares hardening is required
 * Never skip the framing phase — understanding the problem is not optional

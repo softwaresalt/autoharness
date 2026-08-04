@@ -276,6 +276,41 @@ guard prevents risky plans from silently bypassing every gate.
 2. Enforce the 2-hour rule: each task targets a single template family or concern.
 3. Width isolation: do not combine template work with CLI work or schema work
    in the same task.
+4. **Size + complexity mandatory at task creation (NON-NEGOTIABLE):** every task
+   you create MUST be assigned both `size` (effort/volume: `XS`, `S`, `M`, `L`,
+   `XL`) and `complexity` (difficulty/uncertainty: `trivial`, `low`, `medium`,
+   `high`). These are two independent axes — never conflate them into a single
+   scalar, and never derive one from the other. Apply the two-axis
+   2-hour/granularity gate regardless of backend: a `size` estimate implying
+   more than 2 hours of human-equivalent effort forces a split regardless of
+   `complexity`, and `complexity: high` forces a split or de-risking step
+   (spike, further decomposition, or additional deliberation) regardless of
+   `size`.
+5. **Structured-emission capability gate:** Whether `size`/`complexity` are
+   written as structured backlog fields, and in how many calls, depends on the
+   active backlog registry's `features.sizing` flag and the exact `params`
+   declared per operation (check `create_task` vs. `update_task` before
+   assuming support or call-sequencing). This repository's registry is
+   `backlogit`, which advertises `features.sizing: true` but splits the write
+   across calls: `create_task` (`backlogit_create_item` / `backlogit add`)
+   accepts no sizing params at all, and `update_task`
+   (`backlogit_update_item` / `backlogit update`) treats `size` (with
+   `size_source`/`size_ruleset_version` together) and `complexity` as two
+   separate, mutually exclusive, body-preserving mutation seams that cannot
+   be combined with each other or with any other field update in one call.
+   The required sequence is therefore: (1) create the task with no sizing
+   params, (2) a follow-up update call setting `size` with `size_source:
+   agent` and a non-empty `size_ruleset_version` together, (3) a further,
+   separate update call setting `complexity`. Validate both enums before
+   each write; reject and halt on any invalid value rather than coercing or
+   defaulting it. When a generated Stage agent targets a registry without
+   `features.sizing` (for example, `backlog-md`), preserve both
+   enum-validated values as clearly labeled prose in the task description
+   instead, and flag the degradation explicitly in the harvest/Stage report
+   rather than skipping assignment or halting task creation. This requirement
+   is fully self-contained above; `docs/size-complexity-reference.md`
+   (present in this repository) is supplementary rationale and worked examples
+   only, not a substitute for the rules stated here.
 
 ### Step 5: Shipment Assembly (MANDATORY when backlogit + shipments)
 

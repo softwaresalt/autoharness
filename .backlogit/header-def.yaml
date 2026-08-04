@@ -235,3 +235,11 @@ types:
                     - L
                     - XL
                 optional: true
+            complexity:
+                type: enum
+                values:
+                    - trivial
+                    - low
+                    - medium
+                    - high
+                optional: true
