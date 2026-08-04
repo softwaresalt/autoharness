@@ -21,8 +21,10 @@ backlogit's released non-conflation semantics verbatim, the harvest skill
 and `_stage` agent template (plus its installed dogfood copy) mandating
 both axes at task-creation time with fail-closed enum validation and a
 P-003 granularity gate extended to both axes independently, and a reviewer
-validation checklist. Docs/templates/backlogit-config only — no `src/`
-source code, schema, or CLI change shipped. All 5 manifest tasks
+validation checklist, plus an additive `complexity` field on
+`schemas/backlog-tool-registry.schema.json` (7 additions/2 deletions,
+non-breaking). Docs/templates/backlogit-config-and-registry-schema only —
+no `src/` source code or CLI change shipped. All 5 manifest tasks
 (`107.001-T`–`107.005-T`) executed in dependency order.
 
 ## Merge Confirmation
