@@ -121,17 +121,29 @@ target workspace, so it must never be a required read for following the
 rules here.
 
 **Structured-emission capability gate:** Whether `size`/`complexity` are
-written as structured backlog fields depends on the active backlog registry —
-check `features.sizing` (and the `size`/`complexity` entries under the
-registry's `create_task`/`update_task` `params` and `field_mapping`) before
-assuming support:
+written as structured backlog fields, and in how many calls, depends on the
+active backlog registry — check `features.sizing`, and check exactly which
+operation (`create_task` vs. `update_task`) declares the `size`/`complexity`/
+`size_source`/`size_ruleset_version` params before assuming support or
+call-sequencing:
 
 * When the registry advertises `features.sizing: true` (for example,
   `backlogit`), write `size` and `complexity` as structured fields on every
-  task-kind work item, validated per the enum gate below. When the registry
-  also defines native `size_source`/`size_ruleset_version` params, set
-  `size_source: agent` and a non-empty `size_ruleset_version` alongside
-  `size` — provenance fields are recorded together or not at all.
+  task-kind work item, validated per the enum gate below — but do not assume
+  they can be set in the same call that creates the task, or even in the
+  same call as each other. `backlogit` 1.8.0's `create_task` operation
+  (`backlogit_create_item` / `backlogit add`) accepts no sizing params at
+  all, and its `update_task` operation enforces two mutually exclusive,
+  body-preserving mutation seams: `size` (with `size_source`/
+  `size_ruleset_version` together) is one seam, `complexity` is a separate
+  seam, and neither can be combined with the other or with any other field
+  update in one call. The required sequence for a registry with this shape
+  is therefore: (1) create the task with no sizing params, (2) a follow-up
+  update call setting `size` (+ `size_source`/`size_ruleset_version` when the
+  registry defines those provenance params, set together as one call), (3) a
+  further, separate update call setting `complexity`. Always inspect the
+  registry's actual `params` declarations per operation before assuming a
+  different (or more permissive) sequence is safe.
 * When the registry does not advertise `features.sizing` (absent or `false` —
   for example, `backlog-md`, whose `create_task`/`update_task` operations
   expose no structured size/complexity params), the backend has no
@@ -198,12 +210,17 @@ If `${input:dry_run}` is `false`:
    items with matching titles.
 2. Create the root feature via `{{OP_CREATE_MCP}}` or
    `{{OP_CREATE_CLI}}`.
-3. Create one task per implementation unit under that feature. Set `size`
-   and `complexity` per the structured-emission capability gate above
-   (structured fields, plus `size_source`/`size_ruleset_version` provenance
-   when the registry defines those params, when `features.sizing: true`;
-   otherwise prose-embedded in the description), validated per the enum
-   validation gate above.
+3. Create one task per implementation unit under that feature via
+   `{{OP_CREATE_MCP}}`/`{{OP_CREATE_CLI}}` (`create_task`). Then set `size`
+   and `complexity` per the structured-emission capability gate above: when
+   `features.sizing: true`, apply them as one or more follow-up
+   `{{OP_UPDATE_MCP}}`/`{{OP_UPDATE_CLI}}` (`update_task`) calls in whatever
+   number and order the registry's declared `params` require (for example,
+   `backlogit` requires a separate call for `size`/`size_source`/
+   `size_ruleset_version` and another separate call for `complexity`); when
+   `features.sizing` is absent or `false`, embed both values as prose in the
+   description at creation time instead. Validate both values per the enum
+   validation gate above before any write, structured or prose.
 4. Create granular subtasks under each task.
 5. Wire dependencies when the backlog tool supports dependency operations
    (check the backlog registry for availability).

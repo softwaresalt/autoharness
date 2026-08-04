@@ -22,10 +22,12 @@ operations:
       parent_id: "parent_id"
       labels: "labels"
       assignee: "assigned_to"
-      size: "size"
-      complexity: "complexity"
-      size_source: "size_source"
-      size_ruleset_version: "size_ruleset_version"
+    # NOTE: backlogit 1.8.0's create_task surface (backlogit_create_item /
+    # `backlogit add`) has no size/complexity/size_source/size_ruleset_version
+    # parameters. Structured sizing metadata is applied via a follow-up
+    # update_task call (or two -- see update_task below), never at creation
+    # time. Do not add sizing params here without confirming the installed
+    # backlogit version's create surface actually accepts them.
 
   list_tasks:
     mcp_tool: "backlogit_list_items"
@@ -57,6 +59,13 @@ operations:
       complexity: "complexity"
       size_source: "size_source"
       size_ruleset_version: "size_ruleset_version"
+    # NOTE: backlogit 1.8.0 enforces two mutually exclusive, body-preserving
+    # mutation seams that cannot be combined with each other or with any other
+    # field update in one call:
+    #   1. size (+ size_source, size_ruleset_version together) -- one call.
+    #   2. complexity -- a separate call.
+    # Applying both size and complexity to a task therefore requires two
+    # update_task invocations, never one combined invocation.
 
   move_task:
     mcp_tool: "backlogit_move_item"

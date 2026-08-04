@@ -463,15 +463,27 @@ more than 2 hours of human-equivalent effort forces a split regardless of
 `size`.
 
 **Structured-emission capability gate:** Whether `size`/`complexity` are
-written as structured backlog fields depends on the active backlog
-registry's `features.sizing` flag (check the registry's `create_task`/
-`update_task` `params` and `field_mapping` before assuming support):
+written as structured backlog fields, and in how many calls, depends on the
+active backlog registry's `features.sizing` flag and the exact `params`
+declared per operation (check `create_task` vs. `update_task` before
+assuming support or call-sequencing):
 
 * When `features.sizing: true` (for example, `backlogit`), set `size` and
-  `complexity` as structured fields, with `size_source: agent` and a
-  non-empty `size_ruleset_version` when the registry defines those
-  provenance params. Validate both enums before write; reject and halt on
-  any invalid value rather than coercing or defaulting it.
+  `complexity` as structured fields, validated per the enum rule above —
+  but do not assume they can be set at task-creation time or in one call.
+  `backlogit` 1.8.0's `create_task` operation accepts no sizing params at
+  all, and its `update_task` operation treats `size` (with `size_source`/
+  `size_ruleset_version` together) and `complexity` as two separate,
+  mutually exclusive, body-preserving mutation seams that cannot be
+  combined with each other or with any other field update in one call. The
+  required sequence for a registry with this shape is: (1) create the task
+  with no sizing params, (2) a follow-up update call setting `size` (+
+  `size_source: agent` and a non-empty `size_ruleset_version` when the
+  registry defines those provenance params, together as one call), (3) a
+  further, separate update call setting `complexity`. Reject and halt on
+  any invalid enum value at any step rather than coercing or defaulting it.
+  Always inspect the registry's actual per-operation `params` before
+  assuming a different sequence is safe.
 * When `features.sizing` is absent or `false` (for example, `backlog-md`,
   whose task operations expose no structured size/complexity params),
   preserve both enum-validated values as clearly labeled prose in the task

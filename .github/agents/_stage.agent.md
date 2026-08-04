@@ -287,15 +287,24 @@ guard prevents risky plans from silently bypassing every gate.
    (spike, further decomposition, or additional deliberation) regardless of
    `size`.
 5. **Structured-emission capability gate:** Whether `size`/`complexity` are
-   written as structured backlog fields depends on the active backlog
-   registry's `features.sizing` flag (check the registry's `create_task`/
-   `update_task` `params` and `field_mapping` before assuming support). This
-   repository's registry is `backlogit`, which advertises
-   `features.sizing: true`: set `size` and `complexity` as structured fields,
-   with `size_source: agent` and a non-empty `size_ruleset_version`. Validate
-   both enums before write; reject and halt on any invalid value rather than
-   coercing or defaulting it. When a generated Stage agent targets a registry
-   without `features.sizing` (for example, `backlog-md`), preserve both
+   written as structured backlog fields, and in how many calls, depends on the
+   active backlog registry's `features.sizing` flag and the exact `params`
+   declared per operation (check `create_task` vs. `update_task` before
+   assuming support or call-sequencing). This repository's registry is
+   `backlogit`, which advertises `features.sizing: true` but splits the write
+   across calls: `create_task` (`backlogit_create_item` / `backlogit add`)
+   accepts no sizing params at all, and `update_task`
+   (`backlogit_update_item` / `backlogit update`) treats `size` (with
+   `size_source`/`size_ruleset_version` together) and `complexity` as two
+   separate, mutually exclusive, body-preserving mutation seams that cannot
+   be combined with each other or with any other field update in one call.
+   The required sequence is therefore: (1) create the task with no sizing
+   params, (2) a follow-up update call setting `size` with `size_source:
+   agent` and a non-empty `size_ruleset_version` together, (3) a further,
+   separate update call setting `complexity`. Validate both enums before
+   each write; reject and halt on any invalid value rather than coercing or
+   defaulting it. When a generated Stage agent targets a registry without
+   `features.sizing` (for example, `backlog-md`), preserve both
    enum-validated values as clearly labeled prose in the task description
    instead, and flag the degradation explicitly in the harvest/Stage report
    rather than skipping assignment or halting task creation. This requirement
