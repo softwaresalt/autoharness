@@ -6,7 +6,7 @@ feature_pr: 297
 merge_commit: cef40405039d770e1847bc55e929eca5b89e77c9
 merged_at: "2026-08-05T15:03:19Z"
 reviewed_head: 1feee9aa5afcda6431ec0268c7200182d9d04a32
-closure_status: READY
+closure_status: READY_WITH_CONDITIONS
 compaction_status: done
 ---
 
@@ -199,10 +199,13 @@ gates B/C remain queued in `115-S`/`116-S`):
 
 - **Healthy signals**:
   - PR #297 merged with a merge commit (two parents; P-009 preserved).
-  - Local review READY (P0=0/P1=0, no follow-ups); Copilot review across 12
-    rounds (27 findings total, all fixed, all 27 threads resolved); §1.9 and
-    P-018 both PASS/SATISFIED at final HEAD, re-verified unconditionally
-    immediately before merge.
+  - Local review READY (P0=0/P1=0, no follow-ups); all **27 of 27 Copilot
+    review threads** across 12 rounds were replied to and resolved via
+    GraphQL; §1.9 and the thread-based P-018 gate both PASS/SATISFIED at
+    final HEAD, re-verified unconditionally immediately before merge. (This
+    is distinct from the two suppressed, never-promoted-to-a-thread
+    residual findings below — thread resolution is complete; the
+    underlying code defects are not.)
   - CI green at every merge gate; CLI smoke probe PASS; the new gate
     subcommand itself validated live against this repo's real backlog state
     across all 11 fix rounds.
@@ -218,8 +221,10 @@ gates B/C remain queued in `115-S`/`116-S`):
     claim operation (real delayed/failed claims will deterministically end
     in `CLAIM_VERIFY_FAILED`), and `cli.py:735-739`'s telemetry outcome
     mapping records invalid (`exit_code == 2`) gate evaluations as
-    `success`. Neither blocks this closure; both require a dedicated Stage-
-    triaged follow-up task under `109-F`.
+    `success`. Neither is exercised in production today (see Releasability
+    below), but both must be fixed before `115-S` activates this gate as a
+    real enforcement point; both require a dedicated Stage-triaged
+    follow-up task.
   - Otherwise none specific to this shipment's scope. The Copilot review's
     persistent "silent fail-open" defect class (frontmatter parsing →
     shipment id → shipment status → archive-presence ambiguity → task
@@ -230,18 +235,30 @@ gates B/C remain queued in `115-S`/`116-S`):
     instance of *that* pattern is known to remain in `topology.py`.
 - **Releasability** (`runtime_validation.releasability.required: false`,
   `status_when_satisfied: READY`): monitoring — the new
-  `autoharness gate pipeline-topology` subcommand is opt-in (no existing
-  automation invokes it yet; hook install is deferred to gate B/`115-S`),
-  so there is no user-facing behavior change to monitor beyond the CLI
-  help-text addition; rollback = revert merge commit `cef4040` (additive
-  new module + tests + docs, no destructive migration, no schema change);
-  validation window = immediate post-merge on 2026-08-05 after `main`
-  synced to `cef4040`; owner = Ship agent (closure evidence), operator
-  (pre-authorized dark-mode merge approval for PR #297; a separate,
-  explicit approval is still required for this post-merge closure PR per
-  P-014 — dark-mode pre-authorization does not extend past `114-S`'s own
-  merge without an explicit renewed scope).
-  **Releasability: READY.**
+  `autoharness gate pipeline-topology` subcommand is opt-in and **not yet
+  wired into any hook or automated caller** (no existing automation invokes
+  it; hook install is deferred to gate B/`115-S`; Ship's own current
+  claim-verify logic in `.github/agents/_ship.agent.md` also does not call
+  it yet), so there is zero live blast radius from the two known residual
+  defects today — the only user-facing behavior change is the CLI
+  help-text addition, which is unaffected by either defect; rollback =
+  revert merge commit `cef4040` (additive new module + tests + docs, no
+  destructive migration, no schema change); validation window = immediate
+  post-merge on 2026-08-05 after `main` synced to `cef4040`; owner = Ship
+  agent (closure evidence), operator (pre-authorized dark-mode merge
+  approval for PR #297; a separate, explicit approval is still required
+  for this post-merge closure PR per P-014 — dark-mode pre-authorization
+  does not extend past `114-S`'s own merge without an explicit renewed
+  scope).
+  **Releasability: READY_WITH_CONDITIONS** — condition: `topology.py:680`
+  (bounded post-claim retry never re-invokes a claim operation) and
+  `cli.py:735-739` (invalid `exit_code == 2` results recorded as `success`
+  telemetry) MUST be fixed and verified **before** `115-S` (or any other
+  work) wires this gate into a git hook or any automated caller. Until that
+  condition is met, the gate remains safe to merge/hold as dormant,
+  manually-invoked-only code — it is not yet an active enforcement point,
+  so `109.001-T`'s reclaim/retry acceptance criterion is not violated in a
+  live sense, but it must be satisfied before activation.
 - **Follow-ups**: `none` carried from the PR #297 Local Review Readiness
   block itself (explicitly `none` at merge time). **Two new follow-ups
   identified during this closure PR's own review** (see Known Residual
@@ -249,29 +266,34 @@ gates B/C remain queued in `115-S`/`116-S`):
   `topology.py`'s bounded post-claim retry; (2) map `exit_code == 2` (and
   any other non-zero, non-`blocked`, non-`forced` result) to a `failed`
   telemetry outcome in `cli.py`. Both require Stage triage (Ship cannot
-  create backlog items). Gates B (hooks/install) and C (CI) remain staged
-  in `115-S`/`116-S`, both still `queued` and explicitly **not** started by
-  this closure, per the operator's instruction to return control to
-  Orchestrator after `114-S` closure.
+  create backlog items) and **must complete before `115-S` installs the
+  hook** that activates this gate. Gates B (hooks/install) and C (CI)
+  remain staged in `115-S`/`116-S`, both still `queued` and explicitly
+  **not** started by this closure, per the operator's instruction to
+  return control to Orchestrator after `114-S` closure.
 
-**Closure verdict: READY.** Merge confirmed (P-009 preserved, two-parent
-commit `cef4040`), local review READY + Copilot review across 12 rounds
-(27/27 threads resolved) + §1.9 + P-018 gates verified at final HEAD
-`1feee9a` immediately before merge, runtime CLI probe PASS (plus extensive
-live gate self-validation), single-artifact safe-close complete for the
-shipment and all 10 manifest tasks (no cascade corruption, no scope leakage
-into `109-F` or the `115-S`/`116-S` sibling tasks), and P-020 context
-compaction is recorded `done` (see Context Compaction section above). Two
-pre-existing residual defects in merged code were surfaced by this closure
-PR's own Copilot review and are documented above as required Stage
-follow-ups — they do not change the `READY` verdict for `114-S` itself
-(both predate this shipment's diff and are independent of it), but they
-are explicit, load-bearing follow-up items, not silently dropped.
+**Closure verdict: READY_WITH_CONDITIONS.** Merge confirmed (P-009
+preserved, two-parent commit `cef4040`), local review READY + all 27
+Copilot review threads across 12 rounds resolved + §1.9 + P-018 thread-gate
+verified at final HEAD `1feee9a` immediately before merge, runtime CLI
+probe PASS (plus extensive live gate self-validation), single-artifact
+safe-close complete for the shipment and all 10 manifest tasks (no cascade
+corruption, no scope leakage into `109-F` or the `115-S`/`116-S` sibling
+tasks), and P-020 context compaction is recorded `done` (see Context
+Compaction section above). Two pre-existing residual defects in merged code
+were surfaced by this closure PR's own Copilot review, are documented above
+as required Stage follow-ups, and are the reason this verdict is
+`READY_WITH_CONDITIONS` rather than an unconditional `READY`: the defects
+have zero live blast radius today (dormant, unwired CLI subcommand) but
+must be fixed and verified before `115-S` (or any other work) activates
+this gate via a hook or automated caller.
 
 **Remaining approval blocker**: this post-merge closure PR requires its own
 **separate, explicit operator approval** before merge (P-014 — the PR #297
 dark-mode-authorized approval does not carry over). No merge of the closure
 PR will be attempted without it. `114-S` is already safe-closed and
-archived; the sole outstanding item is operator sign-off on this closure PR
-itself. Per the operator's explicit instruction, Ship does **not** start
+archived; the sole outstanding items are (1) operator sign-off on this
+closure PR itself, and (2) Stage triage of the two follow-up defects before
+`115-S` activates the gate. Per the operator's explicit instruction, Ship
+does **not** start
 `115-S` and returns control to Orchestrator after this closure.

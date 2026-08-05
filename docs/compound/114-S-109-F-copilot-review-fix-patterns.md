@@ -130,3 +130,22 @@ non-shipment-shaped `id`. The general lesson: when a validation only
 guards one branch of an if/else, check whether the invariant it protects
 actually needs to hold on both branches — a correctly-typed-but-wrongly-ID'd
 record is just as dangerous as a wrongly-typed one.
+
+## Lesson: a review's "0 new comments"/"0 new threads" count does not mean "clean" — read the full review body
+
+The closure PR for this same shipment (#298) received its own Copilot
+review, which caught that our own drafted closure documentation had
+mischaracterized PR #297's round 12 as "clean" based solely on the
+thread-based P-018 gate returning `SATISFIED` with zero new threads. In
+fact the round-12 review body (and the closure PR's own subsequent review)
+carried **suppressed comments**: findings Copilot generates but does not
+promote to a new resolvable inline thread because they duplicate a position
+already raised in an earlier round and never actually fixed
+(`topology.py:680`'s no-op bounded retry, `cli.py:735-739`'s telemetry
+outcome mapping). Suppressed comments are invisible to any workflow that
+only inspects `reviewThreads` — they live only in the review's free-text
+`body` field. Lesson: before declaring a round "clean" or finalizing a
+closure verdict as unconditional `READY`, read the full review body text
+(`reviews(last:N){ nodes{ body } }` via GraphQL), not just the thread
+count — and remember that a docs-only PR is not exempt from this scrutiny;
+closure documentation itself gets reviewed.
