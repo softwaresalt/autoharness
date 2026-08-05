@@ -156,8 +156,9 @@ CI-path behavior for the entrypoint and workflow wiring is covered by:
   BLOCK (exit 1), and missing-`autoharness`-binary (exit 1) outcomes.
 * `tests/test_ci_template_rendering.py::TopologyCheckJobTests` — structural
   assertions on `templates/ci/ci.yml.tmpl`'s `topology-check` job across all
-  three technology profiles (Rust/agent-engram, Go/backlogit,
-  Python/dogfood): job presence, always-runs (not gated on `changes`), the
+  three rendered test profiles actually defined in that test module
+  (`rust`, `typescript`, `python` — see `tests/test_ci_template_rendering.py`
+  lines 34-85): job presence, always-runs (not gated on `changes`), the
   toggle being a repository variable (`vars.PIPELINE_TOPOLOGY_GATE_REQUIRED`)
   rather than a `{{TEMPLATE_VAR}}`, advisory-by-default via
   `continue-on-error`, correct entrypoint invocation, `autoharness` install
@@ -166,11 +167,12 @@ CI-path behavior for the entrypoint and workflow wiring is covered by:
   ID).
 * Both advisory mode (default, `continue-on-error: true`) and required mode
   (`vars.PIPELINE_TOPOLOGY_GATE_REQUIRED == 'true'`, `continue-on-error:
-  false`) are exercised structurally by asserting the exact
-  `continue-on-error` expression string in the rendered template — the same
-  expression evaluates both branches at CI runtime depending solely on the
-  repository variable, so there is nothing profile-specific left to test per
-  toggle state.
+  false`) are exercised behaviorally by
+  `test_continue_on_error_expression_evaluates_both_toggle_states`, which
+  extracts the rendered `continue-on-error` expression and evaluates it
+  against unset, `'false'`, and `'true'` values for the repository variable —
+  asserting the actual advisory/required outcome each value produces, not
+  merely the exact expression string.
 
 ## References
 

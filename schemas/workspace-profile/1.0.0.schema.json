@@ -225,6 +225,11 @@
           "items": {
             "type": "string"
           }
+        },
+        "autoharness_install_command": {
+          "type": "string",
+          "description": "Shell command the topology-check job (109.014-T / Gate C) runs to install the 'autoharness' CLI onto the CI runner before invoking it. Independent of 'languages.primary': 'autoharness' is always a Python package, so this resolves the same way regardless of the target workspace's own ecosystem. Default 'pip install autoharness' (the published package) for every ordinary consuming workspace. Resolve 'pip install -e .' only for the self-hosting exception where the workspace being installed onto is the autoharness source repo itself (detected via the workspace root pyproject.toml's [project].name == 'autoharness'; missing/unreadable/non-matching falls back to the ordinary default, fail-closed toward the published-package path).",
+          "default": "pip install autoharness"
         }
       }
     },
