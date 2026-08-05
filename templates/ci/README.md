@@ -67,6 +67,15 @@ error. Keep only the gates the workspace actually has (the same set recorded in
 
 ## Pipeline-Topology CI Backstop (Gate C)
 
+**Backlogit-only precondition**: this job is installed **only** when the
+workspace's backlog tool is `backlogit` (`{{FEATURE_SHIPMENTS}}` is `true`).
+The gate's backlog reader (`FilesystemTopologyReaders`) currently reads only
+`.backlogit/`; installing this job for a backlog-md/manual/non-shipment-capable
+workspace would always resolve `BACKLOG_UNAVAILABLE`, which becomes a
+permanent BLOCK once `PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted to
+required. `install-harness` omits the job and its entrypoint script entirely
+for those workspaces rather than rendering it advisory-only as a workaround.
+
 The always-running `topology-check` job checks out the repo, installs
 `autoharness`, and runs `scripts/ci-topology-check.sh` (resolved from
 `templates/ci/ci-topology-check.sh.tmpl` — see

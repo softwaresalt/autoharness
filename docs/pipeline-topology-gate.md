@@ -234,6 +234,15 @@ server-side, **non-bypassable** CI backstop: local hooks are always skippable vi
 authoritative re-validation point for the P-001/P-016 invariants once a checkout
 syncs.
 
+**Backlogit-only**: `install-harness` installs this entrypoint and its workflow
+job only when the workspace's backlog tool is `backlogit`
+(`{{FEATURE_SHIPMENTS}}` is `true`). The gate's backlog reader
+(`FilesystemTopologyReaders`) currently reads only `.backlogit/`; a backlog-md,
+manual, or other non-shipment-capable workspace would otherwise always resolve
+`BACKLOG_UNAVAILABLE`, a hard BLOCK once `PIPELINE_TOPOLOGY_GATE_REQUIRED` is
+promoted to required. See
+[the CI rollout doc's Applicability section](pipeline-topology-gate-ci-rollout.md#applicability-backlogit-only).
+
 * **Entrypoint** (109.011-T): `templates/ci/ci-topology-check.sh.tmpl` resolves to
   `{workspace}/scripts/ci-topology-check.sh`. It invokes
   `autoharness gate pipeline-topology --mode ci --phase ambient --json` — the

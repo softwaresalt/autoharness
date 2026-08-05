@@ -1369,8 +1369,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Local environment file | `{workspace}/.env.local` — generated from `{autoharness_home}/templates/scripts/.env.local.tmpl`; seeds `workspaceFolder={{WORKSPACE_ROOT}}`. Gitignored per-developer secrets file — **write only if it does not already exist**; never overwrite an existing `.env.local` |
 | Markdownlint config (when `tools.markdownlint` detected or operator opt-in) | `{workspace}/.markdownlint.json` — resolved from `{autoharness_home}/templates/scripts/.markdownlint.json.tmpl` (no variables to resolve; copy as-is) |
 | Markdownlint pre-commit hooks (when markdownlint config installed) | `{workspace}/scripts/pre-commit-markdownlint.sh`, `{workspace}/scripts/pre-commit-markdownlint.ps1` — copied from `{autoharness_home}/templates/scripts/pre-commit-markdownlint.sh.tmpl` and `pre-commit-markdownlint.ps1.tmpl`; set execute permission on `.sh` after copy: `chmod +x scripts/pre-commit-markdownlint.sh` |
-| CI workflow (when `ci.platform` is GitHub Actions and a toolchain is detected) | `{workspace}/.github/workflows/ci.yml` — resolved from `{autoharness_home}/templates/ci/ci.yml.tmpl`; drop any expensive-job gate step whose command variable has no discovered value (keep only the gates in `local_gating.pre_push_gates`). Includes the always-running `topology-check` job (109.014-T / C2) invoking the CI topology-check entrypoint below. See `templates/ci/README.md` and P-019 |
-| CI topology-check entrypoint (109.011-T / C1, installed whenever the CI workflow row above applies) | `{workspace}/scripts/ci-topology-check.sh` — copied from `{autoharness_home}/templates/ci/ci-topology-check.sh.tmpl`; set execute permission after copy: `chmod +x scripts/ci-topology-check.sh`. Fail-closed, no advisory-degrade toggle (unlike the local hooks): the CI workflow's `topology-check` job invokes this script and applies the required-vs-advisory decision at the JOB level via the `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable (default unset = advisory/non-blocking; set to `'true'` to flip to required/blocking — no workflow re-render needed). See `docs/pipeline-topology-gate.md` |
+| CI workflow (when `ci.platform` is GitHub Actions and a toolchain is detected) | `{workspace}/.github/workflows/ci.yml` — resolved from `{autoharness_home}/templates/ci/ci.yml.tmpl`; drop any expensive-job gate step whose command variable has no discovered value (keep only the gates in `local_gating.pre_push_gates`). Includes the always-running `topology-check` job (109.014-T / C2) invoking the CI topology-check entrypoint below **only when `{{FEATURE_SHIPMENTS}}` is `true` (backlogit shipment support)** — the `pipeline-topology` gate's `FilesystemTopologyReaders` currently reads only `.backlogit`, so a backlog-md/manual/non-shipment-capable install would always resolve `BACKLOG_UNAVAILABLE` (permanent BLOCK once `PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted); omit the `topology-check` job entirely — never render it advisory-only as a workaround — for those installs. See `templates/ci/README.md` and P-019 |
+| CI topology-check entrypoint (109.011-T / C1, installed whenever the CI workflow row above applies **and `{{FEATURE_SHIPMENTS}}` is `true`**) | `{workspace}/scripts/ci-topology-check.sh` — copied from `{autoharness_home}/templates/ci/ci-topology-check.sh.tmpl`; set execute permission after copy: `chmod +x scripts/ci-topology-check.sh`. Fail-closed, no advisory-degrade toggle (unlike the local hooks): the CI workflow's `topology-check` job invokes this script and applies the required-vs-advisory decision at the JOB level via the `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable (default unset = advisory/non-blocking; set to `'true'` to flip to required/blocking — no workflow re-render needed). See `docs/pipeline-topology-gate.md` |
 | Pre-push quality-gate hooks (when `local_gating.pre_push_enabled`) | `{workspace}/scripts/pre-push-quality-gates.sh`, `{workspace}/scripts/pre-push-quality-gates.ps1` — resolved from `{autoharness_home}/templates/scripts/pre-push-quality-gates.sh.tmpl` and `pre-push-quality-gates.ps1.tmpl`; drop any gate line whose command variable has no discovered value; set execute permission on `.sh` after copy: `chmod +x scripts/pre-push-quality-gates.sh`. **Opt-in**: write the scripts and install guidance only — never overwrite the developer's `.git/hooks/pre-push` or set `core.hooksPath` automatically (P-019). These hooks now also invoke `autoharness gate pipeline-topology --mode manual --phase ambient` (non-shipment-scoped, advisory-first, P-001/P-016) |
 | Pipeline-topology pre-commit hook (when `autoharness` CLI provides `gate pipeline-topology`, i.e. always for this product) | `{workspace}/scripts/pre-commit-pipeline-topology.sh`, `{workspace}/scripts/pre-commit-pipeline-topology.ps1` — copied from `{autoharness_home}/templates/scripts/pre-commit-pipeline-topology.sh.tmpl` and `pre-commit-pipeline-topology.ps1.tmpl`; set execute permission on `.sh` after copy: `chmod +x scripts/pre-commit-pipeline-topology.sh`. **Opt-in**: write the scripts and install guidance only — never overwrite the developer's `.git/hooks/pre-commit` or set `core.hooksPath` automatically; if a markdownlint pre-commit hook is also installed, the install guidance must instruct the operator to chain both from a single dispatcher rather than overwrite one with the other (P-019) |
 | Policies | `{workspace}/.github/policies/` |
@@ -1644,7 +1644,13 @@ For each enabled capability pack:
       only when `local_gating.pre_push_enabled` is `true`), a shipment-scoped
       invocation, or hard-fail-by-default wiring
    e. **Only when `ci.platform` is GitHub Actions and the CI workflow row applies**:
-      confirm `scripts/ci-topology-check.sh` exists, invokes
+      confirm the `topology-check` job's presence matches `{{FEATURE_SHIPMENTS}}`
+      exactly: present (with `scripts/ci-topology-check.sh` installed) when
+      `{{FEATURE_SHIPMENTS}}` is `true`; entirely absent (no job, no entrypoint
+      script) when `{{FEATURE_SHIPMENTS}}` is `false`, since the gate's backlog
+      reader requires `.backlogit` and would otherwise permanently BLOCK once
+      `PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted. When present, confirm
+      `scripts/ci-topology-check.sh` invokes
       `autoharness gate pipeline-topology --mode ci --phase ambient` with no
       human-supplied `--shipment` flag, propagates the gate's raw exit code
       unmodified (fail-closed — unlike the pre-commit/pre-push hooks, this
@@ -1652,8 +1658,10 @@ For each enabled capability pack:
       advisory-degrade toggle), and confirm `.github/workflows/ci.yml`
       contains a `topology-check` job gated on the
       `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable. Report FAIL for
-      a missing entrypoint, a shipment-scoped invocation, an added
-      advisory-degrade toggle, or a workflow job missing the toggle wiring
+      a missing entrypoint when `{{FEATURE_SHIPMENTS}}` is `true`, a present
+      job/entrypoint when `{{FEATURE_SHIPMENTS}}` is `false`, a shipment-scoped
+      invocation, an added advisory-degrade toggle, or a workflow job missing
+      the toggle wiring
 
 #### Step 4.5: Adversarial Verification
 

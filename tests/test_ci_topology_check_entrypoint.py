@@ -192,11 +192,35 @@ class CiTopologyCheckInstallWiringTests(unittest.TestCase):
 
     def test_install_harness_verify_step_checks_entrypoint(self) -> None:
         text = _INSTALL_SKILL.read_text(encoding="utf-8")
-        marker_index = text.index("`scripts/ci-topology-check.sh` exists, invokes")
+        marker_index = text.index("When present, confirm")
         snippet = text[marker_index : marker_index + 900]
+        self.assertIn("scripts/ci-topology-check.sh", snippet)
         self.assertIn("--mode ci", snippet)
         self.assertIn("--phase ambient", snippet)
         self.assertIn("PIPELINE_TOPOLOGY_GATE_REQUIRED", snippet)
+
+    def test_install_harness_verify_step_gates_on_feature_shipments(self) -> None:
+        # Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6WzLkw):
+        # FilesystemTopologyReaders reads only `.backlogit`, so installing the
+        # topology-check job/entrypoint unconditionally would leave
+        # backlog-md/manual workspaces permanently BACKLOG_UNAVAILABLE once the
+        # job is promoted to required. Both the artifact-map rows and the
+        # Phase 4 verification step must condition presence on
+        # `{{FEATURE_SHIPMENTS}}`.
+        text = _INSTALL_SKILL.read_text(encoding="utf-8")
+        ci_workflow_row_index = text.index("Includes the always-running `topology-check` job")
+        ci_workflow_row = text[ci_workflow_row_index : ci_workflow_row_index + 700]
+        self.assertIn("{{FEATURE_SHIPMENTS}}", ci_workflow_row)
+        self.assertIn("BACKLOG_UNAVAILABLE", ci_workflow_row)
+
+        entrypoint_row_index = text.index("CI topology-check entrypoint (109.011-T / C1")
+        entrypoint_row = text[entrypoint_row_index : entrypoint_row_index + 200]
+        self.assertIn("{{FEATURE_SHIPMENTS}}", entrypoint_row)
+
+        verify_step_index = text.index("confirm the `topology-check` job's presence matches")
+        verify_step = text[verify_step_index : verify_step_index + 1400]
+        self.assertIn("{{FEATURE_SHIPMENTS}}", verify_step)
+        self.assertIn("Report FAIL for", verify_step)
 
 
 if __name__ == "__main__":

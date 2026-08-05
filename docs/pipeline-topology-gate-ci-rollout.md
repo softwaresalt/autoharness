@@ -22,6 +22,22 @@ document is the operator-facing rollout narrative: what advisory and required
 mean concretely, why CI (not local hooks) is the authoritative backstop, how to
 flip the toggle, and what to verify before doing so.
 
+## Applicability: Backlogit-Only
+
+This entire rollout — advisory, bake-in, and required — applies **only** to
+workspaces whose backlog tool is `backlogit`. `install-harness` installs the
+`topology-check` job (and its `scripts/ci-topology-check.sh` entrypoint) only
+when `{{FEATURE_SHIPMENTS}}` is `true`; for backlog-md, manual, or any other
+non-shipment-capable install, the job and entrypoint are omitted entirely, not
+rendered advisory-only. This is because the gate's backlog reader
+(`FilesystemTopologyReaders`) currently reads only `.backlogit/`: installing
+the job unconditionally for those workspaces would leave it permanently
+reporting `BACKLOG_UNAVAILABLE`, which becomes a hard, unrecoverable BLOCK the
+moment `PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted to required. If this
+product later generalizes the topology reader to other backlog registries,
+this applicability note and the install-time gating in
+`.github/skills/install-harness/SKILL.md` must be revisited together.
+
 ## Why a Remote CI Backstop Is Necessary (Not Just Local Hooks)
 
 Local hooks (`pre-commit-pipeline-topology.*`, `pre-push-quality-gates.*`) give
