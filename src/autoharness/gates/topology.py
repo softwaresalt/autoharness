@@ -154,9 +154,21 @@ class TopologyResult:
         return self.exit_code == 2
 
     @property
+    def retry_required(self) -> bool:
+        return self.exit_code == 3
+
+    @property
     def primary_token(self) -> str | None:
+        # "blocked" and "retry_required" are the only non-terminal-pass
+        # check statuses that carry a caller-facing token today
+        # ("passed"/"skipped" never do). CLAIM_NOT_OBSERVED
+        # (109.021-T) is a read-only retry-required outcome, not a
+        # `blocked` one -- it must still surface as the primary token so
+        # callers (Ship's bounded reclaim-and-reverify loop, telemetry
+        # mapping) can key off it the same way they key off
+        # CLAIM_VERIFY_FAILED.
         for check in self.checks:
-            if check.status == "blocked" and check.token:
+            if check.status in ("blocked", "retry_required") and check.token:
                 return check.token
         return None
 
@@ -545,6 +557,48 @@ class _NullReaders:
         return None
 
 
+def _claim_not_observed(
+    topology_input: TopologyInput,
+    target: str | None,
+) -> TopologyResult:
+    # Read-only retry-required outcome contract (109.021-T). A stateless,
+    # read-only post-claim detector CANNOT distinguish a merely-delayed
+    # claim from a genuinely-failed one on a single snapshot -- both
+    # present identically as target `queued` + zero active shipments. This
+    # helper therefore never re-reads backlog state and never attempts to
+    # classify delayed vs failed; it always returns the same
+    # `CLAIM_NOT_OBSERVED` token for that indistinguishable case. The
+    # result is non-zero (exit_code 3) and explicitly NOT `blocked`
+    # (exit_code 1) so it is never confused with a genuine terminal
+    # ambiguity. Terminal `CLAIM_VERIFY_FAILED` classification for
+    # retry-exhaustion (a second `CLAIM_NOT_OBSERVED` after one bounded
+    # Ship-owned reclaim cycle) is owned by 109.017-T's Ship-side
+    # reclaim-and-reverify sequence, not by this gate.
+    message = (
+        "CLAIM_NOT_OBSERVED: target shipment claim not yet observed "
+        "(still queued, zero active shipments) -- this is indistinguishable "
+        "from a genuinely failed claim on a single read-only snapshot; "
+        "(re)claim and re-invoke --phase post_claim (bounded, at most once)"
+    )
+    check = CheckResult(
+        name="post_claim_reverify",
+        status="retry_required",
+        token="CLAIM_NOT_OBSERVED",
+        message=message,
+        details={
+            "target_shipment_id": target,
+        },
+    )
+    return TopologyResult(
+        mode=topology_input.mode,
+        phase="post_claim",
+        resolved_target_shipment_id=target,
+        checks=(check,),
+        exit_code=3,
+        message=message,
+    )
+
+
 def _claim_verify_failed(
     topology_input: TopologyInput,
     target: str | None,
@@ -655,37 +709,20 @@ def _evaluate_post_claim(
             reason="detect-before consistency scan found a queued shipment with active/done work",
         )
     if target_status == "queued" and active_count == 0:
-        try:
-            revalidation_shipments = tuple(bound_readers.list_shipments())
-        except BacklogUnavailableError as exc:
-            return _backlog_unavailable_result(topology_input, "post_claim", target, exc)
-        revalidation = _evaluate_core(
-            topology_input,
-            "pre_claim",
-            target,
-            bound_readers,
-            revalidation_shipments,
-        )
-        if revalidation.exit_code != 0:
-            return _claim_verify_failed(
-                topology_input,
-                target,
-                revalidation,
-                reason="pre-claim revalidation did not pass before the bounded post-claim retry",
-            )
-        try:
-            retry_shipments = tuple(bound_readers.list_shipments())
-        except BacklogUnavailableError as exc:
-            return _backlog_unavailable_result(topology_input, "post_claim", target, exc)
-        retry = _evaluate_core(topology_input, "post_claim", target, bound_readers, retry_shipments)
-        if retry.exit_code == 0:
-            return retry
-        return _claim_verify_failed(
-            topology_input,
-            target,
-            retry,
-            reason="target shipment did not become the sole active shipment after the bounded retry",
-        )
+        # Read-only retry-required outcome (109.021-T): a single
+        # post-claim snapshot showing the target still `queued` with zero
+        # active shipments is INDISTINGUISHABLE between "the claim is
+        # merely delayed" and "the claim genuinely failed" -- both look
+        # identical to a stateless read-only detector. This gate performs
+        # NO second read here and NO internal retry (there is no
+        # intervening claim/mutation between two internal reads, so a
+        # second internal read could never observe a different state
+        # anyway -- that was the illusory self-retry this replaces).
+        # Convergence, if any, must come from an external actor
+        # (Ship's bounded, double-claim-guarded reclaim-and-reverify
+        # sequence, 109.017-T) performing an actual claim between
+        # invocations of this gate.
+        return _claim_not_observed(topology_input, target)
 
     return _claim_verify_failed(
         topology_input,
