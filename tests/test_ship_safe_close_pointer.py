@@ -22,6 +22,14 @@ class ShipSafeClosePointerTests(unittest.TestCase):
                 self.assertIn('thin pointer', content)
                 self.assertIn('step-by-step safe-close algorithm lives in the `shipment-reconcile` skill', content)
 
+    def test_self_hosting_checkout_names_template_source_of_truth(self) -> None:
+        for label, content in _files():
+            normalized = ' '.join(content.split())
+            with self.subTest(file=label):
+                self.assertIn('self-hosting repository', normalized)
+                self.assertIn('templates/skills/shipment-reconcile/SKILL.md.tmpl', normalized)
+                self.assertIn('not installed as resolved `.github/skills/` copies', normalized)
+
     def test_summary_names_non_cascading_shipment_record_sequence(self) -> None:
         for label, content in _files():
             with self.subTest(file=label):

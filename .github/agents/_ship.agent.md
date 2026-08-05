@@ -489,7 +489,12 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    Invoke `shipment-reconcile` in `mode: safe-close` with the `shipment_id` and
    `merge_commit_sha`. Keep this agent file at pointer level only — the authoritative,
    step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and must
-   not be re-derived here. At the summary level, the skill:
+   not be re-derived here. In this self-hosting repository, `shipment-reconcile` plus
+   Ship's other referenced skills (`review`, `fix-ci`, `pr-lifecycle`,
+   `operational-closure`, `runtime-verification`, `compact-context`) are not installed
+   as resolved `.github/skills/` copies; read the authored template at
+   `templates/skills/shipment-reconcile/SKILL.md.tmpl` directly when operating here.
+   At the summary level, the skill:
    a. archives only the shipment manifest's explicit item IDs;
    b. closes only the shipment record via the non-cascading sequence
       `backlogit move <shipment_id> --status shipped` -> verify live `status: shipped`
