@@ -57,12 +57,21 @@ class _FakeReaders:
         return None
 
 
-def _shipment(shipment_id: str, status: str, *items: str, title: str | None = None, archived_status: str | None = None, deps=()) -> ShipmentState:
+def _shipment(
+    shipment_id: str,
+    status: str,
+    *items: str,
+    title: str | None = None,
+    archived_status: str | None = None,
+    archived_record_present: bool | None = None,
+    deps=(),
+) -> ShipmentState:
     return ShipmentState(
         shipment_id=shipment_id,
         title=title or shipment_id,
         live_status=status,
         archived_status=archived_status,
+        archived_record_present=archived_record_present if archived_record_present is not None else archived_status is not None,
         manifest_item_ids=tuple(items),
         blocking_predecessor_ids=tuple(deps),
     )
@@ -209,6 +218,110 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
             )
             self.assertEqual(result.exit_code, 1)
             self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+    def test_shipment_record_with_missing_or_blank_id_blocks(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        cases = {
+            'missing_id': "---\nartifact_type: shipment\nstatus: queued\n---\n",
+            'blank_id': "---\nid: '  '\nartifact_type: shipment\nstatus: queued\n---\n",
+        }
+        for label, content in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '114-S.md').write_text(content, encoding='utf-8')
+                    reader = FilesystemTopologyReaders(workspace)
+
+                    with self.assertRaises(Exception):
+                        reader.list_shipments()
+
+                    result = evaluate(
+                        TopologyInput(mode='ci', phase=None, target_shipment_id=None),
+                        readers=reader,
+                    )
+                    self.assertEqual(result.exit_code, 1)
+                    self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+    def test_queue_shipment_with_missing_or_unsupported_status_blocks(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        cases = {
+            'missing_status': "---\nid: 114-S\nartifact_type: shipment\n---\n",
+            'blank_status': "---\nid: 114-S\nartifact_type: shipment\nstatus: '  '\n---\n",
+            'unsupported_status': "---\nid: 114-S\nartifact_type: shipment\nstatus: blocked\n---\n",
+        }
+        for label, content in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '114-S.md').write_text(content, encoding='utf-8')
+                    reader = FilesystemTopologyReaders(workspace)
+
+                    with self.assertRaises(Exception):
+                        reader.list_shipments()
+
+                    result = evaluate(
+                        TopologyInput(mode='ci', phase=None, target_shipment_id=None),
+                        readers=reader,
+                    )
+                    self.assertEqual(result.exit_code, 1)
+                    self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+    def test_queue_shipment_with_supported_status_passes(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        for status in ('queued', 'active', 'shipped', 'abandoned'):
+            with self.subTest(status=status):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '114-S.md').write_text(
+                        f"---\nid: 114-S\nartifact_type: shipment\nstatus: {status}\n---\n",
+                        encoding='utf-8',
+                    )
+                    reader = FilesystemTopologyReaders(workspace)
+                    shipments = reader.list_shipments()
+                    self.assertEqual(len(shipments), 1)
+                    self.assertEqual(shipments[0].live_status, status)
+
+    def test_archived_record_present_tracked_independently_of_archived_status_content(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            archive = workspace / '.backlogit' / 'archive'
+            queue.mkdir(parents=True)
+            archive.mkdir(parents=True)
+            (queue / '113-S.md').write_text(
+                "---\nid: 113-S\nartifact_type: shipment\nstatus: shipped\n---\n",
+                encoding='utf-8',
+            )
+            # A malformed/generic archive duplicate that carries no readable
+            # archived_status field must still be tracked as an archive-file
+            # presence, not collapsed to "no archive record".
+            (archive / '113-S.md').write_text(
+                "---\nid: 113-S\nartifact_type: shipment\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            shipments = reader.list_shipments()
+            self.assertEqual(len(shipments), 1)
+            self.assertIsNone(shipments[0].archived_status)
+            self.assertTrue(shipments[0].archived_record_present)
+
+            from autoharness.gates.topology import _has_ambiguous_shipment_records
+
+            self.assertTrue(_has_ambiguous_shipment_records(shipments[0]))
 
     def test_read_worktree_marker_reads_repo_local_marker(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders

@@ -28,6 +28,7 @@ VALID_PHASES = ("pre_claim", "post_claim", "lifecycle", "ambient")
 SCOPED_PHASES = ("pre_claim", "post_claim", "lifecycle")
 _NOT_YET_CLAIMED_STATUSES = frozenset({"queued", "blocked"})
 _TASK_ACTIVE_OR_DONE = frozenset({"active", "done"})
+_VALID_LIVE_SHIPMENT_STATUSES = frozenset({"queued", "active", "shipped", "abandoned"})
 _BRANCH_KIND_PREFIXES = ("feat/", "chore/")
 _POST_CLAIM_WRAP_TOKENS = frozenset({
     "SHIPMENT_STATE_INCONSISTENT",
@@ -59,6 +60,7 @@ class ShipmentState:
     title: str = ""
     live_status: str | None = None
     archived_status: str | None = None
+    archived_record_present: bool = False
     manifest_item_ids: tuple[str, ...] = ()
     blocking_predecessor_ids: tuple[str, ...] = ()
 
@@ -262,17 +264,40 @@ class FilesystemTopologyReaders:
                     continue
                 shipment_id = fm.get("id")
                 if not isinstance(shipment_id, str) or not shipment_id.strip():
-                    continue
-                record = records.setdefault(shipment_id, {"shipment_id": shipment_id})
+                    # A syntactically valid shipment artifact with a missing or
+                    # blank id cannot be safely attributed to any shipment and
+                    # must not be silently dropped from the scan: that could
+                    # remove an active shipment from the global count and let
+                    # ambient/CI pass on an incomplete view of the backlog.
+                    raise BacklogUnavailableError(candidate, "shipment record has a missing or blank id")
+                record = records.setdefault(shipment_id.strip(), {"shipment_id": shipment_id.strip()})
                 title = fm.get("title")
                 if isinstance(title, str) and title.strip():
                     record["title"] = title.strip()
                 if is_archive:
+                    # Track archive-record presence independently of whether
+                    # `archived_status` itself parsed to a usable value: a
+                    # malformed/generic archive copy (missing or blank
+                    # archived_status) is still a live+archive duplicate and
+                    # must not be indistinguishable from "no archive record"
+                    # when checking for an ambiguous predecessor state.
+                    record["archived_record_present"] = True
                     record["archived_status"] = _archived_status(fm)
                 else:
                     status = fm.get("status")
-                    if isinstance(status, str) and status.strip():
-                        record["live_status"] = status.strip().lower()
+                    normalized_status = status.strip().lower() if isinstance(status, str) and status.strip() else None
+                    if normalized_status not in _VALID_LIVE_SHIPMENT_STATUSES:
+                        # A queue-folder shipment record with a missing or
+                        # unrecognized status cannot be safely classified as
+                        # active/inactive; treating it as "no live status" (or
+                        # any other lenient default) can hide a malformed
+                        # active record from the active-shipment invariant and
+                        # pass fail-open in ambient/CI mode.
+                        raise BacklogUnavailableError(
+                            candidate,
+                            f"shipment record has a missing or unsupported status: {status!r}",
+                        )
+                    record["live_status"] = normalized_status
                     custom_fields = fm.get("custom_fields")
                     items = ()
                     if isinstance(custom_fields, dict):
@@ -285,6 +310,7 @@ class FilesystemTopologyReaders:
                 title=str(record.get("title", record.get("shipment_id", ""))),
                 live_status=record.get("live_status"),
                 archived_status=record.get("archived_status"),
+                archived_record_present=bool(record.get("archived_record_present", False)),
                 manifest_item_ids=tuple(record.get("manifest_item_ids", ()) or ()),
                 blocking_predecessor_ids=tuple(record.get("blocking_predecessor_ids", ()) or ()),
             )
@@ -891,7 +917,11 @@ def _normalized_live_status(shipment: ShipmentState) -> str | None:
 
 def _has_ambiguous_shipment_records(shipment: ShipmentState) -> bool:
     live_status = _normalized_live_status(shipment)
-    return live_status is not None and shipment.archived_status is not None
+    # Use archive-file presence, not archived_status content, so a
+    # malformed/generic archive duplicate (missing or blank archived_status)
+    # still counts as an ambiguous live+archive co-occurrence rather than
+    # being indistinguishable from "no archive record at all".
+    return live_status is not None and shipment.archived_record_present
 
 
 def _is_shipped_terminal(shipment: ShipmentState) -> bool:
