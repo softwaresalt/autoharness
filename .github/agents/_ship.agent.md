@@ -481,6 +481,15 @@ this protocol is non-negotiable and has no local-record bypass.
 
 #### Closure Tasks
 
+**Mandatory pre-self-close context reload**: after this shipment's PR merges to `main`
+and **before** Ship closes that same shipment, re-read the freshly merged `main` Ship
+agent instructions and the `shipment-reconcile` skill. Close under the just-merged
+contract, not a stale in-context copy — especially when the merged shipment itself
+updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> active`,
+`active -> shipped`, and `active -> abandoned` for shipments; there is no shipment
+`blocked` lifecycle to transition out of. See
+`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`.
+
 1. **Close the shipment via single-artifact safe-close (thin pointer; `shipment-reconcile` is authoritative, NEVER the cascade `backlogit_ship_shipment`, P-015)**:
    Invoke `shipment-reconcile` in `mode: safe-close` with the `shipment_id` and
    `merge_commit_sha`. Keep this agent file at pointer level only — the authoritative,
