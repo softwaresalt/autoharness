@@ -1174,6 +1174,7 @@ class BranchOwnershipTests(unittest.TestCase):
             import os as _os
 
             _os.environ.pop('GITHUB_EVENT_PATH', None)
+            _os.environ.pop('GITHUB_HEAD_REF', None)
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                 readers=readers,
