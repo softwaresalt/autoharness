@@ -1178,6 +1178,25 @@ def _ci_default_branch_fallback() -> str:
     return ""
 
 
+def _ci_pull_request_event_active() -> bool:
+    """Return True when the current CI run is a ``pull_request`` event.
+
+    Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6WzvNo): a fork PR
+    whose source branch happens to be named the same as the target
+    repository's default branch (``main`` is the common default for a fork,
+    so this collision is not exotic) would otherwise satisfy
+    ``current_branch == default_branch`` in ``_branch_ownership_check`` and
+    be granted ``BRANCH_CREATE_ELIGIBLE`` -- even though the run is testing a
+    PR's proposed head, not an actual push to the target repository's
+    default branch. ``GITHUB_HEAD_REF`` is set by GitHub Actions ONLY for
+    ``pull_request``/``pull_request_target`` events (see
+    ``_ci_detached_head_branch_fallback`` above), so its presence is a
+    reliable, already-established signal that this run is a PR, not a push,
+    regardless of what branch name the fork happens to use.
+    """
+    return bool(os.environ.get("GITHUB_HEAD_REF", "").strip())
+
+
 def _branch_ownership_check(
     target: str | None,
     shipments: Sequence[ShipmentState],
@@ -1234,7 +1253,8 @@ def _branch_ownership_check(
             },
         )
 
-    if current_branch == default_branch:
+    ci_pull_request_active = mode == "ci" and _ci_pull_request_event_active()
+    if current_branch == default_branch and not ci_pull_request_active:
         return CheckResult(
             name="branch_ownership",
             status="passed",

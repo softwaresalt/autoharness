@@ -1184,6 +1184,71 @@ class BranchOwnershipTests(unittest.TestCase):
         self.assertEqual(check.details['default_branch'], 'main')
         self.assertFalse(check.details['default_branch_resolved_via_ci_env_fallback'])
 
+    def test_ci_mode_fork_pr_head_ref_matching_default_branch_name_blocks(self) -> None:
+        """Regression test (Copilot review finding on PR #302,
+        PRRT_kwDORzpWpM6WzvNo): a fork PR whose source branch happens to be
+        named the same as the target repository's default branch (`main` is
+        the common default for a fork) must NOT be granted
+        `BRANCH_CREATE_ELIGIBLE` just because `current_branch == default_branch`
+        -- that equality can arise from `GITHUB_HEAD_REF` resolving a PR's
+        head branch name, not from an actual push to the target repository's
+        default branch. `GITHUB_HEAD_REF` is set only for
+        `pull_request`/`pull_request_target` events, so its presence is the
+        signal used to suppress the default-branch shortcut and fall through
+        to ordinary shipment-branch matching (correctly blocking here, since
+        `main` is neither a canonical `feat/`/`chore/` alias for the active
+        shipment nor the actual default branch of a genuine push)."""
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),),
+            branch='',  # actions/checkout always leaves CI on detached HEAD
+            default_branch='main',
+        )
+        with patch.dict(
+            'os.environ',
+            {'GITHUB_HEAD_REF': 'main'},
+            clear=False,
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_EVENT_PATH', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertEqual(check.details['current_branch'], 'main')
+        self.assertEqual(check.details['default_branch'], 'main')
+
+    def test_ci_mode_push_to_default_branch_named_main_still_eligible(self) -> None:
+        """Companion to the fork-PR regression above: a genuine `push` event
+        (no `GITHUB_HEAD_REF`) to the actual default branch must still
+        resolve `BRANCH_CREATE_ELIGIBLE` -- the fix is scoped to suppressing
+        the shortcut only when a `pull_request` event is active, not to
+        removing the shortcut altogether."""
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),),
+            branch='',
+            default_branch='main',
+        )
+        with patch.dict(
+            'os.environ',
+            {'GITHUB_REF_NAME': 'main', 'GITHUB_REF_TYPE': 'branch'},
+            clear=False,
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            _os.environ.pop('GITHUB_EVENT_PATH', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+
     def test_non_ci_mode_ignores_github_event_path_default_branch_fallback(self) -> None:
         """The `GITHUB_EVENT_PATH`-based default-branch fallback is gated on
         `mode == 'ci'` only, mirroring the detached-HEAD branch fallback:
