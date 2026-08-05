@@ -44,13 +44,22 @@ class _FakeReaders:
         return None
 
 
-def _shipment(shipment_id: str, status: str, *items: str) -> ShipmentState:
+def _shipment(shipment_id: str, status: str, *items: str, title: str | None = None, archived_status: str | None = None, deps=()) -> ShipmentState:
     return ShipmentState(
         shipment_id=shipment_id,
-        title=shipment_id,
+        title=title or shipment_id,
         live_status=status,
+        archived_status=archived_status,
         manifest_item_ids=tuple(items),
+        blocking_predecessor_ids=tuple(deps),
     )
+
+
+def _check(result, name: str):
+    for check in result.checks:
+        if check.name == name:
+            return check
+    raise AssertionError(f'missing check: {name}')
 
 
 def _task(task_id: str, status: str) -> ArtifactState:
@@ -126,7 +135,7 @@ class BranchOwnershipTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.checks[-2].token, 'BRANCH_OK')
+        self.assertEqual(_check(result, 'branch_ownership').token, 'BRANCH_OK')
 
     def test_default_branch_is_create_eligible(self) -> None:
         readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='main')
@@ -135,7 +144,7 @@ class BranchOwnershipTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.checks[-2].token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertEqual(_check(result, 'branch_ownership').token, 'BRANCH_CREATE_ELIGIBLE')
 
     def test_non_target_branch_blocks(self) -> None:
         readers = _FakeReaders(
@@ -176,7 +185,7 @@ class BranchOwnershipTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.checks[-2].status, 'skipped')
+        self.assertEqual(_check(result, 'branch_ownership').status, 'skipped')
 
 
 class WorktreeTopologyTests(unittest.TestCase):
@@ -194,7 +203,7 @@ class WorktreeTopologyTests(unittest.TestCase):
             readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s', worktrees=worktrees),
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.checks[-1].token, 'WORKTREE_TOPOLOGY_OK')
+        self.assertEqual(_check(result, 'worktree_topology').token, 'WORKTREE_TOPOLOGY_OK')
 
     def test_multiple_implementation_worktrees_block(self) -> None:
         worktrees = (
@@ -211,3 +220,61 @@ class WorktreeTopologyTests(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 1)
         self.assertEqual(result.primary_token, 'MULTIPLE_IMPLEMENTATION_WORKTREES')
+
+
+class ShipmentReadinessTests(unittest.TestCase):
+    def test_live_shipped_with_complete_closure_passes(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return shipment_id == '113-S'
+
+        readers = Readers(shipments=(
+            _shipment('113-S', 'shipped'),
+            _shipment('114-S', 'queued', deps=('113-S',)),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+
+    def test_archived_done_with_complete_closure_passes(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return shipment_id == '113-S'
+
+        readers = Readers(shipments=(
+            _shipment('113-S', '', archived_status='done'),
+            _shipment('114-S', 'queued', deps=('113-S',)),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+
+    def test_non_terminal_predecessor_blocks(self) -> None:
+        readers = _FakeReaders(shipments=(
+            _shipment('113-S', 'queued'),
+            _shipment('114-S', 'queued', deps=('113-S',)),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
+
+    def test_incomplete_closure_blocks_even_when_terminal(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return False
+
+        readers = Readers(shipments=(
+            _shipment('113-S', 'shipped'),
+            _shipment('114-S', 'queued', deps=('113-S',)),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')

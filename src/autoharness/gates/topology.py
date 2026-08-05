@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import re
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -126,6 +127,156 @@ class TopologyResult:
             "checks": [check.to_dict() for check in self.checks],
             "token": self.primary_token,
         }
+
+
+def _run_git(argv: list[str], cwd: Path) -> str:
+    completed = subprocess.run(
+        argv,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        shell=False,
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout.strip()
+
+
+def _frontmatter(path: Path) -> dict[str, Any]:
+    import yaml
+
+    raw = path.read_text(encoding="utf-8")
+    match = re.match(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", raw, flags=re.DOTALL)
+    if not match:
+        return {}
+    loaded = yaml.safe_load(match.group(1))
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _tuple_of_str(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(str(item) for item in value if str(item).strip())
+
+
+def _archived_status(frontmatter: dict[str, Any]) -> str | None:
+    value = frontmatter.get("archived_status")
+    return str(value).strip().lower() if isinstance(value, str) and value.strip() else None
+
+
+class FilesystemTopologyReaders:
+    """Default read-only topology readers backed by the local workspace."""
+
+    def __init__(self, workspace: Path | str = ".") -> None:
+        self.workspace = Path(workspace)
+        self.backlog_dir = self.workspace / ".backlogit"
+
+    def _glob_id(self, folder: str, artifact_id: str) -> Path | None:
+        base = self.backlog_dir / folder
+        if not base.exists():
+            return None
+        for candidate in sorted(base.glob(f"{artifact_id}.*")):
+            if candidate.is_file():
+                return candidate
+        return None
+
+    def _artifact_from_paths(self, artifact_id: str) -> ArtifactState | None:
+        queue_path = self._glob_id("queue", artifact_id)
+        archive_path = self._glob_id("archive", artifact_id)
+        if queue_path is None and archive_path is None:
+            return None
+        queue_fm = _frontmatter(queue_path) if queue_path else {}
+        archive_fm = _frontmatter(archive_path) if archive_path else {}
+        artifact_type = ""
+        for fm in (queue_fm, archive_fm):
+            value = fm.get("artifact_type")
+            if isinstance(value, str) and value.strip():
+                artifact_type = value.strip()
+                break
+        live_status = queue_fm.get("status") if isinstance(queue_fm.get("status"), str) else None
+        archived = _archived_status(archive_fm)
+        return ArtifactState(
+            artifact_id=artifact_id,
+            artifact_type=artifact_type,
+            live_status=str(live_status).strip().lower() if isinstance(live_status, str) and live_status.strip() else None,
+            archived_status=archived,
+        )
+
+    def list_shipments(self) -> Sequence[ShipmentState]:
+        records: dict[str, dict[str, Any]] = {}
+        for folder, is_archive in (("queue", False), ("archive", True)):
+            base = self.backlog_dir / folder
+            if not base.exists():
+                continue
+            for candidate in sorted(base.glob("*.md")):
+                fm = _frontmatter(candidate)
+                if fm.get("artifact_type") != "shipment":
+                    continue
+                shipment_id = fm.get("id")
+                if not isinstance(shipment_id, str) or not shipment_id.strip():
+                    continue
+                record = records.setdefault(shipment_id, {"shipment_id": shipment_id})
+                title = fm.get("title")
+                if isinstance(title, str) and title.strip():
+                    record["title"] = title.strip()
+                if is_archive:
+                    record["archived_status"] = _archived_status(fm)
+                else:
+                    status = fm.get("status")
+                    if isinstance(status, str) and status.strip():
+                        record["live_status"] = status.strip().lower()
+                    custom_fields = fm.get("custom_fields")
+                    items = ()
+                    if isinstance(custom_fields, dict):
+                        items = _tuple_of_str(custom_fields.get("items"))
+                    record["manifest_item_ids"] = items
+                    record["blocking_predecessor_ids"] = _tuple_of_str(fm.get("dependencies"))
+        return tuple(
+            ShipmentState(
+                shipment_id=str(record.get("shipment_id", "")),
+                title=str(record.get("title", record.get("shipment_id", ""))),
+                live_status=record.get("live_status"),
+                archived_status=record.get("archived_status"),
+                manifest_item_ids=tuple(record.get("manifest_item_ids", ()) or ()),
+                blocking_predecessor_ids=tuple(record.get("blocking_predecessor_ids", ()) or ()),
+            )
+            for record in sorted(records.values(), key=lambda item: str(item.get("shipment_id", "")))
+        )
+
+    def read_artifact(self, artifact_id: str) -> ArtifactState | None:
+        return self._artifact_from_paths(artifact_id)
+
+    def current_branch(self) -> str:
+        return _run_git(["git", "--no-pager", "branch", "--show-current"], self.workspace) or "main"
+
+    def default_branch(self) -> str:
+        remote_head = _run_git(
+            ["git", "--no-pager", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+            self.workspace,
+        )
+        if remote_head and "/" in remote_head:
+            return remote_head.rsplit("/", 1)[-1]
+        return "main"
+
+    def worktree_porcelain(self) -> str:
+        return _run_git(["git", "--no-pager", "worktree", "list", "--porcelain"], self.workspace)
+
+    def closure_complete(self, shipment_id: str) -> bool | None:
+        closure_dir = self.workspace / "docs" / "closure"
+        if not closure_dir.exists():
+            return None
+        matches = sorted(closure_dir.glob(f"{shipment_id}-*-post-merge-closure.md"))
+        if not matches:
+            return None
+        for candidate in matches:
+            fm = _frontmatter(candidate)
+            compaction = fm.get("compaction_status") or fm.get("compaction")
+            if isinstance(compaction, str) and compaction.strip().lower() in {"done", "ready"}:
+                return True
+        return False
 
 
 class _NullReaders:
@@ -430,6 +581,96 @@ def _branch_ownership_check(
         details={"current_branch": current_branch, "expected_branches": list(canonical)},
     )
 
+def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str | None:
+    match = re.match(r"^(\d+)-S$", target)
+    if not match:
+        return None
+    target_num = int(match.group(1))
+    prior: tuple[int, str] | None = None
+    for shipment in shipments:
+        other = re.match(r"^(\d+)-S$", shipment.shipment_id)
+        if not other:
+            continue
+        number = int(other.group(1))
+        if number >= target_num:
+            continue
+        if prior is None or number > prior[0]:
+            prior = (number, shipment.shipment_id)
+    return prior[1] if prior else None
+
+
+def _is_shipped_terminal(shipment: ShipmentState) -> bool:
+    if shipment.live_status == "shipped":
+        return True
+    return shipment.archived_status in {"shipped", "done"}
+
+
+def _shipment_readiness_check(
+    target: str | None,
+    shipments: Sequence[ShipmentState],
+    readers: TopologyReaders,
+) -> CheckResult:
+    if target is None:
+        return CheckResult(
+            name="shipment_readiness",
+            status="skipped",
+            message="ambient target did not resolve; readiness check skipped",
+        )
+
+    shipment_map = _shipment_map(shipments)
+    shipment = shipment_map.get(target)
+    if shipment is None:
+        return CheckResult(
+            name="shipment_readiness",
+            status="skipped",
+            message="shipment metadata unavailable; readiness check skipped",
+        )
+
+    predecessor_ids = list(shipment.blocking_predecessor_ids)
+    prior_id = _prior_shipment_id(target, shipments)
+    if prior_id and prior_id not in predecessor_ids:
+        predecessor_ids.append(prior_id)
+
+    for predecessor_id in predecessor_ids:
+        predecessor = shipment_map.get(predecessor_id)
+        if predecessor is None or not _is_shipped_terminal(predecessor):
+            return CheckResult(
+                name="shipment_readiness",
+                status="blocked",
+                token="PREDECESSOR_NOT_SHIPPED",
+                message=(
+                    f"PREDECESSOR_NOT_SHIPPED: predecessor {predecessor_id} is not in a shipped terminal state"
+                ),
+                details={
+                    "target_shipment_id": target,
+                    "predecessor_id": predecessor_id,
+                    "live_status": predecessor.live_status if predecessor else None,
+                    "archived_status": predecessor.archived_status if predecessor else None,
+                },
+            )
+        closure_complete = readers.closure_complete(predecessor_id)
+        if closure_complete is not True:
+            return CheckResult(
+                name="shipment_readiness",
+                status="blocked",
+                token="PREDECESSOR_CLOSURE_INCOMPLETE",
+                message=(
+                    f"PREDECESSOR_CLOSURE_INCOMPLETE: predecessor {predecessor_id} is terminal but missing required closure evidence"
+                ),
+                details={
+                    "target_shipment_id": target,
+                    "predecessor_id": predecessor_id,
+                    "closure_complete": closure_complete,
+                },
+            )
+
+    return CheckResult(
+        name="shipment_readiness",
+        status="passed",
+        details={"target_shipment_id": target, "predecessor_ids": predecessor_ids},
+    )
+
+
 def _active_shipments(shipments: Sequence[ShipmentState]) -> tuple[ShipmentState, ...]:
     return tuple(shipment for shipment in shipments if shipment.live_status == "active")
 
@@ -604,5 +845,10 @@ def evaluate(
     checks.append(worktree_check)
     if worktree_check.status == "blocked":
         return _blocked_result(topology_input, resolved_phase, target, worktree_check)
+
+    readiness_check = _shipment_readiness_check(target, shipments, bound_readers)
+    checks.append(readiness_check)
+    if readiness_check.status == "blocked":
+        return _blocked_result(topology_input, resolved_phase, target, readiness_check)
 
     return _pass_result(topology_input, resolved_phase, target, checks)

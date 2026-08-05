@@ -698,7 +698,8 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
             target_shipment_id=parsed["shipment"],
             emit_json=parsed["emit_json"],
             force=parsed["force"],
-        )
+        ),
+        readers=topology.FilesystemTopologyReaders(Path('.')),
     )
 
     payload = result.to_dict()

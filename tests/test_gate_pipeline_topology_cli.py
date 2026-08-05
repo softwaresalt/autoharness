@@ -6,6 +6,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from unittest import mock
 
 from autoharness.cli import main
 
@@ -49,20 +50,61 @@ class PipelineTopologyArgTests(unittest.TestCase):
         self.assertEqual(code, 2)
 
     def test_manual_mode_defaults_to_ambient(self) -> None:
-        out, _, code = _run('gate', 'pipeline-topology', '--json')
+        class FakeReaders:
+            def list_shipments(self):
+                return ()
+
+            def read_artifact(self, artifact_id: str):
+                return None
+
+            def current_branch(self) -> str:
+                return 'topic/misc'
+
+            def default_branch(self) -> str:
+                return 'main'
+
+            def worktree_porcelain(self) -> str:
+                return 'worktree C:/repo\nHEAD 0\nbranch refs/heads/topic/misc\n\n'
+
+            def closure_complete(self, shipment_id: str):
+                return None
+
+        with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=FakeReaders()):
+            out, _, code = _run('gate', 'pipeline-topology', '--json')
         self.assertEqual(code, 0)
         payload = json.loads(out)
         self.assertEqual(payload['phase'], 'ambient')
         self.assertIsNone(payload['target_shipment_id'])
 
     def test_agent_mode_echoes_target_and_phase(self) -> None:
-        out, _, code = _run(
-            'gate', 'pipeline-topology',
-            '--mode', 'agent',
-            '--shipment', '114-S',
-            '--phase', 'pre_claim',
-            '--json',
-        )
+        class FakeReaders:
+            def list_shipments(self):
+                from autoharness.gates.topology import ShipmentState
+                return (ShipmentState(shipment_id='114-S', title='114-S', live_status='queued'),)
+
+            def read_artifact(self, artifact_id: str):
+                return None
+
+            def current_branch(self) -> str:
+                return 'main'
+
+            def default_branch(self) -> str:
+                return 'main'
+
+            def worktree_porcelain(self) -> str:
+                return 'worktree C:/repo\nHEAD 0\nbranch refs/heads/main\n\n'
+
+            def closure_complete(self, shipment_id: str):
+                return None
+
+        with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=FakeReaders()):
+            out, _, code = _run(
+                'gate', 'pipeline-topology',
+                '--mode', 'agent',
+                '--shipment', '114-S',
+                '--phase', 'pre_claim',
+                '--json',
+            )
         self.assertEqual(code, 0)
         payload = json.loads(out)
         self.assertEqual(payload['mode'], 'agent')
