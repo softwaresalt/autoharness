@@ -232,6 +232,65 @@ def _frontmatter(path: Path) -> dict[str, Any]:
     return loaded
 
 
+def _closure_conditions_satisfied(conditions: Any) -> bool:
+    """Validate a post-merge closure artifact's machine-readable ``conditions:`` block.
+
+    ``READY_WITH_CONDITIONS`` counts as complete only when this block is a
+    well-formed, non-empty sequence of mappings and EVERY entry has
+    ``satisfied: true`` (the literal boolean, not a truthy string) plus a
+    non-empty ``evidence`` reference. Absent, empty, malformed, unverified,
+    or evidence-less entries all fail closed (never treated as satisfied).
+    """
+    if not isinstance(conditions, list) or not conditions:
+        return False
+    for condition in conditions:
+        if not isinstance(condition, dict):
+            return False
+        if condition.get("satisfied") is not True:
+            return False
+        evidence = condition.get("evidence")
+        if not isinstance(evidence, str) or not evidence.strip():
+            return False
+    return True
+
+
+def _closure_artifact_complete(fm: dict[str, Any]) -> bool:
+    """Decide whether one parsed closure-artifact frontmatter registers complete.
+
+    109.023-T (114-S closure pre-activation fix, Defect 3): the prior
+    implementation returned ``True`` on ``compaction_status`` alone,
+    ignoring ``closure_status``/releasability entirely -- a
+    ``READY_WITH_CONDITIONS``, ``BLOCKED``, or closure-status-less artifact
+    all registered as complete. This now requires BOTH:
+
+    1. ``compaction_status`` in ``{done, degraded}`` (P-020 evidence), AND
+    2. ``closure_status == READY`` OR a fully-satisfied machine-readable
+       ``conditions:`` block when ``closure_status == READY_WITH_CONDITIONS``.
+
+    ``BLOCKED``, a missing ``closure_status``, and any other value fail
+    closed. Malformed frontmatter never reaches this function -- ``_frontmatter``
+    already raises ``BacklogUnavailableError`` for that case, which callers
+    convert to a fail-closed ``BACKLOG_UNAVAILABLE`` result the same way an
+    unreadable backlog directory does; this function never itself
+    "{}-swallows" a bad parse.
+    """
+    compaction = fm.get("compaction_status") or fm.get("compaction")
+    if not (isinstance(compaction, str) and compaction.strip().lower() in {"done", "degraded"}):
+        return False
+
+    closure_status = fm.get("closure_status")
+    if not isinstance(closure_status, str) or not closure_status.strip():
+        return False
+
+    normalized = closure_status.strip().upper()
+    if normalized == "READY":
+        return True
+    if normalized == "READY_WITH_CONDITIONS":
+        return _closure_conditions_satisfied(fm.get("conditions"))
+    # BLOCKED and any other/unrecognized value fail closed.
+    return False
+
+
 def _tuple_of_str(
     value: Any,
     *,
@@ -524,8 +583,7 @@ class FilesystemTopologyReaders:
             return None
         for candidate in matches:
             fm = _frontmatter(candidate)
-            compaction = fm.get("compaction_status") or fm.get("compaction")
-            if isinstance(compaction, str) and compaction.strip().lower() in {"done", "degraded"}:
+            if _closure_artifact_complete(fm):
                 return True
         return False
 

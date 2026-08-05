@@ -161,11 +161,92 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
                     for existing in closure_dir.glob('*.md'):
                         existing.unlink()
                     (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
-                        f"---\ncompaction_status: {status}\n---\n",
+                        f"---\ncompaction_status: {status}\nclosure_status: READY\n---\n",
                         encoding='utf-8',
                     )
                     reader = FilesystemTopologyReaders(workspace)
                     self.assertIs(reader.closure_complete('114-S'), expected)
+
+    def test_closure_complete_enforces_closure_status_and_conditions(self) -> None:
+        # 109.023-T (114-S closure pre-activation fix, Defect 3):
+        # closure_complete() must require BOTH a passing compaction_status
+        # AND closure_status==READY (or a fully-verified conditions block
+        # for READY_WITH_CONDITIONS) -- compaction_status alone is never
+        # sufficient. Mandatory negative + positive cases below.
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        def _write(workspace: Path, closure_dir: Path, body: str) -> None:
+            for existing in closure_dir.glob('*.md'):
+                existing.unlink()
+            (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(body, encoding='utf-8')
+
+        satisfied_conditions = (
+            "conditions:\n"
+            "  - id: fix-one\n"
+            "    satisfied: true\n"
+            "    evidence: '115-S/109.021-T'\n"
+        )
+        unsatisfied_conditions = (
+            "conditions:\n"
+            "  - id: fix-one\n"
+            "    satisfied: false\n"
+            "    evidence: '115-S/109.021-T'\n"
+        )
+        evidence_less_conditions = (
+            "conditions:\n"
+            "  - id: fix-one\n"
+            "    satisfied: true\n"
+        )
+        cases = (
+            ("BLOCKED closure_status", "closure_status: BLOCKED\n", False),
+            ("missing closure_status", "", False),
+            (
+                "READY_WITH_CONDITIONS without conditions block",
+                "closure_status: READY_WITH_CONDITIONS\n",
+                False,
+            ),
+            (
+                "READY_WITH_CONDITIONS with unverified condition",
+                "closure_status: READY_WITH_CONDITIONS\n" + unsatisfied_conditions,
+                False,
+            ),
+            (
+                "READY_WITH_CONDITIONS with evidence-less condition",
+                "closure_status: READY_WITH_CONDITIONS\n" + evidence_less_conditions,
+                False,
+            ),
+            ("READY closure_status", "closure_status: READY\n", True),
+            (
+                "READY_WITH_CONDITIONS with fully-verified conditions",
+                "closure_status: READY_WITH_CONDITIONS\n" + satisfied_conditions,
+                True,
+            ),
+        )
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            reader = FilesystemTopologyReaders(workspace)
+            for label, extra_frontmatter, expected in cases:
+                with self.subTest(label=label):
+                    body = f"---\ncompaction_status: done\n{extra_frontmatter}---\n"
+                    _write(workspace, closure_dir, body)
+                    self.assertIs(reader.closure_complete('114-S'), expected)
+
+    def test_closure_complete_malformed_frontmatter_raises_backlog_unavailable(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
+                "---\ncompaction_status: [unterminated\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            with self.assertRaises(BacklogUnavailableError):
+                reader.closure_complete('114-S')
 
     def test_malformed_shipment_frontmatter_blocks_as_backlog_unavailable(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
