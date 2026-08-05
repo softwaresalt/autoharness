@@ -195,6 +195,49 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
                     self.assertEqual(result.exit_code, 1)
                     self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
 
+    def test_shipment_shaped_record_with_missing_or_wrong_artifact_type_blocks(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        cases = {
+            'missing_artifact_type_by_filename': ("114-S.md", "---\nid: 114-S\nstatus: active\n---\n"),
+            'misspelled_artifact_type_by_filename': ("114-S.md", "---\nid: 114-S\nartifact_type: shpiment\nstatus: active\n---\n"),
+            'missing_artifact_type_by_declared_id': ("weird-name.md", "---\nid: 114-S\nstatus: active\n---\n"),
+        }
+        for label, (filename, content) in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / filename).write_text(content, encoding='utf-8')
+                    reader = FilesystemTopologyReaders(workspace)
+
+                    with self.assertRaises(Exception):
+                        reader.list_shipments()
+
+                    result = evaluate(
+                        TopologyInput(mode='ci', phase=None, target_shipment_id=None),
+                        readers=reader,
+                    )
+                    self.assertEqual(result.exit_code, 1)
+                    self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+    def test_non_shipment_shaped_record_without_artifact_type_is_skipped(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            # A task/feature-shaped record (not shipment-shaped) with no
+            # artifact_type is a different concern (validated separately via
+            # read_artifact) and must not block the shipment scan itself.
+            (queue / '109.001-T.md').write_text("---\nid: 109.001-T\nstatus: queued\n---\n", encoding='utf-8')
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertEqual(tuple(reader.list_shipments()), ())
+
     def test_malformed_task_frontmatter_blocks_via_detect_before_consistency(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 

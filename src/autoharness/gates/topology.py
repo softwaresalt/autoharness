@@ -35,6 +35,13 @@ _VALID_LIVE_SHIPMENT_STATUSES = frozenset({"queued", "active", "shipped", "aband
 _VALID_LIVE_ARTIFACT_STATUSES = frozenset(
     {"queued", "active", "blocked", "review", "done", "accepted", "rejected", "archived"}
 )
+# backlogit shipment artifact filenames/ids are always digits followed by
+# "-S" (e.g. "114-S.md"). A file whose id/filename matches this shape but
+# whose artifact_type is missing/misspelled/wrong is a shipment-shaped
+# record with a corrupted type declaration, not a legitimately-different
+# artifact -- it must fail closed rather than being silently skipped from
+# the shipment scan.
+_SHIPMENT_ID_PATTERN = re.compile(r"^\d+-S$")
 _BRANCH_KIND_PREFIXES = ("feat/", "chore/")
 _POST_CLAIM_WRAP_TOKENS = frozenset({
     "SHIPMENT_STATE_INCONSISTENT",
@@ -281,6 +288,19 @@ class FilesystemTopologyReaders:
             for candidate in candidates:
                 fm = _frontmatter(candidate)
                 if fm.get("artifact_type") != "shipment":
+                    fm_id = fm.get("id")
+                    shape_id = fm_id.strip() if isinstance(fm_id, str) and fm_id.strip() else candidate.stem
+                    if _SHIPMENT_ID_PATTERN.match(shape_id):
+                        # A shipment-shaped id/filename (digits + "-S") with a
+                        # missing or misspelled artifact_type is a corrupted
+                        # type declaration, not a legitimately different
+                        # artifact. Silently skipping it could remove an
+                        # active shipment from the global scan and let
+                        # ambient/CI pass on an incomplete backlog view.
+                        raise BacklogUnavailableError(
+                            candidate,
+                            f"shipment-shaped record has a missing or invalid artifact_type: {fm.get('artifact_type')!r}",
+                        )
                     continue
                 shipment_id = fm.get("id")
                 if not isinstance(shipment_id, str) or not shipment_id.strip():
