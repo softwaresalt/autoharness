@@ -46,6 +46,7 @@ _PROFILES = {
         "TYPECHECK_COMMAND": "",
         "TEST_COMMAND": "cargo test",
         "BUILD_CHECK_COMMAND": "cargo check --all-targets",
+        "CI_AUTOHARNESS_INSTALL_COMMAND": "pip install autoharness",
     },
     "typescript": {
         "CI_EXPENSIVE_JOB_NAME": "test",
@@ -61,6 +62,7 @@ _PROFILES = {
         "TYPECHECK_COMMAND": "tsc --noEmit",
         "TEST_COMMAND": "npm test",
         "BUILD_CHECK_COMMAND": "tsc --noEmit",
+        "CI_AUTOHARNESS_INSTALL_COMMAND": "pip install autoharness",
     },
     "python": {
         "CI_EXPENSIVE_JOB_NAME": "test",
@@ -80,6 +82,7 @@ _PROFILES = {
         "TYPECHECK_COMMAND": "mypy src/",
         "TEST_COMMAND": "pytest",
         "BUILD_CHECK_COMMAND": 'python -m py_compile src/pkg.py',
+        "CI_AUTOHARNESS_INSTALL_COMMAND": "pip install -e .",
     },
 }
 
@@ -121,7 +124,7 @@ class CiTemplateRenderingTests(unittest.TestCase):
             with self.subTest(profile=name):
                 doc = yaml.safe_load(_render(profile))
                 ids = list(doc["jobs"].keys())
-                self.assertEqual(set(ids), {"changes", "expensive", "ci-gate"})
+                self.assertEqual(set(ids), {"changes", "expensive", "topology-check", "ci-gate"})
                 for job_id in ids:
                     self.assertRegex(job_id, _JOB_ID)
 
@@ -155,7 +158,7 @@ class CiTemplateRenderingTests(unittest.TestCase):
                 doc = yaml.safe_load(_render(profile))
                 gate = doc["jobs"]["ci-gate"]
                 self.assertEqual(str(gate["if"]).strip(), "always()")
-                self.assertEqual(set(gate["needs"]), {"changes", "expensive"})
+                self.assertEqual(set(gate["needs"]), {"changes", "expensive", "topology-check"})
 
     def test_required_check_name_matches_profile(self) -> None:
         for name, profile in _PROFILES.items():
@@ -171,6 +174,71 @@ class CiTemplateRenderingTests(unittest.TestCase):
             with self.subTest(profile=name):
                 doc = yaml.safe_load(_render(profile))
                 self.assertEqual(doc.get("permissions"), {"contents": "read"})
+
+
+class TopologyCheckJobTests(unittest.TestCase):
+    """109.014-T (Shipment C / Gate C): the always-running pipeline-topology
+    CI backstop job and its required-vs-advisory operator toggle."""
+
+    def test_topology_check_job_present_for_every_profile(self) -> None:
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                self.assertIn("topology-check", doc["jobs"])
+
+    def test_topology_check_always_runs_not_gated_on_changes(self) -> None:
+        # Unlike `expensive`, this job has no `if:` condition tying it to the
+        # `changes` path-filter output -- the ambient check is inexpensive and
+        # non-shipment-scoped and must not be skippable via a docs-only PR.
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                job = doc["jobs"]["topology-check"]
+                self.assertNotIn("if", job)
+                self.assertNotIn("needs", job)
+
+    def test_topology_check_toggle_is_a_repository_variable_not_a_template_var(self) -> None:
+        # The required-vs-advisory decision must be an OPERATOR TOGGLE
+        # (repository variable), not a {{TEMPLATE_VAR}} resolved at install
+        # time -- flipping it must never require a workflow re-render.
+        text = _CI_TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn("PIPELINE_TOPOLOGY_GATE_REQUIRED", text)
+        self.assertNotIn("{{CI_TOPOLOGY_GATE_REQUIRED}}", text)
+        self.assertNotIn("{{PIPELINE_TOPOLOGY_GATE_REQUIRED}}", text)
+
+    def test_topology_check_continue_on_error_defaults_advisory(self) -> None:
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                job = doc["jobs"]["topology-check"]
+                coe = str(job["continue-on-error"])
+                self.assertIn("vars.PIPELINE_TOPOLOGY_GATE_REQUIRED", coe)
+                self.assertIn("!= 'true'", coe)
+
+    def test_topology_check_invokes_entrypoint_script(self) -> None:
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                steps = doc["jobs"]["topology-check"]["steps"]
+                run_steps = " ".join(s.get("run", "") for s in steps)
+                self.assertIn("scripts/ci-topology-check.sh", run_steps)
+
+    def test_topology_check_installs_autoharness_via_resolved_variable(self) -> None:
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                steps = doc["jobs"]["topology-check"]["steps"]
+                install_step = next(
+                    s for s in steps if s.get("name") == "Install autoharness"
+                )
+                self.assertEqual(install_step["run"], profile["CI_AUTOHARNESS_INSTALL_COMMAND"])
+
+    def test_ci_gate_includes_topology_check_in_results_aggregation(self) -> None:
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                gate_run = doc["jobs"]["ci-gate"]["steps"][0]["run"]
+                self.assertIn("needs['topology-check'].result", gate_run)
 
 
 class HookTemplateStructureTests(unittest.TestCase):

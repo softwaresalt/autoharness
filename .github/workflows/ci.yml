@@ -1,15 +1,21 @@
 name: CI
 
 # autoharness dogfood instance of the unified CI + local-gating primitive
-# (templates/ci/ci.yml.tmpl). Three jobs:
-#   1. changes — always-runs, fail-closed detection of code vs docs/backlog.
-#   2. test    — the expensive gate: runs the 416-test unittest suite. Runs
-#                whenever `changes` reports code == 'true'; skipped only for
-#                docs/backlog-only PRs (path impact is the sole condition).
-#   3. ci-gate — always-runs aggregation gate (check name `ci gate`). It runs no
-#                build; it simply summarizes the needed jobs, failing only when a
-#                needed job failed or was cancelled and treating a skipped test
-#                job as OK.
+# (templates/ci/ci.yml.tmpl). Four jobs:
+#   1. changes         — always-runs, fail-closed detection of code vs docs/backlog.
+#   2. test            — the expensive gate: runs the unittest suite. Runs
+#                         whenever `changes` reports code == 'true'; skipped only
+#                         for docs/backlog-only PRs (path impact is the sole
+#                         condition).
+#   3. topology-check  — always-running pipeline-topology CI backstop (Gate C,
+#                         109.014-T / P-001 / P-016), required-vs-advisory via the
+#                         `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable.
+#                         See docs/pipeline-topology-gate.md and
+#                         docs/pipeline-topology-gate-ci-rollout.md.
+#   4. ci-gate         — always-runs aggregation gate (check name `ci gate`). It
+#                         runs no build; it simply summarizes the needed jobs,
+#                         failing only when a needed job failed or was cancelled
+#                         and treating a skipped test job as OK.
 #
 # Regular PR/push CI is Linux-only. Cross-OS (macOS/Windows) verification and
 # publishing live in release.yml (tag-triggered) — this workflow does NOT
@@ -88,18 +94,58 @@ jobs:
       - name: Run unittest suite
         run: PYTHONPATH=src python -m unittest discover -s tests
 
+  # Pipeline-topology CI backstop (Gate C, 109.014-T): the server-side,
+  # NON-BYPASSABLE re-validation of the P-001 (at-most-one-active-shipment) /
+  # P-016 (single implementation worktree/branch) invariants. Local hooks
+  # (pre-commit-pipeline-topology.*, pre-push-quality-gates.*) are always
+  # skippable via `git ... --no-verify`, and Git has no pre-worktree-add hook
+  # at all -- CI is the authoritative backstop once a checkout syncs.
+  #
+  # Always runs -- unlike `test`, this job is NOT gated on the `changes`
+  # path-filter output: the ambient invocation is inexpensive and
+  # non-shipment-scoped, and skipping it for docs/backlog-only changes would
+  # leave exactly the commits most likely to touch `.backlogit/` state
+  # unchecked.
+  #
+  # REQUIRED-VS-ADVISORY is an explicit OPERATOR TOGGLE via the
+  # `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable: unset (default)
+  # means advisory -- `continue-on-error: true` keeps this job's reported
+  # result `success` for dependents (including `ci-gate` below) even when the
+  # gate itself reports BLOCK. Setting the variable to `'true'` flips
+  # `continue-on-error` to `false`, making a BLOCK verdict fail this job (and
+  # therefore `ci-gate`) for real -- with NO WORKFLOW RE-RENDER NEEDED. See
+  # docs/pipeline-topology-gate.md and docs/pipeline-topology-gate-ci-rollout.md
+  # for the staged advisory->required rollout.
+  topology-check:
+    name: pipeline-topology (ambient)
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ vars.PIPELINE_TOPOLOGY_GATE_REQUIRED != 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+      - name: Install autoharness
+        run: python -m pip install -e .
+      - name: Run CI topology-check entrypoint
+        run: bash scripts/ci-topology-check.sh
+
   # Always-reporting aggregation gate. Runs no build — it only summarizes the
   # needed jobs. Passes unless a needed job failed or was cancelled (a skipped
   # test job is OK).
   ci-gate:
     name: ci gate
     if: always()
-    needs: [changes, test]
+    needs: [changes, test, topology-check]
     runs-on: ubuntu-latest
     steps:
       - name: Verify no required job failed
         run: |
-          results="${{ needs.changes.result }} ${{ needs.test.result }}"
+          results="${{ needs.changes.result }} ${{ needs.test.result }} ${{ needs['topology-check'].result }}"
           echo "job results: $results"
           for r in $results; do
             if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
