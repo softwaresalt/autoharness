@@ -99,12 +99,26 @@ jobs:
       - name: Build check
         run: {{BUILD_CHECK_COMMAND}}
 
-  # Pipeline-topology CI backstop (Gate C, 109.014-T): the server-side,
-  # NON-BYPASSABLE re-validation of the P-001 (at-most-one-active-shipment) /
-  # P-016 (single implementation worktree/branch) invariants. Local hooks
+  # Pipeline-topology CI backstop (Gate C, 109.014-T): the server-side
+  # re-validation of the P-001 (at-most-one-active-shipment) / P-016 (single
+  # implementation worktree/branch) invariants. Local hooks
   # (pre-commit-pipeline-topology.*, pre-push-quality-gates.*) are always
   # skippable via `git ... --no-verify`, and Git has no pre-worktree-add hook
-  # at all -- CI is the authoritative backstop once a checkout syncs.
+  # at all -- CI closes that gap once a checkout syncs.
+  #
+  # THREAT MODEL / LIMITS: this job is NOT a non-bypassable backstop against a
+  # malicious or compromised PR. GitHub's `pull_request` trigger (by design,
+  # for contributor ergonomics) loads and runs THIS WORKFLOW FILE ITSELF from
+  # the proposed PR head, so the same PR that violates topology invariants
+  # can also edit this job (or ci-gate's needs/results aggregation below) to
+  # trivially report success. What it DOES provide: a catch for
+  # accidental/careless local bypasses that were never intended to touch the
+  # enforcement workflow, and an ambient, non-shipment-scoped signal on every
+  # push/PR from contributors who don't touch `.github/workflows/` or
+  # `scripts/ci-topology-check.sh`. See "Threat Model & CODEOWNERS Hardening"
+  # in docs/pipeline-topology-gate-ci-rollout.md for the recommended
+  # mitigation (CODEOWNERS-required review on the enforcement surface) and a
+  # stronger, out-of-scope alternative (`pull_request_target`).
   #
   # Always runs -- unlike `expensive`, this job is NOT gated on the `changes`
   # path-filter output: the ambient invocation is inexpensive and

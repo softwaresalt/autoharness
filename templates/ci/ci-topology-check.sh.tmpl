@@ -4,11 +4,24 @@
 #
 # CI topology-check entrypoint (109.011-T / Shipment C, gate C of the staged
 # A->B->C `autoharness gate pipeline-topology` rollout). This is the
-# server-side, NON-BYPASSABLE backstop for the P-001 (at-most-one-active-
-# shipment) / P-016 (single implementation worktree/branch) invariants: local
-# hooks (pre-commit-pipeline-topology.*, pre-push-quality-gates.*) are
+# server-side backstop for the P-001 (at-most-one-active-shipment) / P-016
+# (single implementation worktree/branch) invariants: local hooks
+# (pre-commit-pipeline-topology.*, pre-push-quality-gates.*) are
 # advisory-first and always bypassable via `git ... --no-verify`, and Git has
-# no pre-worktree-add hook at all. CI is the authoritative re-validation point.
+# no pre-worktree-add hook at all. CI is the re-validation point for those
+# gaps.
+#
+# THREAT MODEL / LIMITS: this is NOT a non-bypassable backstop against a
+# malicious or compromised pull request. GitHub's `pull_request` trigger
+# loads and runs this very script (and the workflow job invoking it) from the
+# PR's own proposed head, so a PR that violates topology invariants can also
+# edit this script or the workflow to trivially report success. It IS an
+# effective backstop against accidental/careless local bypasses that were
+# never intended to touch the enforcement surface itself. See "Threat Model &
+# CODEOWNERS Hardening" in docs/pipeline-topology-gate-ci-rollout.md for the
+# recommended mitigation (protect this file and the CI workflow with a
+# CODEOWNERS-required review) and for a stronger, out-of-scope alternative
+# (`pull_request_target`-based re-architecture).
 #
 # NON-SHIPMENT-SCOPED INVOCATION: no human-supplied --shipment is passed, and
 # no --shipment is resolved from CI job inputs. The gate deterministically

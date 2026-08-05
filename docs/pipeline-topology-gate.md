@@ -229,10 +229,16 @@ compatible), and both honor the standard `--no-verify` bypass.
 ## CI Topology-Check Entrypoint (Gate C)
 
 Gate C (`116-S`, this shipment) completes the staged A→B→C rollout by adding the
-server-side, **non-bypassable** CI backstop: local hooks are always skippable via
-`git ... --no-verify`, and Git has no pre-worktree-add hook at all, so CI is the
-authoritative re-validation point for the P-001/P-016 invariants once a checkout
-syncs.
+server-side CI backstop: local hooks are always skippable via `git ...
+--no-verify`, and Git has no pre-worktree-add hook at all, so CI is the
+re-validation point for the P-001/P-016 invariants once a checkout syncs.
+
+**Threat model note**: this backstop is effective against accidental/careless
+local bypasses, but is **not** non-bypassable against a malicious or
+compromised PR, since GitHub's `pull_request` trigger runs the workflow
+definition itself from the PR's proposed head. See ["Threat Model & CODEOWNERS
+Hardening"](pipeline-topology-gate-ci-rollout.md#threat-model--codeowners-hardening)
+in the CI rollout doc for the full explanation and recommended mitigation.
 
 **Backlogit-only**: `install-harness` installs this entrypoint and its workflow
 job only when the workspace's backlog tool is `backlogit`

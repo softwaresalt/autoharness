@@ -85,6 +85,12 @@ check is inexpensive and non-shipment-scoped, and skipping it for docs/backlog
 -only changes would leave exactly the commits most likely to touch
 `.backlogit/` state unchecked.
 
+**Threat model**: this job is effective against accidental/careless local
+bypasses, but is **not** a non-bypassable backstop against a malicious PR that
+edits the workflow/entrypoint itself — see
+["Threat Model & CODEOWNERS Hardening"](../../docs/pipeline-topology-gate-ci-rollout.md#threat-model--codeowners-hardening)
+for the full explanation and recommended mitigation.
+
 **Required-vs-advisory** is an explicit **operator toggle**, not a template
 variable: `continue-on-error: ${{ vars.PIPELINE_TOPOLOGY_GATE_REQUIRED !=
 'true' }}`. Leaving the `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable

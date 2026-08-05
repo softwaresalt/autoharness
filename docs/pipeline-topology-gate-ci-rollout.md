@@ -80,10 +80,10 @@ for the precise boundary of what detection does and does not guarantee.
 | **Invocation** | `--phase ambient`, `--mode manual` | `--phase ambient`, `--mode ci` |
 | **Scope target** | Non-shipment-scoped (ambient resolution) | Non-shipment-scoped (ambient resolution) |
 | **Default posture** | Advisory (warn, never blocks commit/push) | Advisory (`continue-on-error: true`) until promoted |
-| **Bypassable?** | Yes — `git ... --no-verify` skips it entirely, unobservably | No — CI cannot be skipped by the developer; it always runs and reports a result |
+| **Bypassable?** | Yes — `git ... --no-verify` skips it entirely, unobservably | Not by skipping — CI cannot be skipped by the developer via `--no-verify`; it always runs and reports a result. It is, however, tamperable by a `pull_request` that edits the enforcement workflow/script itself; see "Threat Model & CODEOWNERS Hardening" below |
 | **Worktree check (P-016)** | Machine-local `git worktree list` at commit/push time | Not meaningful on an ephemeral CI runner (single checkout); the entrypoint does not depend on runner worktree count |
-| **Speed / feedback loop** | Fast, in-loop, pre-push | Slower (full CI run), but authoritative |
-| **Purpose** | Fast feedback for a developer working normally in a synced checkout | Server-side, non-bypassable backstop once a checkout syncs |
+| **Speed / feedback loop** | Fast, in-loop, pre-push | Slower (full CI run), but always executed |
+| **Purpose** | Fast feedback for a developer working normally in a synced checkout | Server-side backstop once a checkout syncs — effective against accidental/careless bypasses; see the threat-model boundary below |
 | **Failure on missing `autoharness` binary** | Warn-and-skip (advisory-degrade; a developer machine may legitimately lack the CLI) | **Fail-closed** — a missing binary is a CI configuration failure (exit 1), never an advisory skip |
 
 Both layers invoke the **same gate core** (`autoharness gate pipeline-topology
@@ -91,7 +91,51 @@ Both layers invoke the **same gate core** (`autoharness gate pipeline-topology
 is no divergent logic between "local" and "CI" invariant checking, only a
 difference in bypassability and default blocking posture.
 
+## Threat Model & CODEOWNERS Hardening
+
+The CI `topology-check` job (and its `scripts/ci-topology-check.sh` entrypoint)
+is a real re-validation backstop against **accidental or careless** local
+bypasses — a developer who forgets to run the local gates, or who uses
+`--no-verify` without intending to touch the enforcement surface itself, cannot
+escape detection once their branch reaches CI. It is **not**, however, a
+non-bypassable backstop against a **malicious or compromised** pull request:
+
+* GitHub's `pull_request` trigger deliberately loads and runs the **workflow
+  file itself** — and any script it invokes, including
+  `scripts/ci-topology-check.sh` — from the **PR's own proposed head**, not
+  from the base branch. This is intentional GitHub Actions behavior so
+  contributors can iterate on their own CI, but it means the same PR that
+  violates a topology invariant can also edit `templates/ci/ci.yml.tmpl`'s
+  rendered `topology-check` job (or `ci-gate`'s `needs`/`results` aggregation)
+  to unconditionally report success, or replace the gate invocation with
+  `exit 0`.
+* A required-status-check branch protection rule is satisfied by **any**
+  workflow run that reports the required check name as passing, regardless of
+  what that run's workflow definition actually does — so branch protection
+  alone does not close this gap.
+
+**Recommended mitigation** for workspaces that need the enforcement surface
+itself to be tamper-resistant against a malicious PR: add a `CODEOWNERS` rule
+requiring a designated reviewer's approval for changes to
+`.github/workflows/ci.yml` and `scripts/ci-topology-check.sh` (and, for
+defense in depth, `.github/skills/install-harness/SKILL.md` and
+`templates/ci/**`), and require that review in branch protection alongside the
+`ci gate` required check. This does not make the check itself un-editable, but
+it means editing it requires a specific human's sign-off rather than being
+achievable by any PR author unilaterally.
+
+**Stronger, out-of-scope alternative**: a `pull_request_target`-triggered
+"gatekeeper" workflow that loads its own workflow definition from the base
+branch (not the PR head) and treats the PR's contents as untrusted input —
+never executing PR-provided code with elevated permissions or secrets — would
+close this gap architecturally rather than by human review. This is a
+significantly more invasive re-architecture (careful secret/permission
+scoping is required to avoid the classic `pull_request_target` code-execution
+pitfall) and is out of scope for this shipment; CODEOWNERS-required review is
+the pragmatic mitigation shipped here.
+
 ## The Operator Toggle: `PIPELINE_TOPOLOGY_GATE_REQUIRED`
+
 
 The required-vs-advisory decision for the CI `topology-check` job is an
 explicit **repository variable**, not a template variable resolved at install

@@ -293,6 +293,20 @@ class TopologyCheckJobTests(unittest.TestCase):
                 self.assertIn("topology-check", needs)
                 self.assertIn("topology-check", referenced)
 
+    def test_topology_check_job_does_not_overclaim_non_bypassable(self) -> None:
+        # Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6WzvN-): a
+        # `pull_request`-triggered workflow loads and runs its OWN definition
+        # (and any script it invokes) from the PR's proposed head, so the
+        # same PR that violates a topology invariant can also edit this job
+        # or its entrypoint to trivially report success. The template must
+        # not claim the job is a "NON-BYPASSABLE" backstop; any mention of
+        # non-bypassability must be explicitly negated (documenting the
+        # limitation), never an unqualified affirmative claim.
+        rendered = _render(_PROFILES["rust"])
+        self.assertNotIn("NON-BYPASSABLE", rendered)
+        self.assertIn("NOT a non-bypassable backstop", rendered)
+        self.assertIn("Threat Model & CODEOWNERS Hardening", rendered)
+
     def test_continue_on_error_expression_evaluates_both_toggle_states(self) -> None:
         # 109.012-T (C3) acceptance criterion: "CI entrypoint tests pass
         # (advisory and required modes)". The rendered `continue-on-error`
