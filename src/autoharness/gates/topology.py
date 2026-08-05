@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timezone
+import json
 import os
 import re
 import subprocess
@@ -1133,6 +1134,50 @@ def _ci_detached_head_branch_fallback() -> str:
     return ""
 
 
+def _ci_default_branch_fallback() -> str:
+    """CI-only fallback default-branch resolution via the GitHub Actions event payload.
+
+    ``FilesystemTopologyReaders.default_branch()`` resolves the default branch
+    from the ``refs/remotes/origin/HEAD`` symbolic ref, falling back to a
+    hard-coded ``"main"`` when that ref is unset. ``actions/checkout`` does
+    NOT set this symref by default (it performs a shallow, single-ref fetch
+    and never runs ``git remote set-head``), so in CI this always falls back
+    to the hard-coded value. For a repository whose real default branch is
+    not ``main`` (e.g. ``master``, ``trunk``), a push to that actual default
+    branch can be misclassified as ``BRANCH_MISMATCH`` instead of
+    ``BRANCH_CREATE_ELIGIBLE`` whenever a shipment happens to be active,
+    incorrectly blocking valid CI once the job is required.
+
+    GitHub Actions writes the full webhook event payload for the triggering
+    event to the file at ``GITHUB_EVENT_PATH`` for every event type, and that
+    payload's ``repository.default_branch`` field is the platform's own
+    authoritative answer -- present on the ``repository`` object of every
+    GitHub webhook event, not just ``push``/``pull_request``.
+
+    Returns an empty string (never raises) when ``GITHUB_EVENT_PATH`` is
+    unset, unreadable, not valid JSON, or lacks a usable
+    ``repository.default_branch`` string -- preserving the existing
+    git-based (``main``-fallback) resolution in that case.
+    """
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "").strip()
+    if not event_path:
+        return ""
+    try:
+        with open(event_path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    repository = payload.get("repository")
+    if not isinstance(repository, dict):
+        return ""
+    default_branch = repository.get("default_branch")
+    if isinstance(default_branch, str) and default_branch.strip():
+        return default_branch.strip()
+    return ""
+
+
 def _branch_ownership_check(
     target: str | None,
     shipments: Sequence[ShipmentState],
@@ -1161,6 +1206,12 @@ def _branch_ownership_check(
             current_branch = _normalize_branch_name(fallback_branch)
             ci_fallback_used = True
     default_branch = _normalize_branch_name(readers.default_branch())
+    default_branch_ci_fallback_used = False
+    if mode == "ci":
+        ci_default_branch = _ci_default_branch_fallback()
+        if ci_default_branch:
+            default_branch = _normalize_branch_name(ci_default_branch)
+            default_branch_ci_fallback_used = True
     canonical = tuple(f"feat/{alias}" for alias in _branch_aliases(shipment)) + tuple(
         f"chore/{alias}" for alias in _branch_aliases(shipment)
     )
@@ -1178,6 +1229,8 @@ def _branch_ownership_check(
                 "expected_branches": list(canonical),
                 "detached_head": True,
                 "resolved_via_ci_env_fallback": ci_fallback_used,
+                "default_branch": default_branch,
+                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
             },
         )
 
@@ -1193,6 +1246,8 @@ def _branch_ownership_check(
                 "current_branch": current_branch,
                 "expected_branches": list(canonical),
                 "resolved_via_ci_env_fallback": ci_fallback_used,
+                "default_branch": default_branch,
+                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
             },
         )
 
@@ -1210,6 +1265,8 @@ def _branch_ownership_check(
                 "current_branch": current_branch,
                 "expected_branches": list(canonical),
                 "resolved_via_ci_env_fallback": ci_fallback_used,
+                "default_branch": default_branch,
+                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
             },
         )
 
@@ -1223,6 +1280,8 @@ def _branch_ownership_check(
                 "current_branch": current_branch,
                 "expected_branches": list(canonical),
                 "resolved_via_ci_env_fallback": ci_fallback_used,
+                "default_branch": default_branch,
+                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
             },
         )
 
@@ -1237,6 +1296,8 @@ def _branch_ownership_check(
             "current_branch": current_branch,
             "expected_branches": list(canonical),
             "resolved_via_ci_env_fallback": ci_fallback_used,
+            "default_branch": default_branch,
+            "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
         },
     )
 

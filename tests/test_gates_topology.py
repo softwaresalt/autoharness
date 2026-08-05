@@ -1119,6 +1119,98 @@ class BranchOwnershipTests(unittest.TestCase):
         self.assertEqual(check.token, 'BRANCH_MISMATCH')
         self.assertTrue(check.details['detached_head'])
 
+    def test_ci_mode_default_branch_resolves_via_github_event_path(self) -> None:
+        """Regression test (Copilot review finding on PR #302,
+        PRRT_kwDORzpWpM6WzWf9): `FilesystemTopologyReaders.default_branch()`
+        resolves from `refs/remotes/origin/HEAD`, falling back to a
+        hard-coded `main` when that symref is unset -- which
+        `actions/checkout` never sets (shallow, single-ref fetch, no
+        `git remote set-head`). For a repository whose real default branch is
+        `master`, a push to `master` while a shipment is active must still
+        resolve `BRANCH_CREATE_ELIGIBLE`, using the platform-authoritative
+        `repository.default_branch` field from the `GITHUB_EVENT_PATH` event
+        payload rather than the incorrect hard-coded `main` fallback."""
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),),
+            branch='',
+            default_branch='main',  # simulates the git-based main-fallback bug
+        )
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            event_path = Path(tmp) / 'event.json'
+            event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
+            with patch.dict(
+                'os.environ',
+                {
+                    'GITHUB_REF_NAME': 'master',
+                    'GITHUB_REF_TYPE': 'branch',
+                    'GITHUB_EVENT_PATH': str(event_path),
+                },
+                clear=False,
+            ):
+                import os as _os
+
+                _os.environ.pop('GITHUB_HEAD_REF', None)
+                result = evaluate(
+                    TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                    readers=readers,
+                )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertEqual(check.details['default_branch'], 'master')
+        self.assertTrue(check.details['default_branch_resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_default_branch_fallback_missing_event_path_uses_reader_value(self) -> None:
+        """When `GITHUB_EVENT_PATH` is unset, unreadable, or lacks a usable
+        `repository.default_branch`, the gate preserves the existing
+        git-based `default_branch()` resolution (including its `main`
+        fallback) rather than raising or fabricating a value."""
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),),
+            branch='main',
+            default_branch='main',
+        )
+        with patch.dict('os.environ', {}, clear=False):
+            import os as _os
+
+            _os.environ.pop('GITHUB_EVENT_PATH', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertEqual(check.details['default_branch'], 'main')
+        self.assertFalse(check.details['default_branch_resolved_via_ci_env_fallback'])
+
+    def test_non_ci_mode_ignores_github_event_path_default_branch_fallback(self) -> None:
+        """The `GITHUB_EVENT_PATH`-based default-branch fallback is gated on
+        `mode == 'ci'` only, mirroring the detached-HEAD branch fallback:
+        `agent`/`manual` mode must ignore it even if the variable happens to
+        be set in the environment."""
+        readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued'),),
+            branch='master',
+            default_branch='main',
+        )
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            event_path = Path(tmp) / 'event.json'
+            event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
+            with patch.dict('os.environ', {'GITHUB_EVENT_PATH': str(event_path)}, clear=False):
+                result = evaluate(
+                    TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+                    readers=readers,
+                )
+        # 'master' is neither the (reader-reported) default branch 'main' nor
+        # a feat/chore/114-s alias, so agent mode must still block -- the
+        # event-path override must not have applied.
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertEqual(check.details['default_branch'], 'main')
+        self.assertFalse(check.details['default_branch_resolved_via_ci_env_fallback'])
+
     def test_non_target_branch_blocks(self) -> None:
         readers = _FakeReaders(
             shipments=(_shipment('114-S', 'queued'), _shipment('115-S', 'queued')),
