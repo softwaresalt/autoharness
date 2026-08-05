@@ -101,6 +101,27 @@ def _render(profile: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
+def _evaluate_continue_on_error(expression: str, *, gate_required: str) -> bool:
+    """Evaluate the fixed `${{ vars.PIPELINE_TOPOLOGY_GATE_REQUIRED != 'true' }}`
+    GitHub Actions expression string for a given repository-variable value.
+
+    This mirrors the GitHub Actions expression engine's behavior for a simple
+    string `!=` comparison: an unset repository variable resolves to an empty
+    string in expression context, not a YAML null. Only this one fixed
+    comparison shape is supported; this is a targeted test helper, not a
+    general expression evaluator.
+    """
+    match = re.fullmatch(
+        r"\$\{\{\s*vars\.PIPELINE_TOPOLOGY_GATE_REQUIRED\s*!=\s*'true'\s*\}\}",
+        expression.strip(),
+    )
+    if not match:
+        raise AssertionError(
+            "unrecognized continue-on-error expression shape: %r" % expression
+        )
+    return gate_required != "true"
+
+
 class CiTemplateRenderingTests(unittest.TestCase):
     def test_renders_valid_yaml_for_each_profile(self) -> None:
         for name, profile in _PROFILES.items():
@@ -239,6 +260,26 @@ class TopologyCheckJobTests(unittest.TestCase):
                 doc = yaml.safe_load(_render(profile))
                 gate_run = doc["jobs"]["ci-gate"]["steps"][0]["run"]
                 self.assertIn("needs['topology-check'].result", gate_run)
+
+    def test_continue_on_error_expression_evaluates_both_toggle_states(self) -> None:
+        # 109.012-T (C3) acceptance criterion: "CI entrypoint tests pass
+        # (advisory and required modes)". The rendered `continue-on-error`
+        # string is a fixed GitHub Actions expression:
+        #   ${{ vars.PIPELINE_TOPOLOGY_GATE_REQUIRED != 'true' }}
+        # This test evaluates that exact comparison directly (mirroring what
+        # the GitHub Actions expression engine does for a simple `!=` string
+        # comparison) under both toggle states, so both the advisory
+        # (unset/anything-but-'true') and required ('true') branches are
+        # exercised, not merely asserted-present as a substring.
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                coe = doc["jobs"]["topology-check"]["continue-on-error"]
+                # unset repository variable resolves to an empty string in
+                # GitHub Actions expression context.
+                self.assertTrue(_evaluate_continue_on_error(coe, gate_required=""))
+                self.assertTrue(_evaluate_continue_on_error(coe, gate_required="false"))
+                self.assertFalse(_evaluate_continue_on_error(coe, gate_required="true"))
 
 
 class HookTemplateStructureTests(unittest.TestCase):
