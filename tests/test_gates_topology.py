@@ -453,6 +453,120 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
             self.assertEqual(result.exit_code, 1)
             self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
 
+    def test_malformed_artifact_id_shape_blocks_before_glob(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        malformed_ids = (
+            '../../etc/passwd',
+            '/etc/passwd',
+            '109.001-T/../../secret',
+            '109.001-T*',
+            '109.001-T[',
+            '',
+            '   ',
+        )
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            (workspace / '.backlogit' / 'queue').mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir(parents=True)
+            reader = FilesystemTopologyReaders(workspace)
+            for artifact_id in malformed_ids:
+                with self.subTest(artifact_id=artifact_id):
+                    # A malformed id must fail closed via the gate's own
+                    # exception type -- never an unhandled low-level
+                    # pathlib/glob exception (e.g. ValueError for an
+                    # absolute-looking pattern) and never a silent None
+                    # that masks the artifact as merely "not found".
+                    with self.assertRaises(BacklogUnavailableError):
+                        reader.read_artifact(artifact_id)
+
+    def test_valid_artifact_id_shapes_are_not_blocked_by_shape_check(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        for artifact_id in ('114-S', '109-F', '109.001-T'):
+            with self.subTest(artifact_id=artifact_id):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    (workspace / '.backlogit' / 'queue').mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir(parents=True)
+                    reader = FilesystemTopologyReaders(workspace)
+                    # No record on disk for these ids; the shape check must
+                    # pass and fall through to a normal "not found" result
+                    # rather than raising.
+                    self.assertIsNone(reader.read_artifact(artifact_id))
+
+    def test_duplicate_queue_shipment_record_blocks(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            # Two distinct files in the SAME (queue) folder both declaring
+            # the same shipment id. Sort-order-dependent field overwrites
+            # (e.g. a "queued" first file silently overwritten by an
+            # "active" second file, or vice versa) must never be merged
+            # silently -- this must fail closed instead.
+            (queue / '114-s-a.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: active\n---\n",
+                encoding='utf-8',
+            )
+            (queue / '114-s-b.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            with self.assertRaises(BacklogUnavailableError):
+                reader.list_shipments()
+
+    def test_duplicate_archive_shipment_record_blocks(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            (workspace / '.backlogit' / 'queue').mkdir(parents=True)
+            archive = workspace / '.backlogit' / 'archive'
+            archive.mkdir()
+            # Two distinct files in the SAME (archive) folder both declaring
+            # the same shipment id must also fail closed.
+            (archive / '114-s-a.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\narchived_status: shipped\n---\n",
+                encoding='utf-8',
+            )
+            (archive / '114-s-b.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\narchived_status: abandoned\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            with self.assertRaises(BacklogUnavailableError):
+                reader.list_shipments()
+
+    def test_single_live_and_archive_pair_for_same_id_is_not_a_duplicate(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            archive = workspace / '.backlogit' / 'archive'
+            archive.mkdir()
+            # One queue record and one archive record for the same id is a
+            # legitimate (non-duplicate) predecessor-ambiguity case handled
+            # elsewhere -- it must not trip the same-folder duplicate check.
+            (queue / '113-S.md').write_text(
+                "---\nid: 113-S\nartifact_type: shipment\nstatus: queued\n---\n",
+                encoding='utf-8',
+            )
+            (archive / '113-S.md').write_text(
+                "---\nid: 113-S\nartifact_type: shipment\narchived_status: shipped\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            shipments = reader.list_shipments()
+            self.assertEqual(len(shipments), 1)
+            self.assertTrue(shipments[0].archived_record_present)
+
     def test_read_worktree_marker_reads_repo_local_marker(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 

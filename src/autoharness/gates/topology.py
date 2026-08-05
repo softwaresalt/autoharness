@@ -42,6 +42,17 @@ _VALID_LIVE_ARTIFACT_STATUSES = frozenset(
 # artifact -- it must fail closed rather than being silently skipped from
 # the shipment scan.
 _SHIPMENT_ID_PATTERN = re.compile(r"^\d+-S$")
+# backlogit artifact ids are always digits (optionally dot-separated for
+# sub-numbered tasks, e.g. "109.001") followed by a hyphen and an uppercase
+# type suffix (e.g. "114-S", "109-F", "109.001-T"). This is the full set of
+# characters an id may legitimately contain -- no path separators, "..", or
+# glob metacharacters. Any artifact id (e.g. a manifest item id read from
+# shipment frontmatter) must match this shape before it is safely
+# interpolated into a filesystem glob pattern; a malformed id containing
+# "..", an absolute path, or glob metacharacters must fail closed rather
+# than traverse outside the backlog directory or raise an unhandled
+# path-pattern exception.
+_ARTIFACT_ID_PATTERN = re.compile(r"^\d+(?:\.\d+)*-[A-Za-z]+$")
 _BRANCH_KIND_PREFIXES = ("feat/", "chore/")
 _POST_CLAIM_WRAP_TOKENS = frozenset({
     "SHIPMENT_STATE_INCONSISTENT",
@@ -237,6 +248,18 @@ class FilesystemTopologyReaders:
         return None
 
     def _artifact_from_paths(self, artifact_id: str) -> ArtifactState | None:
+        if not _ARTIFACT_ID_PATTERN.match(artifact_id):
+            # A malformed artifact id (containing "..", an absolute path, or
+            # glob metacharacters) must never be interpolated into a
+            # filesystem glob: that can traverse outside the queue/archive
+            # directories or raise an unhandled path-pattern exception
+            # instead of the gate's normal fail-closed result. Validate the
+            # shape up front and contain resolution to exact, safe
+            # candidates only.
+            raise BacklogUnavailableError(
+                self.backlog_dir,
+                f"artifact id has an invalid or unsafe shape and cannot be resolved: {artifact_id!r}",
+            )
         queue_path = self._glob_id("queue", artifact_id)
         archive_path = self._glob_id("archive", artifact_id)
         if queue_path is None and archive_path is None:
@@ -311,6 +334,22 @@ class FilesystemTopologyReaders:
                     # ambient/CI pass on an incomplete view of the backlog.
                     raise BacklogUnavailableError(candidate, "shipment record has a missing or blank id")
                 record = records.setdefault(shipment_id.strip(), {"shipment_id": shipment_id.strip()})
+                folder_source_key = "archive_source_path" if is_archive else "queue_source_path"
+                existing_source = record.get(folder_source_key)
+                if existing_source is not None:
+                    # A second record in the SAME folder for an already-seen
+                    # shipment id must never be silently merged: sort-order-
+                    # dependent field overwrites (active status, manifest,
+                    # dependencies) can hide an active shipment from the
+                    # global invariant. Fail closed instead of merging.
+                    raise BacklogUnavailableError(
+                        candidate,
+                        (
+                            f"duplicate {'archive' if is_archive else 'queue'} shipment record for id "
+                            f"{shipment_id.strip()!r} (also found at {existing_source})"
+                        ),
+                    )
+                record[folder_source_key] = candidate
                 title = fm.get("title")
                 if isinstance(title, str) and title.strip():
                     record["title"] = title.strip()
