@@ -327,3 +327,115 @@ class PostClaimVerifyTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.primary_token, 'CLAIM_VERIFY_FAILED')
+
+
+class AgentInputValidationTests(unittest.TestCase):
+    def test_missing_phase_in_agent_mode_is_invalid(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase=None, target_shipment_id='114-S'),
+            readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),)),
+        )
+        self.assertEqual(result.exit_code, 2)
+
+    def test_empty_shipment_in_agent_mode_is_invalid(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id=''),
+            readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),)),
+        )
+        self.assertEqual(result.exit_code, 2)
+
+
+class ReadinessMatrixTests(unittest.TestCase):
+    def _result(self, predecessor: ShipmentState, closure_complete: bool | None) -> tuple[int, str | None]:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return closure_complete
+
+        readers = Readers(shipments=(predecessor, _shipment('114-S', 'queued', deps=('113-S',))))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        return result.exit_code, result.primary_token
+
+    def test_terminal_states_require_complete_closure(self) -> None:
+        pass_cases = (
+            _shipment('113-S', 'shipped'),
+            _shipment('113-S', '', archived_status='shipped'),
+            _shipment('113-S', '', archived_status='done'),
+        )
+        for predecessor in pass_cases:
+            with self.subTest(predecessor=predecessor):
+                exit_code, token = self._result(predecessor, True)
+                self.assertEqual((exit_code, token), (0, None))
+                exit_code, token = self._result(predecessor, False)
+                self.assertEqual(token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+    def test_non_terminal_or_ambiguous_states_block(self) -> None:
+        block_cases = (
+            (_shipment('113-S', 'queued'), 'PREDECESSOR_NOT_SHIPPED'),
+            (_shipment('113-S', 'active'), 'PRECLAIM_ACTIVE_SHIPMENT_PRESENT'),
+            (_shipment('113-S', 'abandoned'), 'PREDECESSOR_NOT_SHIPPED'),
+            (_shipment('113-S', '', archived_status='queued'), 'PREDECESSOR_NOT_SHIPPED'),
+            (_shipment('113-S', '', archived_status='active'), 'PREDECESSOR_NOT_SHIPPED'),
+            (_shipment('113-S', '', archived_status='blocked'), 'PREDECESSOR_NOT_SHIPPED'),
+            (_shipment('113-S', '', archived_status='abandoned'), 'PREDECESSOR_NOT_SHIPPED'),
+            (_shipment('113-S', '', archived_status=None), 'PREDECESSOR_NOT_SHIPPED'),
+        )
+        for predecessor, expected_token in block_cases:
+            with self.subTest(predecessor=predecessor):
+                exit_code, token = self._result(predecessor, True)
+                self.assertEqual(token, expected_token)
+
+
+class SuppliedTargetTests(unittest.TestCase):
+    def test_branch_and_readiness_use_supplied_target(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return shipment_id == '113-S'
+
+        readers = Readers(
+            shipments=(
+                _shipment('113-S', 'shipped'),
+                _shipment('114-S', 'queued', deps=('113-S',)),
+                _shipment('115-S', 'queued', deps=('114-S',)),
+            ),
+            branch='feat/114-s',
+        )
+        pass_result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(pass_result.exit_code, 0)
+
+        block_result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='115-S'),
+            readers=readers,
+        )
+        self.assertEqual(block_result.primary_token, 'BRANCH_MISMATCH')
+
+
+class AmbientResolutionTests(unittest.TestCase):
+    def test_currently_claimed_target_is_used(self) -> None:
+        readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'active'), _shipment('115-S', 'queued')),
+            branch='feat/114-s',
+        )
+        result = evaluate(
+            TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.resolved_target_shipment_id, '114-S')
+
+    def test_no_target_ambient_still_runs_ambient_invariants(self) -> None:
+        readers = _FakeReaders(shipments=(), branch='topic/misc')
+        result = evaluate(
+            TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(_check(result, 'branch_ownership').status, 'skipped')
+        self.assertEqual(_check(result, 'shipment_readiness').status, 'skipped')
+        self.assertEqual(_check(result, 'worktree_topology').token, 'WORKTREE_TOPOLOGY_OK')
+

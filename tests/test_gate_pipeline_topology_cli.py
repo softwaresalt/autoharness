@@ -49,6 +49,14 @@ class PipelineTopologyArgTests(unittest.TestCase):
         _, _, code = _run('gate', 'pipeline-topology', '--mode', 'agent', '--shipment', '114-S', '--phase', 'ambient')
         self.assertEqual(code, 2)
 
+    def test_agent_mode_requires_phase(self) -> None:
+        _, _, code = _run('gate', 'pipeline-topology', '--mode', 'agent', '--shipment', '114-S')
+        self.assertEqual(code, 2)
+
+    def test_agent_mode_rejects_empty_shipment(self) -> None:
+        _, _, code = _run('gate', 'pipeline-topology', '--mode', 'agent', '--shipment', '', '--phase', 'pre_claim')
+        self.assertEqual(code, 2)
+
     def test_manual_mode_defaults_to_ambient(self) -> None:
         class FakeReaders:
             def list_shipments(self):
