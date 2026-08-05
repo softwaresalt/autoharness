@@ -9,6 +9,8 @@
 .github/agents/_ship.agent.md text eol=lf
 .github/agents/_stage.agent.md text eol=lf
 .github/agents/_orchestrator.agent.md text eol=lf
+.github/skills/install-harness/SKILL.md text eol=lf
+.github/skills/tune-harness/SKILL.md text eol=lf
 .github/instructions/harness-architecture.instructions.md text eol=lf
 AGENTS.md text eol=lf
 start.ps1 text eol=lf

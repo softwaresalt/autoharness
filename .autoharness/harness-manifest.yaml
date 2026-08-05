@@ -112,7 +112,7 @@ artifacts:
   - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "5446fb5012cb6717530b17155ad69a913cf8d4b6f66d82ea2d87ba7c222fede8"
+    checksum: "834246f721a5da984b53d943cae964bcf38c05e30baf0c26e318195b73816a67"
     note: "source-controlled dogfood workflow agent; checksum refreshed 114-S/109.020-T + 109.019-T (safe-close pointer + queued-from-start sequencing reload contract), again for the Copilot-review blocked-shipment-language removal fix, and again 115-S/109.017-T (pipeline-topology gate wiring: pre_claim before branch/worktree + before claim, immediate GLOBAL post_claim verification with bounded CLAIM_NOT_OBSERVED reclaim, lifecycle gate before build/PR/closure); checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p HEAD:<path>`, never a raw Windows working-tree read (see docs/compound CRLF/LF checksum gotcha)"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
@@ -156,13 +156,13 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "248a2592c9f8d5657b7c790e5d25c2343b88b158867c619697a6ecbe05450e7a"
-    note: "global skill definition; checksum refreshed 115-S/109.013-T (pipeline-topology hook install wiring: pre-commit-pipeline-topology.sh/.ps1 mapping row + Step 4.4 verification item 9)"
+    checksum: "5f532801de81abd8040bcf4a3ccfafd9245180d542065773edc64c5bfd62683d"
+    note: "global skill definition; checksum refreshed 115-S/109.013-T (pipeline-topology hook install wiring: pre-commit-pipeline-topology.sh/.ps1 mapping row + Step 4.4 verification item 9); checksum computed from the LF-normalized committed git blob via `git cat-file -p HEAD:<path>` after 115-S review found the prior value was hashed from a CRLF Windows working-tree read — a `.gitattributes` eol=lf pin was added for this file to keep future refreshes deterministic regardless of local autocrlf"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "ca83415bd60b7002ead00dfebcf4f0efc0f0b751432754fe5b1ba673b5d2586b"
-    note: "global skill definition; checksum refreshed 115-S/109.013-T (pipeline-topology hook drift detection added)"
+    checksum: "4b20ab18ac0ed334e9ae670925a1a7cff0c81f5e9d8943e475c0eb0737a15eae"
+    note: "global skill definition; checksum refreshed 115-S/109.013-T (pipeline-topology hook drift detection added); checksum computed from the LF-normalized committed git blob via `git cat-file -p HEAD:<path>` after 115-S review found the prior value was hashed from a CRLF Windows working-tree read — a `.gitattributes` eol=lf pin was added for this file to keep future refreshes deterministic regardless of local autocrlf"
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
     template: "global skill definition"

@@ -215,6 +215,22 @@ class ShipClaimNotObservedReclaimContractTests(unittest.TestCase):
                 self.assertIn("Bootstrap exemption", content)
                 self.assertIn("as-yet-uninstalled gate", content)
 
+    def test_queued_branch_reruns_pre_claim_before_reclaim_no_dangling_reference(self) -> None:
+        """Regression test for code-review Issue 2: the reclaim sequence must
+        re-verify the full pre_claim GLOBAL check before retrying the claim
+        (never reclaim into an invalidated topology), and must not reference
+        a post_claim re-check that is only defined inside the
+        mutually-exclusive 'active' branch."""
+        for label, content in _ship_files():
+            with self.subTest(file=label):
+                collapsed = " ".join(content.split())
+                self.assertIn("re-run the full `--phase pre_claim`", collapsed)
+                self.assertIn("GLOBAL", collapsed)
+                self.assertIn("never reclaim into", collapsed)
+                self.assertNotIn(
+                    "first `--phase post_claim` re-check (above)", collapsed
+                )
+
 
 class OrchestratorTopologyGateWiringTests(unittest.TestCase):
     """Proves the Orchestrator's route-to-Ship eligibility check and

@@ -240,15 +240,17 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
      (sole active target) confirms the original claim actually succeeded despite the `CLAIM_NOT_OBSERVED` token — treat as
      converged and do **not** reclaim; any ambiguity, mismatch, or `SHIPMENT_STATE_INCONSISTENT` instead halts terminally
      with `CLAIM_VERIFY_FAILED` — no reclaim.
-   - If the re-read status is `queued`: retry the claim exactly once (CLI fallback
+   - If the re-read status is `queued`: when the topology gate is installed, first re-run the full `--phase pre_claim`
+     GLOBAL topology/readiness/zero-active check before reclaiming — any non-zero pre_claim verdict is terminal
+     fail-closed here too (never reclaim into a topology that has since become invalid, e.g. another shipment going
+     active in the interim). Only after that check passes (or when the gate is not installed): retry the claim exactly once (CLI fallback
      `backlogit shipment claim {shipment_id}`) and re-read. If it still is not `active`, halt fail-closed with
      `CLAIM_VERIFY_FAILED: shipment {shipment_id} did not reach active after claim` and record a P-005 event.
-     Retry-once applies **only** to a `queued` re-read. This is the double-claim-guarded reclaim bound the topology
-     gate's `CLAIM_NOT_OBSERVED` outcome above reuses: when the topology gate is installed, only reach this branch after
-     the double-claim guard's first `--phase post_claim` re-check (above) still shows non-convergence, and immediately
-     after this retry re-run `--phase post_claim` once more — exit 0 converges and proceeds to Step 2; a second
-     `CLAIM_NOT_OBSERVED` (bound exhausted) or any other non-zero/ambiguous verdict is terminal (`CLAIM_VERIFY_FAILED`),
-     never a further retry.
+     Retry-once applies **only** to a `queued` re-read. This retry-once bound is the double-claim guard's reclaim step:
+     it is exactly what the topology gate's `CLAIM_NOT_OBSERVED` outcome above reuses rather than introducing a new
+     claim primitive. When the topology gate is installed, immediately after this retry re-run `--phase post_claim`
+     once more — exit 0 converges and proceeds to Step 2; a second `CLAIM_NOT_OBSERVED` (bound exhausted) or any other
+     non-zero/ambiguous verdict is terminal (`CLAIM_VERIFY_FAILED`), never a further retry.
    - If the re-read status is anything other than `active` or `queued`: halt **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} returned unexpected status {status}` — **no retry, no claim**. Any value outside `{active, queued}` is a fail-closed anomaly and must record a P-005 event. Backlogit 1.8.0 does not define a shipment `blocked` status; see `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`.
    Both halts fire **before** Step 2 moves any task to `active`. Broadcast the claim-verify result when intercom
    is available. The bounded cycle described above (double-claim guard, single retry, single post_claim re-verify) runs
