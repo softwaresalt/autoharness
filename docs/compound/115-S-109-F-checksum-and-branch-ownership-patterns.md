@@ -37,20 +37,32 @@ that CI (Linux runners) will see.
   Hash `.stdout` directly — never re-decode/re-encode/re-print through a
   shell redirect first.
 * **(b) Renormalize + stage read** — apply `.gitattributes` rules to the
-  index, then read the staged (not working-tree) bytes:
-  ```powershell
-  git add --renormalize <path>
-  git cat-file -p :<path> > $tmp   # colon prefix = index/stage-0, not HEAD:
+  index, then read the staged (not working-tree) bytes. **Correction**: an
+  earlier draft of this note suggested `git cat-file -p :<path> > $tmp`
+  (PowerShell `>` redirect) to capture the staged blob before hashing —
+  this repeats the EXACT failure mode described above: PowerShell's `>`
+  handles native subprocess stdout as text on affected versions/encodings,
+  so `$tmp` can itself end up with remangled line endings, producing the
+  wrong digest. There is no safe redirect-based variant of this pattern.
+  Always capture the staged blob as raw bytes through a subprocess call,
+  exactly like variant (a), just with a colon-prefixed (`:<path>`, index/
+  stage-0) ref instead of `HEAD:<path>`:
+  ```python
+  import subprocess, hashlib
+  subprocess.run(["git", "add", "--renormalize", path], check=True)
+  result = subprocess.run(["git", "cat-file", "-p", f":{path}"], capture_output=True)
+  digest = hashlib.sha256(result.stdout).hexdigest()
   ```
-  then hash `$tmp` with Python. This captures what will actually be
-  committed, which matters when a `.gitattributes eol=lf` pin was *just*
-  added in the same change (renormalize is what actually rewrites the
-  index entry to LF).
+  This captures what will actually be committed, which matters when a
+  `.gitattributes eol=lf` pin was *just* added in the same change
+  (renormalize is what actually rewrites the index entry to LF).
 
 **Rule going forward**: any manifest-checksummed file edited on a Windows
-dev box MUST have its checksum computed via (a) or (b), never via a raw
-PowerShell-piped read of working-tree bytes. Add an `eol=lf` `.gitattributes`
-pin for any text file whose checksum is tracked in
+dev box MUST have its checksum computed via (a) or (b) above — both of
+which route through a subprocess capture of raw `.stdout` bytes, never a
+shell redirect (`>`, `Out-File`, or piping through a PowerShell console) at
+any stage of the pipeline. Add an `eol=lf` `.gitattributes` pin for any
+text file whose checksum is tracked in
 `.autoharness/harness-manifest.yaml`, to make future edits on Windows
 checkouts immune to this class of drift entirely.
 
