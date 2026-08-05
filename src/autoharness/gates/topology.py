@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 VALID_MODES = ("agent", "manual", "ci")
@@ -141,7 +142,11 @@ class _NullReaders:
         return "main"
 
     def worktree_porcelain(self) -> str:
-        return ""
+        return (
+            'worktree .\n'
+            'HEAD 0000000000000000000000000000000000000000\n'
+            'branch refs/heads/main\n\n'
+        )
 
     def closure_complete(self, shipment_id: str) -> bool | None:
         return None
@@ -218,6 +223,86 @@ def _validate_input(topology_input: TopologyInput) -> TopologyResult | None:
         )
     return None
 
+
+
+@dataclass(frozen=True)
+class WorktreeEntry:
+    path: str
+    branch: str | None = None
+
+
+def parse_worktree_porcelain(porcelain: str) -> tuple[WorktreeEntry, ...]:
+    entries: list[WorktreeEntry] = []
+    block: dict[str, str] = {}
+    for raw_line in porcelain.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if block.get("worktree"):
+                entries.append(
+                    WorktreeEntry(
+                        path=block["worktree"],
+                        branch=block.get("branch"),
+                    )
+                )
+            block = {}
+            continue
+        key, _, value = line.partition(" ")
+        if key == "worktree":
+            block["worktree"] = value.strip()
+        elif key == "branch":
+            branch = value.strip()
+            if branch.startswith("refs/heads/"):
+                branch = branch[len("refs/heads/") :]
+            block["branch"] = branch
+    if block.get("worktree"):
+        entries.append(
+            WorktreeEntry(
+                path=block["worktree"],
+                branch=block.get("branch"),
+            )
+        )
+    return tuple(entries)
+
+
+def _is_stage_spike_research_worktree(entry: WorktreeEntry) -> bool:
+    branch = (entry.branch or "").lower()
+    path_name = Path(entry.path).name.lower()
+    branch_ok = branch.startswith("spike/") or branch.startswith("research/")
+    path_ok = "stage-spike" in path_name or "stage-research" in path_name
+    return branch_ok and path_ok
+
+
+def _worktree_uniqueness_check(readers: TopologyReaders) -> CheckResult:
+    entries = parse_worktree_porcelain(readers.worktree_porcelain())
+    implementation = [entry for entry in entries if not _is_stage_spike_research_worktree(entry)]
+    if len(implementation) == 1:
+        return CheckResult(
+            name="worktree_topology",
+            status="passed",
+            token="WORKTREE_TOPOLOGY_OK",
+            details={
+                "implementation_worktrees": [entry.path for entry in implementation],
+                "spike_research_worktrees": [entry.path for entry in entries if _is_stage_spike_research_worktree(entry)],
+            },
+        )
+    if len(implementation) == 0:
+        return CheckResult(
+            name="worktree_topology",
+            status="blocked",
+            token="NO_IMPLEMENTATION_WORKTREE",
+            message="NO_IMPLEMENTATION_WORKTREE: topology gate requires exactly one implementation worktree",
+            details={"spike_research_worktrees": [entry.path for entry in entries if _is_stage_spike_research_worktree(entry)]},
+        )
+    return CheckResult(
+        name="worktree_topology",
+        status="blocked",
+        token="MULTIPLE_IMPLEMENTATION_WORKTREES",
+        message="MULTIPLE_IMPLEMENTATION_WORKTREES: topology gate allows exactly one implementation worktree",
+        details={
+            "implementation_worktrees": [entry.path for entry in implementation],
+            "spike_research_worktrees": [entry.path for entry in entries if _is_stage_spike_research_worktree(entry)],
+        },
+    )
 
 
 def _shipment_map(shipments: Sequence[ShipmentState]) -> dict[str, ShipmentState]:
@@ -514,5 +599,10 @@ def evaluate(
     checks.append(branch_check)
     if branch_check.status == "blocked":
         return _blocked_result(topology_input, resolved_phase, target, branch_check)
+
+    worktree_check = _worktree_uniqueness_check(bound_readers)
+    checks.append(worktree_check)
+    if worktree_check.status == "blocked":
+        return _blocked_result(topology_input, resolved_phase, target, worktree_check)
 
     return _pass_result(topology_input, resolved_phase, target, checks)

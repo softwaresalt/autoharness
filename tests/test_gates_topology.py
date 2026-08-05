@@ -14,11 +14,16 @@ from autoharness.gates.topology import (
 
 
 class _FakeReaders:
-    def __init__(self, shipments=(), artifacts=None, branch='main', default_branch='main'):
+    def __init__(self, shipments=(), artifacts=None, branch='main', default_branch='main', worktrees=None):
         self._shipments = tuple(shipments)
         self._artifacts = dict(artifacts or {})
         self._branch = branch
         self._default_branch = default_branch
+        self._worktrees = worktrees or (
+            'worktree C:/repo\n'
+            'HEAD 0000000000000000000000000000000000000000\n'
+            f'branch refs/heads/{branch}\n\n'
+        )
 
     def list_shipments(self):
         return self._shipments
@@ -33,7 +38,7 @@ class _FakeReaders:
         return self._default_branch
 
     def worktree_porcelain(self) -> str:
-        return ''
+        return self._worktrees
 
     def closure_complete(self, shipment_id: str):
         return None
@@ -121,7 +126,7 @@ class BranchOwnershipTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.checks[-1].token, 'BRANCH_OK')
+        self.assertEqual(result.checks[-2].token, 'BRANCH_OK')
 
     def test_default_branch_is_create_eligible(self) -> None:
         readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='main')
@@ -130,7 +135,7 @@ class BranchOwnershipTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.checks[-1].token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertEqual(result.checks[-2].token, 'BRANCH_CREATE_ELIGIBLE')
 
     def test_non_target_branch_blocks(self) -> None:
         readers = _FakeReaders(
@@ -171,4 +176,38 @@ class BranchOwnershipTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertEqual(result.checks[-1].status, 'skipped')
+        self.assertEqual(result.checks[-2].status, 'skipped')
+
+
+class WorktreeTopologyTests(unittest.TestCase):
+    def test_stage_spike_research_exception_does_not_count(self) -> None:
+        worktrees = (
+            'worktree C:/repo\n'
+            'HEAD 1111111111111111111111111111111111111111\n'
+            'branch refs/heads/feat/114-s\n\n'
+            'worktree C:/repo-stage-spike-001\n'
+            'HEAD 2222222222222222222222222222222222222222\n'
+            'branch refs/heads/spike/topology\n\n'
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s', worktrees=worktrees),
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.checks[-1].token, 'WORKTREE_TOPOLOGY_OK')
+
+    def test_multiple_implementation_worktrees_block(self) -> None:
+        worktrees = (
+            'worktree C:/repo\n'
+            'HEAD 1111111111111111111111111111111111111111\n'
+            'branch refs/heads/feat/114-s\n\n'
+            'worktree C:/repo-2\n'
+            'HEAD 2222222222222222222222222222222222222222\n'
+            'branch refs/heads/feat/115-s\n\n'
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s', worktrees=worktrees),
+        )
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'MULTIPLE_IMPLEMENTATION_WORKTREES')

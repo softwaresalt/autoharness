@@ -227,6 +227,11 @@ pipeline-topology options:
   --json              Emit the topology gate result as JSON.
   --force             Reserve an operator override for a blocked topology gate.
 
+`pipeline-topology` is read-only and fail-closed. Its active-shipment scan is
+local to the current checkout, and its worktree uniqueness check is local to the
+current machine/checkout: it detects topology drift, but it is not a lock or
+lease across multiple checkouts or hosts.
+
 This gate is FAIL-CLOSED: when Copilot review is enabled and its completion or
 thread resolution is incomplete or unverifiable, it BLOCKS (non-zero). --admin does
 not bypass it. It PASSES only when review is satisfied for the current HEAD or is
