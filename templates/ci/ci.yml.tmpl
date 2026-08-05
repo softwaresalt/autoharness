@@ -25,10 +25,10 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - {{CI_DEFAULT_BRANCH}}
   pull_request:
     branches:
-      - main
+      - {{CI_DEFAULT_BRANCH}}
 
 permissions:
   contents: read

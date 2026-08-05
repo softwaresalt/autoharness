@@ -208,6 +208,16 @@ confirm:
   already the general convention for this CI shape (see
   [`templates/ci/README.md`](../templates/ci/README.md)) and does not change
   when the toggle is promoted.
+* The workflow's own `on: push:`/`on: pull_request:` trigger filters
+  (`{{CI_DEFAULT_BRANCH}}` in `templates/ci/ci.yml.tmpl`) resolved to the
+  repository's actual default branch at install time — if that repo's
+  default branch is not `main` (e.g. `master`, `trunk`) and this was
+  installed before the fix for Copilot review thread
+  PRRT_kwDORzpWpM6W0BCD, the workflow never triggers at all on the real
+  default branch, and `topology.py`'s non-`main` default-branch fallback
+  never gets a chance to run. Re-render/reinstall `ci.yml.tmpl` if this
+  placeholder was ever resolved to a hard-coded `main` on a non-`main`
+  -default repository.
 
 ## CI-Path Test Coverage
 
@@ -221,15 +231,21 @@ CI-path behavior for the entrypoint and workflow wiring is covered by:
   BLOCK (exit 1), and missing-`autoharness`-binary (exit 1) outcomes.
 * `tests/test_ci_template_rendering.py::TopologyCheckJobTests` — structural
   assertions on `templates/ci/ci.yml.tmpl`'s `topology-check` job across all
-  three rendered test profiles actually defined in that test module
-  (`rust`, `typescript`, `python` — see `tests/test_ci_template_rendering.py`
-  lines 34-85): job presence, always-runs (not gated on `changes`), the
-  toggle being a repository variable (`vars.PIPELINE_TOPOLOGY_GATE_REQUIRED`)
-  rather than a `{{TEMPLATE_VAR}}`, advisory-by-default via
-  `continue-on-error`, correct entrypoint invocation, `autoharness` install
-  command resolution per profile, and `ci-gate` aggregation inclusion
+  rendered test profiles defined in that test module (`rust`, `typescript`,
+  `python`, and `go_non_main_default_branch` — see
+  `tests/test_ci_template_rendering.py` lines 34-110): job presence,
+  always-runs (not gated on `changes`), the toggle being a repository
+  variable (`vars.PIPELINE_TOPOLOGY_GATE_REQUIRED`) rather than a
+  `{{TEMPLATE_VAR}}`, advisory-by-default via `continue-on-error`, correct
+  entrypoint invocation, `autoharness` install command resolution per
+  profile, and `ci-gate` aggregation inclusion
   (`needs['topology-check'].result`, bracket notation for the hyphenated job
   ID).
+* `CiTemplateRenderingTests::test_trigger_filters_use_resolved_default_branch_not_hardcoded_main`
+  asserts the rendered `on.push.branches`/`on.pull_request.branches` match
+  each profile's `{{CI_DEFAULT_BRANCH}}` value, including the
+  `go_non_main_default_branch` profile's `master` — directly covering
+  Copilot review thread PRRT_kwDORzpWpM6W0BCD.
 * Both advisory mode (default, `continue-on-error: true`) and required mode
   (`vars.PIPELINE_TOPOLOGY_GATE_REQUIRED == 'true'`, `continue-on-error:
   false`) are exercised behaviorally by

@@ -36,6 +36,7 @@ _PROFILES = {
         "CI_EXPENSIVE_JOB_NAME": "build",
         "CI_REQUIRED_CHECK_NAME": "ci gate",
         "CI_RUNNER_OS": "ubuntu-latest",
+        "CI_DEFAULT_BRANCH": "main",
         "CI_DOCS_ONLY_PATHS": "              - '!docs/**'",
         "CI_SETUP_STEPS": (
             "      - uses: actions/checkout@df4cb1c # v6.0.3\n"
@@ -52,6 +53,7 @@ _PROFILES = {
         "CI_EXPENSIVE_JOB_NAME": "test",
         "CI_REQUIRED_CHECK_NAME": "ci gate",
         "CI_RUNNER_OS": "ubuntu-latest",
+        "CI_DEFAULT_BRANCH": "main",
         "CI_DOCS_ONLY_PATHS": "              - '!docs/**'\n              - '!.backlogit/**'",
         "CI_SETUP_STEPS": (
             "      - uses: actions/checkout@df4cb1c # v6.0.3\n"
@@ -68,6 +70,7 @@ _PROFILES = {
         "CI_EXPENSIVE_JOB_NAME": "test",
         "CI_REQUIRED_CHECK_NAME": "build",
         "CI_RUNNER_OS": "ubuntu-latest",
+        "CI_DEFAULT_BRANCH": "main",
         "CI_DOCS_ONLY_PATHS": (
             "              - '!docs/**'\n"
             "              - '!.backlogit/**'\n"
@@ -83,6 +86,30 @@ _PROFILES = {
         "TEST_COMMAND": "pytest",
         "BUILD_CHECK_COMMAND": 'python -m py_compile src/pkg.py',
         "CI_AUTOHARNESS_INSTALL_COMMAND": "pip install -e .",
+    },
+    "go_non_main_default_branch": {
+        # Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6W0BCD): the
+        # workflow's own `on: push:`/`on: pull_request:` trigger filters must
+        # not hard-code `main`, or the job never starts at all for a
+        # `master`/`trunk`-default repo -- topology.py's non-main default
+        # branch fallback is moot if GitHub never triggers the workflow in
+        # the first place. This profile renders with a non-`main` default
+        # branch (backlogit's own convention) to cover that case directly.
+        "CI_EXPENSIVE_JOB_NAME": "build",
+        "CI_REQUIRED_CHECK_NAME": "ci gate",
+        "CI_RUNNER_OS": "ubuntu-latest",
+        "CI_DEFAULT_BRANCH": "master",
+        "CI_DOCS_ONLY_PATHS": "              - '!docs/**'",
+        "CI_SETUP_STEPS": (
+            "      - uses: actions/checkout@df4cb1c # v6.0.3\n"
+            "      - run: go build ./..."
+        ),
+        "LINT_COMMAND": "golangci-lint run",
+        "FORMAT_CHECK_COMMAND": "gofmt -l .",
+        "TYPECHECK_COMMAND": "",
+        "TEST_COMMAND": "go test ./...",
+        "BUILD_CHECK_COMMAND": "go build ./...",
+        "CI_AUTOHARNESS_INSTALL_COMMAND": "pip install autoharness",
     },
 }
 
@@ -129,6 +156,25 @@ class CiTemplateRenderingTests(unittest.TestCase):
                 doc = yaml.safe_load(_render(profile))
                 self.assertIsInstance(doc, dict)
                 self.assertIn("jobs", doc)
+
+    def test_trigger_filters_use_resolved_default_branch_not_hardcoded_main(self) -> None:
+        # Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6W0BCD): the
+        # workflow's own `on: push:`/`on: pull_request:` trigger filters must
+        # track the workspace's actual default branch via
+        # {{CI_DEFAULT_BRANCH}} -- previously hard-coded to `main`, which
+        # means the workflow never starts at all for a `master`/`trunk`
+        # -default repo, making topology.py's non-main default-branch
+        # fallback moot (the job simply never runs).
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                # PyYAML 1.1 resolves the bare `on` key as the boolean `True`
+                # (the classic "Norway problem" GitHub Actions workflows are
+                # famous for triggering) -- not the string `"on"`.
+                triggers = doc[True]
+                expected = [profile["CI_DEFAULT_BRANCH"]]
+                self.assertEqual(triggers["push"]["branches"], expected)
+                self.assertEqual(triggers["pull_request"]["branches"], expected)
 
     def test_no_unresolved_template_variables(self) -> None:
         for name, profile in _PROFILES.items():
