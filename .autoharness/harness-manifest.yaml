@@ -156,8 +156,8 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "40b2d0a3e4376ef4702e8b2f71b0a899d2d7314f0a0b6cb9e3d6c3bd40624848"
-    note: "global skill definition; checksum refreshed 115-S/109.013-T (pipeline-topology hook install wiring: pre-commit-pipeline-topology.sh/.ps1 mapping row + Step 4.4 verification item 9); checksum computed from the LF-normalized committed git blob via `git cat-file -p HEAD:<path>` after 115-S review found the prior value was hashed from a CRLF Windows working-tree read — a `.gitattributes` eol=lf pin was added for this file to keep future refreshes deterministic regardless of local autocrlf"
+    checksum: "44928c61d0a1fa337fb9648c7524c35270c5e0496cbea31930069c69686f8ded"
+    note: "global skill definition; checksum refreshed 116-S/109.011-T + Copilot-review remediation (Gate C CI entrypoint artifact-map rows added by 109.011-T; {{CI_AUTOHARNESS_INSTALL_COMMAND}} variable-table row + self-hosting resolver contract added while resolving PR #302 Copilot review threads PRRT_kwDORzpWpM6Wyyxj / PRRT_kwDORzpWpM6Wy-b9); checksum computed from the LF-normalized committed git blob via `git cat-file -p HEAD:<path>` per the procedure established in 115-S (the `.gitattributes` eol=lf pin for this file keeps refreshes deterministic regardless of local autocrlf)"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
