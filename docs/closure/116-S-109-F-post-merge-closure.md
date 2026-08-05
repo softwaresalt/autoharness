@@ -7,7 +7,7 @@ merge_commit: 64b6e93412360cd2058a181309acda9fecff36b8
 merged_at: "2026-08-05T23:04:57Z"
 reviewed_head: bc14ba676f4a23eefb69a607224e79274f7122da
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 feature_terminal_status: done
 feature_archived_status: done
 ---
@@ -221,12 +221,17 @@ modified.
 
 ## Context Compaction (P-020)
 
-- **Status: pending at time of writing this section** — mandatory
-  `compact-context --target all` invocation is performed immediately after
-  this document is committed, per Ship Step 5 item 6. This document's
-  frontmatter `compaction_status` field will be amended to `done` (or
-  `degraded` if the run fails, non-blocking) once that invocation
-  completes and its outcome is known.
+- **Status: `done`** (mandatory per-merge invocation; bounded Tier-1
+  per-release-unit post-merge floor).
+- **Memory**: session memory
+  (`docs/archive/memory/2026-08-05-ship-116-S-109-F-session.md`) and
+  compound learnings
+  (`docs/compound/2026-08-05-116-S-copilot-escalation-and-ci-default-branch-fail-open.md`)
+  written; compacted via the `compact-context` procedure into
+  `docs/memory/compacted/2026-08-05-116S-109F-compacted.md`. No plan or
+  additional closure-record candidates met the compaction thresholds this
+  run (this shipment had no appended-review plan artifact in
+  `docs/plans/` beyond what earlier sessions already consolidated).
 
 ## Operational Closure
 
