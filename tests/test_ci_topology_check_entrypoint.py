@@ -236,6 +236,25 @@ class CiTopologyCheckInstallWiringTests(unittest.TestCase):
         self.assertIn("dangling reference to an undefined job", verify_step)
         self.assertIn("dangling `needs`/`results`", verify_step)
 
+    def test_install_harness_verify_step_rejects_unresolved_default_branch_guess(self) -> None:
+        # Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6W0M_t):
+        # silently guessing `main` when {{CI_DEFAULT_BRANCH}} cannot be
+        # resolved would install a workflow that never triggers at all on a
+        # master/trunk-default repo's actual default branch, silently
+        # disabling the CI backstop (and every other CI job in the file).
+        # The verify step must report FAIL if installation proceeded past an
+        # unresolved default branch rather than halting to ask the operator.
+        text = _INSTALL_SKILL.read_text(encoding="utf-8")
+        verify_step_index = text.index("confirm the `topology-check` job's presence matches")
+        verify_step = text[verify_step_index : verify_step_index + 2800]
+        self.assertIn("{{CI_DEFAULT_BRANCH}}", verify_step)
+        self.assertIn("halting to ask the operator", verify_step)
+
+        variable_row_index = text.index("The target workspace's actual default branch name")
+        variable_row = text[variable_row_index : variable_row_index + 1400]
+        self.assertIn("Never guess `main`", variable_row)
+        self.assertIn("halt installation", variable_row)
+
 
 if __name__ == "__main__":
     unittest.main()
