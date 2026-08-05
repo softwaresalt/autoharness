@@ -925,6 +925,60 @@ class BranchOwnershipTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(_check(result, 'branch_ownership').token, 'BRANCH_CREATE_ELIGIBLE')
 
+    def test_post_merge_closure_branch_passes_for_lifecycle_phase(self) -> None:
+        """Regression test for code-review finding: post-merge closure branches
+        (`post-merge/{feature_slug}`) are named after the covering FEATURE, not
+        the shipment, so shipment-branch alias matching can never succeed for
+        them. The Ship agent's mandatory closure lifecycle gate call runs while
+        checked out on exactly this branch shape -- it must not be rejected as
+        BRANCH_MISMATCH."""
+        readers = _FakeReaders(
+            shipments=(_shipment('115-S', 'active'),),
+            branch='post-merge/109-f-topology-gate-b',
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='lifecycle', target_shipment_id='115-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(
+            _check(result, 'branch_ownership').token, 'BRANCH_POST_MERGE_CLOSURE_ELIGIBLE'
+        )
+
+    def test_post_merge_closure_branch_passes_for_ambient_and_pre_claim(self) -> None:
+        """The same post-merge branch pass-through also unblocks: (a) ambient
+        hook invocations (pre-commit/pre-push) made from a post-merge closure
+        branch while the shipment being closed is still active, and (b) the
+        Orchestrator's cursor-advance pre_claim eligibility check for the next
+        shipment, which can run before the checkout has returned to the
+        default branch."""
+        readers_ambient = _FakeReaders(
+            shipments=(_shipment('115-S', 'active'),),
+            branch='post-merge/109-f-topology-gate-b',
+        )
+        ambient_result = evaluate(
+            TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
+            readers=readers_ambient,
+        )
+        self.assertEqual(ambient_result.exit_code, 0)
+        self.assertEqual(
+            _check(ambient_result, 'branch_ownership').token, 'BRANCH_POST_MERGE_CLOSURE_ELIGIBLE'
+        )
+
+        readers_pre_claim = _FakeReaders(
+            shipments=(_shipment('116-S', 'queued'),),
+            branch='post-merge/109-f-topology-gate-b',
+        )
+        pre_claim_result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='116-S'),
+            readers=readers_pre_claim,
+        )
+        self.assertEqual(pre_claim_result.exit_code, 0)
+        self.assertEqual(
+            _check(pre_claim_result, 'branch_ownership').token,
+            'BRANCH_POST_MERGE_CLOSURE_ELIGIBLE',
+        )
+
     def test_detached_head_blocks(self) -> None:
         readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
         result = evaluate(

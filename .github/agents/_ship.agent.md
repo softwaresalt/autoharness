@@ -591,6 +591,15 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    closure status, and follow-up items before `DARK_MODE_COMPLETE` can be emitted.
 8. **Closure index resync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback) after
    all archival and mutations are complete. Log `CLOSURE_INDEX_SYNC_OK` on success.
+9. **Return to the default branch**: after the post-merge closure PR itself merges, run
+   `git checkout {{DEFAULT_BRANCH}}` (this repo: `main`), then `git pull`, as the final
+   step before ending the session or handing off to the Orchestrator. This is defense-in-depth
+   hygiene, not a required unblock: the `pipeline-topology` gate's branch-ownership check
+   already treats `post-merge/*` branches as ownership-eligible (see the topology-gate
+   lifecycle marker in item 1 above), so a subsequent cursor-advance or ambient hook check
+   does not depend on this step having run first. Leaving the checkout on a stale
+   `post-merge/*` branch indefinitely after its PR has merged is still undesirable
+   workspace hygiene and may confuse a human operator inspecting the repo.
 
 ## Stop Conditions
 

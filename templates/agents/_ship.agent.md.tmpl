@@ -750,8 +750,15 @@ lifecycle to transition out of. See
 9. **Backlog index resync** (backlogit only): After all archival, source-artifact mutations, and knowledge graduation are complete, call `{{OP_SYNC_INDEX_MCP}}` (or CLI fallback `{{OP_SYNC_INDEX_CLI}}`) to rebuild the backlogit index so it reflects all closure mutations.
    - On success: log `CLOSURE_INDEX_SYNC_OK`. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Backlog index resynced after closure`.
    - On failure: log `CLOSURE_INDEX_SYNC_WARN`. When the `agent-intercom` capability pack is installed, broadcast `[WARN] Closure index sync failed — backlogit index may not reflect archived items. Run \`{{OP_SYNC_INDEX_CLI}}\` manually.` Otherwise write the warning to session output only. Proceed — this is a degraded completion, not a halt.
-10. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
-11. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
+10. **Return to the default branch** (when a `post-merge/{feature_slug}` closure branch was used): after
+    the post-merge closure PR itself merges, run `git checkout {{DEFAULT_BRANCH}}`, then `git pull`, as the
+    final step before ending the session or handing off. This is defense-in-depth hygiene, not a required
+    unblock: the `pipeline-topology` gate's branch-ownership check already treats `post-merge/*` branches as
+    ownership-eligible (see the `a0.` topology-gate lifecycle marker above), so a subsequent cursor-advance or
+    ambient hook check does not depend on this step having run first. Leaving the checkout on a stale
+    `post-merge/*` branch indefinitely after its PR has merged is still undesirable workspace hygiene.
+11. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
+12. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
 
 ## Circuit Breakers
 

@@ -1620,19 +1620,27 @@ For each enabled capability pack:
    d. Confirm `agent-intercom.instructions.md` contains dark-mode visibility events, including `BRAINSTORM_HANDOFF_READY`, and degraded-visibility halt behavior
    e. Confirm `feature-flow-dark.prompt.md` routes through Orchestrator and does not bypass Stage, Ship, backlog/shipment policy, local readiness, telemetry, or closure
    f. Report FAIL for missing or stale guidance that treats dark mode as a safety bypass, allows vague trigger phrases, or omits closure evidence (decisions, gates, reviewed HEADs, merge/fallback status, closure status, follow-ups)
-9. **Pipeline-topology hook verification** (universal — applies whenever the
-   installed `autoharness` CLI provides `gate pipeline-topology`):
-   a. Confirm `scripts/pre-push-quality-gates.sh` and `.ps1` invoke
+9. **Pipeline-topology hook verification** (mixed scope: item (a) applies only when
+   `local_gating.pre_push_enabled` is `true` for this workspace — the pre-push scripts
+   are opt-in and intentionally absent otherwise, per Step 4.3's mapping; items (b)-(d)'s
+   pre-commit checks are universal whenever the installed `autoharness` CLI provides
+   `gate pipeline-topology`):
+   a. **Only when `local_gating.pre_push_enabled` is `true`**: confirm
+      `scripts/pre-push-quality-gates.sh` and `.ps1` invoke
       `autoharness gate pipeline-topology` with `--phase ambient` and no
-      human-supplied `--shipment` flag (non-shipment-scoped ambient contract)
+      human-supplied `--shipment` flag (non-shipment-scoped ambient contract).
+      When `local_gating.pre_push_enabled` is `false`, the absence of these files
+      is expected and must NOT be reported as FAIL.
    b. Confirm `scripts/pre-commit-pipeline-topology.sh` and `.ps1` are present
       in `{workspace}/scripts/`, invoke the same non-shipment-scoped
       `--phase ambient` contract, and document the `--no-verify` bypass
-   c. Confirm both hook families default to advisory (non-blocking) unless an
+   c. Confirm both installed hook families (pre-commit always; pre-push only when
+      enabled) default to advisory (non-blocking) unless an
       explicit blocking toggle (`AUTOHARNESS_TOPOLOGY_GATE_BLOCKING=true`) is
       set, and contain no retry loop (`while true`, `for ((`)
-   d. Report FAIL for any missing artifact, a shipment-scoped invocation, or
-      hard-fail-by-default wiring
+   d. Report FAIL for any missing REQUIRED artifact (pre-commit always; pre-push
+      only when `local_gating.pre_push_enabled` is `true`), a shipment-scoped
+      invocation, or hard-fail-by-default wiring
 
 #### Step 4.5: Adversarial Verification
 

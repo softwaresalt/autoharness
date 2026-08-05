@@ -54,6 +54,18 @@ _SHIPMENT_ID_PATTERN = re.compile(r"^\d+-S$")
 # path-pattern exception.
 _ARTIFACT_ID_PATTERN = re.compile(r"^\d+(?:\.\d+)*-[A-Z]+$")
 _BRANCH_KIND_PREFIXES = ("feat/", "chore/")
+# Post-merge closure branches (`post-merge/{feature_slug}`, created per the
+# Ship agent's Post-Merge Branch Protocol) are named after the covering
+# FEATURE, not the shipment being closed -- shipment branch-alias matching
+# (`_branch_aliases`/`_resolve_shipment_from_branch`) has no feature-level
+# data to match against. Because this branch is only ever created by Ship,
+# exclusively for the bounded post-merge closure window of a shipment that
+# just merged, treat it as ownership-eligible unconditionally (like the
+# default branch) rather than requiring an exact shipment-branch match the
+# gate cannot currently compute. The still-fully-enforced active-shipment
+# invariant check (a separate check) continues to guard that at most one
+# shipment is active and, for post_claim/lifecycle, that it matches target.
+_POST_MERGE_BRANCH_PREFIX = "post-merge/"
 _POST_CLAIM_WRAP_TOKENS = frozenset({
     "SHIPMENT_STATE_INCONSISTENT",
     "LIFECYCLE_NO_ACTIVE_SHIPMENT",
@@ -1125,6 +1137,19 @@ def _branch_ownership_check(
             token="BRANCH_CREATE_ELIGIBLE",
             message=(
                 f"BRANCH_CREATE_ELIGIBLE: current branch {current_branch} is the default branch for target {target}"
+            ),
+            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+        )
+
+    if current_branch.startswith(_POST_MERGE_BRANCH_PREFIX):
+        return CheckResult(
+            name="branch_ownership",
+            status="passed",
+            token="BRANCH_POST_MERGE_CLOSURE_ELIGIBLE",
+            message=(
+                f"BRANCH_POST_MERGE_CLOSURE_ELIGIBLE: current branch {current_branch} is a "
+                f"post-merge closure branch; ownership is not matched by shipment-branch alias "
+                f"(post-merge branches are feature-scoped, not shipment-scoped) for target {target}"
             ),
             details={"current_branch": current_branch, "expected_branches": list(canonical)},
         )
