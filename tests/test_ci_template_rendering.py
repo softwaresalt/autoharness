@@ -261,6 +261,38 @@ class TopologyCheckJobTests(unittest.TestCase):
                 gate_run = doc["jobs"]["ci-gate"]["steps"][0]["run"]
                 self.assertIn("needs['topology-check'].result", gate_run)
 
+    def test_ci_gate_needs_only_reference_defined_jobs(self) -> None:
+        # Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6Wzfxk):
+        # install-harness omits the topology-check job entirely for
+        # non-backlogit workspaces ({{FEATURE_SHIPMENTS}} == false), and that
+        # omission must be a single atomic composition step that also strips
+        # the corresponding `needs:` entry and `needs['topology-check'].result`
+        # reference from ci-gate -- otherwise the rendered workflow references
+        # an undefined job, which is invalid GitHub Actions YAML and breaks
+        # ci-gate (all of CI) for that install, not merely the absent
+        # backstop. This test documents the invariant on the always-shipped
+        # (FEATURE_SHIPMENTS == true) template: every job named in ci-gate's
+        # `needs:` array must correspond to an actual job key, and the
+        # results= aggregation line's `needs[...]` bracket references must be
+        # a subset of that same needs list.
+        bracket_ref = re.compile(r"needs\[['\"]([\w-]+)['\"]\]")
+        dotted_ref = re.compile(r"needs\.([A-Za-z0-9_]+)")
+        for name, profile in _PROFILES.items():
+            with self.subTest(profile=name):
+                doc = yaml.safe_load(_render(profile))
+                job_ids = set(doc["jobs"].keys())
+                gate = doc["jobs"]["ci-gate"]
+                needs = set(gate["needs"])
+                self.assertTrue(needs.issubset(job_ids), f"dangling needs: {needs - job_ids}")
+                gate_run = gate["steps"][0]["run"]
+                referenced = set(bracket_ref.findall(gate_run)) | set(dotted_ref.findall(gate_run))
+                self.assertTrue(
+                    referenced.issubset(needs),
+                    f"results= references a job not in needs:: {referenced - needs}",
+                )
+                self.assertIn("topology-check", needs)
+                self.assertIn("topology-check", referenced)
+
     def test_continue_on_error_expression_evaluates_both_toggle_states(self) -> None:
         # 109.012-T (C3) acceptance criterion: "CI entrypoint tests pass
         # (advisory and required modes)". The rendered `continue-on-error`

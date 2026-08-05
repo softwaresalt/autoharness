@@ -33,9 +33,14 @@ rendered advisory-only. This is because the gate's backlog reader
 (`FilesystemTopologyReaders`) currently reads only `.backlogit/`: installing
 the job unconditionally for those workspaces would leave it permanently
 reporting `BACKLOG_UNAVAILABLE`, which becomes a hard, unrecoverable BLOCK the
-moment `PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted to required. If this
-product later generalizes the topology reader to other backlog registries,
-this applicability note and the install-time gating in
+moment `PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted to required. Omission is
+a single atomic composition step: `install-harness` must also strip
+`topology-check` from `ci-gate`'s `needs:` array and its
+`needs['topology-check'].result` reference from the result-aggregation line —
+otherwise the rendered workflow references an undefined job, which is invalid
+GitHub Actions YAML and breaks `ci-gate` (all of CI), not merely the absent
+backstop. If this product later generalizes the topology reader to other
+backlog registries, this applicability note and the install-time gating in
 `.github/skills/install-harness/SKILL.md` must be revisited together.
 
 ## Why a Remote CI Backstop Is Necessary (Not Just Local Hooks)

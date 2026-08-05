@@ -218,9 +218,23 @@ class CiTopologyCheckInstallWiringTests(unittest.TestCase):
         self.assertIn("{{FEATURE_SHIPMENTS}}", entrypoint_row)
 
         verify_step_index = text.index("confirm the `topology-check` job's presence matches")
-        verify_step = text[verify_step_index : verify_step_index + 1400]
+        verify_step = text[verify_step_index : verify_step_index + 2200]
         self.assertIn("{{FEATURE_SHIPMENTS}}", verify_step)
         self.assertIn("Report FAIL for", verify_step)
+
+    def test_install_harness_verify_step_requires_atomic_needs_results_strip(self) -> None:
+        # Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6Wzfxk): omitting
+        # the topology-check job for non-backlogit workspaces must also strip
+        # ci-gate's `needs:` entry and `results=` reference to it atomically —
+        # otherwise ci-gate is left with a dangling reference to an undefined
+        # job, breaking all of CI for every non-backlogit install.
+        text = _INSTALL_SKILL.read_text(encoding="utf-8")
+        verify_step_index = text.index("confirm the `topology-check` job's presence matches")
+        verify_step = text[verify_step_index : verify_step_index + 2200]
+        self.assertIn("needs", verify_step)
+        self.assertIn("results=", verify_step)
+        self.assertIn("dangling reference to an undefined job", verify_step)
+        self.assertIn("dangling `needs`/`results`", verify_step)
 
 
 if __name__ == "__main__":
