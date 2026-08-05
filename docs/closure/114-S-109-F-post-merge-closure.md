@@ -54,7 +54,7 @@ local session transcript are the self-contained dark-event record).
 | --- | --- |
 | Reviewed HEAD | `1feee9aa5afcda6431ec0268c7200182d9d04a32` (== PR HEAD at merge) |
 | Local adversarial review (prior session) | READY, P0=0/P1=0, no unresolved findings; follow-ups: none. |
-| Copilot review | **12 rounds** across HEAD progression `1bc828a → 75831c1 → b92bb19 → 6f2504c → 81404f4 → 71eb91d → 83fcc05 → da6b826 → fa45d9b → 5541396 → 347bbea → 1feee9a`, raising 6, 4, 3, 1, 1, 3, 2, 1, 2, 1, 3 actionable findings respectively (round 12 clean) — **27 threads total**, every one replied to with its fixing commit and resolved via GraphQL `resolveReviewThread`. The operator's explicit removal of the 3-cycle review-fix cap for this session was honored throughout; the universal same-error and CI circuit breakers were never tripped (every fix was a distinct, novel defect class). Two `REVIEW_TIMEOUT` gate responses (round 9, round 12) were each resolved by an immediate retry per the established precedent — never treated as pass or fail on their own. |
+| Copilot review | **12 rounds** across HEAD progression `1bc828a → 75831c1 → b92bb19 → 6f2504c → 81404f4 → 71eb91d → 83fcc05 → da6b826 → fa45d9b → 5541396 → 347bbea → 1feee9a`, raising 6, 4, 3, 1, 1, 3, 2, 1, 2, 1, 3 actionable findings respectively (round 12: **no new threads**, not "clean" — see Known Residual Findings below) — **27 threads total**, every one replied to with its fixing commit and resolved via GraphQL `resolveReviewThread`. The operator's explicit removal of the 3-cycle review-fix cap for this session was honored throughout; the universal same-error and CI circuit breakers were never tripped (every fix was a distinct, novel defect class). Two `REVIEW_TIMEOUT` gate responses (round 9, round 12) were each resolved by an immediate retry per the established precedent — never treated as pass or fail on their own. |
 | P-018 copilot-review gate | **SATISFIED** at HEAD `1feee9a` — run twice consecutively in this session (once as the standard post-round-12 check, once as the unconditional last-mile re-run immediately before merge), both `SATISFIED`/exit 0 with zero unresolved threads. |
 | §1.9 pre-merge readiness (Checks 1–5) | PASS at HEAD `1feee9a`; PR body's Local Review Readiness block matched this HEAD exactly (`Outcome: READY`, `P0=0/P1=0`, `Follow-ups: none`, full local build evidence recorded). |
 | CI (`detect code changes`, `test`, `ci gate`) | all **SUCCESS** at HEAD `1feee9a`; `mergeStateStatus: CLEAN`, `mergeable: MERGEABLE`. |
@@ -63,6 +63,54 @@ local session transcript are the self-contained dark-event record).
 | Repo merge-strategy settings (P-009) | `allow_merge_commit: true`, `allow_squash_merge: false`, `allow_rebase_merge: false` — verified via `gh api repos/softwaresalt/autoharness` immediately before merge. |
 | Worktree/PR topology (P-016) | single worktree (`git worktree list --porcelain` showed only the current worktree on `feat/114-s-topology-gate-a-core`), no parallel worktree violations. |
 | Dark-mode merge authorization | `DARK_MODE_MERGE_AUTHORIZED` emitted: PR in scope (`114-S`), `merge_approval_pre_authorized: true`, §1.9 passed at HEAD, checks green, P-009/P-016 passed. Normal merge path (`gh pr merge 297 --merge`) succeeded directly; admin fallback was never attempted or needed. |
+
+### Known Residual Findings (added during this closure's own Copilot review, PR #298)
+
+**Correction to the narrative above**: round 12 was **not** a clean technical
+review — it had **zero new review threads** (which is what made the
+thread-based P-018 gate return `SATISFIED`, correctly, since P-018 gates on
+unresolved *threads*, not on a review's free-text body), but the Copilot
+review body submitted at final HEAD `1feee9a` (`2026-08-05T15:01:54Z`, ~90
+seconds before merge) carried two **suppressed comments** — findings Copilot
+generated but did not promote to a new inline thread because they duplicate
+positions raised in earlier rounds and never actually fixed:
+
+1. **`src/autoharness/gates/topology.py:680`** — the bounded post-claim retry
+   (`FilesystemTopologyReaders` post-claim path) re-reads shipment state
+   twice but never invokes an actual claim operation between the two reads;
+   in real (non-test-double) usage nothing transitions the target from
+   `queued` to `active` between the reads, so a genuinely delayed/failed
+   claim deterministically ends in `CLAIM_VERIFY_FAILED` rather than
+   converging. The existing unit test only passes because its fake reader
+   advances its snapshot on each call, masking the gap.
+2. **`src/autoharness/cli.py:735-739`** — the telemetry outcome mapping
+   defaults to `success` and only special-cases `forced` and
+   `exit_code == 1`; an invalid gate evaluation (`exit_code == 2` — unknown
+   shipment, invalid mode/phase) is recorded as `success` telemetry even
+   though the CLI itself exits nonzero, corrupting outcome metrics.
+
+Both defects predate and are independent of this post-merge closure PR's
+own (docs-only) diff — they live in code that PR #297 already merged to
+`main` — so they are **not** blocking findings for PR #298 itself. They
+were surfaced only because this closure PR's own drafted documentation
+(closure doc, compound doc, session memory, compacted memory) inaccurately
+described round 12 as "clean," which is exactly what all four PR #298
+Copilot threads asked to be corrected. This section, and the equivalent
+corrections in `docs/compound/114-S-109-F-copilot-review-fix-patterns.md`,
+`docs/memory/compacted/2026-08-05-114S-109F-compacted.md`, and
+`docs/archive/memory/2026-08-05-ship-114-S-109-F-session.md`, are that
+correction.
+
+**Follow-up required**: both defects are real, pre-existing correctness
+bugs in merged `main` code and require a dedicated follow-up task. Ship
+cannot create backlog items (Role Boundary); this is flagged here, and in
+the final report to the operator/Orchestrator, for Stage to triage a
+follow-up task under `109-F` (or a fast-follow chore) covering:
+(a) either wiring an injected claim operation into the bounded post-claim
+retry or having it return a retry-required result so Ship's own external
+claim-retry-and-recall loop (Step 0.5.5) drives convergence instead, and
+(b) mapping `exit_code == 2` (and any other non-zero, non-`blocked`,
+non-`forced` result) to a `failed` telemetry outcome instead of `success`.
 
 ## Runtime Verification
 
@@ -163,14 +211,23 @@ gates B/C remain queued in `115-S`/`116-S`):
     cascade command; the covering feature `109-F` and all 10 downstream
     sibling tasks (`115-S`/`116-S` scope) remain untouched and queue-resident.
 - **Failure signals to watch**:
-  - None specific to this shipment's scope. The Copilot review's persistent
-    "silent fail-open" defect class (frontmatter parsing → shipment id →
-    shipment status → archive-presence ambiguity → task status →
-    artifact_type → glob-injection/path-traversal → duplicate-record merging
-    → dependency/manifest-member shape → shipment-id shape → target
-    ambiguity) was fully exhausted across 11 rounds and 27 threads; round 12
-    returned clean (`SATISFIED`, 0 new findings). No further instance of
-    this pattern is known to remain in `topology.py`.
+  - Two known residual production defects surfaced by this closure PR's own
+    Copilot review (see "Known Residual Findings" above), both pre-existing
+    in merged `main` and independent of this closure PR's docs-only diff:
+    `topology.py:680`'s bounded post-claim retry never actually re-invokes a
+    claim operation (real delayed/failed claims will deterministically end
+    in `CLAIM_VERIFY_FAILED`), and `cli.py:735-739`'s telemetry outcome
+    mapping records invalid (`exit_code == 2`) gate evaluations as
+    `success`. Neither blocks this closure; both require a dedicated Stage-
+    triaged follow-up task under `109-F`.
+  - Otherwise none specific to this shipment's scope. The Copilot review's
+    persistent "silent fail-open" defect class (frontmatter parsing →
+    shipment id → shipment status → archive-presence ambiguity → task
+    status → artifact_type → glob-injection/path-traversal →
+    duplicate-record merging → dependency/manifest-member shape →
+    shipment-id shape → target ambiguity) was fully exhausted across 11
+    rounds and 27 threads; round 12 returned zero new threads. No further
+    instance of *that* pattern is known to remain in `topology.py`.
 - **Releasability** (`runtime_validation.releasability.required: false`,
   `status_when_satisfied: READY`): monitoring — the new
   `autoharness gate pipeline-topology` subcommand is opt-in (no existing
@@ -185,11 +242,17 @@ gates B/C remain queued in `115-S`/`116-S`):
   P-014 — dark-mode pre-authorization does not extend past `114-S`'s own
   merge without an explicit renewed scope).
   **Releasability: READY.**
-- **Follow-ups**: none carried from the PR's own Local Review Readiness
-  block (explicitly `none`). Gates B (hooks/install) and C (CI) remain
-  staged in `115-S`/`116-S`, both still `queued` and explicitly **not**
-  started by this closure, per the operator's instruction to return control
-  to Orchestrator after `114-S` closure.
+- **Follow-ups**: `none` carried from the PR #297 Local Review Readiness
+  block itself (explicitly `none` at merge time). **Two new follow-ups
+  identified during this closure PR's own review** (see Known Residual
+  Findings): (1) wire a real claim-retry (or a retry-required return) into
+  `topology.py`'s bounded post-claim retry; (2) map `exit_code == 2` (and
+  any other non-zero, non-`blocked`, non-`forced` result) to a `failed`
+  telemetry outcome in `cli.py`. Both require Stage triage (Ship cannot
+  create backlog items). Gates B (hooks/install) and C (CI) remain staged
+  in `115-S`/`116-S`, both still `queued` and explicitly **not** started by
+  this closure, per the operator's instruction to return control to
+  Orchestrator after `114-S` closure.
 
 **Closure verdict: READY.** Merge confirmed (P-009 preserved, two-parent
 commit `cef4040`), local review READY + Copilot review across 12 rounds
@@ -198,7 +261,12 @@ commit `cef4040`), local review READY + Copilot review across 12 rounds
 live gate self-validation), single-artifact safe-close complete for the
 shipment and all 10 manifest tasks (no cascade corruption, no scope leakage
 into `109-F` or the `115-S`/`116-S` sibling tasks), and P-020 context
-compaction is recorded `done` (see Context Compaction section above).
+compaction is recorded `done` (see Context Compaction section above). Two
+pre-existing residual defects in merged code were surfaced by this closure
+PR's own Copilot review and are documented above as required Stage
+follow-ups — they do not change the `READY` verdict for `114-S` itself
+(both predate this shipment's diff and are independent of it), but they
+are explicit, load-bearing follow-up items, not silently dropped.
 
 **Remaining approval blocker**: this post-merge closure PR requires its own
 **separate, explicit operator approval** before merge (P-014 — the PR #297

@@ -54,8 +54,26 @@ malformed/missing/unknown value** instead of raising
    was wrong, not when it was correctly `shipment`-typed; the live+archive
    ambiguity check applied only to predecessors, never to the TARGET
    shipment itself.
-9. **Round 12** — clean (`SATISFIED`, 0 new findings). The pattern was
-   fully exhausted.
+9. **Round 12** — **zero new review threads** (which is what made the
+   thread-based P-018 gate return `SATISFIED`) — but **not** a clean
+   technical review: the *silent-fail-open* pattern this section tracks
+   was fully exhausted, yet the review body at this HEAD still carried two
+   unrelated **suppressed comments** (findings Copilot generates but does
+   not promote to a new inline thread because they duplicate a position
+   raised in an earlier round and never actually fixed): (a)
+   `topology.py:680`'s bounded post-claim retry never re-invokes an actual
+   claim operation between its two re-reads, so a real delayed/failed claim
+   cannot converge in production (only the unit test's fake reader masks
+   this); (b) `cli.py:735-739`'s telemetry outcome mapping records an
+   invalid (`exit_code == 2`) gate evaluation as `success`. These are a
+   *different* defect class from the one below (a design/plumbing gap and a
+   telemetry-status mapping gap, not silent-fail-open parsing) and were
+   **not** fixed as part of PR #297 — they are documented as required
+   follow-ups in `docs/closure/114-S-109-F-post-merge-closure.md`'s "Known
+   Residual Findings" section. Lesson: "zero new threads" only proves the
+   thread-based gate is satisfied; it does not prove the review's free-text
+   body raised nothing outstanding — always read the full review body, not
+   just its thread count, before declaring a round "clean."
 
 ## Lesson: any reader of untrusted YAML frontmatter needs three layers of validation, not one
 
