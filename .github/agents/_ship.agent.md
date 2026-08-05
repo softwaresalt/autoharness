@@ -184,7 +184,15 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
    execution-ready while any of its own declared prerequisite tasks remain
    incomplete; this is enforced through `dependencies`, not
    `blocked-on-external`.
-3. **Branch Creation Gate (P-011, NON-NEGOTIABLE) + Worktree Topology Gate (P-016, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active and no prohibited parallel worktree is attached:
+3. **Pipeline-Topology Pre-Claim Gate + Branch Creation Gate (P-011, NON-NEGOTIABLE) + Worktree Topology Gate (P-016, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active and no prohibited parallel worktree is attached:
+   - **TOPOLOGY_GATE: pre_claim (before branch/worktree creation)** — before any branch/worktree creation or selection below, run
+     `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase pre_claim --json`.
+     Branch/worktree creation is `pre_claim` — it always **precedes** the claim and is **never** `post_claim`. Exit 0: proceed to the
+     branch/worktree checks below. Exit 1 (`blocked`, e.g. `PRECLAIM_ACTIVE_SHIPMENT_PRESENT`) or exit 2 (`invalid`, e.g. a
+     missing/unresolvable `{shipment_id}`): halt immediately with the reported token/message — never inferred, never fail-open.
+     (Bootstrap exemption: 114-S/115-S, the shipments that build this gate, could not enforce it against themselves while the
+     `autoharness gate pipeline-topology` CLI did not yet exist; this rollout note exists so later self-referential shipments are
+     not blocked by an as-yet-uninstalled gate.)
    - Check current branch:
      `git branch --show-current`
    - Check attached worktrees before logging `BRANCH_OK`, creating a branch, or claiming a shipment:
@@ -204,19 +212,50 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
      e. Log `BRANCH_CREATED: {branch_name}`.
    - If on any other non-shipment branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
    - Note: all git commands above are run as separate sequential steps, not chained.
-4. Claim the shipment via `backlogit_claim_shipment` (first mutation, only after branch gate passes).
-5. **Post-claim shipment-status verification (P-005 fail-closed)**: This verification applies only when a shipment was claimed in step 4 (skip it for the no-shipment/bare-tasks path). Immediately after the claim and **before**
-   Step 2 moves any task to `active`, re-read the shipment record's own status (prefer the CLI fallback
+   - **TOPOLOGY_GATE: pre_claim (immediately before claim)** — immediately before the claim in step 4, re-run
+     `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase pre_claim --json` to narrow the TOCTOU
+     window between branch/worktree setup and the claim. Same exit-code handling as above: exit 0 proceeds to the claim;
+     exit 1/2 halts immediately.
+4. Claim the shipment via `backlogit_claim_shipment` (first mutation, only after both pre_claim gate runs above pass).
+5. **TOPOLOGY_GATE: post_claim (immediately after claim, GLOBAL verification) — Post-claim shipment-status verification (P-005 fail-closed)**:
+   This verification applies only when a shipment was claimed in step 4 (skip it for the no-shipment/bare-tasks path).
+   - If the `pipeline-topology` gate is installed for this workspace, immediately after the claim run
+     `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase post_claim --json`. This is the
+     GLOBAL verification contract: it re-reads **all** shipment records (not just this one) and requires exactly one
+     active shipment, the claimed target — not merely a target-status-only check. Exit 0 confirms convergence
+     (`CLAIM_VERIFY_OK: shipment {shipment_id} reached active and is the sole active shipment`) and proceeds straight to
+     Step 2. A `CLAIM_NOT_OBSERVED` token (exit 3, `retry_required`, **not** `blocked`) means pre-claim topology was valid
+     but the claim is not yet observed (the target is still `queued` with zero active shipments) — a single stateless
+     read cannot distinguish a merely-delayed claim from a genuinely failed one. This is **not** a terminal halt: it is
+     the double-claim-guarded signal to run the bounded backlogit re-read-and-retry sequence below, reused here rather
+     than introducing a new claim primitive, CAS, or lease. Any **other** non-zero verdict (exit 1/2, a mismatched or
+     multiple-active topology, `SHIPMENT_STATE_INCONSISTENT`) is terminal **at this invocation point**: halt
+     **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} returned {token}` and record a P-005 event —
+     no retry, no reclaim.
+   Immediately after the claim and **before** Step 2 moves any task to `active`, re-read the shipment record's own status (prefer the CLI fallback
    `backlogit shipment get {shipment_id}` — MCP is the unreliable surface this guard exists to catch, e.g. the
    `Transport closed` drops observed live) and assert it reached `active`.
-   - If the re-read status is `active`: log `CLAIM_VERIFY_OK: shipment {shipment_id} reached active` and proceed.
+   - If the re-read status is `active`: log `CLAIM_VERIFY_OK: shipment {shipment_id} reached active` and proceed. When the
+     topology gate is installed, additionally re-run `--phase post_claim` (the double-claim guard's first check): exit 0
+     (sole active target) confirms the original claim actually succeeded despite the `CLAIM_NOT_OBSERVED` token — treat as
+     converged and do **not** reclaim; any ambiguity, mismatch, or `SHIPMENT_STATE_INCONSISTENT` instead halts terminally
+     with `CLAIM_VERIFY_FAILED` — no reclaim.
    - If the re-read status is `queued`: retry the claim exactly once (CLI fallback
      `backlogit shipment claim {shipment_id}`) and re-read. If it still is not `active`, halt fail-closed with
      `CLAIM_VERIFY_FAILED: shipment {shipment_id} did not reach active after claim` and record a P-005 event.
-     Retry-once applies **only** to a `queued` re-read.
+     Retry-once applies **only** to a `queued` re-read. This is the double-claim-guarded reclaim bound the topology
+     gate's `CLAIM_NOT_OBSERVED` outcome above reuses: when the topology gate is installed, only reach this branch after
+     the double-claim guard's first `--phase post_claim` re-check (above) still shows non-convergence, and immediately
+     after this retry re-run `--phase post_claim` once more — exit 0 converges and proceeds to Step 2; a second
+     `CLAIM_NOT_OBSERVED` (bound exhausted) or any other non-zero/ambiguous verdict is terminal (`CLAIM_VERIFY_FAILED`),
+     never a further retry.
    - If the re-read status is anything other than `active` or `queued`: halt **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} returned unexpected status {status}` — **no retry, no claim**. Any value outside `{active, queued}` is a fail-closed anomaly and must record a P-005 event. Backlogit 1.8.0 does not define a shipment `blocked` status; see `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`.
    Both halts fire **before** Step 2 moves any task to `active`. Broadcast the claim-verify result when intercom
-   is available.
+   is available. The bounded cycle described above (double-claim guard, single retry, single post_claim re-verify) runs
+   **at most once** and applies **only** to the `CLAIM_NOT_OBSERVED` outcome at this immediate post-claim point — never
+   to any pre_claim, lifecycle, build, PR, or closure invocation, and never to any other non-zero verdict. (Bootstrap
+   exemption: while `autoharness gate pipeline-topology` is not yet installed, this section operates on the backlogit
+   CLI re-read alone, exactly as it always has.)
 
 ### Step 1: Pre-Flight Checks
 
@@ -305,12 +344,18 @@ For each task in the shipment/feature:
 
 ### Step 4: PR Lifecycle
 
-1. Before creating, updating, or presenting any PR that adds, removes, or changes
+1. **TOPOLOGY_GATE: lifecycle (before build)** — before running the full local build below, run
+   `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase lifecycle --json`. Exit 0 proceeds;
+   exit 1/2 halts immediately with the reported token/message (never inferred, never fail-open).
+   Before creating, updating, or presenting any PR that adds, removes, or changes
    source code, run the full local build command for the codebase in addition to
    targeted checks. Documentation-only and backlog-only PRs may record full-build
    non-applicability instead. Capture the command and successful result, or
    non-applicability rationale, in PR readiness evidence.
-2. Push the branch and invoke the `pr-lifecycle` skill.
+2. **TOPOLOGY_GATE: lifecycle (before PR creation)** — before pushing the branch and invoking `pr-lifecycle` below, run
+   `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase lifecycle --json`. Same exit-code
+   handling as above.
+   Push the branch and invoke the `pr-lifecycle` skill.
 3. Handle CI feedback via the `fix-ci` skill if needed.
    In dark mode, wait patiently for requested hosted review to complete or time
    out per `.github/instructions/github-pr-automation.instructions.md`. For each
@@ -485,7 +530,12 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
 `blocked` lifecycle to transition out of. See
 `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`.
 
-1. **Close the shipment via single-artifact safe-close (thin pointer; `shipment-reconcile` is authoritative, NEVER the cascade `backlogit_ship_shipment`, P-015)**:
+1. **TOPOLOGY_GATE: lifecycle (before closure/safe-close)** — before invoking `shipment-reconcile` below, run
+   `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase lifecycle --json`. Exit 0 proceeds;
+   exit 1/2 halts immediately with the reported token/message (never inferred, never fail-open). Git hooks (ambient-mode,
+   non-shipment-scoped) independently cover the intervening commit/push activity in closure work; this lifecycle
+   invocation is the shipment-scoped check immediately preceding the safe-close mutation itself.
+2. **Close the shipment via single-artifact safe-close (thin pointer; `shipment-reconcile` is authoritative, NEVER the cascade `backlogit_ship_shipment`, P-015)**:
    Invoke `shipment-reconcile` in `mode: safe-close` with the `shipment_id` and
    `merge_commit_sha`. Keep this agent file at pointer level only — the authoritative,
    step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and must
@@ -514,10 +564,10 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    e. If the skill returns `HALT — cascade detected, revert required`, restore
       `.backlogit/queue/` + `.backlogit/archive/`, surface the protected-set
       violation, and halt. Do NOT commit a corrupt backlog.
-2. Write compound learnings for hard-won solutions.
-3. Update documentation if templates changed significantly.
-4. Write session memory to `docs/memory/`.
-5. **Mandatory (P-020)**: Invoke **compact-context** with `target: all` to consolidate
+3. Write compound learnings for hard-won solutions.
+4. Update documentation if templates changed significantly.
+5. Write session memory to `docs/memory/`.
+6. **Mandatory (P-020)**: Invoke **compact-context** with `target: all` to consolidate
    memory checkpoints, finalize any decided-plans, and compact closure artifacts, then
    record the outcome as the operational-closure artifact's compaction status.
    Built-in AI assistant memory features do not write to the repository's `docs/`
@@ -527,17 +577,17 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    completed-work rule), so the guaranteed call is a bounded, cheap Tier-1 consolidation
    of that fresh memory and degrades to a scan-only no-op only when nothing else
    qualifies. SKIPPING this invocation is a P-020 violation recorded via P-005 telemetry.
-   Because the shipment is safe-closed and archived in step 1, completeness is tracked by
+   Because the shipment is safe-closed and archived in step 2, completeness is tracked by
    the operational-closure artifact's compaction status, not shipment active-state:
    skipping leaves that status unset so post-merge closure is **incomplete** and the
    Orchestrator's closure-gated routing (P-001 + P-020) holds the next shipment until
    compaction is completed — it does not strand the merged PR. A compact-context run that
    **FAILS** is **NON-BLOCKING** (record `compaction: degraded`, log a warning, and
    continue — the merge already landed and the skill is non-destructive).
-6. In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
+7. In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
    merge/fallback status, admin fallback result if any, compaction status (P-020),
    closure status, and follow-up items before `DARK_MODE_COMPLETE` can be emitted.
-7. **Closure index resync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback) after
+8. **Closure index resync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback) after
    all archival and mutations are complete. Log `CLOSURE_INDEX_SYNC_OK` on success.
 
 ## Stop Conditions

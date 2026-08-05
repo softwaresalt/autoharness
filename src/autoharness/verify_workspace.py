@@ -728,6 +728,68 @@ FOUNDATION_ASSERTIONS = [
             "AUTOHARNESS_TOPOLOGY_GATE_BLOCKING",
         ],
     },
+    {
+        "key": "pipeline_topology_gate_ship_agent_wiring",
+        "path": ".github/agents/_ship.agent.md",
+        "must_contain": [
+            "TOPOLOGY_GATE: pre_claim (before branch/worktree creation)",
+            "TOPOLOGY_GATE: pre_claim (immediately before claim)",
+            "TOPOLOGY_GATE: post_claim (immediately after claim, GLOBAL verification)",
+            "TOPOLOGY_GATE: lifecycle (before build)",
+            "TOPOLOGY_GATE: lifecycle (before PR creation)",
+            "TOPOLOGY_GATE: lifecycle (before closure/safe-close)",
+            "CLAIM_NOT_OBSERVED",
+            "Bootstrap exemption",
+        ],
+        "must_precede": [
+            [
+                "TOPOLOGY_GATE: pre_claim (before branch/worktree creation)",
+                "BRANCH_CREATED",
+            ],
+            [
+                "BRANCH_CREATED",
+                "TOPOLOGY_GATE: pre_claim (immediately before claim)",
+            ],
+            [
+                "TOPOLOGY_GATE: pre_claim (immediately before claim)",
+                "backlogit_claim_shipment",
+            ],
+            [
+                "backlogit_claim_shipment",
+                "TOPOLOGY_GATE: post_claim (immediately after claim, GLOBAL verification)",
+            ],
+            [
+                "TOPOLOGY_GATE: post_claim (immediately after claim, GLOBAL verification)",
+                "TOPOLOGY_GATE: lifecycle (before build)",
+            ],
+            [
+                "TOPOLOGY_GATE: lifecycle (before build)",
+                "TOPOLOGY_GATE: lifecycle (before PR creation)",
+            ],
+            [
+                "TOPOLOGY_GATE: lifecycle (before PR creation)",
+                "TOPOLOGY_GATE: lifecycle (before closure/safe-close)",
+            ],
+        ],
+    },
+    {
+        "key": "pipeline_topology_gate_orchestrator_agent_wiring",
+        "path": ".github/agents/_orchestrator.agent.md",
+        "must_contain": [
+            "TOPOLOGY_GATE: pre_claim (route-to-Ship eligibility, before invocation)",
+            "TOPOLOGY_GATE: pre_claim (cursor-advance eligibility check)",
+        ],
+        "must_precede": [
+            [
+                "TOPOLOGY_GATE: pre_claim (route-to-Ship eligibility, before invocation)",
+                "Invoke the **Ship** subagent",
+            ],
+            [
+                "Advance the multi-shipment cursor",
+                "TOPOLOGY_GATE: pre_claim (cursor-advance eligibility check)",
+            ],
+        ],
+    },
 ]
 
 DARK_FACTORY_ASSERTIONS = [
