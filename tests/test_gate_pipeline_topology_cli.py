@@ -127,6 +127,41 @@ class PipelineTopologyArgTests(unittest.TestCase):
         self.assertEqual(payload['phase'], 'pre_claim')
         self.assertEqual(payload['target_shipment_id'], '114-S')
 
+    def test_detached_head_blocks_in_agent_mode(self) -> None:
+        class FakeReaders:
+            def list_shipments(self):
+                from autoharness.gates.topology import ShipmentState
+                return (ShipmentState(shipment_id='114-S', title='114-S', live_status='queued'),)
+
+            def read_artifact(self, artifact_id: str):
+                return None
+
+            def current_branch(self) -> str:
+                return ''
+
+            def default_branch(self) -> str:
+                return 'main'
+
+            def worktree_porcelain(self) -> str:
+                return 'worktree C:/repo\nHEAD 0\n\n'
+
+            def read_worktree_marker(self, worktree_path: str):
+                return None
+
+            def closure_complete(self, shipment_id: str):
+                return None
+
+        with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=FakeReaders()):
+            out, _, code = _run(
+                'gate', 'pipeline-topology',
+                '--mode', 'agent',
+                '--shipment', '114-S',
+                '--phase', 'pre_claim',
+                '--json',
+            )
+        self.assertEqual(code, 1)
+        payload = json.loads(out)
+        self.assertEqual(payload['token'], 'BRANCH_MISMATCH')
 
 
 class PipelineTopologyTelemetryTests(unittest.TestCase):

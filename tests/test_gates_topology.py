@@ -79,6 +79,60 @@ def _task(task_id: str, status: str) -> ArtifactState:
 
 
 class FilesystemTopologyReadersTests(unittest.TestCase):
+    def test_missing_backlog_dir_blocks_in_agent_and_ci_modes(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            reader = FilesystemTopologyReaders(workspace)
+            cases = (
+                ('agent', 'pre_claim', '114-S'),
+                ('ci', None, None),
+            )
+            for mode, phase, target in cases:
+                with self.subTest(mode=mode):
+                    result = evaluate(
+                        TopologyInput(mode=mode, phase=phase, target_shipment_id=target),
+                        readers=reader,
+                    )
+                    self.assertEqual(result.exit_code, 1)
+                    self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+    def test_empty_queue_and_archive_dirs_pass_as_zero_shipments(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            (workspace / '.backlogit' / 'queue').mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir(parents=True)
+            reader = FilesystemTopologyReaders(workspace)
+
+            self.assertEqual(tuple(reader.list_shipments()), ())
+            result = evaluate(
+                TopologyInput(mode='ci', phase=None, target_shipment_id=None),
+                readers=reader,
+            )
+            self.assertEqual(result.exit_code, 0)
+
+    def test_missing_queue_or_archive_dir_blocks(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        for missing_folder in ('queue', 'archive'):
+            with self.subTest(missing_folder=missing_folder):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    backlog_dir = workspace / '.backlogit'
+                    backlog_dir.mkdir(parents=True)
+                    (backlog_dir / ('archive' if missing_folder == 'queue' else 'queue')).mkdir()
+                    reader = FilesystemTopologyReaders(workspace)
+
+                    result = evaluate(
+                        TopologyInput(mode='ci', phase=None, target_shipment_id=None),
+                        readers=reader,
+                    )
+                    self.assertEqual(result.exit_code, 1)
+                    self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
     def test_closure_complete_accepts_done_or_degraded_only(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
@@ -197,6 +251,17 @@ class BranchOwnershipTests(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(_check(result, 'branch_ownership').token, 'BRANCH_CREATE_ELIGIBLE')
+
+    def test_detached_head_blocks(self) -> None:
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertTrue(check.details['detached_head'])
 
     def test_non_target_branch_blocks(self) -> None:
         readers = _FakeReaders(
@@ -417,6 +482,21 @@ class ShipmentReadinessTests(unittest.TestCase):
         )
         self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
 
+    def test_ambiguous_live_and_archived_predecessor_blocks(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return True
+
+        readers = Readers(shipments=(
+            _shipment('113-S', 'queued', archived_status='shipped'),
+            _shipment('114-S', 'queued', deps=('113-S',)),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_STATE_AMBIGUOUS')
+
     def test_incomplete_closure_blocks_even_when_terminal(self) -> None:
         class Readers(_FakeReaders):
             def closure_complete(self, shipment_id: str):
@@ -528,6 +608,7 @@ class ReadinessMatrixTests(unittest.TestCase):
             (_shipment('113-S', '', archived_status='blocked'), 'PREDECESSOR_NOT_SHIPPED'),
             (_shipment('113-S', '', archived_status='abandoned'), 'PREDECESSOR_NOT_SHIPPED'),
             (_shipment('113-S', '', archived_status=None), 'PREDECESSOR_NOT_SHIPPED'),
+            (_shipment('113-S', 'queued', archived_status='shipped'), 'PREDECESSOR_STATE_AMBIGUOUS'),
         )
         for predecessor, expected_token in block_cases:
             with self.subTest(predecessor=predecessor):

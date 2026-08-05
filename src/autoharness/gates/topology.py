@@ -37,6 +37,13 @@ _POST_CLAIM_WRAP_TOKENS = frozenset({
 })
 
 
+class BacklogUnavailableError(RuntimeError):
+    def __init__(self, path: Path, reason: str) -> None:
+        self.path = str(path)
+        self.reason = reason
+        super().__init__(f"{reason}: {path}")
+
+
 @dataclass(frozen=True)
 class TopologyInput:
     mode: str
@@ -219,13 +226,23 @@ class FilesystemTopologyReaders:
         )
 
     def list_shipments(self) -> Sequence[ShipmentState]:
+        if not self.backlog_dir.exists() or not self.backlog_dir.is_dir():
+            raise BacklogUnavailableError(self.backlog_dir, "backlog directory is unavailable")
+
         records: dict[str, dict[str, Any]] = {}
         for folder, is_archive in (("queue", False), ("archive", True)):
             base = self.backlog_dir / folder
-            if not base.exists():
-                continue
-            for candidate in sorted(base.glob("*.md")):
-                fm = _frontmatter(candidate)
+            if not base.exists() or not base.is_dir():
+                raise BacklogUnavailableError(base, "required backlog directory is unavailable")
+            try:
+                candidates = sorted(base.glob("*.md"))
+            except OSError as exc:
+                raise BacklogUnavailableError(base, "required backlog directory is unreadable") from exc
+            for candidate in candidates:
+                try:
+                    fm = _frontmatter(candidate)
+                except OSError as exc:
+                    raise BacklogUnavailableError(candidate, "shipment record is unreadable") from exc
                 if fm.get("artifact_type") != "shipment":
                     continue
                 shipment_id = fm.get("id")
@@ -263,7 +280,7 @@ class FilesystemTopologyReaders:
         return self._artifact_from_paths(artifact_id)
 
     def current_branch(self) -> str:
-        return _run_git(["git", "--no-pager", "branch", "--show-current"], self.workspace) or "main"
+        return _run_git(["git", "--no-pager", "branch", "--show-current"], self.workspace)
 
     def default_branch(self) -> str:
         remote_head = _run_git(
@@ -406,7 +423,10 @@ def _evaluate_post_claim(
     target: str | None,
     bound_readers: TopologyReaders,
 ) -> TopologyResult:
-    initial_shipments = tuple(bound_readers.list_shipments())
+    try:
+        initial_shipments = tuple(bound_readers.list_shipments())
+    except BacklogUnavailableError as exc:
+        return _backlog_unavailable_result(topology_input, "post_claim", target, exc)
     initial = _evaluate_core(topology_input, "post_claim", target, bound_readers, initial_shipments)
     if initial.exit_code == 0:
         return initial
@@ -423,7 +443,10 @@ def _evaluate_post_claim(
             reason="detect-before consistency scan found a queued shipment with active/done work",
         )
     if target_status == "queued" and active_count == 0:
-        revalidation_shipments = tuple(bound_readers.list_shipments())
+        try:
+            revalidation_shipments = tuple(bound_readers.list_shipments())
+        except BacklogUnavailableError as exc:
+            return _backlog_unavailable_result(topology_input, "post_claim", target, exc)
         revalidation = _evaluate_core(
             topology_input,
             "pre_claim",
@@ -438,7 +461,10 @@ def _evaluate_post_claim(
                 revalidation,
                 reason="pre-claim revalidation did not pass before the bounded post-claim retry",
             )
-        retry_shipments = tuple(bound_readers.list_shipments())
+        try:
+            retry_shipments = tuple(bound_readers.list_shipments())
+        except BacklogUnavailableError as exc:
+            return _backlog_unavailable_result(topology_input, "post_claim", target, exc)
         retry = _evaluate_core(topology_input, "post_claim", target, bound_readers, retry_shipments)
         if retry.exit_code == 0:
             return retry
@@ -476,6 +502,26 @@ def _blocked_result(topology_input: TopologyInput, phase: str, target: str | Non
         exit_code=1,
         message=check.message or "topology gate blocked",
     )
+
+
+def _backlog_unavailable_result(
+    topology_input: TopologyInput,
+    phase: str,
+    target: str | None,
+    exc: BacklogUnavailableError,
+) -> TopologyResult:
+    check = CheckResult(
+        name="backlog_state",
+        status="blocked",
+        token="BACKLOG_UNAVAILABLE",
+        message=f"BACKLOG_UNAVAILABLE: {exc}",
+        details={
+            "target_shipment_id": target,
+            "backlog_path": exc.path,
+            "reason": exc.reason,
+        },
+    )
+    return _blocked_result(topology_input, phase, target, check)
 
 
 def _pass_result(topology_input: TopologyInput, phase: str, target: str | None, checks: Sequence[CheckResult]) -> TopologyResult:
@@ -737,6 +783,21 @@ def _branch_ownership_check(
         f"chore/{alias}" for alias in _branch_aliases(shipment)
     )
 
+    if not current_branch:
+        return CheckResult(
+            name="branch_ownership",
+            status="blocked",
+            token="BRANCH_MISMATCH",
+            message=(
+                f"BRANCH_MISMATCH: detached HEAD does not match target {target}"
+            ),
+            details={
+                "current_branch": current_branch,
+                "expected_branches": list(canonical),
+                "detached_head": True,
+            },
+        )
+
     if current_branch == default_branch:
         return CheckResult(
             name="branch_ownership",
@@ -785,9 +846,22 @@ def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str |
     return prior[1] if prior else None
 
 
+def _normalized_live_status(shipment: ShipmentState) -> str | None:
+    value = (shipment.live_status or "").strip().lower()
+    return value or None
+
+
+def _has_ambiguous_shipment_records(shipment: ShipmentState) -> bool:
+    live_status = _normalized_live_status(shipment)
+    return live_status not in (None, "shipped") and shipment.archived_status is not None
+
+
 def _is_shipped_terminal(shipment: ShipmentState) -> bool:
-    if shipment.live_status == "shipped":
+    live_status = _normalized_live_status(shipment)
+    if live_status == "shipped":
         return True
+    if live_status is not None:
+        return False
     return shipment.archived_status in {"shipped", "done"}
 
 
@@ -819,6 +893,21 @@ def _shipment_readiness_check(
 
     for predecessor_id in predecessor_ids:
         predecessor = shipment_map.get(predecessor_id)
+        if predecessor is not None and _has_ambiguous_shipment_records(predecessor):
+            return CheckResult(
+                name="shipment_readiness",
+                status="blocked",
+                token="PREDECESSOR_STATE_AMBIGUOUS",
+                message=(
+                    f"PREDECESSOR_STATE_AMBIGUOUS: predecessor {predecessor_id} has conflicting live and archived shipment records"
+                ),
+                details={
+                    "target_shipment_id": target,
+                    "predecessor_id": predecessor_id,
+                    "live_status": predecessor.live_status,
+                    "archived_status": predecessor.archived_status,
+                },
+            )
         if predecessor is None or not _is_shipped_terminal(predecessor):
             return CheckResult(
                 name="shipment_readiness",
@@ -1005,7 +1094,15 @@ def evaluate(
 
     resolved_phase = _resolve_phase(topology_input)
     bound_readers = readers or _NullReaders()
-    target_resolution_shipments = tuple(bound_readers.list_shipments())
+    try:
+        target_resolution_shipments = tuple(bound_readers.list_shipments())
+    except BacklogUnavailableError as exc:
+        return _backlog_unavailable_result(
+            topology_input,
+            resolved_phase,
+            _normalize_target(topology_input.target_shipment_id),
+            exc,
+        )
     target, target_error = _resolve_target_shipment(
         topology_input,
         target_resolution_shipments,
