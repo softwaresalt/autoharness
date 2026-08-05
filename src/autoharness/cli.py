@@ -825,7 +825,12 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
     if parsed["emit_json"]:
         print(json.dumps(payload, indent=2))
     else:
-        status = "PASS" if result.exit_code == 0 else "BLOCK" if result.exit_code == 1 else "INVALID"
+        status = (
+            "PASS" if result.exit_code == 0
+            else "BLOCK" if result.exit_code == 1
+            else "RETRY_REQUIRED" if result.exit_code == 3
+            else "INVALID"
+        )
         print(f"Pipeline-topology gate — {status}")
         print(f"  mode={result.mode} phase={result.phase} target={result.resolved_target_shipment_id}")
         if result.message:

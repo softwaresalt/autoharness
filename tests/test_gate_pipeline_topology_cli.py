@@ -163,6 +163,59 @@ class PipelineTopologyArgTests(unittest.TestCase):
         payload = json.loads(out)
         self.assertEqual(payload['token'], 'BRANCH_MISMATCH')
 
+    def test_post_claim_queued_zero_active_reports_retry_required_not_invalid(self) -> None:
+        # 109.021-T / 109.022-T / 109.015-T: a post-claim read of a still-queued
+        # target with zero active shipments is CLAIM_NOT_OBSERVED (exit 3), a
+        # distinct retry-required outcome -- never silently reported as PASS,
+        # BLOCK, or a bare "INVALID" (which would wrongly suggest a caller
+        # argument error rather than a legitimate read-only retry signal).
+        class FakeReaders:
+            def list_shipments(self):
+                from autoharness.gates.topology import ShipmentState
+                return (ShipmentState(shipment_id='114-S', title='114-S', live_status='queued'),)
+
+            def read_artifact(self, artifact_id: str):
+                return None
+
+            def current_branch(self) -> str:
+                return 'feat/114-s'
+
+            def default_branch(self) -> str:
+                return 'main'
+
+            def worktree_porcelain(self) -> str:
+                return 'worktree C:/repo\nHEAD 0\nbranch refs/heads/feat/114-s\n\n'
+
+            def read_worktree_marker(self, worktree_path: str):
+                return None
+
+            def closure_complete(self, shipment_id: str):
+                return None
+
+        with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=FakeReaders()):
+            json_out, _, json_code = _run(
+                'gate', 'pipeline-topology',
+                '--mode', 'agent',
+                '--shipment', '114-S',
+                '--phase', 'post_claim',
+                '--json',
+            )
+            text_out, _, text_code = _run(
+                'gate', 'pipeline-topology',
+                '--mode', 'agent',
+                '--shipment', '114-S',
+                '--phase', 'post_claim',
+            )
+
+        self.assertEqual(json_code, 3)
+        payload = json.loads(json_out)
+        self.assertEqual(payload['token'], 'CLAIM_NOT_OBSERVED')
+        self.assertEqual(payload['exit_code'], 3)
+
+        self.assertEqual(text_code, 3)
+        self.assertIn('RETRY_REQUIRED', text_out)
+        self.assertNotIn('INVALID', text_out)
+
 
 class PipelineTopologyTelemetryTests(unittest.TestCase):
     _ENABLED_CONFIG = """
