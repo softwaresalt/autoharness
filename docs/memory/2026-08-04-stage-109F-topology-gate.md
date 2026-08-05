@@ -236,3 +236,23 @@ Artifacts touched cycle 3: moved 109.019-T (115-S->114-S manifests); amended 109
 109.019-T; added deps 109.017-T->109.002-T and 109.018-T->109.002-T; 109-F DoD updated;
 review 109.003-R (PASS); this memory. Index re-synced (687). No sizes changed (all tasks
 remain two-axis sized).
+
+## P-013.6 terminal reasoning-escalation repair (2026-08-04)
+
+- Escalation route: `gpt-5.6-sol/openai/high` (distinct from the normal Stage route).
+- Reviewed base HEAD: `171c8c97ef9a5aba818831eb662639b397476332`.
+- Terminal review/hardening record: **109.004-R — PASS (P0=0, P1=0)**.
+- Checkpoint: `.backlogit/checkpoints/checkpoint-20260805-004752.json` (valid v1; supersedes the schema-invalid legacy checkpoint referenced by the escalation payload).
+
+### P1 resolution
+
+`109.003-T` is now the **branch-to-target-shipment** ownership check. Shipment-scoped mode consumes `target_shipment_id` from the shared domain input, loads that explicit shipment read-only before claim, derives the expected branch from that target title, and evaluates the P-011 three cases against that target even when no shipment is currently claimed. It cannot substitute a different currently claimed shipment.
+
+Missing or unresolvable shipment-scoped targets remain INVALID (exit 2). Existence-guarded no-target behavior is reserved strictly for ambient hook/CI mode when central target resolution yields no target; target-independent A2/A3b checks still run fail-closed. This reconciles 109.003-T with 109.002-T, 109.004-T, 109.006-T, 109.017-T, and 109.018-T. Existing dependency `109.003-T -> 109.002-T` remains sufficient.
+
+### Scope and continuity
+
+- P2 stale `blocked -> queued` prose follow-up was already captured by **109.019-T**; no implementation or new task was added.
+- No shipment membership, ordering, status, or dependency changes: 114-S=9, 115-S=7, 116-S=3; all queued; task-only manifests preserved.
+- Handoff token remains **114-S**.
+- Only backlog/planning/memory artifacts changed. No source, templates, config, build, branch/worktree, shipment claim, PR, or merge activity. The two untracked GraphQL files remained untouched.
