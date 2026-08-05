@@ -673,7 +673,83 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
             self.assertEqual(shipments[0].manifest_item_ids, ('109.001-T', '109.002-T'))
             self.assertEqual(shipments[0].blocking_predecessor_ids, ('113-S',))
 
-    def test_read_worktree_marker_reads_repo_local_marker(self) -> None:
+    def test_dependencies_member_with_path_traversal_or_glob_metachars_blocks(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        cases = {
+            'path_traversal': "dependencies:\n  - ../../outside\n",
+            'absolute_path': "dependencies:\n  - /etc/passwd\n",
+            'glob_metachar': "dependencies:\n  - 113-S*\n",
+            'lowercase_suffix': "dependencies:\n  - 113-s\n",
+            'blank_member': "dependencies:\n  - '  '\n",
+            'non_string_member': "dependencies:\n  - 42\n",
+        }
+        for label, deps_yaml in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '114-S.md').write_text(
+                        f"---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n{deps_yaml}---\n",
+                        encoding='utf-8',
+                    )
+                    reader = FilesystemTopologyReaders(workspace)
+                    # A malformed dependency member must never be silently
+                    # stringified/dropped into `blocking_predecessor_ids`:
+                    # it could later be interpolated into
+                    # `closure_complete()`'s filesystem glob and traverse
+                    # outside the intended backlog directory, or silently
+                    # vanish from the readiness scan.
+                    with self.assertRaises(BacklogUnavailableError):
+                        reader.list_shipments()
+
+    def test_custom_fields_items_member_with_invalid_shape_blocks(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        cases = {
+            'path_traversal': "custom_fields:\n  items:\n  - ../../outside-T\n",
+            'blank_member': "custom_fields:\n  items:\n  - '  '\n",
+            'non_string_member': "custom_fields:\n  items:\n  - 42\n",
+        }
+        for label, items_yaml in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '114-S.md').write_text(
+                        f"---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n{items_yaml}---\n",
+                        encoding='utf-8',
+                    )
+                    reader = FilesystemTopologyReaders(workspace)
+                    with self.assertRaises(BacklogUnavailableError):
+                        reader.list_shipments()
+
+    def test_shipment_typed_record_with_non_shipment_shaped_id_blocks(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            # Correctly typed (`artifact_type: shipment`) but the declared
+            # id does not match the module's own shipment id shape
+            # (digits + "-S"). Must fail closed rather than being admitted
+            # as a legitimate shipment (e.g. becoming the sole active
+            # ambient target).
+            (queue / 'not-a-shipment.md').write_text(
+                "---\nid: not-a-shipment\nartifact_type: shipment\nstatus: active\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            with self.assertRaises(BacklogUnavailableError):
+                reader.list_shipments()
+
+    def test_read_worktree_marker_reads_repo_local_marker(self) -> None: 
         from autoharness.gates.topology import FilesystemTopologyReaders
 
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
@@ -1065,6 +1141,32 @@ class ShipmentReadinessTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.primary_token, 'PREDECESSOR_STATE_AMBIGUOUS')
+
+    def test_ambiguous_target_itself_blocks_before_phase_check(self) -> None:
+        # The target shipment (not just a predecessor) has both a live
+        # "queued" status (which would otherwise satisfy pre_claim's phase
+        # requirement) and an archive-folder record present. This same
+        # provenance corruption already blocks a predecessor and must also
+        # block the target -- rejected BEFORE the phase status check passes
+        # it through.
+        readers = _FakeReaders(shipments=(
+            _shipment('114-S', 'queued', archived_status='shipped'),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'TARGET_STATE_AMBIGUOUS')
+
+    def test_ambiguous_target_blocks_in_post_claim_phase_too(self) -> None:
+        readers = _FakeReaders(shipments=(
+            _shipment('114-S', 'active', archived_status='shipped'),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'TARGET_STATE_AMBIGUOUS')
 
     def test_incomplete_closure_blocks_even_when_terminal(self) -> None:
         class Readers(_FakeReaders):

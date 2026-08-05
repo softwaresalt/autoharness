@@ -52,7 +52,7 @@ _SHIPMENT_ID_PATTERN = re.compile(r"^\d+-S$")
 # "..", an absolute path, or glob metacharacters must fail closed rather
 # than traverse outside the backlog directory or raise an unhandled
 # path-pattern exception.
-_ARTIFACT_ID_PATTERN = re.compile(r"^\d+(?:\.\d+)*-[A-Za-z]+$")
+_ARTIFACT_ID_PATTERN = re.compile(r"^\d+(?:\.\d+)*-[A-Z]+$")
 _BRANCH_KIND_PREFIXES = ("feat/", "chore/")
 _POST_CLAIM_WRAP_TOKENS = frozenset({
     "SHIPMENT_STATE_INCONSISTENT",
@@ -226,7 +226,7 @@ def _tuple_of_str(
     source_path: Path | None = None,
     field_name: str = "",
 ) -> tuple[str, ...]:
-    """Coerce a frontmatter field to a tuple of nonblank string ids.
+    """Coerce a frontmatter field to a tuple of validated, nonblank artifact ids.
 
     A missing field (``None``) legitimately means "none declared" and
     resolves to an empty tuple. But a field that IS present with a
@@ -234,9 +234,19 @@ def _tuple_of_str(
     ``custom_fields.items: 42``) must never be silently normalized to an
     empty tuple: that would drop an actual blocking predecessor or hide
     active/done manifest tasks from the detect-before-consistency scan,
-    letting corrupted backlog state pass fail-closed checks. When
-    ``source_path`` is provided, a present-but-wrong-shaped value raises
-    BacklogUnavailableError instead of coercing.
+    letting corrupted backlog state pass fail-closed checks.
+
+    Likewise, once the container shape is valid, every MEMBER must be
+    validated too: a non-string member, a blank member, or a member that
+    does not match the backlog artifact id shape (``_ARTIFACT_ID_PATTERN``)
+    must never be silently stringified/coerced or dropped. Storing a
+    malformed member (e.g. ``../../outside``) can later be interpolated
+    into a filesystem glob (e.g. ``closure_complete``'s predecessor lookup)
+    and traverse outside the intended backlog directory, or a blank/wrong-
+    shaped member can silently disappear from detect-before-consistency.
+
+    When ``source_path`` is provided, any of these defects raises
+    BacklogUnavailableError instead of coercing or dropping.
     """
     if value is None:
         return ()
@@ -247,7 +257,20 @@ def _tuple_of_str(
                 f"{field_name or 'field'} must be a sequence of ids but got {value!r}",
             )
         return ()
-    return tuple(str(item) for item in value if str(item).strip())
+    result: list[str] = []
+    for item in value:
+        text = item.strip() if isinstance(item, str) else None
+        if text and _ARTIFACT_ID_PATTERN.match(text):
+            result.append(text)
+            continue
+        if source_path is not None:
+            raise BacklogUnavailableError(
+                source_path,
+                f"{field_name or 'field'} contains an invalid or unsafe member id: {item!r}",
+            )
+        if isinstance(item, str) and item.strip():
+            result.append(item.strip())
+    return tuple(result)
 
 
 
@@ -358,7 +381,23 @@ class FilesystemTopologyReaders:
                     # remove an active shipment from the global count and let
                     # ambient/CI pass on an incomplete view of the backlog.
                     raise BacklogUnavailableError(candidate, "shipment record has a missing or blank id")
-                record = records.setdefault(shipment_id.strip(), {"shipment_id": shipment_id.strip()})
+                normalized_shipment_id = shipment_id.strip()
+                if not _SHIPMENT_ID_PATTERN.match(normalized_shipment_id):
+                    # A correctly-typed shipment record (``artifact_type:
+                    # shipment``) whose declared id does NOT match the
+                    # module's own shipment id shape (digits + "-S") must
+                    # not be silently admitted into the scan: it could
+                    # become the sole active ambient target (or a
+                    # predecessor/dependency match) and let corrupted
+                    # backlog state pass fail-closed checks. Only the
+                    # missing/misspelled artifact_type path was previously
+                    # validated against this shape; a correctly-typed but
+                    # wrongly-shaped id must fail closed the same way.
+                    raise BacklogUnavailableError(
+                        candidate,
+                        f"shipment record has an id that does not match the shipment id shape: {shipment_id!r}",
+                    )
+                record = records.setdefault(normalized_shipment_id, {"shipment_id": normalized_shipment_id})
                 folder_source_key = "archive_source_path" if is_archive else "queue_source_path"
                 existing_source = record.get(folder_source_key)
                 if existing_source is not None:
@@ -1079,6 +1118,29 @@ def _shipment_readiness_check(
 
     shipment_map = _shipment_map(shipments)
     shipment = shipment_map.get(target)
+    if shipment is not None and _has_ambiguous_shipment_records(shipment):
+        # A duplicated target (live status present AND an archive-folder
+        # record also present) is the same provenance corruption already
+        # rejected for a predecessor via PREDECESSOR_STATE_AMBIGUOUS. The
+        # target's own phase status check below only inspects
+        # `normalized_live_status`, which can still equal the phase's
+        # expected value (e.g. "queued" for pre_claim) even while an
+        # archive-folder duplicate exists -- so this must be rejected
+        # BEFORE the phase requirement is evaluated, not after.
+        return CheckResult(
+            name="shipment_readiness",
+            status="blocked",
+            token="TARGET_STATE_AMBIGUOUS",
+            message=(
+                f"TARGET_STATE_AMBIGUOUS: target {target} has conflicting live and archived shipment records"
+            ),
+            details={
+                "phase": phase,
+                "target_shipment_id": target,
+                "live_status": shipment.live_status,
+                "archived_status": shipment.archived_status,
+            },
+        )
     requirement = _target_phase_requirement(phase)
     normalized_live_status = _normalized_live_status(shipment) if shipment is not None else None
     if requirement is not None:
