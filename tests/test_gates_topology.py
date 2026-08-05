@@ -1193,19 +1193,42 @@ class PostClaimVerifyTests(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0)
 
-    def test_target_queued_retries_after_full_revalidation(self) -> None:
-        snapshots = [
-            (_shipment('114-S', 'queued'),),
-            (_shipment('114-S', 'queued'),),
-            (_shipment('114-S', 'queued'),),
-            (_shipment('114-S', 'active'),),
-        ]
-        readers = _FakeReaders(shipments=snapshots)
+    def test_target_queued_zero_active_is_retry_required_not_terminal_or_pass(self) -> None:
+        # A genuinely-delayed claim (target still `queued`, zero active) is
+        # indistinguishable from a genuinely-failed one on a single
+        # read-only post-claim snapshot. The gate must therefore return the
+        # retry-required `CLAIM_NOT_OBSERVED` token -- neither a false
+        # `PASS` (the old illusory self-retry silently advanced its fake
+        # snapshot to mask this) nor a premature terminal
+        # `CLAIM_VERIFY_FAILED` (that classification, on retry-exhaustion,
+        # is owned by 109.017-T's Ship-side bounded reclaim loop, not this
+        # gate). Only the natural floor of reads is made here (evaluate()'s
+        # target-resolution read + the single post-claim core-evaluation
+        # read) -- there is no additional/third internal read to silently
+        # observe a different snapshot.
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),))
         result = evaluate(
             TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
             readers=readers,
         )
-        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.exit_code, 3)
+        self.assertFalse(result.blocked)
+        self.assertEqual(result.primary_token, 'CLAIM_NOT_OBSERVED')
+        self.assertEqual(readers._calls, 2)
+
+    def test_target_queued_zero_active_failed_claim_is_also_retry_required(self) -> None:
+        # A genuinely FAILED claim presents identically to a delayed one at
+        # this snapshot (target `queued`, zero active) -- the gate MUST NOT
+        # assert terminal CLAIM_VERIFY_FAILED here; that would require the
+        # detector to discriminate delayed-vs-failed, which a stateless
+        # read-only snapshot cannot do.
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertNotEqual(result.primary_token, 'CLAIM_VERIFY_FAILED')
+        self.assertEqual(result.primary_token, 'CLAIM_NOT_OBSERVED')
 
     def test_other_active_blocks_with_claim_verify_failed(self) -> None:
         readers = _FakeReaders(shipments=(_shipment('115-S', 'active'), _shipment('114-S', 'queued')))
