@@ -49,13 +49,18 @@ Links: `001-SP --informs--> 109-F`, `012-DL --informs--> 109-F`.
 
 ## Key design decisions (from 012-DL / 109.001-R)
 
-- backlogit = authoritative cross-machine claim/status lease; the gate is a
-  fail-closed READER/VALIDATOR, never mutates backlogit internal transitions
-  (external-guard pattern). Do not mutate C:/Source/GitHub/backlogit.
-- Atomicity via detect-before (`SHIPMENT_STATE_INCONSISTENT`) + re-verify-after
-  (`CLAIM_VERIFY_FAILED`) reuse (106-S); no bespoke locking.
-- Cross-machine scope split: at-most-one-ACTIVE-shipment = global; exactly-one
-  WORKTREE = machine-local (documented limitation).
+- backlogit = authoritative shipment claim/status store; its ClaimShipment is an
+  atomic CAS WITHIN ONE SYNCHRONIZED CHECKOUT (local filesystem CAS), NOT a
+  real-time cross-machine lease. The gate is a fail-closed READER/VALIDATOR, never
+  mutates backlogit internal transitions (external-guard pattern). Do not mutate
+  C:/Source/GitHub/backlogit.
+- Atomicity via detect-before (`SHIPMENT_STATE_INCONSISTENT`) + post-claim GLOBAL
+  re-verify-after (`CLAIM_VERIFY_FAILED`: exactly-one-active-and-target; pre-retry
+  zero-active revalidation) reuse (106-S); no bespoke locking.
+- Active-shipment invariant scope: PHASE-AWARE (pre-claim ZERO-active vs post-claim
+  exactly-one-same-target), SERIALIZED within one synchronized checkout, best-effort
+  + fail-closed-on-ambiguity across machines (documented limitation — detect-at-sync/CI,
+  no invented remote lease); exactly-one WORKTREE = machine-local.
 - Bypass: audited `--force` log + telemetry on every GATE RUN (an operator
   `--force` is auditable whenever the gate executes); a `git --no-verify` hook
   skip runs no gate code and is inherently UNOBSERVABLE locally — required CI is
@@ -327,4 +332,64 @@ and were deliberately left untouched per the operator's exact-file enumeration.
 - 114/115 logs reconstruct the current manifests (109.019-T move recorded).
 - No planning artifact claims `git --no-verify` is locally observable.
 - `backlogit checkpoint list` succeeds; the 109-F-scoped live records are all valid v1.
+- Boundary preserved: backlog/planning/memory artifacts only; no commit/push (Orchestrator commits).
+
+## PR #296 review-fix cycle 2 (2026-08-04, HEAD f82ead6)
+
+Bounded review-fix of four Copilot round-2 threads on staging PR #296. Route
+claude-opus-4.8/anthropic/high, DARK_MODE_ACTIVE. Only `.backlogit/**`, this memory
+doc, and scoped planning artifacts touched — no source/templates/config/build/
+branch/worktree/shipment-claim/PR/merge activity; `.backlogit/config.yaml` and the two
+untracked GraphQL files untouched; C:/Source/GitHub/backlogit read-only. Manifests
+remain task-only 9/7/3; no membership/dependency/status change.
+
+### Thread 1 — `109.005-T`: pre-claim ZERO-active, phase-aware invariant
+A2 rewritten from "zero or one active -> pass" to a PHASE-AWARE invariant on an
+EXPLICIT gate domain-input `phase`: PRE-CLAIM requires ZERO active shipments (any
+active -> blocked); POST-CLAIM/later-lifecycle allows EXACTLY ONE active and only
+when it is the resolved target. Added a deterministic phase x count matrix
+(acceptance + description + impl-notes). Coherence: phase field added to the
+`109.002-T` domain-input contract {mode, phase, target_shipment_id, json, force};
+tests added to `109.006-T`.
+
+### Thread 2 — `109.001-T`: post-claim GLOBAL re-verify + pre-retry revalidation
+A5 post-claim re-verify now re-runs the FULL workspace-global active-shipment
+invariant (all shipment records, not just target state): exactly-one-active-and-target
+-> proceed; target-still-queued -> ONE retry ONLY after re-running full topology +
+the A2 pre-claim ZERO-active precondition + detect-before scan; target blocked / any
+other active / inconsistency -> CLAIM_VERIFY_FAILED, no reclaim. Race/rollback +
+pre-retry-revalidation test cases added to `109.006-T`. 012-DL RACE/ATOMICITY (point 2)
+updated to match.
+
+### Thread 3 — `012-DL`: backlogit atomicity is one-checkout-local, not cross-machine
+Corrected the cross-machine OVERCLAIM everywhere it appeared: backlogit ClaimShipment
+is an atomic CAS WITHIN ONE SYNCHRONIZED CHECKOUT (local filesystem CAS), NOT a
+real-time cross-machine lease; the active-shipment invariant is checkout-scoped and
+best-effort + fail-closed across machines (detect-at-sync/CI), and a centralized remote
+lease is explicit out-of-scope future work (no speculative infra invented). Edited
+`012-DL` (authority-boundary pt 1, race/atomicity pt 2, rollout pt 6, open-question 1),
+`109-F` (description authority boundary + invariant 1, DoD scope-limitation bullet,
+goals 2/3/5), `109.011-T` (CI = server-side detect-at-sync, not cross-machine lease),
+and this memory's Key-design-decisions bullets. Fail-closed-on-ambiguity preserved.
+
+### Thread 4 — `109.016-T`: verified terminal marker BEFORE archive
+Extended the Ship safe-close closure contract: a SUCCESSFUL close MUST transition/
+record and VERIFY a successful terminal marker (`archived_status: shipped` via
+backlogit_ship_shipment, or normalized legacy `done`) BEFORE archiving — never
+archiving a still-`active` record (evidence: archived `110-S.md` carries
+`archived_status: active`). The sequence-aware protected-set exclusion now relies on
+that VERIFIED marker. Added deterministic 114->115->116 tests + negatives (abandoned
+predecessor stays protected; archiving a still-`active` record is rejected). P-015
+no-cascade preserved (terminal marker set only for the shipment being closed). 109-F
+DoD safe-close bullet updated.
+
+### Validation (cycle 2)
+- Contracts coherent across 109-F, 109.001/002/005/006/011/016-T, 012-DL, and memory.
+- No artifact claims local backlogit is a cross-machine atomic lease; all such claims
+  scoped to one synchronized checkout with documented degraded cross-machine behavior.
+- Pre-claim ZERO-active, post-claim exactly-one-same-target, retry full revalidation
+  expressed and testable.
+- Successful terminal marker established+verified BEFORE archive; protected-set relies on it.
+- Shipment manifests/dependencies unchanged: task-only 9/7/3, all `queued`; no size change.
+- New valid v1 checkpoint appended via backlogit (not ad-hoc JSON).
 - Boundary preserved: backlog/planning/memory artifacts only; no commit/push (Orchestrator commits).
