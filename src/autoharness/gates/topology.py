@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timezone
+import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -727,7 +729,7 @@ def _evaluate_core(
         if active_check.status == "blocked":
             return _blocked_result(topology_input, resolved_phase, target, active_check)
 
-        branch_check = _branch_ownership_check(target, shipments, bound_readers)
+        branch_check = _branch_ownership_check(target, shipments, bound_readers, mode=topology_input.mode)
         checks.append(branch_check)
         if branch_check.status == "blocked":
             return _blocked_result(topology_input, resolved_phase, target, branch_check)
@@ -1090,10 +1092,116 @@ def _resolve_target_shipment(
     return resolved, None
 
 
+def _ci_detached_head_branch_fallback() -> str:
+    """CI-only fallback branch resolution for a detached-HEAD checkout.
+
+    ``actions/checkout`` (and equivalent CI checkout actions) always leaves the
+    working tree on a detached HEAD -- for a ``pull_request``-triggered run it
+    checks out the PR merge ref, and for a ``push``-triggered run it checks out
+    the pushed commit directly -- so ``git branch --show-current`` reports an
+    empty string in BOTH cases even though the real branch is well known to the
+    CI platform via environment variables. Without this fallback, ``--mode ci``
+    would report ``BRANCH_MISMATCH: detached HEAD`` on every single CI run,
+    defeating Gate C's entire purpose.
+
+    Resolution order (GitHub Actions environment variables):
+
+    1. ``GITHUB_HEAD_REF`` -- set only for ``pull_request`` events; this is
+       ALWAYS the PR's real source branch short name (never a merge-ref, never
+       ``refs/heads/``-prefixed), so it is trusted unconditionally.
+    2. ``GITHUB_REF_NAME`` -- set for every event, but only trustworthy as a
+       BRANCH name when ``GITHUB_REF_TYPE == "branch"``. GitHub Actions sets
+       ``GITHUB_REF_TYPE`` to ``branch`` or ``tag`` to disambiguate exactly
+       this case; relying on it (rather than a naive "does the name contain a
+       slash" heuristic) correctly accepts a slash-containing push-triggered
+       branch name (e.g. ``feat/foo``, this repo's own naming convention) and
+       correctly rejects a tag push (``GITHUB_REF_TYPE == "tag"``, where
+       ``GITHUB_REF_NAME`` would be a version string, not a branch) -- neither
+       of which a plain ``"/" in ref_name`` substring check can distinguish.
+
+    Returns an empty string (never raises) when neither variable resolves a
+    usable branch name, preserving the existing fail-closed
+    ``BRANCH_MISMATCH: detached HEAD`` behavior for a CI platform this
+    fallback does not recognize, or for a non-branch ref (e.g. a tag push).
+    """
+    head_ref = os.environ.get("GITHUB_HEAD_REF", "").strip()
+    if head_ref:
+        return head_ref
+    ref_type = os.environ.get("GITHUB_REF_TYPE", "").strip()
+    ref_name = os.environ.get("GITHUB_REF_NAME", "").strip()
+    if ref_type == "branch" and ref_name:
+        return ref_name
+    return ""
+
+
+def _ci_default_branch_fallback() -> str:
+    """CI-only fallback default-branch resolution via the GitHub Actions event payload.
+
+    ``FilesystemTopologyReaders.default_branch()`` resolves the default branch
+    from the ``refs/remotes/origin/HEAD`` symbolic ref, falling back to a
+    hard-coded ``"main"`` when that ref is unset. ``actions/checkout`` does
+    NOT set this symref by default (it performs a shallow, single-ref fetch
+    and never runs ``git remote set-head``), so in CI this always falls back
+    to the hard-coded value. For a repository whose real default branch is
+    not ``main`` (e.g. ``master``, ``trunk``), a push to that actual default
+    branch can be misclassified as ``BRANCH_MISMATCH`` instead of
+    ``BRANCH_CREATE_ELIGIBLE`` whenever a shipment happens to be active,
+    incorrectly blocking valid CI once the job is required.
+
+    GitHub Actions writes the full webhook event payload for the triggering
+    event to the file at ``GITHUB_EVENT_PATH`` for every event type, and that
+    payload's ``repository.default_branch`` field is the platform's own
+    authoritative answer -- present on the ``repository`` object of every
+    GitHub webhook event, not just ``push``/``pull_request``.
+
+    Returns an empty string (never raises) when ``GITHUB_EVENT_PATH`` is
+    unset, unreadable, not valid JSON, or lacks a usable
+    ``repository.default_branch`` string -- preserving the existing
+    git-based (``main``-fallback) resolution in that case.
+    """
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "").strip()
+    if not event_path:
+        return ""
+    try:
+        with open(event_path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    repository = payload.get("repository")
+    if not isinstance(repository, dict):
+        return ""
+    default_branch = repository.get("default_branch")
+    if isinstance(default_branch, str) and default_branch.strip():
+        return default_branch.strip()
+    return ""
+
+
+def _ci_pull_request_event_active() -> bool:
+    """Return True when the current CI run is a ``pull_request`` event.
+
+    Copilot review finding (PR #302 thread PRRT_kwDORzpWpM6WzvNo): a fork PR
+    whose source branch happens to be named the same as the target
+    repository's default branch (``main`` is the common default for a fork,
+    so this collision is not exotic) would otherwise satisfy
+    ``current_branch == default_branch`` in ``_branch_ownership_check`` and
+    be granted ``BRANCH_CREATE_ELIGIBLE`` -- even though the run is testing a
+    PR's proposed head, not an actual push to the target repository's
+    default branch. ``GITHUB_HEAD_REF`` is set by GitHub Actions ONLY for
+    ``pull_request``/``pull_request_target`` events (see
+    ``_ci_detached_head_branch_fallback`` above), so its presence is a
+    reliable, already-established signal that this run is a PR, not a push,
+    regardless of what branch name the fork happens to use.
+    """
+    return bool(os.environ.get("GITHUB_HEAD_REF", "").strip())
+
+
 def _branch_ownership_check(
     target: str | None,
     shipments: Sequence[ShipmentState],
     readers: TopologyReaders,
+    mode: str = "agent",
 ) -> CheckResult:
     if target is None:
         return CheckResult(
@@ -1110,7 +1218,19 @@ def _branch_ownership_check(
             message="shipment metadata unavailable; ownership check skipped",
         )
     current_branch = _normalize_branch_name(readers.current_branch())
+    ci_fallback_used = False
+    if not current_branch and mode == "ci":
+        fallback_branch = _ci_detached_head_branch_fallback()
+        if fallback_branch:
+            current_branch = _normalize_branch_name(fallback_branch)
+            ci_fallback_used = True
     default_branch = _normalize_branch_name(readers.default_branch())
+    default_branch_ci_fallback_used = False
+    if mode == "ci":
+        ci_default_branch = _ci_default_branch_fallback()
+        if ci_default_branch:
+            default_branch = _normalize_branch_name(ci_default_branch)
+            default_branch_ci_fallback_used = True
     canonical = tuple(f"feat/{alias}" for alias in _branch_aliases(shipment)) + tuple(
         f"chore/{alias}" for alias in _branch_aliases(shipment)
     )
@@ -1127,10 +1247,14 @@ def _branch_ownership_check(
                 "current_branch": current_branch,
                 "expected_branches": list(canonical),
                 "detached_head": True,
+                "resolved_via_ci_env_fallback": ci_fallback_used,
+                "default_branch": default_branch,
+                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
             },
         )
 
-    if current_branch == default_branch:
+    ci_pull_request_active = mode == "ci" and _ci_pull_request_event_active()
+    if current_branch == default_branch and not ci_pull_request_active:
         return CheckResult(
             name="branch_ownership",
             status="passed",
@@ -1138,7 +1262,13 @@ def _branch_ownership_check(
             message=(
                 f"BRANCH_CREATE_ELIGIBLE: current branch {current_branch} is the default branch for target {target}"
             ),
-            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+            details={
+                "current_branch": current_branch,
+                "expected_branches": list(canonical),
+                "resolved_via_ci_env_fallback": ci_fallback_used,
+                "default_branch": default_branch,
+                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+            },
         )
 
     if current_branch.startswith(_POST_MERGE_BRANCH_PREFIX):
@@ -1151,7 +1281,13 @@ def _branch_ownership_check(
                 f"post-merge closure branch; ownership is not matched by shipment-branch alias "
                 f"(post-merge branches are feature-scoped, not shipment-scoped) for target {target}"
             ),
-            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+            details={
+                "current_branch": current_branch,
+                "expected_branches": list(canonical),
+                "resolved_via_ci_env_fallback": ci_fallback_used,
+                "default_branch": default_branch,
+                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+            },
         )
 
     if _resolve_shipment_from_branch(current_branch, (shipment,)) == target:
@@ -1160,7 +1296,13 @@ def _branch_ownership_check(
             status="passed",
             token="BRANCH_OK",
             message=f"BRANCH_OK: current branch {current_branch} matches target {target}",
-            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+            details={
+                "current_branch": current_branch,
+                "expected_branches": list(canonical),
+                "resolved_via_ci_env_fallback": ci_fallback_used,
+                "default_branch": default_branch,
+                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+            },
         )
 
     return CheckResult(
@@ -1170,7 +1312,13 @@ def _branch_ownership_check(
         message=(
             f"BRANCH_MISMATCH: current branch {current_branch} does not match target {target}"
         ),
-        details={"current_branch": current_branch, "expected_branches": list(canonical)},
+        details={
+            "current_branch": current_branch,
+            "expected_branches": list(canonical),
+            "resolved_via_ci_env_fallback": ci_fallback_used,
+            "default_branch": default_branch,
+            "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+        },
     )
 
 def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str | None:

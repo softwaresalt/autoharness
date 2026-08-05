@@ -11,19 +11,20 @@ local-gating harness primitive (the local half is
 `../scripts/pre-push-quality-gates.*.tmpl`). It renders to
 `.github/workflows/ci.yml` in the target workspace.
 
-## Three-job shape
+## Four-job shape
 
 Each variable below is the human-facing **check context** (`name:`), which may
 contain spaces or slashes. The underlying GitHub Actions **job IDs are fixed,
-valid slugs** — `changes`, `expensive`, and `ci-gate` — because job IDs may not
-contain spaces. Branch rulesets match on the check context (`name:`), not the
-job ID.
+valid slugs** — `changes`, `expensive`, `topology-check`, and `ci-gate` —
+because job IDs may not contain spaces. Branch rulesets match on the check
+context (`name:`), not the job ID.
 
 | Job (`name:`) | Job ID | Runs | Purpose |
 |---|---|---|---|
 | `detect code changes` | `changes` | always | Fail-closed `dorny/paths-filter` (`predicate-quantifier: every`) over a denylist. Outputs `code` = `true` unless the change touches only docs/backlog paths. |
 | `{{CI_EXPENSIVE_JOB_NAME}}` | `expensive` | when `code == 'true'` (path impact only) | The expensive lint/format/typecheck/test/build gate. Never the required check. |
-| `{{CI_REQUIRED_CHECK_NAME}}` | `ci-gate` | always (`if: always()`) | Aggregation gate. **This is the only check a branch ruleset should require.** Treats a skipped expensive job as OK; fails only when a needed job is `failure`/`cancelled`. |
+| `pipeline-topology (ambient)` | `topology-check` | always | The CI topology-check backstop (Gate C, P-001/P-016) — see [Pipeline-Topology CI Backstop](#pipeline-topology-ci-backstop-gate-c) below. Required-vs-advisory via a repository variable, not a path condition. |
+| `{{CI_REQUIRED_CHECK_NAME}}` | `ci-gate` | always (`if: always()`) | Aggregation gate. **This is the only check a branch ruleset should require.** Treats a skipped expensive job as OK; fails only when a needed job is `failure`/`cancelled` (or, once `topology-check` is flipped to required, when it fails for real). |
 
 ### Why the aggregation gate is the required check
 
@@ -54,6 +55,7 @@ any code/config/unknown-type change falls through into the gate (fail-closed).
 | `{{TYPECHECK_COMMAND}}` | `typecheck.command` | Omit the step when no typecheck gate is discovered. |
 | `{{TEST_COMMAND}}` | `test.command` | The primary gate. |
 | `{{BUILD_CHECK_COMMAND}}` | `build.check_command` | Omit the step when no build-check gate is discovered. |
+| `{{CI_AUTOHARNESS_INSTALL_COMMAND}}` | `ci.autoharness_install_command` (default `pip install autoharness`) | Installs the `autoharness` package on the `topology-check` job's runner so `scripts/ci-topology-check.sh` can invoke the CLI. This product is always a pip-installable Python CLI regardless of the consuming workspace's own primary language; a self-hosting dogfood install (this repo) resolves it to `pip install -e .` instead. |
 
 ### Optional gate steps
 
@@ -62,6 +64,42 @@ steps. During resolution, **drop any step whose command variable has no
 discovered value** — leaving an unresolved `{{...}}` in output is an installation
 error. Keep only the gates the workspace actually has (the same set recorded in
 `local_gating.pre_push_gates`).
+
+## Pipeline-Topology CI Backstop (Gate C)
+
+**Backlogit-only precondition**: this job is installed **only** when the
+workspace's backlog tool is `backlogit` (`{{FEATURE_SHIPMENTS}}` is `true`).
+The gate's backlog reader (`FilesystemTopologyReaders`) currently reads only
+`.backlogit/`; installing this job for a backlog-md/manual/non-shipment-capable
+workspace would always resolve `BACKLOG_UNAVAILABLE`, which becomes a
+permanent BLOCK once `PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted to
+required. `install-harness` omits the job and its entrypoint script entirely
+for those workspaces rather than rendering it advisory-only as a workaround.
+
+The always-running `topology-check` job checks out the repo, installs
+`autoharness`, and runs `scripts/ci-topology-check.sh` (resolved from
+`templates/ci/ci-topology-check.sh.tmpl` — see
+[`docs/pipeline-topology-gate.md`](../../docs/pipeline-topology-gate.md#ci-topology-check-entrypoint-gate-c)).
+It is **not** gated on the `changes` job's path-filter output — the ambient
+check is inexpensive and non-shipment-scoped, and skipping it for docs/backlog
+-only changes would leave exactly the commits most likely to touch
+`.backlogit/` state unchecked.
+
+**Threat model**: this job is effective against accidental/careless local
+bypasses, but is **not** a non-bypassable backstop against a malicious PR that
+edits the workflow/entrypoint itself — see
+["Threat Model & CODEOWNERS Hardening"](../../docs/pipeline-topology-gate-ci-rollout.md#threat-model--codeowners-hardening)
+for the full explanation and recommended mitigation.
+
+**Required-vs-advisory** is an explicit **operator toggle**, not a template
+variable: `continue-on-error: ${{ vars.PIPELINE_TOPOLOGY_GATE_REQUIRED !=
+'true' }}`. Leaving the `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable
+unset keeps the job advisory (its result is reported as `success` to
+`ci-gate` even when the gate itself reports BLOCK); setting it to `'true'`
+flips the job to required (a BLOCK verdict fails `topology-check` for real,
+and therefore `ci-gate`) with **no workflow re-render needed**. See
+[`docs/pipeline-topology-gate-ci-rollout.md`](../../docs/pipeline-topology-gate-ci-rollout.md)
+for the staged advisory→required rollout narrative.
 
 ## Path-filter mode
 

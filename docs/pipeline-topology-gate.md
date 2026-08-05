@@ -118,7 +118,7 @@ git operation, but the gate itself still reports BLOCK).
 |---|---|
 | `agent` | Fail-closed shipment-scoped invocation. Requires both `--shipment` and an explicit scoped `--phase`. Used by Ship and Orchestrator at claim/route/build/PR/closure points. |
 | `manual` (default) | Human-invoked (or hook-invoked) check. `--phase` defaults to `ambient`; `--shipment` is optional unless a scoped `--phase` is explicitly passed. |
-| `ci` | Same resolution rules as `manual`, used from CI ambient runs. |
+| `ci` | Same resolution rules as `manual`, used from CI ambient runs. **Detached-HEAD branch fallback**: when the checkout is on a detached HEAD (`git branch --show-current` reports empty — the state `actions/checkout` and equivalent CI checkout actions always leave a runner in, for both `push`- and `pull_request`-triggered runs), `--mode ci` resolves the real branch name from CI-platform environment variables before falling back to the fail-closed `BRANCH_MISMATCH: detached HEAD` outcome: `GITHUB_HEAD_REF` first (set only for `pull_request` events — the PR's actual source branch, always a trustworthy short branch name), then `GITHUB_REF_NAME` **only when** `GITHUB_REF_TYPE == "branch"` (set for `push` events to the pushed branch name — disambiguated from a tag push, where `GITHUB_REF_TYPE == "tag"` and `GITHUB_REF_NAME` is a version string, not a branch; this is why the check is `GITHUB_REF_TYPE`-based rather than a naive "does the name contain a slash" heuristic, which would incorrectly reject a legitimate slash-containing push-triggered branch name such as this repo's own `feat/…`/`chore/…` convention). This fallback is strictly gated on `mode == "ci"` — `agent`/`manual` mode detached-HEAD checkouts are unaffected and keep failing closed exactly as before, even if a `GITHUB_HEAD_REF`-shaped variable happens to be present in the environment. Without this fallback, the CI topology-check entrypoint (Gate C) would report `BRANCH_MISMATCH` on every single CI run, since every CI checkout is detached by default. **Default-branch fallback**: `--mode ci` also resolves the workspace's default branch from the `GITHUB_EVENT_PATH` event payload's `repository.default_branch` field, when readable, instead of trusting only the git-based `refs/remotes/origin/HEAD` symref (which `actions/checkout` never sets, so that resolution always falls back to a hard-coded `main` in CI). This matters for a repository whose real default branch is not `main` (e.g. `master`, `trunk`): without this fallback, a push to that repository's actual default branch would be misclassified as `BRANCH_MISMATCH` instead of `BRANCH_CREATE_ELIGIBLE` whenever a shipment happens to be active. Falls back to the existing git-based resolution (including its `main` default) when `GITHUB_EVENT_PATH` is unset, unreadable, not valid JSON, or lacks a usable `repository.default_branch` string. Also strictly gated on `mode == "ci"`. |
 
 ### Exit Codes
 
@@ -166,8 +166,11 @@ silently defaulting to `success` or misreporting it as `blocked`.
   and `templates/scripts/pre-commit-pipeline-topology.{sh,ps1}.tmpl` invoke
   `--mode manual --phase ambient` with **no** `--shipment` — the non-shipment-
   scoped, deterministic ambient contract described above.
-* **CI**: an equivalent `ambient` invocation may be wired into a CI job as an
-  independent backstop for the (skippable, `--no-verify`) local hooks.
+* **CI**: `templates/ci/ci-topology-check.sh.tmpl` (109.011-T) is the fail-closed
+  CI entrypoint wrapping this same `ambient` invocation as an independent
+  backstop for the (skippable, `--no-verify`) local hooks; see
+  [CI Topology-Check Entrypoint (Gate C)](#ci-topology-check-entrypoint-gate-c)
+  below.
 
 ## Opt-In Install / Activation
 
@@ -223,6 +226,51 @@ claim/build/PR/closure points) remain the actual enforcement backstop. Absent th
 Both hooks are a single deterministic pass with no retry loop (circuit-breaker
 compatible), and both honor the standard `--no-verify` bypass.
 
+## CI Topology-Check Entrypoint (Gate C)
+
+Gate C (`116-S`, this shipment) completes the staged A→B→C rollout by adding the
+server-side CI backstop: local hooks are always skippable via `git ...
+--no-verify`, and Git has no pre-worktree-add hook at all, so CI is the
+re-validation point for the P-001/P-016 invariants once a checkout syncs.
+
+**Threat model note**: this backstop is effective against accidental/careless
+local bypasses, but is **not** non-bypassable against a malicious or
+compromised PR, since GitHub's `pull_request` trigger runs the workflow
+definition itself from the PR's proposed head. See ["Threat Model & CODEOWNERS
+Hardening"](pipeline-topology-gate-ci-rollout.md#threat-model--codeowners-hardening)
+in the CI rollout doc for the full explanation and recommended mitigation.
+
+**Backlogit-only**: `install-harness` installs this entrypoint and its workflow
+job only when the workspace's backlog tool is `backlogit`
+(`{{FEATURE_SHIPMENTS}}` is `true`). The gate's backlog reader
+(`FilesystemTopologyReaders`) currently reads only `.backlogit/`; a backlog-md,
+manual, or other non-shipment-capable workspace would otherwise always resolve
+`BACKLOG_UNAVAILABLE`, a hard BLOCK once `PIPELINE_TOPOLOGY_GATE_REQUIRED` is
+promoted to required. See
+[the CI rollout doc's Applicability section](pipeline-topology-gate-ci-rollout.md#applicability-backlogit-only).
+
+* **Entrypoint** (109.011-T): `templates/ci/ci-topology-check.sh.tmpl` resolves to
+  `{workspace}/scripts/ci-topology-check.sh`. It invokes
+  `autoharness gate pipeline-topology --mode ci --phase ambient --json` — the
+  exact same non-shipment-scoped, deterministic target resolution as the local
+  ambient hooks (no human-supplied `--shipment`) — and propagates the gate's raw
+  exit code **unmodified**. Unlike the local hooks, this entrypoint carries **no**
+  advisory-degrade toggle: a missing `autoharness` binary is a CI configuration
+  failure (exit 1), not a warn-and-skip.
+* **Workflow wiring** (109.014-T): `templates/ci/ci.yml.tmpl` adds an
+  always-running `topology-check` job that checks out the repo, installs the
+  `autoharness` package, and runs the entrypoint script. The
+  **required-vs-advisory** decision is an explicit **operator toggle** applied at
+  the job level via `continue-on-error: ${{ vars.PIPELINE_TOPOLOGY_GATE_REQUIRED
+  != 'true' }}` — default unset means advisory (non-blocking; the job's result is
+  still reported to dependents as `success` even if the gate itself reported
+  BLOCK), and setting the `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable to
+  `'true'` flips it to required (blocking) with **no workflow re-render needed**.
+* **Rollout staging** (109.012-T): see
+  [`docs/pipeline-topology-gate-ci-rollout.md`](pipeline-topology-gate-ci-rollout.md)
+  for the advisory→required staged rollout narrative, the local-hook-vs-CI
+  responsibility split, and CI-path test coverage.
+
 ## Cross-Machine Scope Limitation
 
 The gate's active-shipment scan and its worktree-uniqueness check are **local to
@@ -259,3 +307,5 @@ Running the gate never dirties tracked working-tree state.
 * [`_orchestrator` agent definition](../.github/agents/_orchestrator.agent.md)
 * `templates/scripts/pre-push-quality-gates.sh.tmpl` / `.ps1.tmpl`
 * `templates/scripts/pre-commit-pipeline-topology.sh.tmpl` / `.ps1.tmpl`
+* `templates/ci/ci-topology-check.sh.tmpl` — the CI entrypoint (Gate C)
+* [`docs/pipeline-topology-gate-ci-rollout.md`](pipeline-topology-gate-ci-rollout.md) — the advisory→required staged rollout doc (Gate C)

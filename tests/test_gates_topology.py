@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from autoharness.gates.topology import (
     ArtifactState,
@@ -989,6 +990,292 @@ class BranchOwnershipTests(unittest.TestCase):
         check = _check(result, 'branch_ownership')
         self.assertEqual(check.token, 'BRANCH_MISMATCH')
         self.assertTrue(check.details['detached_head'])
+
+    def test_ci_mode_detached_head_resolves_via_github_head_ref(self) -> None:
+        """Regression test (116-S live-CI finding): `actions/checkout` always
+        leaves a `pull_request`-triggered run in detached HEAD, so
+        `git branch --show-current` reports empty even though the PR's real
+        source branch is known via `GITHUB_HEAD_REF`. `--mode ci` must resolve
+        the branch from this CI-platform environment variable rather than
+        fail-closed on every single PR run -- that would make the CI
+        topology-check entrypoint (Gate C) permanently non-functional for its
+        stated purpose."""
+        readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        with patch.dict(
+            'os.environ',
+            {'GITHUB_HEAD_REF': 'feat/116-s-topology-gate-c-remote-ci-validation-backstop'},
+        ):
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_OK')
+        self.assertTrue(check.details['resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_detached_head_resolves_via_github_ref_name_for_push(self) -> None:
+        """`push`-triggered CI runs have no `GITHUB_HEAD_REF` (that variable is
+        `pull_request`-only); the pushed branch name is `GITHUB_REF_NAME`
+        instead (e.g. `main` for a push to the default branch), disambiguated
+        from a tag push via `GITHUB_REF_TYPE == 'branch'`."""
+        readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='', default_branch='main')
+        with patch.dict(
+            'os.environ', {'GITHUB_REF_NAME': 'main', 'GITHUB_REF_TYPE': 'branch'}, clear=False
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertTrue(check.details['resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_push_branch_name_with_slash_is_accepted(self) -> None:
+        """Regression test for code-review finding: a naive `'/' in ref_name`
+        heuristic would misclassify a legitimate slash-containing
+        push-triggered branch name (this repo's own `feat/…`/`chore/…`
+        convention) as a non-branch merge-ref and fail closed. Disambiguation
+        must use `GITHUB_REF_TYPE`, not a substring check on the name."""
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
+        with patch.dict(
+            'os.environ',
+            {'GITHUB_REF_NAME': 'feat/114-s', 'GITHUB_REF_TYPE': 'branch'},
+            clear=False,
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='pre_claim', target_shipment_id='114-S'),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_OK')
+        self.assertTrue(check.details['resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_tag_push_does_not_resolve_as_branch(self) -> None:
+        """A tag-triggered `push` event sets `GITHUB_REF_TYPE == 'tag'` and
+        `GITHUB_REF_NAME` to a version string, not a branch. This must NOT be
+        accepted as a resolved branch name -- the gate keeps failing closed
+        (detached HEAD, unresolvable) rather than treating a tag as ownership
+        evidence."""
+        readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        with patch.dict(
+            'os.environ', {'GITHUB_REF_NAME': 'v1.2.3', 'GITHUB_REF_TYPE': 'tag'}, clear=False
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertTrue(check.details['detached_head'])
+        self.assertFalse(check.details['resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_detached_head_with_no_env_fallback_still_blocks(self) -> None:
+        """Fail-closed is preserved when neither CI environment variable
+        resolves a usable branch name (e.g. a CI platform this fallback does
+        not recognize, or genuinely malformed environment)."""
+        readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        with patch.dict('os.environ', {}, clear=False):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            _os.environ.pop('GITHUB_REF_NAME', None)
+            _os.environ.pop('GITHUB_REF_TYPE', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertTrue(check.details['detached_head'])
+        self.assertFalse(check.details['resolved_via_ci_env_fallback'])
+
+    def test_non_ci_mode_detached_head_ignores_github_env_fallback(self) -> None:
+        """The CI-env fallback is gated on `mode == 'ci'` only: `agent`/`manual`
+        mode detached-HEAD checkouts must keep failing closed exactly as
+        before even if a `GITHUB_HEAD_REF`-shaped variable happens to be set
+        in the environment (e.g. a local shell that inherited it)."""
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
+        with patch.dict('os.environ', {'GITHUB_HEAD_REF': 'feat/114-s'}):
+            result = evaluate(
+                TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertTrue(check.details['detached_head'])
+
+    def test_ci_mode_default_branch_resolves_via_github_event_path(self) -> None:
+        """Regression test (Copilot review finding on PR #302,
+        PRRT_kwDORzpWpM6WzWf9): `FilesystemTopologyReaders.default_branch()`
+        resolves from `refs/remotes/origin/HEAD`, falling back to a
+        hard-coded `main` when that symref is unset -- which
+        `actions/checkout` never sets (shallow, single-ref fetch, no
+        `git remote set-head`). For a repository whose real default branch is
+        `master`, a push to `master` while a shipment is active must still
+        resolve `BRANCH_CREATE_ELIGIBLE`, using the platform-authoritative
+        `repository.default_branch` field from the `GITHUB_EVENT_PATH` event
+        payload rather than the incorrect hard-coded `main` fallback."""
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),),
+            branch='',
+            default_branch='main',  # simulates the git-based main-fallback bug
+        )
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            event_path = Path(tmp) / 'event.json'
+            event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
+            with patch.dict(
+                'os.environ',
+                {
+                    'GITHUB_REF_NAME': 'master',
+                    'GITHUB_REF_TYPE': 'branch',
+                    'GITHUB_EVENT_PATH': str(event_path),
+                },
+                clear=False,
+            ):
+                import os as _os
+
+                _os.environ.pop('GITHUB_HEAD_REF', None)
+                result = evaluate(
+                    TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                    readers=readers,
+                )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertEqual(check.details['default_branch'], 'master')
+        self.assertTrue(check.details['default_branch_resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_default_branch_fallback_missing_event_path_uses_reader_value(self) -> None:
+        """When `GITHUB_EVENT_PATH` is unset, unreadable, or lacks a usable
+        `repository.default_branch`, the gate preserves the existing
+        git-based `default_branch()` resolution (including its `main`
+        fallback) rather than raising or fabricating a value."""
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),),
+            branch='main',
+            default_branch='main',
+        )
+        with patch.dict('os.environ', {}, clear=False):
+            import os as _os
+
+            _os.environ.pop('GITHUB_EVENT_PATH', None)
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertEqual(check.details['default_branch'], 'main')
+        self.assertFalse(check.details['default_branch_resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_fork_pr_head_ref_matching_default_branch_name_blocks(self) -> None:
+        """Regression test (Copilot review finding on PR #302,
+        PRRT_kwDORzpWpM6WzvNo): a fork PR whose source branch happens to be
+        named the same as the target repository's default branch (`main` is
+        the common default for a fork) must NOT be granted
+        `BRANCH_CREATE_ELIGIBLE` just because `current_branch == default_branch`
+        -- that equality can arise from `GITHUB_HEAD_REF` resolving a PR's
+        head branch name, not from an actual push to the target repository's
+        default branch. `GITHUB_HEAD_REF` is set only for
+        `pull_request`/`pull_request_target` events, so its presence is the
+        signal used to suppress the default-branch shortcut and fall through
+        to ordinary shipment-branch matching (correctly blocking here, since
+        `main` is neither a canonical `feat/`/`chore/` alias for the active
+        shipment nor the actual default branch of a genuine push)."""
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),),
+            branch='',  # actions/checkout always leaves CI on detached HEAD
+            default_branch='main',
+        )
+        with patch.dict(
+            'os.environ',
+            {'GITHUB_HEAD_REF': 'main'},
+            clear=False,
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_EVENT_PATH', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertEqual(check.details['current_branch'], 'main')
+        self.assertEqual(check.details['default_branch'], 'main')
+
+    def test_ci_mode_push_to_default_branch_named_main_still_eligible(self) -> None:
+        """Companion to the fork-PR regression above: a genuine `push` event
+        (no `GITHUB_HEAD_REF`) to the actual default branch must still
+        resolve `BRANCH_CREATE_ELIGIBLE` -- the fix is scoped to suppressing
+        the shortcut only when a `pull_request` event is active, not to
+        removing the shortcut altogether."""
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),),
+            branch='',
+            default_branch='main',
+        )
+        with patch.dict(
+            'os.environ',
+            {'GITHUB_REF_NAME': 'main', 'GITHUB_REF_TYPE': 'branch'},
+            clear=False,
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            _os.environ.pop('GITHUB_EVENT_PATH', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+
+    def test_non_ci_mode_ignores_github_event_path_default_branch_fallback(self) -> None:
+        """The `GITHUB_EVENT_PATH`-based default-branch fallback is gated on
+        `mode == 'ci'` only, mirroring the detached-HEAD branch fallback:
+        `agent`/`manual` mode must ignore it even if the variable happens to
+        be set in the environment."""
+        readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued'),),
+            branch='master',
+            default_branch='main',
+        )
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            event_path = Path(tmp) / 'event.json'
+            event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
+            with patch.dict('os.environ', {'GITHUB_EVENT_PATH': str(event_path)}, clear=False):
+                result = evaluate(
+                    TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+                    readers=readers,
+                )
+        # 'master' is neither the (reader-reported) default branch 'main' nor
+        # a feat/chore/114-s alias, so agent mode must still block -- the
+        # event-path override must not have applied.
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertEqual(check.details['default_branch'], 'main')
+        self.assertFalse(check.details['default_branch_resolved_via_ci_env_fallback'])
 
     def test_non_target_branch_blocks(self) -> None:
         readers = _FakeReaders(
