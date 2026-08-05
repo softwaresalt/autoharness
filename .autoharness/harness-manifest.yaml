@@ -156,8 +156,8 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "44928c61d0a1fa337fb9648c7524c35270c5e0496cbea31930069c69686f8ded"
-    note: "global skill definition; checksum refreshed 116-S/109.011-T + Copilot-review remediation (Gate C CI entrypoint artifact-map rows added by 109.011-T; {{CI_AUTOHARNESS_INSTALL_COMMAND}} variable-table row + self-hosting resolver contract added while resolving PR #302 Copilot review threads PRRT_kwDORzpWpM6Wyyxj / PRRT_kwDORzpWpM6Wy-b9); checksum computed from the LF-normalized committed git blob via `git cat-file -p HEAD:<path>` per the procedure established in 115-S (the `.gitattributes` eol=lf pin for this file keeps refreshes deterministic regardless of local autocrlf)"
+    checksum: "4f82b9591c65f6c6c74c50f36dcabd5d923a3646b2351882a753b002edf00927"
+    note: "global skill definition; checksum refreshed 116-S/109.011-T + Copilot-review remediation (Gate C CI entrypoint artifact-map rows added by 109.011-T; {{CI_AUTOHARNESS_INSTALL_COMMAND}} variable-table row + self-hosting resolver contract added while resolving PR #302 Copilot review threads PRRT_kwDORzpWpM6Wyyxj / PRRT_kwDORzpWpM6Wy-b9; {{FEATURE_SHIPMENTS}}-gating of the topology-check job/entrypoint added while resolving thread PRRT_kwDORzpWpM6WzLkw; atomic needs:/results= stripping requirement added while resolving thread PRRT_kwDORzpWpM6Wzfxk); checksum computed from the LF-normalized committed git blob via `git cat-file -p HEAD:<path>` per the procedure established in 115-S (the `.gitattributes` eol=lf pin for this file keeps refreshes deterministic regardless of local autocrlf)"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
