@@ -114,8 +114,13 @@ non-`forced` result) to a `failed` telemetry outcome instead of `success`;
 and (c) — added during this closure PR's *own* second review round, see
 below — `closure_complete()` (`src/autoharness/gates/topology.py:505-518`)
 must validate the closure artifact's actual `closure_status`/releasability
-(requiring a terminal value such as `READY`/`READY_WITH_CONDITIONS`), not
-only `compaction_status`.
+and require it be `READY` (not merely non-`BLOCKED`), or, if
+`READY_WITH_CONDITIONS` is to be accepted at all, only when accompanied by
+machine-readable evidence that every listed condition is independently
+verified satisfied — not merely present as a string value — since a naive
+"accept any non-`BLOCKED` value" fix would let this artifact register as
+complete before any of its own three conditions are actually met, the
+exact gap the addendum below is written to prevent.
 
 ### Addendum: the "condition" above is not currently tool-enforced
 
@@ -271,7 +276,8 @@ gates B/C remain queued in `115-S`/`116-S`):
     `compaction_status`, never `closure_status`/releasability — a third
     recurrence of a defect Copilot's PR #297 review had already flagged
     twice (as suppressed comments, never a resolvable thread). None is
-    exercised in production today (see Releasability below), but all three
+    exercised by any automated caller today (see Releasability below —
+    the CLI subcommand remains manually invocable), but all three
     must be fixed before `115-S` activates this gate as a real enforcement
     point — and the third defect means the topology gate cannot currently
     be relied on to enforce that itself; it is a process commitment, not a
@@ -297,9 +303,14 @@ gates B/C remain queued in `115-S`/`116-S`):
   wired into any hook or automated caller** (no existing automation invokes
   it; hook install is deferred to gate B/`115-S`; Ship's own current
   claim-verify logic in `.github/agents/_ship.agent.md` also does not call
-  it yet), so there is zero live blast radius from the three known residual
-  defects today — the only user-facing behavior change is the CLI
-  help-text addition, which is unaffected by any of them; rollback =
+  it yet), so there is **zero automated blast radius** from the three known
+  residual defects today. This is narrower than "zero live blast radius":
+  the CLI subcommand remains manually invocable by any operator or agent
+  today, so a manual invocation could exercise the retry, telemetry, or
+  `closure_complete()` defects right now — the risk is that no automated
+  system currently triggers them, not that they are unreachable. The only
+  *automated* user-facing behavior change is the CLI help-text addition,
+  which is unaffected by any of them; rollback =
   revert merge commit `cef4040` (additive new module + tests + docs, no
   destructive migration, no schema change); validation window = immediate
   post-merge on 2026-08-05 after `main` synced to `cef4040`; owner = Ship
@@ -349,8 +360,10 @@ code were surfaced by this closure PR's own two Copilot review rounds, are
 documented above as required Stage follow-ups, and are the reason this
 verdict is
 `READY_WITH_CONDITIONS` rather than an unconditional `READY`: the defects
-have zero live blast radius today (dormant, unwired CLI subcommand) but
-must be fixed and verified before `115-S` (or any other work) activates
+have zero *automated* blast radius today (dormant, unwired CLI subcommand
+— not invoked by any hook or automated caller) but remain manually
+invocable, so they are not unreachable in an absolute sense; they must be
+fixed and verified before `115-S` (or any other work) activates
 this gate via a hook or automated caller.
 
 **Remaining approval blocker**: this post-merge closure PR requires its own
