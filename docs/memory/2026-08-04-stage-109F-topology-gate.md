@@ -35,6 +35,10 @@ Links: `001-SP --informs--> 109-F`, `012-DL --informs--> 109-F`.
 
 ## Serial shipment sequence + cursor
 
+> **SUPERSEDED by cycle-2 repair (see "P1 repair cycle 2" below).** 115-S/116-S are
+> now `status: queued` (not `blocked`); serial order is enforced purely by `blocks`
+> edges. Counts changed: A=8, B=8, C=3 (19 tasks). The list below is the cycle-1 state.
+
 - **114-S (A — deterministic gate core)** — `queued`, ELIGIBLE (cursor / next).
   Items (task-only): 109.002-T(A1), 109.005-T(A2), 109.003-T(A3a), 109.009-T(A3b),
   109.004-T(A4), 109.001-T(A5), 109.006-T(A6).
@@ -65,6 +69,10 @@ Links: `001-SP --informs--> 109-F`, `012-DL --informs--> 109-F`.
 - `34D50F2D`, `936C68F3` — UNTOUCHED (out of this turn's scope).
 
 ## Handoff to Ship
+
+> **SUPERSEDED by cycle-2 repair.** The `blocked -> queued` transition below is
+> UNSUPPORTED by backlogit 1.8.0 and must NOT be attempted. See the corrected
+> handoff in "P1 repair cycle 2".
 
 Handoff token = **shipment 114-S** (single eligible cursor). Successors 115-S/116-S
 are dependency-gated (`blocked`). Ship transitions each `blocked -> queued` only
@@ -105,3 +113,71 @@ Feature-closure contract (explicit, post-116-S):
 3. Optional backlogit-recorded worktree-owner token for cross-machine worktree
    observability (deferred; out of current bounded scope).
 4. Prioritize the deferred DAG-visibility follow-up (33CC445C) in a future turn.
+
+## P1 repair cycle 2 (2026-08-04, reviewed HEAD fa6858e BLOCKED, P0=0 / P1=3)
+
+Reviewed HEAD fa6858e (prior feature-in-first-manifest defect already fixed). Three
+high-severity contract defects repaired. Route claude-opus-4.8/anthropic/high,
+DARK_MODE_ACTIVE. Review evidence: **109.002-R** (PASS). No source/template/config
+mutated by Stage; only backlog + planning + memory artifacts.
+
+### P1-1 — safe-close reconcile falsely protects archived predecessor siblings
+The installed Ship `shipment-reconcile` safe-close contract (`_ship.agent.md`
+closure tasks b/c, L484-522) computes the protected set as the covering feature +
+every sibling task NOT in the manifest, scanning both `.backlogit/queue/` and
+`.backlogit/archive/`, and requires every protected-set member to remain in
+`queue/`. For a feature split across serial shipments (109-F -> 114/115/116-S), a
+predecessor shipment's LEGITIMATELY archived tasks trip the baseline/verify cascade
+halt, so 115-S/116-S can never safe-close.
+**Fix:** added **109.016-T (A7)** to **114-S** — make protected-set computation
+multi-shipment-per-feature sequence-aware (exclude siblings whose owning shipment
+already shipped/archived; still halt on genuine cascades — NO P-001 bypass). Placed
+in 114-S so the corrected contract is installed BEFORE 115-S/116-S close (114-S
+itself closes cleanly under the current contract — no predecessor archived yet).
+
+### P1-2 — impossible blocked -> queued handoff
+VERIFIED against `C:/Source/GitHub/backlogit/internal/core/shipment.go`
+`isValidShipmentTransition` (L336-345): supported transitions are ONLY
+`queued->active`, `active->shipped`, `active->abandoned`. `blocked` is not a valid
+`ShipmentStatus` constant; a blocked shipment is a dead end. The prior handoff
+required `blocked -> queued` (impossible).
+**Fix (data):** 115-S and 116-S corrected `blocked -> queued`; `blocks` edges
+retained (115-S->114-S, 116-S->115-S). Serial eligibility is now enforced by the
+orchestrator hard blocks-eligibility gate — a `queued` successor with an unshipped
+blocking predecessor is never eligible (verified: 114-S no predecessor = ELIGIBLE;
+115-S/116-S suppressed). **Fix (durable):** added **109.019-T (B8)** to correct the
+Orchestrator/Ship sequencing prose (remove blocked->queued; queued-from-start +
+blocks-edge suppression). Stale compound doc
+`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md` corrected inline.
+
+### P1-3 — missing Ship/Orchestrator gate-invocation integration
+The feature promised gate enforcement before claim, branch/worktree creation, build,
+push, PR, closure, but no task wired the AGENT-orchestrated invocation points (git
+hooks only cover commit/push).
+**Fix:** added **109.017-T (B6)** — Ship agent invocation at claim / worktree /
+build / PR / closure; **109.018-T (B7)** — Orchestrator invocation at route-to-Ship
+eligibility + cursor-advance. Both carry structural acceptance assertions. Feature
+DoD updated with the two new invocation-coverage + sequence-aware-reconcile bullets.
+
+### Revised topology (task-only manifests, 19 tasks, each exactly once)
+- **114-S (A — core)** — `queued`, **ELIGIBLE (cursor / next)**. 8 tasks:
+  109.001-T, 109.002-T, 109.003-T, 109.004-T, 109.005-T, 109.006-T, 109.009-T,
+  **109.016-T (A7, reconcile sequence-awareness — new)**.
+- **115-S (B — hooks/install/integration)** — `queued`, blocks-on 114-S (suppressed).
+  8 tasks: 109.007-T, 109.008-T, 109.010-T, 109.013-T, 109.015-T,
+  **109.017-T (B6)**, **109.018-T (B7)**, **109.019-T (B8)** — all new B6/B7/B8.
+- **116-S (C — CI backstop)** — `queued`, blocks-on 115-S (suppressed).
+  3 tasks: 109.011-T, 109.012-T, 109.014-T.
+
+### Corrected handoff to Ship (supersedes the stale section above)
+Handoff token = **shipment 114-S** (single eligible cursor). All three shipments are
+`status: queued`; 115-S/116-S are dependency-gated by `blocks` edges and are NOT
+eligible until their predecessor reaches `shipped`. **Do NOT attempt any
+`blocked -> queued` transition** — it is unsupported. Ship claims a successor
+(`queued -> active`) only after its predecessor is shipped AND post-merge closure
+(incl. P-020 compaction) is complete. Ordered cursor: 114-S -> 115-S -> 116-S.
+
+Artifacts touched this cycle: created 109.016-T / 109.017-T / 109.018-T / 109.019-T
+(sized size+complexity); added to manifests 114-S (016) and 115-S (017/018/019);
+115-S & 116-S status blocked->queued; 109-F DoD updated; review 109.002-R (PASS);
+compound status-constraints doc corrected; this memory. Index re-synced (686).

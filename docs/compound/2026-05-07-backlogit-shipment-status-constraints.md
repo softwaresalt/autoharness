@@ -9,6 +9,21 @@ date: 2026-05-07
 
 # backlogit Shipment Status Constraints
 
+> **CORRECTION (2026-08-04, 109-F cycle-2 review-fix).** The "Valid shipment
+> lifecycle" diagram below is STALE for backlogit 1.8.0. Verified against
+> `C:/Source/GitHub/backlogit/internal/core/shipment.go` `isValidShipmentTransition`
+> (L336-345) and `MoveShipmentStatus` (L107-108): the ONLY supported shipment
+> transitions are `queued -> active`, `active -> shipped`, and `active -> abandoned`.
+> There is **no** `queued -> blocked` and **no** `blocked -> queued` transition, and
+> `blocked` is not even a defined `ShipmentStatus` constant — a shipment written to
+> `blocked` becomes a dead end that can never legally transition. The `backlogit move`
+> CLI silently accepts invalid status writes, which is how `blocked` shipment records
+> got created. **Correct serial-sequencing pattern:** keep dependency-gated successor
+> shipments at `status: queued` from creation and gate them purely with shipment
+> `blocks` edges (the queue hard-eligibility gate suppresses a queued successor whose
+> blocking predecessor has not yet shipped; the edge clears automatically on
+> predecessor ship). Do NOT model dependency gating with a `blocked` shipment status.
+
 ## Problem
 
 A shipment artifact was moved to `status: review` during PR review, mirroring the
