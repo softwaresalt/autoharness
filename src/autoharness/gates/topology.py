@@ -403,7 +403,7 @@ def _evaluate_core(
     if worktree_check.status == "blocked":
         return _blocked_result(topology_input, resolved_phase, target, worktree_check)
 
-    readiness_check = _shipment_readiness_check(target, shipments, bound_readers)
+    readiness_check = _shipment_readiness_check(resolved_phase, target, shipments, bound_readers)
     checks.append(readiness_check)
     if readiness_check.status == "blocked":
         return _blocked_result(topology_input, resolved_phase, target, readiness_check)
@@ -853,7 +853,7 @@ def _normalized_live_status(shipment: ShipmentState) -> str | None:
 
 def _has_ambiguous_shipment_records(shipment: ShipmentState) -> bool:
     live_status = _normalized_live_status(shipment)
-    return live_status not in (None, "shipped") and shipment.archived_status is not None
+    return live_status is not None and shipment.archived_status is not None
 
 
 def _is_shipped_terminal(shipment: ShipmentState) -> bool:
@@ -865,7 +865,17 @@ def _is_shipped_terminal(shipment: ShipmentState) -> bool:
     return shipment.archived_status in {"shipped", "done"}
 
 
+def _target_phase_requirement(phase: str) -> tuple[str, str, str] | None:
+    requirements = {
+        "pre_claim": ("queued", "TARGET_NOT_CLAIMABLE", "before claim"),
+        "post_claim": ("active", "TARGET_NOT_ACTIVE", "during post-claim verification"),
+        "lifecycle": ("active", "TARGET_NOT_ACTIVE", "during lifecycle execution"),
+    }
+    return requirements.get(phase)
+
+
 def _shipment_readiness_check(
+    phase: str,
     target: str | None,
     shipments: Sequence[ShipmentState],
     readers: TopologyReaders,
@@ -879,6 +889,30 @@ def _shipment_readiness_check(
 
     shipment_map = _shipment_map(shipments)
     shipment = shipment_map.get(target)
+    requirement = _target_phase_requirement(phase)
+    normalized_live_status = _normalized_live_status(shipment) if shipment is not None else None
+    if requirement is not None:
+        expected_live_status, token, phase_note = requirement
+        if normalized_live_status != expected_live_status:
+            observed = normalized_live_status or "missing live shipment record"
+            return CheckResult(
+                name="shipment_readiness",
+                status="blocked",
+                token=token,
+                message=(
+                    f"{token}: target {target} must have live status {expected_live_status} {phase_note}; "
+                    f"found {observed}"
+                ),
+                details={
+                    "phase": phase,
+                    "target_shipment_id": target,
+                    "expected_live_status": expected_live_status,
+                    "live_status": shipment.live_status if shipment else None,
+                    "normalized_live_status": normalized_live_status,
+                    "archived_status": shipment.archived_status if shipment else None,
+                },
+            )
+
     if shipment is None:
         return CheckResult(
             name="shipment_readiness",

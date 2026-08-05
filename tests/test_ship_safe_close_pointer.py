@@ -10,8 +10,16 @@ _TEMPLATE = _ROOT / 'templates' / 'agents' / '_ship.agent.md.tmpl'
 _MIRROR = _ROOT / '.github' / 'agents' / '_ship.agent.md'
 
 
+def _template_text() -> str:
+    return _TEMPLATE.read_text(encoding='utf-8')
+
+
+def _mirror_text() -> str:
+    return _MIRROR.read_text(encoding='utf-8')
+
+
 def _files():
-    return (('template', _TEMPLATE.read_text(encoding='utf-8')), ('mirror', _MIRROR.read_text(encoding='utf-8')))
+    return (('template', _template_text()), ('mirror', _mirror_text()))
 
 
 class ShipSafeClosePointerTests(unittest.TestCase):
@@ -22,13 +30,16 @@ class ShipSafeClosePointerTests(unittest.TestCase):
                 self.assertIn('thin pointer', content)
                 self.assertIn('step-by-step safe-close algorithm lives in the `shipment-reconcile` skill', content)
 
-    def test_self_hosting_checkout_names_template_source_of_truth(self) -> None:
-        for label, content in _files():
-            normalized = ' '.join(content.split())
-            with self.subTest(file=label):
-                self.assertIn('self-hosting repository', normalized)
-                self.assertIn('templates/skills/shipment-reconcile/SKILL.md.tmpl', normalized)
-                self.assertIn('not installed as resolved `.github/skills/` copies', normalized)
+    def test_self_hosting_note_is_dogfood_only_in_installed_mirror(self) -> None:
+        normalized = ' '.join(_mirror_text().split())
+        self.assertIn('self-hosting repository', normalized)
+        self.assertIn('templates/skills/shipment-reconcile/SKILL.md.tmpl', normalized)
+        self.assertIn('not installed as resolved `.github/skills/` copies', normalized)
+        self.assertIn('dogfood-only addition', normalized)
+        self.assertIn('PR #297 Copilot review', normalized)
+
+    def test_generic_template_does_not_name_dogfood_templates_tree(self) -> None:
+        self.assertNotIn('templates/skills/', _template_text())
 
     def test_summary_names_non_cascading_shipment_record_sequence(self) -> None:
         for label, content in _files():

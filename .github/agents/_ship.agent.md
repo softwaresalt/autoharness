@@ -494,6 +494,10 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    `operational-closure`, `runtime-verification`, `compact-context`) are not installed
    as resolved `.github/skills/` copies; read the authored template at
    `templates/skills/shipment-reconcile/SKILL.md.tmpl` directly when operating here.
+   This sentence is a dogfood-only addition and does not appear in the generic
+   `templates/agents/_ship.agent.md.tmpl` source because external consuming
+   workspaces receive a resolved `.github/skills/shipment-reconcile/SKILL.md`
+   via install-harness (PR #297 Copilot review).
    At the summary level, the skill:
    a. archives only the shipment manifest's explicit item IDs;
    b. closes only the shipment record via the non-cascading sequence

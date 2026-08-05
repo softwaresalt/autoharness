@@ -636,11 +636,7 @@ lifecycle to transition out of. See
       `shipment-reconcile` skill with `mode: safe-close`, `shipment_id`, and the
       `merge_commit_sha`. Keep this agent file at pointer level only — the full,
       step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and
-      must not be re-derived here. In this self-hosting repository, `shipment-reconcile` plus
-      Ship's other referenced skills (`review`, `fix-ci`, `pr-lifecycle`,
-      `operational-closure`, `runtime-verification`, `compact-context`) are not installed
-      as resolved `.github/skills/` copies; read the authored template at
-      `templates/skills/shipment-reconcile/SKILL.md.tmpl` directly when operating here.
+      must not be re-derived here.
       At the summary level, the skill:
       * archives only the shipment manifest's explicit item IDs;
       * closes only the shipment record via the non-cascading sequence `backlogit move

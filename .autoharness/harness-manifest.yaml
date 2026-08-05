@@ -112,7 +112,7 @@ artifacts:
   - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "961002616c6907320ba83b0874dcb33f01341de4bed757673dd65a45cca794fc"
+    checksum: "021f6fdaa3745239e8a4e63ec3930808c1c17b90949021f22b6ed2625e4b11b1"
     note: "source-controlled dogfood workflow agent; checksum refreshed 114-S/109.020-T + 109.019-T (safe-close pointer + queued-from-start sequencing reload contract) and again for the Copilot-review blocked-shipment-language removal fix; checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p HEAD:<path>`, never a raw Windows working-tree read (see docs/compound CRLF/LF checksum gotcha)"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4

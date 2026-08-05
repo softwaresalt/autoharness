@@ -11,6 +11,7 @@ from autoharness.gates.topology import (
     ShipmentState,
     TopologyInput,
     _active_invariant_check,
+    _shipment_readiness_check,
     evaluate,
 )
 
@@ -440,6 +441,44 @@ class WorktreeTopologyTests(unittest.TestCase):
         self.assertEqual(result.primary_token, 'MULTIPLE_IMPLEMENTATION_WORKTREES')
 
 
+class TargetShipmentReadinessTests(unittest.TestCase):
+    def test_pre_claim_target_must_be_queued(self) -> None:
+        cases = (
+            _shipment('114-S', 'shipped'),
+            _shipment('114-S', 'abandoned'),
+            _shipment('114-S', '', archived_status='shipped'),
+        )
+        for shipment in cases:
+            with self.subTest(shipment=shipment):
+                check = _shipment_readiness_check('pre_claim', '114-S', (shipment,), _FakeReaders())
+                self.assertEqual(check.status, 'blocked')
+                self.assertEqual(check.token, 'TARGET_NOT_CLAIMABLE')
+
+    def test_pre_claim_queued_target_still_passes(self) -> None:
+        check = _shipment_readiness_check('pre_claim', '114-S', (_shipment('114-S', 'queued'),), _FakeReaders())
+        self.assertEqual((check.status, check.token), ('passed', None))
+
+    def test_post_claim_and_lifecycle_target_must_be_active(self) -> None:
+        for phase in ('post_claim', 'lifecycle'):
+            with self.subTest(phase=phase, state='queued'):
+                check = _shipment_readiness_check(phase, '114-S', (_shipment('114-S', 'queued'),), _FakeReaders())
+                self.assertEqual(check.status, 'blocked')
+                self.assertEqual(check.token, 'TARGET_NOT_ACTIVE')
+            with self.subTest(phase=phase, state='active'):
+                check = _shipment_readiness_check(phase, '114-S', (_shipment('114-S', 'active'),), _FakeReaders())
+                self.assertEqual((check.status, check.token), ('passed', None))
+
+    def test_ambient_target_status_check_remains_permissive(self) -> None:
+        for shipment in (
+            _shipment('114-S', 'queued'),
+            _shipment('114-S', 'active'),
+            _shipment('114-S', 'shipped'),
+        ):
+            with self.subTest(shipment=shipment):
+                check = _shipment_readiness_check('ambient', '114-S', (shipment,), _FakeReaders())
+                self.assertEqual((check.status, check.token), ('passed', None))
+
+
 class ShipmentReadinessTests(unittest.TestCase):
     def test_live_shipped_with_complete_closure_passes(self) -> None:
         class Readers(_FakeReaders):
@@ -489,6 +528,21 @@ class ShipmentReadinessTests(unittest.TestCase):
 
         readers = Readers(shipments=(
             _shipment('113-S', 'queued', archived_status='shipped'),
+            _shipment('114-S', 'queued', deps=('113-S',)),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_STATE_AMBIGUOUS')
+
+    def test_live_shipped_duplicate_archive_predecessor_blocks(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return True
+
+        readers = Readers(shipments=(
+            _shipment('113-S', 'shipped', archived_status='shipped'),
             _shipment('114-S', 'queued', deps=('113-S',)),
         ))
         result = evaluate(
