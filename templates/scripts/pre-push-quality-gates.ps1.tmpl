@@ -91,6 +91,37 @@ Invoke-Gate "Typecheck" "{{TYPECHECK_TOOL}}" "{{TYPECHECK_COMMAND}}"
 Invoke-Gate "Test" "{{TEST_TOOL}}" "{{TEST_COMMAND}}"
 Invoke-Gate "Build" "{{BUILD_TOOL}}" "{{BUILD_CHECK_COMMAND}}"
 
+# Pipeline-topology gate (P-001/P-016 ambient invariant check).
+#
+# NON-SHIPMENT-SCOPED INVOCATION: no human-supplied --shipment is passed.
+# The gate deterministically resolves its target (the currently-claimed
+# active shipment from backlogit, or the current branch slug) and always
+# runs `--phase ambient` here (at-most-one-active, validating the
+# resolved target when one exists). No resolvable claimed shipment / zero
+# active shipments -> PASSES (existence-guarded, non-blocking); a
+# mismatched single active or two-or-more-active shipments still blocks
+# fail-closed regardless of the advisory toggle below.
+#
+# Advisory-first by default (staged rollout): a gate failure warns but
+# does NOT block the push unless $env:AUTOHARNESS_TOPOLOGY_GATE_BLOCKING
+# is 'true'. Single deterministic pass — no retry loop (circuit-breaker
+# compatible). Absent 'autoharness' -> warn+skip, never a hard failure.
+if (Get-Command autoharness -ErrorAction SilentlyContinue) {
+    Write-Host "[Pipeline-Topology] autoharness gate pipeline-topology --mode manual --phase ambient"
+    autoharness gate pipeline-topology --mode manual --phase ambient
+    if ($LASTEXITCODE -ne 0) {
+        if ($env:AUTOHARNESS_TOPOLOGY_GATE_BLOCKING -eq 'true') {
+            Write-Error "pipeline-topology gate failed — push blocked (P-001/P-016)."
+            $script:Failed = $true
+        } else {
+            Write-Warning "pipeline-topology gate failed (advisory) — push not blocked."
+            Write-Warning "  Set `$env:AUTOHARNESS_TOPOLOGY_GATE_BLOCKING = 'true' to enforce, or push --no-verify to bypass entirely."
+        }
+    }
+} else {
+    Write-Warning "'autoharness' not found — skipping pipeline-topology gate."
+}
+
 if ($script:Failed) {
     Write-Error "One or more quality gates failed. Fix them, or push with --no-verify to bypass."
     exit 1
