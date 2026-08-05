@@ -221,7 +221,10 @@ copilot-review options:
 
 pipeline-topology options:
   --mode <m>          agent | manual | ci. Default: manual.
-  --shipment <id>     Explicit shipment target. Required in agent mode.
+  --shipment <id>     Explicit shipment target. Required in agent mode, and
+                      required in any mode whenever --phase resolves to
+                      pre_claim, post_claim, or lifecycle (only ambient is
+                      meaningful without a target).
   --phase <p>         pre_claim | post_claim | lifecycle | ambient. Required in agent
                       mode; defaults to ambient when omitted in manual/ci mode.
   --json              Emit the topology gate result as JSON.

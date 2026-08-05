@@ -597,6 +597,19 @@ def _validate_input(topology_input: TopologyInput) -> TopologyResult | None:
             resolved_phase or "ambient",
             f"invalid phase: {resolved_phase!r}",
         )
+    # An explicit scoped phase (pre_claim/post_claim/lifecycle) always evaluates
+    # branch ownership and shipment readiness against a specific target; that
+    # target must be provided regardless of mode. Only `ambient` is meaningful
+    # without one. Without this check, `--mode ci --phase pre_claim` (or manual
+    # mode) with no `--shipment` could pass with zero active shipments while
+    # silently skipping ownership/readiness checks the scoped-input contract
+    # requires.
+    if resolved_phase in SCOPED_PHASES and _normalize_target(topology_input.target_shipment_id) is None:
+        return _invalid_result(
+            topology_input,
+            resolved_phase,
+            f"--phase {resolved_phase} requires --shipment <shipment_id> in any mode",
+        )
     return None
 
 

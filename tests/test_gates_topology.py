@@ -677,6 +677,35 @@ class AgentInputValidationTests(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 2)
 
+    def test_scoped_phase_without_shipment_is_invalid_in_any_mode(self) -> None:
+        for mode in ('manual', 'ci'):
+            for phase in ('pre_claim', 'post_claim', 'lifecycle'):
+                with self.subTest(mode=mode, phase=phase):
+                    result = evaluate(
+                        TopologyInput(mode=mode, phase=phase, target_shipment_id=None),
+                        readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),)),
+                    )
+                    self.assertEqual(result.exit_code, 2)
+                    self.assertIn('requires --shipment', result.message)
+
+    def test_ambient_phase_without_shipment_is_valid_in_any_mode(self) -> None:
+        for mode in ('manual', 'ci'):
+            with self.subTest(mode=mode):
+                result = evaluate(
+                    TopologyInput(mode=mode, phase='ambient', target_shipment_id=None),
+                    readers=_FakeReaders(shipments=()),
+                )
+                self.assertNotEqual(result.exit_code, 2)
+
+    def test_scoped_phase_with_shipment_remains_valid_in_manual_and_ci_mode(self) -> None:
+        for mode in ('manual', 'ci'):
+            with self.subTest(mode=mode):
+                result = evaluate(
+                    TopologyInput(mode=mode, phase='pre_claim', target_shipment_id='114-S'),
+                    readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),)),
+                )
+                self.assertNotEqual(result.exit_code, 2)
+
 
 class ReadinessMatrixTests(unittest.TestCase):
     def _result(self, predecessor: ShipmentState, closure_complete: bool | None) -> tuple[int, str | None]:
