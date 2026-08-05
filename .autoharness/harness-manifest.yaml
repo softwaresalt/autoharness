@@ -112,13 +112,13 @@ artifacts:
   - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "6d79fc36a90219f536b3a263af40b85c5e950d6f685b13bb878ab650420ca6fd"
-    note: "source-controlled dogfood workflow agent; checksum refreshed 110-S/106.005-T (P-013.6 auto-escalation directive added to Escalation Protocol — Consecutive Task Failures)"
+    checksum: "021f6fdaa3745239e8a4e63ec3930808c1c17b90949021f22b6ed2625e4b11b1"
+    note: "source-controlled dogfood workflow agent; checksum refreshed 114-S/109.020-T + 109.019-T (safe-close pointer + queued-from-start sequencing reload contract) and again for the Copilot-review blocked-shipment-language removal fix; checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p HEAD:<path>`, never a raw Windows working-tree read (see docs/compound CRLF/LF checksum gotcha)"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "35957c5eeb8be2e2d1789cecb8eb19b530e805a46e339cc4923ef3a51e1c8756"
-    note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013; checksum refreshed 108-S/104.003-T (P-013.5 Stage/Ship invocation-time model-routing directive)"
+    checksum: "1bbc6f5f04287147b60d2b089b30f66cbef55d20456fd6788e8d2057ec88f974"
+    note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013; checksum refreshed 114-S/109.019-T (queued-from-start sequencing + post-predecessor reload contract) and again for the Copilot-review blocked-shipment-language removal fix; checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p HEAD:<path>`, never a raw Windows working-tree read"
   - path: "start.sh"
     primitive: 1
     template: "scripts/start.sh.tmpl"

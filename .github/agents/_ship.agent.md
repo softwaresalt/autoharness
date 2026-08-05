@@ -172,7 +172,7 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
 1. Identify the shipment or feature to work on (read-only — do not claim yet).
    * If a shipment exists, record its ID for use in step 4.
    * Otherwise, select queued tasks from the backlog.
-1a. **Queued/blocked-with-active-work early-warning (NON-NEGOTIABLE ordering: runs immediately after the shipment record is loaded, BEFORE the scope/status validation in step 2 and BEFORE the step 4 claim)**: This scan applies only when a shipment exists (`shipment_id` was recorded in step 1); in the no-shipment path (bare queued tasks selected directly from the backlog) there is no shipment record to check, so skip this early-warning. Load the shipment record and enumerate its manifest task IDs via `backlogit shipment get {shipment_id}` (→ `custom_fields.items`), then read each task's status via `backlogit get {task_id}` (CLI fallback path — the whole check uses the CLI since MCP is the unreliable surface being guarded). Filter `custom_fields.items` to task artifacts (exclude any non-task entry — backlogit task IDs end in `-T`, features in `-F`) before evaluating statuses: the shipment `items` list is untyped and the fallback/direct-assembly path can seed it with the covering feature ID, so an `active`/`done` feature entry must be excluded to avoid a false fail-closed halt. Only task artifacts are scanned (task-only manifest, per the 097-S contract); the covering feature is derived via `parent_id` and is **not** part of the scan. If the loaded shipment record status is `queued` or `blocked` while any manifest task is already `active` or `done`, halt with `SHIPMENT_STATE_INCONSISTENT: shipment {shipment_id} is {status} but task {task_id} is {task_status}` (detect-and-report only — no auto-repair) and record a P-005 event. Remediation: for a `queued` record, resolve and re-claim; for a `blocked` record, resolve the blocking gate and transition `blocked → queued` **before** any claim — never re-claim-to-`active` directly on a blocked record, which bypasses the documented blocking gate (`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md:32-44`); a genuinely stale record is archive-repaired instead. This runs **ahead of** the scope/status validation in step 2 so a `blocked`-with-active-work record is diagnosed before validation would reject it, and **ahead of** the step 4 claim so a successful `queued → active` claim cannot mask the inconsistency. Broadcast the result when intercom is available.
+1a. **Queued-with-active-work early-warning (NON-NEGOTIABLE ordering: runs immediately after the shipment record is loaded, BEFORE the scope/status validation in step 2 and BEFORE the step 4 claim)**: This scan applies only when a shipment exists (`shipment_id` was recorded in step 1); in the no-shipment path (bare queued tasks selected directly from the backlog) there is no shipment record to check, so skip this early-warning. Load the shipment record and enumerate its manifest task IDs via `backlogit shipment get {shipment_id}` (→ `custom_fields.items`), then read each task's status via `backlogit get {task_id}` (CLI fallback path — the whole check uses the CLI since MCP is the unreliable surface being guarded). Filter `custom_fields.items` to task artifacts (exclude any non-task entry — backlogit task IDs end in `-T`, features in `-F`) before evaluating statuses: the shipment `items` list is untyped and the fallback/direct-assembly path can seed it with the covering feature ID, so an `active`/`done` feature entry must be excluded to avoid a false fail-closed halt. Only task artifacts are scanned (task-only manifest, per the 097-S contract); the covering feature is derived via `parent_id` and is **not** part of the scan. If the loaded shipment record status is `queued` while any manifest task is already `active` or `done`, halt with `SHIPMENT_STATE_INCONSISTENT: shipment {shipment_id} is {status} but task {task_id} is {task_status}` (detect-and-report only — no auto-repair) and record a P-005 event. Remediation: for a `queued` record, resolve and re-claim; a genuinely stale record is archive-repaired instead. This runs **ahead of** the scope/status validation in step 2 so a `queued`-with-active-work record is diagnosed before validation would reject it, and **ahead of** the step 4 claim so a successful `queued → active` claim cannot mask the inconsistency. Backlogit 1.8.0 does not define a shipment `blocked` status; see `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`. Broadcast the result when intercom is available.
 2. Verify all tasks have clear scope and acceptance criteria. Task-only shipment
    manifests are valid: resolve each covering feature through the task's
    `parent_id` rather than requiring the parent feature to appear in the shipment.
@@ -214,12 +214,7 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
      `backlogit shipment claim {shipment_id}`) and re-read. If it still is not `active`, halt fail-closed with
      `CLAIM_VERIFY_FAILED: shipment {shipment_id} did not reach active after claim` and record a P-005 event.
      Retry-once applies **only** to a `queued` re-read.
-   - If the re-read status is `blocked`: halt **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} is
-     blocked` — **no retry, no claim**. `blocked` is the repository's claim-prevention state and must transition
-     `blocked → queued` (after its gate clears) before `queued → active`
-     (`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md:32-44`); re-issuing a claim on a
-     `blocked` record would bypass that documented gate. Remediation requires resolving the blocking gate and
-     transitioning `blocked → queued` before any claim — never a direct re-claim-to-`active` on a blocked record.
+   - If the re-read status is anything other than `active` or `queued`: halt **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} returned unexpected status {status}` — **no retry, no claim**. Any value outside `{active, queued}` is a fail-closed anomaly and must record a P-005 event. Backlogit 1.8.0 does not define a shipment `blocked` status; see `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`.
    Both halts fire **before** Step 2 moves any task to `active`. Broadcast the claim-verify result when intercom
    is available.
 
@@ -481,46 +476,44 @@ this protocol is non-negotiable and has no local-record bypass.
 
 #### Closure Tasks
 
-1. **Close the shipment via single-artifact safe-close (NEVER the cascade `backlogit_ship_shipment`, P-015)**:
-   Use the single-artifact safe-close procedure (the same one defined by the
-   `shipment-reconcile` safe-close mode in the template harness). Do NOT call
-   `backlogit_ship_shipment` (`backlogit shipment ship`) — the cascade op treats the
-   shipment as a proxy for its covering feature and archives the parent feature and any
-   unshipped siblings, corrupting the backlog on partial-feature shipments.
-   a. Read the shipment manifest: `backlogit shipment get <shipment_id>`. The
-      `custom_fields.items` list is the ONLY set of task IDs that may be archived.
-   b. **Partial-feature detection**: derive the covering feature ID (e.g. tasks `055.002-T`
-      belong to feature `055-F`) and compute the **protected set** from expected IDs — the
-      parent feature plus every sibling task under it that is NOT in the manifest. Enumerate
-      siblings by scanning both `.backlogit/queue/` and `.backlogit/archive/` so an
-      already-cascaded sibling is still detected. Every protected-set member must remain in
-      `.backlogit/queue/` after closure.
-   c. **Baseline gate (before archiving anything)**: run `git status --short -- .backlogit/`
-      to record the baseline, then confirm every protected-set member is present in
-      `.backlogit/queue/`. If any is already in `.backlogit/archive/` or missing, a cascade
-      already occurred (or the shipment scope is wrong): record a P-005 violation naming the
-      IDs and halt — do NOT archive any item. The pre-archived skip in step (d) applies to
-      manifest items ONLY, never the protected set.
-   d. **Archive each manifest item individually** (manifest IDs only): for each item,
-      `backlogit move <id> --status done` then `backlogit archive <id>`. Skip any manifest
-      item whose file is already in `.backlogit/archive/` (pre-archived) to avoid
-      false-positive cascade flags.
-   e. **Verify-after-each invariant**: after each archival, run
-      `git status --short -- .backlogit/` and confirm no protected-set member was moved into
-      `.backlogit/archive/` or deleted from `.backlogit/queue/`.
-   f. **git-revert-on-cascade**: if a protected-set artifact was archived or deleted, run
-      `git restore -- .backlogit/queue/ .backlogit/archive/` (or `git revert <commit>` if the
-      cascade was already committed) to recover it, record a P-005 violation naming the
-      cascaded IDs, and halt. Do NOT commit a corrupt backlog.
-   g. **Archive the shipment record itself** (single artifact, non-cascading):
-      `backlogit archive <shipment_id>` — never `backlogit shipment ship`. Then re-run the
-      verify-after-each check to confirm the protected set is still intact.
-   h. **Post re-verify (P-007 archive integrity)**: confirm every manifest item and the
-      shipment record now have files under `.backlogit/archive/`, the protected set is fully
-      present in `.backlogit/queue/`, and `git status -- ".backlogit/archive/"` shows no
-      working-tree deletions (run `git restore .backlogit/archive/` if it does).
-   i. **Commit only after the protected set is intact**: `git add .backlogit/` then
-      `git commit -m "chore: archive <shipment_id> backlog artifacts"`.
+**Mandatory pre-self-close context reload**: after this shipment's PR merges to `main`
+and **before** Ship closes that same shipment, re-read the freshly merged `main` Ship
+agent instructions and the `shipment-reconcile` skill. Close under the just-merged
+contract, not a stale in-context copy — especially when the merged shipment itself
+updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> active`,
+`active -> shipped`, and `active -> abandoned` for shipments; there is no shipment
+`blocked` lifecycle to transition out of. See
+`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`.
+
+1. **Close the shipment via single-artifact safe-close (thin pointer; `shipment-reconcile` is authoritative, NEVER the cascade `backlogit_ship_shipment`, P-015)**:
+   Invoke `shipment-reconcile` in `mode: safe-close` with the `shipment_id` and
+   `merge_commit_sha`. Keep this agent file at pointer level only — the authoritative,
+   step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and must
+   not be re-derived here. In this self-hosting repository, `shipment-reconcile` plus
+   Ship's other referenced skills (`review`, `fix-ci`, `pr-lifecycle`,
+   `operational-closure`, `runtime-verification`, `compact-context`) are not installed
+   as resolved `.github/skills/` copies; read the authored template at
+   `templates/skills/shipment-reconcile/SKILL.md.tmpl` directly when operating here.
+   This sentence is a dogfood-only addition and does not appear in the generic
+   `templates/agents/_ship.agent.md.tmpl` source because external consuming
+   workspaces receive a resolved `.github/skills/shipment-reconcile/SKILL.md`
+   via install-harness (PR #297 Copilot review).
+   At the summary level, the skill:
+   a. archives only the shipment manifest's explicit item IDs;
+   b. closes only the shipment record via the non-cascading sequence
+      `backlogit move <shipment_id> --status shipped` -> verify live `status: shipped`
+      -> `backlogit archive <shipment_id>` -> verify `archived_status: shipped`;
+   c. proves the protected set and halts fail-closed on any cascade or provenance
+      ambiguity.
+   d. **Do NOT call `backlogit shipment ship` / `backlogit_ship_shipment`.** That
+      cascade operation requeues + detaches unshipped descendant tasks back to the
+      backlog with `parent_id` cleared, archives release-scope members outside the
+      manifest-scoped ordering, and preserves/restores a non-member covering feature
+      via snapshot. It is P-015-forbidden for partial-feature shipments because it can
+      requeue/detach downstream siblings and close outside the safe-close ordering.
+   e. If the skill returns `HALT — cascade detected, revert required`, restore
+      `.backlogit/queue/` + `.backlogit/archive/`, surface the protected-set
+      violation, and halt. Do NOT commit a corrupt backlog.
 2. Write compound learnings for hard-won solutions.
 3. Update documentation if templates changed significantly.
 4. Write session memory to `docs/memory/`.

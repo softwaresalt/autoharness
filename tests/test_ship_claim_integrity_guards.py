@@ -7,23 +7,24 @@ template and its installed dogfood mirror:
 * Unit A (102.001-T) -- post-claim shipment-status verification: after the
   claim, re-read the shipment record's own status and assert it reached
   ``active``. Retry the claim exactly once ONLY when the re-read status is
-  ``queued``; on ``blocked`` halt immediately with ``CLAIM_VERIFY_FAILED`` and
-  NO retry / NO claim. The verify step is sequenced AFTER the claim and BEFORE
-  the task-claim step that first moves any task to ``active``.
+  ``queued``; on any other unexpected shipment status halt immediately with
+  ``CLAIM_VERIFY_FAILED`` and NO retry / NO claim. The verify step is sequenced
+  AFTER the claim and BEFORE the task-claim step that first moves any task to
+  ``active``.
 
-* Unit B (102.002-T) -- queued/blocked-with-active-work early-warning: a scan
-  that runs immediately after the shipment record is loaded and BEFORE both the
+* Unit B (102.002-T) -- queued-with-active-work early-warning: a scan that
+  runs immediately after the shipment record is loaded and BEFORE both the
   status/scope validation and the claim, halting with
-  ``SHIPMENT_STATE_INCONSISTENT`` when the loaded record is ``queued``/
-  ``blocked`` while a manifest task is already ``active``/``done``. The scan
+  ``SHIPMENT_STATE_INCONSISTENT`` when the loaded record is ``queued`` while a
+  manifest task is already ``active``/``done``. The scan
   filters ``custom_fields.items`` to task artifacts first so a covering-feature
   entry from a fallback manifest cannot trigger a false halt.
 
 The template form uses ``{{STATUS_*}}`` / ``{{OP_*}}`` placeholders; the
 resolved dogfood mirror must carry resolved literal values (no unresolved
-``{{VARIABLE}}`` placeholders introduced by these guards). ``blocked`` is a
-registered status customization (``{{STATUS_BLOCKED}}``), so the template must
-use the placeholder rather than hard-coding the literal.
+``{{VARIABLE}}`` placeholders introduced by these guards). Because shipment
+`blocked` is no longer a valid lifecycle state, the template must not carry a
+`{{STATUS_BLOCKED}}` branch for these guards.
 """
 
 from __future__ import annotations
@@ -66,11 +67,11 @@ _QUEUED_BRANCH = {
     "mirror": "If the re-read status is `queued`",
 }
 
-# Per-file marker beginning the blocked branch of the post-claim verify
-# (the immediate-halt / no-retry branch).
-_BLOCKED_BRANCH = {
-    "template": "If the re-read status is `{{STATUS_BLOCKED}}`",
-    "mirror": "If the re-read status is `blocked`",
+# Per-file marker beginning the unexpected-status branch of the post-claim
+# verify (the immediate-halt / no-retry branch).
+_UNEXPECTED_BRANCH = {
+    "template": "If the re-read status is anything other than `{{STATUS_ACTIVE}}` or `{{STATUS_QUEUED}}`",
+    "mirror": "If the re-read status is anything other than `active` or `queued`",
 }
 
 _CITATION = "docs/compound/2026-05-07-backlogit-shipment-status-constraints.md"
@@ -116,19 +117,19 @@ class ShipClaimIntegrityGuardTests(unittest.TestCase):
                     "post-claim verify must precede the task-claim step that moves a task active",
                 )
 
-    def test_blocked_halts_with_no_retry_no_claim(self) -> None:
-        """Unit A: the blocked branch halts immediately with no retry / no claim,
-        and that guidance is bound inside the blocked branch (before the task loop)."""
+    def test_unexpected_status_halts_with_no_retry_no_claim(self) -> None:
+        """Unit A: the unexpected-status branch halts immediately with no retry /
+        no claim, and that guidance stays inside the post-claim verify region."""
         for label, content, anchor in _files():
             with self.subTest(file=label):
                 self.assertIn("no retry, no claim", content)
-                blocked = _BLOCKED_BRANCH[label]
-                self.assertIn(blocked, content)
+                unexpected = _UNEXPECTED_BRANCH[label]
+                self.assertIn(unexpected, content)
                 no_retry_idx = content.index("no retry, no claim")
                 self.assertGreater(
                     no_retry_idx,
-                    content.index(blocked),
-                    "no-retry/no-claim guidance must live inside the blocked branch",
+                    content.index(unexpected),
+                    "no-retry/no-claim guidance must live inside the unexpected-status branch",
                 )
                 self.assertLess(
                     no_retry_idx,
@@ -138,8 +139,8 @@ class ShipClaimIntegrityGuardTests(unittest.TestCase):
 
     def test_retry_only_on_queued(self) -> None:
         """Unit A: retry-once occurs exactly once and is bound to the queued
-        branch -- after the queued marker and before the blocked branch -- so a
-        regression that moved retry under blocked would fail."""
+        branch -- after the queued marker and before the unexpected-status
+        branch -- so a regression that widened retry beyond queued would fail."""
         for label, content, anchor in _files():
             with self.subTest(file=label):
                 self.assertEqual(
@@ -149,9 +150,9 @@ class ShipClaimIntegrityGuardTests(unittest.TestCase):
                 )
                 retry_idx = content.index("retry the claim exactly once")
                 queued = _QUEUED_BRANCH[label]
-                blocked = _BLOCKED_BRANCH[label]
+                unexpected = _UNEXPECTED_BRANCH[label]
                 self.assertIn(queued, content)
-                self.assertIn(blocked, content)
+                self.assertIn(unexpected, content)
                 self.assertGreater(
                     retry_idx,
                     content.index(queued),
@@ -159,8 +160,8 @@ class ShipClaimIntegrityGuardTests(unittest.TestCase):
                 )
                 self.assertLess(
                     retry_idx,
-                    content.index(blocked),
-                    "retry must precede the blocked branch (retry only on queued)",
+                    content.index(unexpected),
+                    "retry must precede the unexpected-status branch (retry only on queued)",
                 )
 
     def test_inconsistency_token_precedes_validation_and_claim(self) -> None:
@@ -230,15 +231,13 @@ class ShipClaimIntegrityGuardTests(unittest.TestCase):
                     "Unit A guard (after the claim) must cite the learning",
                 )
 
-    def test_template_uses_registered_blocked_placeholder(self) -> None:
-        """Unit A/B in the template must use the registered {{STATUS_BLOCKED}}
-        placeholder for status comparisons rather than hard-coding 'blocked', so
-        a registry with a customized blocked value resolves the branch."""
+    def test_template_drops_blocked_status_branches(self) -> None:
+        """Unit A/B in the template now model shipment gating without a blocked
+        lifecycle state: queued-only early warning plus an unexpected-status halt."""
         content = _TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn("{{STATUS_BLOCKED}}", content)
-        # Unit B condition and Unit A branch must both be placeholderized.
-        self.assertIn("`{{STATUS_QUEUED}}` or `{{STATUS_BLOCKED}}`", content)
-        self.assertIn("If the re-read status is `{{STATUS_BLOCKED}}`", content)
+        self.assertNotIn("{{STATUS_BLOCKED}}", content)
+        self.assertIn("If the loaded shipment record status is `{{STATUS_QUEUED}}` while any manifest task", content)
+        self.assertIn("If the re-read status is anything other than `{{STATUS_ACTIVE}}` or `{{STATUS_QUEUED}}`", content)
 
     def test_mirror_guards_conditioned_on_shipment_exists(self) -> None:
         """The dogfood mirror's generic Work Intake allows a no-shipment path,
@@ -274,7 +273,6 @@ class ShipClaimIntegrityGuardTests(unittest.TestCase):
             "{{STATUS_QUEUED}}",
             "{{STATUS_ACTIVE}}",
             "{{STATUS_DONE}}",
-            "{{STATUS_BLOCKED}}",
             "{{OP_CLAIM_SHIPMENT_MCP}}",
             "{{OP_GET_SHIPMENT_MCP}}",
         ):

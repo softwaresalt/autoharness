@@ -1,6 +1,6 @@
 ---
 name: shipment-reconcile
-description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs with a verify-after-each invariant + git-revert-on-cascade instead of the destructive cascade {{OP_SHIP_SHIPMENT_MCP}}."
+description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs and closes the shipment record via live `shipped` -> verify -> explicit archive -> verify `archived_status: shipped`, instead of the destructive cascade {{OP_SHIP_SHIPMENT_MCP}}."
 ---
 
 # Shipment Reconcile
@@ -262,6 +262,14 @@ step 1 first and release it on completion.
      is **not** in the manifest `items` (the unshipped siblings) by scanning **both**
      `{{BACKLOG_DIRECTORY}}/queue/` **and** `{{BACKLOG_DIRECTORY}}/archive/` (plus the
      feature file's declared children when available). Add each to the protected set.
+   * **Sequence-aware exclusion (serial partial-feature shipments)**: when a sibling
+     belongs to a predecessor shipment in the same feature-split sequence, exclude it
+     from the protected set **ONLY** when that predecessor shipment record itself has
+     **verified archived provenance** `archived_status: shipped` (or normalized legacy
+     `done`). Mere archive-file presence, `archived_status: active|queued|blocked|abandoned`,
+     generic `status: archived` without shipped/done provenance, or missing/ambiguous
+     provenance are **NOT** sufficient — in those cases the sibling stays protected
+     fail-closed.
    * The **protected set** is the parent feature plus every unshipped sibling task
      that MUST remain in `{{BACKLOG_DIRECTORY}}/queue/` after closure. It is computed
      from **expected IDs**, not merely the files currently present in queue, so a
@@ -318,16 +326,26 @@ step 1 first and release it on completion.
 7. **Final invariant re-check**: After the loop completes, re-confirm the full
    protected set is intact in `{{BACKLOG_DIRECTORY}}/queue/`.
 
-8. **Archive the shipment record itself** (single artifact, non-cascading): archive
-   only the `{shipment_id}` artifact via `{{OP_ARCHIVE_ITEM_MCP}}` (CLI fallback
-   `{{OP_ARCHIVE_ITEM_CLI}}`), recording `merge_commit_sha` for traceability. Closing
-   the shipment record is the point of safe-close, so it is **not** in the protected
-   set — but it must be archived as its own single artifact, **never** via the cascade
-   `{{OP_SHIP_SHIPMENT_MCP}}`. Then re-run the verify-after-each invariant (step 5) to
-   confirm archiving the shipment record did not disturb the protected set.
+8. **Close the shipment record itself** (single artifact, non-cascading; authoritative order):
+   * Move **ONLY** the live shipment record to `status: shipped` via the generic,
+     non-cascading `backlogit move <shipment_id> --status shipped`.
+   * Re-read and verify the live shipment record now reports `status: shipped`. If the
+     record remains `active`, is already `archived`, is missing, or resolves to any other
+     shape, halt fail-closed with `RECONCILE_FAIL_SHIPMENT_RECORD_LIVE_STATUS`. Do **NOT**
+     auto-retry by calling the cascade op, and do not archive an `active` shipment record.
+   * Archive **ONLY** the shipment record via `backlogit archive <shipment_id>` (single-
+     artifact archive; this stamps `archived_status` from the live status at archive time).
+   * Re-read and verify the archived record now reports `archived_status: shipped`.
+     A legacy `archived_status: done` is accepted only when it pre-existed as an older,
+     already-correct terminal provenance. Missing archive, live+archived duplication,
+     generic archived-without-provenance, or any non-shipped archived provenance halt
+     fail-closed with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
+   * Re-run the verify-after-each invariant (step 5) to confirm the protected set is still
+     intact after the shipment-record close sequence.
 
 9. **Produce safe-close report** per the same schema, recording the protected set,
-   each item's classification, the shipment-record archival, and the recommendation.
+   each item's classification, the shipment-record move-to-shipped verification, the
+   shipment-record archived-provenance verification, and the recommendation.
 
 10. **Gate decision**:
     * All manifest items `matched` or `pre-archived`, the shipment record archived,
@@ -344,6 +362,17 @@ If pre-mode cannot acquire the lock because another process holds it:
    `Shipment lock conflict on {shipment_id}. Another process holds the lock.`
 3. Do NOT proceed without the lock. Do NOT call `{{OP_SHIP_SHIPMENT_MCP}}`.
 
+
+
+## Deterministic Safe-Close Scenario Matrix
+
+* **114-S -> 115-S -> 116-S serial-close success chain**: 114-S safely closes while 115-S/116-S remain protected; once 114-S carries verified `archived_status: shipped` (or legacy `done`), 115-S may exclude 114-S-owned siblings from its protected set; once 115-S carries the same verified provenance, 116-S may exclude 115-S-owned siblings.
+* **Negative — archive-while-active**: if the shipment record is archived while still `status: active`, producing `archived_status: active`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
+* **Negative — non-shipped-live-before-archive**: if the shipment record cannot be re-read and verified as live `status: shipped` before the archive step, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_LIVE_STATUS`.
+* **Negative — missing archive**: if the archive file for the shipment record is missing after `backlogit archive <shipment_id>`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
+* **Negative — archived abandoned**: if the shipment record archives with `archived_status: abandoned`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
+* **Negative — missing provenance**: if the shipment record is archived but lacks `archived_status: shipped|done`, keep predecessor siblings protected and halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
+
 ## Quality Criteria
 
 * `mode: pre` runs before closing a shipment in Ship Step 6
@@ -351,6 +380,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself
 * Safe-close computes the protected set (parent feature + unshipped siblings) from expected IDs and proves it is fully present in queue at a baseline gate before archiving anything
 * Safe-close verifies the protected set survives after every single-item archival (verify-after-each invariant), with no pre-archived exemption for protected-set members
+* Safe-close moves the shipment record to live `shipped`, verifies it, explicitly archives only that record, and verifies `archived_status: shipped` before closure completes
 * Safe-close archives the shipment record as its own single artifact and never via the cascade op
 * Safe-close reverts on cascade detection (`git restore`/`git revert`) and halts with a P-005 violation; it never auto-prunes the manifest
 * `mode: post` runs after the safe-close archive sequence in Ship Step 6
