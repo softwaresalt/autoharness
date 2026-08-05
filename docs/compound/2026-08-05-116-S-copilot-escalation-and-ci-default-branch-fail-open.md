@@ -1,7 +1,13 @@
 ---
 title: "116-S / 109-F: nine-round Copilot escalation chain, CI-default-branch anti-pattern, and Windows-authoring gotchas"
 date: 2026-08-05
-tags: [ship, copilot-review, ci, topology-gate, fail-closed, windows, testing]
+problem_type: agent-workflow
+category: ci-fail-open-default-and-test-authoring
+root_cause: unvalidated-fallback-default-and-incomplete-ci-env-scrub
+tags: [ship, copilot-review, ci, topology-gate, fail-closed, windows, testing, p-018, install-harness]
+shipment: 116-S
+pr: 302
+merged_at: "2026-08-05T23:04:57Z"
 ---
 
 # 116-S / 109-F: nine-round Copilot escalation chain, CI-default-branch anti-pattern, and Windows-authoring gotchas
@@ -83,21 +89,30 @@ indexed with `doc[True]`.
 ## Problem 4 — PowerShell single-quoted strings do not process `\"` escapes
 
 Attempting `git commit -m '...text with \"quoted\" text...'` in PowerShell
-does not escape the embedded double-quotes the way it would in bash —
-PowerShell doesn't interpret backslash-escapes inside single-quoted
-strings at all, so the shell misparses the argument boundary and can
-attempt to execute a fragment of the message as a command name.
+does not escape the embedded double-quotes the way it would in bash.
+**Correction of an earlier imprecise description**: single quotes in
+PowerShell do not process `\"` as an escape at all — the backslash and
+quote remain two literal characters inside the string at the PowerShell
+parser stage, so single-quoting by itself does not terminate the string
+early. The observed failure (a fragment of the message, e.g.
+`CODEOWNERS`, being treated as if it were a separate command token)
+arises **downstream**, when PowerShell serializes the argument array into
+a single command-line string for a *native* executable (`git.exe`) — a
+known class of PowerShell-to-native-argument-marshalling quirk around
+embedded quote characters, not a single-quoted-string parsing failure.
 
 **Fix**: write the commit message to a temp file (e.g. under the gitignored
 `.autoharness/staging/`) and use `git commit -F <file>`, deleting the file
-after. Established as the default pattern for any commit message containing
-embedded double-quotes or other shell-sensitive characters in this Windows
-PowerShell environment.
+after. Established as the default, reliable pattern for any commit message
+containing embedded double-quotes or other shell-sensitive characters in
+this Windows PowerShell environment, regardless of the exact upstream
+tokenization mechanism.
 
 ## Cross-reference
 
 * `docs/closure/116-S-109-F-post-merge-closure.md` — full shipment closure
-  record, all 13 thread dispositions with fixing SHAs.
+  record, all 13 thread dispositions with fixing SHAs (9 Copilot review
+  rounds, 13 distinct threads).
 * `docs/pipeline-topology-gate-ci-rollout.md` — "Threat Model & CODEOWNERS
   Hardening" section (round 4b's overclaim correction).
 * `.github/skills/install-harness/SKILL.md` — `{{CI_DEFAULT_BRANCH}}`
