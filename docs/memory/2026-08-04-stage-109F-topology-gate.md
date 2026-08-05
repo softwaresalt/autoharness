@@ -479,3 +479,25 @@ sizes/complexity/dependencies changed. Handoff token to Ship unchanged (shipment
   appended via backlogit (not ad-hoc JSON).
 - Boundary preserved: backlog/planning/memory artifacts only; no source/template/config;
   no commit/push (Orchestrator commits/pushes).
+
+## P-013.6 terminal re-attempt after PR #296 review-fix cycle 3 (2026-08-04)
+
+Resolved route: `gpt-5.6-sol/openai/high`. Reviewed base HEAD: `d6ca4fb47c7fc1310d5e769994d78779350418d3`. This section supersedes the prior cycle-3 terminal verdict only for the newly reported residual P1/P2 statements. Authority remained Stage-only; no source/templates/config, build, branch/worktree, shipment claim, PR/GitHub action, commit, or push.
+
+### Residual findings resolved
+
+- **109.017-T phase/order:** Ship now runs `--phase pre_claim` before branch/worktree creation, re-runs `pre_claim` immediately before claim, then runs an immediate `--phase post_claim` GLOBAL all-shipment verification after claim. Build, PR, and closure use lifecycle/post_claim gates. Structural assertions enforce exact relative order and reject a post_claim branch/worktree guard.
+- **109.004-T readiness:** a predecessor is ready only when live status is `shipped` OR archived provenance is `archived_status: shipped|done`, AND required closure evidence including P-020 is complete. Generic archived state, `abandoned`, archived active/queued/blocked/abandoned, missing provenance, and incomplete closure block. 109.006-T carries the positive/negative matrix.
+- **012-DL authority wording:** persisted backlogit claim/status is authoritative evidence only. The gate detects and directs fail-closed remediation; it is not exclusion. No CAS, lock, lease, or serialization exists at local or cross-machine scope.
+- **109.016-T tightly coupled P2:** ShipShipment is not described as caller-atomic. After success OR error, Ship re-reads both live and archived state/provenance and fails closed/remediates on errors, partial mutation, ambiguity, contradictory residue, or non-shipped provenance.
+- **109.019-T:** unchanged as the already-tracked stale `blocked -> queued` follow-up in 114-S.
+
+### Terminal records and validation
+
+- Terminal escalation review: **109.005-R — PASS (P0=0, P1=0)**.
+- Valid v1 checkpoint: `.backlogit/checkpoints/checkpoint-20260805-020935.json`.
+- Task-only manifests remain unchanged: **114-S=9, 115-S=7, 116-S=3**.
+- Shipment dependencies remain unchanged: **115-S blocks on 114-S; 116-S blocks on 115-S**.
+- No task size, complexity, status, membership, or dependency changed. Handoff token remains **114-S**.
+- Scoped coherence scan found no current authoritative shared/cross-machine lease claim, caller-atomic ShipShipment claim, post_claim branch/worktree guard, or generic-archive readiness shortcut.
+- `.backlogit/config.yaml`, `resolve_thread.graphql`, and `threads_query.graphql` were untouched; `C:/Source/GitHub/backlogit` remained read-only.
