@@ -14,6 +14,7 @@ wide claim lock, so concurrent work in another checkout can still race this gate
 from __future__ import annotations
 
 from collections.abc import Sequence
+import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -22,6 +23,7 @@ VALID_PHASES = ("pre_claim", "post_claim", "lifecycle", "ambient")
 SCOPED_PHASES = ("pre_claim", "post_claim", "lifecycle")
 _NOT_YET_CLAIMED_STATUSES = frozenset({"queued", "blocked"})
 _TASK_ACTIVE_OR_DONE = frozenset({"active", "done"})
+_BRANCH_KIND_PREFIXES = ("feat/", "chore/")
 
 
 @dataclass(frozen=True)
@@ -217,6 +219,132 @@ def _validate_input(topology_input: TopologyInput) -> TopologyResult | None:
     return None
 
 
+
+def _shipment_map(shipments: Sequence[ShipmentState]) -> dict[str, ShipmentState]:
+    return {shipment.shipment_id: shipment for shipment in shipments}
+
+
+def _strip_parenthetical(title: str) -> str:
+    return re.sub(r"\s*\([^)]*\)", "", title).strip()
+
+
+def _slugify(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower())
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug
+
+
+def _branch_aliases(shipment: ShipmentState) -> tuple[str, ...]:
+    base = _strip_parenthetical(shipment.title) or shipment.title
+    aliases = {
+        _slugify(shipment.title),
+        _slugify(base),
+        _slugify(f"{shipment.shipment_id} {shipment.title}"),
+        _slugify(f"{shipment.shipment_id} {base}"),
+    }
+    return tuple(sorted(alias for alias in aliases if alias))
+
+
+def _normalize_branch_name(branch: str) -> str:
+    value = branch.strip()
+    if value.startswith("refs/heads/"):
+        value = value[len("refs/heads/") :]
+    return value
+
+
+def _resolve_shipment_from_branch(branch: str, shipments: Sequence[ShipmentState]) -> str | None:
+    normalized = _normalize_branch_name(branch)
+    if not normalized.startswith(_BRANCH_KIND_PREFIXES):
+        return None
+    _, slug = normalized.split("/", 1)
+    exact = [shipment.shipment_id for shipment in shipments if slug in _branch_aliases(shipment)]
+    if len(exact) == 1:
+        return exact[0]
+    prefixed = [
+        shipment.shipment_id
+        for shipment in shipments
+        if slug.startswith(f"{shipment.shipment_id.lower()}-")
+    ]
+    if len(prefixed) == 1:
+        return prefixed[0]
+    return None
+
+
+def _resolve_target_shipment(
+    topology_input: TopologyInput,
+    shipments: Sequence[ShipmentState],
+    readers: TopologyReaders,
+) -> tuple[str | None, str | None]:
+    explicit = _normalize_target(topology_input.target_shipment_id)
+    shipment_map = _shipment_map(shipments)
+    if explicit is not None:
+        if explicit not in shipment_map and shipment_map:
+            return None, f"unknown shipment target: {explicit}"
+        return explicit, None
+    if topology_input.mode == "agent":
+        return None, "agent mode requires --shipment <shipment_id>"
+    active = _active_shipments(shipments)
+    if len(active) == 1:
+        return active[0].shipment_id, None
+    resolved = _resolve_shipment_from_branch(readers.current_branch(), shipments)
+    return resolved, None
+
+
+def _branch_ownership_check(
+    target: str | None,
+    shipments: Sequence[ShipmentState],
+    readers: TopologyReaders,
+) -> CheckResult:
+    if target is None:
+        return CheckResult(
+            name="branch_ownership",
+            status="skipped",
+            message="ambient target did not resolve; ownership check skipped",
+        )
+
+    shipment = _shipment_map(shipments).get(target)
+    if shipment is None:
+        return CheckResult(
+            name="branch_ownership",
+            status="skipped",
+            message="shipment metadata unavailable; ownership check skipped",
+        )
+    current_branch = _normalize_branch_name(readers.current_branch())
+    default_branch = _normalize_branch_name(readers.default_branch())
+    canonical = tuple(f"feat/{alias}" for alias in _branch_aliases(shipment)) + tuple(
+        f"chore/{alias}" for alias in _branch_aliases(shipment)
+    )
+
+    if current_branch == default_branch:
+        return CheckResult(
+            name="branch_ownership",
+            status="passed",
+            token="BRANCH_CREATE_ELIGIBLE",
+            message=(
+                f"BRANCH_CREATE_ELIGIBLE: current branch {current_branch} is the default branch for target {target}"
+            ),
+            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+        )
+
+    if _resolve_shipment_from_branch(current_branch, (shipment,)) == target:
+        return CheckResult(
+            name="branch_ownership",
+            status="passed",
+            token="BRANCH_OK",
+            message=f"BRANCH_OK: current branch {current_branch} matches target {target}",
+            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+        )
+
+    return CheckResult(
+        name="branch_ownership",
+        status="blocked",
+        token="BRANCH_MISMATCH",
+        message=(
+            f"BRANCH_MISMATCH: current branch {current_branch} does not match target {target}"
+        ),
+        details={"current_branch": current_branch, "expected_branches": list(canonical)},
+    )
+
 def _active_shipments(shipments: Sequence[ShipmentState]) -> tuple[ShipmentState, ...]:
     return tuple(shipment for shipment in shipments if shipment.live_status == "active")
 
@@ -364,9 +492,11 @@ def evaluate(
         return invalid
 
     resolved_phase = _resolve_phase(topology_input)
-    target = _normalize_target(topology_input.target_shipment_id)
     bound_readers = readers or _NullReaders()
     shipments = tuple(bound_readers.list_shipments())
+    target, target_error = _resolve_target_shipment(topology_input, shipments, bound_readers)
+    if target_error is not None:
+        return _invalid_result(topology_input, resolved_phase, target_error)
 
     checks: list[CheckResult] = []
 
@@ -379,5 +509,10 @@ def evaluate(
     checks.append(active_check)
     if active_check.status == "blocked":
         return _blocked_result(topology_input, resolved_phase, target, active_check)
+
+    branch_check = _branch_ownership_check(target, shipments, bound_readers)
+    checks.append(branch_check)
+    if branch_check.status == "blocked":
+        return _blocked_result(topology_input, resolved_phase, target, branch_check)
 
     return _pass_result(topology_input, resolved_phase, target, checks)
