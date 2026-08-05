@@ -732,11 +732,21 @@ def _emit_pipeline_topology_telemetry(
         if not config.enabled:
             return None, ()
 
+        # Mapping (109.022-T, 114-S closure pre-activation fix Defect 2):
+        # forced -> operator_required; exit_code == 1 -> blocked; ANY other
+        # non-zero result (invalid gate evaluation exit_code == 2, the new
+        # CLAIM_NOT_OBSERVED retry-required exit_code == 3 from 109.021-T,
+        # or any future non-zero/non-blocked/non-forced code) -> failed;
+        # exit_code == 0 -> success. Previously anything other than forced
+        # or exit_code == 1 silently defaulted to `success`, corrupting
+        # outcome metrics for invalid/error results.
         outcome = 'success'
         if getattr(result, 'forced', False):
             outcome = 'operator_required'
         elif result.exit_code == 1:
             outcome = 'blocked'
+        elif result.exit_code != 0:
+            outcome = 'failed'
 
         audit_ref = _repo_ref(audit_path)
         # Note: deliberately excludes `result.message` — that free-text field

@@ -228,6 +228,13 @@ telemetry:
             ('success', self._result(exit_code=0, forced=False), None),
             ('blocked', self._result(exit_code=1, forced=False), None),
             ('operator_required', self._result(exit_code=0, forced=True), '.autoharness/gates/pipeline-topology-force-audit.log'),
+            # 109.022-T (114-S closure pre-activation fix, Defect 2): any
+            # other non-zero, non-blocked, non-forced result -- an invalid
+            # gate evaluation (exit_code == 2) or the CLAIM_NOT_OBSERVED
+            # retry-required outcome (exit_code == 3, 109.021-T) -- must
+            # map to `failed`, never silently default to `success`.
+            ('failed', self._result(exit_code=2, forced=False), None),
+            ('failed', self._result(exit_code=3, forced=False), None),
         )
         for expected_status, result, audit_path in cases:
             with self.subTest(status=expected_status):
