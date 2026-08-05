@@ -166,14 +166,32 @@ def _run_git(argv: list[str], cwd: Path) -> str:
 
 
 def _frontmatter(path: Path) -> dict[str, Any]:
+    """Parse a backlog artifact's YAML frontmatter, failing closed on any defect.
+
+    A malformed artifact (unreadable file, missing/invalid frontmatter block,
+    invalid YAML, or a frontmatter body that is not a mapping) must never be
+    silently treated as an empty record: doing so can make an active shipment
+    or task quietly disappear from a scan instead of tripping the gate's
+    fail-closed BACKLOG_UNAVAILABLE result. Every failure mode below raises
+    BacklogUnavailableError so all callers converge on the same fail-closed
+    handling already used for an unreadable backlog directory.
+    """
     import yaml
 
-    raw = path.read_text(encoding="utf-8")
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise BacklogUnavailableError(path, "artifact is unreadable") from exc
     match = re.match(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", raw, flags=re.DOTALL)
     if not match:
-        return {}
-    loaded = yaml.safe_load(match.group(1))
-    return loaded if isinstance(loaded, dict) else {}
+        raise BacklogUnavailableError(path, "artifact frontmatter is missing or malformed")
+    try:
+        loaded = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as exc:
+        raise BacklogUnavailableError(path, "artifact frontmatter is invalid YAML") from exc
+    if not isinstance(loaded, dict):
+        raise BacklogUnavailableError(path, "artifact frontmatter is not a mapping")
+    return loaded
 
 
 def _tuple_of_str(value: Any) -> tuple[str, ...]:
@@ -239,10 +257,7 @@ class FilesystemTopologyReaders:
             except OSError as exc:
                 raise BacklogUnavailableError(base, "required backlog directory is unreadable") from exc
             for candidate in candidates:
-                try:
-                    fm = _frontmatter(candidate)
-                except OSError as exc:
-                    raise BacklogUnavailableError(candidate, "shipment record is unreadable") from exc
+                fm = _frontmatter(candidate)
                 if fm.get("artifact_type") != "shipment":
                     continue
                 shipment_id = fm.get("id")
@@ -381,34 +396,44 @@ def _evaluate_core(
     bound_readers: TopologyReaders,
     shipments: Sequence[ShipmentState],
 ) -> TopologyResult:
-    checks: list[CheckResult] = []
+    # Individual checks below may perform additional reads beyond the
+    # already-validated `shipments` snapshot (e.g. read_artifact for the
+    # detect-before-consistency scan, closure_complete for shipment
+    # readiness). A malformed or unreadable artifact encountered during those
+    # reads raises BacklogUnavailableError from `_frontmatter`; it must fail
+    # closed the same way an unavailable backlog directory does, never escape
+    # as an unhandled exception.
+    try:
+        checks: list[CheckResult] = []
 
-    consistency = _detect_before_consistency(shipments, bound_readers)
-    checks.append(consistency)
-    if consistency.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, consistency)
+        consistency = _detect_before_consistency(shipments, bound_readers)
+        checks.append(consistency)
+        if consistency.status == "blocked":
+            return _blocked_result(topology_input, resolved_phase, target, consistency)
 
-    active_check = _active_invariant_check(resolved_phase, target, shipments)
-    checks.append(active_check)
-    if active_check.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, active_check)
+        active_check = _active_invariant_check(resolved_phase, target, shipments)
+        checks.append(active_check)
+        if active_check.status == "blocked":
+            return _blocked_result(topology_input, resolved_phase, target, active_check)
 
-    branch_check = _branch_ownership_check(target, shipments, bound_readers)
-    checks.append(branch_check)
-    if branch_check.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, branch_check)
+        branch_check = _branch_ownership_check(target, shipments, bound_readers)
+        checks.append(branch_check)
+        if branch_check.status == "blocked":
+            return _blocked_result(topology_input, resolved_phase, target, branch_check)
 
-    worktree_check = _worktree_uniqueness_check(bound_readers)
-    checks.append(worktree_check)
-    if worktree_check.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, worktree_check)
+        worktree_check = _worktree_uniqueness_check(bound_readers)
+        checks.append(worktree_check)
+        if worktree_check.status == "blocked":
+            return _blocked_result(topology_input, resolved_phase, target, worktree_check)
 
-    readiness_check = _shipment_readiness_check(resolved_phase, target, shipments, bound_readers)
-    checks.append(readiness_check)
-    if readiness_check.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, readiness_check)
+        readiness_check = _shipment_readiness_check(resolved_phase, target, shipments, bound_readers)
+        checks.append(readiness_check)
+        if readiness_check.status == "blocked":
+            return _blocked_result(topology_input, resolved_phase, target, readiness_check)
 
-    return _pass_result(topology_input, resolved_phase, target, checks)
+        return _pass_result(topology_input, resolved_phase, target, checks)
+    except BacklogUnavailableError as exc:
+        return _backlog_unavailable_result(topology_input, resolved_phase, target, exc)
 
 
 def _target_live_status(target: str | None, shipments: Sequence[ShipmentState]) -> str | None:

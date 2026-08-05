@@ -158,6 +158,58 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
                     reader = FilesystemTopologyReaders(workspace)
                     self.assertIs(reader.closure_complete('114-S'), expected)
 
+    def test_malformed_shipment_frontmatter_blocks_as_backlog_unavailable(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        cases = {
+            'invalid_yaml': "---\nid: [unterminated\n---\n",
+            'missing_delimiter': "id: 114-S\nartifact_type: shipment\n",
+            'non_mapping_body': "---\n- just\n- a\n- list\n---\n",
+        }
+        for label, content in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '114-S.md').write_text(content, encoding='utf-8')
+                    reader = FilesystemTopologyReaders(workspace)
+
+                    with self.assertRaises(Exception):
+                        reader.list_shipments()
+
+                    result = evaluate(
+                        TopologyInput(mode='ci', phase=None, target_shipment_id=None),
+                        readers=reader,
+                    )
+                    self.assertEqual(result.exit_code, 1)
+                    self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+    def test_malformed_task_frontmatter_blocks_via_detect_before_consistency(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            (queue / '114-S.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n"
+                "custom_fields:\n  items:\n  - 109.001-T\n---\n",
+                encoding='utf-8',
+            )
+            # Malformed task artifact frontmatter: valid delimiters but invalid YAML body.
+            (queue / '109.001-T.md').write_text("---\nstatus: [unterminated\n---\n", encoding='utf-8')
+            reader = FilesystemTopologyReaders(workspace)
+
+            result = evaluate(
+                TopologyInput(mode='ci', phase=None, target_shipment_id=None),
+                readers=reader,
+            )
+            self.assertEqual(result.exit_code, 1)
+            self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
     def test_read_worktree_marker_reads_repo_local_marker(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
