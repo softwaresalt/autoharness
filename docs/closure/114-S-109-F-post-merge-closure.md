@@ -8,6 +8,31 @@ merged_at: "2026-08-05T15:03:19Z"
 reviewed_head: 1feee9aa5afcda6431ec0268c7200182d9d04a32
 closure_status: READY_WITH_CONDITIONS
 compaction_status: done
+conditions:
+  - id: "topology-post-claim-retry-fix"
+    description: >-
+      Replace the illusory post-claim self-retry in
+      src/autoharness/gates/topology.py (topology.py:680 in the PR #297
+      HEAD) with the read-only CLAIM_NOT_OBSERVED retry-required outcome
+      contract, so a genuinely delayed/failed claim no longer
+      deterministically hits CLAIM_VERIFY_FAILED.
+    satisfied: true
+    evidence: "115-S/109.021-T; commits bdbca2d, b3a6ad7 on feat/115-s-topology-gate-b-hooks-install-adapters"
+  - id: "cli-telemetry-outcome-mapping-fix"
+    description: >-
+      Map cli.py's pipeline-topology telemetry outcome for any non-zero,
+      non-blocked, non-forced result (including exit_code == 2 and the
+      new CLAIM_NOT_OBSERVED exit_code == 3) to `failed` instead of
+      silently defaulting to `success`.
+    satisfied: true
+    evidence: "115-S/109.022-T; commit 6df3abb on feat/115-s-topology-gate-b-hooks-install-adapters"
+  - id: "closure-complete-releasability-enforcement-fix"
+    description: >-
+      closure_complete() must validate closure_status/releasability (not
+      compaction_status alone), requiring READY or a fully-verified
+      machine-readable conditions block for READY_WITH_CONDITIONS.
+    satisfied: true
+    evidence: "115-S/109.023-T; commit e446f73 on feat/115-s-topology-gate-b-hooks-install-adapters"
 ---
 
 # 114-S / 109-F Post-Merge Closure — Pipeline-Topology Gate A (Deterministic Core)
@@ -332,6 +357,26 @@ gates B/C remain queued in `115-S`/`116-S`):
   before activation. **This condition is a process commitment for the
   operator/Orchestrator/Stage, not currently a tool-enforced gate** — see
   the addendum above.
+
+  **Amendment (115-S, machine-verified before activation)**: all three
+  conditions above are now fixed and evidenced, and this document's
+  frontmatter carries a machine-readable `conditions:` block (each entry
+  `satisfied: true` with a commit-referencing `evidence` string) —
+  `topology-post-claim-retry-fix` (109.021-T, `topology.py`'s bounded
+  post-claim retry replaced by the read-only `CLAIM_NOT_OBSERVED`
+  retry-required contract), `cli-telemetry-outcome-mapping-fix`
+  (109.022-T, non-zero/non-blocked/non-forced results now map to
+  `failed`), and `closure-complete-releasability-enforcement-fix`
+  (109.023-T, `closure_complete()` itself now enforces this exact
+  `closure_status`/`conditions` contract — a self-referential
+  correctness check: this document only continues to register
+  `closure_complete() == True` because its own `conditions:` block is
+  well-formed and fully satisfied under the very code this condition
+  fixed). `115-S`'s pre-activation work (109.021/022/023-T) landed on
+  branch `feat/115-s-topology-gate-b-hooks-install-adapters` ahead of any
+  of that shipment's activation tasks, per this document's own
+  Releasability condition and the intra-shipment `depends_on` edges
+  recorded in `docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md`.
 - **Follow-ups**: `none` carried from the PR #297 Local Review Readiness
   block itself (explicitly `none` at merge time). **Three new follow-ups
   identified during this closure PR's own review** (see Known Residual
