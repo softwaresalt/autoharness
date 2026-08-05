@@ -5,7 +5,7 @@ doc_type: reference
 source: docs/copilot-review-gate.md
 ---
 
-> **Navigation**: [README](../README.md) · [Validation Gates Reference](gates-reference.md) · [Primitives](primitives.md) · [Tuning Guide](tuning-guide.md)
+> **Navigation**: [README](../README.md) · [Validation Gates Reference](gates-reference.md) · [Pipeline-Topology Gate Reference](pipeline-topology-gate.md) · [Primitives](primitives.md) · [Tuning Guide](tuning-guide.md)
 
 ## Overview
 
@@ -152,6 +152,7 @@ Running the gate never dirties the working tree.
 * [Copilot-review merge-gate deliberation](decisions/2026-07-09-copilot-review-merge-gate-deliberation.md)
 * [Copilot-review merge-gate plan](plans/2026-07-09-copilot-review-merge-gate-plan.md)
 * [Validation Gates Reference](gates-reference.md)
+* [Pipeline-Topology Gate Reference](pipeline-topology-gate.md) — the sibling deterministic shipment/worktree topology gate (P-001/P-016)
 * [Workflow policy registry template](../templates/policies/workflow-policies.md.tmpl) (P-018)
 * [GitHub PR automation instructions](../.github/instructions/github-pr-automation.instructions.md) (§1.1, §1.8, §1.9)
 * [`_ship` agent definition](../.github/agents/_ship.agent.md)

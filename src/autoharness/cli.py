@@ -732,11 +732,21 @@ def _emit_pipeline_topology_telemetry(
         if not config.enabled:
             return None, ()
 
+        # Mapping (109.022-T, 114-S closure pre-activation fix Defect 2):
+        # forced -> operator_required; exit_code == 1 -> blocked; ANY other
+        # non-zero result (invalid gate evaluation exit_code == 2, the new
+        # CLAIM_NOT_OBSERVED retry-required exit_code == 3 from 109.021-T,
+        # or any future non-zero/non-blocked/non-forced code) -> failed;
+        # exit_code == 0 -> success. Previously anything other than forced
+        # or exit_code == 1 silently defaulted to `success`, corrupting
+        # outcome metrics for invalid/error results.
         outcome = 'success'
         if getattr(result, 'forced', False):
             outcome = 'operator_required'
         elif result.exit_code == 1:
             outcome = 'blocked'
+        elif result.exit_code != 0:
+            outcome = 'failed'
 
         audit_ref = _repo_ref(audit_path)
         # Note: deliberately excludes `result.message` — that free-text field
@@ -815,7 +825,12 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
     if parsed["emit_json"]:
         print(json.dumps(payload, indent=2))
     else:
-        status = "PASS" if result.exit_code == 0 else "BLOCK" if result.exit_code == 1 else "INVALID"
+        status = (
+            "PASS" if result.exit_code == 0
+            else "BLOCK" if result.exit_code == 1
+            else "RETRY_REQUIRED" if result.exit_code == 3
+            else "INVALID"
+        )
         print(f"Pipeline-topology gate — {status}")
         print(f"  mode={result.mode} phase={result.phase} target={result.resolved_target_shipment_id}")
         if result.message:

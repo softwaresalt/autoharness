@@ -282,6 +282,29 @@ For each installed artifact, check:
   3. Verify `scripts/pre-commit-markdownlint.sh` and `scripts/pre-commit-markdownlint.ps1`
      exist; flag as P1 Degrading if either is missing
   4. If all three checks pass, classify as `unchanged` or `user-modified` (checksum comparison)
+* **Pipeline-topology hook drift (pre-commit — universal, when the installed
+  `autoharness` CLI provides `gate pipeline-topology`)**:
+  1. Verify `scripts/pre-commit-pipeline-topology.sh` and `.ps1` exist and
+     retain the same non-shipment-scoped `--phase ambient` contract; flag as
+     P1 Degrading if either file is missing or the contract regressed
+  2. Verify the pre-commit hook remains advisory-first by default (no
+     unconditional `exit 1`/blocking without the `AUTOHARNESS_TOPOLOGY_GATE_BLOCKING`
+     toggle) and contains no retry loop; flag as P1 Degrading if it was
+     hardened to hard-fail-by-default or grew a retry loop
+  3. If all checks pass, classify as `unchanged` or `user-modified` (checksum comparison)
+* **Pipeline-topology hook drift (pre-push — only when `local_gating.pre_push_enabled`
+  is `true` in the workspace profile; the pre-push scripts are generated only under
+  that setting, per Step 4.3's mapping, so their absence when the setting is `false`
+  is expected and must NOT be flagged as drift)**:
+  1. Verify `scripts/pre-push-quality-gates.sh`/`.ps1` still invoke
+     `autoharness gate pipeline-topology --mode manual --phase ambient` with no
+     human-supplied `--shipment`; flag as P1 Degrading if the invocation was
+     removed or was changed to pass an explicit `--shipment`
+  2. Verify the pre-push hook remains advisory-first by default (no
+     unconditional `exit 1`/blocking without the `AUTOHARNESS_TOPOLOGY_GATE_BLOCKING`
+     toggle) and contains no retry loop; flag as P1 Degrading if it was
+     hardened to hard-fail-by-default or grew a retry loop
+  3. If all checks pass, classify as `unchanged` or `user-modified` (checksum comparison)
 * **Circuit breaker and concurrency instructions**: If these instruction files are installed:
   1. Verify they are referenced from the constitution's Stop Conditions section
   2. Verify the `.gitignore` contains an autoharness dot-lock ignore pattern (for example `.*.lock` or `**/.*.lock`) when concurrency instructions are present; do not require a broad `*.lock` pattern because that would ignore legitimate repository lockfiles such as `Cargo.lock` or `poetry.lock`

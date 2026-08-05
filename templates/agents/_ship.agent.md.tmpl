@@ -166,7 +166,15 @@ build work begins:
 2. Confirm the shipment has explicit task item membership. Task-only manifests are valid; task-only manifests are accepted by resolving the covering feature through each task's `parent_id` instead of requiring the parent feature to appear as a shipment item.
 3. Verify no task item in the shipment is missing a covering feature parent.
 3a. For shipments that include sizing/context tasks (for example 092-S), execution-readiness is derived generically from the shipment's own declared task dependencies — never from an embedded task ID literal. Do not treat the shipment as execution-ready while any of its own declared prerequisite tasks remain incomplete. These tasks are dependency-ordered through `dependencies`, not `blocked-on-external`.
-3a. **Branch Creation Gate (P-011, NON-NEGOTIABLE) + Worktree Topology Gate (P-016, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active and no prohibited parallel worktree is attached:
+3a. **Pipeline-Topology Pre-Claim Gate + Branch Creation Gate (P-011, NON-NEGOTIABLE) + Worktree Topology Gate (P-016, NON-NEGOTIABLE)**: Before claiming (the first workspace mutation), ensure a feature branch is active and no prohibited parallel worktree is attached:
+    - **TOPOLOGY_GATE: pre_claim (before branch/worktree creation)** — if the `pipeline-topology` gate is installed for this
+      workspace, before any branch/worktree creation or selection below, run
+      `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase pre_claim --json`. Branch/worktree
+      creation is `pre_claim` — it always **precedes** the claim and is **never** `post_claim`. Exit 0: proceed to the
+      branch/worktree checks below. Exit 1 (`blocked`) or exit 2 (`invalid`): halt immediately with the reported
+      token/message — never inferred, never fail-open. (Bootstrap exemption: a workspace that has not yet installed the
+      `autoharness gate pipeline-topology` CLI cannot enforce this gate against itself; skip this sub-step until the gate
+      is installed, so self-referential bootstrapping shipments are not blocked by an as-yet-uninstalled gate.)
     - Check current branch:
       `git branch --show-current`
     - Check attached worktrees before logging `BRANCH_OK`, creating a branch, or claiming a shipment:
@@ -187,10 +195,47 @@ build work begins:
       e. Log `BRANCH_CREATED: {branch_name}`.
     - If on an unrelated non-default branch: halt with `BRANCH_MISMATCH: currently on {branch_name} — does not match shipment scope. Checkout the correct branch or create one manually.`
     - Note: All git commands above are run as separate sequential steps, not chained.
+    - **TOPOLOGY_GATE: pre_claim (immediately before claim)** — if the gate is installed, immediately before the claim in
+      step 4, re-run `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase pre_claim --json`
+      to narrow the TOCTOU window between branch/worktree setup and the claim. Same exit-code handling as above: exit 0
+      proceeds to the claim; exit 1/2 halts immediately.
 4. If the shipment is still in `{{STATUS_QUEUED}}` status, claim it using `{{OP_CLAIM_SHIPMENT_MCP}}` before
    build work begins. Broadcast `[SHIP] Shipment claimed: {shipment_id}`.
-4a. **Post-claim shipment-status verification (Unit A — P-005 fail-closed)**: Immediately after the claim and
-   **before** the Step 4.1 Claim Task step moves any task to `{{STATUS_ACTIVE}}`, re-read the shipment record's own
+4a. **TOPOLOGY_GATE: post_claim (immediately after claim, GLOBAL verification) — Post-claim shipment-status verification (Unit A — P-005 fail-closed)**:
+   Immediately after the claim and **before** the Step 4.1 Claim Task step moves any task to `{{STATUS_ACTIVE}}`:
+    - If the `pipeline-topology` gate is installed for this workspace, run
+      `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase post_claim --json`. This is the
+      GLOBAL verification contract: it re-reads **all** shipment records (not just this one) and requires exactly one
+      active shipment, the claimed target — not merely a target-status-only check.
+      - Exit 0: log `CLAIM_VERIFY_OK: shipment {shipment_id} reached active and is the sole active shipment` and proceed.
+      - Token `CLAIM_NOT_OBSERVED` (exit 3, `retry_required`, **not** `blocked`): pre-claim topology was valid but the
+        claim is not yet observed (the target is still `{{STATUS_QUEUED}}` with zero active shipments) — a single
+        stateless read cannot distinguish a merely-delayed claim from a genuinely failed one. This is **not** a terminal
+        halt. Perform the following bounded, double-claim-guarded reclaim-and-reverify sequence **at most once** --
+        reused from the existing backlogit re-read/retry-once logic below rather than introducing a new claim primitive, CAS, or lease:
+        a. **Double-claim guard (first)**: re-read the shipment's own status (CLI fallback
+           `backlogit shipment get {shipment_id}`). If it is already `{{STATUS_ACTIVE}}`, re-run the `--phase post_claim`
+           GLOBAL verification: if that now reports exit 0 (sole active target), the original claim actually succeeded
+           despite the token — treat as converged (`CLAIM_VERIFY_OK`) and do **not** reclaim. If the re-read is
+           `{{STATUS_ACTIVE}}` but post_claim now shows ambiguity or `SHIPMENT_STATE_INCONSISTENT`, halt terminally with
+           `CLAIM_VERIFY_FAILED` — **no reclaim**.
+        b. Only if still `{{STATUS_QUEUED}}` with zero active shipments: re-run the full `--phase pre_claim` GLOBAL
+           topology/readiness/zero-active check. Any non-zero pre_claim verdict is terminal fail-closed — never reclaim
+           into an invalidated topology.
+        c. **Perform the actual claim exactly once** (CLI fallback `backlogit shipment claim {shipment_id}`) — this is
+           backlogit's existing unlocked read/check/write claim (the same single claim-retry this section has always
+           performed); it introduces no CAS, lock, or lease.
+        d. **Re-run the immediate `--phase post_claim`** GLOBAL verification. Exit 0 (sole-active-target): converged,
+           proceed. A **second** `CLAIM_NOT_OBSERVED` (bound exhausted), or any other non-zero/ambiguous verdict: halt
+           terminally with `CLAIM_VERIFY_FAILED: shipment {shipment_id} did not converge after bounded reclaim` and
+           record a P-005 event.
+        The cycle above runs **at most once** — it is not an unbounded retry loop, and it fires **only** for
+        `CLAIM_NOT_OBSERVED` at this immediate post-claim point. It is never applied to any pre_claim, lifecycle, build,
+        PR, or closure invocation.
+      - Any **other** non-zero verdict from the gate is terminal at this invocation point: halt immediately with
+        `CLAIM_VERIFY_FAILED: shipment {shipment_id} returned {token}` and record a P-005 event -- no retry, no reclaim
+        — the `CLAIM_NOT_OBSERVED` carve-out above is the **only** retry-required outcome.
+    - Independent of gate installation, re-read the shipment record's own
    status and assert it reached `{{STATUS_ACTIVE}}`. Prefer the CLI fallback (`backlogit shipment get {shipment_id}`) for this re-read —
    MCP is the unreliable surface this guard exists to catch (the `Transport closed` drops observed live), so a
    verify that trusts the same MCP path could be defeated by the very transient it is checking for.
@@ -423,6 +468,10 @@ task comment summarizing the outcome.
 After all tasks in the queue are complete:
 
 1. Run the full quality gate sequence one final time
+1a. **TOPOLOGY_GATE: lifecycle (before build)** — if the `pipeline-topology` gate is installed for this workspace,
+    before running the full local build below, run
+    `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase lifecycle --json`. Exit 0 proceeds;
+    exit 1/2 halts immediately with the reported token/message (never inferred, never fail-open).
 2. Write a session memory summary to `{{DOCS_MEMORY}}/` capturing: items completed, items blocked, branch state, decisions with rationale, and next steps
 3. Before creating or updating any PR that adds, removes, or changes source code,
    run the full local build command for the codebase in addition to targeted checks.
@@ -431,6 +480,10 @@ After all tasks in the queue are complete:
    readiness evidence.
 4. Confirm the most recent local review readiness result covers the current HEAD and records any residual follow-up handling
 5. Prepare the PR body so it includes the `## Local Review Readiness` block required by `.github/instructions/github-pr-automation.instructions.md` §1.9 (reviewed HEAD SHA, outcome, blocking-finding summary, full-build evidence or non-applicability, and follow-up handling)
+5a. **TOPOLOGY_GATE: lifecycle (before PR creation)** — if the `pipeline-topology` gate is installed for this workspace,
+    before invoking `pr-lifecycle` below, run
+    `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase lifecycle --json`. Same exit-code
+    handling as above.
 6. Invoke the **pr-lifecycle** skill to create or update the pull request
 7. If CI or optional shadow-review comments fail:
    * When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Invoking fix-ci for shipment PR` before invoking the skill.
@@ -623,6 +676,12 @@ lifecycle to transition out of. See
 `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`.
 
 1. **Close the shipment** (when `{{FEATURE_SHIPMENTS}}` is true):
+   a0. **TOPOLOGY_GATE: lifecycle (before closure/safe-close)** — if the `pipeline-topology` gate is installed for this
+       workspace, before the pre-archive reconciliation gate below, run
+       `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase lifecycle --json`. Exit 0
+       proceeds; exit 1/2 halts immediately with the reported token/message (never inferred, never fail-open). Ambient
+       git hooks independently cover the intervening commit/push activity in closure work; this lifecycle invocation is
+       the shipment-scoped check immediately preceding the safe-close mutation itself.
    a. **Pre-archive reconciliation gate (mandatory)**: Invoke the `shipment-reconcile`
       skill with `mode: pre`, `shipment_id`, and `expected_status: {{STATUS_DONE}}`.
       This acquires the single-writer lock on `{{BACKLOG_DIRECTORY}}/queue/{shipment_id}.md`
@@ -691,8 +750,15 @@ lifecycle to transition out of. See
 9. **Backlog index resync** (backlogit only): After all archival, source-artifact mutations, and knowledge graduation are complete, call `{{OP_SYNC_INDEX_MCP}}` (or CLI fallback `{{OP_SYNC_INDEX_CLI}}`) to rebuild the backlogit index so it reflects all closure mutations.
    - On success: log `CLOSURE_INDEX_SYNC_OK`. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Backlog index resynced after closure`.
    - On failure: log `CLOSURE_INDEX_SYNC_WARN`. When the `agent-intercom` capability pack is installed, broadcast `[WARN] Closure index sync failed — backlogit index may not reflect archived items. Run \`{{OP_SYNC_INDEX_CLI}}\` manually.` Otherwise write the warning to session output only. Proceed — this is a degraded completion, not a halt.
-10. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
-11. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
+10. **Return to the default branch** (when a `post-merge/{feature_slug}` closure branch was used): after
+    the post-merge closure PR itself merges, run `git checkout {{DEFAULT_BRANCH}}`, then `git pull`, as the
+    final step before ending the session or handing off. This is defense-in-depth hygiene, not a required
+    unblock: the `pipeline-topology` gate's branch-ownership check already treats `post-merge/*` branches as
+    ownership-eligible (see the `a0.` topology-gate lifecycle marker above), so a subsequent cursor-advance or
+    ambient hook check does not depend on this step having run first. Leaving the checkout on a stale
+    `post-merge/*` branch indefinitely after its PR has merged is still undesirable workspace hygiene.
+11. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
+12. When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Session complete: {outcome}`.
 
 ## Circuit Breakers
 

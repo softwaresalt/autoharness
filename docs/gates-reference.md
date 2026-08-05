@@ -228,6 +228,7 @@ intentional exception: they are committed session memory under
 ## References
 
 * [Copilot-Review Merge Gate Reference](copilot-review-gate.md) — the separate fail-closed `autoharness gate copilot-review` CLI and P-018
+* [Pipeline-Topology Gate Reference](pipeline-topology-gate.md) — the deterministic shipment/worktree topology gate (P-001/P-016), its `pre_claim`/`post_claim`/`lifecycle`/`ambient` phase contract, and the `CLAIM_NOT_OBSERVED` retry-required outcome
 * [Deterministic Gates, Telemetry & Evaluation Engine — design document](design-docs/autoharness-evals-gates-design.md)
 * [Gate policy deliberation](decisions/2026-06-30-gate-policy-deliberation.md)
 * [Validation-gates config schema deliberation](decisions/2026-06-30-validation-gates-config-schema-deliberation.md)

@@ -210,5 +210,99 @@ class HookTemplateStructureTests(unittest.TestCase):
             self.assertNotIn("for ((", text)
 
 
+_TOPOLOGY_PRECOMMIT_SH = _REPO_ROOT / "templates" / "scripts" / "pre-commit-pipeline-topology.sh.tmpl"
+_TOPOLOGY_PRECOMMIT_PS1 = _REPO_ROOT / "templates" / "scripts" / "pre-commit-pipeline-topology.ps1.tmpl"
+_UNRESOLVED_ANY_VAR = re.compile(r"\{\{\s*[A-Za-z][A-Za-z0-9_]*\s*\}\}")
+
+
+class PipelineTopologyHookTemplateTests(unittest.TestCase):
+    """109.007-T / 109.008-T / 109.015-T: pipeline-topology hook templates."""
+
+    def test_pre_push_hooks_invoke_ambient_gate_non_shipment_scoped(self) -> None:
+        for path in (_HOOK_SH, _HOOK_PS1):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("gate pipeline-topology", text)
+            self.assertIn("--phase ambient", text)
+            invocation_line = next(
+                line for line in text.splitlines() if "gate pipeline-topology --mode" in line
+            )
+            self.assertNotIn("--shipment", invocation_line)
+
+    def test_pre_commit_topology_hooks_exist_and_invoke_ambient_gate(self) -> None:
+        for path in (_TOPOLOGY_PRECOMMIT_SH, _TOPOLOGY_PRECOMMIT_PS1):
+            self.assertTrue(path.exists(), f"missing template: {path}")
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("gate pipeline-topology", text)
+            self.assertIn("--phase ambient", text)
+            invocation_line = next(
+                line for line in text.splitlines() if "gate pipeline-topology --mode" in line
+            )
+            self.assertNotIn("--shipment", invocation_line)
+
+    def test_pre_commit_topology_hooks_no_unresolved_placeholders(self) -> None:
+        for path in (_TOPOLOGY_PRECOMMIT_SH, _TOPOLOGY_PRECOMMIT_PS1):
+            text = path.read_text(encoding="utf-8")
+            leftover = _UNRESOLVED_ANY_VAR.findall(text)
+            self.assertEqual(leftover, [], f"{path.name}: unresolved template vars {leftover!r}")
+
+    def test_pre_commit_topology_hooks_document_no_verify_bypass(self) -> None:
+        for path in (_TOPOLOGY_PRECOMMIT_SH, _TOPOLOGY_PRECOMMIT_PS1):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("--no-verify", text)
+
+    def test_pre_commit_topology_hooks_advisory_first_default(self) -> None:
+        # Advisory-first: absent an explicit blocking toggle, a gate failure
+        # must not translate into an unconditional non-zero exit.
+        sh_text = _TOPOLOGY_PRECOMMIT_SH.read_text(encoding="utf-8")
+        self.assertIn("AUTOHARNESS_TOPOLOGY_GATE_BLOCKING", sh_text)
+        ps1_text = _TOPOLOGY_PRECOMMIT_PS1.read_text(encoding="utf-8")
+        self.assertIn("AUTOHARNESS_TOPOLOGY_GATE_BLOCKING", ps1_text)
+
+    def test_pre_commit_topology_hooks_single_pass_no_retry_loop(self) -> None:
+        for path in (_TOPOLOGY_PRECOMMIT_SH, _TOPOLOGY_PRECOMMIT_PS1):
+            text = path.read_text(encoding="utf-8").lower()
+            self.assertNotIn("while true", text)
+            self.assertNotIn("for ((", text)
+
+    def test_pre_commit_topology_hooks_absent_tool_warns_and_skips(self) -> None:
+        sh_text = _TOPOLOGY_PRECOMMIT_SH.read_text(encoding="utf-8")
+        self.assertIn("command -v autoharness", sh_text)
+        self.assertIn("exit 0", sh_text)
+        ps1_text = _TOPOLOGY_PRECOMMIT_PS1.read_text(encoding="utf-8")
+        self.assertIn("Get-Command autoharness", ps1_text)
+
+
+_INSTALL_SKILL = _REPO_ROOT / ".github" / "skills" / "install-harness" / "SKILL.md"
+_TUNE_SKILL = _REPO_ROOT / ".github" / "skills" / "tune-harness" / "SKILL.md"
+
+
+class PipelineTopologyInstallWiringTests(unittest.TestCase):
+    """109.013-T / 109.015-T: opt-in install/tune wiring for the topology hooks."""
+
+    def test_install_harness_never_silently_overwrites_git_hooks(self) -> None:
+        text = _INSTALL_SKILL.read_text(encoding="utf-8")
+        self.assertIn("pre-commit-pipeline-topology.sh.tmpl", text)
+        self.assertIn("pre-commit-pipeline-topology.ps1.tmpl", text)
+        # The row documenting the new hook must carry the same opt-in,
+        # never-overwrite contract as the existing pre-push hook row.
+        marker_index = text.index("Pipeline-topology pre-commit hook")
+        row_text = text[marker_index : marker_index + 800]
+        self.assertIn("Opt-in", row_text)
+        self.assertIn("never overwrite", row_text)
+        self.assertIn(".git/hooks/pre-commit", row_text)
+        self.assertNotIn("core.hooksPath` automatically\n", row_text)
+
+    def test_install_harness_step_4_4_verifies_pipeline_topology_hooks(self) -> None:
+        text = _INSTALL_SKILL.read_text(encoding="utf-8")
+        self.assertIn("Pipeline-topology hook verification", text)
+        self.assertIn("--phase ambient", text)
+
+    def test_tune_harness_flags_pipeline_topology_hook_drift(self) -> None:
+        text = _TUNE_SKILL.read_text(encoding="utf-8")
+        self.assertIn("Pipeline-topology hook drift", text)
+        self.assertIn("pre-commit-pipeline-topology.sh", text)
+        self.assertIn("AUTOHARNESS_TOPOLOGY_GATE_BLOCKING", text)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -161,11 +161,92 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
                     for existing in closure_dir.glob('*.md'):
                         existing.unlink()
                     (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
-                        f"---\ncompaction_status: {status}\n---\n",
+                        f"---\ncompaction_status: {status}\nclosure_status: READY\n---\n",
                         encoding='utf-8',
                     )
                     reader = FilesystemTopologyReaders(workspace)
                     self.assertIs(reader.closure_complete('114-S'), expected)
+
+    def test_closure_complete_enforces_closure_status_and_conditions(self) -> None:
+        # 109.023-T (114-S closure pre-activation fix, Defect 3):
+        # closure_complete() must require BOTH a passing compaction_status
+        # AND closure_status==READY (or a fully-verified conditions block
+        # for READY_WITH_CONDITIONS) -- compaction_status alone is never
+        # sufficient. Mandatory negative + positive cases below.
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        def _write(workspace: Path, closure_dir: Path, body: str) -> None:
+            for existing in closure_dir.glob('*.md'):
+                existing.unlink()
+            (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(body, encoding='utf-8')
+
+        satisfied_conditions = (
+            "conditions:\n"
+            "  - id: fix-one\n"
+            "    satisfied: true\n"
+            "    evidence: '115-S/109.021-T'\n"
+        )
+        unsatisfied_conditions = (
+            "conditions:\n"
+            "  - id: fix-one\n"
+            "    satisfied: false\n"
+            "    evidence: '115-S/109.021-T'\n"
+        )
+        evidence_less_conditions = (
+            "conditions:\n"
+            "  - id: fix-one\n"
+            "    satisfied: true\n"
+        )
+        cases = (
+            ("BLOCKED closure_status", "closure_status: BLOCKED\n", False),
+            ("missing closure_status", "", False),
+            (
+                "READY_WITH_CONDITIONS without conditions block",
+                "closure_status: READY_WITH_CONDITIONS\n",
+                False,
+            ),
+            (
+                "READY_WITH_CONDITIONS with unverified condition",
+                "closure_status: READY_WITH_CONDITIONS\n" + unsatisfied_conditions,
+                False,
+            ),
+            (
+                "READY_WITH_CONDITIONS with evidence-less condition",
+                "closure_status: READY_WITH_CONDITIONS\n" + evidence_less_conditions,
+                False,
+            ),
+            ("READY closure_status", "closure_status: READY\n", True),
+            (
+                "READY_WITH_CONDITIONS with fully-verified conditions",
+                "closure_status: READY_WITH_CONDITIONS\n" + satisfied_conditions,
+                True,
+            ),
+        )
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            reader = FilesystemTopologyReaders(workspace)
+            for label, extra_frontmatter, expected in cases:
+                with self.subTest(label=label):
+                    body = f"---\ncompaction_status: done\n{extra_frontmatter}---\n"
+                    _write(workspace, closure_dir, body)
+                    self.assertIs(reader.closure_complete('114-S'), expected)
+
+    def test_closure_complete_malformed_frontmatter_raises_backlog_unavailable(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
+                "---\ncompaction_status: [unterminated\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            with self.assertRaises(BacklogUnavailableError):
+                reader.closure_complete('114-S')
 
     def test_malformed_shipment_frontmatter_blocks_as_backlog_unavailable(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
@@ -844,6 +925,60 @@ class BranchOwnershipTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(_check(result, 'branch_ownership').token, 'BRANCH_CREATE_ELIGIBLE')
 
+    def test_post_merge_closure_branch_passes_for_lifecycle_phase(self) -> None:
+        """Regression test for code-review finding: post-merge closure branches
+        (`post-merge/{feature_slug}`) are named after the covering FEATURE, not
+        the shipment, so shipment-branch alias matching can never succeed for
+        them. The Ship agent's mandatory closure lifecycle gate call runs while
+        checked out on exactly this branch shape -- it must not be rejected as
+        BRANCH_MISMATCH."""
+        readers = _FakeReaders(
+            shipments=(_shipment('115-S', 'active'),),
+            branch='post-merge/109-f-topology-gate-b',
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='lifecycle', target_shipment_id='115-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(
+            _check(result, 'branch_ownership').token, 'BRANCH_POST_MERGE_CLOSURE_ELIGIBLE'
+        )
+
+    def test_post_merge_closure_branch_passes_for_ambient_and_pre_claim(self) -> None:
+        """The same post-merge branch pass-through also unblocks: (a) ambient
+        hook invocations (pre-commit/pre-push) made from a post-merge closure
+        branch while the shipment being closed is still active, and (b) the
+        Orchestrator's cursor-advance pre_claim eligibility check for the next
+        shipment, which can run before the checkout has returned to the
+        default branch."""
+        readers_ambient = _FakeReaders(
+            shipments=(_shipment('115-S', 'active'),),
+            branch='post-merge/109-f-topology-gate-b',
+        )
+        ambient_result = evaluate(
+            TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
+            readers=readers_ambient,
+        )
+        self.assertEqual(ambient_result.exit_code, 0)
+        self.assertEqual(
+            _check(ambient_result, 'branch_ownership').token, 'BRANCH_POST_MERGE_CLOSURE_ELIGIBLE'
+        )
+
+        readers_pre_claim = _FakeReaders(
+            shipments=(_shipment('116-S', 'queued'),),
+            branch='post-merge/109-f-topology-gate-b',
+        )
+        pre_claim_result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='116-S'),
+            readers=readers_pre_claim,
+        )
+        self.assertEqual(pre_claim_result.exit_code, 0)
+        self.assertEqual(
+            _check(pre_claim_result, 'branch_ownership').token,
+            'BRANCH_POST_MERGE_CLOSURE_ELIGIBLE',
+        )
+
     def test_detached_head_blocks(self) -> None:
         readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
         result = evaluate(
@@ -1193,19 +1328,42 @@ class PostClaimVerifyTests(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0)
 
-    def test_target_queued_retries_after_full_revalidation(self) -> None:
-        snapshots = [
-            (_shipment('114-S', 'queued'),),
-            (_shipment('114-S', 'queued'),),
-            (_shipment('114-S', 'queued'),),
-            (_shipment('114-S', 'active'),),
-        ]
-        readers = _FakeReaders(shipments=snapshots)
+    def test_target_queued_zero_active_is_retry_required_not_terminal_or_pass(self) -> None:
+        # A genuinely-delayed claim (target still `queued`, zero active) is
+        # indistinguishable from a genuinely-failed one on a single
+        # read-only post-claim snapshot. The gate must therefore return the
+        # retry-required `CLAIM_NOT_OBSERVED` token -- neither a false
+        # `PASS` (the old illusory self-retry silently advanced its fake
+        # snapshot to mask this) nor a premature terminal
+        # `CLAIM_VERIFY_FAILED` (that classification, on retry-exhaustion,
+        # is owned by 109.017-T's Ship-side bounded reclaim loop, not this
+        # gate). Only the natural floor of reads is made here (evaluate()'s
+        # target-resolution read + the single post-claim core-evaluation
+        # read) -- there is no additional/third internal read to silently
+        # observe a different snapshot.
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),))
         result = evaluate(
             TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
             readers=readers,
         )
-        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.exit_code, 3)
+        self.assertFalse(result.blocked)
+        self.assertEqual(result.primary_token, 'CLAIM_NOT_OBSERVED')
+        self.assertEqual(readers._calls, 2)
+
+    def test_target_queued_zero_active_failed_claim_is_also_retry_required(self) -> None:
+        # A genuinely FAILED claim presents identically to a delayed one at
+        # this snapshot (target `queued`, zero active) -- the gate MUST NOT
+        # assert terminal CLAIM_VERIFY_FAILED here; that would require the
+        # detector to discriminate delayed-vs-failed, which a stateless
+        # read-only snapshot cannot do.
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertNotEqual(result.primary_token, 'CLAIM_VERIFY_FAILED')
+        self.assertEqual(result.primary_token, 'CLAIM_NOT_OBSERVED')
 
     def test_other_active_blocks_with_claim_verify_failed(self) -> None:
         readers = _FakeReaders(shipments=(_shipment('115-S', 'active'), _shipment('114-S', 'queued')))

@@ -54,6 +54,18 @@ _SHIPMENT_ID_PATTERN = re.compile(r"^\d+-S$")
 # path-pattern exception.
 _ARTIFACT_ID_PATTERN = re.compile(r"^\d+(?:\.\d+)*-[A-Z]+$")
 _BRANCH_KIND_PREFIXES = ("feat/", "chore/")
+# Post-merge closure branches (`post-merge/{feature_slug}`, created per the
+# Ship agent's Post-Merge Branch Protocol) are named after the covering
+# FEATURE, not the shipment being closed -- shipment branch-alias matching
+# (`_branch_aliases`/`_resolve_shipment_from_branch`) has no feature-level
+# data to match against. Because this branch is only ever created by Ship,
+# exclusively for the bounded post-merge closure window of a shipment that
+# just merged, treat it as ownership-eligible unconditionally (like the
+# default branch) rather than requiring an exact shipment-branch match the
+# gate cannot currently compute. The still-fully-enforced active-shipment
+# invariant check (a separate check) continues to guard that at most one
+# shipment is active and, for post_claim/lifecycle, that it matches target.
+_POST_MERGE_BRANCH_PREFIX = "post-merge/"
 _POST_CLAIM_WRAP_TOKENS = frozenset({
     "SHIPMENT_STATE_INCONSISTENT",
     "LIFECYCLE_NO_ACTIVE_SHIPMENT",
@@ -154,9 +166,21 @@ class TopologyResult:
         return self.exit_code == 2
 
     @property
+    def retry_required(self) -> bool:
+        return self.exit_code == 3
+
+    @property
     def primary_token(self) -> str | None:
+        # "blocked" and "retry_required" are the only non-terminal-pass
+        # check statuses that carry a caller-facing token today
+        # ("passed"/"skipped" never do). CLAIM_NOT_OBSERVED
+        # (109.021-T) is a read-only retry-required outcome, not a
+        # `blocked` one -- it must still surface as the primary token so
+        # callers (Ship's bounded reclaim-and-reverify loop, telemetry
+        # mapping) can key off it the same way they key off
+        # CLAIM_VERIFY_FAILED.
         for check in self.checks:
-            if check.status == "blocked" and check.token:
+            if check.status in ("blocked", "retry_required") and check.token:
                 return check.token
         return None
 
@@ -218,6 +242,65 @@ def _frontmatter(path: Path) -> dict[str, Any]:
     if not isinstance(loaded, dict):
         raise BacklogUnavailableError(path, "artifact frontmatter is not a mapping")
     return loaded
+
+
+def _closure_conditions_satisfied(conditions: Any) -> bool:
+    """Validate a post-merge closure artifact's machine-readable ``conditions:`` block.
+
+    ``READY_WITH_CONDITIONS`` counts as complete only when this block is a
+    well-formed, non-empty sequence of mappings and EVERY entry has
+    ``satisfied: true`` (the literal boolean, not a truthy string) plus a
+    non-empty ``evidence`` reference. Absent, empty, malformed, unverified,
+    or evidence-less entries all fail closed (never treated as satisfied).
+    """
+    if not isinstance(conditions, list) or not conditions:
+        return False
+    for condition in conditions:
+        if not isinstance(condition, dict):
+            return False
+        if condition.get("satisfied") is not True:
+            return False
+        evidence = condition.get("evidence")
+        if not isinstance(evidence, str) or not evidence.strip():
+            return False
+    return True
+
+
+def _closure_artifact_complete(fm: dict[str, Any]) -> bool:
+    """Decide whether one parsed closure-artifact frontmatter registers complete.
+
+    109.023-T (114-S closure pre-activation fix, Defect 3): the prior
+    implementation returned ``True`` on ``compaction_status`` alone,
+    ignoring ``closure_status``/releasability entirely -- a
+    ``READY_WITH_CONDITIONS``, ``BLOCKED``, or closure-status-less artifact
+    all registered as complete. This now requires BOTH:
+
+    1. ``compaction_status`` in ``{done, degraded}`` (P-020 evidence), AND
+    2. ``closure_status == READY`` OR a fully-satisfied machine-readable
+       ``conditions:`` block when ``closure_status == READY_WITH_CONDITIONS``.
+
+    ``BLOCKED``, a missing ``closure_status``, and any other value fail
+    closed. Malformed frontmatter never reaches this function -- ``_frontmatter``
+    already raises ``BacklogUnavailableError`` for that case, which callers
+    convert to a fail-closed ``BACKLOG_UNAVAILABLE`` result the same way an
+    unreadable backlog directory does; this function never itself
+    "{}-swallows" a bad parse.
+    """
+    compaction = fm.get("compaction_status") or fm.get("compaction")
+    if not (isinstance(compaction, str) and compaction.strip().lower() in {"done", "degraded"}):
+        return False
+
+    closure_status = fm.get("closure_status")
+    if not isinstance(closure_status, str) or not closure_status.strip():
+        return False
+
+    normalized = closure_status.strip().upper()
+    if normalized == "READY":
+        return True
+    if normalized == "READY_WITH_CONDITIONS":
+        return _closure_conditions_satisfied(fm.get("conditions"))
+    # BLOCKED and any other/unrecognized value fail closed.
+    return False
 
 
 def _tuple_of_str(
@@ -512,8 +595,7 @@ class FilesystemTopologyReaders:
             return None
         for candidate in matches:
             fm = _frontmatter(candidate)
-            compaction = fm.get("compaction_status") or fm.get("compaction")
-            if isinstance(compaction, str) and compaction.strip().lower() in {"done", "degraded"}:
+            if _closure_artifact_complete(fm):
                 return True
         return False
 
@@ -543,6 +625,48 @@ class _NullReaders:
 
     def closure_complete(self, shipment_id: str) -> bool | None:
         return None
+
+
+def _claim_not_observed(
+    topology_input: TopologyInput,
+    target: str | None,
+) -> TopologyResult:
+    # Read-only retry-required outcome contract (109.021-T). A stateless,
+    # read-only post-claim detector CANNOT distinguish a merely-delayed
+    # claim from a genuinely-failed one on a single snapshot -- both
+    # present identically as target `queued` + zero active shipments. This
+    # helper therefore never re-reads backlog state and never attempts to
+    # classify delayed vs failed; it always returns the same
+    # `CLAIM_NOT_OBSERVED` token for that indistinguishable case. The
+    # result is non-zero (exit_code 3) and explicitly NOT `blocked`
+    # (exit_code 1) so it is never confused with a genuine terminal
+    # ambiguity. Terminal `CLAIM_VERIFY_FAILED` classification for
+    # retry-exhaustion (a second `CLAIM_NOT_OBSERVED` after one bounded
+    # Ship-owned reclaim cycle) is owned by 109.017-T's Ship-side
+    # reclaim-and-reverify sequence, not by this gate.
+    message = (
+        "CLAIM_NOT_OBSERVED: target shipment claim not yet observed "
+        "(still queued, zero active shipments) -- this is indistinguishable "
+        "from a genuinely failed claim on a single read-only snapshot; "
+        "(re)claim and re-invoke --phase post_claim (bounded, at most once)"
+    )
+    check = CheckResult(
+        name="post_claim_reverify",
+        status="retry_required",
+        token="CLAIM_NOT_OBSERVED",
+        message=message,
+        details={
+            "target_shipment_id": target,
+        },
+    )
+    return TopologyResult(
+        mode=topology_input.mode,
+        phase="post_claim",
+        resolved_target_shipment_id=target,
+        checks=(check,),
+        exit_code=3,
+        message=message,
+    )
 
 
 def _claim_verify_failed(
@@ -655,37 +779,20 @@ def _evaluate_post_claim(
             reason="detect-before consistency scan found a queued shipment with active/done work",
         )
     if target_status == "queued" and active_count == 0:
-        try:
-            revalidation_shipments = tuple(bound_readers.list_shipments())
-        except BacklogUnavailableError as exc:
-            return _backlog_unavailable_result(topology_input, "post_claim", target, exc)
-        revalidation = _evaluate_core(
-            topology_input,
-            "pre_claim",
-            target,
-            bound_readers,
-            revalidation_shipments,
-        )
-        if revalidation.exit_code != 0:
-            return _claim_verify_failed(
-                topology_input,
-                target,
-                revalidation,
-                reason="pre-claim revalidation did not pass before the bounded post-claim retry",
-            )
-        try:
-            retry_shipments = tuple(bound_readers.list_shipments())
-        except BacklogUnavailableError as exc:
-            return _backlog_unavailable_result(topology_input, "post_claim", target, exc)
-        retry = _evaluate_core(topology_input, "post_claim", target, bound_readers, retry_shipments)
-        if retry.exit_code == 0:
-            return retry
-        return _claim_verify_failed(
-            topology_input,
-            target,
-            retry,
-            reason="target shipment did not become the sole active shipment after the bounded retry",
-        )
+        # Read-only retry-required outcome (109.021-T): a single
+        # post-claim snapshot showing the target still `queued` with zero
+        # active shipments is INDISTINGUISHABLE between "the claim is
+        # merely delayed" and "the claim genuinely failed" -- both look
+        # identical to a stateless read-only detector. This gate performs
+        # NO second read here and NO internal retry (there is no
+        # intervening claim/mutation between two internal reads, so a
+        # second internal read could never observe a different state
+        # anyway -- that was the illusory self-retry this replaces).
+        # Convergence, if any, must come from an external actor
+        # (Ship's bounded, double-claim-guarded reclaim-and-reverify
+        # sequence, 109.017-T) performing an actual claim between
+        # invocations of this gate.
+        return _claim_not_observed(topology_input, target)
 
     return _claim_verify_failed(
         topology_input,
@@ -1030,6 +1137,19 @@ def _branch_ownership_check(
             token="BRANCH_CREATE_ELIGIBLE",
             message=(
                 f"BRANCH_CREATE_ELIGIBLE: current branch {current_branch} is the default branch for target {target}"
+            ),
+            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+        )
+
+    if current_branch.startswith(_POST_MERGE_BRANCH_PREFIX):
+        return CheckResult(
+            name="branch_ownership",
+            status="passed",
+            token="BRANCH_POST_MERGE_CLOSURE_ELIGIBLE",
+            message=(
+                f"BRANCH_POST_MERGE_CLOSURE_ELIGIBLE: current branch {current_branch} is a "
+                f"post-merge closure branch; ownership is not matched by shipment-branch alias "
+                f"(post-merge branches are feature-scoped, not shipment-scoped) for target {target}"
             ),
             details={"current_branch": current_branch, "expected_branches": list(canonical)},
         )
