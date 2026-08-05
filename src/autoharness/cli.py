@@ -41,6 +41,7 @@ Usage:
   autoharness gate check        Run deterministic validation gates on modified files
   autoharness gate size         Estimate a task's T-shirt size and write it back
   autoharness gate copilot-review  Fail-closed pre-merge gate: Copilot review complete + threads resolved
+  autoharness gate pipeline-topology  Deterministic shipment/worktree topology gate
   autoharness telemetry begin   Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
@@ -167,6 +168,7 @@ Subcommands:
   check   Run deterministic validation gates on modified files (pre_task_completion).
   size    Estimate a task's T-shirt size and write it back (pre_execution).
   copilot-review  Fail-closed pre-merge gate: Copilot review complete for HEAD + threads resolved.
+  pipeline-topology  Deterministic shipment/worktree topology gate.
 
 Usage:
   autoharness gate check --base <ref> [--task <id>] [--head <ref>]
@@ -176,6 +178,10 @@ Usage:
   autoharness gate copilot-review <pr> --repo <owner/name>
                         [--enforcement auto|required|disabled] [--max-wait <seconds>]
                         [--json] [--force] [--workspace <path>] [--gh <path>]
+  autoharness gate pipeline-topology [--mode agent|manual|ci]
+                        [--shipment <shipment_id>]
+                        [--phase pre_claim|post_claim|lifecycle|ambient]
+                        [--json] [--force]
 
 check options:
   --base <ref>        Git ref to diff against (the task branch base). Required.
@@ -213,6 +219,14 @@ copilot-review options:
   --workspace, -w     Workspace root (for the --force audit log). Default: .
   --gh <path>         Path to the gh executable. Default: gh.
 
+pipeline-topology options:
+  --mode <m>          agent | manual | ci. Default: manual.
+  --shipment <id>     Explicit shipment target. Required in agent mode.
+  --phase <p>         pre_claim | post_claim | lifecycle | ambient. Required in agent
+                      mode; defaults to ambient when omitted in manual/ci mode.
+  --json              Emit the topology gate result as JSON.
+  --force             Reserve an operator override for a blocked topology gate.
+
 This gate is FAIL-CLOSED: when Copilot review is enabled and its completion or
 thread resolution is incomplete or unverifiable, it BLOCKS (non-zero). --admin does
 not bypass it. It PASSES only when review is satisfied for the current HEAD or is
@@ -225,10 +239,13 @@ blocks task execution and exits 0 unless --strict is given.
 Exit codes:
   0  gates passed / no gates configured / no files matched; or size written,
      skipped (existing size), dry-run, or (without --strict) a non-blocking
-     sizing configuration failure; or copilot-review PASS/not-applicable/forced.
+     sizing configuration failure; or copilot-review PASS/not-applicable/forced;
+     or pipeline-topology PASS/forced.
   1  at least one matched file failed its gate (blocked), unless advisory; or
-     copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout).
-  2  invalid arguments or invalid gate configuration.
+     copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout);
+     or pipeline-topology BLOCK.
+  2  invalid arguments or invalid gate configuration; or pipeline-topology
+     invalid mode/phase/target configuration.
   3  sizing write-back configuration failure, only when --strict is given.
 """
 
@@ -311,6 +328,8 @@ def _gate_command(args: list[str]) -> None:
         _gate_size_command(args[1:])
     elif subcommand == "copilot-review":
         _gate_copilot_review_command(args[1:])
+    elif subcommand == "pipeline-topology":
+        _gate_pipeline_topology_command(args[1:])
     else:
         print(f"Unknown gate subcommand: {subcommand}", file=sys.stderr)
         print(GATE_USAGE, file=sys.stderr)
@@ -609,6 +628,83 @@ def _gate_copilot_review_command(rest: list[str]) -> None:
             print(f"  unresolved Copilot threads: {len(result.unresolved_thread_ids)}")
         if audit_path:
             print(f"  --force override recorded: {audit_path}")
+
+    if result.exit_code != 0:
+        sys.exit(result.exit_code)
+
+
+
+def _parse_gate_pipeline_topology_args(args: list[str]) -> dict:
+    """Parse `autoharness gate pipeline-topology` arguments."""
+    parsed: dict = {
+        "mode": "manual",
+        "shipment": None,
+        "phase": None,
+        "emit_json": False,
+        "force": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--mode":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --mode")
+            parsed["mode"] = args[index]
+        elif arg == "--shipment":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --shipment")
+            parsed["shipment"] = args[index]
+        elif arg == "--phase":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --phase")
+            parsed["phase"] = args[index]
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        elif arg == "--force":
+            parsed["force"] = True
+        else:
+            raise ValueError(f"Unknown gate pipeline-topology argument: {arg}")
+        index += 1
+    return parsed
+
+
+def _gate_pipeline_topology_command(rest: list[str]) -> None:
+    """Run the deterministic shipment/worktree topology gate."""
+    if any(flag in ("help", "--help", "-h") for flag in rest):
+        print(GATE_USAGE)
+        return
+
+    try:
+        parsed = _parse_gate_pipeline_topology_args(rest)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(GATE_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.gates import topology
+
+    result = topology.evaluate(
+        topology.TopologyInput(
+            mode=parsed["mode"],
+            phase=parsed["phase"],
+            target_shipment_id=parsed["shipment"],
+            emit_json=parsed["emit_json"],
+            force=parsed["force"],
+        )
+    )
+
+    payload = result.to_dict()
+    if parsed["emit_json"]:
+        print(json.dumps(payload, indent=2))
+    else:
+        status = "PASS" if result.exit_code == 0 else "BLOCK" if result.exit_code == 1 else "INVALID"
+        print(f"Pipeline-topology gate — {status}")
+        print(f"  mode={result.mode} phase={result.phase} target={result.resolved_target_shipment_id}")
+        if result.message:
+            print(f"  {result.message}")
 
     if result.exit_code != 0:
         sys.exit(result.exit_code)
