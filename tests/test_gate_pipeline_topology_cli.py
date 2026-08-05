@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import io
 import json
+import tempfile
 import unittest
+from pathlib import Path
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
-from autoharness.cli import main
+from autoharness.cli import _emit_pipeline_topology_telemetry, main
 
 
 def _run(*argv: str) -> tuple[str, str, int | None]:
@@ -74,6 +76,9 @@ class PipelineTopologyArgTests(unittest.TestCase):
             def worktree_porcelain(self) -> str:
                 return 'worktree C:/repo\nHEAD 0\nbranch refs/heads/topic/misc\n\n'
 
+            def read_worktree_marker(self, worktree_path: str):
+                return None
+
             def closure_complete(self, shipment_id: str):
                 return None
 
@@ -102,6 +107,9 @@ class PipelineTopologyArgTests(unittest.TestCase):
             def worktree_porcelain(self) -> str:
                 return 'worktree C:/repo\nHEAD 0\nbranch refs/heads/main\n\n'
 
+            def read_worktree_marker(self, worktree_path: str):
+                return None
+
             def closure_complete(self, shipment_id: str):
                 return None
 
@@ -119,6 +127,100 @@ class PipelineTopologyArgTests(unittest.TestCase):
         self.assertEqual(payload['phase'], 'pre_claim')
         self.assertEqual(payload['target_shipment_id'], '114-S')
 
+
+
+class PipelineTopologyTelemetryTests(unittest.TestCase):
+    _ENABLED_CONFIG = """
+schema_version: "1.0.0"
+telemetry:
+  mode: "sqlite"
+  database_path: ".autoharness/metrics/execution_epochs.db"
+  emit_jsonl: true
+"""
+
+    _DISABLED_CONFIG = """
+schema_version: "1.0.0"
+telemetry:
+  mode: "none"
+"""
+
+    def _write_config(self, workspace: Path, text: str) -> None:
+        (workspace / '.autoharness').mkdir(parents=True, exist_ok=True)
+        (workspace / '.autoharness' / 'config.yaml').write_text(text, encoding='utf-8')
+
+    def _result(self, *, exit_code: int = 0, forced: bool = False):
+        from autoharness.gates.topology import CheckResult, TopologyResult
+
+        checks = ()
+        if exit_code == 1 or forced:
+            checks = (
+                CheckResult(
+                    name='worktree_topology',
+                    status='blocked',
+                    token='MULTIPLE_IMPLEMENTATION_WORKTREES',
+                    message='blocked',
+                ),
+            )
+        return TopologyResult(
+            mode='agent',
+            phase='pre_claim',
+            resolved_target_shipment_id='114-S',
+            checks=checks,
+            exit_code=exit_code,
+            message='topology gate pass' if exit_code == 0 and not forced else 'topology gate blocked',
+            forced=forced,
+        )
+
+    def test_telemetry_disabled_writes_no_journal(self) -> None:
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+        from autoharness.telemetry.tool_event_jsonl import journal_path_for_config
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            self._write_config(workspace, self._DISABLED_CONFIG)
+            telemetry_path, warnings = _emit_pipeline_topology_telemetry(workspace, self._result())
+            self.assertIsNone(telemetry_path)
+            self.assertEqual(warnings, ())
+            config = load_workspace_telemetry_config(workspace)
+            self.assertIsNone(journal_path_for_config(config))
+            self.assertFalse((workspace / '.autoharness' / 'gates' / 'pipeline-topology-telemetry.jsonl').exists())
+
+    def test_telemetry_enabled_writes_tool_event_journal_for_pass_blocked_and_forced(self) -> None:
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+        from autoharness.telemetry.tool_event_jsonl import journal_path_for_config
+
+        cases = (
+            ('success', self._result(exit_code=0, forced=False), None),
+            ('blocked', self._result(exit_code=1, forced=False), None),
+            ('operator_required', self._result(exit_code=0, forced=True), '.autoharness/gates/pipeline-topology-force-audit.log'),
+        )
+        for expected_status, result, audit_path in cases:
+            with self.subTest(status=expected_status):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    self._write_config(workspace, self._ENABLED_CONFIG)
+                    telemetry_path, warnings = _emit_pipeline_topology_telemetry(workspace, result, audit_path)
+                    self.assertEqual(warnings, ())
+                    config = load_workspace_telemetry_config(workspace)
+                    journal_path = journal_path_for_config(config)
+                    self.assertEqual(telemetry_path, str(journal_path))
+                    self.assertIsNotNone(journal_path)
+                    self.assertTrue(journal_path.exists())
+                    self.assertFalse((workspace / '.autoharness' / 'gates' / 'pipeline-topology-telemetry.jsonl').exists())
+                    record = json.loads(journal_path.read_text(encoding='utf-8').splitlines()[0])
+                    self.assertEqual(record['tool_surface'], 'cli')
+                    self.assertEqual(record['tool_name'], 'autoharness')
+                    self.assertEqual(record['operation'], 'gate pipeline-topology')
+                    self.assertEqual(record['status'], expected_status)
+                    self.assertEqual(record['phase'], 'pre_claim')
+                    self.assertEqual(record['shipment_id'], '114-S')
+                    self.assertEqual(record['exit_code'], result.exit_code)
+                    if audit_path is None:
+                        self.assertIsNone(record['evidence_path'])
+                        self.assertEqual(record['artifact_refs'], [])
+                    else:
+                        self.assertEqual(record['evidence_path'], audit_path)
+                        self.assertEqual(record['artifact_refs'], [audit_path])
 
 
 class PipelineTopologyForceTests(unittest.TestCase):
@@ -140,12 +242,15 @@ class PipelineTopologyForceTests(unittest.TestCase):
             def worktree_porcelain(self) -> str:
                 return 'worktree C:/repo\nHEAD 0\nbranch refs/heads/main\n\n'
 
+            def read_worktree_marker(self, worktree_path: str):
+                return None
+
             def closure_complete(self, shipment_id: str):
                 return None
 
         with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=FakeReaders()):
             with mock.patch('autoharness.cli._audit_pipeline_topology_force', return_value='audit.log') as audit_fn:
-                with mock.patch('autoharness.cli._emit_pipeline_topology_telemetry', return_value='telemetry.jsonl') as telemetry_fn:
+                with mock.patch('autoharness.cli._emit_pipeline_topology_telemetry', return_value=('telemetry.jsonl', ())) as telemetry_fn:
                     out, _, code = _run('gate', 'pipeline-topology', '--mode', 'agent', '--shipment', '114-S', '--phase', 'pre_claim', '--force', '--json')
         self.assertEqual(code, 0)
         self.assertTrue(audit_fn.called)

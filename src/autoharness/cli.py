@@ -698,27 +698,71 @@ def _audit_pipeline_topology_force(workspace: Path, result) -> str:
     return str(audit_path)
 
 
-def _emit_pipeline_topology_telemetry(workspace: Path, result, audit_path: str | None = None) -> str:
-    """Append one structured telemetry event for each pipeline-topology gate run."""
-    from datetime import datetime, timezone
+def _pipeline_topology_telemetry_backlog_item_id(result) -> str:
+    shipment_id = getattr(result, 'resolved_target_shipment_id', None)
+    if isinstance(shipment_id, str) and shipment_id.strip():
+        return shipment_id.strip()
+    return 'pipeline-topology'
 
-    telemetry_path = Path(workspace) / '.autoharness' / 'gates' / 'pipeline-topology-telemetry.jsonl'
-    telemetry_path.parent.mkdir(parents=True, exist_ok=True)
-    outcome = 'forced' if getattr(result, 'forced', False) else 'blocked' if result.exit_code == 1 else 'pass'
-    payload = {
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-        'gate': 'pipeline-topology',
-        'outcome': outcome,
-        'mode': result.mode,
-        'phase': result.phase,
-        'target_shipment_id': result.resolved_target_shipment_id,
-        'token': result.primary_token,
-        'message': result.message,
-        'audit_log': audit_path,
-    }
-    with telemetry_path.open('a', encoding='utf-8') as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False) + '\n')
-    return str(telemetry_path)
+
+def _emit_pipeline_topology_telemetry(
+    workspace: Path, result, audit_path: str | None = None
+) -> tuple[str | None, tuple[str, ...]]:
+    """Emit one structured telemetry event for each pipeline-topology gate run."""
+    from autoharness.telemetry.record import load_workspace_telemetry_config
+    from autoharness.telemetry.tool_event import ToolTelemetryEvent
+    from autoharness.telemetry.tool_event_jsonl import journal_path_for_config, record_tool_event
+
+    def _repo_ref(value: str | None) -> str | None:
+        if not value:
+            return None
+        candidate = Path(value)
+        try:
+            if candidate.is_absolute():
+                return candidate.resolve().relative_to(workspace.resolve()).as_posix()
+        except Exception:
+            return None
+        return str(candidate).replace('\\', '/')
+
+    try:
+        config = load_workspace_telemetry_config(workspace)
+        if not config.enabled:
+            return None, ()
+
+        outcome = 'success'
+        if getattr(result, 'forced', False):
+            outcome = 'operator_required'
+        elif result.exit_code == 1:
+            outcome = 'blocked'
+
+        audit_ref = _repo_ref(audit_path)
+        metadata = {
+            'mode': result.mode,
+            'forced': bool(getattr(result, 'forced', False)),
+            'token': result.primary_token,
+            'message': result.message,
+            'audit_log': audit_ref,
+        }
+        event = ToolTelemetryEvent(
+            tool_surface='cli',
+            tool_name='autoharness',
+            operation='gate pipeline-topology',
+            status=outcome,
+            sensitivity='internal',
+            phase=result.phase,
+            shipment_id=result.resolved_target_shipment_id,
+            backlog_item_id=_pipeline_topology_telemetry_backlog_item_id(result),
+            exit_code=result.exit_code,
+            error_kind=result.primary_token,
+            argv_fingerprint=json.dumps(metadata, ensure_ascii=False, separators=(',', ':')),
+            evidence_path=audit_ref,
+            artifact_refs=tuple(ref for ref in (audit_ref,) if ref),
+        )
+        summary = record_tool_event(event, config)
+        journal_path = journal_path_for_config(config)
+        return (str(journal_path) if journal_path is not None else None), tuple(summary.errors)
+    except Exception as exc:  # fail-open: telemetry must never change gate behavior
+        return None, (f'pipeline-topology telemetry warning: {exc}',)
 
 
 def _gate_pipeline_topology_command(rest: list[str]) -> None:
@@ -754,7 +798,7 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
 
         result = replace(result, exit_code=0, forced=True, message=f"{result.message} (forced)")
 
-    telemetry_path = _emit_pipeline_topology_telemetry(Path('.'), result, audit_path)
+    telemetry_path, telemetry_errors = _emit_pipeline_topology_telemetry(Path('.'), result, audit_path)
 
     payload = result.to_dict()
     payload["telemetry_log"] = telemetry_path
@@ -768,9 +812,12 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
         print(f"  mode={result.mode} phase={result.phase} target={result.resolved_target_shipment_id}")
         if result.message:
             print(f"  {result.message}")
-        print(f"  telemetry: {telemetry_path}")
+        print(f"  telemetry: {telemetry_path or 'disabled'}")
         if audit_path:
             print(f"  --force override recorded: {audit_path}")
+
+    for warning in telemetry_errors:
+        print(warning, file=sys.stderr)
 
     if result.exit_code != 0:
         sys.exit(result.exit_code)

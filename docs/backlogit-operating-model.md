@@ -158,7 +158,7 @@ subcommand), `backlogit_return_blocked`.
 Stable CLI subcommands (6): `backlogit shipment create`, `get`, `list`,
 `claim`, `ship`, `return-blocked`.
 
-Shipment status lifecycle: `queued → blocked → queued` for claim-blocking gates, then `queued → active → shipped/abandoned`; archival is a later file-location move, not a shipment `status:` value.
+Shipment status lifecycle: `queued → active → shipped/abandoned`; there is no shipment `blocked` status in backlogit 1.8.0, so claim-blocking gates are expressed through `item_deps` `blocks` edges while the shipment remains `queued`. Archival is a later file-location move, not a shipment `status:` value.
 
 Error sentinels: `ErrShipmentNotFound`, `ErrShipmentConflict`,
 `ErrItemAlreadyAssigned`, `ErrCannotReturnItem`.

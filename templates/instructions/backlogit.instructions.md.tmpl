@@ -55,50 +55,53 @@ Protocol above.
 
 * **Select the next *eligible* shipment (execution)**: run
   `queue view --type shipment --status queued` as a first-pass filter. It returns
-  queued shipments in execution order (`custom_fields.queue_position` first, then
-  priority) and withholds shipments parked at `status: blocked`. Then **re-check
-  the candidate's `item_deps` + status before claiming** — per "Re-check
-  unfinished dependencies before claiming" in the Queue and Dependency Protocol —
-  rather than trusting the query alone: a stale or non-filtering `queue view`
-  could surface a successor early. This is the same eligible-head selection the
-  Orchestrator's "Route to Ship" rule performs.
-* **Reconstruct the full ordered sequence (scope / audit / resume)**: `queue view`
-  hides blocked successors, so it cannot rebuild the whole chain. List shipments
-  across **both `queued` and `blocked` statuses** (or use an unfiltered shipment
-  listing) and traverse the `item_deps` blocks-edges to rebuild the complete
-  ordered sequence and its restart cursor. A queued-only listing truncates the
-  chain, because dependency-gated successors stay at `status: blocked` until their
-  gate clears. This is the ordered scope P-017 records as `DARK_MODE_SCOPE`
-  resume/audit evidence.
+  **all** queued shipments in execution order (`custom_fields.queue_position`
+  first, then priority); there is no separate shipment `blocked` status in
+  backlogit 1.8.0. Then **re-check the candidate's `item_deps` + status before
+  claiming** — per "Re-check unfinished dependencies before claiming" in the
+  Queue and Dependency Protocol — rather than trusting the query alone: a stale or
+  non-filtering `queue view` could surface a successor early. A queued shipment is
+  only ELIGIBLE for claim once every `blocks`-type predecessor it depends on has
+  reached `shipped`; if any predecessor remains unmet, skip/withhold the
+  candidate. This matches the Ship agent's own readiness rule that treats unmet
+  `dependencies` as blocking eligibility through `dependencies`, not through a
+  shipment `blocked` status.
+* **Reconstruct the full ordered sequence (scope / audit / resume)**: because
+  every dependency-gated successor stays `status: queued` from creation and none
+  are hidden behind a separate `blocked` status, a single `queue view --type
+  shipment --status queued` (or an unfiltered shipment listing) already surfaces
+  the complete candidate set. Traverse the `item_deps` blocks-edges across that
+  set to rebuild the ordered sequence and its restart cursor, then evaluate which
+  queued successors are currently eligible by checking whether all blocking
+  predecessors have reached `shipped`. This is the ordered scope P-017 records as
+  `DARK_MODE_SCOPE` resume/audit evidence.
 * **Chain shipments into a self-enforcing sequence**: express ordering that must
   gate execution with `dep add <next-shipment> <prev-shipment> --type blocks`, so
   `<next-shipment>` cannot be claimed until `<prev-shipment>` has shipped.
-* **Un-gate the next successor after each predecessor ships (required)**: parking
-  a successor at `status: blocked` keeps it out of the `queue view` ready set, so
-  the Orchestrator's queued-only first-pass cannot see it until it is transitioned
-  back. After `<prev-shipment>` ships and its gate clears, the closing owner —
-  Ship's post-merge closure, or the Orchestrator immediately before its next queue
-  selection — MUST transition the next successor with `move <next-shipment> --status
-  queued` **before the next selection pass**; otherwise the dependency-gated
-  successor never re-enters the ready set and the dark run stalls. This is the
-  canonical `blocked → queued` (gate cleared) lifecycle transition; the `item_deps`
-  blocks-edge stays intact as the audit record of which predecessor gated it.
+* **Re-evaluate queued successors after each predecessor ships (required)**: once
+  `<prev-shipment>` reaches `shipped`, its `blocks` edge is satisfied and every
+  queued successor that depends on it becomes eligible on the very next explicit
+  eligibility check. The closing owner — Ship's post-merge closure, or the
+  Orchestrator immediately before its next queue selection — MUST simply
+  re-evaluate queued successors against their `blocks` edges; no shipment-status
+  mutation is performed or required. This is the supported backlogit 1.8.0 model
+  documented in `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`
+  and ratified by 109.019-T.
 * **Honor `custom_fields.queue_position`** for explicit manual ordering among
   eligible shipments; set it when you need a deterministic order that priority
   alone does not express.
 * **`dep_type` collapse note**: `dep_type` collapses to `blocks` on
   sync/rehydrate, so author sequencing edges with `--type blocks` explicitly and
   do not rely on other dependency types surviving a sync.
-* **Reconciliation — `status: blocked` vs an `item_deps` blocks-chain**: these are
-  two complementary mechanisms, not alternatives. Use the shipment `status:
-  blocked` **lifecycle** as the canonical dependency-gate state — a shipment gated
-  on an unmet predecessor sits at `blocked` and returns to `queued` only when the
-  gate clears (this is what keeps it out of the `queue view` ready set). Use an
-  `item_deps` **blocks-chain** to record *which* predecessor gates it, so the gate
-  is auditable and the ordered sequence is reconstructable. Author both: the
-  blocks-edge encodes the ordering; the `blocked` status reflects the current gate
-  state. (Consistent with the Semantic Links vs Dependencies guidance below —
-  `blocks` is an execution-blocking dependency, not an informational link.)
+* **Reconciliation — queued shipment status + `item_deps` blocks-chain**: the
+  `item_deps` blocks-edge is the sole dependency-gate mechanism. Shipment `status`
+  only ever holds `queued`, `active`, `shipped`, or `abandoned`, and eligibility
+  is computed as `status == "queued"` **and** every `blocks`-type predecessor
+  is `status == "shipped"`. Use the blocks-edge to encode ordering and to audit
+  which predecessor gated a queued successor; do not model dependency gating with
+  a separate shipment `blocked` status. (Consistent with the Semantic Links vs
+  Dependencies guidance below — `blocks` is an execution-blocking dependency, not
+  an informational link.)
 
 ## Hook Signal Protocol
 

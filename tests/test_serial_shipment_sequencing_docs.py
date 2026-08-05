@@ -11,6 +11,7 @@ _FILES = {
     'orchestrator_mirror': _ROOT / '.github' / 'agents' / '_orchestrator.agent.md',
     'ship_template': _ROOT / 'templates' / 'agents' / '_ship.agent.md.tmpl',
     'ship_mirror': _ROOT / '.github' / 'agents' / '_ship.agent.md',
+    'backlogit_template': _ROOT / 'templates' / 'instructions' / 'backlogit.instructions.md.tmpl',
 }
 
 
@@ -26,7 +27,7 @@ class SerialShipmentSequencingDocTests(unittest.TestCase):
                 self.assertIn('Successors stay', content)
                 self.assertIn('from creation', content)
                 self.assertIn('`blocks` edges', content)
-                self.assertIn('never attempt a `blocked ->', content)
+                self.assertIn('no shipment-status un-gating transition is performed or required', content)
 
     def test_orchestrator_requires_post_predecessor_reload(self) -> None:
         for name in ('orchestrator_template', 'orchestrator_mirror'):
@@ -45,13 +46,28 @@ class SerialShipmentSequencingDocTests(unittest.TestCase):
                 self.assertIn('not a stale in-context copy', content)
 
     def test_valid_transition_rule_is_cited(self) -> None:
-        for name in _FILES:
+        for name in ('orchestrator_template', 'orchestrator_mirror', 'ship_template', 'ship_mirror'):
             content = ' '.join(_read(name).split())
             with self.subTest(file=name):
                 self.assertIn('2026-05-07-backlogit-shipment-status-constraints.md', content)
                 self.assertIn('-> shipped', content)
                 self.assertIn('-> abandoned', content)
                 self.assertIn('there is no shipment `blocked` lifecycle', content)
+
+
+    def test_ship_and_backlogit_live_guidance_do_not_instruct_blocked_to_queued_transition(self) -> None:
+        for name in ('ship_template', 'ship_mirror', 'backlogit_template'):
+            content = _read(name)
+            with self.subTest(file=name):
+                self.assertNotIn('blocked -> queued', content)
+                self.assertNotIn('blocked → queued', content)
+                self.assertNotIn('blocked to queued', content)
+
+    def test_backlogit_protocol_uses_dependency_gating_not_blocked_status(self) -> None:
+        content = ' '.join(_read('backlogit_template').split())
+        self.assertIn('there is no separate shipment `blocked` status in backlogit 1.8.0.', content)
+        self.assertIn('queued shipment is only ELIGIBLE for claim once every `blocks`-type predecessor', content)
+        self.assertIn('no shipment-status mutation is performed or required', content)
 
 
 if __name__ == '__main__':

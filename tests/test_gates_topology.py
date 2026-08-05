@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from autoharness.gates.topology import (
     ArtifactState,
@@ -14,7 +16,7 @@ from autoharness.gates.topology import (
 
 
 class _FakeReaders:
-    def __init__(self, shipments=(), artifacts=None, branch='main', default_branch='main', worktrees=None):
+    def __init__(self, shipments=(), artifacts=None, branch='main', default_branch='main', worktrees=None, worktree_markers=None):
         if shipments and isinstance(shipments[0], (list, tuple)):
             self._snapshots = [tuple(snapshot) for snapshot in shipments]
         else:
@@ -27,6 +29,7 @@ class _FakeReaders:
             'HEAD 0000000000000000000000000000000000000000\n'
             f'branch refs/heads/{branch}\n\n'
         )
+        self._worktree_markers = dict(worktree_markers or {})
         self._calls = 0
 
     def list_shipments(self):
@@ -45,6 +48,9 @@ class _FakeReaders:
 
     def worktree_porcelain(self) -> str:
         return self._worktrees
+
+    def read_worktree_marker(self, worktree_path: str):
+        return self._worktree_markers.get(worktree_path)
 
     def closure_complete(self, shipment_id: str):
         return None
@@ -70,6 +76,46 @@ def _check(result, name: str):
 
 def _task(task_id: str, status: str) -> ArtifactState:
     return ArtifactState(artifact_id=task_id, artifact_type='task', live_status=status)
+
+
+class FilesystemTopologyReadersTests(unittest.TestCase):
+    def test_closure_complete_accepts_done_or_degraded_only(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            cases = (
+                ('done', True),
+                ('degraded', True),
+                ('ready', False),
+                ('pending', False),
+            )
+            for status, expected in cases:
+                with self.subTest(status=status):
+                    for existing in closure_dir.glob('*.md'):
+                        existing.unlink()
+                    (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
+                        f"---\ncompaction_status: {status}\n---\n",
+                        encoding='utf-8',
+                    )
+                    reader = FilesystemTopologyReaders(workspace)
+                    self.assertIs(reader.closure_complete('114-S'), expected)
+
+    def test_read_worktree_marker_reads_repo_local_marker(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            worktree = workspace / 'spike-research'
+            marker_dir = worktree / '.autoharness'
+            marker_dir.mkdir(parents=True)
+            marker = marker_dir / 'stage-worktree-marker.yaml'
+            marker.write_text('role: spike-research\nexpires_at: "2999-01-01T00:00:00Z"\n', encoding='utf-8')
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertEqual(reader.read_worktree_marker(str(worktree)), marker.read_text(encoding='utf-8'))
+            self.assertIsNone(reader.read_worktree_marker(str(worktree / 'missing')))
 
 
 class ActiveInvariantTests(unittest.TestCase):
@@ -219,10 +265,98 @@ class WorktreeTopologyTests(unittest.TestCase):
         )
         result = evaluate(
             TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
-            readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s', worktrees=worktrees),
+            readers=_FakeReaders(
+                shipments=(_shipment('114-S', 'queued'),),
+                branch='feat/114-s',
+                worktrees=worktrees,
+                worktree_markers={
+                    'C:/repo-stage-spike-001': 'role: spike-research\nexpires_at: "2999-01-01T00:00:00Z"\n',
+                },
+            ),
         )
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(_check(result, 'worktree_topology').token, 'WORKTREE_TOPOLOGY_OK')
+
+    def test_stage_spike_missing_marker_counts_as_implementation(self) -> None:
+        worktrees = (
+            'worktree C:/repo\n'
+            'HEAD 1111111111111111111111111111111111111111\n'
+            'branch refs/heads/feat/114-s\n\n'
+            'worktree C:/repo-stage-spike-001\n'
+            'HEAD 2222222222222222222222222222222222222222\n'
+            'branch refs/heads/spike/topology\n\n'
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s', worktrees=worktrees),
+        )
+        self.assertEqual(result.primary_token, 'MULTIPLE_IMPLEMENTATION_WORKTREES')
+
+    def test_stage_spike_expired_marker_counts_as_implementation(self) -> None:
+        worktrees = (
+            'worktree C:/repo\n'
+            'HEAD 1111111111111111111111111111111111111111\n'
+            'branch refs/heads/feat/114-s\n\n'
+            'worktree C:/repo-stage-spike-001\n'
+            'HEAD 2222222222222222222222222222222222222222\n'
+            'branch refs/heads/spike/topology\n\n'
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(
+                shipments=(_shipment('114-S', 'queued'),),
+                branch='feat/114-s',
+                worktrees=worktrees,
+                worktree_markers={
+                    'C:/repo-stage-spike-001': 'role: spike-research\nexpires_at: "2000-01-01T00:00:00Z"\n',
+                },
+            ),
+        )
+        self.assertEqual(result.primary_token, 'MULTIPLE_IMPLEMENTATION_WORKTREES')
+
+    def test_stage_spike_wrong_role_counts_as_implementation(self) -> None:
+        worktrees = (
+            'worktree C:/repo\n'
+            'HEAD 1111111111111111111111111111111111111111\n'
+            'branch refs/heads/feat/114-s\n\n'
+            'worktree C:/repo-stage-spike-001\n'
+            'HEAD 2222222222222222222222222222222222222222\n'
+            'branch refs/heads/spike/topology\n\n'
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(
+                shipments=(_shipment('114-S', 'queued'),),
+                branch='feat/114-s',
+                worktrees=worktrees,
+                worktree_markers={
+                    'C:/repo-stage-spike-001': 'role: implementation\nexpires_at: "2999-01-01T00:00:00Z"\n',
+                },
+            ),
+        )
+        self.assertEqual(result.primary_token, 'MULTIPLE_IMPLEMENTATION_WORKTREES')
+
+    def test_stage_spike_unparseable_marker_counts_as_implementation(self) -> None:
+        worktrees = (
+            'worktree C:/repo\n'
+            'HEAD 1111111111111111111111111111111111111111\n'
+            'branch refs/heads/feat/114-s\n\n'
+            'worktree C:/repo-stage-spike-001\n'
+            'HEAD 2222222222222222222222222222222222222222\n'
+            'branch refs/heads/spike/topology\n\n'
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(
+                shipments=(_shipment('114-S', 'queued'),),
+                branch='feat/114-s',
+                worktrees=worktrees,
+                worktree_markers={
+                    'C:/repo-stage-spike-001': 'role: [unterminated',
+                },
+            ),
+        )
+        self.assertEqual(result.primary_token, 'MULTIPLE_IMPLEMENTATION_WORKTREES')
 
     def test_multiple_implementation_worktrees_block(self) -> None:
         worktrees = (

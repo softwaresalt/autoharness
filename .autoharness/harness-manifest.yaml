@@ -112,12 +112,12 @@ artifacts:
   - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "0b768772cea4f28f29861d5d5055e9bc985610d7d6c00a9e8b320f188eba33a5"
+    checksum: "6fe356919d733b05f0f0b1ce102463199300508202615622d41f0ee7dc05bda9"
     note: "source-controlled dogfood workflow agent; checksum refreshed 114-S/109.020-T + 109.019-T (safe-close pointer + queued-from-start sequencing reload contract); checksum computed from the LF-normalized (.gitattributes eol=lf) committed blob, not a CRLF Windows working-tree copy"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "a9cb22382264067742dd42d99e7d72fab5ea18d0bec30c8ce43b1915a26738a3"
+    checksum: "8454b4e62dbe558f9b25fa15e0ead257fc3eb4ac0344760c7fffbe392ea3026b"
     note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013; checksum refreshed 114-S/109.019-T (queued-from-start sequencing + post-predecessor reload contract)"
   - path: "start.sh"
     primitive: 1

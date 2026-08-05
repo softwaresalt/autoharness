@@ -16,6 +16,7 @@ emits no topology telemetry by design; CI is the independent backstop.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime, timezone
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -77,6 +78,8 @@ class TopologyReaders(Protocol):
     def default_branch(self) -> str: ...
 
     def worktree_porcelain(self) -> str: ...
+
+    def read_worktree_marker(self, worktree_path: str) -> str | None: ...
 
     def closure_complete(self, shipment_id: str) -> bool | None: ...
 
@@ -274,6 +277,13 @@ class FilesystemTopologyReaders:
     def worktree_porcelain(self) -> str:
         return _run_git(["git", "--no-pager", "worktree", "list", "--porcelain"], self.workspace)
 
+    def read_worktree_marker(self, worktree_path: str) -> str | None:
+        marker_path = Path(worktree_path) / '.autoharness' / 'stage-worktree-marker.yaml'
+        try:
+            return marker_path.read_text(encoding='utf-8')
+        except (FileNotFoundError, OSError):
+            return None
+
     def closure_complete(self, shipment_id: str) -> bool | None:
         closure_dir = self.workspace / "docs" / "closure"
         if not closure_dir.exists():
@@ -284,7 +294,7 @@ class FilesystemTopologyReaders:
         for candidate in matches:
             fm = _frontmatter(candidate)
             compaction = fm.get("compaction_status") or fm.get("compaction")
-            if isinstance(compaction, str) and compaction.strip().lower() in {"done", "ready"}:
+            if isinstance(compaction, str) and compaction.strip().lower() in {"done", "degraded"}:
                 return True
         return False
 
@@ -308,6 +318,9 @@ class _NullReaders:
             'HEAD 0000000000000000000000000000000000000000\n'
             'branch refs/heads/main\n\n'
         )
+
+    def read_worktree_marker(self, worktree_path: str) -> str | None:
+        return None
 
     def closure_complete(self, shipment_id: str) -> bool | None:
         return None
@@ -556,17 +569,49 @@ def parse_worktree_porcelain(porcelain: str) -> tuple[WorktreeEntry, ...]:
     return tuple(entries)
 
 
-def _is_stage_spike_research_worktree(entry: WorktreeEntry) -> bool:
+def _parse_stage_worktree_expiry(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    raw = value.strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _is_stage_spike_research_worktree(entry: WorktreeEntry, readers: TopologyReaders) -> bool:
+    import yaml
+
     branch = (entry.branch or "").lower()
-    path_name = Path(entry.path).name.lower()
-    branch_ok = branch.startswith("spike/") or branch.startswith("research/")
-    path_ok = "stage-spike" in path_name or "stage-research" in path_name
-    return branch_ok and path_ok
+    if not (branch.startswith("spike/") or branch.startswith("research/")):
+        return False
+
+    marker_text = readers.read_worktree_marker(entry.path)
+    if not isinstance(marker_text, str) or not marker_text.strip():
+        return False
+
+    try:
+        marker = yaml.safe_load(marker_text)
+    except yaml.YAMLError:
+        return False
+    if not isinstance(marker, dict):
+        return False
+    if marker.get("role") != "spike-research":
+        return False
+
+    expires_at = _parse_stage_worktree_expiry(marker.get("expires_at"))
+    return expires_at is not None and expires_at > datetime.now(timezone.utc)
 
 
 def _worktree_uniqueness_check(readers: TopologyReaders) -> CheckResult:
     entries = parse_worktree_porcelain(readers.worktree_porcelain())
-    implementation = [entry for entry in entries if not _is_stage_spike_research_worktree(entry)]
+    spike_research = [entry for entry in entries if _is_stage_spike_research_worktree(entry, readers)]
+    implementation = [entry for entry in entries if entry not in spike_research]
     if len(implementation) == 1:
         return CheckResult(
             name="worktree_topology",
@@ -574,7 +619,7 @@ def _worktree_uniqueness_check(readers: TopologyReaders) -> CheckResult:
             token="WORKTREE_TOPOLOGY_OK",
             details={
                 "implementation_worktrees": [entry.path for entry in implementation],
-                "spike_research_worktrees": [entry.path for entry in entries if _is_stage_spike_research_worktree(entry)],
+                "spike_research_worktrees": [entry.path for entry in spike_research],
             },
         )
     if len(implementation) == 0:
@@ -583,7 +628,7 @@ def _worktree_uniqueness_check(readers: TopologyReaders) -> CheckResult:
             status="blocked",
             token="NO_IMPLEMENTATION_WORKTREE",
             message="NO_IMPLEMENTATION_WORKTREE: topology gate requires exactly one implementation worktree",
-            details={"spike_research_worktrees": [entry.path for entry in entries if _is_stage_spike_research_worktree(entry)]},
+            details={"spike_research_worktrees": [entry.path for entry in spike_research]},
         )
     return CheckResult(
         name="worktree_topology",
@@ -592,7 +637,7 @@ def _worktree_uniqueness_check(readers: TopologyReaders) -> CheckResult:
         message="MULTIPLE_IMPLEMENTATION_WORKTREES: topology gate allows exactly one implementation worktree",
         details={
             "implementation_worktrees": [entry.path for entry in implementation],
-            "spike_research_worktrees": [entry.path for entry in entries if _is_stage_spike_research_worktree(entry)],
+            "spike_research_worktrees": [entry.path for entry in spike_research],
         },
     )
 
