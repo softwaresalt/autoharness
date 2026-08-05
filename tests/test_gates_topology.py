@@ -15,7 +15,10 @@ from autoharness.gates.topology import (
 
 class _FakeReaders:
     def __init__(self, shipments=(), artifacts=None, branch='main', default_branch='main', worktrees=None):
-        self._shipments = tuple(shipments)
+        if shipments and isinstance(shipments[0], (list, tuple)):
+            self._snapshots = [tuple(snapshot) for snapshot in shipments]
+        else:
+            self._snapshots = [tuple(shipments)]
         self._artifacts = dict(artifacts or {})
         self._branch = branch
         self._default_branch = default_branch
@@ -24,9 +27,12 @@ class _FakeReaders:
             'HEAD 0000000000000000000000000000000000000000\n'
             f'branch refs/heads/{branch}\n\n'
         )
+        self._calls = 0
 
     def list_shipments(self):
-        return self._shipments
+        index = min(self._calls, len(self._snapshots) - 1)
+        self._calls += 1
+        return self._snapshots[index]
 
     def read_artifact(self, artifact_id: str):
         return self._artifacts.get(artifact_id)
@@ -278,3 +284,46 @@ class ShipmentReadinessTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+
+class PostClaimVerifyTests(unittest.TestCase):
+    def test_target_sole_active_passes(self) -> None:
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'active'),))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+
+    def test_target_queued_retries_after_full_revalidation(self) -> None:
+        snapshots = [
+            (_shipment('114-S', 'queued'),),
+            (_shipment('114-S', 'queued'),),
+            (_shipment('114-S', 'queued'),),
+            (_shipment('114-S', 'active'),),
+        ]
+        readers = _FakeReaders(shipments=snapshots)
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+
+    def test_other_active_blocks_with_claim_verify_failed(self) -> None:
+        readers = _FakeReaders(shipments=(_shipment('115-S', 'active'), _shipment('114-S', 'queued')))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'CLAIM_VERIFY_FAILED')
+
+    def test_inconsistent_state_blocks_with_claim_verify_failed(self) -> None:
+        readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued', '109.002-T'),),
+            artifacts={'109.002-T': _task('109.002-T', 'done')},
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'CLAIM_VERIFY_FAILED')

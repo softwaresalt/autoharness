@@ -9,6 +9,8 @@ Local limitation: the active-shipment scan and detect-before consistency scan ca
 only observe the current checkout. They are deliberately detect-before guards, not
 serialization, leases, or cross-machine locks. backlogit provides no workspace-
 wide claim lock, so concurrent work in another checkout can still race this gate.
+Likewise, a local hook skipped with ``git --no-verify`` executes no gate code and
+emits no topology telemetry by design; CI is the independent backstop.
 """
 
 from __future__ import annotations
@@ -26,6 +28,12 @@ SCOPED_PHASES = ("pre_claim", "post_claim", "lifecycle")
 _NOT_YET_CLAIMED_STATUSES = frozenset({"queued", "blocked"})
 _TASK_ACTIVE_OR_DONE = frozenset({"active", "done"})
 _BRANCH_KIND_PREFIXES = ("feat/", "chore/")
+_POST_CLAIM_WRAP_TOKENS = frozenset({
+    "SHIPMENT_STATE_INCONSISTENT",
+    "LIFECYCLE_NO_ACTIVE_SHIPMENT",
+    "LIFECYCLE_MULTIPLE_ACTIVE_SHIPMENTS",
+    "LIFECYCLE_ACTIVE_SHIPMENT_MISMATCH",
+})
 
 
 @dataclass(frozen=True)
@@ -99,6 +107,7 @@ class TopologyResult:
     checks: tuple[CheckResult, ...] = ()
     exit_code: int = 0
     message: str = "topology gate pass"
+    forced: bool = False
 
     @property
     def blocked(self) -> bool:
@@ -126,6 +135,7 @@ class TopologyResult:
             "message": self.message,
             "checks": [check.to_dict() for check in self.checks],
             "token": self.primary_token,
+            "forced": self.forced,
         }
 
 
@@ -301,6 +311,137 @@ class _NullReaders:
 
     def closure_complete(self, shipment_id: str) -> bool | None:
         return None
+
+
+def _claim_verify_failed(
+    topology_input: TopologyInput,
+    target: str | None,
+    detail: TopologyResult | CheckResult,
+    *,
+    reason: str,
+) -> TopologyResult:
+    token = detail.primary_token if isinstance(detail, TopologyResult) else detail.token
+    message = f"CLAIM_VERIFY_FAILED: {reason}"
+    if token:
+        message = f"{message} ({token})"
+    check = CheckResult(
+        name="post_claim_reverify",
+        status="blocked",
+        token="CLAIM_VERIFY_FAILED",
+        message=message,
+        details={
+            "target_shipment_id": target,
+            "cause_token": token,
+        },
+    )
+    return TopologyResult(
+        mode=topology_input.mode,
+        phase="post_claim",
+        resolved_target_shipment_id=target,
+        checks=(check,),
+        exit_code=1,
+        message=message,
+    )
+
+
+def _evaluate_core(
+    topology_input: TopologyInput,
+    resolved_phase: str,
+    target: str | None,
+    bound_readers: TopologyReaders,
+    shipments: Sequence[ShipmentState],
+) -> TopologyResult:
+    checks: list[CheckResult] = []
+
+    consistency = _detect_before_consistency(shipments, bound_readers)
+    checks.append(consistency)
+    if consistency.status == "blocked":
+        return _blocked_result(topology_input, resolved_phase, target, consistency)
+
+    active_check = _active_invariant_check(resolved_phase, target, shipments)
+    checks.append(active_check)
+    if active_check.status == "blocked":
+        return _blocked_result(topology_input, resolved_phase, target, active_check)
+
+    branch_check = _branch_ownership_check(target, shipments, bound_readers)
+    checks.append(branch_check)
+    if branch_check.status == "blocked":
+        return _blocked_result(topology_input, resolved_phase, target, branch_check)
+
+    worktree_check = _worktree_uniqueness_check(bound_readers)
+    checks.append(worktree_check)
+    if worktree_check.status == "blocked":
+        return _blocked_result(topology_input, resolved_phase, target, worktree_check)
+
+    readiness_check = _shipment_readiness_check(target, shipments, bound_readers)
+    checks.append(readiness_check)
+    if readiness_check.status == "blocked":
+        return _blocked_result(topology_input, resolved_phase, target, readiness_check)
+
+    return _pass_result(topology_input, resolved_phase, target, checks)
+
+
+def _target_live_status(target: str | None, shipments: Sequence[ShipmentState]) -> str | None:
+    if target is None:
+        return None
+    shipment = _shipment_map(shipments).get(target)
+    return shipment.live_status if shipment is not None else None
+
+
+def _evaluate_post_claim(
+    topology_input: TopologyInput,
+    target: str | None,
+    bound_readers: TopologyReaders,
+) -> TopologyResult:
+    initial_shipments = tuple(bound_readers.list_shipments())
+    initial = _evaluate_core(topology_input, "post_claim", target, bound_readers, initial_shipments)
+    if initial.exit_code == 0:
+        return initial
+    if initial.primary_token not in _POST_CLAIM_WRAP_TOKENS:
+        return initial
+
+    target_status = _target_live_status(target, initial_shipments)
+    active_count = len(_active_shipments(initial_shipments))
+    if initial.primary_token == "SHIPMENT_STATE_INCONSISTENT":
+        return _claim_verify_failed(
+            topology_input,
+            target,
+            initial,
+            reason="detect-before consistency scan found a queued shipment with active/done work",
+        )
+    if target_status == "queued" and active_count == 0:
+        revalidation_shipments = tuple(bound_readers.list_shipments())
+        revalidation = _evaluate_core(
+            topology_input,
+            "pre_claim",
+            target,
+            bound_readers,
+            revalidation_shipments,
+        )
+        if revalidation.exit_code != 0:
+            return _claim_verify_failed(
+                topology_input,
+                target,
+                revalidation,
+                reason="pre-claim revalidation did not pass before the bounded post-claim retry",
+            )
+        retry_shipments = tuple(bound_readers.list_shipments())
+        retry = _evaluate_core(topology_input, "post_claim", target, bound_readers, retry_shipments)
+        if retry.exit_code == 0:
+            return retry
+        return _claim_verify_failed(
+            topology_input,
+            target,
+            retry,
+            reason="target shipment did not become the sole active shipment after the bounded retry",
+        )
+
+    return _claim_verify_failed(
+        topology_input,
+        target,
+        initial,
+        reason="post-claim topology did not converge to target-active-and-sole",
+    )
 
 
 def _invalid_result(topology_input: TopologyInput, phase: str, message: str) -> TopologyResult:
@@ -819,36 +960,22 @@ def evaluate(
 
     resolved_phase = _resolve_phase(topology_input)
     bound_readers = readers or _NullReaders()
-    shipments = tuple(bound_readers.list_shipments())
-    target, target_error = _resolve_target_shipment(topology_input, shipments, bound_readers)
+    target_resolution_shipments = tuple(bound_readers.list_shipments())
+    target, target_error = _resolve_target_shipment(
+        topology_input,
+        target_resolution_shipments,
+        bound_readers,
+    )
     if target_error is not None:
         return _invalid_result(topology_input, resolved_phase, target_error)
 
-    checks: list[CheckResult] = []
+    if resolved_phase == "post_claim":
+        return _evaluate_post_claim(topology_input, target, bound_readers)
 
-    consistency = _detect_before_consistency(shipments, bound_readers)
-    checks.append(consistency)
-    if consistency.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, consistency)
-
-    active_check = _active_invariant_check(resolved_phase, target, shipments)
-    checks.append(active_check)
-    if active_check.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, active_check)
-
-    branch_check = _branch_ownership_check(target, shipments, bound_readers)
-    checks.append(branch_check)
-    if branch_check.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, branch_check)
-
-    worktree_check = _worktree_uniqueness_check(bound_readers)
-    checks.append(worktree_check)
-    if worktree_check.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, worktree_check)
-
-    readiness_check = _shipment_readiness_check(target, shipments, bound_readers)
-    checks.append(readiness_check)
-    if readiness_check.status == "blocked":
-        return _blocked_result(topology_input, resolved_phase, target, readiness_check)
-
-    return _pass_result(topology_input, resolved_phase, target, checks)
+    return _evaluate_core(
+        topology_input,
+        resolved_phase,
+        target,
+        bound_readers,
+        target_resolution_shipments,
+    )

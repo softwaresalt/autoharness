@@ -676,6 +676,51 @@ def _parse_gate_pipeline_topology_args(args: list[str]) -> dict:
     return parsed
 
 
+def _audit_pipeline_topology_force(workspace: Path, result) -> str:
+    """Append an audit line for an operator --force bypass of a blocked topology verdict."""
+    from datetime import datetime, timezone
+
+    audit_path = Path(workspace) / '.autoharness' / 'gates' / 'pipeline-topology-force-audit.log'
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    actor = os.environ.get('USERNAME') or os.environ.get('USER') or 'unknown'
+    payload = {
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'actor': actor,
+        'reason': '--force override',
+        'mode': result.mode,
+        'phase': result.phase,
+        'target_shipment_id': result.resolved_target_shipment_id,
+        'token': result.primary_token,
+        'message': result.message,
+    }
+    with audit_path.open('a', encoding='utf-8') as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + '\n')
+    return str(audit_path)
+
+
+def _emit_pipeline_topology_telemetry(workspace: Path, result, audit_path: str | None = None) -> str:
+    """Append one structured telemetry event for each pipeline-topology gate run."""
+    from datetime import datetime, timezone
+
+    telemetry_path = Path(workspace) / '.autoharness' / 'gates' / 'pipeline-topology-telemetry.jsonl'
+    telemetry_path.parent.mkdir(parents=True, exist_ok=True)
+    outcome = 'forced' if getattr(result, 'forced', False) else 'blocked' if result.exit_code == 1 else 'pass'
+    payload = {
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'gate': 'pipeline-topology',
+        'outcome': outcome,
+        'mode': result.mode,
+        'phase': result.phase,
+        'target_shipment_id': result.resolved_target_shipment_id,
+        'token': result.primary_token,
+        'message': result.message,
+        'audit_log': audit_path,
+    }
+    with telemetry_path.open('a', encoding='utf-8') as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + '\n')
+    return str(telemetry_path)
+
+
 def _gate_pipeline_topology_command(rest: list[str]) -> None:
     """Run the deterministic shipment/worktree topology gate."""
     if any(flag in ("help", "--help", "-h") for flag in rest):
@@ -702,7 +747,19 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
         readers=topology.FilesystemTopologyReaders(Path('.')),
     )
 
+    audit_path = None
+    if result.exit_code == 1 and parsed["force"]:
+        audit_path = _audit_pipeline_topology_force(Path('.'), result)
+        from dataclasses import replace
+
+        result = replace(result, exit_code=0, forced=True, message=f"{result.message} (forced)")
+
+    telemetry_path = _emit_pipeline_topology_telemetry(Path('.'), result, audit_path)
+
     payload = result.to_dict()
+    payload["telemetry_log"] = telemetry_path
+    if audit_path:
+        payload["force_audit_log"] = audit_path
     if parsed["emit_json"]:
         print(json.dumps(payload, indent=2))
     else:
@@ -711,6 +768,9 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
         print(f"  mode={result.mode} phase={result.phase} target={result.resolved_target_shipment_id}")
         if result.message:
             print(f"  {result.message}")
+        print(f"  telemetry: {telemetry_path}")
+        if audit_path:
+            print(f"  --force override recorded: {audit_path}")
 
     if result.exit_code != 0:
         sys.exit(result.exit_code)
