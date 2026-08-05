@@ -149,3 +149,22 @@ closure verdict as unconditional `READY`, read the full review body text
 (`reviews(last:N){ nodes{ body } }` via GraphQL), not just the thread
 count — and remember that a docs-only PR is not exempt from this scrutiny;
 closure documentation itself gets reviewed.
+
+## Lesson: a stated closure "condition" is only real if the code actually enforces it
+
+A second review round on the closure PR (still HEAD `ade757b`) went one
+step further: it pointed out that `closure_complete()`
+(`topology.py:505-518`) validates only `compaction_status`, never
+`closure_status`/releasability — a **third** recurrence of a defect
+Copilot's PR #297 review had flagged twice before (also as suppressed
+comments, never a resolvable thread). Consequence: writing "115-S must not
+proceed until these defects are fixed" in a closure doc's prose has zero
+mechanical effect, because the one function that could enforce it doesn't
+look at the field that prose depends on. Lesson: when a closure document
+declares a condition gating a successor's eligibility, verify whether the
+actual gate/tool the successor depends on (here: the topology gate's
+`closure_complete()`) can see and enforce that condition — if it can't
+(because the gate isn't wired in yet, or checks a different field), say so
+explicitly rather than implying a control exists that doesn't. A written
+condition without an enforcement point is a process commitment for humans
+to honor manually, not a gate.

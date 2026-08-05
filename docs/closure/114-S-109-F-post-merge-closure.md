@@ -101,16 +101,61 @@ corrections in `docs/compound/114-S-109-F-copilot-review-fix-patterns.md`,
 `docs/archive/memory/2026-08-05-ship-114-S-109-F-session.md`, are that
 correction.
 
-**Follow-up required**: both defects are real, pre-existing correctness
-bugs in merged `main` code and require a dedicated follow-up task. Ship
-cannot create backlog items (Role Boundary); this is flagged here, and in
-the final report to the operator/Orchestrator, for Stage to triage a
-follow-up task under `109-F` (or a fast-follow chore) covering:
+**Follow-up required**: all three defects below are real, pre-existing
+correctness bugs in merged `main` code and require a dedicated follow-up
+task. Ship cannot create backlog items (Role Boundary); this is flagged
+here, and in the final report to the operator/Orchestrator, for Stage to
+triage a follow-up task under `109-F` (or a fast-follow chore) covering:
 (a) either wiring an injected claim operation into the bounded post-claim
 retry or having it return a retry-required result so Ship's own external
-claim-retry-and-recall loop (Step 0.5.5) drives convergence instead, and
+claim-retry-and-recall loop (Step 0.5.5) drives convergence instead;
 (b) mapping `exit_code == 2` (and any other non-zero, non-`blocked`,
-non-`forced` result) to a `failed` telemetry outcome instead of `success`.
+non-`forced` result) to a `failed` telemetry outcome instead of `success`;
+and (c) — added during this closure PR's *own* second review round, see
+below — `closure_complete()` (`src/autoharness/gates/topology.py:505-518`)
+must validate the closure artifact's actual `closure_status`/releasability
+(requiring a terminal value such as `READY`/`READY_WITH_CONDITIONS`), not
+only `compaction_status`.
+
+### Addendum: the "condition" above is not currently tool-enforced
+
+A second review round on this closure PR (still HEAD `ade757b`) correctly
+observed that (c) above is not new — it is a **third recurrence** of a
+defect Copilot's PR #297 review body had already flagged twice before as
+suppressed comments (at `topology.py:396` and `topology.py:435`,
+pre-round-9/round-10 HEADs) and which was never fixed because it never
+became a resolvable inline thread. Its practical consequence for **this**
+closure: `115-S` in `.backlogit/queue/115-S.md` depends only on `114-S`
+being terminal, and `closure_complete()` currently treats this very closure
+document as satisfying that dependency purely because `compaction_status:
+done` — completely independent of the `closure_status:
+READY_WITH_CONDITIONS` recorded above. **In other words, nothing in the
+topology gate's own code mechanically blocks `115-S` from being claimed
+before the three defects above are fixed.** Since the gate itself is not
+yet wired into any hook or automated caller (see Releasability below), this
+is not an active production gap today, but it means the "condition" in the
+Releasability verdict is a **process commitment for the operator/
+Orchestrator/Stage to honor manually**, not a tool-enforced gate. This is
+recorded explicitly rather than glossed over, per the same correction all
+of this section already makes: read the full review body, and do not
+describe a control as more solid than it currently is.
+
+### Addendum: a backlog audit-log discrepancy, noted but not fabricated
+
+The same review round separately flagged that
+`.backlogit/logs/114-S.jsonl` jumps directly from a `shipment_status_changed`
+event recording `status: active` to an `archived` event, omitting an
+intermediate `shipment_status_changed` event for the `shipped` transition
+that comparable prior closures (e.g. `093-S`, `096-S`) do record. The
+archived record's own `archived_status: shipped` field confirms the
+transition genuinely happened at the data level (this was verified
+multiple times during the safe-close's verify-after-each steps in this
+same session), so the discrepancy is isolated to the append-only audit
+log's completeness, not to the correctness of the final state. This is
+recorded here as a known discrepancy for the backlogit maintainers/Stage to
+investigate — Ship does not hand-author a synthetic log entry to paper over
+a gap in an append-only audit trail, as that would itself corrupt the
+trail's integrity.
 
 ## Runtime Verification
 
@@ -214,17 +259,30 @@ gates B/C remain queued in `115-S`/`116-S`):
     cascade command; the covering feature `109-F` and all 10 downstream
     sibling tasks (`115-S`/`116-S` scope) remain untouched and queue-resident.
 - **Failure signals to watch**:
-  - Two known residual production defects surfaced by this closure PR's own
-    Copilot review (see "Known Residual Findings" above), both pre-existing
-    in merged `main` and independent of this closure PR's docs-only diff:
-    `topology.py:680`'s bounded post-claim retry never actually re-invokes a
-    claim operation (real delayed/failed claims will deterministically end
-    in `CLAIM_VERIFY_FAILED`), and `cli.py:735-739`'s telemetry outcome
-    mapping records invalid (`exit_code == 2`) gate evaluations as
-    `success`. Neither is exercised in production today (see Releasability
-    below), but both must be fixed before `115-S` activates this gate as a
-    real enforcement point; both require a dedicated Stage-triaged
-    follow-up task.
+  - **Three** known residual production defects surfaced across this
+    closure PR's two Copilot review rounds (see "Known Residual Findings"
+    and its addenda above), all pre-existing in merged `main` and
+    independent of this closure PR's docs-only diff: `topology.py:680`'s
+    bounded post-claim retry never actually re-invokes a claim operation
+    (real delayed/failed claims will deterministically end in
+    `CLAIM_VERIFY_FAILED`); `cli.py:735-739`'s telemetry outcome mapping
+    records invalid (`exit_code == 2`) gate evaluations as `success`; and
+    `topology.py:505-518`'s `closure_complete()` validates only
+    `compaction_status`, never `closure_status`/releasability — a third
+    recurrence of a defect Copilot's PR #297 review had already flagged
+    twice (as suppressed comments, never a resolvable thread). None is
+    exercised in production today (see Releasability below), but all three
+    must be fixed before `115-S` activates this gate as a real enforcement
+    point — and the third defect means the topology gate cannot currently
+    be relied on to enforce that itself; it is a process commitment, not a
+    tool-enforced gate, until fixed. All three require a dedicated
+    Stage-triaged follow-up task.
+  - Additionally, a discrepancy in `.backlogit/logs/114-S.jsonl` (missing
+    intermediate `shipment_status_changed: shipped` event) was flagged;
+    the underlying data (`archived_status: shipped`) is correct and was
+    independently verified during safe-close, so this is an audit-log
+    completeness question for backlogit maintainers/Stage, not a
+    correctness defect in `114-S`'s own closure.
   - Otherwise none specific to this shipment's scope. The Copilot review's
     persistent "silent fail-open" defect class (frontmatter parsing →
     shipment id → shipment status → archive-presence ambiguity → task
@@ -239,9 +297,9 @@ gates B/C remain queued in `115-S`/`116-S`):
   wired into any hook or automated caller** (no existing automation invokes
   it; hook install is deferred to gate B/`115-S`; Ship's own current
   claim-verify logic in `.github/agents/_ship.agent.md` also does not call
-  it yet), so there is zero live blast radius from the two known residual
+  it yet), so there is zero live blast radius from the three known residual
   defects today — the only user-facing behavior change is the CLI
-  help-text addition, which is unaffected by either defect; rollback =
+  help-text addition, which is unaffected by any of them; rollback =
   revert merge commit `cef4040` (additive new module + tests + docs, no
   destructive migration, no schema change); validation window = immediate
   post-merge on 2026-08-05 after `main` synced to `cef4040`; owner = Ship
@@ -251,21 +309,27 @@ gates B/C remain queued in `115-S`/`116-S`):
   does not extend past `114-S`'s own merge without an explicit renewed
   scope).
   **Releasability: READY_WITH_CONDITIONS** — condition: `topology.py:680`
-  (bounded post-claim retry never re-invokes a claim operation) and
+  (bounded post-claim retry never re-invokes a claim operation),
   `cli.py:735-739` (invalid `exit_code == 2` results recorded as `success`
-  telemetry) MUST be fixed and verified **before** `115-S` (or any other
-  work) wires this gate into a git hook or any automated caller. Until that
-  condition is met, the gate remains safe to merge/hold as dormant,
-  manually-invoked-only code — it is not yet an active enforcement point,
-  so `109.001-T`'s reclaim/retry acceptance criterion is not violated in a
-  live sense, but it must be satisfied before activation.
+  telemetry), and `topology.py:505-518` (`closure_complete()` ignoring
+  `closure_status`/releasability) MUST be fixed and verified **before**
+  `115-S` (or any other work) wires this gate into a git hook or any
+  automated caller. Until that condition is met, the gate remains safe to
+  merge/hold as dormant, manually-invoked-only code — it is not yet an
+  active enforcement point, so `109.001-T`'s reclaim/retry acceptance
+  criterion is not violated in a live sense, but it must be satisfied
+  before activation. **This condition is a process commitment for the
+  operator/Orchestrator/Stage, not currently a tool-enforced gate** — see
+  the addendum above.
 - **Follow-ups**: `none` carried from the PR #297 Local Review Readiness
-  block itself (explicitly `none` at merge time). **Two new follow-ups
+  block itself (explicitly `none` at merge time). **Three new follow-ups
   identified during this closure PR's own review** (see Known Residual
-  Findings): (1) wire a real claim-retry (or a retry-required return) into
-  `topology.py`'s bounded post-claim retry; (2) map `exit_code == 2` (and
-  any other non-zero, non-`blocked`, non-`forced` result) to a `failed`
-  telemetry outcome in `cli.py`. Both require Stage triage (Ship cannot
+  Findings and its addenda): (1) wire a real claim-retry (or a
+  retry-required return) into `topology.py`'s bounded post-claim retry;
+  (2) map `exit_code == 2` (and any other non-zero, non-`blocked`,
+  non-`forced` result) to a `failed` telemetry outcome in `cli.py`; (3)
+  make `closure_complete()` validate `closure_status`/releasability, not
+  only `compaction_status`. All three require Stage triage (Ship cannot
   create backlog items) and **must complete before `115-S` installs the
   hook** that activates this gate. Gates B (hooks/install) and C (CI)
   remain staged in `115-S`/`116-S`, both still `queued` and explicitly
@@ -280,9 +344,10 @@ probe PASS (plus extensive live gate self-validation), single-artifact
 safe-close complete for the shipment and all 10 manifest tasks (no cascade
 corruption, no scope leakage into `109-F` or the `115-S`/`116-S` sibling
 tasks), and P-020 context compaction is recorded `done` (see Context
-Compaction section above). Two pre-existing residual defects in merged code
-were surfaced by this closure PR's own Copilot review, are documented above
-as required Stage follow-ups, and are the reason this verdict is
+Compaction section above). Three pre-existing residual defects in merged
+code were surfaced by this closure PR's own two Copilot review rounds, are
+documented above as required Stage follow-ups, and are the reason this
+verdict is
 `READY_WITH_CONDITIONS` rather than an unconditional `READY`: the defects
 have zero live blast radius today (dormant, unwired CLI subcommand) but
 must be fixed and verified before `115-S` (or any other work) activates
@@ -293,7 +358,8 @@ this gate via a hook or automated caller.
 dark-mode-authorized approval does not carry over). No merge of the closure
 PR will be attempted without it. `114-S` is already safe-closed and
 archived; the sole outstanding items are (1) operator sign-off on this
-closure PR itself, and (2) Stage triage of the two follow-up defects before
+closure PR itself, and (2) Stage triage of the three follow-up defects
+before
 `115-S` activates the gate. Per the operator's explicit instruction, Ship
 does **not** start
 `115-S` and returns control to Orchestrator after this closure.
