@@ -166,8 +166,11 @@ silently defaulting to `success` or misreporting it as `blocked`.
   and `templates/scripts/pre-commit-pipeline-topology.{sh,ps1}.tmpl` invoke
   `--mode manual --phase ambient` with **no** `--shipment` — the non-shipment-
   scoped, deterministic ambient contract described above.
-* **CI**: an equivalent `ambient` invocation may be wired into a CI job as an
-  independent backstop for the (skippable, `--no-verify`) local hooks.
+* **CI**: `templates/ci/ci-topology-check.sh.tmpl` (109.011-T) is the fail-closed
+  CI entrypoint wrapping this same `ambient` invocation as an independent
+  backstop for the (skippable, `--no-verify`) local hooks; see
+  [CI Topology-Check Entrypoint (Gate C)](#ci-topology-check-entrypoint-gate-c)
+  below.
 
 ## Opt-In Install / Activation
 
@@ -223,6 +226,36 @@ claim/build/PR/closure points) remain the actual enforcement backstop. Absent th
 Both hooks are a single deterministic pass with no retry loop (circuit-breaker
 compatible), and both honor the standard `--no-verify` bypass.
 
+## CI Topology-Check Entrypoint (Gate C)
+
+Gate C (`116-S`, this shipment) completes the staged A→B→C rollout by adding the
+server-side, **non-bypassable** CI backstop: local hooks are always skippable via
+`git ... --no-verify`, and Git has no pre-worktree-add hook at all, so CI is the
+authoritative re-validation point for the P-001/P-016 invariants once a checkout
+syncs.
+
+* **Entrypoint** (109.011-T): `templates/ci/ci-topology-check.sh.tmpl` resolves to
+  `{workspace}/scripts/ci-topology-check.sh`. It invokes
+  `autoharness gate pipeline-topology --mode ci --phase ambient --json` — the
+  exact same non-shipment-scoped, deterministic target resolution as the local
+  ambient hooks (no human-supplied `--shipment`) — and propagates the gate's raw
+  exit code **unmodified**. Unlike the local hooks, this entrypoint carries **no**
+  advisory-degrade toggle: a missing `autoharness` binary is a CI configuration
+  failure (exit 1), not a warn-and-skip.
+* **Workflow wiring** (109.014-T): `templates/ci/ci.yml.tmpl` adds an
+  always-running `topology-check` job that checks out the repo, installs the
+  `autoharness` package, and runs the entrypoint script. The
+  **required-vs-advisory** decision is an explicit **operator toggle** applied at
+  the job level via `continue-on-error: ${{ vars.PIPELINE_TOPOLOGY_GATE_REQUIRED
+  != 'true' }}` — default unset means advisory (non-blocking; the job's result is
+  still reported to dependents as `success` even if the gate itself reported
+  BLOCK), and setting the `PIPELINE_TOPOLOGY_GATE_REQUIRED` repository variable to
+  `'true'` flips it to required (blocking) with **no workflow re-render needed**.
+* **Rollout staging** (109.012-T): see
+  [`docs/pipeline-topology-gate-ci-rollout.md`](pipeline-topology-gate-ci-rollout.md)
+  for the advisory→required staged rollout narrative, the local-hook-vs-CI
+  responsibility split, and CI-path test coverage.
+
 ## Cross-Machine Scope Limitation
 
 The gate's active-shipment scan and its worktree-uniqueness check are **local to
@@ -259,3 +292,5 @@ Running the gate never dirties tracked working-tree state.
 * [`_orchestrator` agent definition](../.github/agents/_orchestrator.agent.md)
 * `templates/scripts/pre-push-quality-gates.sh.tmpl` / `.ps1.tmpl`
 * `templates/scripts/pre-commit-pipeline-topology.sh.tmpl` / `.ps1.tmpl`
+* `templates/ci/ci-topology-check.sh.tmpl` — the CI entrypoint (Gate C)
+* [`docs/pipeline-topology-gate-ci-rollout.md`](pipeline-topology-gate-ci-rollout.md) — the advisory→required staged rollout doc (Gate C)

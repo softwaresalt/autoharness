@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-04T16:42:21.2348306-07:00","actor":"backlogit","item_id":"116-S","event_type":"shipment_created","delta":{"items":["109.011-T","109.014-T","109.012-T"],"title":"Topology gate C — remote CI validation backstop"}}
+{"timestamp":"2026-08-05T13:30:42.0392513-07:00","actor":"backlogit","item_id":"116-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
