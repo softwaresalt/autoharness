@@ -49,18 +49,22 @@ Links: `001-SP --informs--> 109-F`, `012-DL --informs--> 109-F`.
 
 ## Key design decisions (from 012-DL / 109.001-R)
 
-- backlogit = authoritative shipment claim/status store; its ClaimShipment is an
-  atomic CAS WITHIN ONE SYNCHRONIZED CHECKOUT (local filesystem CAS), NOT a
-  real-time cross-machine lease. The gate is a fail-closed READER/VALIDATOR, never
-  mutates backlogit internal transitions (external-guard pattern). Do not mutate
-  C:/Source/GitHub/backlogit.
-- Atomicity via detect-before (`SHIPMENT_STATE_INCONSISTENT`) + post-claim GLOBAL
+- backlogit = authoritative shipment claim/status store; its ClaimShipment is NOT
+  a CAS, lock, or lease — it is an UNLOCKED read/check/write with PER-SHIPMENT
+  ALL-OR-NOTHING PERSISTENCE + rollback and NO serialization at any scope (local
+  same-checkout + cross-machine TOCTOU). The gate is a fail-closed READER/VALIDATOR
+  providing pre/post DETECTION + fail-closed remediation (never atomic exclusion),
+  and never mutates backlogit internal transitions (external-guard pattern). Do not
+  mutate C:/Source/GitHub/backlogit.
+- Race/TOCTOU via detect-before (`SHIPMENT_STATE_INCONSISTENT`) + post-claim GLOBAL
   re-verify-after (`CLAIM_VERIFY_FAILED`: exactly-one-active-and-target; pre-retry
-  zero-active revalidation) reuse (106-S); no bespoke locking.
-- Active-shipment invariant scope: PHASE-AWARE (pre-claim ZERO-active vs post-claim
-  exactly-one-same-target), SERIALIZED within one synchronized checkout, best-effort
-  + fail-closed-on-ambiguity across machines (documented limitation — detect-at-sync/CI,
-  no invented remote lease); exactly-one WORKTREE = machine-local.
+  zero-active revalidation) DETECTION (106-S); no bespoke locking, no claimed atomic
+  exclusion.
+- Active-shipment invariant scope: PHASE-AWARE via the explicit `--phase` flag
+  (pre_claim ZERO-active vs post_claim/lifecycle exactly-one-same-target), DETECTION-only,
+  NOT serialized by backlogit at any scope — best-effort + fail-closed-on-ambiguity
+  (documented limitation — detect-at-sync/CI, no invented lock/lease); exactly-one
+  WORKTREE = machine-local.
 - Bypass: audited `--force` log + telemetry on every GATE RUN (an operator
   `--force` is auditable whenever the gate executes); a `git --no-verify` hook
   skip runs no gate code and is inherently UNOBSERVABLE locally — required CI is
@@ -362,6 +366,11 @@ pre-retry-revalidation test cases added to `109.006-T`. 012-DL RACE/ATOMICITY (p
 updated to match.
 
 ### Thread 3 — `012-DL`: backlogit atomicity is one-checkout-local, not cross-machine
+**[SUPERSEDED by PR #296 review-fix cycle 3 (below): the "atomic CAS within one
+synchronized checkout / local filesystem CAS" framing was itself an overclaim and
+was fully removed in cycle 3 — backlogit ClaimShipment is an unlocked read/check/write
+with per-shipment all-or-nothing persistence + rollback and NO serialization at any
+scope (local + cross-machine TOCTOU).]**
 Corrected the cross-machine OVERCLAIM everywhere it appeared: backlogit ClaimShipment
 is an atomic CAS WITHIN ONE SYNCHRONIZED CHECKOUT (local filesystem CAS), NOT a
 real-time cross-machine lease; the active-shipment invariant is checkout-scoped and
@@ -373,6 +382,11 @@ goals 2/3/5), `109.011-T` (CI = server-side detect-at-sync, not cross-machine le
 and this memory's Key-design-decisions bullets. Fail-closed-on-ambiguity preserved.
 
 ### Thread 4 — `109.016-T`: verified terminal marker BEFORE archive
+**[SUPERSEDED by PR #296 review-fix cycle 3 (below): a pre-archive `archived_status`
+check is IMPOSSIBLE — backlogit_ship_shipment transitions AND archives internally and
+stamps `archived_status` DURING archive. Cycle 3 replaced this with a SHIP-THEN-VERIFY
+contract: ship via the supported op (current shipment only), then verify the archived
+record's `archived_status: shipped` AFTER the call returns.]**
 Extended the Ship safe-close closure contract: a SUCCESSFUL close MUST transition/
 record and VERIFY a successful terminal marker (`archived_status: shipped` via
 backlogit_ship_shipment, or normalized legacy `done`) BEFORE archiving — never
@@ -393,3 +407,75 @@ DoD safe-close bullet updated.
 - Shipment manifests/dependencies unchanged: task-only 9/7/3, all `queued`; no size change.
 - New valid v1 checkpoint appended via backlogit (not ad-hoc JSON).
 - Boundary preserved: backlog/planning/memory artifacts only; no commit/push (Orchestrator commits).
+
+## PR #296 review-fix cycle 3 — FINAL (2026-08-04, HEAD 71ff1b8)
+
+Final bounded review-fix cycle (cycle 3 of 3) of three P1 findings from current-HEAD
+local review of staging PR #296 (HEAD 71ff1b8f8bb7411fbc7bda983bdc28e5eccdbc6f). Route
+claude-opus-4.8/anthropic/high, DARK_MODE_ACTIVE. Backlogit 1.8.0 source read as
+read-only evidence (C:/Source/GitHub/backlogit). Only `.backlogit/**`, this memory doc,
+and scoped review artifacts touched — no source/templates/config; no commit/push.
+
+### P1-1 — claim is NOT a checkout-local CAS (remove every CAS/serialization overclaim)
+Evidence (backlogit `internal/core/shipment_lifecycle.go` `ClaimShipment`): an UNLOCKED
+read -> MoveShipmentStatus(active) -> re-read -> activate-items sequence. Its only
+guarantee is PER-SHIPMENT ALL-OR-NOTHING PERSISTENCE with rollback (torn-write avoidance
+for a single claim). There is NO lock/lease/CAS and NO serialization at ANY scope: two
+concurrent claims in the SAME checkout can both read zero-active and both proceed (LOCAL
+TOCTOU), and divergent checkouts race cross-machine. Removed the residual cycle-2
+"atomic CAS WITHIN ONE SYNCHRONIZED CHECKOUT / local filesystem CAS" framing everywhere;
+described ClaimShipment as per-shipment all-or-nothing PERSISTENCE with rollback + local
+AND cross-machine TOCTOU; the gate provides pre/post DETECTION + fail-closed remediation,
+NOT atomic exclusion. A workspace-global lock / central lease is explicit out-of-scope
+future work. Edited `012-DL` (authority-boundary pt1, race/atomicity pt2, rollout pt6,
+DAG note, open-Q1, notes), `109-F` (description authority boundary + invariant 1, DoD
+scope-limitation bullet, goals 2/3/5), `109.001-T`, `109.005-T`, `109.011-T`, archived
+review `109.001-R` (H1/H2), and this memory's Key-design-decisions bullets.
+
+### P1-2 — callers cannot supply required phase (add explicit `--phase` CLI flag)
+The domain-input carried a `phase` field but there was no CLI surface to supply it and
+mode alone cannot determine pre_claim vs post_claim (prohibited inference). Added an
+explicit required `--phase pre_claim|post_claim|lifecycle` flag for agent shipment-scoped
+mode (missing/invalid -> exit 2, never inferred); pre_claim=ZERO-active,
+post_claim/lifecycle=exactly-one-same-target; hook/CI ambient resolves deterministically
+(default lifecycle). Every agent shipment-scoped invocation now passes the correct phase:
+Ship (`109.017-T`) claim=pre_claim, build/worktree/PR/closure=post_claim/lifecycle;
+Orchestrator (`109.018-T`) route-to-Ship + cursor-advance=pre_claim. Updated CLI/domain
+task `109.002-T`, A2 `109.005-T`, post-claim re-verify `109.001-T`, tests `109.006-T`
+(missing `--phase` -> exit 2; phase-driven matrix; post_claim==lifecycle equivalence),
+docs `109.010-T`, and feature DoD `109-F`.
+
+### P1-3 — pre-archive `archived_status` verification is impossible (ship-then-verify)
+Evidence (backlogit `archive.go` L215 `fm["archived_status"] = oldStatus`): `archived_status`
+is stamped DURING archive; `ShipShipment` requires status==active then internally transitions
+active->shipped AND archives in one call. A pre-archive field check cannot exist. Corrected
+`109.016-T` (A7): Ship uses the SUPPORTED ship op (backlogit_ship_shipment) for the CURRENT
+shipment only (P-015 no cascade), then AFTER the call returns verifies the archived
+record/provenance reads `archived_status: shipped` (or normalized legacy `done`); absent/
+`active`/`abandoned` -> FAIL closure + remediation. Removed the impossible
+"terminal-marker-before-archive gate" and the "archive rejected when still active" negative;
+replaced with a post-operation `archived_status: active` -> non-shipped -> siblings stay
+protected + verification fails. Deterministic 114->115->116 tests and abnormal-archived-state
+protection (abandoned predecessor stays protected) preserved. Feature DoD `109-F` safe-close
++ protected-set bullets updated to match.
+
+### Revised topology (unchanged manifests/dependencies)
+Task-only shipment manifests unchanged: 114-S=9, 115-S=7, 116-S=3; all tasks `queued`; no
+sizes/complexity/dependencies changed. Handoff token to Ship unchanged (shipment sequence
+114-S -> 115-S -> 116-S via blocks edges).
+
+### Validation (cycle 3)
+- No artifact claims the shipment claim is CAS/locked/atomic serialization; ClaimShipment
+  described as per-shipment ALL-OR-NOTHING PERSISTENCE with rollback + local AND cross-machine
+  TOCTOU; residual cycle-2 "local filesystem CAS" framing removed.
+- Explicit `--phase pre_claim|post_claim|lifecycle` flag exists (109.002-T) and every agent
+  shipment-scoped invocation passes it (Ship 109.017-T, Orchestrator 109.018-T; tests 109.006-T;
+  docs 109.010-T; consumed by 109.005-T/109.001-T).
+- Safe-close ship+archive THEN post-verify provenance contract is executable with backlogit
+  1.8.0 (ShipShipment active->shipped+archive; archived_status stamped at ArchiveItem; verified
+  after return). No impossible pre-archive verification remains.
+- Task-only 9/7/3 manifests and dependencies unchanged.
+- Hardening/review (109.001-R H1/H2) + this memory updated coherently; valid v1 checkpoint
+  appended via backlogit (not ad-hoc JSON).
+- Boundary preserved: backlog/planning/memory artifacts only; no source/template/config;
+  no commit/push (Orchestrator commits/pushes).
