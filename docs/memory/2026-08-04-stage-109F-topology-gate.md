@@ -61,7 +61,9 @@ Links: `001-SP --informs--> 109-F`, `012-DL --informs--> 109-F`.
   zero-active revalidation) DETECTION (106-S); no bespoke locking, no claimed atomic
   exclusion.
 - Active-shipment invariant scope: PHASE-AWARE via the explicit `--phase` flag
-  (pre_claim ZERO-active vs post_claim/lifecycle exactly-one-same-target), DETECTION-only,
+  (pre_claim ZERO-active vs post_claim/lifecycle exactly-one-same-target vs ambient
+  at-most-one-active-and-target-when-present — the deterministic hook/ci phase, zero-active
+  non-blocking), DETECTION-only,
   NOT serialized by backlogit at any scope — best-effort + fail-closed-on-ambiguity
   (documented limitation — detect-at-sync/CI, no invented lock/lease); exactly-one
   WORKTREE = machine-local.
@@ -435,10 +437,11 @@ review `109.001-R` (H1/H2), and this memory's Key-design-decisions bullets.
 ### P1-2 — callers cannot supply required phase (add explicit `--phase` CLI flag)
 The domain-input carried a `phase` field but there was no CLI surface to supply it and
 mode alone cannot determine pre_claim vs post_claim (prohibited inference). Added an
-explicit required `--phase pre_claim|post_claim|lifecycle` flag for agent shipment-scoped
-mode (missing/invalid -> exit 2, never inferred); pre_claim=ZERO-active,
+explicit required `--phase pre_claim|post_claim|lifecycle|ambient` flag for agent shipment-scoped
+mode (which accepts only the shipment-scoped pre_claim|post_claim|lifecycle; missing/invalid/`ambient`
+-> exit 2, never inferred); pre_claim=ZERO-active,
 post_claim/lifecycle=exactly-one-same-target; hook/CI ambient resolves deterministically
-(default lifecycle). Every agent shipment-scoped invocation now passes the correct phase:
+(default `ambient`, NOT `lifecycle` — see 2026-08-05 ambient-phase fix below). Every agent shipment-scoped invocation now passes the correct phase:
 Ship (`109.017-T`) claim=pre_claim, build/worktree/PR/closure=post_claim/lifecycle;
 Orchestrator (`109.018-T`) route-to-Ship + cursor-advance=pre_claim. Updated CLI/domain
 task `109.002-T`, A2 `109.005-T`, post-claim re-verify `109.001-T`, tests `109.006-T`
@@ -468,7 +471,7 @@ sizes/complexity/dependencies changed. Handoff token to Ship unchanged (shipment
 - No artifact claims the shipment claim is CAS/locked/atomic serialization; ClaimShipment
   described as per-shipment ALL-OR-NOTHING PERSISTENCE with rollback + local AND cross-machine
   TOCTOU; residual cycle-2 "local filesystem CAS" framing removed.
-- Explicit `--phase pre_claim|post_claim|lifecycle` flag exists (109.002-T) and every agent
+- Explicit `--phase pre_claim|post_claim|lifecycle|ambient` flag exists (109.002-T) and every agent
   shipment-scoped invocation passes it (Ship 109.017-T, Orchestrator 109.018-T; tests 109.006-T;
   docs 109.010-T; consumed by 109.005-T/109.001-T).
 - Safe-close ship+archive THEN post-verify provenance contract is executable with backlogit
@@ -501,3 +504,46 @@ Resolved route: `gpt-5.6-sol/openai/high`. Reviewed base HEAD: `d6ca4fb47c7fc131
 - No task size, complexity, status, membership, or dependency changed. Handoff token remains **114-S**.
 - Scoped coherence scan found no current authoritative shared/cross-machine lease claim, caller-atomic ShipShipment claim, post_claim branch/worktree guard, or generic-archive readiness shortcut.
 - `.backlogit/config.yaml`, `resolve_thread.graphql`, and `threads_query.graphql` were untouched; `C:/Source/GitHub/backlogit` remained read-only.
+
+## PR #296 review-fix — ambient phase for no-claim hook/CI (2026-08-05)
+
+Reviewed HEAD: `f2c819daa8c5e11085d324763d07c5821c514792`. Thread `PRRT_kwDORzpWpM6WifnT` / comment `3717880550` on `.backlogit/queue/109.002-T.md:25`. Operator removed the review-cycle limit for this session. Authority remained Stage-only: `.backlogit/**` + Stage memory/review artifacts; no source/templates/config, build, branch/worktree, shipment claim, PR/GitHub action, commit, or push. `.backlogit/config.yaml`, `resolve_thread.graphql`, `threads_query.graphql` untouched; `C:/Source/GitHub/backlogit` read-only.
+
+### Problem
+The prior contract defaulted hook/CI ambient invocations to `--phase lifecycle`, whose A2 invariant requires EXACTLY ONE active shipment and the resolved target. Because the no-target A2 path still runs (109.006-T), ordinary commits/CI with ZERO active shipments would be BLOCKED, contradicting the hook tasks' promise that zero claims is non-blocking (109.007-T/109.008-T).
+
+### Fix — distinct explicit `ambient` phase
+Introduced a fourth `--phase` value `ambient` with AT-MOST-ONE-active-and-target-when-present semantics and made it the deterministic hook/CI resolution (replacing the `lifecycle` default):
+- ZERO active -> pass (ordinary no-claim commits/CI non-blocking).
+- EXACTLY ONE active AND it equals the resolved ambient target (currently-claimed shipment / current-branch slug) -> pass.
+- EXACTLY ONE active that is NOT the resolved target, OR one active with NO resolvable target -> blocked.
+- TWO-OR-MORE active -> blocked.
+- No resolvable target still runs target-INDEPENDENT checks (detect-before scan + at-most-one count) fail-closed; only target-DEPENDENT readiness/ownership are skipped.
+- `ambient` distinct from `lifecycle` at the zero-active row (ambient passes, lifecycle blocks).
+- `pre_claim` NOT reused (would reject a valid single active ambient target); `lifecycle` NOT reused (rejects zero-active ordinary work).
+
+### Shipment-scoped agent phases UNCHANGED
+pre_claim = ZERO-active; post_claim/lifecycle = exactly-one-same-target. Agent shipment-scoped mode requires one of pre_claim|post_claim|lifecycle and REJECTS the non-scoped `ambient` with exit 2.
+
+### Files aligned (task-only, no membership/dependency/status change)
+- `109.002-T` (A1 parser/domain): `--phase` enum -> `<pre_claim|post_claim|lifecycle|ambient>`; hook/CI default resolves to `ambient`; agent scoped mode rejects `ambient` (exit 2).
+- `109.005-T` (A2 invariant): added AMBIENT phase bullet + phase x count matrix row + description + impl-notes.
+- `109.006-T` (A6 tests): AMBIENT matrix row; assert ambient distinct from lifecycle at zero-active; assert `--phase ambient` rejected (exit 2) in agent scoped mode; no-target ambient pass/block cases.
+- `109.007-T` / `109.008-T` (B1/B2 hooks): hooks resolve `--phase ambient`; zero-active non-blocking, mismatched/2+ blocks.
+- `109.011-T` (C1 CI): CI resolves `--phase ambient`; zero-active ordinary CI non-blocking.
+- `109.010-T` (B4 docs): documents the `ambient` phase, its deterministic hook/CI resolution, and the ambient-vs-lifecycle zero-active distinction.
+- `109-F` (feature): description invariant (1) + DoD flag/test bullets include `ambient`.
+- This memory + review artifact `109.007-R`.
+
+### Validation (target contract)
+- No-target zero-active hook/CI -> PASS; one active resolved target -> PASS; one active unresolved/mismatched or 2+ active -> BLOCK; missing target does NOT skip target-independent topology checks. Manifests/dependencies remain task-only 10/7/3 unchanged. No size/complexity/status/membership/dependency changed.
+
+### Residual-fix pass (independent review BLOCKED P0=0/P1=2/P2=1/P3=2)
+Follow-up Stage residual-fix cycle correcting wording defects the prior reconciliation missed; artifact-only, no membership/dependency/status/size/complexity change (manifests still 114-S=10 / 115-S=7 / 116-S=3, all queued; chain 114 -> 115 -> 116 intact).
+- **P1 — 109.011-T (C1 CI):** removed the claim that branch-to-claimed-shipment ownership is "always enforced". Now: target-INDEPENDENT invariants (at-most-one-active + detect-before scan) ALWAYS run fail-closed; target-DEPENDENT ownership/readiness run ONLY when a target resolves. Zero-active/no-target CI PASSES; 2+ active BLOCKS.
+- **P1 — 109.002-T (A1):** scoped explicit `--phase`-only to shipment-scoped agent mode; hook/ci deterministically resolves an OMITTED phase to `ambient` (no contradictory "supplied ONLY by --phase" statement). Acceptance + impl-notes both corrected.
+- **P2 — checkpoint:** deleted malformed schema-v0/empty/zero-timestamp `checkpoint-20260805-043205.json`; replaced via supported backlogit checkpoint creation with schema-v1 `checkpoint-20260805-044138.json` (agent=stage, session_id=stage-2026-08-05-pr296-review-fix-residual, phase=review-fix, status=resolved, feature_id=109-F). Validated via `checkpoint get` (valid:true) and list.
+- **P3 — 109.005-T (A2):** description enum now includes `ambient` (pre_claim|post_claim|lifecycle|ambient).
+- **P3 — memory:** review self-reference corrected `109.006-R` -> `109.007-R` (the immutable `109.001-R..109.006-R` historical range in 109.007-R findings is unchanged and correct).
+- Review evidence 109.007-R amended with a RESIDUAL-FIX ADDENDUM recording all five corrections and the post-fix consistency grep.
+- Boundary preserved: no source/templates/config, git, PR, build, branch/worktree, claim, commit, or push; `.backlogit/config.yaml`, `resolve_thread.graphql`, `threads_query.graphql` untouched; `C:/Source/GitHub/backlogit` read-only. Handoff token remains **114-S**.
