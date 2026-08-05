@@ -181,3 +181,58 @@ Artifacts touched this cycle: created 109.016-T / 109.017-T / 109.018-T / 109.01
 (sized size+complexity); added to manifests 114-S (016) and 115-S (017/018/019);
 115-S & 116-S status blocked->queued; 109-F DoD updated; review 109.002-R (PASS);
 compound status-constraints doc corrected; this memory. Index re-synced (686).
+
+## P1 repair cycle 3 — FINAL (2026-08-04, reviewed HEAD b2efcf3 BLOCKED, P0=0 / P1=2)
+
+Third and final bounded review-fix cycle. Both P1s RESOLVED (not deferred). Route
+claude-opus-4.8/anthropic/high, DARK_MODE_ACTIVE. Review evidence: **109.003-R** (PASS).
+No source/template/config mutated by Stage; only backlog + planning + memory artifacts.
+
+### P1-1 — sequencing repair ships too late (109.019-T was in 115-S)
+The installed Orchestrator attempts the invalid `blocked -> queued` cursor-advance
+immediately AFTER 114-S closes (when advancing to 115-S) — before 115-S could ever run
+the durable correction (109.019-T, B8). **Fix:** MOVED 109.019-T from 115-S to 114-S so
+the corrected queued-from-start + blocks-suppression contract is installed by shipment A,
+before the 114 -> 115 transition. Added a MANDATORY post-predecessor-closure CONTEXT
+RELOAD requirement to 109.019-T acceptance + 109-F DoD: after 114-S merges and P-020
+closure completes, the Orchestrator RELOADS current `main` agent instructions before
+cursor-advance / 115-S selection, so the freshly-installed corrected prose is the version
+in effect (never a stale in-context copy). 114-S now holds BOTH 114->115 prerequisites:
+109.016-T (safe-close sequence-awareness) + 109.019-T (sequencing correction + reload).
+
+### P1-2 — pre-claim gate not bound to a selected shipment
+109.002-T's CLI contract lacked a required shipment identifier while
+109.004-T/109.017-T/109.018-T needed shipment-scoped validation. **Fix:** added a
+`--shipment <SHIPMENT_ID>` target flag: REQUIRED and fail-closed in agent shipment-scoped
+modes (pre-claim / route / cursor-advance; missing -> exit 2, never fail-open), carried on
+the gate domain-input {mode, target_shipment_id, json, force}. 109.004-T readiness evaluated
+against the explicit target; 109.017-T (Ship) passes the shipment being claimed/operated on
+at each of the five lifecycle points; 109.018-T (Orchestrator) passes the candidate/successor
+shipment at route + cursor-advance (both now carry an explicit `blocks` dep on 109.002-T).
+Non-shipment hook/ci contexts (109.007-T/109.008-T/109.011-T) use a DETERMINISTIC implicit
+target-resolution contract (currently-claimed shipment / current-branch slug), running
+ambient-only invariants fail-closed + existence-guarded when no target resolves — a
+deliberately non-shipment-scoped mode that does NOT weaken fail-closed agent mode. Tests
+(109.006-T) and docs (109.010-T) + feature DoD updated accordingly.
+
+### Revised topology (task-only manifests, 19 tasks, each exactly once)
+- **114-S (A — core)** — `queued`, **ELIGIBLE (cursor / next)**. **9 tasks:** 109.001-T,
+  109.002-T, 109.003-T, 109.004-T, 109.005-T, 109.006-T, 109.009-T, 109.016-T,
+  **109.019-T (B8, MOVED from 115-S this cycle)**.
+- **115-S (B — hooks/install/integration)** — `queued`, blocks-on 114-S (suppressed).
+  **7 tasks:** 109.007-T, 109.008-T, 109.010-T, 109.013-T, 109.015-T, 109.017-T, 109.018-T.
+- **116-S (C — CI backstop)** — `queued`, blocks-on 115-S (suppressed). 3 tasks:
+  109.011-T, 109.012-T, 109.014-T.
+
+### Corrected handoff to Ship (unchanged token)
+Handoff token = **shipment 114-S** (single eligible cursor). All three shipments `queued`;
+115-S/116-S dependency-gated by blocks edges — NOT eligible until the predecessor is
+`shipped` AND post-merge closure (incl. P-020 compaction) completes. Do NOT attempt any
+`blocked -> queued` transition. After 114-S closes, the Orchestrator must RELOAD current
+main instructions before advancing to 115-S. Ordered cursor: 114-S -> 115-S -> 116-S.
+
+Artifacts touched cycle 3: moved 109.019-T (115-S->114-S manifests); amended 109.002-T,
+109.004-T, 109.006-T, 109.007-T, 109.008-T, 109.010-T, 109.011-T, 109.017-T, 109.018-T,
+109.019-T; added deps 109.017-T->109.002-T and 109.018-T->109.002-T; 109-F DoD updated;
+review 109.003-R (PASS); this memory. Index re-synced (687). No sizes changed (all tasks
+remain two-axis sized).
