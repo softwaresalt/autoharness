@@ -655,7 +655,7 @@ def _resolve_target_shipment(
     explicit = _normalize_target(topology_input.target_shipment_id)
     shipment_map = _shipment_map(shipments)
     if explicit is not None:
-        if explicit not in shipment_map and shipment_map:
+        if explicit not in shipment_map:
             return None, f"unknown shipment target: {explicit}"
         return explicit, None
     if topology_input.mode == "agent":

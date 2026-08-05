@@ -172,6 +172,19 @@ class BranchOwnershipTests(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 2)
 
+    def test_agent_target_must_resolve_even_with_empty_shipment_map(self) -> None:
+        # Regression: an explicit --shipment target naming an unknown/nonexistent
+        # shipment must be rejected (exit 2) even when list_shipments() returns
+        # zero records (e.g. an empty/uninitialized backlog). A vacuous
+        # shipment_map must never short-circuit target validation to a silent
+        # pass-through.
+        readers = _FakeReaders(shipments=(), branch='main')
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='999-S-DOES-NOT-EXIST'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 2)
+
     def test_ambient_uses_active_target_before_branch(self) -> None:
         readers = _FakeReaders(
             shipments=(_shipment('114-S', 'active'), _shipment('115-S', 'queued')),
