@@ -567,6 +567,112 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
             self.assertEqual(len(shipments), 1)
             self.assertTrue(shipments[0].archived_record_present)
 
+    def test_dependencies_present_but_not_a_sequence_blocks(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        cases = {
+            'bare_string': "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\ndependencies: 100-S\n---\n",
+            'mapping': "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\ndependencies:\n  a: 100-S\n---\n",
+            'integer': "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\ndependencies: 42\n---\n",
+        }
+        for label, content in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '114-S.md').write_text(content, encoding='utf-8')
+                    reader = FilesystemTopologyReaders(workspace)
+                    # A present-but-wrong-shaped `dependencies` field (e.g. a
+                    # bare string) must never be silently coerced to "no
+                    # predecessors": that drops a real blocking predecessor
+                    # and can falsely unlock a dependent successor.
+                    with self.assertRaises(BacklogUnavailableError):
+                        reader.list_shipments()
+
+    def test_custom_fields_items_present_but_not_a_sequence_blocks(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        cases = {
+            'bare_string': (
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n"
+                "custom_fields:\n  items: 109.001-T\n---\n"
+            ),
+            'integer': (
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n"
+                "custom_fields:\n  items: 42\n---\n"
+            ),
+        }
+        for label, content in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '114-S.md').write_text(content, encoding='utf-8')
+                    reader = FilesystemTopologyReaders(workspace)
+                    # A present-but-wrong-shaped `custom_fields.items` field
+                    # must never be silently coerced to "no manifest items":
+                    # that hides active/done tasks from the
+                    # detect-before-consistency scan.
+                    with self.assertRaises(BacklogUnavailableError):
+                        reader.list_shipments()
+
+    def test_custom_fields_present_but_not_a_mapping_blocks(self) -> None:
+        from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            (queue / '114-S.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\ncustom_fields: not-a-mapping\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            with self.assertRaises(BacklogUnavailableError):
+                reader.list_shipments()
+
+    def test_missing_dependencies_and_custom_fields_default_to_empty(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            (queue / '114-S.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            shipments = reader.list_shipments()
+            self.assertEqual(len(shipments), 1)
+            self.assertEqual(shipments[0].manifest_item_ids, ())
+            self.assertEqual(shipments[0].blocking_predecessor_ids, ())
+
+    def test_valid_dependencies_and_custom_fields_items_still_resolve(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            (queue / '114-S.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n"
+                "dependencies:\n  - 113-S\ncustom_fields:\n  items:\n  - 109.001-T\n  - 109.002-T\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            shipments = reader.list_shipments()
+            self.assertEqual(len(shipments), 1)
+            self.assertEqual(shipments[0].manifest_item_ids, ('109.001-T', '109.002-T'))
+            self.assertEqual(shipments[0].blocking_predecessor_ids, ('113-S',))
+
     def test_read_worktree_marker_reads_repo_local_marker(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 

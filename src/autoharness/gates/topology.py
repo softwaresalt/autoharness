@@ -220,10 +220,35 @@ def _frontmatter(path: Path) -> dict[str, Any]:
     return loaded
 
 
-def _tuple_of_str(value: Any) -> tuple[str, ...]:
+def _tuple_of_str(
+    value: Any,
+    *,
+    source_path: Path | None = None,
+    field_name: str = "",
+) -> tuple[str, ...]:
+    """Coerce a frontmatter field to a tuple of nonblank string ids.
+
+    A missing field (``None``) legitimately means "none declared" and
+    resolves to an empty tuple. But a field that IS present with a
+    non-sequence value (e.g. ``dependencies: "100-S"`` as a bare string, or
+    ``custom_fields.items: 42``) must never be silently normalized to an
+    empty tuple: that would drop an actual blocking predecessor or hide
+    active/done manifest tasks from the detect-before-consistency scan,
+    letting corrupted backlog state pass fail-closed checks. When
+    ``source_path`` is provided, a present-but-wrong-shaped value raises
+    BacklogUnavailableError instead of coercing.
+    """
+    if value is None:
+        return ()
     if not isinstance(value, (list, tuple)):
+        if source_path is not None:
+            raise BacklogUnavailableError(
+                source_path,
+                f"{field_name or 'field'} must be a sequence of ids but got {value!r}",
+            )
         return ()
     return tuple(str(item) for item in value if str(item).strip())
+
 
 
 def _archived_status(frontmatter: dict[str, Any]) -> str | None:
@@ -378,11 +403,29 @@ class FilesystemTopologyReaders:
                         )
                     record["live_status"] = normalized_status
                     custom_fields = fm.get("custom_fields")
-                    items = ()
-                    if isinstance(custom_fields, dict):
-                        items = _tuple_of_str(custom_fields.get("items"))
+                    items: tuple[str, ...] = ()
+                    if custom_fields is not None:
+                        if not isinstance(custom_fields, dict):
+                            # A present-but-wrong-shaped custom_fields block
+                            # (e.g. a bare string) must not silently degrade
+                            # to "no manifest items": that hides the
+                            # shipment's real manifest from the
+                            # detect-before-consistency scan.
+                            raise BacklogUnavailableError(
+                                candidate,
+                                f"custom_fields must be a mapping but got {custom_fields!r}",
+                            )
+                        items = _tuple_of_str(
+                            custom_fields.get("items"),
+                            source_path=candidate,
+                            field_name="custom_fields.items",
+                        )
                     record["manifest_item_ids"] = items
-                    record["blocking_predecessor_ids"] = _tuple_of_str(fm.get("dependencies"))
+                    record["blocking_predecessor_ids"] = _tuple_of_str(
+                        fm.get("dependencies"),
+                        source_path=candidate,
+                        field_name="dependencies",
+                    )
         return tuple(
             ShipmentState(
                 shipment_id=str(record.get("shipment_id", "")),
