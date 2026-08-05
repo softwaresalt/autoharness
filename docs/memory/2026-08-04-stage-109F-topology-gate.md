@@ -56,8 +56,11 @@ Links: `001-SP --informs--> 109-F`, `012-DL --informs--> 109-F`.
   (`CLAIM_VERIFY_FAILED`) reuse (106-S); no bespoke locking.
 - Cross-machine scope split: at-most-one-ACTIVE-shipment = global; exactly-one
   WORKTREE = machine-local (documented limitation).
-- Bypass: audited `--force` log + telemetry-on-every-run; required CI backstop
-  is the non-bypassable enforcement point (Git has no pre-worktree-add hook).
+- Bypass: audited `--force` log + telemetry on every GATE RUN (an operator
+  `--force` is auditable whenever the gate executes); a `git --no-verify` hook
+  skip runs no gate code and is inherently UNOBSERVABLE locally — required CI is
+  the INDEPENDENT non-bypassable backstop, NOT proof the local hook ran
+  (Git has no pre-worktree-add hook).
 - Rollout: staged advisory -> required, matching serial A -> B -> C.
 - DAG parallel/multi-worktree execution = permanent NON-GOAL under P-001/P-016.
 
@@ -256,3 +259,72 @@ Missing or unresolvable shipment-scoped targets remain INVALID (exit 2). Existen
 - No shipment membership, ordering, status, or dependency changes: 114-S=9, 115-S=7, 116-S=3; all queued; task-only manifests preserved.
 - Handoff token remains **114-S**.
 - Only backlog/planning/memory artifacts changed. No source, templates, config, build, branch/worktree, shipment claim, PR, or merge activity. The two untracked GraphQL files remained untouched.
+
+## PR #296 review-fix cycle 1 (2026-08-04, HEAD 6e3d3b5)
+
+Bounded review-fix of nine Copilot review threads on staging PR #296. Route
+claude-opus-4.8/anthropic/high, DARK_MODE_ACTIVE. Only `.backlogit/**`, this
+memory doc, and scoped planning/review artifacts touched — no source/templates/
+config/build/branch/worktree/shipment-claim/PR/merge activity; `.backlogit/config.yaml`
+and the two untracked GraphQL files untouched; C:/Source/GitHub/backlogit read-only.
+
+### Thread 1 — safe-close protected set must not treat every archived shipment as shipped
+`109.016-T` (acceptance + description + implementation-notes) now excludes a
+predecessor sibling from the protected set ONLY when its owning archived shipment
+record has a successful terminal `archived_status: shipped` (or normalized legacy
+`done`). Siblings of not-yet-shipped shipments AND siblings whose owning shipment
+is archived in any non-shipped terminal state (e.g. `abandoned`) stay protected;
+a genuine cascade still halts (P-005, no P-001 bypass). Added a NEGATIVE test
+requirement (abandoned archived predecessor -> siblings remain protected) and an
+`abandoned` fixture. Coherence propagated to feature DoD (109-F) and review
+109.002-R P1-1 finding. Evidence that archived != shipped: `.backlogit/archive/110-S.md`
+carries `archived_status: active`, confirming archived records hold varied terminal
+statuses.
+
+### Threads 2-4 — remove impossible "gate telemetry observes `git --no-verify`" claim
+`012-DL` (BYPASS AUDITING), `109.001-T` (description + a new acceptance bullet),
+and archived review `109.001-R` (H4) now distinguish: (a) an AUDITED gate `--force`
+RUNS the gate and is observable via force-audit log + per-run telemetry; (b) a
+`git --no-verify` hook skip runs NO gate code and emits NO telemetry, so it is
+inherently unobservable locally (no local observer at skip time; the gate cannot
+record its own non-execution). CI is INDEPENDENT server-side enforcement, NOT proof
+the local hook ran. No planning artifact now claims `--no-verify` itself is locally
+observable. (012-DL point 3's "hooks are bypassable by design (git --no-verify)" is
+a correct capability statement, not an observability claim, and was left intact.
+109.007-T/109.008-T only document the bypass NOTE — no observability claim — left intact.)
+
+### Thread 5 — record the cycle-3 109.019-T move in the shipment logs
+Appended (history-preserving, no rewrite) paired trace events: `115-S.jsonl`
+`shipment_item_removed`(109.019-T) and `114-S.jsonl` `shipment_item_added`(109.019-T),
+both timestamped 2026-08-04T17:28:15/16-07:00 with cycle-3 rationale + `items_after`.
+Replay verification: 114-S reconstructs to 9 tasks and 115-S to 7 tasks (set-match
+against live manifests). Task-only manifests unchanged (9/7/3); no status/dependency
+change.
+
+### Threads 6-9 — checkpoint directory hygiene
+Removed four malformed ad-hoc (non-v1) checkpoint files that failed
+`CheckpointV1` validation. All context they held is already captured above in the
+cycle-1/2/3 sections; for the record their unique payloads were:
+- `checkpoint-20260804-234452.json` — initial topology-gate session: tasks 001-015,
+  shipments A/B/C, stash disposition (E3C25E6D archived; 33CC445C retained;
+  34D50F2D/936C68F3 untouched). (See "Stash disposition" + "Artifacts created".)
+- `checkpoint-20260804-235504.json` — cycle-1 P1 repair: 109-F removed from 114-S,
+  task-only 7/5/3. (See "P1 repair".)
+- `checkpoint-20260805-001958.json` — cycle-2: defects P1-1/2/3, backlogit 1.8.0,
+  manifests 8/8/3, artifacts created 109.016-019-T + 109.002-R. (See "P1 repair cycle 2".)
+- `checkpoint-20260805-003901.json` — cycle-3 final: manifests 9/7/3, 109.019-T moved
+  to 114-S, deps 109.017-T->109.002-T & 109.018-T->109.002-T, review 109.003-R PASS.
+  (See "P1 repair cycle 3 — FINAL".)
+Kept the valid v1 `checkpoint-20260805-004752.json` (terminal shipment-ready). A new
+valid v1 checkpoint was written for THIS review-fix session via the supported
+backlogit tool. NOTE (out of scope): two additional pre-existing malformed checkpoints
+(`checkpoint-20260802-045420.json` = 105-F work, `checkpoint-20260802-192655.json` =
+106-F/110-S work) also fail v1 validation but are NOT part of this PR's 109-F scope
+and were deliberately left untouched per the operator's exact-file enumeration.
+
+### Validation (cycle 1)
+- Shipment manifests remain task-only 9/7/3; dependencies/statuses unchanged (all queued).
+- 114/115 logs reconstruct the current manifests (109.019-T move recorded).
+- No planning artifact claims `git --no-verify` is locally observable.
+- `backlogit checkpoint list` succeeds; the 109-F-scoped live records are all valid v1.
+- Boundary preserved: backlog/planning/memory artifacts only; no commit/push (Orchestrator commits).
