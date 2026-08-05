@@ -112,13 +112,13 @@ artifacts:
   - path: ".github/agents/_ship.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "021f6fdaa3745239e8a4e63ec3930808c1c17b90949021f22b6ed2625e4b11b1"
-    note: "source-controlled dogfood workflow agent; checksum refreshed 114-S/109.020-T + 109.019-T (safe-close pointer + queued-from-start sequencing reload contract) and again for the Copilot-review blocked-shipment-language removal fix; checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p HEAD:<path>`, never a raw Windows working-tree read (see docs/compound CRLF/LF checksum gotcha)"
+    checksum: "5446fb5012cb6717530b17155ad69a913cf8d4b6f66d82ea2d87ba7c222fede8"
+    note: "source-controlled dogfood workflow agent; checksum refreshed 114-S/109.020-T + 109.019-T (safe-close pointer + queued-from-start sequencing reload contract), again for the Copilot-review blocked-shipment-language removal fix, and again 115-S/109.017-T (pipeline-topology gate wiring: pre_claim before branch/worktree + before claim, immediate GLOBAL post_claim verification with bounded CLAIM_NOT_OBSERVED reclaim, lifecycle gate before build/PR/closure); checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p HEAD:<path>`, never a raw Windows working-tree read (see docs/compound CRLF/LF checksum gotcha)"
   - path: ".github/agents/_orchestrator.agent.md"
     primitive: 4
     template: "agents/_orchestrator.agent.md.tmpl"
-    checksum: "1bbc6f5f04287147b60d2b089b30f66cbef55d20456fd6788e8d2057ec88f974"
-    note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013; checksum refreshed 114-S/109.019-T (queued-from-start sequencing + post-predecessor reload contract) and again for the Copilot-review blocked-shipment-language removal fix; checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p HEAD:<path>`, never a raw Windows working-tree read"
+    checksum: "d40856aea758e3f502ffe0574a7b1a7335e705e99d7fe1e0726148f2ef917911"
+    note: "source-controlled dogfood orchestration agent — renamed from dispatch.agent.md per P-013; checksum refreshed 114-S/109.019-T (queued-from-start sequencing + post-predecessor reload contract), again for the Copilot-review blocked-shipment-language removal fix, and again 115-S/109.018-T (pipeline-topology gate wiring: pre_claim on route-to-Ship eligibility check and multi-shipment cursor-advance); checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p HEAD:<path>`, never a raw Windows working-tree read"
   - path: "start.sh"
     primitive: 1
     template: "scripts/start.sh.tmpl"
