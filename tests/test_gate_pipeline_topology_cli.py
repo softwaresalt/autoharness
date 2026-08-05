@@ -256,6 +256,14 @@ telemetry:
                     else:
                         self.assertEqual(record['evidence_path'], audit_path)
                         self.assertEqual(record['artifact_refs'], [audit_path])
+                    # The free-text `result.message` field can carry raw
+                    # backlog frontmatter values and filesystem paths from
+                    # fail-closed diagnostics and must never be serialized
+                    # into telemetry; only bounded, structured fields belong
+                    # in the fingerprint payload.
+                    fingerprint = json.loads(record['argv_fingerprint'])
+                    self.assertNotIn('message', fingerprint)
+                    self.assertEqual(set(fingerprint), {'mode', 'forced', 'token', 'audit_log'})
 
 
 class PipelineTopologyForceTests(unittest.TestCase):

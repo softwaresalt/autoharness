@@ -739,11 +739,16 @@ def _emit_pipeline_topology_telemetry(
             outcome = 'blocked'
 
         audit_ref = _repo_ref(audit_path)
+        # Note: deliberately excludes `result.message` — that free-text field
+        # can carry raw backlog frontmatter values and filesystem paths
+        # surfaced from fail-closed diagnostics (e.g. an unsupported status
+        # interpolated via repr()) and must never be serialized into
+        # telemetry. Only bounded, structured, already-classified fields
+        # belong in the fingerprint payload.
         metadata = {
             'mode': result.mode,
             'forced': bool(getattr(result, 'forced', False)),
             'token': result.primary_token,
-            'message': result.message,
             'audit_log': audit_ref,
         }
         event = ToolTelemetryEvent(

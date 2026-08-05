@@ -29,6 +29,12 @@ SCOPED_PHASES = ("pre_claim", "post_claim", "lifecycle")
 _NOT_YET_CLAIMED_STATUSES = frozenset({"queued", "blocked"})
 _TASK_ACTIVE_OR_DONE = frozenset({"active", "done"})
 _VALID_LIVE_SHIPMENT_STATUSES = frozenset({"queued", "active", "shipped", "abandoned"})
+# backlogit's documented task/feature lifecycle enum (broader than the
+# shipment enum above -- tasks/features also support blocked/review/
+# accepted/rejected/archived as live states).
+_VALID_LIVE_ARTIFACT_STATUSES = frozenset(
+    {"queued", "active", "blocked", "review", "done", "accepted", "rejected", "archived"}
+)
 _BRANCH_KIND_PREFIXES = ("feat/", "chore/")
 _POST_CLAIM_WRAP_TOKENS = frozenset({
     "SHIPMENT_STATE_INCONSISTENT",
@@ -236,12 +242,26 @@ class FilesystemTopologyReaders:
             if isinstance(value, str) and value.strip():
                 artifact_type = value.strip()
                 break
-        live_status = queue_fm.get("status") if isinstance(queue_fm.get("status"), str) else None
+        live_status: str | None = None
+        if queue_path is not None:
+            status = queue_fm.get("status")
+            normalized_status = status.strip().lower() if isinstance(status, str) and status.strip() else None
+            if normalized_status not in _VALID_LIVE_ARTIFACT_STATUSES:
+                # A syntactically valid queue task/feature record with a
+                # missing, blank, or unsupported status must not be silently
+                # normalized away: detect-before-consistency would otherwise
+                # skip it, letting malformed state hide an active/done
+                # manifest task and pass the fail-closed gate.
+                raise BacklogUnavailableError(
+                    queue_path,
+                    f"artifact record has a missing or unsupported status: {status!r}",
+                )
+            live_status = normalized_status
         archived = _archived_status(archive_fm)
         return ArtifactState(
             artifact_id=artifact_id,
             artifact_type=artifact_type,
-            live_status=str(live_status).strip().lower() if isinstance(live_status, str) and live_status.strip() else None,
+            live_status=live_status,
             archived_status=archived,
         )
 

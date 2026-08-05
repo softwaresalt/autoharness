@@ -323,6 +323,93 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
 
             self.assertTrue(_has_ambiguous_shipment_records(shipments[0]))
 
+    def test_queue_task_with_missing_or_unsupported_status_blocks_via_read_artifact(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        cases = {
+            'missing_status': "---\nid: 109.001-T\nartifact_type: task\n---\n",
+            'blank_status': "---\nid: 109.001-T\nartifact_type: task\nstatus: '  '\n---\n",
+            'unsupported_status': "---\nid: 109.001-T\nartifact_type: task\nstatus: not-a-real-status\n---\n",
+        }
+        for label, content in cases.items():
+            with self.subTest(label=label):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '109.001-T.md').write_text(content, encoding='utf-8')
+                    reader = FilesystemTopologyReaders(workspace)
+
+                    with self.assertRaises(Exception):
+                        reader.read_artifact('109.001-T')
+
+    def test_queue_task_with_supported_status_reads_correctly(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        for status in ('queued', 'active', 'blocked', 'review', 'done', 'accepted', 'rejected', 'archived'):
+            with self.subTest(status=status):
+                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                    workspace = Path(tmp)
+                    queue = workspace / '.backlogit' / 'queue'
+                    queue.mkdir(parents=True)
+                    (workspace / '.backlogit' / 'archive').mkdir()
+                    (queue / '109.001-T.md').write_text(
+                        f"---\nid: 109.001-T\nartifact_type: task\nstatus: {status}\n---\n",
+                        encoding='utf-8',
+                    )
+                    reader = FilesystemTopologyReaders(workspace)
+                    artifact = reader.read_artifact('109.001-T')
+                    self.assertIsNotNone(artifact)
+                    self.assertEqual(artifact.live_status, status)
+
+    def test_archive_only_task_has_no_live_status_requirement(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            (workspace / '.backlogit' / 'queue').mkdir(parents=True)
+            archive = workspace / '.backlogit' / 'archive'
+            archive.mkdir(parents=True)
+            (archive / '109.001-T.md').write_text(
+                "---\nid: 109.001-T\nartifact_type: task\narchived_status: done\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+            artifact = reader.read_artifact('109.001-T')
+            self.assertIsNotNone(artifact)
+            self.assertIsNone(artifact.live_status)
+            self.assertEqual(artifact.archived_status, 'done')
+
+    def test_malformed_queue_task_status_blocks_via_detect_before_consistency(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            queue = workspace / '.backlogit' / 'queue'
+            queue.mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            (queue / '114-S.md').write_text(
+                "---\nid: 114-S\nartifact_type: shipment\nstatus: queued\n"
+                "custom_fields:\n  items:\n  - 109.001-T\n---\n",
+                encoding='utf-8',
+            )
+            # Syntactically valid task frontmatter with an unsupported status
+            # value must not be silently normalized away by the
+            # detect-before-consistency scan.
+            (queue / '109.001-T.md').write_text(
+                "---\nid: 109.001-T\nartifact_type: task\nstatus: not-a-real-status\n---\n",
+                encoding='utf-8',
+            )
+            reader = FilesystemTopologyReaders(workspace)
+
+            result = evaluate(
+                TopologyInput(mode='ci', phase=None, target_shipment_id=None),
+                readers=reader,
+            )
+            self.assertEqual(result.exit_code, 1)
+            self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
     def test_read_worktree_marker_reads_repo_local_marker(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
