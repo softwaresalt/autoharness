@@ -1017,9 +1017,12 @@ class BranchOwnershipTests(unittest.TestCase):
     def test_ci_mode_detached_head_resolves_via_github_ref_name_for_push(self) -> None:
         """`push`-triggered CI runs have no `GITHUB_HEAD_REF` (that variable is
         `pull_request`-only); the pushed branch name is `GITHUB_REF_NAME`
-        instead (e.g. `main` for a push to the default branch)."""
+        instead (e.g. `main` for a push to the default branch), disambiguated
+        from a tag push via `GITHUB_REF_TYPE == 'branch'`."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='', default_branch='main')
-        with patch.dict('os.environ', {'GITHUB_REF_NAME': 'main'}, clear=False):
+        with patch.dict(
+            'os.environ', {'GITHUB_REF_NAME': 'main', 'GITHUB_REF_TYPE': 'branch'}, clear=False
+        ):
             import os as _os
 
             _os.environ.pop('GITHUB_HEAD_REF', None)
@@ -1032,6 +1035,53 @@ class BranchOwnershipTests(unittest.TestCase):
         self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
         self.assertTrue(check.details['resolved_via_ci_env_fallback'])
 
+    def test_ci_mode_push_branch_name_with_slash_is_accepted(self) -> None:
+        """Regression test for code-review finding: a naive `'/' in ref_name`
+        heuristic would misclassify a legitimate slash-containing
+        push-triggered branch name (this repo's own `feat/…`/`chore/…`
+        convention) as a non-branch merge-ref and fail closed. Disambiguation
+        must use `GITHUB_REF_TYPE`, not a substring check on the name."""
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
+        with patch.dict(
+            'os.environ',
+            {'GITHUB_REF_NAME': 'feat/114-s', 'GITHUB_REF_TYPE': 'branch'},
+            clear=False,
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='pre_claim', target_shipment_id='114-S'),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_OK')
+        self.assertTrue(check.details['resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_tag_push_does_not_resolve_as_branch(self) -> None:
+        """A tag-triggered `push` event sets `GITHUB_REF_TYPE == 'tag'` and
+        `GITHUB_REF_NAME` to a version string, not a branch. This must NOT be
+        accepted as a resolved branch name -- the gate keeps failing closed
+        (detached HEAD, unresolvable) rather than treating a tag as ownership
+        evidence."""
+        readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        with patch.dict(
+            'os.environ', {'GITHUB_REF_NAME': 'v1.2.3', 'GITHUB_REF_TYPE': 'tag'}, clear=False
+        ):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertTrue(check.details['detached_head'])
+        self.assertFalse(check.details['resolved_via_ci_env_fallback'])
+
     def test_ci_mode_detached_head_with_no_env_fallback_still_blocks(self) -> None:
         """Fail-closed is preserved when neither CI environment variable
         resolves a usable branch name (e.g. a CI platform this fallback does
@@ -1042,6 +1092,7 @@ class BranchOwnershipTests(unittest.TestCase):
 
             _os.environ.pop('GITHUB_HEAD_REF', None)
             _os.environ.pop('GITHUB_REF_NAME', None)
+            _os.environ.pop('GITHUB_REF_TYPE', None)
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                 readers=readers,

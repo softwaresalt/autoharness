@@ -1105,23 +1105,30 @@ def _ci_detached_head_branch_fallback() -> str:
 
     Resolution order (GitHub Actions environment variables):
 
-    1. ``GITHUB_HEAD_REF`` -- set only for ``pull_request`` events; this is the
-       PR's actual source branch name (e.g. ``feat/116-s-...``).
-    2. ``GITHUB_REF_NAME`` -- set for ``push`` events to the pushed branch name
-       (e.g. ``main``). For ``pull_request`` events this instead holds a
-       non-branch merge-ref identifier (e.g. ``123/merge``), which
-       ``GITHUB_HEAD_REF`` already takes priority over.
+    1. ``GITHUB_HEAD_REF`` -- set only for ``pull_request`` events; this is
+       ALWAYS the PR's real source branch short name (never a merge-ref, never
+       ``refs/heads/``-prefixed), so it is trusted unconditionally.
+    2. ``GITHUB_REF_NAME`` -- set for every event, but only trustworthy as a
+       BRANCH name when ``GITHUB_REF_TYPE == "branch"``. GitHub Actions sets
+       ``GITHUB_REF_TYPE`` to ``branch`` or ``tag`` to disambiguate exactly
+       this case; relying on it (rather than a naive "does the name contain a
+       slash" heuristic) correctly accepts a slash-containing push-triggered
+       branch name (e.g. ``feat/foo``, this repo's own naming convention) and
+       correctly rejects a tag push (``GITHUB_REF_TYPE == "tag"``, where
+       ``GITHUB_REF_NAME`` would be a version string, not a branch) -- neither
+       of which a plain ``"/" in ref_name`` substring check can distinguish.
 
     Returns an empty string (never raises) when neither variable resolves a
     usable branch name, preserving the existing fail-closed
     ``BRANCH_MISMATCH: detached HEAD`` behavior for a CI platform this
-    fallback does not recognize.
+    fallback does not recognize, or for a non-branch ref (e.g. a tag push).
     """
     head_ref = os.environ.get("GITHUB_HEAD_REF", "").strip()
     if head_ref:
         return head_ref
+    ref_type = os.environ.get("GITHUB_REF_TYPE", "").strip()
     ref_name = os.environ.get("GITHUB_REF_NAME", "").strip()
-    if ref_name and "/" not in ref_name:
+    if ref_type == "branch" and ref_name:
         return ref_name
     return ""
 
