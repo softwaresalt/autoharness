@@ -1369,7 +1369,8 @@ Write generated artifacts to the target workspace. Use the following directory m
 | Markdownlint config (when `tools.markdownlint` detected or operator opt-in) | `{workspace}/.markdownlint.json` — resolved from `{autoharness_home}/templates/scripts/.markdownlint.json.tmpl` (no variables to resolve; copy as-is) |
 | Markdownlint pre-commit hooks (when markdownlint config installed) | `{workspace}/scripts/pre-commit-markdownlint.sh`, `{workspace}/scripts/pre-commit-markdownlint.ps1` — copied from `{autoharness_home}/templates/scripts/pre-commit-markdownlint.sh.tmpl` and `pre-commit-markdownlint.ps1.tmpl`; set execute permission on `.sh` after copy: `chmod +x scripts/pre-commit-markdownlint.sh` |
 | CI workflow (when `ci.platform` is GitHub Actions and a toolchain is detected) | `{workspace}/.github/workflows/ci.yml` — resolved from `{autoharness_home}/templates/ci/ci.yml.tmpl`; drop any expensive-job gate step whose command variable has no discovered value (keep only the gates in `local_gating.pre_push_gates`). See `templates/ci/README.md` and P-019 |
-| Pre-push quality-gate hooks (when `local_gating.pre_push_enabled`) | `{workspace}/scripts/pre-push-quality-gates.sh`, `{workspace}/scripts/pre-push-quality-gates.ps1` — resolved from `{autoharness_home}/templates/scripts/pre-push-quality-gates.sh.tmpl` and `pre-push-quality-gates.ps1.tmpl`; drop any gate line whose command variable has no discovered value; set execute permission on `.sh` after copy: `chmod +x scripts/pre-push-quality-gates.sh`. **Opt-in**: write the scripts and install guidance only — never overwrite the developer's `.git/hooks/pre-push` or set `core.hooksPath` automatically (P-019) |
+| Pre-push quality-gate hooks (when `local_gating.pre_push_enabled`) | `{workspace}/scripts/pre-push-quality-gates.sh`, `{workspace}/scripts/pre-push-quality-gates.ps1` — resolved from `{autoharness_home}/templates/scripts/pre-push-quality-gates.sh.tmpl` and `pre-push-quality-gates.ps1.tmpl`; drop any gate line whose command variable has no discovered value; set execute permission on `.sh` after copy: `chmod +x scripts/pre-push-quality-gates.sh`. **Opt-in**: write the scripts and install guidance only — never overwrite the developer's `.git/hooks/pre-push` or set `core.hooksPath` automatically (P-019). These hooks now also invoke `autoharness gate pipeline-topology --mode manual --phase ambient` (non-shipment-scoped, advisory-first, P-001/P-016) |
+| Pipeline-topology pre-commit hook (when `autoharness` CLI provides `gate pipeline-topology`, i.e. always for this product) | `{workspace}/scripts/pre-commit-pipeline-topology.sh`, `{workspace}/scripts/pre-commit-pipeline-topology.ps1` — copied from `{autoharness_home}/templates/scripts/pre-commit-pipeline-topology.sh.tmpl` and `pre-commit-pipeline-topology.ps1.tmpl`; set execute permission on `.sh` after copy: `chmod +x scripts/pre-commit-pipeline-topology.sh`. **Opt-in**: write the scripts and install guidance only — never overwrite the developer's `.git/hooks/pre-commit` or set `core.hooksPath` automatically; if a markdownlint pre-commit hook is also installed, the install guidance must instruct the operator to chain both from a single dispatcher rather than overwrite one with the other (P-019) |
 | Policies | `{workspace}/.github/policies/` |
 | Prompts | `{workspace}/.github/prompts/` |
 | Backlog config + stash | `{workspace}/{{BACKLOG_DIRECTORY}}/` (queue/, archive/, config.yml, queue/.stash.md) |
@@ -1619,6 +1620,19 @@ For each enabled capability pack:
    d. Confirm `agent-intercom.instructions.md` contains dark-mode visibility events, including `BRAINSTORM_HANDOFF_READY`, and degraded-visibility halt behavior
    e. Confirm `feature-flow-dark.prompt.md` routes through Orchestrator and does not bypass Stage, Ship, backlog/shipment policy, local readiness, telemetry, or closure
    f. Report FAIL for missing or stale guidance that treats dark mode as a safety bypass, allows vague trigger phrases, or omits closure evidence (decisions, gates, reviewed HEADs, merge/fallback status, closure status, follow-ups)
+9. **Pipeline-topology hook verification** (universal — applies whenever the
+   installed `autoharness` CLI provides `gate pipeline-topology`):
+   a. Confirm `scripts/pre-push-quality-gates.sh` and `.ps1` invoke
+      `autoharness gate pipeline-topology` with `--phase ambient` and no
+      human-supplied `--shipment` flag (non-shipment-scoped ambient contract)
+   b. Confirm `scripts/pre-commit-pipeline-topology.sh` and `.ps1` are present
+      in `{workspace}/scripts/`, invoke the same non-shipment-scoped
+      `--phase ambient` contract, and document the `--no-verify` bypass
+   c. Confirm both hook families default to advisory (non-blocking) unless an
+      explicit blocking toggle (`AUTOHARNESS_TOPOLOGY_GATE_BLOCKING=true`) is
+      set, and contain no retry loop (`while true`, `for ((`)
+   d. Report FAIL for any missing artifact, a shipment-scoped invocation, or
+      hard-fail-by-default wiring
 
 #### Step 4.5: Adversarial Verification
 

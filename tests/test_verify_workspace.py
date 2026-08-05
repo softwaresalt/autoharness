@@ -18,7 +18,7 @@ from autoharness.schema_contracts import (
     summarize_schema_contract,
 )
 from autoharness.cli import _report_has_failures
-from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _resolve_agent_scan_dirs, _run_portability_scan, _scan_agent_identity_migrations, _scan_uninstalled_templates, verify_workspace
+from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _resolve_agent_scan_dirs, _run_portability_scan, _scan_agent_identity_migrations, _scan_uninstalled_templates, verify_workspace, FOUNDATION_ASSERTIONS, _add_text_check
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -1870,6 +1870,109 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["copilot_session_memory_guidance"]["ok"])
             self.assertTrue(targeted_checks["copilot_remote_operator_guidance"]["ok"])
             self.assertTrue(targeted_checks["copilot_backlog_workflow_expectations"]["ok"])
+
+    def test_verify_workspace_checks_pipeline_topology_gate_hook_wiring(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+
+            (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-manifest").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "harness-config").mkdir(parents=True, exist_ok=True)
+            (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
+            (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "install-harness").mkdir(parents=True, exist_ok=True)
+            (workspace / ".github" / "skills" / "tune-harness").mkdir(parents=True, exist_ok=True)
+
+            strict_schema = {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {"type": "string", "const": "1.0.0"},
+                },
+            }
+            for schema_name in (
+                "harness-manifest.schema.json",
+                "harness-config.schema.json",
+                "workspace-profile.schema.json",
+            ):
+                (autoharness_home / "schemas" / schema_name).write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+            for schema_dir in ("harness-manifest", "harness-config", "workspace-profile"):
+                (autoharness_home / "schemas" / schema_dir / "1.0.0.schema.json").write_text(
+                    json.dumps(strict_schema),
+                    encoding="utf-8",
+                )
+
+            _write_yaml(
+                workspace / ".autoharness" / "harness-manifest.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "installed_at": "2026-04-25T00:00:00Z",
+                    "autoharness_version": "1.3.2",
+                    "profile_hash": "abc",
+                    "primitives_installed": [1],
+                    "capability_packs": [],
+                    "artifacts": [],
+                },
+            )
+            _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+            (workspace / ".github" / "skills" / "install-harness" / "SKILL.md").write_text(
+                "Pipeline-topology pre-commit hook\n"
+                "pre-commit-pipeline-topology.sh.tmpl\n"
+                "pre-commit-pipeline-topology.ps1.tmpl\n"
+                "autoharness gate pipeline-topology --mode manual --phase ambient\n"
+                "#### Step 4.4: Structural Validation\n"
+                "9. **Pipeline-topology hook verification**\n",
+                encoding="utf-8",
+            )
+            (workspace / ".github" / "skills" / "tune-harness" / "SKILL.md").write_text(
+                "* **Pipeline-topology hook drift** (universal):\n"
+                "  scripts/pre-commit-pipeline-topology.sh and .ps1\n"
+                "  AUTOHARNESS_TOPOLOGY_GATE_BLOCKING toggle\n",
+                encoding="utf-8",
+            )
+
+            report = verify_workspace(workspace, autoharness_home)
+
+            self.assertEqual(report["strict_schema_blockers"], [])
+            self.assertEqual(report["blockers"], [])
+
+            targeted_checks = report["targeted_checks"]
+            self.assertTrue(targeted_checks["pipeline_topology_gate_install_wiring"]["ok"])
+            self.assertTrue(targeted_checks["pipeline_topology_gate_tune_wiring"]["ok"])
+
+    def test_pipeline_topology_gate_assertion_passes_on_dogfood_repo(self) -> None:
+        # Proves the new FOUNDATION_ASSERTIONS entries pass against this
+        # repo's OWN installed skill copies (109.013-T acceptance criterion:
+        # "verify_workspace assertion added and passes on the installed
+        # end state").
+        repo_root = Path(__file__).resolve().parents[1]
+        keys = {"pipeline_topology_gate_install_wiring", "pipeline_topology_gate_tune_wiring"}
+        assertions = [a for a in FOUNDATION_ASSERTIONS if a["key"] in keys]
+        self.assertEqual({a["key"] for a in assertions}, keys)
+        report: dict = {"targeted_checks": {}}
+        for assertion in assertions:
+            path = repo_root / assertion["path"]
+            self.assertTrue(path.exists(), f"missing dogfood artifact: {path}")
+            _add_text_check(
+                report,
+                assertion["key"],
+                path,
+                assertion["must_contain"],
+                [tuple(pair) for pair in assertion.get("must_precede") or []],
+            )
+        for key in keys:
+            self.assertTrue(
+                report["targeted_checks"][key]["ok"],
+                report["targeted_checks"][key],
+            )
 
     def test_verify_workspace_checks_auto_tune_learning_loop_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -709,6 +709,25 @@ FOUNDATION_ASSERTIONS = [
             "reviewed HEAD SHA",
         ],
     },
+    {
+        "key": "pipeline_topology_gate_install_wiring",
+        "path": ".github/skills/install-harness/SKILL.md",
+        "must_contain": [
+            "pre-commit-pipeline-topology.sh.tmpl",
+            "pre-commit-pipeline-topology.ps1.tmpl",
+            "gate pipeline-topology",
+            "Pipeline-topology hook verification",
+        ],
+    },
+    {
+        "key": "pipeline_topology_gate_tune_wiring",
+        "path": ".github/skills/tune-harness/SKILL.md",
+        "must_contain": [
+            "Pipeline-topology hook drift",
+            "pre-commit-pipeline-topology.sh",
+            "AUTOHARNESS_TOPOLOGY_GATE_BLOCKING",
+        ],
+    },
 ]
 
 DARK_FACTORY_ASSERTIONS = [

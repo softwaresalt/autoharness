@@ -156,13 +156,13 @@ artifacts:
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "e9256c9d8d6ad99c31fab2b15590cf1d626ead2f0d6222c69484f662c8d17d7f"
-    note: "global skill definition; checksum refreshed 108-S/104.004-T (STAGE_*/SHIP_* installer variable rows, P-013.5)"
+    checksum: "248a2592c9f8d5657b7c790e5d25c2343b88b158867c619697a6ecbe05450e7a"
+    note: "global skill definition; checksum refreshed 115-S/109.013-T (pipeline-topology hook install wiring: pre-commit-pipeline-topology.sh/.ps1 mapping row + Step 4.4 verification item 9)"
   - path: ".github/skills/tune-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
-    checksum: "68ace92e4cd2dc83ad56bd29f34a09b5bf4aa901c60ee7bfc3520339e3a6e912"
-    note: "pre-existing, source-controlled global artifact"
+    checksum: "ca83415bd60b7002ead00dfebcf4f0efc0f0b751432754fe5b1ba673b5d2586b"
+    note: "global skill definition; checksum refreshed 115-S/109.013-T (pipeline-topology hook drift detection added)"
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
     template: "global skill definition"
