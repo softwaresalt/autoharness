@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from autoharness.gates.topology import (
     ArtifactState,
@@ -985,6 +986,83 @@ class BranchOwnershipTests(unittest.TestCase):
             TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
             readers=readers,
         )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertTrue(check.details['detached_head'])
+
+    def test_ci_mode_detached_head_resolves_via_github_head_ref(self) -> None:
+        """Regression test (116-S live-CI finding): `actions/checkout` always
+        leaves a `pull_request`-triggered run in detached HEAD, so
+        `git branch --show-current` reports empty even though the PR's real
+        source branch is known via `GITHUB_HEAD_REF`. `--mode ci` must resolve
+        the branch from this CI-platform environment variable rather than
+        fail-closed on every single PR run -- that would make the CI
+        topology-check entrypoint (Gate C) permanently non-functional for its
+        stated purpose."""
+        readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        with patch.dict(
+            'os.environ',
+            {'GITHUB_HEAD_REF': 'feat/116-s-topology-gate-c-remote-ci-validation-backstop'},
+        ):
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_OK')
+        self.assertTrue(check.details['resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_detached_head_resolves_via_github_ref_name_for_push(self) -> None:
+        """`push`-triggered CI runs have no `GITHUB_HEAD_REF` (that variable is
+        `pull_request`-only); the pushed branch name is `GITHUB_REF_NAME`
+        instead (e.g. `main` for a push to the default branch)."""
+        readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='', default_branch='main')
+        with patch.dict('os.environ', {'GITHUB_REF_NAME': 'main'}, clear=False):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertTrue(check.details['resolved_via_ci_env_fallback'])
+
+    def test_ci_mode_detached_head_with_no_env_fallback_still_blocks(self) -> None:
+        """Fail-closed is preserved when neither CI environment variable
+        resolves a usable branch name (e.g. a CI platform this fallback does
+        not recognize, or genuinely malformed environment)."""
+        readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        with patch.dict('os.environ', {}, clear=False):
+            import os as _os
+
+            _os.environ.pop('GITHUB_HEAD_REF', None)
+            _os.environ.pop('GITHUB_REF_NAME', None)
+            result = evaluate(
+                TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+                readers=readers,
+            )
+        self.assertEqual(result.exit_code, 1)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_MISMATCH')
+        self.assertTrue(check.details['detached_head'])
+        self.assertFalse(check.details['resolved_via_ci_env_fallback'])
+
+    def test_non_ci_mode_detached_head_ignores_github_env_fallback(self) -> None:
+        """The CI-env fallback is gated on `mode == 'ci'` only: `agent`/`manual`
+        mode detached-HEAD checkouts must keep failing closed exactly as
+        before even if a `GITHUB_HEAD_REF`-shaped variable happens to be set
+        in the environment (e.g. a local shell that inherited it)."""
+        readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
+        with patch.dict('os.environ', {'GITHUB_HEAD_REF': 'feat/114-s'}):
+            result = evaluate(
+                TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+                readers=readers,
+            )
         self.assertEqual(result.exit_code, 1)
         check = _check(result, 'branch_ownership')
         self.assertEqual(check.token, 'BRANCH_MISMATCH')

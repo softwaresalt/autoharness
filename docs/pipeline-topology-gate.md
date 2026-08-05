@@ -118,7 +118,7 @@ git operation, but the gate itself still reports BLOCK).
 |---|---|
 | `agent` | Fail-closed shipment-scoped invocation. Requires both `--shipment` and an explicit scoped `--phase`. Used by Ship and Orchestrator at claim/route/build/PR/closure points. |
 | `manual` (default) | Human-invoked (or hook-invoked) check. `--phase` defaults to `ambient`; `--shipment` is optional unless a scoped `--phase` is explicitly passed. |
-| `ci` | Same resolution rules as `manual`, used from CI ambient runs. |
+| `ci` | Same resolution rules as `manual`, used from CI ambient runs. **Detached-HEAD branch fallback**: when the checkout is on a detached HEAD (`git branch --show-current` reports empty — the state `actions/checkout` and equivalent CI checkout actions always leave a runner in, for both `push`- and `pull_request`-triggered runs), `--mode ci` resolves the real branch name from CI-platform environment variables before falling back to the fail-closed `BRANCH_MISMATCH: detached HEAD` outcome: `GITHUB_HEAD_REF` first (set only for `pull_request` events — the PR's actual source branch), then `GITHUB_REF_NAME` (set for `push` events to the pushed branch name; for `pull_request` events this instead holds a non-branch merge-ref identifier and is skipped in favor of `GITHUB_HEAD_REF`). This fallback is strictly gated on `mode == "ci"` — `agent`/`manual` mode detached-HEAD checkouts are unaffected and keep failing closed exactly as before, even if a `GITHUB_HEAD_REF`-shaped variable happens to be present in the environment. Without this fallback, the CI topology-check entrypoint (Gate C) would report `BRANCH_MISMATCH` on every single CI run, since every CI checkout is detached by default. |
 
 ### Exit Codes
 

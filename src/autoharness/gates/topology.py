@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timezone
+import os
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -727,7 +728,7 @@ def _evaluate_core(
         if active_check.status == "blocked":
             return _blocked_result(topology_input, resolved_phase, target, active_check)
 
-        branch_check = _branch_ownership_check(target, shipments, bound_readers)
+        branch_check = _branch_ownership_check(target, shipments, bound_readers, mode=topology_input.mode)
         checks.append(branch_check)
         if branch_check.status == "blocked":
             return _blocked_result(topology_input, resolved_phase, target, branch_check)
@@ -1090,10 +1091,46 @@ def _resolve_target_shipment(
     return resolved, None
 
 
+def _ci_detached_head_branch_fallback() -> str:
+    """CI-only fallback branch resolution for a detached-HEAD checkout.
+
+    ``actions/checkout`` (and equivalent CI checkout actions) always leaves the
+    working tree on a detached HEAD -- for a ``pull_request``-triggered run it
+    checks out the PR merge ref, and for a ``push``-triggered run it checks out
+    the pushed commit directly -- so ``git branch --show-current`` reports an
+    empty string in BOTH cases even though the real branch is well known to the
+    CI platform via environment variables. Without this fallback, ``--mode ci``
+    would report ``BRANCH_MISMATCH: detached HEAD`` on every single CI run,
+    defeating Gate C's entire purpose.
+
+    Resolution order (GitHub Actions environment variables):
+
+    1. ``GITHUB_HEAD_REF`` -- set only for ``pull_request`` events; this is the
+       PR's actual source branch name (e.g. ``feat/116-s-...``).
+    2. ``GITHUB_REF_NAME`` -- set for ``push`` events to the pushed branch name
+       (e.g. ``main``). For ``pull_request`` events this instead holds a
+       non-branch merge-ref identifier (e.g. ``123/merge``), which
+       ``GITHUB_HEAD_REF`` already takes priority over.
+
+    Returns an empty string (never raises) when neither variable resolves a
+    usable branch name, preserving the existing fail-closed
+    ``BRANCH_MISMATCH: detached HEAD`` behavior for a CI platform this
+    fallback does not recognize.
+    """
+    head_ref = os.environ.get("GITHUB_HEAD_REF", "").strip()
+    if head_ref:
+        return head_ref
+    ref_name = os.environ.get("GITHUB_REF_NAME", "").strip()
+    if ref_name and "/" not in ref_name:
+        return ref_name
+    return ""
+
+
 def _branch_ownership_check(
     target: str | None,
     shipments: Sequence[ShipmentState],
     readers: TopologyReaders,
+    mode: str = "agent",
 ) -> CheckResult:
     if target is None:
         return CheckResult(
@@ -1110,6 +1147,12 @@ def _branch_ownership_check(
             message="shipment metadata unavailable; ownership check skipped",
         )
     current_branch = _normalize_branch_name(readers.current_branch())
+    ci_fallback_used = False
+    if not current_branch and mode == "ci":
+        fallback_branch = _ci_detached_head_branch_fallback()
+        if fallback_branch:
+            current_branch = _normalize_branch_name(fallback_branch)
+            ci_fallback_used = True
     default_branch = _normalize_branch_name(readers.default_branch())
     canonical = tuple(f"feat/{alias}" for alias in _branch_aliases(shipment)) + tuple(
         f"chore/{alias}" for alias in _branch_aliases(shipment)
@@ -1127,6 +1170,7 @@ def _branch_ownership_check(
                 "current_branch": current_branch,
                 "expected_branches": list(canonical),
                 "detached_head": True,
+                "resolved_via_ci_env_fallback": ci_fallback_used,
             },
         )
 
@@ -1138,7 +1182,11 @@ def _branch_ownership_check(
             message=(
                 f"BRANCH_CREATE_ELIGIBLE: current branch {current_branch} is the default branch for target {target}"
             ),
-            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+            details={
+                "current_branch": current_branch,
+                "expected_branches": list(canonical),
+                "resolved_via_ci_env_fallback": ci_fallback_used,
+            },
         )
 
     if current_branch.startswith(_POST_MERGE_BRANCH_PREFIX):
@@ -1151,7 +1199,11 @@ def _branch_ownership_check(
                 f"post-merge closure branch; ownership is not matched by shipment-branch alias "
                 f"(post-merge branches are feature-scoped, not shipment-scoped) for target {target}"
             ),
-            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+            details={
+                "current_branch": current_branch,
+                "expected_branches": list(canonical),
+                "resolved_via_ci_env_fallback": ci_fallback_used,
+            },
         )
 
     if _resolve_shipment_from_branch(current_branch, (shipment,)) == target:
@@ -1160,7 +1212,11 @@ def _branch_ownership_check(
             status="passed",
             token="BRANCH_OK",
             message=f"BRANCH_OK: current branch {current_branch} matches target {target}",
-            details={"current_branch": current_branch, "expected_branches": list(canonical)},
+            details={
+                "current_branch": current_branch,
+                "expected_branches": list(canonical),
+                "resolved_via_ci_env_fallback": ci_fallback_used,
+            },
         )
 
     return CheckResult(
@@ -1170,7 +1226,11 @@ def _branch_ownership_check(
         message=(
             f"BRANCH_MISMATCH: current branch {current_branch} does not match target {target}"
         ),
-        details={"current_branch": current_branch, "expected_branches": list(canonical)},
+        details={
+            "current_branch": current_branch,
+            "expected_branches": list(canonical),
+            "resolved_via_ci_env_fallback": ci_fallback_used,
+        },
     )
 
 def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str | None:
