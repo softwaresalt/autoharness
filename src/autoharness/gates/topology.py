@@ -1637,6 +1637,239 @@ def _active_invariant_check(phase: str, target: str | None, shipments: Sequence[
     )
 
 
+@dataclass(frozen=True)
+class DagReadinessResult:
+    """Read-only ready-set + critical-path + downstream-dependents report.
+
+    Computed over the SAME shipment-blocks graph
+    ``FilesystemTopologyReaders.list_shipments()`` already reads
+    (``ShipmentState.blocking_predecessor_ids``). ``compute_dag_readiness``
+    reuses that reader for data access ONLY -- it performs no additional
+    backlogit/git mutation and no new graph plumbing.
+
+    ``critical_path`` is the LONGEST CHAIN in the blocks DAG by NODE COUNT
+    (shipments are not time-weighted).
+
+    ``ready_set`` contains ONLY LIVE ``queued`` shipments whose EVERY
+    predecessor block has reached a genuine no-longer-blocking terminal
+    closure (valid ``shipped``/``done`` per ``_is_shipped_terminal``). A
+    ``queued`` OR ``active`` predecessor is UNFINISHED and BLOCKS its
+    dependent (an ``active`` shipment is in-progress work -- NOT terminal
+    and NOT non-blocking). A predecessor that is ``abandoned``, has
+    ambiguous/duplicated live+archive provenance (the same corruption
+    ``pipeline-topology``'s ``PREDECESSOR_STATE_AMBIGUOUS``/
+    ``TARGET_STATE_AMBIGUOUS`` checks block on), or is simply
+    unknown/absent from the supplied graph is treated as unfinished and
+    fails closed (never terminal-ready) -- this applies both to a
+    predecessor role and to the candidate shipment's own record. A
+    shipment that is itself ``active``, ``shipped``, ``abandoned``, or
+    archived-only (no live ``queued`` record) is NEVER a ready candidate,
+    even when it has no blocking predecessors at all.
+
+    Cycle detection is OWNED by this analyzer, not the reused reader: the
+    reused ``ShipmentState``/reader performs no cycle detection of its own.
+    On a detected cycle this function degrades safely -- it reports the
+    cycle and NEVER fabricates a ``critical_path`` or ``ready_set`` (both
+    are returned empty).
+    """
+
+    ready_set: tuple[str, ...] = ()
+    critical_path: tuple[str, ...] = ()
+    downstream_dependents: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    cycle_detected: bool = False
+    cycle_nodes: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ready_set": list(self.ready_set),
+            "critical_path": list(self.critical_path),
+            "downstream_dependents": {
+                node: list(dependents) for node, dependents in self.downstream_dependents.items()
+            },
+            "cycle_detected": self.cycle_detected,
+            "cycle_nodes": list(self.cycle_nodes),
+        }
+
+
+def _dag_successors(shipment_map: dict[str, "ShipmentState"]) -> dict[str, list[str]]:
+    """Build predecessor->dependent edges, restricted to known nodes only.
+
+    A ``blocking_predecessor_ids`` entry that does not resolve to a known
+    ``ShipmentState`` (unknown/absent from the supplied graph) never becomes
+    a graph node here -- it is handled solely as a fail-closed "unfinished"
+    signal by ``_all_predecessors_finished``, never as a phantom node in the
+    critical-path/downstream-dependents graph.
+    """
+    successors: dict[str, list[str]] = {shipment_id: [] for shipment_id in shipment_map}
+    for shipment in shipment_map.values():
+        for predecessor_id in shipment.blocking_predecessor_ids:
+            if predecessor_id in shipment_map:
+                successors[predecessor_id].append(shipment.shipment_id)
+    return {node: sorted(set(edges)) for node, edges in successors.items()}
+
+
+def _dag_detect_cycle(
+    shipment_map: dict[str, "ShipmentState"], successors: dict[str, list[str]]
+) -> tuple[str, ...]:
+    """Detect a cycle via DFS 3-color marking. Returns the cycle's node ids, or () if acyclic."""
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: dict[str, int] = {node: WHITE for node in shipment_map}
+    path: list[str] = []
+
+    def visit(node: str) -> tuple[str, ...] | None:
+        color[node] = GRAY
+        path.append(node)
+        for nxt in successors.get(node, ()):
+            if color[nxt] == GRAY:
+                start_index = path.index(nxt)
+                return tuple(path[start_index:])
+            if color[nxt] == WHITE:
+                found = visit(nxt)
+                if found is not None:
+                    return found
+        path.pop()
+        color[node] = BLACK
+        return None
+
+    for node in sorted(shipment_map):
+        if color[node] == WHITE:
+            cycle = visit(node)
+            if cycle is not None:
+                return cycle
+    return ()
+
+
+def _dag_all_predecessors_finished(
+    shipment: "ShipmentState", shipment_map: dict[str, "ShipmentState"]
+) -> bool:
+    for predecessor_id in shipment.blocking_predecessor_ids:
+        predecessor = shipment_map.get(predecessor_id)
+        if predecessor is None:
+            # Unknown predecessor (not present in the supplied graph at
+            # all): fail closed, never terminal-ready.
+            return False
+        if _has_ambiguous_shipment_records(predecessor):
+            # A predecessor with BOTH a live queue record and an archive-
+            # folder record is corrupted/duplicated provenance (the same
+            # condition pipeline-topology's PREDECESSOR_STATE_AMBIGUOUS
+            # blocks on). _is_shipped_terminal alone would short-circuit
+            # to True on live_status == "shipped" and ignore this
+            # ambiguity -- fail closed here, before the terminal check.
+            return False
+        if not _is_shipped_terminal(predecessor):
+            return False
+    return True
+
+
+def _dag_longest_chain(
+    shipment_map: dict[str, "ShipmentState"], successors: dict[str, list[str]]
+) -> tuple[str, ...]:
+    """Longest chain by NODE COUNT over an already-verified-acyclic graph."""
+    if not shipment_map:
+        return ()
+
+    predecessors: dict[str, list[str]] = {node: [] for node in shipment_map}
+    for node, edges in successors.items():
+        for dependent in edges:
+            predecessors[dependent].append(node)
+
+    in_degree = {node: len(predecessors[node]) for node in shipment_map}
+    ready = sorted(node for node, degree in in_degree.items() if degree == 0)
+    order: list[str] = []
+    remaining = dict(in_degree)
+    while ready:
+        ready.sort()
+        node = ready.pop(0)
+        order.append(node)
+        for nxt in successors.get(node, ()):
+            remaining[nxt] -= 1
+            if remaining[nxt] == 0:
+                ready.append(nxt)
+
+    longest_len: dict[str, int] = {node: 1 for node in shipment_map}
+    longest_prev: dict[str, str | None] = {node: None for node in shipment_map}
+    for node in order:
+        # NOTE on determinism: ties in longest_len are resolved implicitly,
+        # not by an explicit id comparison here. `order` is a Kahn's-
+        # algorithm topological order that always pops the lowest-id
+        # zero-indegree node first, so when two predecessors reach the same
+        # `candidate` length for `nxt`, the strict `>` below keeps whichever
+        # one was visited (and therefore updated `nxt`) FIRST in that
+        # deterministic order -- i.e. the lowest id among the tied
+        # predecessors. If this DP loop is ever restructured, preserve
+        # either the strict `>` + this traversal order, or add an explicit
+        # id tie-break, to keep the result stable across runs.
+        for nxt in successors.get(node, ()):
+            candidate = longest_len[node] + 1
+            if candidate > longest_len[nxt]:
+                longest_len[nxt] = candidate
+                longest_prev[nxt] = node
+
+    best_node = min(shipment_map, key=lambda node: (-longest_len[node], node))
+    chain: list[str] = []
+    node: str | None = best_node
+    while node is not None:
+        chain.append(node)
+        node = longest_prev[node]
+    chain.reverse()
+    return tuple(chain)
+
+
+def _dag_downstream_dependents(
+    shipment_map: dict[str, "ShipmentState"], successors: dict[str, list[str]]
+) -> dict[str, tuple[str, ...]]:
+    """Transitive closure of dependents per node (every node that directly or
+    indirectly has this node as a blocking predecessor)."""
+    result: dict[str, tuple[str, ...]] = {}
+    for start in shipment_map:
+        seen: set[str] = set()
+        stack = list(successors.get(start, ()))
+        while stack:
+            node = stack.pop()
+            if node in seen:
+                continue
+            seen.add(node)
+            stack.extend(successors.get(node, ()))
+        result[start] = tuple(sorted(seen))
+    return result
+
+
+def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessResult:
+    """Pure, read-only ready-set + critical-path + downstream-dependents report.
+
+    See ``DagReadinessResult`` for the full contract. Reuses the existing
+    shipment-blocks reader (``ShipmentState``) for data access only; this
+    function performs no backlogit/git mutation and owns its own cycle
+    detection (110.001-T AC5).
+    """
+    shipment_map = _shipment_map(shipments)
+    successors = _dag_successors(shipment_map)
+
+    cycle_nodes = _dag_detect_cycle(shipment_map, successors)
+    if cycle_nodes:
+        return DagReadinessResult(cycle_detected=True, cycle_nodes=cycle_nodes)
+
+    ready_set = tuple(
+        sorted(
+            shipment_id
+            for shipment_id, shipment in shipment_map.items()
+            if _normalized_live_status(shipment) == "queued"
+            and not _has_ambiguous_shipment_records(shipment)
+            and _dag_all_predecessors_finished(shipment, shipment_map)
+        )
+    )
+    critical_path = _dag_longest_chain(shipment_map, successors)
+    downstream_dependents = _dag_downstream_dependents(shipment_map, successors)
+
+    return DagReadinessResult(
+        ready_set=ready_set,
+        critical_path=critical_path,
+        downstream_dependents=downstream_dependents,
+        cycle_detected=False,
+        cycle_nodes=(),
+    )
+
+
 def evaluate(
     topology_input: TopologyInput,
     readers: TopologyReaders | None = None,

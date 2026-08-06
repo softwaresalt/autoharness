@@ -300,6 +300,7 @@ Running the gate never dirties tracked working-tree state.
 ## References
 
 * [Validation Gates Reference](gates-reference.md) — the separate, advisory-by-default `autoharness gate check` CLI
+* [DAG Readiness Gate Reference](dag-readiness-gate.md) — the read-only reporting gate that reuses this gate's shipment-blocks reader (`ShipmentState`) for ready-set/critical-path/downstream-dependents visibility, without introducing any scheduler or mutation
 * [Copilot-Review Merge Gate Reference](copilot-review-gate.md) — the sibling fail-closed pre-merge gate and its `--force` audit pattern
 * [`docs/compound/010-S-session-lifecycle-gates.md`](compound/010-S-session-lifecycle-gates.md) — the install/tune assertion-registration pattern this gate's install wiring follows
 * [`docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md`](plans/2026-08-05-114s-closure-preactivation-fixes-plan.md) — design rationale for the `CLAIM_NOT_OBSERVED` contract and the closure-status enforcement fix
