@@ -217,6 +217,26 @@ class ComputeDagReadinessCycleGuardTests(unittest.TestCase):
         self.assertEqual(result.critical_path, ())
 
 
+class ComputeDagReadinessAmbiguousProvenanceTests(unittest.TestCase):
+    """Regression coverage for a shipment with BOTH a live queue record and an
+    archive-folder record (corrupted/duplicated provenance) -- the same
+    condition pipeline-topology's PREDECESSOR_STATE_AMBIGUOUS/
+    TARGET_STATE_AMBIGUOUS checks fail closed on. compute_dag_readiness must
+    never treat an ambiguous record as terminal-ready in either the
+    predecessor or the ready-set-candidate role."""
+
+    def test_ambiguous_predecessor_is_not_treated_as_finished(self) -> None:
+        predecessor = _shipment("001-S", "shipped", archived_status="shipped")
+        dependent = _shipment("002-S", "queued", deps=("001-S",))
+        result = compute_dag_readiness((predecessor, dependent))
+        self.assertEqual(result.ready_set, ())
+
+    def test_ambiguous_queued_shipment_is_excluded_from_ready_set(self) -> None:
+        ambiguous = _shipment("001-S", "queued", archived_status="shipped")
+        result = compute_dag_readiness((ambiguous,))
+        self.assertEqual(result.ready_set, ())
+
+
 class DagReadinessResultToDictTests(unittest.TestCase):
     def test_to_dict_shape_is_json_serializable(self) -> None:
         import json

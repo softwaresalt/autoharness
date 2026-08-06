@@ -1655,14 +1655,16 @@ class DagReadinessResult:
     closure (valid ``shipped``/``done`` per ``_is_shipped_terminal``). A
     ``queued`` OR ``active`` predecessor is UNFINISHED and BLOCKS its
     dependent (an ``active`` shipment is in-progress work -- NOT terminal
-    and NOT non-blocking). A predecessor that is ``abandoned``, malformed
-    (never surfaced here -- ``FilesystemTopologyReaders`` already fails
-    closed on malformed records before a ``ShipmentState`` exists), or
-    simply unknown/absent from the supplied graph is treated as unfinished
-    and fails closed (never terminal-ready). A shipment that is itself
-    ``active``, ``shipped``, ``abandoned``, or archived-only (no live
-    ``queued`` record) is NEVER a ready candidate, even when it has no
-    blocking predecessors at all.
+    and NOT non-blocking). A predecessor that is ``abandoned``, has
+    ambiguous/duplicated live+archive provenance (the same corruption
+    ``pipeline-topology``'s ``PREDECESSOR_STATE_AMBIGUOUS``/
+    ``TARGET_STATE_AMBIGUOUS`` checks block on), or is simply
+    unknown/absent from the supplied graph is treated as unfinished and
+    fails closed (never terminal-ready) -- this applies both to a
+    predecessor role and to the candidate shipment's own record. A
+    shipment that is itself ``active``, ``shipped``, ``abandoned``, or
+    archived-only (no live ``queued`` record) is NEVER a ready candidate,
+    even when it has no blocking predecessors at all.
 
     Cycle detection is OWNED by this analyzer, not the reused reader: the
     reused ``ShipmentState``/reader performs no cycle detection of its own.
@@ -1745,6 +1747,14 @@ def _dag_all_predecessors_finished(
         if predecessor is None:
             # Unknown predecessor (not present in the supplied graph at
             # all): fail closed, never terminal-ready.
+            return False
+        if _has_ambiguous_shipment_records(predecessor):
+            # A predecessor with BOTH a live queue record and an archive-
+            # folder record is corrupted/duplicated provenance (the same
+            # condition pipeline-topology's PREDECESSOR_STATE_AMBIGUOUS
+            # blocks on). _is_shipped_terminal alone would short-circuit
+            # to True on live_status == "shipped" and ignore this
+            # ambiguity -- fail closed here, before the terminal check.
             return False
         if not _is_shipped_terminal(predecessor):
             return False
@@ -1834,6 +1844,7 @@ def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessRes
             shipment_id
             for shipment_id, shipment in shipment_map.items()
             if _normalized_live_status(shipment) == "queued"
+            and not _has_ambiguous_shipment_records(shipment)
             and _dag_all_predecessors_finished(shipment, shipment_map)
         )
     )
