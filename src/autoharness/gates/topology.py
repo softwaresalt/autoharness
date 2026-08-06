@@ -1789,6 +1789,16 @@ def _dag_longest_chain(
     longest_len: dict[str, int] = {node: 1 for node in shipment_map}
     longest_prev: dict[str, str | None] = {node: None for node in shipment_map}
     for node in order:
+        # NOTE on determinism: ties in longest_len are resolved implicitly,
+        # not by an explicit id comparison here. `order` is a Kahn's-
+        # algorithm topological order that always pops the lowest-id
+        # zero-indegree node first, so when two predecessors reach the same
+        # `candidate` length for `nxt`, the strict `>` below keeps whichever
+        # one was visited (and therefore updated `nxt`) FIRST in that
+        # deterministic order -- i.e. the lowest id among the tied
+        # predecessors. If this DP loop is ever restructured, preserve
+        # either the strict `>` + this traversal order, or add an explicit
+        # id tie-break, to keep the result stable across runs.
         for nxt in successors.get(node, ()):
             candidate = longest_len[node] + 1
             if candidate > longest_len[nxt]:
