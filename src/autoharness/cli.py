@@ -42,6 +42,7 @@ Usage:
   autoharness gate size         Estimate a task's T-shirt size and write it back
   autoharness gate copilot-review  Fail-closed pre-merge gate: Copilot review complete + threads resolved
   autoharness gate pipeline-topology  Deterministic shipment/worktree topology gate
+  autoharness gate dag-readiness  Read-only ready-set/critical-path/downstream-dependents report
   autoharness telemetry begin   Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
@@ -169,6 +170,8 @@ Subcommands:
   size    Estimate a task's T-shirt size and write it back (pre_execution).
   copilot-review  Fail-closed pre-merge gate: Copilot review complete for HEAD + threads resolved.
   pipeline-topology  Deterministic shipment/worktree topology gate.
+  dag-readiness  Read-only ready-set/critical-path/downstream-dependents report over
+                 backlogit's existing shipment-blocks DAG.
 
 Usage:
   autoharness gate check --base <ref> [--task <id>] [--head <ref>]
@@ -182,6 +185,7 @@ Usage:
                         [--shipment <shipment_id>]
                         [--phase pre_claim|post_claim|lifecycle|ambient]
                         [--json] [--force]
+  autoharness gate dag-readiness [--workspace <path>] [--json]
 
 check options:
   --base <ref>        Git ref to diff against (the task branch base). Required.
@@ -230,6 +234,24 @@ pipeline-topology options:
   --json              Emit the topology gate result as JSON.
   --force             Reserve an operator override for a blocked topology gate.
 
+dag-readiness options:
+  --workspace, -w     Workspace root containing .backlogit/. Default: .
+  --json              Emit the report as JSON.
+
+`dag-readiness` is READ-ONLY: it performs no backlogit or git mutation on any
+path. It is existence-guarded (zero shipments -> empty report, exit 0) and
+DEGRADES non-fatally (advisory, exit 0) when the backlog is unreachable —
+it never fabricates a graph. The reported `ready_set` contains ONLY live
+`queued` shipments whose every predecessor has reached a genuine
+no-longer-blocking terminal closure (valid `shipped`/`done`); a `queued` OR
+`active` predecessor is unfinished and BLOCKS the dependent, and
+`abandoned`/malformed/unknown predecessor states are FAIL-CLOSED (never
+terminal-ready). `critical_path` is the longest chain by NODE COUNT (not
+time-weighted). Cycle detection is owned by this analyzer: on a detected
+cycle it reports the cycle and never fabricates a `ready_set` or
+`critical_path`. This gate is a permanent NON-GOAL for any scheduler or
+parallel/multi-worktree execution (P-001/P-016) — visibility/reporting only.
+
 `pipeline-topology` is read-only and fail-closed. Its active-shipment scan is
 local to the current checkout, and its worktree uniqueness check is local to the
 current machine/checkout: it detects topology drift, but it is not a lock or
@@ -248,7 +270,8 @@ Exit codes:
   0  gates passed / no gates configured / no files matched; or size written,
      skipped (existing size), dry-run, or (without --strict) a non-blocking
      sizing configuration failure; or copilot-review PASS/not-applicable/forced;
-     or pipeline-topology PASS/forced.
+     or pipeline-topology PASS/forced; or dag-readiness report (including
+     empty/degraded — always non-fatal).
   1  at least one matched file failed its gate (blocked), unless advisory; or
      copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout);
      or pipeline-topology BLOCK.
@@ -338,6 +361,8 @@ def _gate_command(args: list[str]) -> None:
         _gate_copilot_review_command(args[1:])
     elif subcommand == "pipeline-topology":
         _gate_pipeline_topology_command(args[1:])
+    elif subcommand == "dag-readiness":
+        _gate_dag_readiness_command(args[1:])
     else:
         print(f"Unknown gate subcommand: {subcommand}", file=sys.stderr)
         print(GATE_USAGE, file=sys.stderr)
@@ -844,6 +869,103 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
 
     if result.exit_code != 0:
         sys.exit(result.exit_code)
+
+
+def _parse_gate_dag_readiness_args(args: list[str]) -> dict:
+    """Parse `autoharness gate dag-readiness` arguments."""
+    parsed: dict = {
+        "workspace": Path("."),
+        "emit_json": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --workspace")
+            parsed["workspace"] = Path(args[index])
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown gate dag-readiness argument: {arg}")
+        index += 1
+    return parsed
+
+
+def _format_dag_readiness_report(payload: dict) -> str:
+    """Render a human-readable dag-readiness report."""
+    status = payload["status"]
+    lines = [f"DAG readiness — {status.upper()}"]
+    if status == "degraded":
+        lines.append(f"  DEGRADED: {payload.get('degraded_reason') or 'backlog unreachable'}")
+        return "\n".join(lines)
+    ready_set = payload["ready_set"]
+    lines.append(f"  ready-set: {', '.join(ready_set) if ready_set else '(none)'}")
+    if payload["cycle_detected"]:
+        lines.append(f"  cycle detected: {', '.join(payload['cycle_nodes'])}")
+        lines.append("  critical path / downstream dependents suppressed (cycle guard)")
+        return "\n".join(lines)
+    critical_path = payload["critical_path"]
+    lines.append(f"  critical path: {' -> '.join(critical_path) if critical_path else '(none)'}")
+    downstream = payload["downstream_dependents"]
+    non_empty = {node: deps for node, deps in downstream.items() if deps}
+    if non_empty:
+        lines.append("  downstream dependents (nodes with at least one dependent):")
+        for node in sorted(non_empty):
+            lines.append(f"    {node} -> {', '.join(non_empty[node])}")
+    else:
+        lines.append("  downstream dependents: (none)")
+    return "\n".join(lines)
+
+
+def _gate_dag_readiness_command(rest: list[str]) -> None:
+    """Run the read-only DAG readiness/critical-path/downstream-dependents report."""
+    if any(flag in ("help", "--help", "-h") for flag in rest):
+        print(GATE_USAGE)
+        return
+
+    try:
+        parsed = _parse_gate_dag_readiness_args(rest)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(GATE_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    from autoharness.gates import topology
+
+    readers = topology.FilesystemTopologyReaders(parsed["workspace"])
+    try:
+        shipments = tuple(readers.list_shipments())
+    except topology.BacklogUnavailableError as exc:
+        # Read-only, non-fatal degradation: never fabricate a graph.
+        payload = {
+            "status": "degraded",
+            "ready_set": [],
+            "critical_path": [],
+            "downstream_dependents": {},
+            "cycle_detected": False,
+            "cycle_nodes": [],
+            "degraded_reason": str(exc),
+        }
+        if parsed["emit_json"]:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(_format_dag_readiness_report(payload))
+        return
+
+    result = topology.compute_dag_readiness(shipments)
+    payload = result.to_dict()
+    payload["degraded_reason"] = None
+    if not shipments:
+        payload["status"] = "empty"
+    else:
+        payload["status"] = "ok"
+
+    if parsed["emit_json"]:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(_format_dag_readiness_report(payload))
 
 
 TELEMETRY_USAGE = """\
