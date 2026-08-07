@@ -188,6 +188,44 @@ See `.github/instructions/graphtor-docs.instructions.md` for full search protoco
 
 1. Read `.github/copilot-instructions.md` and `AGENTS.md` for workspace context.
 2. Check backlogit stash and queued items: `backlogit_fetch_stash` or `backlogit list --status queued`
+3. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, run the recovery protocol below before stash triage.
+
+### Crash-Resumption / Startup Recovery Protocol (fail-closed, owner-exclusive)
+
+When checkpoint recovery operations are available through the installed backlog registry,
+Stage applies this fail-closed lifecycle to its OWN (`agent: stage`) checkpoints before
+stash triage. This is the owner-agent half of the crash-resumption contract whose routing
+is defined in the Orchestrator agent's Crash-Resumption Protocol step, and whose bounded
+prune-on-restore behavior is defined in the backlogit-pack overlay instruction's
+Checkpoint-Recovery / Prune-on-Restore Protocol section. Stage never resolves, restores,
+resumes, or prunes a `ship`-owned checkpoint — cross-role handling of any kind is
+prohibited (P-001 role separation).
+
+**ZERO-CANDIDATE NORMAL STARTUP**
+1. Call `backlogit_list_checkpoints` with `consumer_id: "stage"`, `status: "active"`, and `max_age_hours: 168`, then filter the result to entries whose `agent` field is exactly `stage` (Stage's own candidates only).
+2. If NO active `stage`-owned checkpoint exists, there is nothing to recover. Continue directly with normal stash triage. This is EXPLICITLY NOT a failure and NOT an operator handoff — it is the expected steady state on most session starts.
+
+**EXPLICIT OPERATOR SELECTION (only when one or more `stage`-owned candidates exist)**
+1. Never auto-pick, even when only one candidate is returned. Present the full list of `stage`-owned active checkpoints (filename, phase, feature/shipment context, `resume_hint`, and validation status) to the operator, including quarantined entries (validation errors) surfaced as warnings rather than silently skipped.
+2. REQUIRE the operator to EXPLICITLY SELECT a SINGLE checkpoint by filename. A non-unique or ambiguous selection among these existing candidates FAILS CLOSED to operator handoff — no restore, no resume, no prune, no resolve.
+
+**OWNER VALIDATION**
+1. Validate the selected checkpoint's CheckpointV1 `agent` field. It MUST be exactly `stage` (backlogit schema: `agent` is `required,oneof=ship stage`). A missing, empty, or non-`stage` value FAILS CLOSED to operator handoff.
+2. A checkpoint whose `agent` is `ship` is never selectable here — that checkpoint belongs to the Ship agent's own recovery protocol, routed there by the Orchestrator, never handled directly by Stage.
+
+**OWNER-EXCLUSIVE, OPERATOR-CONFIRMED RESTORE (no automatic resume)**
+1. After a valid unique selection and ownership match, present the checkpoint's `resume_hint` and recorded state to the operator and REQUIRE EXPLICIT OPERATOR CONFIRMATION before any restore or prune. There is no automatic resume under any condition, and no dead-session auto-recovery — checkpoint schema V1 exposes no heartbeat/session-lock/lease (only `created_at`/`updated_at`), so age alone can never prove a prior session dead.
+2. Only on explicit operator confirmation, load the selected checkpoint with `backlogit_get_checkpoint` and restore the recorded phase, feature context, artifact IDs, plan path, and next-step intent.
+3. Apply bounded prune-on-restore per the backlogit-pack overlay instruction's Checkpoint-Recovery / Prune-on-Restore Protocol (read-select-summarize; never prune the active cursor, the unresolved-checkpoint pointer, or gate verdicts). If engram is unreachable while attempting this, FAIL CLOSED to operator handoff — no prune, no resume.
+4. Resume from the recorded phase instead of restarting triage from scratch. Single-active preserved: pick up the same single-active cursor; no parallel resume, no new worktree (P-001/P-016).
+
+**OWNER-SCOPED RESOLUTION (only after confirmed successful resume)**
+1. `backlogit_resolve_checkpoint` is invoked ONLY AFTER Stage confirms a successful resume of the selected checkpoint — never before, never on ambiguous or torn state.
+2. Resolve ONLY the single explicitly operator-selected, ownership-matched (`stage`-owned) checkpoint. NEVER perform a bulk or broad resolution sweep of other active checkpoints, and NEVER resolve a `ship`-owned checkpoint (cross-role resolution is prohibited in addition to cross-role restore/resume/prune).
+
+**FAIL CLOSED — NO FRESH-START FALLBACK**
+1. An invalid, ambiguous, torn, malformed, or unreadable checkpoint read FAILS CLOSED to operator handoff. Do NOT silently discard an invalid/ambiguous checkpoint and start a fresh session — the prior behavior of falling back to a fresh start on an invalid or errored read is removed.
+2. This fail-closed path applies among existing candidates only; the zero-candidate case in step 1 above is the no-recovery-needed continuation, not a failure.
 
 ### Step 1: Stash Triage
 
