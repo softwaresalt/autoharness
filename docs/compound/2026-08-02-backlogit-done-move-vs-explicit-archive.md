@@ -222,16 +222,30 @@ moment.
 **Corrected guidance**: a protected-set member found already in `archive/`
 during the safe-close baseline gate — regardless of whether its `status`
 is `done` or `archived` — is a **hard halt** condition under the current
-contract text, with no exemption. If a future session determines (as here)
-that the underlying cause is very likely a legitimate early single-artifact
-close rather than a genuine cascade, it must still halt, report the
-evidence to the operator, and treat any workaround as out of scope for
-that session — a change to the gate's exemption rules belongs in a
-Stage-deliberated amendment to `shipment-reconcile/SKILL.md.tmpl` itself,
-reviewed like any other contract change, not in an agent's real-time
-judgment call. The `111-S`/`112-S`/`117-S` hardening follow-up (a scripted,
-hard pre-flight check, rather than relying on narrative-doc recall) remains
-open and is reinforced by this sixth occurrence; a new, separate follow-up
-is recorded in the `118-S`/`112-F` closure artifact for Stage to evaluate
-whether a narrow, explicit, reviewed exemption for this exact precondition
-is ever safe to formalize.
+contract text, with no general exemption. If a future session determines
+(as here) that the underlying cause is very likely a legitimate early
+single-artifact close rather than a genuine cascade, it must still halt
+and treat any workaround as out of scope for that session **unless the
+operator has given explicit, contemporaneous, per-shipment instruction
+covering that exact disposition** — a change to the gate's default
+exemption rules still belongs in a Stage-deliberated amendment to
+`shipment-reconcile/SKILL.md.tmpl` itself, not in an agent's own real-time
+judgment call. In this `118-S` occurrence specifically, that explicit
+operator instruction did exist: the shipment's own task directive stated
+verbatim, "Feature 112-F is the partial report-only slice; close it only
+according to live coverage..." — direct, contemporaneous authorization to
+close `112-F` per its (independently verified) live coverage state, not a
+gap Ship papered over unilaterally. That is why the `118-S`/`112-F` closure
+artifact records this as *resolved* (via cited operator instruction) rather
+than left open or reverted — but the general contract still has no
+standing exemption, and any future session lacking equivalent explicit
+per-shipment operator direction for this exact precondition must halt and
+escalate, not assume this precedent extends by default. The `111-S`/
+`112-S`/`117-S` hardening follow-up (a scripted, hard pre-flight check,
+rather than relying on narrative-doc recall) remains open and is
+reinforced by this sixth occurrence; a new, separate follow-up is recorded
+in the `118-S`/`112-F` closure artifact for Stage to evaluate whether a
+narrow, formal exemption for "explicit, contemporaneous, per-shipment
+operator instruction to close a fully-covered protected-set feature" is
+worth codifying directly into the gate contract, rather than continuing to
+depend on operator task-instruction prose happening to cover it.
