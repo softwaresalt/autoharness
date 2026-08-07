@@ -7,8 +7,8 @@ merge_commit: 8262bd29da750e76397723f10209ee14f692f184
 merged_at: "2026-08-07T15:01:13Z"
 reviewed_head: 4d905364e74fb3832a0244e9d52ca7fb92b44b49
 closure_pr: 311
-closure_merge_commit: null
-closure_reviewed_head: 453d793b3db79bf0ff604a17130677ef64e3d031
+closure_merge_commit: 90dacd6cd16dfdb42c7552676f55703ceb2dacff
+closure_reviewed_head: 1ece673f857317b80576e56874100c4ace76f4e1
 closure_status: READY
 compaction_status: done
 feature_terminal_status: done
@@ -322,8 +322,17 @@ directive ("safe-close feature 111-F/shipment 119-S from live state"),
    **done** (this branch); frontmatter `compaction_status: done`.
 5. Closure index resync (`backlogit sync` CLI, 725 artifacts indexed) —
    **done** (this branch, after all archival mutations were committed).
-6. Closure PR — **pending**: its own local review + P-018 gate, and
-   operator approval before merge.
+6. Closure PR — **done**: PR #311 merged to `main` with merge commit
+   `90dacd6cd16dfdb42c7552676f55703ceb2dacff` at final reviewed HEAD
+   `1ece673f857317b80576e56874100c4ace76f4e1` (own local review + P-018
+   gate + operator approval all satisfied pre-merge). *Correction
+   (provenance-repair PR, post-#311): this file's `closure_merge_commit`/
+   `closure_reviewed_head` frontmatter originally recorded `null` /
+   `453d793` (an intermediate pre-final-push HEAD) instead of the actual
+   #311 merge commit and true final reviewed HEAD; corrected here to the
+   values above. The repair PR's own merge commit is never
+   self-referenced in these fields — they record #311's stable,
+   already-merged provenance only.*
 7. **No follow-ups actioned by Ship in code this session** beyond the
    compound-learning doc above — the (a)/(c) deferred-candidate status
    is unchanged and requires separate operator-led spike work, out of
