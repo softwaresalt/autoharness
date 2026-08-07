@@ -788,6 +788,45 @@ intercom/ACP tool surface.
 * _stage.agent.md and _ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
 * Intercom config path in the manifest normally resolves to `.intercom/settings.json`; agent-intercom has no MCP server, so a `.mcp.json` intercom entry is not expected
 
+#### Formal Overlay Contract: `backlogit`
+
+**Eligibility signals** (when to recommend backlogit):
+* `.vscode/mcp.json` or `.mcp.json` configures the `backlogit` MCP server
+* `.backlogit/` directory present with a config file
+* `AGENTS.md` or agent files reference backlogit tool names (`backlogit_query_sql`, `backlogit_get_queue`, `backlogit_create_checkpoint`)
+
+**Recommendation logic**: Recommend when `backlog_tool.detected: true` and `backlog_tool.tool_name` is `backlogit` in the workspace profile.
+
+**Overlay targets**:
+* `backlogit.instructions.md` — primary instruction file installed at `.github/instructions/`, hosting the Query-First, Queue-and-Dependency, Shipment-Sequencing, Continuity, Traceability, Lifecycle-Hygiene, and Checkpoint-Recovery / Prune-on-Restore protocols
+* `backlogit-sql-schema.instructions.md`, `backlogit-yaml-header-tooling.instructions.md` — companion reference instructions
+* `pipeline-agents` — `_orchestrator.agent.md`, `_stage.agent.md`, `_ship.agent.md`: crash-resumption / owner-scoped checkpoint-recovery lifecycle (see each agent's own template section)
+* `backlog-aware-workflows` — ready-work selection, continuity checkpoints, traceability
+
+**Behavior deltas**:
+* Session start (Orchestrator): enumerate active recovery-candidate checkpoints; zero-candidate case continues normally, one-or-more engages explicit-selection + ownership-routing per the Orchestrator's Crash-Resumption Protocol
+* Session start (Stage/Ship): apply the owner-scoped fail-closed crash-resumption lifecycle to the agent's own (`stage`/`ship`) checkpoints only
+* On restore: apply bounded prune-on-restore (read-select-summarize; never prune the active cursor, unresolved-checkpoint pointer, or gate verdicts)
+* Fallback: backlogit unreachable at restore → operator handoff, no auto-resume; engram unreachable while pruning → operator handoff, no prune/resume
+
+**Manifest registration** (standard first-party single-`checksum` contract — mirrors the `agent-engram`/`agent-intercom`/`graphtor-docs` overlay artifact entries; NOT the community-template `installed_checksum`/`source_checksum` pair):
+1. Record `.github/instructions/backlogit.instructions.md` under `artifacts:` with `path`, `primitive`, `template: "instructions/backlogit.instructions.md.tmpl"`, and a single `checksum` field computed from the installed (variable-resolved) file content.
+2. Resolve every `{{VARIABLE}}` customization point at install time — no unresolved placeholder may remain in the installed file.
+3. Add a `capability_pack_overlays[]` entry for `pack: "backlogit"` (or extend the existing one) with a `verification_checks` row: `"backlogit.instructions.md installed at .github/instructions/"`, consistent with its existing `overlay_targets: instructions`.
+4. **Idempotent**: re-install (fresh, merge, or self-install) or re-tune refreshes the existing artifact entry and checksum in place — it never duplicates the entry.
+5. This applies in ANY target workspace where the `backlogit` capability pack is enabled, not only this dogfood workspace.
+6. No new manifest primitive and no schema change — reuse the existing single `artifacts[].checksum` surface only.
+
+**Verification checks** (installation-time):
+* `backlogit.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
+* Zero `{{VARIABLE}}` placeholders in the installed file
+* Installed file's checksum matches the manifest `artifacts[].checksum` entry for `.github/instructions/backlogit.instructions.md` (section-presence + single-checksum coherence; NOT installed-vs-source-template drift comparison)
+* `.github/instructions/backlogit.instructions.md` contains the Checkpoint-Recovery / Prune-on-Restore Protocol section
+
+**Tuning drift checks**:
+* `backlogit.instructions.md` checksum vs. the manifest `artifacts[].checksum` entry — refresh both the file (re-render from template, re-resolving variables) and the recorded checksum together whenever the template changes
+* `capability_pack_overlays[]` `backlogit` entry retains its `"backlogit.instructions.md installed at .github/instructions/"` verification-check row
+
 #### Formal Overlay Contract: `graphtor-docs`
 
 **Eligibility signals** (when to recommend graphtor-docs):

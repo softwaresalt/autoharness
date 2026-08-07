@@ -204,6 +204,67 @@ PACK_ASSERTIONS = {
             "must_contain": ["checkpoint", "queue", "traceability"],
         },
         {
+            "key": "backlogit_checkpoint_recovery_protocol",
+            "path": ".github/instructions/backlogit.instructions.md",
+            "must_contain": [
+                "Checkpoint-Recovery / Prune-on-Restore Protocol",
+                "Prune allowlist",
+                "engram",
+                "operator handoff",
+            ],
+        },
+        {
+            "key": "orchestrator_crash_resumption_protocol",
+            "path": ".github/agents/_orchestrator.agent.md",
+            "must_contain": [
+                "Crash-Resumption Protocol",
+                "Zero-candidate case",
+                "Owner-exclusive routing",
+                "Fail closed on ambiguity",
+                "No dead-session auto-recovery",
+                "Degraded fallback",
+            ],
+            "must_precede": [
+                ["Zero-candidate case", "Fail closed on ambiguity"],
+            ],
+        },
+        {
+            "key": "stage_crash_resumption_protocol",
+            "path": ".github/agents/_stage.agent.md",
+            "must_contain": [
+                "Crash-Resumption / Startup Recovery Protocol",
+                "ZERO-CANDIDATE NORMAL STARTUP",
+                "OWNER VALIDATION",
+                "OWNER-EXCLUSIVE, OPERATOR-CONFIRMED RESTORE",
+                "OWNER-SCOPED RESOLUTION",
+                "FAIL CLOSED",
+            ],
+            "must_precede": [
+                [
+                    "OWNER-EXCLUSIVE, OPERATOR-CONFIRMED RESTORE",
+                    "OWNER-SCOPED RESOLUTION",
+                ],
+            ],
+        },
+        {
+            "key": "ship_crash_resumption_protocol",
+            "path": ".github/agents/_ship.agent.md",
+            "must_contain": [
+                "Crash-Resumption / Startup Recovery Protocol",
+                "ZERO-CANDIDATE NORMAL STARTUP",
+                "OWNER VALIDATION",
+                "OWNER-EXCLUSIVE, OPERATOR-CONFIRMED RESTORE",
+                "OWNER-SCOPED RESOLUTION",
+                "FAIL CLOSED",
+            ],
+            "must_precede": [
+                [
+                    "OWNER-EXCLUSIVE, OPERATOR-CONFIRMED RESTORE",
+                    "OWNER-SCOPED RESOLUTION",
+                ],
+            ],
+        },
+        {
             "key": "backlogit_sql_schema_instruction",
             "path": ".github/instructions/backlogit-sql-schema.instructions.md",
             "must_contain": ["backlogit_query_sql", "stash_entries", "SELECT"],
