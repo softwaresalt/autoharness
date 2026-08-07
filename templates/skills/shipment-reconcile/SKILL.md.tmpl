@@ -85,7 +85,19 @@ three named inconsistency cases below apply only when the
 record's own status is `{{STATUS_QUEUED}}` or `{{STATUS_BLOCKED}}` — the two
 statuses where a manifest task already being `{{STATUS_ACTIVE}}`/`{{STATUS_DONE}}`
 is itself the drift signal (the queued/blocked record has not "caught up" to its
-tasks). When the record's own status is `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}`
+tasks). **`{{STATUS_BLOCKED}}` itself is a non-standard/legacy value**: backlogit
+1.8.0's `ShipmentStatus` enum is only `queued|active|shipped|abandoned` (see
+`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`) — a
+persisted `{{STATUS_BLOCKED}}` record can still exist in real workspaces from a
+historical `backlogit move` CLI defect that silently accepted invalid status
+writes. Pre-mode's `record-blocked-with-active-work`/`record-blocked-with-done-work`
+cases below classify such a leftover record defensively (it is real data that may
+be present); `mode: detect-mixed-role`'s `malformed-legacy` classification
+(defined further below, in the mode's own classification section) reports the
+identical underlying fact — a non-standard/legacy status value, never a normal
+current-day state — for a different manifest scan. Both agree `{{STATUS_BLOCKED}}` is never fabricated or
+transitioned into/out of; only the case label differs by mode. When the record's
+own status is `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}`
 (or archived), the record is **by definition** `record-consistent` for this
 check — an `{{STATUS_ACTIVE}}` record is the normal in-progress state while its
 tasks move `{{STATUS_QUEUED}}` → `{{STATUS_ACTIVE}}` → `{{STATUS_DONE}}`, and an
@@ -171,7 +183,13 @@ shipment status (`ShipmentStatus` is only `queued|active|shipped|abandoned`).
 A shipment record whose persisted status is anything other than a valid 1.8.0
 lifecycle value (e.g. a legacy `blocked` value) is described in the report as
 `malformed-legacy` — REPORT it, HALT, and never fabricate a `blocked->queued`
-or any other transition.
+or any other transition. This is the same underlying fact the pre-mode
+Shipment-Record-Status Classification table above documents for its own
+scan (`record-blocked-with-active-work`/`record-blocked-with-done-work`
+defensively classify a leftover legacy `{{STATUS_BLOCKED}}` record because it
+may exist in real workspaces); the two modes describe the identical
+non-standard value under mode-appropriate labels — never treat a persisted
+`{{STATUS_BLOCKED}}` value as a normal current-day state in either mode.
 
 **Mixed-role signature**: a shipment record `{{STATUS_QUEUED}}` whose
 task-artifact manifest items (filtered by `artifact_type` to exclude any
