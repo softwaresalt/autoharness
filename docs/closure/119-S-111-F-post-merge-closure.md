@@ -6,9 +6,9 @@ feature_pr: 310
 merge_commit: 8262bd29da750e76397723f10209ee14f692f184
 merged_at: "2026-08-07T15:01:13Z"
 reviewed_head: 4d905364e74fb3832a0244e9d52ca7fb92b44b49
-closure_pr: null
+closure_pr: 311
 closure_merge_commit: null
-closure_reviewed_head: null
+closure_reviewed_head: e4490143b0cb1300f989fed251af8f23a34934e2
 closure_status: READY
 compaction_status: done
 feature_terminal_status: done
