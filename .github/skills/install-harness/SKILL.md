@@ -804,10 +804,11 @@ intercom/ACP tool surface.
 * `backlog-aware-workflows` — ready-work selection, continuity checkpoints, traceability
 
 **Behavior deltas**:
-* Session start (Orchestrator): enumerate active recovery-candidate checkpoints; zero-candidate case continues normally, one-or-more engages explicit-selection + ownership-routing per the Orchestrator's Crash-Resumption Protocol
-* Session start (Stage/Ship): apply the owner-scoped fail-closed crash-resumption lifecycle to the agent's own (`stage`/`ship`) checkpoints only
-* On restore: apply bounded prune-on-restore (read-select-summarize; never prune the active cursor, unresolved-checkpoint pointer, or gate verdicts)
-* Fallback: backlogit unreachable at restore → operator handoff, no auto-resume; engram unreachable while pruning → operator handoff, no prune/resume
+* Session start (Orchestrator): enumerate ALL recovery-candidate checkpoints without a `status` filter, fail closed on any validation/quarantine anomaly first, then partition to active candidates; zero-candidate case continues normally, one-or-more engages explicit-selection + ownership-routing per the Orchestrator's Crash-Resumption Protocol
+* Session start (Stage/Ship): apply the owner-scoped fail-closed crash-resumption lifecycle to the agent's own (`stage`/`ship`) checkpoints only — same unfiltered-enumeration + anomaly-first-fail-closed pattern as the Orchestrator, partitioned to the agent's own ownership
+* On restore: apply bounded prune-on-restore (read-select-summarize; never prune the active cursor, unresolved-checkpoint pointer, or gate verdicts) ONLY when the `agent-engram` capability pack is installed/active; a backlogit-only installation (no `agent-engram`) is a supported non-degraded no-op that skips directly from restore to resume
+* Fallback: backlogit unreachable at restore → operator handoff, no auto-resume; `agent-engram` installed but unreachable while pruning → operator handoff, no prune/resume (this is distinct from `agent-engram` simply not being installed, which is the supported no-prune path above, never a fallback/degraded condition)
+* Hygiene ordering: `cleanup_checkpoints` (retention-based archival, which can remove still-`active` records) is sequenced AFTER every active checkpoint has been through recovery adjudication (explicit resolve-after-confirmed-resume, or explicit operator handoff) — never called against a checkpoint population that hasn't yet been enumerated and dispositioned by the crash-resumption protocol
 
 **Manifest registration** (standard first-party single-`checksum` contract — mirrors the `agent-engram`/`agent-intercom`/`graphtor-docs` overlay artifact entries; NOT the community-template `installed_checksum`/`source_checksum` pair):
 1. Record `.github/instructions/backlogit.instructions.md` under `artifacts:` with `path`, `primitive`, `template: "instructions/backlogit.instructions.md.tmpl"`, and a single `checksum` field computed from the installed (variable-resolved) file content.

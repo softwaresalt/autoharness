@@ -28,7 +28,10 @@ resume behavior.
 1. **Zero valid candidates → normal startup.** If no active checkpoint owned
    by the relevant role exists, there is nothing to recover. This is
    EXPLICITLY NOT a failure and NOT an operator handoff — it is the expected
-   steady state on almost every session start.
+   steady state on almost every session start. Enumeration that determines
+   this MUST be unfiltered at the API-call level (see point 11 below) so a
+   malformed/quarantined checkpoint can never be silently excluded and
+   mistaken for a genuine zero-candidate state.
 2. **When candidates exist, the operator selects an explicit filename.**
    Never auto-pick, even when exactly one candidate is returned.
 3. **Validate CheckpointV1 ownership.** The `agent` field is
@@ -55,24 +58,53 @@ resume behavior.
    invalid/ambiguous checkpoint and starting a fresh session has been
    removed entirely. This fail-closed path applies only among *existing*
    candidates — it is never triggered by the zero-candidate case.
-8. **Bounded prune-on-restore, engram-gated.** The owner sequence is
+8. **Bounded prune-on-restore, engram-pack-gated.** The owner sequence is
    restore → prune/gate → resume, never restore → resume → prune. After the
    checkpoint's `state_dump` is loaded (restore) but BEFORE execution
    resumes, the owning agent applies a bounded read-select-summarize prune
    of superseded action-observation history via the existing engram-bound
-   context substrate. The prune allowlist never drops the active-shipment/
-   active-task cursor, the unresolved-checkpoint pointer, or recorded gate
-   verdicts. If engram is unreachable during this prune/gate step, the
-   protocol fails closed to operator handoff — no prune, no resume (resume
-   only ever follows a completed prune/gate step), and no file-based-prune
-   degradation fallback (that path was never proven safe and is explicitly
-   not used).
+   context substrate — but ONLY when the `agent-engram` capability pack is
+   installed/active. A backlogit-only installation (no `agent-engram`) is a
+   supported, non-degraded no-op: restore proceeds directly to resume with
+   no prune/gate step, because there is no engram-bound state to summarize.
+   The prune allowlist never drops the active-shipment/active-task cursor,
+   the unresolved-checkpoint pointer, or recorded gate verdicts. If
+   `agent-engram` IS installed but unreachable during this prune/gate step,
+   the protocol fails closed to operator handoff — no prune, no resume
+   (resume only ever follows a completed prune/gate step), and no
+   file-based-prune degradation fallback (that path was never proven safe
+   and is explicitly not used). The engram-not-installed no-op and the
+   engram-installed-but-unreachable fail-closed case are deliberately
+   distinct: a backlogit-only workspace is never forced into the fail-closed
+   path merely for lacking the engram pack.
 9. **Single-active preserved.** On confirmed resume, the owning agent picks
    up the same single-active cursor recorded in the checkpoint — no parallel
    resume, no new worktree (P-001/P-016).
 10. **Environment/technology agnosticism and existing role boundaries are
     preserved.** No new checkpoint-schema fields, no new runtime/execution
     engine, no provider or binary hardcoding.
+11. **Unfiltered enumeration + anomaly-first fail-closed check.** Checkpoint
+    enumeration at the API-call level never applies a `status`/`agent`
+    filter, because some backlog-tool implementations return a parse-failure
+    or schema-invalid checkpoint as a quarantined summary with an empty
+    `agent`/`status` — a downstream filter would silently exclude it,
+    letting the enumerating agent (Orchestrator, Stage, or Ship) incorrectly
+    conclude zero candidates exist while an unresolved malformed checkpoint
+    is present. Every enumerated summary is inspected for a validation error,
+    quarantine flag, or missing/malformed required field FIRST; any such
+    anomaly fails closed to operator handoff immediately. Only after that
+    anomaly check finds nothing does the agent partition to the valid,
+    owner-matched, active records for the zero-candidate/selection logic in
+    points 1–2 above.
+12. **`cleanup_checkpoints` sequenced after recovery adjudication.**
+    `cleanup_checkpoints` (retention-based archival) can remove still-active
+    checkpoints purely for being older than the retention cutoff — the same
+    class of record this protocol says must never be excluded by age. It is
+    therefore invoked only after every active checkpoint in the enumerated
+    population has reached an explicit resolution (via `resolve_checkpoint`
+    after a confirmed resume, or an explicit operator handoff decision) —
+    never against a checkpoint population that has not yet been enumerated
+    and dispositioned by this protocol.
 
 ## Where this lives
 

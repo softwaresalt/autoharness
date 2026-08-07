@@ -858,8 +858,10 @@ restores, resumes, or prunes a `stage`-owned checkpoint — cross-role handling 
 is prohibited (P-001 role separation).
 
 **ZERO-CANDIDATE NORMAL STARTUP**
-1. Call `{{OP_LIST_CHECKPOINTS_MCP}}` with `consumer_id: "ship"` and `status: "active"` (no age bound — an unresolved active checkpoint remains a candidate regardless of age, since age alone can never prove a prior session dead), then filter the result to entries whose `agent` field is exactly `ship` (Ship's own candidates only). Stale-checkpoint cleanup is a separate, explicit hygiene operation and never a filter on candidate enumeration here.
-2. If NO active `ship`-owned checkpoint exists, there is nothing to recover. Continue directly with normal shipment validation. This is EXPLICITLY NOT a failure and NOT an operator handoff — it is the expected steady state on most session starts.
+1. Call `{{OP_LIST_CHECKPOINTS_MCP}}` with `consumer_id: "ship"` and NO `status` or `agent` filter (enumerate ALL checkpoint summaries). A `status`/`agent` filter applied at the API call is unsafe for this fail-closed scan: a parse-failure or schema-invalid checkpoint record is commonly returned as a quarantined summary with an empty `agent`/`status`, and such filters would silently exclude it — letting Ship incorrectly report zero candidates and begin fresh work while an unresolved malformed checkpoint exists.
+2. **Fail closed on validation/quarantine anomalies FIRST**: inspect every enumerated summary for a validation error, quarantine flag, or missing/malformed required field, regardless of its (possibly empty) `agent`/`status` value. If ANY such anomaly is present, FAIL CLOSED to operator handoff immediately — surface the anomaly, do not continue to normal shipment validation, and do not proceed to the zero-candidate check below. This check runs on the full enumeration, never on a pre-filtered subset.
+3. Only after step 2 finds no anomalies, partition the valid records to entries whose `agent` field is exactly `ship` AND `status` is `active` (Ship's own active candidates only; no age bound — an unresolved active checkpoint remains a candidate regardless of age, since age alone can never prove a prior session dead). Stale-checkpoint cleanup is a separate, explicit hygiene operation and never a filter on candidate enumeration here.
+4. If NO active `ship`-owned checkpoint exists among the valid records, there is nothing to recover. Continue directly with normal shipment validation. This is EXPLICITLY NOT a failure and NOT an operator handoff — it is the expected steady state on most session starts.
 
 **EXPLICIT OPERATOR SELECTION (only when one or more `ship`-owned candidates exist)**
 1. Never auto-pick, even when only one candidate is returned. Present the full list of `ship`-owned active checkpoints (filename, phase, shipment/feature context, tasks completed, `resume_hint`, and validation status) to the operator, including quarantined entries (validation errors) surfaced as warnings rather than silently skipped.
@@ -881,7 +883,7 @@ is prohibited (P-001 role separation).
 
 **FAIL CLOSED — NO FRESH-START FALLBACK**
 1. An invalid, ambiguous, torn, malformed, or unreadable checkpoint read FAILS CLOSED to operator handoff. Do NOT silently discard an invalid/ambiguous checkpoint and start a fresh session — the prior behavior of falling back to a fresh start on an invalid or errored read is removed.
-2. This fail-closed path applies among existing candidates only; the zero-candidate case in step 1 above is the no-recovery-needed continuation, not a failure.
+2. This fail-closed path applies among existing candidates only; the zero-candidate case in the ZERO-CANDIDATE NORMAL STARTUP block above is the no-recovery-needed continuation, not a failure.
 
 ### Hook event consumption
 

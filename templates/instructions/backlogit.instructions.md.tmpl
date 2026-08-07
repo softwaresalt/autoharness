@@ -193,6 +193,17 @@ Orchestrator's owner-exclusive routing in its own template). It reuses the exist
 backlogit checkpoint API and the existing context-efficiency / P-020 compaction substrate —
 it does not introduce a new checkpoint-schema field or a new runtime engine.
 
+**Applicability — engram-pack-conditioned, not a backlogit-only blocker**: this
+prune-on-restore step applies only when the `agent-engram` capability pack is
+installed/active in this workspace (there is a bound context substrate to prune). When
+`agent-engram` is NOT installed, prune-on-restore is a supported, non-degraded no-op:
+skip directly from restore to resume (restore → resume, no prune/gate step) — a
+backlogit-only installation is never forced to halt at pruning, because a package with
+no engram pack has no engram-bound state to summarize in the first place. This static
+configuration fact (`agent-engram` not installed) is distinct from the runtime-failure
+case in point 4 below (`agent-engram` IS installed but unreachable at the moment of
+restore), which fails closed to operator handoff.
+
 1. **Bounded read-select-summarize on restore**: the owner sequence is
    restore → prune/gate → resume, never restore → resume → prune. After the operator
    explicitly confirms and the checkpoint's `state_dump` is loaded (restore), but BEFORE
@@ -201,8 +212,8 @@ it does not introduce a new checkpoint-schema field or a new runtime engine.
    action-observation history verbatim. Prune-on-restore drops ONLY superseded
    action-observation history — turns and tool traces that have already been synthesized
    into the recorded state and are no longer needed to continue the work. Only after this
-   prune/gate step completes (or is explicitly not needed) does the owning agent resume
-   execution from the recorded phase.
+   prune/gate step completes (or is explicitly not needed, per the Applicability note
+   above) does the owning agent resume execution from the recorded phase.
 2. **Prune allowlist (never prune)**: the following are NEVER pruned, regardless of how old
    or verbose the surrounding history is:
    * the active-shipment / active-task cursor (the single-active resumption point),
@@ -214,14 +225,17 @@ it does not introduce a new checkpoint-schema field or a new runtime engine.
    restore-time application of the same context-efficiency discipline used elsewhere in the
    harness (session memory checkpoints, `compact-context`, P-020 compaction). It does not
    invent a separate pruning engine, schema, or storage surface.
-4. **Degraded fallback — engram unreachable**: if engram (the bound context substrate) is
+4. **Degraded fallback — `agent-engram` installed but unreachable at restore**: when the
+   `agent-engram` capability pack IS installed/active, and the bound engram substrate is
    unreachable when attempting to read state for pruning, FAIL CLOSED to OPERATOR HANDOFF —
    NO prune and NO resume. This is a single, unambiguous behavior: a bounded file-based prune
    degradation is NOT used, because it was never proven safe and explicitly non-resuming.
-   Whenever a required substrate (backlogit OR engram) is unavailable, the crash-resumption
-   protocol fails closed to operator handoff rather than attempting a speculative degraded
-   prune or a speculative resume. This mirrors the Tool-Availability-Gate (P-012) and
-   `ENGRAM_DEGRADED` fallback patterns used elsewhere in the harness.
+   Whenever a required, installed substrate (backlogit OR an installed `agent-engram`) is
+   unavailable, the crash-resumption protocol fails closed to operator handoff rather than
+   attempting a speculative degraded prune or a speculative resume. This mirrors the
+   Tool-Availability-Gate (P-012) and `ENGRAM_DEGRADED` fallback patterns used elsewhere in
+   the harness, and it is distinct from the supported backlogit-only no-prune path in the
+   Applicability note above, which is never a degraded or fail-closed condition.
 5. **No unresolved placeholders**: any workspace-specific customization point in this section
    resolves fully at install time — installed output must never retain an unresolved template
    variable placeholder — and the protocol stays technology-agnostic (no provider or binary
@@ -234,7 +248,7 @@ When lifecycle and maintenance operations are supported:
 1. Use `archive_item` to move completed or abandoned artifacts to the archive. Include `commit_sha` when archiving work that has a final commit for traceability.
 2. Use `adopt_item` to re-parent orphaned tasks under the correct feature when hierarchy errors are detected.
 3. Run `doctor` periodically (at session start or after bulk edits) to detect orphaned artifacts and duplicate IDs. Use `fix_orphans: true` only when confident the detected orphans should be archived.
-4. Use `cleanup_checkpoints` to prune stale checkpoint files. Override `retention_days` only when the default is inappropriate.
+4. **Use `cleanup_checkpoints` to prune stale checkpoint files, but ONLY after every active checkpoint has been through recovery adjudication.** `cleanup_checkpoints` (retention-based) archives checkpoints that are either resolved OR merely older than the retention cutoff — including still-`active` records. Calling it without first sequencing it after the Crash-Resumption / Startup Recovery Protocol's enumeration and explicit disposition (operator-confirmed resume-and-resolve, or explicit operator-directed handoff) of every active checkpoint can silently erase an old-but-genuinely-unresolved active checkpoint that the recovery protocol explicitly says must NOT be excluded by age — leading the next session's enumeration to a false zero-candidate result. Require that every checkpoint returned by the owner-scoped ZERO-CANDIDATE / EXPLICIT-OPERATOR-SELECTION enumeration has reached an explicit resolution (via `resolve_checkpoint` after a confirmed resume, or an explicit operator handoff decision) BEFORE invoking `cleanup_checkpoints` against that same checkpoint population. Override `retention_days` only when the default is inappropriate.
 5. Treat hygiene findings as first-class maintenance signals — address orphans and duplicates promptly rather than allowing them to accumulate.
 
 Generated by autoharness | Template: backlogit.instructions.md.tmpl
