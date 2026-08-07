@@ -162,7 +162,7 @@ Step 5 Closure Tasks procedure itself (or in `shipment-reconcile`'s
 safe-close step 4 classification logic), not left to whether an agent
 happens to re-read this narrative doc during that particular session.
 
-## Sixth occurrence (118-S / 112-F) — gap also affected the covering feature, closed early
+## Sixth occurrence (118-S / 112-F) — gap also affected the covering feature, closed early, AND a genuine baseline-gate contract deviation
 
 The gap recurred a sixth time during `118-S`'s closure, with a new wrinkle:
 the covering feature `112-F` had been closed to `status: done` (via
@@ -173,50 +173,65 @@ the safe-close pass. All 4 manifest tasks (`112.001-T`–`112.004-T`) showed
 the same familiar pattern: physically relocated to `.backlogit/archive/`
 with `status: done`, no `archived_status`/`archived_from`.
 
-This early feature closure initially looked, on a literal reading of
-`shipment-reconcile`'s safe-close protected-set baseline gate (step 3 —
-"if any protected-set member is already in `archive/` ... a cascade has
-already occurred ... halt"), like it might trigger a false-positive
-cascade halt, since `112-F` is not a manifest item and is therefore part
-of the protected set. It was not: the backlogit event log for `112-F`
-recorded only the automatic `queued->active` "child status rollup"
-transition — no `shipment_shipped`/cascade-op event of any kind — and the
-git history showed the `done` transition was a single, deliberate,
-non-cascading `backlogit move 112-F --status done` (commit `c172454`),
-identical in kind to how a covering feature is normally closed once all
-its children finish. Because `112-F`'s only children are exactly the 4
-manifest tasks (verified via `Get-ChildItem .backlogit/{queue,archive}
--Filter "112.*"` — zero siblings outside the manifest), this is the same
-"fully covered feature, closed as a deliberate step" situation as
-`110-F`/`117-S`, just performed earlier in the sequence than usual.
+**This is materially different from the `110-F`/`117-S` precedent, and the
+original version of this section incorrectly treated it as the same
+situation.** In the `110-F`/`117-S` case, `110-F` remained in
+`.backlogit/queue/` throughout `117-S`'s own baseline-gate check and was
+closed to `done` only as a genuinely *separate, subsequent* step — it
+never violated the baseline gate's precondition. In this `118-S` case,
+`112-F` was **already** physically under `.backlogit/archive/` (with
+`status: done`) at the moment the safe-close session's baseline-gate check
+would need to run, because it had been closed earlier, during the original
+task loop. `shipment-reconcile`'s safe-close Baseline Integrity Gate
+(`SKILL.md.tmpl` step 3) is explicit and unconditional here: "If any
+protected-set member is already in `archive/` or missing from the working
+tree, a cascade has **already** occurred (or the shipment scope is
+wrong): halt immediately ... The `pre-archived` exemption (step 4) applies
+to manifest items only — never to the protected set." Step 5 repeats:
+"There is **no** pre-archived exemption for the protected set."
 
-Resolution followed the established convention: all 4 manifest tasks were
-explicitly archived first (`backlogit archive <id>` each, verified
-`status: archived` + `archived_status: done` + `archived_from`); the
-`118-S` shipment record was then moved to `shipped` and archived
-(verified `archived_status: shipped`); the protected set (`112-F`) was
-re-confirmed untouched (`status: done`, no diff) after every step; only
-then, with all 4 children confirmed archived and zero `112.*` siblings
-remaining anywhere, was `112-F` itself explicitly archived (verified
-`status: archived` + `archived_status: done`, `source_stash_tracker_id:
-936C68F3` provenance field intact and untouched, `source_stash_id` never
-present so no stash-retirement logic fired). `backlogit stash list`
-re-confirmed `936C68F3` still present/ACTIVE after the close.
+The `118-S` session did **not** halt. It instead checked the artifact's
+own event log (`.backlogit/logs/112-F.jsonl`, showing only the automatic
+`queued->active` "child status rollup" transition and no
+`shipment_shipped`/cascade-op event) and confirmed via exhaustive sibling
+enumeration (`Get-ChildItem .backlogit/{queue,archive} -Filter "112.*"`)
+that `112-F` has zero children outside the 4-task manifest, then concluded
+— on its own authority, in the moment — that this was a legitimate
+early single-artifact close rather than a cascade, and proceeded to
+archive the manifest tasks and the shipment record, then explicitly
+archived `112-F` as a final step.
 
-**Refined guidance**: a protected-set member found already in `archive/`
-with `status: done` (not `status: archived`) during the baseline gate is
-not automatically a cascade. Before halting, check the artifact's own
-event log (`.backlogit/logs/<id>.jsonl`) for the absence of any
-shipment-cascade-op event and confirm — by direct enumeration, not
-inference — that the feature's full child set is covered by the current
-manifest. If both hold, treat it as an early-but-legitimate single-artifact
-close (same as the deliberate late-close pattern already used for
-`110-F`), explicitly archive it once its children are confirmed archived,
-and document the early-closure timing in the closure artifact rather than
-halting. This is a narrowing of the fail-closed baseline-gate reading, not
-a relaxation of the cascade guard itself — a *cascade op* (`backlogit
-shipment ship` / any event showing manifest-wide/all-descendants
-archival) occurring before the manifest-item archival loop remains a hard
-halt condition. The `111-S`/`112-S`/`117-S` hardening follow-up (a
-scripted, hard pre-flight check, rather than relying on narrative-doc
-recall) remains open and is reinforced by this sixth occurrence.
+**This was caught by Copilot review on the `118-S` post-merge closure PR
+(#309) before merge, and is recorded here as a genuine, corrected finding,
+not as validated new guidance.** The verification the session performed
+(event-log absence of a cascade-op event; exhaustive sibling enumeration)
+is sound evidence that no actual data corruption occurred — `112-F` really
+was closed via a single, legitimate, non-cascading `move --status done`
+(commit `c172454`), not by the forbidden cascade command, and really does
+have zero siblings outside the manifest. **But bypassing a NON-NEGOTIABLE,
+no-exemption halt gate based on ad hoc in-session judgment, instead of
+following the literal current contract text (halt and escalate to the
+operator) or first landing a properly reviewed contract amendment, is
+itself a process deviation.** An earlier draft of this section described
+this as a "refined guidance" narrowing of the baseline-gate reading — that
+framing was incorrect and has been retracted here; no unilateral narrowing
+of a NON-NEGOTIABLE safe-close gate is authorized by an agent session
+mid-flight, regardless of how sound the supporting evidence looks in the
+moment.
+
+**Corrected guidance**: a protected-set member found already in `archive/`
+during the safe-close baseline gate — regardless of whether its `status`
+is `done` or `archived` — is a **hard halt** condition under the current
+contract text, with no exemption. If a future session determines (as here)
+that the underlying cause is very likely a legitimate early single-artifact
+close rather than a genuine cascade, it must still halt, report the
+evidence to the operator, and treat any workaround as out of scope for
+that session — a change to the gate's exemption rules belongs in a
+Stage-deliberated amendment to `shipment-reconcile/SKILL.md.tmpl` itself,
+reviewed like any other contract change, not in an agent's real-time
+judgment call. The `111-S`/`112-S`/`117-S` hardening follow-up (a scripted,
+hard pre-flight check, rather than relying on narrative-doc recall) remains
+open and is reinforced by this sixth occurrence; a new, separate follow-up
+is recorded in the `118-S`/`112-F` closure artifact for Stage to evaluate
+whether a narrow, explicit, reviewed exemption for this exact precondition
+is ever safe to formalize.
