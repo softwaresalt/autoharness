@@ -96,15 +96,22 @@ resume behavior.
     anomaly check finds nothing does the agent partition to the valid,
     owner-matched, active records for the zero-candidate/selection logic in
     points 1–2 above.
-12. **`cleanup_checkpoints` sequenced after recovery adjudication.**
+12. **`cleanup_checkpoints` sequenced after ACTUAL resolution or explicit archival/abandonment — never after a fail-closed handoff alone.**
     `cleanup_checkpoints` (retention-based archival) can remove still-active
     checkpoints purely for being older than the retention cutoff — the same
-    class of record this protocol says must never be excluded by age. It is
+    class of record this protocol says must never be excluded by age. A
+    fail-closed operator handoff performs NO resolve and deliberately leaves
+    the checkpoint `active`/unresolved to preserve it for the next session;
+    it therefore does NOT satisfy this gate on its own, since treating
+    handoff as sufficient disposition would let `cleanup_checkpoints` archive
+    that exact checkpoint immediately afterward purely for being old. It is
     therefore invoked only after every active checkpoint in the enumerated
-    population has reached an explicit resolution (via `resolve_checkpoint`
-    after a confirmed resume, or an explicit operator handoff decision) —
-    never against a checkpoint population that has not yet been enumerated
-    and dispositioned by this protocol.
+    population has reached ONE of: (a) `status: resolved` via
+    `resolve_checkpoint` after a confirmed successful resume, or (b) a
+    separate, explicit, named operator decision to archive or abandon that
+    specific checkpoint (distinct from, and never implied by, a fail-closed
+    handoff) — never against a checkpoint population that has not yet
+    reached one of these two explicit dispositions.
 
 ## Where this lives
 
