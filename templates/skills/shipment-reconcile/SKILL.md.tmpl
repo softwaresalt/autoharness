@@ -30,13 +30,23 @@ feature and any unshipped sibling tasks survive.
   (or `{{STATUS_ACTIVE}}` if the shipment was already claimed in a prior session)
   to catch Stage-side over-inclusion before any build work begins.
 * **Ad-hoc audit**: any time an operator suspects manifest drift.
+* **`mode: detect-mixed-role`** (operator-invoked, READ-ONLY, no lock, no mutation):
+  any time an operator wants a diagnostic scan for the queued-with-active-work /
+  mixed-role silently-dropped-claim signature (936C68F3 part 2, re-scoped
+  report-only per 013-DL Addendum G / 112-F) across one shipment or ALL
+  shipments. Composed entirely from EXISTING read-only backlogit reads
+  (`{{OP_LIST_SHIPMENTS_MCP}}` + per-shipment/per-task status reads via
+  `{{OP_GET_SHIPMENT_MCP}}` and per-task `{{OP_GET_MCP}}`). EMITS a report-only
+  diagnostic plus operator-remediation guidance. NEVER mutates, NEVER calls
+  `{{OP_CLAIM_SHIPMENT_MCP}}` or any status-write operation, and needs no
+  `file-lock` acquisition because nothing is written.
 
 ## Inputs
 
 | Parameter | Required | Values | Notes |
 |---|---|---|---|
-| `mode` | yes | `pre` \| `post` \| `safe-close` | Controls which check/close phase runs |
-| `shipment_id` | yes | e.g. `004-{{SUFFIX_SHIPMENT}}` | The shipment to reconcile |
+| `mode` | yes | `pre` \| `post` \| `safe-close` \| `detect-mixed-role` | Controls which check/close/detect phase runs |
+| `shipment_id` | yes for `pre`/`post`/`safe-close`; optional for `detect-mixed-role` | e.g. `004-{{SUFFIX_SHIPMENT}}` | The shipment to reconcile; for `detect-mixed-role`, omit to scan ALL shipments via `{{OP_LIST_SHIPMENTS_MCP}}` |
 | `expected_status` | pre-mode only | `{{STATUS_QUEUED}}` \| `{{STATUS_ACTIVE}}` \| `{{STATUS_DONE}}` | `{{STATUS_QUEUED}}` for fresh intake; `{{STATUS_ACTIVE}}` when shipment already claimed in a prior session; `{{STATUS_DONE}}` for pre-ship check |
 | `merge_commit_sha` | post-mode and safe-close | git SHA | The merge commit that closed the PR; recorded on archived items for traceability |
 
@@ -118,6 +128,72 @@ per manifest item, whether it was `matched` (archived by this run) or
 `pre-archived` (already archived before this run; skipped to avoid
 double-archival and false-positive cascade flags).
 
+### Mixed-Role Detection Classification (`mode: detect-mixed-role` only, distinct from the record-scope classification above)
+
+This classification is **separate** from the "Shipment-Record-Status
+Classification" above: that check compares a single shipment record's own
+status against the *aggregate* active/done state of its manifest tasks (four
+record-scope cases). This check instead classifies **each manifest task
+individually** by its per-task **ROLE**, to precisely describe the
+mixed-role "silently-dropped-claim" signature — a `{{STATUS_QUEUED}}` shipment
+record whose manifest tasks have kept progressing to `{{STATUS_ACTIVE}}` and
+even fully `{{STATUS_DONE}}`/archived while the record itself never advanced.
+Per **013-DL Addendum G** (re-scoped by Copilot PR #304 finding 1), this
+classification is used **ONLY to DESCRIBE** the inconsistency in a report —
+**NEVER** to gate a mutation. There is no `--confirm` flag because nothing is
+ever mutated.
+
+**Per-task ALLOWED ROLE** (a task-artifact manifest item must be a UNIQUE,
+NON-CONFLICTING record for exactly one of these three roles):
+
+| Role | Definition |
+|---|---|
+| `live-queued` | UNIQUE record in `{{BACKLOG_DIRECTORY}}/queue/` with `status: {{STATUS_QUEUED}}`; NO archive record for the same id |
+| `live-active` | UNIQUE record in `{{BACKLOG_DIRECTORY}}/queue/` with `status: {{STATUS_ACTIVE}}`; NO archive record for the same id |
+| `archived-completed(done)` | UNIQUE record in `{{BACKLOG_DIRECTORY}}/archive/` ONLY, in EITHER valid representation: (a) TERMINAL RELOCATION — `status: {{STATUS_DONE}}` (provenance `archived_status`/`archived_from` NOT required), OR (b) EXPLICIT ARCHIVAL — `status: archived` AND `archived_status: {{STATUS_DONE}}` AND valid, well-formed `archived_from` provenance; NO conflicting live queue record for the same id |
+
+**Per-item ANOMALY** (fail closed — REPORT and HALT on ANY of these; a
+manifest task satisfying none of these is role-clean):
+
+| Anomaly | Definition |
+|---|---|
+| `duplicate` | Same task id present in BOTH `{{BACKLOG_DIRECTORY}}/queue/` AND `{{BACKLOG_DIRECTORY}}/archive/` |
+| `conflicting` | Queue status disagrees with the declared role, an archive record exists alongside a live queue record, or a live `status: {{STATUS_DONE}}` record is found in the QUEUE (a completed task lives ONLY in `archive/`, never live-done in `queue/`) |
+| `missing` | Manifest task id has no file in either `{{BACKLOG_DIRECTORY}}/queue/` or `{{BACKLOG_DIRECTORY}}/archive/` |
+| `malformed-provenance` | An archive record with `status: archived` is missing or has ill-formed `archived_status`/`archived_from` (a `status: {{STATUS_DONE}}` archive record legitimately carries no provenance and is NOT malformed) |
+| `any-other-archived-status` | An archive record whose status is NEITHER `{{STATUS_DONE}}` NOR `archived`-with-`archived_status: {{STATUS_DONE}}` |
+| `orphan` | A queue file declares this `shipment_id` in its frontmatter but is NOT present in the manifest `items` list (reuses the pre-mode orphan-scan definition) |
+| `out-of-role` | Task status falls outside the allowed lifecycle set `{{STATUS_QUEUED}}` \| `{{STATUS_ACTIVE}}` \| `{{STATUS_DONE}}`/`archived` (e.g. a non-lifecycle or otherwise malformed status value) |
+| `torn-partial` | Any other ambiguous, incomplete, or inconsistent signal for the task that cannot be cleanly assigned to a role (e.g. partially-written frontmatter) |
+
+**Malformed-legacy shipment record**: backlogit 1.8.0 has NO `blocked`
+shipment status (`ShipmentStatus` is only `queued|active|shipped|abandoned`).
+A shipment record whose persisted status is anything other than a valid 1.8.0
+lifecycle value (e.g. a legacy `blocked` value) is described in the report as
+`malformed-legacy` — REPORT it, HALT, and never fabricate a `blocked->queued`
+or any other transition.
+
+**Mixed-role signature**: a shipment record `{{STATUS_QUEUED}}` whose
+task-artifact manifest items (filtered by `artifact_type` to exclude any
+non-task entry, e.g. a covering feature id, mirroring the existing
+task-artifact filter above) include AT LEAST ONE `live-active` or
+`archived-completed(done)` role task, with every task otherwise role-clean
+(no anomaly), is the reportable "silently-dropped-claim" signature. On ANY
+per-item anomaly (duplicate / conflicting / missing / malformed-provenance /
+any-other-archived-status / orphan / out-of-role / torn-partial) or any other
+ambiguity, REPORT the specific anomaly and HALT — never mutate, never
+attempt to resolve or repair.
+
+**Detection outcomes** (structured audit entry + telemetry event on every
+run — see "Mixed-Role Detection Audit + Telemetry" below): exactly one of
+`DETECTED` (scan completed; no mixed-role signature or anomaly found —
+`record-consistent`, nothing to report), `REPORTED` (scan completed; the
+mixed-role signature and/or one or more per-item anomalies were found and
+described in the report), or `DEGRADED` (backlogit was unreachable; the
+degraded condition is reported and the scan halts). There is **NO**
+`succeeded` / `repaired` / `refused` / two-active outcome — nothing is ever
+mutated or repaired by this mode.
+
 ## Behavioral Constraints
 
 * **Report-and-halt only.** This skill NEVER modifies the shipment manifest or
@@ -140,6 +216,13 @@ double-archival and false-positive cascade flags).
 * **Halt on RECONCILE_FAIL.** Do not proceed to safe-close unless pre-mode
   returns `PROCEED`. Do not commit backlog state if safe-close returns
   `HALT — cascade detected, revert required`. Surface the report path to the operator.
+* **`mode: detect-mixed-role` is strictly READ-ONLY.** It NEVER mutates any
+  shipment record or task, NEVER calls `{{OP_CLAIM_SHIPMENT_MCP}}` (no
+  re-claim, no repair mode — a record-only forward re-claim of a
+  queued-with-active-work shipment is UNSUPPORTED by backlogit 1.8.0; see
+  "Operator-Remediation Guidance" below), and requires NO `file-lock`
+  acquisition because nothing is written. DEGRADED (backlogit unreachable)
+  is REPORTED and the mode HALTS — it never guesses or acts blind.
 
 ## Required Protocol
 
@@ -353,6 +436,141 @@ step 1 first and release it on completion.
     * Any cascade detected → `recommendation: HALT — cascade detected, revert required`
       (see step 6). Do not proceed to the commit step.
 
+### Mixed-Role Detection Mode (`mode: detect-mixed-role`, operator-invoked, READ-ONLY)
+
+No lock is acquired for this mode — nothing is ever written. This mode is
+composed entirely from EXISTING read-only backlogit reads; it introduces NO
+new gate/CLI code (single template family: this SKILL's prose only).
+
+1. **Enumerate shipments**: call `{{OP_LIST_SHIPMENTS_MCP}}`. If `shipment_id`
+   was given, narrow to that single shipment; otherwise scan every shipment
+   returned.
+
+2. **Load each candidate shipment record** via `{{OP_GET_SHIPMENT_MCP}}`.
+   Skip (no report entry) any shipment whose record status is
+   `{{STATUS_ACTIVE}}`, `{{STATUS_DONE}}`, or archived — those are the normal
+   in-progress/closed lifecycle and are out of scope for this check (mirrors
+   the `record-consistent` scope boundary above). If a candidate's persisted
+   status is not a valid backlogit 1.8.0 shipment lifecycle value (e.g. a
+   legacy `blocked` value), classify it `malformed-legacy`, add it to the
+   report, and continue to the next candidate — never fabricate a transition.
+
+3. **Filter to task-artifact manifest items**: for each remaining
+   `{{STATUS_QUEUED}}` candidate, read its manifest `items` list and each
+   item's frontmatter (`status`, `artifact_type`) via per-item reads
+   (`{{OP_GET_MCP}}` per task id). Exclude any non-task entry (e.g. a covering
+   feature id in a fallback-assembled manifest) before classifying — the same
+   task-artifact filter the Ship agent's intake early-warning applies to
+   `custom_fields.items` (`templates/agents/_ship.agent.md.tmpl`).
+
+4. **Classify each task-artifact manifest item** against the per-task ALLOWED
+   ROLE table and the per-item ANOMALY table in the "Mixed-Role Detection
+   Classification" section above. Locate each id in
+   `{{BACKLOG_DIRECTORY}}/queue/` and `{{BACKLOG_DIRECTORY}}/archive/` to
+   determine role/anomaly; for an archive hit, read `status`, `archived_status`,
+   and `archived_from` to distinguish the two valid archived-completed
+   representations from `malformed-provenance` / `any-other-archived-status`.
+
+5. **Determine the outcome for each candidate**:
+   * If any per-item anomaly was found → `REPORTED`, naming the shipment id,
+     the anomalous task id(s), and the specific anomaly for each.
+   * Else if the mixed-role signature is present (at least one `live-active`
+     or `archived-completed(done)` role task, all tasks otherwise role-clean)
+     → `REPORTED`, naming the shipment id, record status, and each task's role.
+   * Else (all tasks role-clean and no mixed-role signature — e.g. a
+     genuinely fresh `{{STATUS_QUEUED}}` shipment with all-`live-queued`
+     tasks) → `DETECTED` with no anomaly/signature to report for that
+     candidate.
+   * If backlogit is unreachable at any point in steps 1–4 → `DEGRADED`;
+     report the degraded condition for the affected candidate(s) and HALT the
+     scan. Do not guess or proceed on partial data.
+
+6. **Emit the report-only diagnostic** at
+   `{{BACKLOG_DIRECTORY}}/reconcile/{shipment_id-or-"all"}-detect-mixed-role-{timestamp}.md`,
+   listing per candidate: the shipment id, its record status, the per-task
+   role classification, any per-item anomaly, and the outcome (`DETECTED` /
+   `REPORTED` / `DEGRADED`).
+
+7. **Emit Operator-Remediation Guidance** inline with any `REPORTED` or
+   `DEGRADED` entry — see "Operator-Remediation Guidance" below. This mode
+   performs NO mutation of any kind in response to what it finds.
+
+8. **Write the audit entry and emit telemetry** for every candidate's outcome
+   — see "Mixed-Role Detection Audit + Telemetry" below.
+
+#### Operator-Remediation Guidance
+
+When this mode reports a mixed-role signature or a per-item anomaly, include
+this guidance verbatim (adapted with the specific ids/anomaly found) in the
+report:
+
+> autoharness performs **NO auto-repair** of this inconsistency. A
+> record-only forward re-claim (`{{STATUS_QUEUED}}` → `{{STATUS_ACTIVE}}` on
+> the shipment record alone) is **UNSUPPORTED** by backlogit 1.8.0: evidence
+> (read-only inspection of `C:\Source\GitHub\backlogit`, NOT mutated) —
+> `ClaimShipment` (`internal/core/shipment_lifecycle.go`) is **manifest-wide**
+> activation (it moves the shipment `{{STATUS_QUEUED}}`→`{{STATUS_ACTIVE}}`
+> AND THEN activates every still-`{{STATUS_QUEUED}}` manifest member,
+> cascading parent-feature status, with all-or-nothing rollback on any
+> mid-flight failure) and is **STRICTLY SINGLE-SHOT**
+> (`isValidShipmentTransition` in `internal/core/shipment.go` permits ONLY
+> `{{STATUS_QUEUED}}`→`{{STATUS_ACTIVE}}` and
+> `{{STATUS_ACTIVE}}`→`{shipped,abandoned}`; a re-claim on an already-`active`
+> shipment returns `ErrShipmentConflict`). There is **NO**
+> `{{STATUS_ACTIVE}}`→`{{STATUS_QUEUED}}` transition and **NO** `blocked`
+> shipment status in 1.8.0 — never expect or fabricate either. The SUPPORTED
+> manual remediation path is entirely through backlogit's own sanctioned
+> lifecycle transitions: the operator inspects the shipment and its manifest
+> tasks directly (`backlogit get <id>` / `backlogit shipment get <id>`) and
+> decides, case by case, whether the tasks are legitimately progressing (in
+> which case the operator may let the shipment proceed to closure normally
+> once all tasks complete, using this skill's own `mode: pre` →
+> `mode: safe-close` → `mode: post` sequence) or whether the state reflects a
+> genuinely torn/partial session (in which case the operator investigates and
+> resolves the affected tasks manually before any closure attempt). This
+> guidance is descriptive only; this skill never performs any of these steps
+> itself.
+
+#### Mixed-Role Detection Audit + Telemetry
+
+Mirrors the `pipeline-topology` force-audit + telemetry pattern
+(`src/autoharness/cli.py` `_audit_pipeline_topology_force` /
+`_emit_pipeline_topology_telemetry`), adapted for a detection-only outcome —
+there is NO repair/mutation/confirm/post-condition field, because nothing is
+ever mutated.
+
+1. **Audit log**: for EVERY candidate outcome (`DETECTED` / `REPORTED` /
+   `DEGRADED`), append one structured JSON line to
+   `.autoharness/gates/shipment-reconcile-detection-audit.log` (creating the
+   `.autoharness/gates/` directory if needed), containing: `timestamp`
+   (UTC ISO-8601), `actor` (the invoking operator/session identity, e.g. from
+   `USERNAME`/`USER`), `shipment_id`, `record_status`, `outcome` (`DETECTED` \|
+   `REPORTED` \| `DEGRADED`), `per_task_roles` (an array of
+   `{task_id, role, anomaly}` — `anomaly` is `null` when the task is
+   role-clean), `remediation_guidance_emitted` (boolean), and `report_path`
+   (the reconciliation report path from step 6). NO `repair`, `mutation`,
+   `confirm`, or `post_condition` field is ever present — those concepts do
+   not apply to this read-only mode.
+2. **Telemetry event**: emit one telemetry event per candidate outcome,
+   mirroring the pipeline-topology `ToolTelemetryEvent` shape
+   (`schemas/tool-telemetry-event.schema.json`): `tool_surface: "skill"`,
+   `tool_name: "shipment-reconcile"`, `operation: "detect-mixed-role"`,
+   `status` mapped from the outcome (`DETECTED` → `success`, `REPORTED` →
+   `blocked`, `DEGRADED` → `failed`), `sensitivity: "internal"`,
+   `redaction_applied` and `metric_sources`/`metric_quality` set per the
+   schema's structural requirements, `shipment_id`/`backlog_item_id` set to
+   the candidate shipment id, and `artifact_refs` including the audit log
+   path and the report path. When invoked inside an active Ship task epoch
+   with a live `context_ref` (from `autoharness telemetry begin`), emit via
+   `autoharness telemetry event --context-ref <ref> --from-json <payload>`;
+   when invoked standalone (e.g. an ad-hoc operator audit outside any Ship
+   task loop, the most common case for this mode) there is no `context_ref`
+   to attach to, so telemetry emission for that invocation is skipped and the
+   audit log entry (step 1) remains the durable record — this mirrors
+   telemetry's existing fail-open, observational contract (an absent or
+   unavailable telemetry surface is a no-op and NEVER blocks detection,
+   reporting, or the HALT decision).
+
 ### Lock-Conflict Scenario
 
 If pre-mode cannot acquire the lock because another process holds it:
@@ -397,6 +615,36 @@ If pre-mode cannot acquire the lock because another process holds it:
   record status, and conflicting task ids — detect-and-report only, no auto-repair
 * Lock is acquired before pre-mode and released after post-mode (or on any halt)
 * Report-and-halt in pre/post mode; safe-close mutation is strictly manifest-scoped with no auto-prune
+* `mode: detect-mixed-role` is operator-invoked and strictly READ-ONLY: it
+  requires NO `file-lock` acquisition, NEVER mutates any shipment record or
+  task, and NEVER calls `{{OP_CLAIM_SHIPMENT_MCP}}` or any other status-write
+  operation
+* `mode: detect-mixed-role` classifies each task-artifact manifest item into
+  exactly one per-task ROLE (`live-queued` / `live-active` /
+  `archived-completed(done)` — either the terminal-relocation `status: done`
+  representation or the explicit-archival `status: archived` +
+  `archived_status: done` + valid `archived_from` representation) or flags a
+  per-item ANOMALY (`duplicate` / `conflicting` / `missing` /
+  `malformed-provenance` / `any-other-archived-status` / `orphan` /
+  `out-of-role` / `torn-partial`); role classification is used ONLY to
+  DESCRIBE the inconsistency in the report, NEVER to gate a mutation
+  (013-DL Addendum G)
+* `mode: detect-mixed-role` produces exactly one outcome per candidate
+  shipment — `DETECTED` / `REPORTED` / `DEGRADED` — with NO
+  `succeeded`/`repaired`/`refused`/two-active outcome, and writes a
+  structured audit entry (`.autoharness/gates/shipment-reconcile-detection-audit.log`)
+  plus a best-effort telemetry event for every outcome, mirroring the
+  `pipeline-topology` force-audit + telemetry pattern
+* `mode: detect-mixed-role` includes inline Operator-Remediation Guidance on
+  any `REPORTED`/`DEGRADED` outcome, explicitly stating autoharness performs
+  NO auto-repair and that a record-only forward re-claim is UNSUPPORTED by
+  backlogit 1.8.0 (`ClaimShipment` is manifest-wide + all-or-nothing +
+  STRICTLY SINGLE-SHOT; NO `{{STATUS_ACTIVE}}`→`{{STATUS_QUEUED}}` edge; NO
+  `blocked` shipment status), with the read-only source evidence, and never
+  fabricates a `blocked`→`{{STATUS_QUEUED}}` or
+  `{{STATUS_ACTIVE}}`→`{{STATUS_QUEUED}}` transition
+* `mode: detect-mixed-role` DEGRADED (backlogit unreachable) reports the
+  degraded condition and HALTs — it never guesses or acts on partial data
 
 ## Related Artifacts
 
