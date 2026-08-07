@@ -55,14 +55,18 @@ resume behavior.
    invalid/ambiguous checkpoint and starting a fresh session has been
    removed entirely. This fail-closed path applies only among *existing*
    candidates — it is never triggered by the zero-candidate case.
-8. **Bounded prune-on-restore, engram-gated.** After a confirmed successful
-   resume, the owning agent applies a bounded read-select-summarize prune of
-   superseded action-observation history via the existing engram-bound
+8. **Bounded prune-on-restore, engram-gated.** The owner sequence is
+   restore → prune/gate → resume, never restore → resume → prune. After the
+   checkpoint's `state_dump` is loaded (restore) but BEFORE execution
+   resumes, the owning agent applies a bounded read-select-summarize prune
+   of superseded action-observation history via the existing engram-bound
    context substrate. The prune allowlist never drops the active-shipment/
    active-task cursor, the unresolved-checkpoint pointer, or recorded gate
-   verdicts. If engram is unreachable, the protocol fails closed to operator
-   handoff — no prune, no resume, and no file-based-prune degradation
-   fallback (that path was never proven safe and is explicitly not used).
+   verdicts. If engram is unreachable during this prune/gate step, the
+   protocol fails closed to operator handoff — no prune, no resume (resume
+   only ever follows a completed prune/gate step), and no file-based-prune
+   degradation fallback (that path was never proven safe and is explicitly
+   not used).
 9. **Single-active preserved.** On confirmed resume, the owning agent picks
    up the same single-active cursor recorded in the checkpoint — no parallel
    resume, no new worktree (P-001/P-016).

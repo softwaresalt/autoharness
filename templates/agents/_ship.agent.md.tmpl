@@ -858,7 +858,7 @@ restores, resumes, or prunes a `stage`-owned checkpoint — cross-role handling 
 is prohibited (P-001 role separation).
 
 **ZERO-CANDIDATE NORMAL STARTUP**
-1. Call `{{OP_LIST_CHECKPOINTS_MCP}}` with `consumer_id: "ship"`, `status: "active"`, and `max_age_hours: 168`, then filter the result to entries whose `agent` field is exactly `ship` (Ship's own candidates only).
+1. Call `{{OP_LIST_CHECKPOINTS_MCP}}` with `consumer_id: "ship"` and `status: "active"` (no age bound — an unresolved active checkpoint remains a candidate regardless of age, since age alone can never prove a prior session dead), then filter the result to entries whose `agent` field is exactly `ship` (Ship's own candidates only). Stale-checkpoint cleanup is a separate, explicit hygiene operation and never a filter on candidate enumeration here.
 2. If NO active `ship`-owned checkpoint exists, there is nothing to recover. Continue directly with normal shipment validation. This is EXPLICITLY NOT a failure and NOT an operator handoff — it is the expected steady state on most session starts.
 
 **EXPLICIT OPERATOR SELECTION (only when one or more `ship`-owned candidates exist)**

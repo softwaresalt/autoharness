@@ -193,12 +193,16 @@ Orchestrator's owner-exclusive routing in its own template). It reuses the exist
 backlogit checkpoint API and the existing context-efficiency / P-020 compaction substrate —
 it does not introduce a new checkpoint-schema field or a new runtime engine.
 
-1. **Bounded read-select-summarize on restore**: after a confirmed successful resume, read
-   the restored checkpoint `state_dump` and any bound engram state, then produce a bounded
-   summary of that state rather than replaying the full action-observation history verbatim.
-   Prune-on-restore drops ONLY superseded action-observation history — turns and tool
-   traces that have already been synthesized into the recorded state and are no longer
-   needed to continue the work.
+1. **Bounded read-select-summarize on restore**: the owner sequence is
+   restore → prune/gate → resume, never restore → resume → prune. After the operator
+   explicitly confirms and the checkpoint's `state_dump` is loaded (restore), but BEFORE
+   execution resumes, read the restored `state_dump` and any bound engram state, then
+   produce a bounded summary of that state rather than replaying the full
+   action-observation history verbatim. Prune-on-restore drops ONLY superseded
+   action-observation history — turns and tool traces that have already been synthesized
+   into the recorded state and are no longer needed to continue the work. Only after this
+   prune/gate step completes (or is explicitly not needed) does the owning agent resume
+   execution from the recorded phase.
 2. **Prune allowlist (never prune)**: the following are NEVER pruned, regardless of how old
    or verbose the surrounding history is:
    * the active-shipment / active-task cursor (the single-active resumption point),
