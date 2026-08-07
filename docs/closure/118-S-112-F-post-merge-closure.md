@@ -8,7 +8,7 @@ merged_at: "2026-08-07T03:45:09Z"
 reviewed_head: 6af77b19d9faa179ec4d86b892843e4c6c371cb4
 closure_pr: 309
 closure_merge_commit: null
-closure_reviewed_head: 10a05504efc7c9f52849e06ea56123327b8227b4
+closure_reviewed_head: 550b3cc01f037d9ad48ec60069389fc18d7431fa
 closure_status: READY
 compaction_status: done
 feature_terminal_status: done
