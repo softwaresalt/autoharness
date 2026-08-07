@@ -85,21 +85,60 @@ records from that session.
 | §1.9 pre-merge readiness (Checks 1–5) | PASS at HEAD `df847fc` per the original session's PR body Local Review Readiness block (outcome READY, P0=0/P1=0, full local build evidence recorded, no unresolved follow-ups). |
 | Full-build applicability evidence (PR #305) | `uv pip install -e . --offline` (cached deps; sandboxed workspace has no live PyPI reachability) succeeded; post-build smoke `uv run autoharness --help` and `uv run autoharness gate dag-readiness` both PASS. Full suite: **1294 passed, 11 skipped, 403 subtests** (final pre-PR run, per session memory). |
 | Review-fix cycles | Local: 2 rounds (both fixed). Copilot review-comment cycles: 0 (zero inline threads existed — vacuously satisfied, no cap consumed). Fix-CI cycles: 0 code-remediation cycles; infra-flake reruns only (`gh run rerun`, not a code fix). |
-| Post-merge closure PR #306 — local review | Closure-branch-scoped local review recorded READY for the closure diff (backlog archival + memory/compound + compaction commits only). |
+| Post-merge closure PR #306 — local review | Closure-branch-scoped local review recorded READY, but at reviewed HEAD `30aee53e3c2f47bc1fb0e788b8070aed42abb829` — **not** the actual merged HEAD `200e2320beb8c3d50803f832e24bf580e1cdf716`. This staleness gap and its retrospective resolution are documented in its own subsection below (surfaced by this repair's own PR #307 Copilot review, corrected here rather than silently left inaccurate). |
 | Post-merge closure PR #306 — CI | `detect code changes`, `pipeline-topology (ambient)`, `ci gate` **SUCCESS**; `test` **SKIPPED** (no source-affecting changes on the closure-only diff, per the CI `detect code changes` gating) — re-confirmed via `gh pr view 306 --json statusCheckRollup` during this repair. |
-| Post-merge closure PR #306 — Copilot review | One real, non-trivial finding fixed at `40a81e7` ("address copilot review — sync stale updated_at on archive, fully-qualify compacted_from path"); thread resolved. `SATISFIED` re-confirmed above at HEAD `200e232`. |
+| Post-merge closure PR #306 — Copilot review | **4 review threads total** (re-confirmed via GraphQL during this repair, correcting this document's own earlier undercount of "one finding"): 2 declined as rename-detection false positives (Copilot flagged `.backlogit/archive/117-S.md` and `.backlogit/archive/110-F.md` as "missing" because `git diff --stat` displayed them as renames from `queue/`; both files were confirmed present in the PR's final tree via `git ls-tree`, and the thread replies explain this precisely — correctly declined, not silently dismissed) and 2 genuine, non-trivial findings both fixed in a single commit `40a81e7` (stale `updated_at` on all 3 archived task files not reflecting the actual archive-event timestamp; a bare-filename `compacted_from` value made non-self-locating by qualifying it to its full repo-relative path). All 4 threads resolved. `SATISFIED` re-confirmed above at HEAD `200e232`. |
 | Repo merge-strategy settings (P-009) | `mergeCommitAllowed: true`, `squashMergeAllowed: false`, `rebaseMergeAllowed: false` — re-verified via `gh repo view --json` during this repair (unchanged from both original merges). |
 | Worktree/PR topology (P-016) | Re-verified during this repair: `git worktree list --porcelain` shows a single worktree (`C:/Source/GitHub/autoharness`), no parallel worktree violations. |
 | Dark-mode merge authorization (original session) | `DARK_MODE_MERGE_AUTHORIZED` was emitted for PR #305: PR in scope (`117-S`, first of serial chain `117-S → 118-S → 119-S`; `118-S` explicitly not claimed), `merge_approval_pre_authorized: true`, admin fallback pre-authorized but never invoked (normal merge succeeded directly), §1.9 passed at HEAD, checks green, P-009/P-016/P-018 all passed. |
 
 ### No residual findings carried forward
 
-The one P1 (feature PR round 1) and the one Copilot finding (closure PR
-#306) were both fixed within their originating sessions and independently
-re-verified clean (zero unresolved threads on both PRs, re-confirmed
-above). No suppressed or never-promoted findings were observed in either
-PR's review body text. `closure_status: READY` reflects this directly —
-no conditions block is required.
+The one P1 (feature PR round 1) and the two genuine Copilot findings
+(closure PR #306, both fixed in `40a81e7`) were fixed within their
+originating sessions and independently re-verified clean (zero unresolved
+threads on both PRs, re-confirmed above). The two rename-detection false
+positives on PR #306 were correctly declined with an evidenced reply
+rather than suppressed. No findings were silently dropped or left
+unaddressed in either PR's review body text. `closure_status: READY`
+reflects this directly — no conditions block is required.
+
+### Closure PR #306 stale-local-readiness gap — retrospective resolution
+
+PR #306's own PR-body Local Review Readiness block recorded its local
+review at reviewed HEAD `30aee53e3c2f47bc1fb0e788b8070aed42abb829`. Its
+actual merged HEAD was `200e2320beb8c3d50803f832e24bf580e1cdf716` — four
+commits later (`40a81e7` the Copilot-fix commit, plus three no-op
+CI/Copilot-retrigger commits with no content change). This means PR
+#306's recorded local-review coverage went stale after the Copilot-fix
+commit landed and was never re-run at the true merged HEAD before that
+PR's own merge — a genuine P-014 gap in that historical session, first
+surfaced by this repair PR's own Copilot review (thread
+`PRRT_kwDORzpWpM6XJ-CE`) rather than caught at the time.
+
+This repair resolves the gap retrospectively rather than leaving it
+undocumented or asserting an unearned `READY`:
+
+- `git diff 30aee53 200e232 --stat` (re-run during this repair) shows
+  the **entire** delta between the recorded reviewed HEAD and the actual
+  merged HEAD is exactly 4 lines across 4 files: the 3 `updated_at`
+  timestamp corrections on `110.001-T`/`110.002-T`/`110.003-T` and the
+  1 `compacted_from` path qualification on the compacted-memory file —
+  precisely and only the two genuine Copilot-review fixes from
+  `40a81e7` described above. No other content changed.
+- This diff is a closed, fully-characterized, metadata-only correctness
+  fix (frontmatter field values only; no code, no schema, no logic, no
+  behavior change) directly responsive to the two Copilot findings it
+  fixes — not an unreviewed, unknown, or open-ended change.
+- Retrospective assessment (performed as part of this repair): **READY,
+  zero P0/P1.** The diff is reviewed in full above; it introduces no new
+  risk beyond what the two already-fixed-and-resolved Copilot findings
+  themselves describe.
+- This retrospective assessment is what brings PR #306's local-review
+  coverage current for its true merged HEAD `200e232`, closing the gap
+  the Copilot review on PR #307 correctly identified. No code or backlog
+  state changes as a result — only this documented, evidence-backed
+  retrospective judgment.
 
 ## Runtime Verification
 
@@ -182,10 +221,13 @@ repair: `.backlogit/archive/110-F.md` shows `archived_status: done`.
 - **Healthy signals**:
   - Feature PR #305 merged with a merge commit (two parents; P-009
     preserved); closure PR #306 likewise (two parents; P-009 preserved).
-  - Local review READY for both PRs; the one Copilot-authored review
-    thread across both PRs (on #306) was fixed and resolved; zero
-    unresolved threads on either PR, re-confirmed via the P-018 gate
-    during this repair.
+  - Local review READY for both PRs, with PR #306's stale-HEAD gap
+    (reviewed HEAD `30aee53` vs. merged HEAD `200e232`) retrospectively
+    resolved by this repair (see subsection above); zero Copilot review
+    threads on PR #305 (vacuously satisfied), 4 threads on PR #306 (2
+    correctly declined false positives, 2 genuine findings fixed in
+    `40a81e7`) — zero unresolved threads on either PR, re-confirmed via
+    the P-018 gate during this repair.
   - CI green at every applicable merge gate on both PRs (the closure
     PR's `test` job correctly `SKIPPED` under `detect code changes`
     gating for a backlog/docs-only diff).
@@ -217,8 +259,11 @@ repair: `.backlogit/archive/110-F.md` shows `archived_status: done`.
   repair PR).
   **Releasability: READY** — no conditions.
 - **Follow-ups**: none blocking. All findings raised during both PRs'
-  review cycles (1 local P1, 1 Copilot finding) were fixed within their
-  originating PR's scope. The recurring, non-blocking hardening item
+  review cycles (1 local P1 on PR #305; 2 genuine Copilot findings on
+  PR #306, both fixed in `40a81e7`) were fixed within their originating
+  PR's scope. PR #306's stale-local-readiness gap is retrospectively
+  resolved by this repair (see subsection above) — no further action
+  needed. The recurring, non-blocking hardening item
   (scripted pre-flight `status:` check in Step 5 Closure Tasks /
   `shipment-reconcile` safe-close, rather than relying on an agent
   re-reading the compound doc) remains open, tracked narratively in
