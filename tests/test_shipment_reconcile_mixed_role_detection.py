@@ -219,7 +219,7 @@ class MixedRoleDetectionOutcomeTests(unittest.TestCase):
     def test_degraded_reports_and_halts(self) -> None:
         content = _content()
         protocol_idx = content.index(_PROTOCOL_ANCHOR)
-        region = content[protocol_idx : protocol_idx + 3500]
+        region = content[protocol_idx : protocol_idx + 4400]
         self.assertIn("DEGRADED", region)
         degraded_idx = region.index("backlogit is unreachable")
         tail = region[degraded_idx : degraded_idx + 300]
@@ -322,7 +322,10 @@ class MixedRoleDetectionAuditTelemetryTests(unittest.TestCase):
         region = content[idx : idx + 2500]
         self.assertIn("ToolTelemetryEvent", region)
         self.assertIn("schemas/tool-telemetry-event.schema.json", region)
-        self.assertIn('tool_surface: "skill"', region)
+        self.assertIn('tool_surface: "builtin"', region)
+        # "skill" is NOT a valid tool_surface enum value in the schema; regression
+        # guard against reintroducing the invalid literal.
+        self.assertNotIn('tool_surface: "skill"', region)
         self.assertIn('tool_name: "shipment-reconcile"', region)
         self.assertIn('operation: "detect-mixed-role"', region)
         self.assertIn("DETECTED", region)
@@ -332,7 +335,7 @@ class MixedRoleDetectionAuditTelemetryTests(unittest.TestCase):
     def test_telemetry_degrades_gracefully_without_blocking(self) -> None:
         content = _content()
         idx = content.index(_AUDIT_ANCHOR)
-        region = content[idx : idx + 2600]
+        region = content[idx : idx + 3400]
         self.assertIn("context_ref", region)
         self.assertIn("skipped", region)
         self.assertIn("fail-open", region)

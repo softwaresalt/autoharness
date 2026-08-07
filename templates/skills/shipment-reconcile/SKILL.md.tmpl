@@ -39,7 +39,10 @@ feature and any unshipped sibling tasks survive.
   `{{OP_GET_SHIPMENT_MCP}}` and per-task `{{OP_GET_MCP}}`). EMITS a report-only
   diagnostic plus operator-remediation guidance. NEVER mutates, NEVER calls
   `{{OP_CLAIM_SHIPMENT_MCP}}` or any status-write operation, and needs no
-  `file-lock` acquisition because nothing is written.
+  `file-lock` acquisition because no backlog/shipment artifact is ever
+  mutated — the mode's own diagnostic report, audit-log entry, and telemetry
+  event (steps 6–8 below) are additive-only writes to non-backlog-state
+  locations, never applied to a queue/archive item.
 
 ## Inputs
 
@@ -239,7 +242,9 @@ mutated or repaired by this mode.
   re-claim, no repair mode — a record-only forward re-claim of a
   queued-with-active-work shipment is UNSUPPORTED by backlogit 1.8.0; see
   "Operator-Remediation Guidance" below), and requires NO `file-lock`
-  acquisition because nothing is written. DEGRADED (backlogit unreachable)
+  acquisition because no backlog/shipment artifact is ever mutated (its own
+  diagnostic report, audit-log entry, and telemetry event are additive-only
+  writes to non-backlog-state locations). DEGRADED (backlogit unreachable)
   is REPORTED and the mode HALTS — it never guesses or acts blind.
 
 ## Required Protocol
@@ -456,9 +461,13 @@ step 1 first and release it on completion.
 
 ### Mixed-Role Detection Mode (`mode: detect-mixed-role`, operator-invoked, READ-ONLY)
 
-No lock is acquired for this mode — nothing is ever written. This mode is
-composed entirely from EXISTING read-only backlogit reads; it introduces NO
-new gate/CLI code (single template family: this SKILL's prose only).
+No lock is acquired for this mode — no backlog/shipment artifact is ever
+mutated. (The mode's own diagnostic report, audit-log entry, and telemetry
+event — steps 6, 8 below — ARE writes, but they are additive-only writes to
+non-backlog-state locations, never applied to a queue/archive item, so no
+`file-lock` is required.) This mode is composed entirely from EXISTING
+read-only backlogit reads; it introduces NO new gate/CLI code (single
+template family: this SKILL's prose only).
 
 1. **Enumerate shipments**: call `{{OP_LIST_SHIPMENTS_MCP}}`. If `shipment_id`
    was given, narrow to that single shipment; otherwise scan every shipment
@@ -466,12 +475,21 @@ new gate/CLI code (single template family: this SKILL's prose only).
 
 2. **Load each candidate shipment record** via `{{OP_GET_SHIPMENT_MCP}}`.
    Skip (no report entry) any shipment whose record status is
-   `{{STATUS_ACTIVE}}`, `{{STATUS_DONE}}`, or archived — those are the normal
-   in-progress/closed lifecycle and are out of scope for this check (mirrors
-   the `record-consistent` scope boundary above). If a candidate's persisted
-   status is not a valid backlogit 1.8.0 shipment lifecycle value (e.g. a
-   legacy `blocked` value), classify it `malformed-legacy`, add it to the
-   report, and continue to the next candidate — never fabricate a transition.
+   `{{STATUS_ACTIVE}}`, `shipped`, `abandoned`, or archived — those are the
+   normal in-progress/closed lifecycle **shipment-record** states and are out
+   of scope for this check (mirrors the `record-consistent` scope boundary
+   above). Note: `shipped`/`abandoned` are the shipment record's own terminal
+   statuses (`ShipmentStatus` enum), distinct from `{{STATUS_DONE}}` which is
+   a **task**-artifact status — a live shipment record is never itself
+   `{{STATUS_DONE}}`. If a candidate's persisted status is not a valid
+   backlogit 1.8.0 shipment lifecycle value (e.g. a legacy `blocked` value),
+   classify it `malformed-legacy`, add it to the report, and continue to the
+   next candidate — never fabricate a transition. Any other unrecognized
+   persisted value is likewise `malformed-legacy` rather than silently
+   skipped or silently matched to the queued branch below — every possible
+   persisted value maps to exactly one of: skip (`{{STATUS_ACTIVE}}`/
+   `shipped`/`abandoned`/archived), scan (`{{STATUS_QUEUED}}`, step 3), or
+   `malformed-legacy` (anything else).
 
 3. **Filter to task-artifact manifest items**: for each remaining
    `{{STATUS_QUEUED}}` candidate, read its manifest `items` list and each
@@ -571,7 +589,11 @@ ever mutated.
    not apply to this read-only mode.
 2. **Telemetry event**: emit one telemetry event per candidate outcome,
    mirroring the pipeline-topology `ToolTelemetryEvent` shape
-   (`schemas/tool-telemetry-event.schema.json`): `tool_surface: "skill"`,
+   (`schemas/tool-telemetry-event.schema.json`): `tool_surface: "builtin"`
+   (the schema's `tool_surface` enum is `mcp` \| `cli` \| `shell` \| `builtin`
+   \| `api` \| `unknown` — `"skill"` is NOT a valid value; `shipment-reconcile`
+   is an agent-invoked prose skill with no separate CLI/MCP/API backend of its
+   own, so `builtin` is the correct surface),
    `tool_name: "shipment-reconcile"`, `operation: "detect-mixed-role"`,
    `status` mapped from the outcome (`DETECTED` → `success`, `REPORTED` →
    `blocked`, `DEGRADED` → `failed`), `sensitivity: "internal"`,
