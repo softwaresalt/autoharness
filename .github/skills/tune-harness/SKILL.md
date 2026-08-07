@@ -459,6 +459,16 @@ Flag missing or weakened items as `agent_engram_overlay_incomplete` drift.
 Treat missing inheritance, implementation, or implementer coverage as real
 agent-engram weaving drift, not a cosmetic wording difference.
 
+**backlogit overlay coherence checks**: When `backlogit` is in the enabled pack list, verify:
+
+1. `backlogit.instructions.md` is present in the workspace's instructions directory. If missing while the pack is enabled, (re)install it from `templates/instructions/backlogit.instructions.md.tmpl`, resolving all `{{VARIABLE}}` customization points, and register it under `harness-manifest.yaml` `artifacts[]` with a single `checksum` field (standard first-party contract — not the community-template `installed_checksum`/`source_checksum` pair). Re-tune is idempotent: refresh the existing artifact entry and checksum in place rather than duplicating it.
+2. The installed file's checksum matches the recorded `artifacts[].checksum` manifest entry; a mismatch is `user-modified` or an un-refreshed manifest, not silently accepted.
+3. The instruction contains the Checkpoint-Recovery / Prune-on-Restore Protocol section (applicability gated on the `agent-engram` pack being installed — a backlogit-only install is a supported no-prune no-op, never forced to halt; prune allowlist: active cursor, unresolved-checkpoint pointer, gate verdicts never pruned; `agent-engram` installed-but-unreachable → operator handoff, no prune/resume) and the Lifecycle Hygiene Protocol's `cleanup_checkpoints` sequencing guard (never called against a checkpoint population until every active checkpoint has reached ACTUAL resolution via `resolve_checkpoint` after a confirmed resume, or a separate explicit named operator archival/abandonment decision — a fail-closed operator handoff alone is NEITHER and does NOT satisfy this gate, since handoff deliberately leaves the checkpoint active/unresolved).
+4. `_orchestrator.agent.md` contains its Crash-Resumption Protocol step (unfiltered enumeration with anomaly-first fail-closed check before any status/candidate filtering; zero-candidate no-op; explicit unique checkpoint selection; CheckpointV1 `agent`-ownership validation; owner-exclusive routing — never performs Stage/Ship-owned restore/resume/prune itself).
+5. `_stage.agent.md` and `_ship.agent.md` each contain their own Crash-Resumption / Startup Recovery Protocol section (unfiltered checkpoint enumeration with anomaly-first fail-closed check before status/owner filtering; zero-candidate normal startup; explicit operator filename selection; owner validation against the agent's own role; owner-scoped resolution only after a confirmed successful owner resume; fail closed with no fresh-start fallback on invalid/ambiguous checkpoint reads).
+
+Flag missing or incoherent items as `backlogit_overlay_incomplete` drift. Treat a missing checksum, a mismatched checksum, or a missing crash-resumption section in any of the three agent mirrors as real backlogit weaving drift, not a cosmetic wording difference.
+
 **graphtor-docs overlay coherence checks**: When `graphtor-docs` is in the enabled pack list, verify:
 
 1. `graphtor-docs.instructions.md` is present in the workspace's instructions directory

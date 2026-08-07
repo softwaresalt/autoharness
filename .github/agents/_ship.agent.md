@@ -167,6 +167,45 @@ If the `graphtor-docs` capability pack is active (`.github/instructions/graphtor
 
 See `.github/instructions/graphtor-docs.instructions.md` for full search protocol, server lifecycle, and fallback rules.
 
+### Crash-Resumption / Startup Recovery Protocol (fail-closed, owner-exclusive)
+
+When checkpoint recovery operations are available through the installed backlog registry,
+Ship applies this fail-closed lifecycle to its OWN (`agent: ship`) checkpoints before
+shipment validation. This is the owner-agent half of the crash-resumption contract whose
+routing is defined in the Orchestrator agent's Crash-Resumption Protocol step, and
+whose bounded prune-on-restore behavior is defined in the backlogit-pack overlay
+instruction's Checkpoint-Recovery / Prune-on-Restore Protocol section. Ship never resolves,
+restores, resumes, or prunes a `stage`-owned checkpoint — cross-role handling of any kind
+is prohibited (P-001 role separation).
+
+**ZERO-CANDIDATE NORMAL STARTUP**
+1. Call `backlogit_list_checkpoints` with `consumer_id: "ship"` and NO `status` or `agent` filter (enumerate ALL checkpoint summaries). A `status`/`agent` filter applied at the API call is unsafe for this fail-closed scan: a parse-failure or schema-invalid checkpoint record is commonly returned as a quarantined summary with an empty `agent`/`status`, and such filters would silently exclude it — letting Ship incorrectly report zero candidates and begin fresh work while an unresolved malformed checkpoint exists.
+2. **Fail closed on validation/quarantine anomalies FIRST**: inspect every enumerated summary for a validation error, quarantine flag, or missing/malformed required field, regardless of its (possibly empty) `agent`/`status` value. If ANY such anomaly is present, FAIL CLOSED to operator handoff immediately — surface the anomaly, do not continue to normal shipment validation, and do not proceed to the zero-candidate check below. This check runs on the full enumeration, never on a pre-filtered subset.
+3. Only after step 2 finds no anomalies, partition the valid records to entries whose `agent` field is exactly `ship` AND `status` is `active` (Ship's own active candidates only; no age bound — an unresolved active checkpoint remains a candidate regardless of age, since age alone can never prove a prior session dead). Stale-checkpoint cleanup is a separate, explicit hygiene operation and never a filter on candidate enumeration here.
+4. If NO active `ship`-owned checkpoint exists among the valid records, there is nothing to recover. Continue directly to normal shipment validation (Step 0.5 below). This is EXPLICITLY NOT a failure and NOT an operator handoff — it is the expected steady state on most session starts.
+
+**EXPLICIT OPERATOR SELECTION (only when one or more `ship`-owned candidates exist)**
+1. Never auto-pick, even when only one candidate is returned. Present the full list of `ship`-owned active checkpoints (filename, phase, shipment/feature context, tasks completed, `resume_hint`, and validation status) to the operator, including quarantined entries (validation errors) surfaced as warnings rather than silently skipped.
+2. REQUIRE the operator to EXPLICITLY SELECT a SINGLE checkpoint by filename. A non-unique or ambiguous selection among these existing candidates FAILS CLOSED to operator handoff — no restore, no resume, no prune, no resolve.
+
+**OWNER VALIDATION**
+1. Validate the selected checkpoint's CheckpointV1 `agent` field. It MUST be exactly `ship` (backlogit schema: `agent` is `required,oneof=ship stage`). A missing, empty, or non-`ship` value FAILS CLOSED to operator handoff.
+2. A checkpoint whose `agent` is `stage` is never selectable here — that checkpoint belongs to the Stage agent's own recovery protocol, routed there by the Orchestrator, never handled directly by Ship.
+
+**OWNER-EXCLUSIVE, OPERATOR-CONFIRMED RESTORE (no automatic resume)**
+1. After a valid unique selection and ownership match, present the checkpoint's `resume_hint` and recorded state to the operator and REQUIRE EXPLICIT OPERATOR CONFIRMATION before any restore or prune. There is no automatic resume under any condition, and no dead-session auto-recovery — checkpoint schema V1 exposes no heartbeat/session-lock/lease (only `created_at`/`updated_at`), so age alone can never prove a prior session dead.
+2. Only on explicit operator confirmation, load the selected checkpoint with `backlogit_get_checkpoint` and restore the recorded phase, shipment or feature context, task IDs, branch state, and next-step intent.
+3. Apply bounded prune-on-restore per the backlogit-pack overlay instruction's Checkpoint-Recovery / Prune-on-Restore Protocol (read-select-summarize; never prune the active cursor, the unresolved-checkpoint pointer, or gate verdicts). If engram is unreachable while attempting this, FAIL CLOSED to operator handoff — no prune, no resume.
+4. Resume from the recorded phase instead of restarting execution from scratch. Single-active preserved: pick up the same single-active cursor; no parallel resume, no new worktree (P-001/P-016).
+
+**OWNER-SCOPED RESOLUTION (only after confirmed successful resume)**
+1. `backlogit_resolve_checkpoint` is invoked ONLY AFTER Ship confirms a successful resume of the selected checkpoint — never before, never on ambiguous or torn state.
+2. Resolve ONLY the single explicitly operator-selected, ownership-matched (`ship`-owned) checkpoint. NEVER perform a bulk or broad resolution sweep of other active checkpoints, and NEVER resolve a `stage`-owned checkpoint (cross-role resolution is prohibited in addition to cross-role restore/resume/prune).
+
+**FAIL CLOSED — NO FRESH-START FALLBACK**
+1. An invalid, ambiguous, torn, malformed, or unreadable checkpoint read FAILS CLOSED to operator handoff. Do NOT silently discard an invalid/ambiguous checkpoint and start a fresh session — the prior behavior of falling back to a fresh start on an invalid or errored read is removed.
+2. This fail-closed path applies among existing candidates only; the zero-candidate case in the ZERO-CANDIDATE NORMAL STARTUP block above is the no-recovery-needed continuation, not a failure.
+
 ### Step 0.5: Work Intake
 
 1. Identify the shipment or feature to work on (read-only — do not claim yet).
