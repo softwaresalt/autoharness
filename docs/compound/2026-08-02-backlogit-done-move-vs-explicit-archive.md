@@ -134,3 +134,30 @@ not left to agent discretion or compound-doc recall) remains open and
 should be treated as a priority hardening item for the Step 5 Closure
 Tasks procedure — narrative documentation alone has now failed to prevent
 recurrence four times.
+
+## Fifth occurrence (117-S / 110-F) — caught proactively via this doc before committing
+
+The gap recurred a fifth time during `117-S`'s closure: all 3 manifest
+tasks (`110.001-T`, `110.002-T`, `110.003-T`) had been physically relocated
+to `.backlogit/archive/` by the feature branch's own task-loop commits, with
+`status: done` still recorded. Unlike the `111-S`/`113-S` occurrences, this
+session deliberately re-read this compound doc during post-merge closure
+(before running the shipment-reconcile safe-close's "pre-archived" skip
+classification) and, prompted by its "Fix / Convention" section, explicitly
+grepped the `status:` field of all 3 candidate files before treating any of
+them as skippable — surfacing `status: done` on all 3. All 3 were then
+explicitly archived via `backlogit archive <id>`, verified to carry
+`status: archived` + `archived_status: done`, with the covering feature
+`110-F` (fully covered by this shipment, closed as a deliberate explicit
+step) re-confirmed correctly archived as `status: archived` +
+`archived_status: done` in the same pass. See the `117-S`/`110-F` post-merge
+closure record for full detail.
+
+This is the fifth recorded occurrence of the same gap, and the first one
+caught purely by an agent proactively consulting this doc rather than by a
+downstream Copilot review thread or a coincidental adjacent check. It
+reinforces — rather than resolves — the open `111-S`/`112-S` hardening
+follow-up: a scripted, hard pre-flight `status:` field check belongs in the
+Step 5 Closure Tasks procedure itself (or in `shipment-reconcile`'s
+safe-close step 4 classification logic), not left to whether an agent
+happens to re-read this narrative doc during that particular session.
