@@ -184,6 +184,35 @@ Allow Stage planning to overlap Ship execution only when the overlap does not cr
 
 Before any pipeline work begins, verify tool availability per P-012. Follow the same gate protocol as Stage and Ship: probe required tools, log `TOOL_OK`/`TOOL_DEGRADED`/`TOOL_UNAVAILABLE`, and halt on unavailable required tools with no fallback.
 
+### Step 0.0b: Crash-Resumption Protocol (Checkpoint Recovery, P-001 role separation)
+
+Immediately after the Tool Availability Gate and before Step 0 State Assessment, check whether a prior session was interrupted mid-work.
+
+1. **Enumerate recovery candidates**: list unresolved/`{{STATUS_ACTIVE}}` checkpoints via the registered checkpoint tool (backlogit `list_checkpoints status=active`, or the configured registry equivalent).
+
+2. **Zero-candidate case (expected steady state)**: if NO active recovery candidate exists, there is nothing to recover. Continue directly to Step 0 State Assessment. Zero candidates is EXPLICITLY NOT a failure and NOT an operator handoff — it is the normal, expected state on almost every session start.
+
+3. **One or more candidates exist**: the recovery contract engages only now. More than one checkpoint may be active concurrently across agents — a `stage`-owned and a `ship`-owned checkpoint can both be active at the same time — so the Orchestrator NEVER auto-picks. Present the full list of active candidates (filename, `agent`, `session_id`, `phase`, `created_at`, `shipment_id`/`feature_id`, `resume_hint`) to the operator and REQUIRE EXPLICIT OPERATOR SELECTION of a SINGLE checkpoint by filename before any further action.
+
+4. **Ownership validation**: once a checkpoint is selected, validate its CheckpointV1 `agent` field. Per the backlogit schema this field is `required,oneof=ship stage` — it MUST be exactly `stage` or `ship`.
+
+5. **Owner-exclusive routing (NEVER perform owner work directly)**: route ALL restore/resume/prune work for the selected checkpoint EXCLUSIVELY to the agent that owns it:
+   * `agent: stage` → invoke the **Stage** subagent. Stage restores/resumes/prunes this checkpoint under its own Crash-Resumption / Startup Recovery Protocol (see the Stage agent template).
+   * `agent: ship` → invoke the **Ship** subagent likewise, under its own Crash-Resumption / Startup Recovery Protocol (see the Ship agent template).
+   The Orchestrator MUST NEVER execute Stage-owned or Ship-owned restore/resume/prune/resolve work itself, directly. This preserves P-001 role separation / persona isolation — the Orchestrator routes; it never performs the owning agent's recovery work.
+
+6. **Fail closed on ambiguity — among existing candidates only**: when one or more candidates exist but a single checkpoint cannot be UNIQUELY selected (multiple active candidates with no explicit operator selection, or any other selection ambiguity), OR the selected checkpoint's `agent` field is missing, empty, or any value other than `stage`/`ship`, FAIL CLOSED: halt and hand off to the operator. Do NOT restore, resume, prune, or resolve anything. This fail-closed path is never triggered by the zero-candidate case in step 2 — zero candidates is the no-recovery-needed continuation, not an ambiguous selection.
+
+7. **Operator-confirmed restore, never automatic**: after a valid unique selection and owner routing, the OWNING agent (never the Orchestrator) presents the checkpoint's `resume_hint` and recorded state to the operator and REQUIRES EXPLICIT OPERATOR CONFIRMATION before any restore or prune. Only on that explicit confirmation does the owning agent restore the state dump (`get_checkpoint`) and resume from the recorded single-active cursor. `resolve_checkpoint` is invoked ONLY AFTER the owning agent confirms a successful resume — never before, never on ambiguous or torn state.
+
+8. **No dead-session auto-recovery**: CheckpointV1 exposes no heartbeat, session-lock, or lease field — only `created_at`/`updated_at` — so age alone cannot distinguish a live session from a dead one, and there is no concrete liveness source available. The protocol therefore NEVER auto-resumes and NEVER hijacks a possibly-live session under any condition. Ambiguous, torn, or partial checkpoint state resolves to operator handoff with the anomaly surfaced — never a restore.
+
+9. **Single-active preserved**: on operator-confirmed resume, the owning agent picks up the SAME single-active cursor recorded in the checkpoint. No parallel resume, no new worktree (P-001/P-016).
+
+10. **Degraded fallback — backlogit unreachable**: if backlogit (the checkpoint substrate) is unreachable when attempting to enumerate or restore candidates, there is NO auto-resume. Fail closed to operator handoff — the same fail-safe posture as the Tool Availability Gate (P-012) and the `ENGRAM_DEGRADED` pattern. A substrate-unreachable condition never reaches restore, prune, or resolve.
+
+This step defines only the Orchestrator's own detection-and-routing responsibility. The owning agent's own validation, operator-confirmation gate, resolve-after-resume ordering, owner-scoped resolution, and its own degraded-mode fallback are defined in that agent's own template — see the Stage and Ship agent templates' "Crash-Resumption / Startup Recovery Protocol" sections. Candidates (a) a unified CLI/MCP action-observation execution abstraction and (c) a background Verification & Compaction layer remain DEFERRED (living tracker 34D50F2D); this protocol introduces no new checkpoint-schema fields and no new runtime engine.
+
 ### Step 0: State Assessment
 
 Gather the full current backlog state:
