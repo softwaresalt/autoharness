@@ -85,18 +85,20 @@ throughout.
 
 **Round 2** (HEAD `8a504c2` -> fix `753a1ef`, 5 NEW comments surfaced by
 the re-armed Copilot review of the round-1-fix HEAD):
-- **Bug C** (4 comments: 2 Stage/Ship templates+mirrors, 1 Orchestrator
-  template, plus its installed-mirror counterpart applied proactively):
-  the round-1 fix's own `agent == stage/ship` post-filter (and the
-  Orchestrator's pre-existing `status=active` enumeration filter) could
-  silently drop a parse-failure/quarantined checkpoint whose `agent`/
-  `status` fields are empty. Fixed via unfiltered enumeration at the
-  API-call level + an anomaly-first fail-closed check preceding any
-  status/agent partitioning, applied identically to the Orchestrator
-  (Step 0.0b, renumbered 10 -> 11 steps) and Stage/Ship (ZERO-CANDIDATE
-  NORMAL STARTUP rewritten to 4 sub-steps). Discovered during this fix
-  that the installed `.github/agents/_orchestrator.agent.md` mirror
-  (untouched by round 1) also needed the identical fix mirrored in.
+- **Bug C** (3 comments: 2 Stage/Ship templates+mirrors, 1 Orchestrator
+  template): the round-1 fix's own `agent == stage/ship` post-filter
+  (and the Orchestrator's pre-existing `status=active` enumeration
+  filter) could silently drop a parse-failure/quarantined checkpoint
+  whose `agent`/`status` fields are empty. Fixed via unfiltered
+  enumeration at the API-call level + an anomaly-first fail-closed check
+  preceding any status/agent partitioning, applied identically to the
+  Orchestrator (Step 0.0b, renumbered 10 -> 11 steps) and Stage/Ship
+  (ZERO-CANDIDATE NORMAL STARTUP rewritten to 4 sub-steps). Discovered
+  during this fix that the installed
+  `.github/agents/_orchestrator.agent.md` mirror (untouched by round 1)
+  also needed the identical fix mirrored in — a proactive mirror-parity
+  correction, not itself a review comment (so Bug C = 3 review comments,
+  not 4; Round 2 totals 3 + 1 (Bug D) + 1 (Bug E) = 5).
 - **Bug D** (1 comment, install-harness SKILL.md): a backlogit-only
   install (no `agent-engram`) would always halt at the engram-gated prune
   step and could never resume. Fixed by adding an explicit Applicability
@@ -138,21 +140,27 @@ review-cap removal for this shipment allowed full resolution to
 **Surface**: this shipment adds prose-only content to existing agent
 templates (Orchestrator/Stage/Ship), an existing capability-pack overlay
 instruction, and existing install/tune skills, plus a new structural test
-file and design doc. No CLI subcommand, schema, or gate surface is
-touched (`verify_workspace.py`'s `PACK_ASSERTIONS` additions are
-verification-only, not a runtime behavior change). No new checkpoint-
-schema field and no new runtime/execution engine are introduced — the
-protocol reuses the existing backlogit checkpoint API and the existing
-context-efficiency/P-020 compaction substrate.
+file and design doc. **Correction (this closure PR):** `src/autoharness/
+verify_workspace.py` DID change — 5 new entries were added to
+`PACK_ASSERTIONS` (`orchestrator_crash_resumption_protocol`,
+`stage_crash_resumption_protocol`, `ship_crash_resumption_protocol`,
+`backlogit_checkpoint_recovery_protocol`, plus the mirror-coherence
+assertion) — so the `verify-workspace` CLI's own validation behavior,
+and therefore a real runtime surface, was touched by this shipment. This
+was already exercised as pre-merge evidence but the original wording
+above mischaracterized it as "no gate surface touched." No new
+checkpoint-schema field and no new runtime/execution engine are
+introduced — the protocol reuses the existing backlogit checkpoint API
+and the existing context-efficiency/P-020 compaction substrate.
 
 | Field | Evidence |
 | --- | --- |
 | Validator | Ship pre-merge runtime verification |
-| Surface adapter | none (prose/template/doc/test-only change) |
-| Runtime probe | `uv run autoharness --help` — exit 0 (unaffected by this shipment's scope) |
-| Preserve-invariant | "The autoharness CLI starts without import, packaging, or option-parsing failures" — HELD |
+| Surface adapter | `verify_workspace.py` `PACK_ASSERTIONS` (targeted-check validation surface) |
+| Runtime probe | `uv run autoharness verify-workspace --workspace . --json` (run pre-merge, PR #310): all 4 new crash-resumption-specific targeted checks (`orchestrator_crash_resumption_protocol`, `stage_crash_resumption_protocol`, `ship_crash_resumption_protocol`, `backlogit_checkpoint_recovery_protocol`) return `ok: true`; pre-existing 13 unrelated targeted-check failures unchanged (no regression introduced by this shipment's `PACK_ASSERTIONS` additions). `uv run autoharness --help` — exit 0. |
+| Preserve-invariant | "The autoharness CLI starts without import, packaging, or option-parsing failures" — HELD. "New `PACK_ASSERTIONS` entries validate installed-mirror coherence without introducing false positives against the pre-existing 13-failure baseline" — HELD. |
 | Blocked prerequisites | none |
-| Verdict | **NOT_APPLICABLE** (no runtime surface changed by this shipment; orchestration prose only) |
+| Verdict | **HELD** — the new `verify-workspace` validation surface was exercised pre-merge with the evidence above; no separate runtime engine, external binary, or distribution/packaging surface was touched by this shipment (that narrower claim remains accurate and is the basis for the `releasability: READY` verdict below, not for treating the CLI validation surface itself as untouched). |
 
 ## Backlog Reconciliation (single-artifact safe-close, P-015) + Feature Terminal-State Determination
 
@@ -254,12 +262,15 @@ directive ("safe-close feature 111-F/shipment 119-S from live state"),
     all fixed, replied, and resolved — zero unresolved threads,
     re-confirmed via the P-018 gate immediately before merge.
   - CI green at every required check on every HEAD checked.
-  - Backlog safe-close explicitly archived only the 7 manifest tasks
-    (all `pre-archived`, no re-archival needed) and the `119-S` shipment
-    record, without the forbidden cascade command; `111-F` reached its
-    correct terminal state (`done` -> `archived`, `archived_status: done`)
-    only after independently verifying all 7 children are archived and
-    zero descendants remain in queue.
+  - Backlog safe-close for `119-S` reconciled all 7 manifest tasks
+    (already `pre-archived` by the merge commit's own pre-merge
+    task-completion loop, so no re-archival action was needed for the
+    tasks themselves) and then explicitly archived the `119-S` shipment
+    record (`status: shipped` -> `archived_status: shipped`), without the
+    forbidden cascade command; `111-F` was then archived as a separate,
+    subsequent step (`status: done` -> `archived_status: done`) only
+    after independently verifying all 7 children are archived and zero
+    `111.*` descendants remain in queue.
   - Provenance-critical stash `34D50F2D` (living tracker for the deferred
     (a)/(c) candidates) confirmed present/ACTIVE after this shipment's
     full lifecycle, with candidate (d) correctly recorded `CONSUMED`.
