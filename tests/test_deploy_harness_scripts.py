@@ -18,6 +18,7 @@ Protects the 070-F cross-platform deploy scripts (``deploy-harness.ps1`` /
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -185,6 +186,122 @@ class DeployHarnessScaffoldSymlinkTests(unittest.TestCase):
         for name, _, instance in _PAIRS:
             with self.subTest(script=name):
                 self.assertIn(markers[name], _read(instance))
+
+
+# ── Capability-pack runtime detection + pre-merge-install checklist ─────────
+# (114.001-T / 114.002-T / 114.003-T, 47971057 bounded)
+#
+# Guards the bounded detection/checklist/report increment from
+# docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md:
+# per-pack presence+version detection, a REPORT-ONLY recommended-action
+# checklist (retain-present / needs-install[deferred] / unsupported-
+# undetectable), a non-interactive-by-default CI-safe fallback, and the
+# explicit provision-before-compose ordering statement. NO install/upgrade/
+# provisioning execution may ever be introduced by this increment.
+class DeployHarnessCapabilityPackChecklistTests(unittest.TestCase):
+    def test_detection_helper_present(self) -> None:
+        markers = {"ps1": "Get-PackDetectionStatus", "sh": "pack_detect_status"}
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                self.assertIn(markers[name], _read(instance))
+
+    def test_checklist_phase_present(self) -> None:
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                self.assertIn(
+                    "checklist (pre-merge-install; report only)", _read(instance)
+                )
+
+    def test_recommended_action_categories_present(self) -> None:
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                for category in (
+                    "retain-present",
+                    "needs-install (deferred)",
+                    "unsupported-undetectable",
+                ):
+                    self.assertIn(category, text, f"{name}: missing '{category}'")
+
+    def test_report_only_no_provisioning_wording(self) -> None:
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                self.assertIn("REPORT ONLY", text)
+                self.assertIn("no install/upgrade is executed", text)
+
+    def test_provision_before_compose_ordering_statement(self) -> None:
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                self.assertIn(
+                    "MUST occur BEFORE merge-install composition", text
+                )
+                self.assertIn(
+                    "docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md",
+                    text,
+                )
+
+    def test_interactive_flag_present_and_opt_in(self) -> None:
+        markers = {"ps1": "[switch]$Interactive", "sh": "--interactive"}
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                self.assertIn(markers[name], _read(instance))
+
+    def test_checklist_runs_between_preflight_and_bootstrap(self) -> None:
+        # The checklist phase must run after preflight (it consumes detection
+        # results) and before bootstrap in the orchestration order.
+        markers = {
+            "ps1": (
+                "if (-not (Invoke-Preflight)) { exit 1 }",
+                "Invoke-PreMergeInstallChecklist",
+                "$homePath = Invoke-Bootstrap",
+            ),
+            "sh": (
+                "invoke_preflight || exit 1",
+                "invoke_checklist",
+                "invoke_bootstrap || exit 2",
+            ),
+        }
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                preflight_marker, checklist_marker, bootstrap_marker = markers[name]
+                # Search within the orchestration section (after the function
+                # definitions) so the CALL order is checked, not incidental
+                # earlier occurrences of the checklist function/name in its
+                # own definition.
+                preflight_idx = text.find(preflight_marker)
+                self.assertNotEqual(preflight_idx, -1)
+                checklist_idx = text.find(checklist_marker, preflight_idx)
+                self.assertNotEqual(checklist_idx, -1)
+                bootstrap_idx = text.find(bootstrap_marker, checklist_idx)
+                self.assertNotEqual(bootstrap_idx, -1)
+                self.assertLess(preflight_idx, checklist_idx)
+                self.assertLess(checklist_idx, bootstrap_idx)
+
+    def test_no_provisioning_execution_verbs_introduced(self) -> None:
+        # Bounded-increment guard: this scope must never introduce actual
+        # install/upgrade EXECUTION for capability packs (detection/report
+        # only). The pre-existing bootstrap install of autoharness ITSELF
+        # (pip install / git clone of autoharness_home) is a different,
+        # already-existing concern and is excluded from this guard.
+        forbidden = ("pip install", "npm install", "brew install", "choco install")
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                checklist_start = text.find("checklist (pre-merge-install")
+                self.assertNotEqual(checklist_start, -1)
+                # Slice from the checklist phase heading to the bootstrap
+                # phase heading; only the checklist's own body is scoped here.
+                bootstrap_heading = (
+                    "Phase 2: bootstrap" if name == "ps1" else "Phase 2: bootstrap"
+                )
+                checklist_end = text.find(bootstrap_heading, checklist_start)
+                self.assertNotEqual(checklist_end, -1)
+                checklist_body = text[checklist_start:checklist_end]
+                for verb in forbidden:
+                    self.assertNotIn(verb, checklist_body)
 
 
 # ── Opt-in pack-selection precedence (096.002-T / 096.003-T) ─────────────────
@@ -398,6 +515,334 @@ class DeployWrapperRegistryEnumerationTests(unittest.TestCase):
         full_defaults = set(_preset_default_packs("full"))
         self.assertNotIn("agent-intercom", full_defaults)
         self.assertLess(full_defaults, set(_all_registry_packs()))
+
+
+# ── Checklist phase EXECUTION tests (non-interactive default; no hang) ──────
+# Guards that the default (no -Interactive/--interactive) run never blocks on
+# stdin and always prints the REPORT-ONLY per-pack recommended action.
+class _ChecklistExecutionMixin:
+    interpreter: str = ""
+
+    def _run(self, workspace: Path):  # noqa: ANN001
+        raise NotImplementedError
+
+    def test_checklist_report_prints_non_interactively(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            proc = self._run(workspace)
+            self.assertEqual(  # type: ignore[attr-defined]
+                proc.returncode,
+                0,
+                f"{self.interpreter}: non-zero exit {proc.returncode}\n"  # type: ignore[attr-defined]
+                f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}",
+            )
+            combined = proc.stdout + proc.stderr
+            self.assertIn(  # type: ignore[attr-defined]
+                "checklist (pre-merge-install; report only)", combined
+            )
+            self.assertIn("REPORT ONLY", combined)  # type: ignore[attr-defined]
+            # At least one recommended-action category must appear (packs are
+            # typically absent in a throwaway CI/test workspace).
+            self.assertTrue(  # type: ignore[attr-defined]
+                any(
+                    cat in combined
+                    for cat in (
+                        "retain-present",
+                        "needs-install (deferred)",
+                        "unsupported-undetectable",
+                    )
+                ),
+                f"no recommended-action category found:\n{combined}",
+            )
+
+
+@unittest.skipUnless(_PWSH, "PowerShell (pwsh/powershell) not available")
+class DeployHarnessPs1ChecklistExecutionTests(
+    _ChecklistExecutionMixin, unittest.TestCase
+):
+    interpreter = "ps1"
+
+    def _run(self, workspace):  # noqa: ANN001
+        args = [
+            _PWSH,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(_PS1_INSTANCE),
+            "-Home",
+            str(_REPO_ROOT),
+            "-Register",
+            "none",
+            "-Preset",
+            "starter",
+            "-DryRun",
+        ]
+        return subprocess.run(
+            args, cwd=workspace, capture_output=True, text=True, timeout=180
+        )
+
+
+@unittest.skipIf(sys.platform == "win32", "bash on Windows is WSL; run sh on POSIX/CI")
+@unittest.skipUnless(_BASH, "bash not available")
+class DeployHarnessShChecklistExecutionTests(
+    _ChecklistExecutionMixin, unittest.TestCase
+):
+    interpreter = "sh"
+
+    def _run(self, workspace):  # noqa: ANN001
+        lf_script = workspace / "_deploy-harness.sh"
+        lf_script.write_bytes(_read(_SH_INSTANCE).encode("utf-8"))
+        lf_script.chmod(0o755)
+        args = [
+            _BASH,
+            str(lf_script),
+            "--home",
+            str(_REPO_ROOT),
+            "--register",
+            "none",
+            "--preset",
+            "starter",
+            "--dry-run",
+        ]
+        return subprocess.run(
+            args, cwd=workspace, capture_output=True, text=True, timeout=180
+        )
+
+
+# ── Checklist phase per-pack DETECTION correctness (controlled fixtures) ────
+# Copilot review (PR #318) flagged that the prior execution tests only asserted
+# "some recommended-action category appears somewhere", which is host-dependent
+# and cannot catch a regression that misclassifies a specific pack/branch (e.g.
+# reporting every pack as absent, or reporting a broken nonzero-exit runtime as
+# "present"). These tests install controlled fake executables so every reported
+# branch (present / undetectable / absent) and its recommended-action mapping is
+# verified for a *specific* pack, deterministically, regardless of what happens
+# to be installed on the host running the test.
+
+
+def _real_pack_dirs() -> set[str]:
+    """Directories already hosting a real backlogit/engram/graphtor-docs binary
+    on this host, so they can be excluded from the fixture PATH below."""
+    dirs: set[str] = set()
+    for name in ("backlogit", "engram", "graphtor-docs"):
+        found = shutil.which(name)
+        if found:
+            dirs.add(str(Path(found).resolve().parent))
+    return dirs
+
+
+def _dir_has_real_pack_binary(directory: str) -> bool:
+    d = Path(directory)
+    for candidate in (
+        "backlogit",
+        "backlogit.exe",
+        "engram",
+        "engram.exe",
+        "graphtor-docs",
+        "graphtor-docs.exe",
+    ):
+        if (d / candidate).exists():
+            return True
+    return False
+
+
+def _fixture_path_env(fakebin: Path, extra_tools: "list[str]") -> str:
+    """Build a PATH that puts ``fakebin`` first, keeps enough of the real PATH
+    for ``extra_tools`` (and other entries) to still resolve, but excludes any
+    directory that hosts a real backlogit/engram/graphtor-docs binary — so the
+    only way those three names resolve is through the fixture (or not at all,
+    for the deliberately-absent case)."""
+    real_pack_dirs = _real_pack_dirs()
+    parts = [str(fakebin)]
+    seen = {str(fakebin)}
+    for tool in extra_tools:
+        found = shutil.which(tool)
+        if not found:
+            continue
+        tool_dir = str(Path(found).resolve().parent)
+        if tool_dir in real_pack_dirs or tool_dir in seen:
+            continue
+        parts.append(tool_dir)
+        seen.add(tool_dir)
+    for existing_dir in os.environ.get("PATH", "").split(os.pathsep):
+        if not existing_dir or existing_dir in seen or existing_dir in real_pack_dirs:
+            continue
+        if _dir_has_real_pack_binary(existing_dir):
+            continue
+        parts.append(existing_dir)
+        seen.add(existing_dir)
+    return os.pathsep.join(parts)
+
+
+def _make_fake_pack_executable(
+    bin_dir: Path, name: str, stdout_line: str, exit_code: int, windows: bool
+) -> None:
+    if windows:
+        script = bin_dir / f"{name}.cmd"
+        script.write_text(
+            "@echo off\r\n" f"echo {stdout_line}\r\n" f"exit /b {exit_code}\r\n",
+            encoding="utf-8",
+        )
+    else:
+        script = bin_dir / name
+        script.write_text(
+            "#!/bin/sh\n" f"echo '{stdout_line}'\n" f"exit {exit_code}\n",
+            encoding="utf-8",
+        )
+        script.chmod(0o755)
+
+
+def _checklist_section(combined: str) -> str:
+    marker = "Pre-merge-install checklist"
+    idx = combined.find(marker)
+    return combined[idx:] if idx != -1 else combined
+
+
+def _row_for(pack: str, section: str) -> str:
+    for line in section.splitlines():
+        parts = line.split()
+        if parts and parts[0] == pack:
+            return line
+    return ""
+
+
+@unittest.skipUnless(_PWSH, "PowerShell (pwsh/powershell) not available")
+class DeployHarnessPs1ChecklistPackDetectionTests(unittest.TestCase):
+    """Fixture-driven: backlogit present (exit 0 + version), engram broken
+    (nonzero exit but with stdout output — the exact shape of the sh exit-status
+    masking regression Copilot flagged), graphtor-docs absent."""
+
+    def test_present_undetectable_absent_branches_and_actions(self) -> None:
+        windows = sys.platform == "win32"
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            bin_dir = workspace / "fakebin"
+            bin_dir.mkdir()
+            _make_fake_pack_executable(
+                bin_dir, "backlogit", "backlogit version 9.9.9-test", 0, windows
+            )
+            _make_fake_pack_executable(
+                bin_dir, "engram", "engram: fatal runtime init error", 1, windows
+            )
+            # graphtor-docs: no fixture created, and its real install dir (if any)
+            # is excluded from PATH below -> must report "absent".
+            env = os.environ.copy()
+            env["PATH"] = _fixture_path_env(
+                bin_dir, ["python", "python3", "git", "gh", _PWSH]
+            )
+            args = [
+                _PWSH,
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(_PS1_INSTANCE),
+                "-Home",
+                str(_REPO_ROOT),
+                "-Register",
+                "none",
+                "-Preset",
+                "starter",
+                "-DryRun",
+            ]
+            proc = subprocess.run(
+                args,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=180,
+                env=env,
+            )
+            combined = proc.stdout + proc.stderr
+            self.assertEqual(
+                proc.returncode, 0, f"non-zero exit:\n{combined}"
+            )
+            section = _checklist_section(combined)
+            backlogit_row = _row_for("backlogit", section)
+            engram_row = _row_for("engram", section)
+            graphtor_row = _row_for("graphtor-docs", section)
+            self.assertTrue(backlogit_row, f"no backlogit row found:\n{section}")
+            self.assertTrue(engram_row, f"no engram row found:\n{section}")
+            self.assertTrue(graphtor_row, f"no graphtor-docs row found:\n{section}")
+            self.assertIn("present", backlogit_row)
+            self.assertIn("9.9.9-test", backlogit_row)
+            self.assertIn("retain-present", backlogit_row)
+            # The core regression guard: a nonzero-exit runtime that still wrote
+            # to stdout must be "undetectable", never "present".
+            self.assertIn("undetectable", engram_row)
+            self.assertNotIn("present", engram_row)
+            self.assertIn("unsupported-undetectable", engram_row)
+            self.assertIn("absent", graphtor_row)
+            self.assertIn("needs-install (deferred)", graphtor_row)
+
+
+@unittest.skipIf(sys.platform == "win32", "bash on Windows is WSL; run sh on POSIX/CI")
+@unittest.skipUnless(_BASH, "bash not available")
+class DeployHarnessShChecklistPackDetectionTests(unittest.TestCase):
+    """POSIX counterpart of the fixture-driven detection test above — this is
+    the exact interpreter/branch the Copilot review's exit-status-masking
+    comment targeted (``scripts/deploy-harness.sh`` / template, line ~194)."""
+
+    def test_present_undetectable_absent_branches_and_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            bin_dir = workspace / "fakebin"
+            bin_dir.mkdir()
+            _make_fake_pack_executable(
+                bin_dir, "backlogit", "backlogit version 9.9.9-test", 0, False
+            )
+            _make_fake_pack_executable(
+                bin_dir, "engram", "engram: fatal runtime init error", 1, False
+            )
+            lf_script = workspace / "_deploy-harness.sh"
+            lf_script.write_bytes(_read(_SH_INSTANCE).encode("utf-8"))
+            lf_script.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = _fixture_path_env(
+                bin_dir, ["python", "python3", "git", "gh", _BASH]
+            )
+            args = [
+                _BASH,
+                str(lf_script),
+                "--home",
+                str(_REPO_ROOT),
+                "--register",
+                "none",
+                "--preset",
+                "starter",
+                "--dry-run",
+            ]
+            proc = subprocess.run(
+                args,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                timeout=180,
+                env=env,
+            )
+            combined = proc.stdout + proc.stderr
+            self.assertEqual(
+                proc.returncode, 0, f"non-zero exit:\n{combined}"
+            )
+            section = _checklist_section(combined)
+            backlogit_row = _row_for("backlogit", section)
+            engram_row = _row_for("engram", section)
+            graphtor_row = _row_for("graphtor-docs", section)
+            self.assertTrue(backlogit_row, f"no backlogit row found:\n{section}")
+            self.assertTrue(engram_row, f"no engram row found:\n{section}")
+            self.assertTrue(graphtor_row, f"no graphtor-docs row found:\n{section}")
+            self.assertIn("present", backlogit_row)
+            self.assertIn("9.9.9-test", backlogit_row)
+            self.assertIn("retain-present", backlogit_row)
+            # The core regression guard: a nonzero-exit runtime that still wrote
+            # to stdout must be "undetectable", never "present" (this is exactly
+            # the pipeline exit-status-masking bug the Copilot review flagged).
+            self.assertIn("undetectable", engram_row)
+            self.assertNotIn("present", engram_row)
+            self.assertIn("unsupported-undetectable", engram_row)
+            self.assertIn("absent", graphtor_row)
+            self.assertIn("needs-install (deferred)", graphtor_row)
 
 
 if __name__ == "__main__":
