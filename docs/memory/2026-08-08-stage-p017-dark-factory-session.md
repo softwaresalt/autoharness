@@ -24,9 +24,9 @@ Living trackers untouched / kept ACTIVE: 34D50F2D, 33CC445C, 936C68F3, 84D8E6AB.
 
 ## Shipments (dependency / queue order)
 
-1. **120-S** — `[082-F, 082.001-T, 082.002-T, 082.003-T]`. First eligible cursor; contains 082-F. Intra: 082.003-T depends_on 082.001-T + 082.002-T.
-2. **121-S** — `[113-F, 113.001-T..113.005-T]`. depends_on 120-S. Intra: 002→001, 003→001, 004→002, 005→004.
-3. **122-S** — `[114-F, 114.001-T, 114.002-T, 114.003-T]`. depends_on 121-S. Intra: 002→001, 003→002.
+1. **120-S** (covering feature **082-F**, derived via task `parent_id` — task-only manifest) — members: `[082.001-T, 082.002-T, 082.003-T]`. First eligible cursor. Intra: 082.003-T depends_on 082.001-T + 082.002-T.
+2. **121-S** (covering feature **113-F**, derived via task `parent_id` — task-only manifest) — members: `[113.001-T..113.005-T]`. depends_on 120-S. Intra: 002→001, 003→001, 004→002, 005→004.
+3. **122-S** (covering feature **114-F**, derived via task `parent_id` — task-only manifest) — members: `[114.001-T, 114.002-T, 114.003-T]`. depends_on 121-S. Intra: 002→001, 003→002.
 
 ## Review outcomes
 

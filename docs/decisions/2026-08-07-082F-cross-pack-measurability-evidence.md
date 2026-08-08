@@ -85,7 +85,7 @@ actually observed zero.
 |---|---|---|---|
 | `tool_name` | `tool_name` | host_reported | observed |
 | `operation` | `tool_name` (same identity) | host_reported | observed |
-| `server_name` | pack identity `agent-engram` | host_reported | observed |
+| `server_name` | pack identity `agent-engram` for `mcp` events; **`null` for `cli`/`shell`/`builtin`/`api` surfaces** (contract requires `server_name: null` for non-MCP events) | host_reported | observed (surface-dependent) |
 | `tool_surface` | `mcp` (SSE) / `cli` | host_reported | observed |
 | `timestamp` / `started_at` | `timestamp` (RFC 3339) | host_reported | observed |
 | `duration_ms` | `latency_ms` | host_reported | observed |
@@ -143,7 +143,7 @@ actually observed zero.
 | ToolTelemetryEvent field | graphtor source | metric_sources | metric_quality |
 |---|---|---|---|
 | `tool_name` / `operation` | MCP tool name (`get_status`, search, sync) | host_reported | observed |
-| `server_name` | `graphtor-docs` | host_reported | observed |
+| `server_name` | `graphtor-docs` for `mcp` events; **`null` for `cli`/`shell`/`builtin`/`api` surfaces** (contract requires `server_name: null` for non-MCP events) | host_reported | observed (surface-dependent) |
 | `tool_surface` | `mcp` / `cli` | host_reported | observed |
 | `duration_ms` | `SyncMetrics.duration_ms` (sync ops) | host_reported | observed |
 | `status` | `SyncStatus` → taxonomy (`Error`→`failed`, `Complete`→`success`) | host_reported | observed (mapped) |
@@ -151,9 +151,9 @@ actually observed zero.
 | `freshness_state` | `SourceSyncState` mtime vs source (`fresh`/`stale`) | derived | derived |
 | `route_kind` | `doc_index` (constant for graphtor retrieval) | derived | derived |
 | `retrieval_pack` | `graphtor-docs` (constant) | host_reported | observed |
-| `routed_lookup_count` | ingest/search cycle counts | host_reported | observed |
+| `routed_lookup_count` | count of **observed routed/indexed document-search invocations only** (a positive value is evidence offload occurred); **unavailable for ingestion-only sync cycles** — `files_*`/`chunks_*` volume does NOT establish routed lookups | host_reported | observed (routed searches only; else `unavailable`) |
 | `error_kind` | `SyncStatus::Error(msg)` category (redact msg) | derived | derived |
-| ingest volume | `files_*` / `chunks_*` (pack-namespaced extension) | host_reported | observed |
+| ingest volume (`files_*`/`chunks_*`) | **adapter/schema gap** — no core field; cannot be a root `x-*` property (`ToolTelemetryEvent` root is `additionalProperties: false`; the `^x-[a-z0-9-]+$` rule governs `route_kind`/`freshness_state` *values*, not new root fields). Report out-of-band as a gap. | host_reported | observed (out-of-band, not emitted in-event) |
 
 ### graphtor gaps vs contract
 
@@ -166,8 +166,12 @@ actually observed zero.
   the triggering operation.
 * **G-G3**: No `event_id`/correlation/`agent_role`/`phase` at source — adapter-owned
   (same as G-E1); correlation-key invariant applies.
-* **G-G4**: ingest counts (`files_*`, `chunks_*`) have no core field — carry as a
-  `x-graphtor-*` namespaced extension (contract permits `^x-[a-z0-9-]+$`).
+* **G-G4**: ingest counts (`files_*`, `chunks_*`) have no core field and **cannot be
+  emitted as `x-graphtor-*` root properties** — the `ToolTelemetryEvent` root is
+  `additionalProperties: false`, and the `^x-[a-z0-9-]+$` extension pattern applies
+  only to the *values* of `route_kind`/`freshness_state`, not to arbitrary new root
+  fields. Report these counts out-of-band as an adapter/schema gap; do not prescribe
+  invalid events.
 * **G-G5 (sensitivity)**: `SyncStatus::Error(msg)` and source paths may contain local
   filesystem detail → **internal**, redact `error_kind`/paths before non-local emit.
 
