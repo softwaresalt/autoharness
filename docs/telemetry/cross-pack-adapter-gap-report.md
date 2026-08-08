@@ -62,10 +62,16 @@ done); 108-F is independently done and referenced, not re-derived.
   correlation key (`epoch_id`/`backlog_item_id`), `phase`. **Unsafe to emit raw**: `workspace`
   (absolute path), `branch` — internal, redaction required (G-E5).
 * **graphtor-docs (082.002-T)**: `observed` — MCP tool name/identity, `server_name`
-  (surface-dependent), `SyncMetrics.duration_ms`, `SyncStatus`→`status` (mapped), search
-  `result_count`, routed-search `routed_lookup_count` (search calls only). `derived` —
-  `freshness_state` (mtime comparison), `route_kind`, `error_kind` (category from
-  `SyncStatus::Error`). `unavailable` — **all per-call token economics** (`input_tokens`/
+  (surface-dependent), `SyncMetrics.duration_ms`, MCP call's own success/error result→`status`
+  (never derived from the `SyncStatus` *content* a successful call reports — a `get_status`
+  call that successfully reports `SyncStatus::Error` is itself `status: success`; see G-G2/the
+  graphtor-docs evidence map's `status` caution), routed-search `routed_lookup_count` (search
+  calls only). `derived` — `freshness_state` (mtime comparison), `route_kind`, `error_kind`
+  (category from `SyncStatus::Error`), search `result_count` (no wire-level field exists;
+  counted by the adapter from returned result blocks, never host-reported/observed). `SyncStatus`
+  itself may only be mapped onto a **separately wrapped sync-cycle event's** `status`, never
+  onto the calling `get_status` invocation's own `status`. `unavailable` — **all per-call token
+  economics** (`input_tokens`/
   `output_tokens`/`cached_input_tokens` — G-G1, **never** a numeric `0`), `event_id`,
   correlation key, `phase`, `agent_role`, ingest-only `routed_lookup_count`. **Reported
   out-of-band, not emitted in-event**: `files_total`/`files_synced`/`files_deleted`/
@@ -83,8 +89,15 @@ emitter cannot read it as optional.
 
 1. Any field classified **internal** in any of the three per-pack evidence maps (backlogit
    item-content text; Engram `workspace`/`branch`; graphtor-docs `SyncStatus::Error`
-   message/source paths) **MUST** carry `redaction_applied: true` before it is emitted to any
-   non-local sink, or **MUST be omitted** entirely.
+   message/source paths) **MUST** first be **actually redacted** — either omitted entirely from
+   the emitted event, or transformed so the sensitive value itself is not reproduced (e.g. a
+   derived `error_kind` category label in place of a raw error message) — **before** an emitter
+   may set `redaction_applied: true`. Setting the flag alone, with the underlying sensitive
+   value still present in the emitted event, does **not** satisfy this criterion: the flag
+   attests to a transformation/omission that must have already happened, not merely to an
+   intention that it should happen. An adapter/reviewer verifying AC1 compliance **MUST**
+   confirm the emitted value itself no longer contains the raw sensitive content — checking for
+   the presence of `redaction_applied: true` alone is not sufficient verification.
 2. `sensitivity` **MUST** default to `internal` whenever a field's classification is ambiguous,
    per the schema's own rule ("ambiguous defaults to internal handling") — never default to
    `public`.

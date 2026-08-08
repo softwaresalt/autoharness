@@ -32,16 +32,22 @@ Sources reviewed (read-only): `src/sync/mod.rs` (`SyncMetrics`, `SourceSyncState
   per-tool-call.
 * **Source freshness state** — `SourceSyncState` / per-source `*.sync_state.json` (mtime-tracked
   freshness), driving staleness determination.
-* **Server/search status** — the `get_status` MCP tool returns a `SyncStatus` enum
-  (`Idle` / `Syncing` / `InProgress` / `Done{files, chunks}` / `Complete{metrics}` / `Error`);
-  document-search calls separately return `result_count`.
+* **Server/search status** — the `get_status` MCP tool call itself always succeeds when it
+  returns; the `SyncStatus` enum value it reports (`Idle` / `Syncing` / `InProgress` /
+  `Done{files, chunks}` / `Complete{metrics}` / `Error`) describes the **background sync
+  process's state**, not the outcome of the `get_status` invocation — a `get_status` call that
+  successfully reports `SyncStatus::Error` is itself a successful call (see the `status`
+  mapping caution below). Document-search tools (`search_local_docs`, `search_semantic`,
+  `traverse_doc_links`, etc.) return a single markdown `CallToolResult` text blob built from an
+  internal result vector — there is no separate, named `result_count` field on the wire; any
+  count is adapter-derived (see the `result_count` mapping caution below).
 
 ## Evidence-class vocabulary (same as backlogit-evidence-map.md / engram-evidence-map.md)
 
 | Evidence-class | Meaning |
 |---|---|
-| `observed` | Reported directly by `SyncMetrics`/`SyncStatus`/search results at the granularity graphtor actually measures (per-cycle for sync, per-call for search `result_count`). |
-| `derived` | Computed by the adapter from correlated evidence: `freshness_state` (mtime comparison), `route_kind` (constant classification), `error_kind` (category extracted from a `SyncStatus::Error` message). |
+| `observed` | Reported directly by `SyncMetrics`/search results at the granularity graphtor actually measures (per-cycle for sync). MCP call-level `status` is `observed` only from the call's own success/error result — never derived from the `SyncStatus` *content* the call happens to return (see the `status` mapping caution below). |
+| `derived` | Computed by the adapter from correlated evidence: `freshness_state` (mtime comparison), `route_kind` (constant classification), `error_kind` (category extracted from a `SyncStatus::Error` message), and search `result_count` (counted from returned result blocks — see the `result_count` mapping caution below, no wire-level field exists). |
 | `unavailable` | The evidence does not exist on any surface reviewed — most notably, **all per-call token economics** (see G-G1). |
 
 ## Mapping: `SyncMetrics` / `SyncStatus` / search (cycle- and call-scoped, as noted per row)
@@ -52,8 +58,8 @@ Sources reviewed (read-only): `src/sync/mod.rs` (`SyncMetrics`, `SourceSyncState
 | `server_name` | `graphtor-docs` for `mcp`-surface events; **`null` for `cli`/`shell`/`builtin`/`api`** (contract requires `server_name: null` for non-MCP events) | `host_reported` | `observed` (surface-dependent) | observed | call |
 | `tool_surface` | `mcp` / `cli`, contextual on call path | `host_reported` | `observed` | observed | call |
 | `duration_ms` | `SyncMetrics.duration_ms` — **cycle-scoped**; an adapter attributing this to a single triggering call must wrap the cycle (see G-G2) | `host_reported` | `observed` | observed | cycle |
-| `status` | `SyncStatus` mapped to the 6-value taxonomy (`Error` → `failed`, `Complete`/`Done` → `success`, `Syncing`/`InProgress` → in-flight, not terminal) | `host_reported` | `observed` (mapped) | observed | call/cycle |
-| `result_count` | document-search `result_count` — genuinely per-call | `host_reported` | `observed` | observed | call |
+| `status` | **The MCP call's own success/error result** (`get_status`, sync trigger, search — all return `CallToolResult::success`/error independent of any status enum they report). **NEVER** derive `status` from the *content* of a successful call's return value — a `get_status` call that successfully reports `SyncStatus::Error` (background sync failed) is itself a **successful** call and must be `status: success`. `SyncStatus`'s own enum (`Idle`/`Syncing`/`InProgress`/`Done`/`Complete`/`Error`) describes the **background sync cycle's** state and may only be mapped onto the 6-value taxonomy of a **separately wrapped sync-cycle event** (see G-G2), never onto the calling `get_status` invocation's own `status` | `host_reported` | `observed` (call result); `derived` (sync-cycle wrapping only) | observed (call) / derived (cycle) | call / cycle |
+| `result_count` | **NOT a native field.** `search_local_docs`/`search_semantic`/`traverse_doc_links` return a single markdown `CallToolResult` text blob assembled from an internal result vector — there is no separate, named `result_count` on the wire. An adapter may derive a count from the number of returned result blocks, but this is **adapter-derived, not directly host-reported/observed** | `derived` | `derived` | derived | call |
 | `freshness_state` | `SourceSyncState` mtime vs. source mtime comparison (`fresh`/`stale`) | `derived` | `derived` | derived | call |
 | `route_kind` | `doc_index` (fixed constant for graphtor's document-retrieval tool family) | `derived` | `derived` | derived | call |
 | `retrieval_pack` | `graphtor-docs` (constant identity) | `host_reported` | `observed` | observed | call |

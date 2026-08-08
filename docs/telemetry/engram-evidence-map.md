@@ -53,7 +53,8 @@ Source: `.engram/metrics/{branch}/usage.jsonl`, one JSON object per line, `schem
 | `operation` | `tool_name` (same identity; engram does not distinguish a separate operation axis) | `host_reported` | `observed` | observed |
 | `server_name` | pack identity `agent-engram` for `mcp`-surface events; **`null` for `cli`/`shell`/`builtin`/`api`** (contract requires `server_name: null` for non-MCP events) | `host_reported` | `observed` (surface-dependent) | observed |
 | `tool_surface` | `mcp` (SSE transport) or `cli`, contextual on call path | `host_reported` | `observed` | observed |
-| `timestamp` / `started_at` | `timestamp` (RFC 3339) | `host_reported` | `observed` | observed |
+| `timestamp` | `timestamp` (RFC 3339) — **completion time, not call start** (see caution below) | `host_reported` | `observed` | observed |
+| `started_at` | **NOT directly available** — `timestamp` is constructed via `chrono::Utc::now()` at the point the `UsageEvent` is built, which happens *after* the response is fully computed (elapsed/`latency_ms` and `response_bytes`-derived fields are already known by then); it is the call's *completion* time, not its start. An adapter must either leave `started_at` `unavailable`, or derive it as `timestamp` minus `latency_ms` with `derived` (not `observed`) provenance — never map `timestamp` directly onto `started_at` | n/a | `unavailable` (or `derived` if computed) | unavailable |
 | `duration_ms` | `latency_ms` | `host_reported` | `observed` | observed |
 | `status` | `outcome` (free-form `success`/`error`, mapped to the 6-value taxonomy — see G-E4) | `host_reported` | `observed` (mapped) | observed |
 | `result_count` | `result_count` (canonical) or `results_returned`/`symbols_returned` (tool-specific) | `host_reported` | `observed` | observed |
