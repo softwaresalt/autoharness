@@ -10,7 +10,7 @@ closure_pr: null
 closure_merge_commit: null
 closure_reviewed_head: null
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 feature_terminal_status: done
 feature_archived_status: done
 ---
@@ -218,10 +218,24 @@ shipment's three deliverables. `082-F` was moved `status: active` -> `done`
 
 ## Context Compaction (P-020)
 
-- **Status: pending at time of writing this closure artifact — completed
-  later in this same session** (mandatory per-merge invocation). See the
-  Closure Tasks list below and the final compaction status recorded in this
-  file's frontmatter once `compact-context --target all` has run.
+- **Status: `done`** (mandatory per-merge invocation, performed this session).
+- Session memory: `docs/archive/memory/2026-08-08-ship-120-S-082-F-session.md`
+  (written fresh this session, then immediately archived as part of the same
+  compaction pass — the completed-work rule applies directly since this is the
+  just-closed release unit's own memory).
+- Compacted memory: `docs/memory/compacted/2026-08-08-120S-082F-compacted.md`
+  (decisions, files modified, key learnings/cross-references to the new
+  compound doc, outcomes, provenance chain).
+- The Stage-authored plan `docs/plans/2026-08-07-082F-cross-pack-measurability-plan.md`
+  was **not** consolidated this pass — it has no appended review section
+  (the review is a separate artifact, `082.001-R`), so it does not meet the
+  "plan has appended review content ready for consolidation" candidate
+  criterion; also out of Ship's role boundary to modify planning artifacts.
+  No other plan or closure-record candidates met the compaction thresholds
+  (`threshold_days: 14`, `max_files: 40`, `max_size_kb: 500`) during this
+  pass — this was a bounded, cheap Tier-1 consolidation of the one intended
+  candidate (this shipment's own fresh memory), per the compact-context
+  skill's per-merge floor contract.
 
 ## Operational Closure
 
@@ -286,5 +300,7 @@ shipment's three deliverables. `082-F` was moved `status: active` -> `done`
 2. This canonical closure artifact (this file) — **done**, `closure_pr`/
    `closure_merge_commit`/`closure_reviewed_head` to be populated once the
    closure PR is opened, reviewed, and merged.
-3. Session memory write + P-020 compaction — pending (next step, this
-   session).
+3. Session memory write + compaction to
+   `docs/memory/compacted/2026-08-08-120S-082F-compacted.md` (verbose original
+   archived to `docs/archive/memory/2026-08-08-ship-120-S-082-F-session.md`)
+   — **done** (this branch).
