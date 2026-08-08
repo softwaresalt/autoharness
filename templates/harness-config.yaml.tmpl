@@ -125,9 +125,9 @@ model_routing:
   # AMBIGUOUS and fails closed (H2). Migrate fully to nested per-role
   # escalation, or remove the nested override(s), before declaring both.
   escalation:
-    model_family: "{{ESCALATION_FAMILY}}"          # Escalation route (falls back to tier3 when empty)
-    model_provider: "{{ESCALATION_PROVIDER}}"
-    reasoning_effort: "{{ESCALATION_REASONING_EFFORT}}"
+    model_family: "{{LEGACY_ESCALATION_FAMILY}}"          # Escalation route (falls back to tier3 when empty)
+    model_provider: "{{LEGACY_ESCALATION_PROVIDER}}"
+    reasoning_effort: "{{LEGACY_ESCALATION_REASONING_EFFORT}}"
   anchor_review:
     model_provider: "{{ANCHOR_REVIEW_PROVIDER}}"       # Anchor reviewer provider (default: openai)
     model_family: "{{ANCHOR_REVIEW_FAMILY}}"           # Anchor reviewer family (default: gpt-5.6-sol)

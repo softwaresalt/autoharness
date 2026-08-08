@@ -451,10 +451,19 @@ before any P-013.5 invocation-time resolution above is performed:
    only (H8); the authoritative value is always this session's fresh config
    read.
 2. **Schema-validate on reload (H6)**: validate the freshly-read config against
-   `schemas/harness-config.schema.json` (for example via
-   `uv run autoharness verify-workspace --workspace . --json` and inspecting the
-   harness-config schema result) before resolving any role or escalation route
-   from it.
+   the harness-config schema before resolving any role or escalation route from
+   it. Installed target workspaces do not receive the engine's `schemas/`
+   directory -- the schema lives in the autoharness installation
+   (`{autoharness_home}/schemas/harness-config.schema.json`, per Core Rule 3 and
+   `harness-architecture.instructions.md`), never assumed workspace-relative.
+   Resolve `autoharness_home` via the same order used elsewhere in this agent
+   (`AUTOHARNESS_HOME` env var → `autoharness home` CLI → the directory
+   containing this agent definition, traversed up → `~/.autoharness/`), then
+   run the globally installed CLI:
+   `autoharness verify-workspace --workspace {workspace_path} --autoharness-home {autoharness_home} --json`
+   and inspect the harness-config schema result. Do not assume a `uv run`/
+   Python-project-local invocation is available in the target workspace --
+   that pattern only holds for this self-hosting repository's own dogfood use.
 3. **Fail-closed halt — no stale/baked routes (H6)**: if the config is missing,
    fails to parse, or fails schema validation, HALT to the operator immediately.
    Do NOT continue using a previously-resolved/baked route, and do NOT invent a

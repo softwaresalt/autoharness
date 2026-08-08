@@ -2739,13 +2739,19 @@ def _add_escalation_route_resolution_check(
     **Role-scoped ESCALATION_DEGRADED (H3)**: detects the same-route no-op
     condition per role: when a role's own effective escalation resolution
     (nested if declared, else legacy flat, else tier3) equals THAT SAME
-    role's own resolved role-route model_family (P-013.5), an auto-escalation
-    attempt for that role would silently re-run at an identical model -- not
-    a real escalation to deeper reasoning. Comparison is on model_family (the
-    field that actually determines reasoning capability); model_provider and
-    reasoning_effort are recorded for diagnostics but are not required to
-    match for the degraded condition to fire, since a bare tier3 string
-    fallback structurally lacks those sub-fields. Fails closed: an
+    role's own resolved role-route full `(model_family, model_provider,
+    reasoning_effort)` tuple (P-013.5), an auto-escalation attempt for that
+    role would silently re-run at an identical model -- not a real
+    escalation to deeper reasoning. Comparison is same-route-tuple equality,
+    not model_family alone: two routes sharing a family but explicitly
+    differing in provider or effort are a genuine escalation, not a
+    same-route no-op (Copilot review, PR #316). A field left unspecified on
+    either side (neither the role's own route/tier nor the escalation target
+    declares it) carries no signal either way and must not manufacture a
+    false mismatch -- only an explicit, resolved value on BOTH sides can
+    disagree; this keeps a bare tier3 string fallback (which structurally
+    lacks provider/effort sub-fields) from spuriously conflicting with an
+    explicit role route that does declare them. Fails closed: an
     unresolvable route, an ambiguous both-present config, or an undeclared
     same-route no-op, is a verification failure -- not a silent pass.
 
@@ -3113,7 +3119,16 @@ def _add_session_start_reload_check(
     stale/baked route after a config edit while this check still passes
     (Copilot review, PR #316). Gated on at least one of the three agent
     files existing: a workspace with none of them installed registers no
-    failure."""
+    failure.
+
+    Uses a SCOPED window anchored on the "Session-Start Dynamic Reload"
+    marker, not a bare whole-file substring check: several of the required
+    tokens ("fresh", "schema", "HALT", "stale") are common English words that
+    a large agent definition can retain elsewhere after the actual H6 reload
+    directive content has been edited out or moved, letting a whole-file
+    check still pass with no substantive directive present (Copilot review
+    round 3, PR #316) -- the same false-pass risk `_add_reload_propagation_check`
+    (H7) was fixed for above."""
     orchestrator_path = workspace_path / ".github/agents/_orchestrator.agent.md"
     stage_path = workspace_path / ".github/agents/_stage.agent.md"
     ship_path = workspace_path / ".github/agents/_ship.agent.md"
@@ -3130,6 +3145,12 @@ def _add_session_start_reload_check(
         "stale",
         "H6",
     ]
+    marker = "Session-Start Dynamic Reload"
+    # Orchestrator's full H6 procedure (re-read/schema-validate/fail-closed/
+    # re-resolve steps) spans a longer section than Stage/Ship's compact
+    # self-contained paragraph; size each agent's window to comfortably
+    # cover its own established content without spanning the whole file.
+    window_spans = {"orchestrator": 3700, "stage": 1500, "ship": 1500}
 
     errors: list[str] = []
     for agent_name, agent_path in (
@@ -3140,11 +3161,21 @@ def _add_session_start_reload_check(
         if not agent_path.exists():
             continue
         content = agent_path.read_text(encoding="utf-8")
-        missing = [token for token in required_tokens if token not in content]
-        if missing:
+        marker_idx = content.find(marker)
+        if marker_idx == -1:
             errors.append(
                 f"{agent_name} agent definition ({agent_path}) is missing "
-                f"the session-start dynamic reload directive tokens: {missing}"
+                f"the '{marker}' marker entirely"
+            )
+            continue
+        window = content[marker_idx : marker_idx + window_spans[agent_name]]
+        missing = [token for token in required_tokens if token not in window]
+        if missing:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) declares the "
+                f"'{marker}' marker but is missing substantive session-start "
+                f"reload content in the scoped window near it (not just the "
+                f"marker itself): {missing}"
             )
 
     report["targeted_checks"][key] = {
@@ -3154,6 +3185,7 @@ def _add_session_start_reload_check(
         "stage_present": stage_path.exists(),
         "ship_present": ship_path.exists(),
     }
+
 
 
 def _add_text_check(

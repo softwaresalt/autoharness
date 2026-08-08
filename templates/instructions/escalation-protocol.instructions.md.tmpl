@@ -94,8 +94,12 @@ The escalation route resolves via a role-scoped precedence:
    (`{{ESCALATION_FAMILY}}` / `{{ESCALATION_PROVIDER}}` / `{{ESCALATION_REASONING_EFFORT}}`
    — the pre-F02FD596 flat, role-agnostic route) resolves instead, with a
    deprecation notice. This is retained, unremoved, for backward
-   compatibility, and is this workspace's currently-resolved escalation route
-   (no nested override is declared).
+   compatibility. Whether this fallback is actually active for the acting
+   role in this installed workspace depends on whether a nested override is
+   declared for that role — check `model_routing.<role>.escalation` at
+   session-start reload time (H6) rather than assuming either shape from this
+   static instruction text, which describes the general precedence rule for
+   any workspace, not a fixed installed fact about this one.
 3. **Tier3 fallback**: any field still unresolved after (1)/(2) falls back
    per-field to `model_routing.tier3`
    (`{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` / `{{TIER_3_REASONING_EFFORT}}`).

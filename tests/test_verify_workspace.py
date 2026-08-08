@@ -3918,7 +3918,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
         model_family (Stage's explicit route equals tier3, and no distinct
         escalation route is declared), the auto-escalation attempt would be a
         same-route no-op -- this must fail as ESCALATION_DEGRADED, not pass
-        silently."""
+        silently. This also doubles as the one-sided-missing-fields
+        regression case Copilot review round 3 (PR #316) asked for: Stage
+        declares an explicit model_provider/reasoning_effort but the
+        escalation side (bare tier3 fallback) declares neither -- the
+        one-sided-unspecified fields must not manufacture a false conflict
+        that would incorrectly suppress the same-route degraded finding."""
         from autoharness.verify_workspace import _add_escalation_route_resolution_check
 
         report: dict = {"targeted_checks": {}}
@@ -3944,6 +3949,77 @@ class VerifyWorkspaceTests(unittest.TestCase):
             any("ESCALATION_DEGRADED" in e for e in check["errors"]),
             f"expected an ESCALATION_DEGRADED error, got: {check['errors']}",
         )
+
+    def test_escalation_route_resolution_helper_treats_explicit_provider_conflict_as_distinct_route(
+        self,
+    ) -> None:
+        """Copilot review round 3 (PR #316): a matching model_family alone
+        must NOT be treated as same-route when both sides explicitly resolve
+        a differing model_provider. Here Stage's explicit route and the
+        escalation route's tier3 fallback share model_family
+        "claude-opus-4.8", but Stage declares model_provider "anthropic"
+        while tier3 (and therefore the escalation fallback) declares
+        "openai" -- an explicit, resolved conflict on both sides, so this
+        must be a genuine distinct escalation route, not ESCALATION_DEGRADED."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "model_provider": "openai",
+                    "reasoning_effort": "high",
+                },
+                "stage": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "model_provider": "anthropic",
+                    "reasoning_effort": "high",
+                },
+                # No explicit escalation route -> resolves entirely via tier3
+                # fallback, matching family but explicitly conflicting on
+                # provider with Stage's own route.
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected explicit provider conflict to NOT degrade: {check}")
+        self.assertNotIn("stage", check.get("same_route_roles", []))
+
+    def test_escalation_route_resolution_helper_treats_explicit_effort_conflict_as_distinct_route(
+        self,
+    ) -> None:
+        """Copilot review round 3 (PR #316): a matching model_family alone
+        must NOT be treated as same-route when both sides explicitly resolve
+        a differing reasoning_effort. Provider is omitted on both sides
+        (no signal, not a conflict) so only the effort field disagreement is
+        exercised here."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "reasoning_effort": "max",
+                },
+                "stage": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "reasoning_effort": "high",
+                },
+                # No explicit escalation route -> resolves entirely via tier3
+                # fallback, matching family but explicitly conflicting on
+                # reasoning_effort with Stage's own route.
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected explicit effort conflict to NOT degrade: {check}")
+        self.assertNotIn("stage", check.get("same_route_roles", []))
 
     def test_escalation_route_resolution_helper_flags_installed_agent_without_override_as_degraded(
         self,
@@ -4572,6 +4648,48 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(
                 check["ok"], f"expected Ship-only self-contained directive to pass: {check}"
             )
+
+    def test_session_start_reload_check_fails_on_summary_only_marker_with_scattered_tokens(
+        self,
+    ) -> None:
+        """Copilot review round 3 (PR #316): a whole-file substring check for
+        the H6 required tokens ("fresh", "schema", "HALT", "stale") is
+        satisfiable even after the actual session-start reload directive
+        content has been deleted, because these are common English words
+        that a large agent definition can retain incidentally elsewhere. Here
+        the "Session-Start Dynamic Reload" marker is present but immediately
+        followed only by a bare one-line summary with no substantive
+        directive, while the required tokens appear scattered far away
+        (beyond the scoped window) in unrelated sections -- this MUST fail,
+        not silently pass on a whole-file scan."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            filler = "Unrelated padding text to push distant sections outside the scoped window. " * 40
+            content = (
+                "# Ship\n\n"
+                "See the Session-Start Dynamic Reload summary above.\n\n"
+                + filler
+                + "\n\nElsewhere: this deployment must stay fresh, validate "
+                "against schema, HALT on any stale (E8B5B3C5/H6) drift, "
+                "unrelated to the actual reload directive removed above.\n"
+            )
+            (agents_dir / "_ship.agent.md").write_text(content, encoding="utf-8")
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertFalse(
+                check["ok"],
+                f"expected scattered-token summary-only reference to fail: {check}",
+            )
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
 
     def test_reload_propagation_check_skipped_when_no_pipeline_agents_installed(self) -> None:
         """Gated on file existence: a workspace with none of
