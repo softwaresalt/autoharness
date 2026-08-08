@@ -450,10 +450,24 @@ before any P-013.5 invocation-time resolution above is performed:
    of truth — those frontmatter values are install-time DEFAULTS/documentation
    only (H8); the authoritative value is always this session's fresh config
    read.
-2. **Schema-validate on reload (H6)**: validate the freshly-read config against
-   the harness-config schema before resolving any role or escalation route from
-   it. Installed target workspaces do not receive the engine's `schemas/`
-   directory -- the schema lives in the autoharness installation
+2. **Explicit fail-closed precheck, then schema-validate on reload (H6)**: before
+   trusting any schema result, apply this precheck directly to the freshly-read
+   config: if the file is missing, fails to parse, parses to an empty/falsy
+   document, or omits `schema_version`, treat reload as INVALID and go straight
+   to step 3 — do not proceed to route resolution. This precheck exists because
+   `autoharness verify-workspace` is a general cross-artifact compatibility
+   report, not a strict validation gate: by design (for its broader manifest/
+   config/profile compatibility-scan use, where it must tolerate legacy and
+   partially-populated installs) it skips schema validation entirely for an
+   empty/falsy config document and downgrades a missing `schema_version` to a
+   non-blocking compatibility warning rather than a hard failure. Relying on
+   its output alone would let exactly those two conditions slip past reload
+   silently, so H6 layers this stricter, reload-specific precheck on top of —
+   never in place of — `verify-workspace`'s own compatibility classification.
+   Only once the precheck passes, validate the config against the harness-config
+   schema before resolving any role or escalation route from it. Installed
+   target workspaces do not receive the engine's `schemas/` directory -- the
+   schema lives in the autoharness installation
    (`{autoharness_home}/schemas/harness-config.schema.json`, per Core Rule 3 and
    `harness-architecture.instructions.md`), never assumed workspace-relative.
    Resolve `autoharness_home` via the same order used elsewhere in this agent
@@ -461,12 +475,16 @@ before any P-013.5 invocation-time resolution above is performed:
    containing this agent definition, traversed up → `~/.autoharness/`), then
    run the globally installed CLI:
    `autoharness verify-workspace --workspace {workspace_path} --autoharness-home {autoharness_home} --json`
-   and inspect the harness-config schema result. Do not assume a `uv run`/
-   Python-project-local invocation is available in the target workspace --
-   that pattern only holds for this self-hosting repository's own dogfood use.
-3. **Fail-closed halt — no stale/baked routes (H6)**: if the config is missing,
-   fails to parse, or fails schema validation, HALT to the operator immediately.
-   Do NOT continue using a previously-resolved/baked route, and do NOT invent a
+   and inspect the harness-config schema result (`strict_schema_blockers` for
+   the `config` contract) for anything beyond the two precheck conditions above.
+   Do not assume a `uv run`/Python-project-local invocation is available in the
+   target workspace -- that pattern only holds for this self-hosting
+   repository's own dogfood use.
+3. **Fail-closed halt — no stale/baked routes (H6)**: if the precheck in step 2
+   found the config missing, unparseable, empty, or missing `schema_version`,
+   or if the subsequent schema validation reports a `strict_schema_blockers`
+   entry for the config contract, HALT to the operator immediately. Do NOT
+   continue using a previously-resolved/baked route, and do NOT invent a
    last-known-good fallback. A provider model update or a routing config edit
    made between sessions MUST take effect on the very next session without
    requiring the harness to be reinstalled — silently continuing on stale
