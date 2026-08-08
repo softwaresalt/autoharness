@@ -10,7 +10,7 @@ closure_pr: null
 closure_merge_commit: null
 closure_reviewed_head: null
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 feature_terminal_status: done
 feature_archived_status: done
 ---
@@ -229,17 +229,21 @@ fully-covered feature, `114-F` was moved `status: active` -> `done`
 
 ## Context Compaction (P-020)
 
-- **Status: recorded below** (mandatory per-merge invocation, performed
-  this session; see the compact-context invocation output captured at the
-  time this file was finalized).
-- Session memory: `docs/memory/2026-08-08-ship-122-S-114-F-session.md`
-  (written this session; archived as part of the same compaction pass —
-  the completed-work rule applies directly since this is the just-closed
-  release unit's own memory).
+- **Status: done** — mandatory per-merge `compact-context` invocation
+  (`target: all`) performed this session. Candidate identified: this
+  release unit's own just-written session memory (completed-work rule,
+  Phase 2). Bounded Tier-1 consolidation performed: 1 file compacted, 0
+  active checkpoints touched, 0 plans consolidated (none pending review
+  consolidation for this release unit), 0 additional closure records
+  compacted (none exceeded `threshold_days`).
+- Session memory: written to
+  `docs/memory/2026-08-08-ship-122-S-114-F-session.md`, then moved
+  verbatim to `docs/archive/memory/2026-08-08-ship-122-S-114-F-session.md`
+  as part of this compaction pass.
 - Compacted memory: `docs/memory/compacted/2026-08-08-122S-114F-compacted.md`
   (decisions, files modified, key learnings/cross-references to the new
-  compound doc, outcomes, provenance chain) — written during the P-020
-  compaction pass below.
+  compound doc, outcomes, provenance chain) — written during this
+  compaction pass.
 
 ## Operational Closure
 
@@ -303,11 +307,11 @@ fully-covered feature, `114-F` was moved `status: active` -> `done`
    `docs/memory/compacted/2026-08-08-122S-114F-compacted.md`
    (verbose original archived to
    `docs/archive/memory/2026-08-08-ship-122-S-114-F-session.md`) —
-   performed as part of the P-020 compaction pass immediately following
-   this file's creation.
-4. Mandatory P-020 `compact-context` (`target: all`) invocation — performed
-   immediately after this file's creation; outcome recorded above and in
-   the final report.
+   **done** (this branch).
+4. Mandatory P-020 `compact-context` (`target: all`) invocation —
+   **done** (this branch): 1 memory file compacted (this release unit's
+   own session memory, completed-work rule), 0 active checkpoints
+   touched, 0 plans consolidated, 0 additional closure records compacted.
 5. Closure index resync (`backlogit sync` CLI, 740 artifacts indexed) —
    **done** (this branch, after all archival mutations were committed).
 6. Closure PR — to be opened from
