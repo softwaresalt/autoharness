@@ -188,8 +188,14 @@ pack_detect_status() {
 		fi
 	fi
 	if [[ -n "$exe" ]]; then
-		version="$("$exe" --version 2>/dev/null | head -n1 || true)"
-		version="$(echo "$version" | xargs 2>/dev/null || true)"
+		local raw_output=""
+		# Capture the version command's own exit status via command substitution
+		# assignment (not a pipe to `head`), so a broken runtime that exits
+		# nonzero is never misreported as "present" just because it wrote
+		# something to stdout before failing.
+		if raw_output="$("$exe" --version 2>/dev/null)"; then
+			version="$(printf '%s\n' "$raw_output" | head -n1 | xargs 2>/dev/null || true)"
+		fi
 		if [[ -n "$version" ]]; then status="present"; else status="undetectable"; fi
 	fi
 	PACK_DETECT_NAMES+=("$mcp")
