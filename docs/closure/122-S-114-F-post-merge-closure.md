@@ -107,11 +107,13 @@ session:
 
 ### Round-1 Copilot review detail (3 threads, all fixed/replied/resolved)
 
-1. **`scripts/deploy-harness.sh` line 194** — pipeline exit-status masking:
-   `"$exe" --version 2>/dev/null | head -n1 || true` loses the version
-   command's own exit code (the pipeline's status reflects `head`, further
-   masked by `|| true`), so a broken runtime that prints output but exits
-   nonzero is misreported `present`.
+1. **`scripts/deploy-harness.sh` line 194** — pipeline failure discarded
+   by trailing `|| true`: `"$exe" --version 2>/dev/null | head -n1 || true`
+   — under `pipefail` the pipeline's own exit status is correctly the
+   nonzero status from `$exe` when it fails, but the trailing `|| true`
+   discards that correctly-propagated failure while `head` still forwards
+   whatever partial stdout `$exe` printed before failing, so a broken
+   runtime that prints output but exits nonzero is misreported `present`.
 2. **`templates/scripts/deploy-harness.sh.tmpl` line 194** — identical bug,
    mirrored in the template source.
 3. **`tests/test_deploy_harness_scripts.py` line 545** — the existing
@@ -142,9 +144,12 @@ all confirmed `isResolved: true`.
 A new compound-learning doc,
 `docs/compound/2026-08-08-shell-pipeline-exit-status-masking-in-version-probes.md`,
 records the generalizable pattern: piping a version/health-check
-invocation through a text filter (`head`/`grep`/`awk`/etc.) loses the
-probed command's own exit status even under `pipefail`, because the
-filter stage itself almost always exits `0`.
+invocation through a text filter (`head`/`grep`/`awk`/etc.) and then
+discarding the pipeline's exit status with a trailing `|| true` throws
+away the probed command's own failure signal — even though `pipefail`
+correctly propagated it in the first place — because the filter stage
+still forwards whatever partial input it received regardless of the
+pipeline's ultimate exit status.
 
 **Total this shipment: 3 Copilot review comments, all fixed -> committed
 -> pushed -> replied -> GraphQL-resolved.** 1 of 3 authorized bounded-window
@@ -216,9 +221,25 @@ fully-covered feature, `114-F` was moved `status: active` -> `done`
   `runtime-installer`, `"47971057"`, `deploy-preflight`, `bounded`) remain
   present and untouched in the archived record; `114-F` carries only the
   `harness_status: pending` custom field, unaffected by closure.
-- **`47971057` tracker**: remains a label embedded in `114-F`'s own
-  frontmatter, fully consumed by this shipment's bounded scope (Option C).
-  Full provisioning-execution scope remains deferred and unchanged.
+- **`47971057` tracker**: `114-F`'s label is only provenance of which
+  feature harvested a bounded increment of this tracker — it is **not**
+  itself the living tracker. The authoritative, still-`ACTIVE` tracker
+  record is `.backlogit/stash.jsonl` entry `47971057`, which this session
+  confirmed carries an explicit `"PARTIALLY-CONSUMED — LIVING TRACKER
+  (kept ACTIVE)"` annotation (added `2026-08-08` during this same
+  dark-factory session): it records that `114-F`/`122-S` harvested the
+  bounded, provisioning-free detection/checklist/ordering increment only,
+  and that the tracker **stays ACTIVE** because actual runtime
+  provisioning execution and every open design question (OS/platform
+  matrix, package sources, version/channel policy, checksums/supply-chain
+  verification, install scope/elevation, offline/proxy constraints,
+  embedding-model provisioning, rollback semantics, non-interactive/CI
+  equivalent, idempotence, licensing) remain deferred pending operator
+  decisions per
+  `docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md`.
+  This shipment did not close, consume, or otherwise touch that stash
+  entry — it remains the actionable resumption pointer for future
+  sessions, not a closed/fully-consumed item.
 - **Remainder stash `ab16544a1636651d2368825d08cbd5e7c26ec755`**:
   confirmed present, untouched, byte-identical (`git rev-parse
   "stash@{0}"` matches exactly) both before and after this session's
@@ -283,8 +304,13 @@ fully-covered feature, `114-F` was moved `status: active` -> `done`
   2. Full native capability-pack runtime provisioning/install execution
      and supply-chain/OS-matrix design remain **deferred** per
      `docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md`
-     Option C, tracked under label `47971057` — explicitly out of scope
-     for this bounded shipment, unchanged.
+     Option C, tracked by the still-**ACTIVE** living tracker
+     `.backlogit/stash.jsonl` entry `47971057` (`PARTIALLY-CONSUMED —
+     LIVING TRACKER`, annotated this same session to record the bounded
+     harvest) — explicitly out of scope for this bounded shipment,
+     unchanged. `114-F`'s `"47971057"` label is provenance only; the
+     actionable resumption pointer for a future session is the stash
+     entry itself, not the (now-archived) feature's label.
   3. This is the final shipment in the dark-mode sequence — no successor
      shipment is queued as a direct continuation.
 - **Releasability** (`runtime_validation.releasability.required: false`,

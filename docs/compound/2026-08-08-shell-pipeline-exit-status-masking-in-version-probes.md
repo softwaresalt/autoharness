@@ -1,8 +1,34 @@
-# Compound Learning: Shell Pipeline Exit-Status Masking in Version-Probe Detection Logic
+---
+title: "Shell Pipeline Failure Discarded by Trailing `|| true` in Version-Probe Detection Logic"
+description: "A version-probe pipeline's correctly-propagated pipefail failure is discarded by a trailing || true while partial stdout is still captured, causing a broken runtime to be misreported as present"
+problem_type: "logic_error"
+category: "shell-scripting"
+component: "scripts/deploy-harness.sh, templates/scripts/deploy-harness.sh.tmpl"
+root_cause: "A trailing `|| true` on a piped version-probe command substitution discards the pipeline's own correctly pipefail-propagated nonzero exit status, while the piped filter stage (head) still forwards whatever partial stdout the failing command printed, so downstream logic that infers success from non-empty output is misled"
+resolution_type: "code_fix"
+severity: "medium"
+message: "pack detected present despite exiting nonzero / partial version string from a failing runtime"
+citations:
+  - "scripts/deploy-harness.sh"
+  - "templates/scripts/deploy-harness.sh.tmpl"
+  - "tests/test_deploy_harness_scripts.py"
+tags:
+  - "shell-scripting"
+  - "pipefail"
+  - "exit-status"
+  - "detection-logic"
+  - "code-review-finding"
+---
+
+# Compound Learning: Shell Pipeline Failure Discarded by Trailing `|| true` in Version-Probe Detection Logic
 
 **Origin**: Shipment `122-S` / Feature `114-F` (capability-pack runtime
 detection + pre-merge-install checklist), PR #318, Copilot review round 1,
-findings 1–2 of 3.
+findings 1–2 of 3. **Corrected** in PR #319 (post-merge closure) round 1
+after a Copilot finding identified that the original write-up of this
+document mischaracterized the `pipefail` mechanism itself (see "Correction"
+below) — the code fix was always correct; only this document's explanation
+was wrong.
 
 ## The Pattern
 
@@ -18,15 +44,21 @@ or equivalently:
 "$exe" --version 2>/dev/null | head -n1 || true
 ```
 
-Under `set -euo pipefail`, `pipefail` makes the *pipeline's* exit status the
-last non-zero status among its stages — but `head -n1` almost always exits
-`0` (it happily reads zero or more lines and closes), so a failing `$exe`
-(nonzero exit, but *some* stdout/stderr emitted before failing) is masked:
-the pipeline still reports success, `head` still captures whatever partial
-output was produced, and the trailing `|| true` masks any residual signal
-even if `pipefail` had caught it. The result: a broken or misbehaving
-runtime that prints something before failing is misreported as `present`
-with a plausible-looking (but bogus) version string.
+**Corrected mechanism** (per PR #319 Copilot review): under
+`set -euo pipefail`, the pipeline's exit status is *correctly*
+pipefail-propagated — if `$exe --version` exits nonzero and `head -n1`
+exits `0`, the pipeline's own exit status is still the nonzero status from
+`$exe`, exactly as `pipefail` is designed to do. The actual bug is that the
+trailing `|| true` explicitly **discards** that correctly-propagated
+nonzero status, forcing the assignment to "succeed" regardless. Meanwhile,
+`head -n1` still receives and forwards whatever partial stdout `$exe`
+printed before failing, so the `version` variable is still populated with
+that partial/bogus output via the command substitution — independent of
+the (discarded) pipeline exit status. The result is the same symptom
+(broken runtime misreported as `present`), but the mechanism is "`|| true`
+throws away a correct pipefail failure signal while a text filter forwards
+partial output regardless of the pipeline's exit status" — not "pipefail
+itself fails to detect the failure."
 
 ## Why This Escaped Local Review
 
@@ -59,14 +91,15 @@ output — they can no longer participate in exit-status determination.
 
 **Any shell detection/probe logic that pipes a version/health-check
 invocation through a text-processing filter (`head`, `grep`, `awk`, `sed`,
-`tail`) must capture the *probed command's own* exit status before piping,
-never rely on the pipeline's aggregate status** — even under `pipefail` —
-because a downstream filter stage that itself succeeds (which text filters
-almost always do, having *some* input or none) silently absorbs the
-upstream failure signal. The only way to safely combine "check exit code"
-and "extract first line of output" is to capture raw output first via plain
-command substitution, gate on that command's own `if`/`$?` result, and only
-then post-process the already-captured string.
+`tail`) and then discards the pipeline's exit status (e.g. a trailing
+`|| true`) loses the *probed command's own* failure signal, even though
+`pipefail` correctly propagated it in the first place** — because the
+downstream filter stage still forwards whatever partial input it received
+regardless of the pipeline's ultimate exit status. The only way to safely
+combine "check exit code" and "extract first line of output" is to capture
+raw output first via plain command substitution (no trailing `|| true` on
+the substitution itself), gate on that command's own `if`/`$?` result, and
+only then post-process the already-captured, already-successful string.
 
 ## Cross-Reference
 
