@@ -23,7 +23,8 @@ from jsonschema import Draft7Validator
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ROOT_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config.schema.json"
-_VERSIONED_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config" / "1.0.0.schema.json"
+_VERSIONED_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config" / "1.1.0.schema.json"
+_LEGACY_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config" / "1.0.0.schema.json"
 _DOGFOOD_CONFIG = _REPO_ROOT / ".autoharness" / "config.yaml"
 
 
@@ -61,7 +62,7 @@ class NestedEscalationSchemaTests(unittest.TestCase):
     def test_both_present_flat_and_nested_stage_is_invalid_h2(self) -> None:
         validator = _validator(_ROOT_CONFIG_SCHEMA)
         config = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {
                 "escalation": {"model_family": "gpt-5.6-sol"},
                 "stage": {"escalation": {"model_family": "claude-sonnet-5"}},
@@ -72,7 +73,7 @@ class NestedEscalationSchemaTests(unittest.TestCase):
     def test_both_present_flat_and_nested_ship_is_invalid_h2(self) -> None:
         validator = _validator(_ROOT_CONFIG_SCHEMA)
         config = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {
                 "escalation": {"model_provider": "openai"},
                 "ship": {"escalation": {"model_provider": "anthropic"}},
@@ -83,7 +84,7 @@ class NestedEscalationSchemaTests(unittest.TestCase):
     def test_only_flat_escalation_is_valid(self) -> None:
         validator = _validator(_ROOT_CONFIG_SCHEMA)
         config = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {"escalation": {"model_family": "gpt-5.6-sol"}},
         }
         self.assertTrue(validator.is_valid(config))
@@ -91,7 +92,7 @@ class NestedEscalationSchemaTests(unittest.TestCase):
     def test_only_nested_escalation_is_valid(self) -> None:
         validator = _validator(_ROOT_CONFIG_SCHEMA)
         config = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {
                 "stage": {"escalation": {"model_family": "claude-sonnet-5"}},
                 "ship": {"escalation": {"model_family": "gpt-5.6-sol"}},
@@ -101,13 +102,13 @@ class NestedEscalationSchemaTests(unittest.TestCase):
 
     def test_neither_present_is_valid(self) -> None:
         validator = _validator(_ROOT_CONFIG_SCHEMA)
-        config = {"schema_version": "1.0.0", "model_routing": {"tier3": "claude-opus-5"}}
+        config = {"schema_version": "1.1.0", "model_routing": {"tier3": "claude-opus-5"}}
         self.assertTrue(validator.is_valid(config))
 
     def test_unknown_key_under_nested_stage_escalation_is_invalid_h5(self) -> None:
         validator = _validator(_ROOT_CONFIG_SCHEMA)
         config = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {"stage": {"escalation": {"unexpected": "nope"}}},
         }
         self.assertFalse(validator.is_valid(config))
@@ -115,24 +116,41 @@ class NestedEscalationSchemaTests(unittest.TestCase):
     def test_unknown_key_under_nested_ship_escalation_is_invalid_h5(self) -> None:
         validator = _validator(_ROOT_CONFIG_SCHEMA)
         config = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {"ship": {"escalation": {"unexpected": "nope"}}},
         }
         self.assertFalse(validator.is_valid(config))
 
     def test_versioned_schema_matches_root_schema_behavior(self) -> None:
-        """The pinned 1.0.0 schema mirror must encode the identical
+        """The pinned 1.1.0 schema mirror must encode the identical
         constraint (differs only by $id, per the repo's existing schema
         pairing convention)."""
         validator = _validator(_VERSIONED_CONFIG_SCHEMA)
         ambiguous = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {
                 "escalation": {"model_family": "gpt-5.6-sol"},
                 "stage": {"escalation": {"model_family": "claude-sonnet-5"}},
             },
         }
         self.assertFalse(validator.is_valid(ambiguous))
+
+    def test_legacy_1_0_0_mirror_preserved_unchanged(self) -> None:
+        """Schema-versioning ambiguity fix (PR #316 review): adding the
+        nested stage/ship `escalation` properties and the model_routing-level
+        `not` ambiguity constraint in place on the published 1.0.0 mirror
+        would make the same "1.0.0" version identifier mean two different
+        byte-level contracts. The published `1.0.0.schema.json` must remain
+        byte-identical to its pre-F02FD596 form -- the additive nested
+        escalation hierarchy is carried only by the new 1.1.0 mirror."""
+        legacy_schema = _load_json(_LEGACY_CONFIG_SCHEMA)
+        model_routing_props = legacy_schema["properties"]["model_routing"]
+        self.assertNotIn("not", model_routing_props)
+        stage_props = model_routing_props["properties"]["stage"]["properties"]
+        ship_props = model_routing_props["properties"]["ship"]["properties"]
+        self.assertNotIn("escalation", stage_props)
+        self.assertNotIn("escalation", ship_props)
+        self.assertEqual(legacy_schema["properties"]["schema_version"]["const"], "1.0.0")
 
     def test_current_dogfood_config_is_schema_valid(self) -> None:
         """H1 regression guarantee: the current, unmodified dogfood

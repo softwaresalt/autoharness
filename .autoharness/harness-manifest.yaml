@@ -104,7 +104,8 @@ artifacts:
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
-    checksum: "1d291e938eafff1d985c656d6d3786d2aee473affd7565585e21b5e445d2f2d1"
+    checksum: "7e86a17a37eafba01cc67c43244b336fba8f1243c4900f8414787fcb69200b0a"
+    note: "checksum refreshed 121-S/113-F PR #316 Copilot review round 5 fix (schema-versioning ambiguity: bumped dogfood schema_version 1.0.0 -> 1.1.0 to track the new harness-config contract version published for the F02FD596 nested per-role escalation additions; no escalation data values changed); checksum computed from the LF-normalized committed git blob via `git cat-file -p :<path>` per the procedure established in 115-S"
   - path: ".autoharness/backlog-registry.yaml"
     primitive: 4
     template: "backlog/registries/backlogit.registry.yaml"

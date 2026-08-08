@@ -1,16 +1,35 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://softwaresalt.github.io/autoharness/schemas/harness-config/1.0.0.schema.json",
+  "$id": "https://softwaresalt.github.io/autoharness/schemas/harness-config/1.1.0.schema.json",
   "title": "Harness Configuration",
   "description": "Operator-authored configuration that controls how autoharness installs and maintains the agent harness in this workspace. Place at .autoharness/config.yaml before running autoharness install or tune.",
   "type": "object",
   "required": [
     "schema_version"
   ],
+  "definitions": {
+    "nonEmptyRouteFields": {
+      "description": "F02FD596: matches a route object (escalation/stage/ship) that declares at least one non-empty model_family/model_provider/reasoning_effort field. Used to encode the both-present (legacy flat + nested per-role) escalation ambiguity as schema-invalid.",
+      "anyOf": [
+        {
+          "required": ["model_family"],
+          "properties": { "model_family": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        },
+        {
+          "required": ["model_provider"],
+          "properties": { "model_provider": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        },
+        {
+          "required": ["reasoning_effort"],
+          "properties": { "reasoning_effort": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        }
+      ]
+    }
+  },
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "1.0.0",
+      "const": "1.1.0",
       "description": "Schema version for forward compatibility"
     },
     "preset": {
@@ -310,6 +329,37 @@
     "model_routing": {
       "type": "object",
       "description": "Model preferences for each routing tier and review-specific routes. Agent definitions use tier labels; this maps tiers and reviewer roles to environment-agnostic model identifiers and per-route configuration.",
+      "not": {
+        "description": "F02FD596/H2: the legacy flat model_routing.escalation and any nested <role>.escalation (stage.escalation / ship.escalation) MUST NOT both declare a non-empty field. This is ambiguous configuration -- fail closed at schema validation rather than let the loader silently pick a winner. See docs/decisions/2026-08-07-model-routing-hierarchy-dynamic-reload-deliberation.md.",
+        "allOf": [
+          {
+            "required": ["escalation"],
+            "properties": { "escalation": { "$ref": "#/definitions/nonEmptyRouteFields" } }
+          },
+          {
+            "anyOf": [
+              {
+                "required": ["stage"],
+                "properties": {
+                  "stage": {
+                    "required": ["escalation"],
+                    "properties": { "escalation": { "$ref": "#/definitions/nonEmptyRouteFields" } }
+                  }
+                }
+              },
+              {
+                "required": ["ship"],
+                "properties": {
+                  "ship": {
+                    "required": ["escalation"],
+                    "properties": { "escalation": { "$ref": "#/definitions/nonEmptyRouteFields" } }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
       "properties": {
         "tier1": {
           "description": "Fast/cheap tier for low-complexity tasks (memory, docs, prompt editing). Accepts a plain model-identifier string (legacy) or an object with 'model' plus optional routing metadata.",
@@ -539,9 +589,9 @@
             },
             "model_family": {
               "type": "string",
-              "description": "Model family for the Stage role route (e.g., 'claude-opus-4.8'). Leave empty/absent to fall back to tier3's family.",
+              "description": "Model family for the Stage role route (e.g., 'claude-opus-5'). Leave empty/absent to fall back to tier3's family.",
               "examples": [
-                "claude-opus-4.8"
+                "claude-opus-5"
               ]
             },
             "reasoning_effort": {
@@ -551,6 +601,37 @@
                 "high",
                 "xhigh"
               ]
+            },
+            "escalation": {
+              "type": "object",
+              "description": "F02FD596: optional nested per-role escalation route for Stage (P-013.6). When set, Stage's escalation directive resolves to this route in preference to the legacy flat model_routing.escalation; when absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 (never to the legacy flat route -- an explicit nested override never silently defers to the shared legacy route). MUST NOT coexist with a non-empty legacy flat model_routing.escalation (see the model_routing-level 'not' constraint) -- both-present is ambiguous and rejected.",
+              "additionalProperties": false,
+              "properties": {
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Stage's nested escalation route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier3's provider.",
+                  "examples": [
+                    "anthropic",
+                    "openai"
+                  ]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family for Stage's nested escalation route. Leave empty/absent to fall back to tier3's family.",
+                  "examples": [
+                    "claude-sonnet-5",
+                    "gpt-5.6-sol"
+                  ]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort for Stage's nested escalation route when the environment supports effort controls. Leave empty to use the model default or fall back to tier3's setting.",
+                  "examples": [
+                    "high",
+                    "max"
+                  ]
+                }
+              }
             }
           }
         },
@@ -579,12 +660,43 @@
               "examples": [
                 "high"
               ]
+            },
+            "escalation": {
+              "type": "object",
+              "description": "F02FD596: optional nested per-role escalation route for Ship (P-013.6). When set, Ship's escalation directive resolves to this route in preference to the legacy flat model_routing.escalation; when absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 (never to the legacy flat route -- an explicit nested override never silently defers to the shared legacy route). MUST NOT coexist with a non-empty legacy flat model_routing.escalation (see the model_routing-level 'not' constraint) -- both-present is ambiguous and rejected.",
+              "additionalProperties": false,
+              "properties": {
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Ship's nested escalation route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier3's provider.",
+                  "examples": [
+                    "anthropic",
+                    "openai"
+                  ]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family for Ship's nested escalation route. Leave empty/absent to fall back to tier3's family.",
+                  "examples": [
+                    "claude-opus-5",
+                    "gpt-5.6-sol"
+                  ]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort for Ship's nested escalation route when the environment supports effort controls. Leave empty to use the model default or fall back to tier3's setting.",
+                  "examples": [
+                    "high",
+                    "max"
+                  ]
+                }
+              }
             }
           }
         },
         "escalation": {
           "type": "object",
-          "description": "Optional first-class model route for telemetry-driven auto-escalation (P-013.6). When set, the halting agent's escalation directive resolves to this route; when absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 so escalation targets deeper reasoning than the failing tier. If the resolved (model_family, model_provider, reasoning_effort) tuple equals the acting agent's own role route (e.g., a role route already pinned to tier3), resolution MUST be treated as ESCALATION_DEGRADED (same-route no-op) and fall back to the existing operator-halt path rather than silently \"escalating\" to an identical model.",
+          "description": "DEPRECATED-LEGACY (F02FD596): flat, role-agnostic model route for telemetry-driven auto-escalation (P-013.6). Superseded by the nested per-role model_routing.stage.escalation / model_routing.ship.escalation, which take precedence when declared. Retained, unremoved, for backward compatibility (H9) -- resolves for any role lacking a nested escalation override, with a deprecation warning at verification time. MUST NOT coexist with a non-empty nested <role>.escalation (see the model_routing-level 'not' constraint) -- both-present is ambiguous and rejected; migrate fully to nested per-role escalation instead. When absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 so escalation targets deeper reasoning than the failing tier. If the resolved (model_family, model_provider, reasoning_effort) tuple equals the acting agent's own role route (e.g., a role route already pinned to tier3), resolution MUST be treated as ESCALATION_DEGRADED (same-route no-op) and fall back to the existing operator-halt path rather than silently \"escalating\" to an identical model.",
           "additionalProperties": false,
           "properties": {
             "model_provider": {
@@ -596,9 +708,9 @@
             },
             "model_family": {
               "type": "string",
-              "description": "Model family for the escalation route (e.g., 'claude-opus-4.8'). Leave empty/absent to fall back to tier3's family.",
+              "description": "Model family for the escalation route (e.g., 'claude-opus-5'). Leave empty/absent to fall back to tier3's family.",
               "examples": [
-                "claude-opus-4.8"
+                "claude-opus-5"
               ]
             },
             "reasoning_effort": {

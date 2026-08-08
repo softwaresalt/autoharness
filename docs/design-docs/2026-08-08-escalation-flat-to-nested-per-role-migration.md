@@ -83,9 +83,11 @@ The legacy flat `model_routing.escalation` and any nested
 field simultaneously. If both are present:
 
 * **Schema level**: `harness-config.schema.json` /
-  `harness-config/1.0.0.schema.json` reject the config document (a `not`
+  `harness-config/1.1.0.schema.json` reject the config document (a `not`
   constraint at the `model_routing` object level, referencing the shared
-  `definitions.nonEmptyRouteFields` fragment).
+  `definitions.nonEmptyRouteFields` fragment). See the "Schema-version bump"
+  section below for why this constraint lives in the `1.1.0` mirror and not
+  the `1.0.0` mirror.
 * **Loader/verification level**: `verify_workspace`'s
   `_add_escalation_route_resolution_check` returns `ambiguous: true`,
   `ok: false` with an `AMBIGUOUS_ESCALATION_CONFIG` message, as a backstop
@@ -134,19 +136,72 @@ override is rejected identically to an unknown key in the legacy flat block.
 ## H8 — No dogfood escalation data values written by this migration
 
 This migration is a **structural** change only. No nested
-`stage.escalation` / `ship.escalation` values were written to this
+`stage.escalation` / `ship.escalation` **values** were written to this
 repository's own `.autoharness/config.yaml` as part of 113-F/121-S — the
-nested override remains commented-out example scaffolding in
-`templates/harness-config.yaml.tmpl`, and this workspace continues to
-resolve its escalation route from the legacy flat block exactly as before.
-Operators may opt into nested per-role escalation independently, at their
-own discretion, once this migration lands.
+nested override blocks are always-rendered in
+`templates/harness-config.yaml.tmpl` with empty-string defaults (Copilot
+review round 2, PR #316), and this workspace continues to resolve its
+escalation route from the legacy flat block exactly as before (all-empty
+nested sub-fields are treated as absent and never trigger H2). Operators may
+opt into nested per-role escalation independently, at their own discretion,
+once this migration lands.
+
+## Schema-version bump: 1.0.0 -> 1.1.0 (PR #316 Copilot review)
+
+The initial implementation added the nested `stage.escalation`/
+`ship.escalation` properties and the H2 `not` ambiguity constraint **in
+place** to both `schemas/harness-config.schema.json` (root/current) and the
+published `schemas/harness-config/1.0.0.schema.json` mirror, while leaving
+`schema_version`'s `const` and `schema_contracts.py`'s
+`current_version`/`known_versions` for the `config` contract unchanged at
+`1.0.0`. Copilot review correctly identified this as a schema-versioning
+ambiguity forbidden by `src/autoharness/schema_contracts.py`'s
+versioned-contract discipline: an old 1.0.0 validator rejects a document
+using the new nested override (both `stage`/`ship` sub-schemas declare
+`additionalProperties: false`), while the patched-in-place 1.0.0 validator
+accepts it — the same version identifier no longer names one contract.
+
+Fixed by mirroring the tool-telemetry-event v1.0->v1.1 precedent
+(`schema_contracts.py`'s `tool-telemetry-event` entry, PR #294 review-fix
+cycle 2):
+
+* `schemas/harness-config/1.0.0.schema.json` restored to its exact
+  pre-F02FD596 bytes (byte-identical to `main`) — never mutated in place.
+* `schemas/harness-config/1.1.0.schema.json` added as a new versioned
+  mirror carrying the nested per-role escalation additions (identical to
+  the root schema except `$id`).
+* `schemas/harness-config.schema.json` (root/current) keeps the additions
+  and its `schema_version.const` bumped to `"1.1.0"`.
+* `src/autoharness/schema_contracts.py`'s `config` contract entry:
+  `current_version: "1.1.0"`, `known_versions: ("0.9.0", "1.0.0", "1.1.0")`.
+* `templates/harness-config.yaml.tmpl`'s default `schema_version` bumped to
+  `"1.1.0"` so freshly installed configs track the current contract.
+* This repository's own dogfood `.autoharness/config.yaml` bumped its
+  `schema_version` to `"1.1.0"` (structural version bump only — no
+  escalation data values changed, preserving H8 above) with a refreshed
+  manifest checksum in `.autoharness/harness-manifest.yaml`.
+
+No `CONTRACT_MIGRATIONS["config"]` entry was added for this bump: it is
+purely additive (no field rename/removal), so an existing config declaring
+`schema_version: "1.0.0"` remains fully valid forever against the restored,
+untouched 1.0.0 mirror via `resolve_contract_schema_path`'s
+version-matched-schema lookup — exactly the same non-forced-migration
+treatment given to the tool-telemetry-event 1.0->1.1 bump. `verify_workspace`
+now classifies an installed 1.0.0 config as `known-legacy` (no action
+required) rather than `current`; adopting nested per-role escalation
+requires declaring `schema_version: "1.1.0"`.
 
 ## Files affected
 
-* `schemas/harness-config.schema.json`, `schemas/harness-config/1.0.0.schema.json`
-  — nested `escalation` property under `stage`/`ship`; `not` constraint (H2)
-  at the `model_routing` level; deprecated flat `escalation` description.
+* `schemas/harness-config.schema.json`, `schemas/harness-config/1.1.0.schema.json`
+  (new mirror) — nested `escalation` property under `stage`/`ship`; `not`
+  constraint (H2) at the `model_routing` level; deprecated flat `escalation`
+  description; `schema_version.const` bumped to `1.1.0`.
+  `schemas/harness-config/1.0.0.schema.json` restored to its exact
+  pre-F02FD596 bytes (never mutated in place, see "Schema-version bump"
+  above).
+* `src/autoharness/schema_contracts.py` — `config` contract entry
+  `current_version`/`known_versions` bumped to track `1.1.0`.
 * `src/autoharness/verify_workspace.py` —
   `_add_escalation_route_resolution_check` rewritten for nested-per-role
   resolution, additive `per_role`/`ambiguous`/`deprecated_flat_in_use`
@@ -159,8 +214,14 @@ own discretion, once this migration lands.
 * `templates/agents/_stage.agent.md.tmpl` / `_ship.agent.md.tmpl` (and
   installed mirrors) — Escalation Protocol step 2/3 updated to reference the
   nested-per-role precedence and role-scoped same-route guard.
-* `templates/harness-config.yaml.tmpl` — commented-out nested
-  `stage.escalation` / `ship.escalation` example scaffolding; deprecation
-  notice on the legacy flat block.
+* `templates/harness-config.yaml.tmpl` — always-rendered nested
+  `stage.escalation` / `ship.escalation` blocks (empty-string defaults);
+  deprecation notice on the legacy flat block; default `schema_version`
+  bumped to `1.1.0`.
+* `.autoharness/config.yaml` (this repository's own dogfood config) —
+  `schema_version` bumped to `1.1.0` (structural only, no escalation data
+  changed); `.autoharness/harness-manifest.yaml` checksum refreshed.
 * `.github/skills/install-harness/SKILL.md` — variable-resolution table
-  updated for the nested precedence description.
+  updated for the nested precedence description, including the six raw
+  `STAGE_ESCALATION_*`/`SHIP_ESCALATION_*` variables and Step 3.4
+  preservation language.

@@ -12,7 +12,7 @@ from jsonschema import Draft7Validator
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ROOT_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config.schema.json"
-_VERSIONED_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config" / "1.0.0.schema.json"
+_VERSIONED_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config" / "1.1.0.schema.json"
 _CONFIG_TEMPLATE = _REPO_ROOT / "templates" / "harness-config.yaml.tmpl"
 _VERIFY_HARNESS = _REPO_ROOT / ".github" / "skills" / "verify-harness" / "SKILL.md"
 _ADVERSARIAL_AGENT = _REPO_ROOT / "templates" / "agents" / "adversarial-review.agent.md.tmpl"
@@ -62,7 +62,7 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         self.assertEqual(anchor_schema["properties"]["reasoning_effort"]["default"], "high")
 
         valid = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {
                 "anchor_review": {
                     "model_provider": "openai",
@@ -74,7 +74,7 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         self.assertEqual(list(validator.iter_errors(valid)), [])
 
         invalid = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {
                 "anchor_review": {
                     "model_provider": "openai",
@@ -86,7 +86,7 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         self.assertFalse(validator.is_valid(invalid))
 
         custom_route = {
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "model_routing": {
                 "workspace_specific_review": {"model_provider": "local", "model_family": "custom"}
             },
