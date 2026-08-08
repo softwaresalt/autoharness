@@ -6,7 +6,7 @@ feature_pr: 314
 merge_commit: ca066a053c891fa2152c85c2f2936f6507e81fa3
 merged_at: "2026-08-08T06:17:22Z"
 reviewed_head: d8ef5e5dddf65a2ef835566ef4d5bc2fd4895ac5
-closure_pr: null
+closure_pr: 315
 closure_merge_commit: null
 closure_reviewed_head: null
 closure_status: READY
@@ -58,8 +58,9 @@ the operator's explicit directive:
   the established Ship precedent pattern (117-S/114-S/098-S/059-S all used the
   same isolation technique). The stash was **not** popped, applied, or dropped
   at any point during `120-S`'s implementation, review, or merge — it remains
-  at `stash@{0}` for the operator/121-S to restore to `main`, now that `main`
-  has fast-forwarded past `120-S`'s merge commit.
+  present (at whatever positional index `git stash list` currently reports —
+  see the caution below) for the operator/121-S to restore to `main`, now that
+  `main` has fast-forwarded past `120-S`'s merge commit.
 
 ## Merge Confirmation
 
@@ -83,7 +84,7 @@ the operator's explicit directive:
 | --- | --- |
 | Reviewed HEAD (feature PR #314, merged) | `d8ef5e5d` (== PR HEAD at merge) |
 | Local adversarial review | Self-applied local review pass (report-only), performed twice: once at initial HEAD `be30b35f` (466 lines, READY, 0 P0/P1) and re-confirmed at the fix HEAD `d8ef5e5d` after the Copilot review-fix commit (34 lines changed across 3 files, all substantive corrections, no new defects introduced). Verdict `READY`, 0 P0/P1 at final HEAD. |
-| Full local build / test evidence | `uv run autoharness --help` smoke test PASS (re-verified at `d8ef5e5d`). `uv run python -m pytest tests -q` — **1362 passed, 11 skipped, 545 subtests passed**, re-run clean at both `be30b35f` (117.07s) and `d8ef5e5d` (216.65s). (Bare `pytest` from repo root surfaces 29 pre-existing collection errors under `references/*` submodule test files, including the newly-added `atv-phoenix` — pre-existing behavior identical to prior submodules, unrelated to this PR's scope; the canonical `tests`-scoped command per `workspace-profile.yaml` is unaffected.) `autoharness gate check` — no validation gates configured for this doc-only diff. |
+| Full local build / test evidence | `uv run autoharness --help` smoke test PASS (re-verified at `d8ef5e5d`). `uv run python -m pytest tests -q` — **1362 passed, 11 skipped, 545 subtests passed**, re-run clean at both `be30b35f` (117.07s) and `d8ef5e5d` (216.65s) — supplemental evidence, not the canonical gate. The repository's actual **canonical** CI gate is `PYTHONPATH=src python -m unittest discover -s tests` (`.github/workflows/ci.yml:95`; see `docs/compound/097-S-canonical-unittest-gate.md`) — this is what the `test` CI job below actually runs, not the scoped `pytest` invocation. (Bare `pytest` from repo root surfaces 29 pre-existing collection errors under `references/*` submodule test files, including the newly-added `atv-phoenix` — pre-existing behavior identical to prior submodules, unrelated to this PR's scope.) `autoharness gate check` — no validation gates configured for this doc-only diff. |
 | CI (PR #314) | `detect code changes`, `pipeline-topology (ambient)` green throughout. `test`/`ci gate` failed once at `d8ef5e5d` on a pre-existing, unrelated concurrency test (`test_two_writers_interleaved_seal_preserve_every_distinct_segment`, `tests/test_telemetry_jsonl_sink.py`) — confirmed the PR's diff touched zero Python files before re-running the failed jobs (`gh run rerun --failed`), which then passed clean. See the new compound-learning doc for this session-process note. |
 | Copilot review (PR #314) | **1 round, 5 inline comments**, all genuine mapping-accuracy/redaction-wording findings, all fixed at HEAD `d8ef5e5d`, individually replied to (referencing the fixing commit SHA), and resolved via GraphQL `resolveReviewThread`. See "Copilot review detail" below. |
 | P-018 copilot-review gate | Progression: `WAITING_FOR_REVIEW` (initial) -> `UNRESOLVED_THREADS` (5 findings, after `--max-wait 180`) -> **`SATISFIED`** (0 unresolved threads) at HEAD `d8ef5e5d`, re-confirmed immediately before merge (`--max-wait 30`, exit 0, `forced: false`, 1 round). |
@@ -152,7 +153,7 @@ runtime/execution engine, no new gate surface.
 | --- | --- |
 | Validator | Ship pre-merge runtime verification |
 | Surface adapter | N/A — no runtime/CLI/gate surface changed by this shipment |
-| Runtime probe | `uv run autoharness --help` — exit 0 (smoke test, re-verified at both HEADs). `uv run python -m pytest tests -q` — 1362 passed, 11 skipped, 545 subtests passed (re-verified at both HEADs). |
+| Runtime probe | `uv run autoharness --help` — exit 0 (smoke test, re-verified at both HEADs). `uv run python -m pytest tests -q` — 1362 passed, 11 skipped, 545 subtests passed (re-verified at both HEADs; supplemental evidence — the repository's canonical CI gate is `PYTHONPATH=src python -m unittest discover -s tests`, `.github/workflows/ci.yml:95`). |
 | Preserve-invariant | "The autoharness CLI starts without import, packaging, or option-parsing failures" — HELD. "No documentation-only change introduces an unresolved `{{VARIABLE}}` placeholder, broken cross-reference, or invalid YAML frontmatter" — HELD (verified via link-checker script, frontmatter parse, and placeholder scan, both at reviewed HEAD and after the fix commit). |
 | Blocked prerequisites | none |
 | Verdict | **HELD** — no runtime/CLI/execution surface was touched by this shipment; the documentation-only claim is source-verified (`git diff --name-only main...HEAD` shows zero `.py` files). |
@@ -277,10 +278,16 @@ shipment's three deliverables. `082-F` was moved `status: active` -> `done`
      forward-looking lesson for any future 084-F-scoped adapter, not an open
      defect in this shipment.
   2. The isolated stash (`120-S: preserve out-of-scope dirty state (121-S
-     model-route rename, checkpoints, rename deliberation)`) remains at
-     `stash@{0}` and must be restored to `main` (via `git stash pop`, after
-     confirming no conflicts) before or during `121-S` execution — this is
-     explicitly **121-S's** responsibility, not part of `120-S`'s own closure.
+     model-route rename, checkpoints, rename deliberation)`) remains stashed
+     and must be restored to `main` before or during `121-S` execution — this
+     is explicitly **121-S's** responsibility, not part of `120-S`'s own
+     closure. **Safety note**: stash indices (`stash@{0}`, `stash@{1}`, ...)
+     are positional, not stable identifiers — any new stash created between
+     now and 121-S's restore would shift this entry away from index 0. 121-S
+     MUST resolve the labeled entry's *current* index explicitly (e.g.
+     `git stash list | Select-String "120-S: preserve out-of-scope"`) and pop
+     that specific resolved ref — never assume a fixed index or run a bare
+     `git stash pop`.
   3. `docs/decisions/2026-08-07-backlogit-directory-rename-feasibility-deliberation.md`
      remains untracked inside the same stash; also 121-S's concern.
 - **Releasability** (`runtime_validation.releasability.required: false`,

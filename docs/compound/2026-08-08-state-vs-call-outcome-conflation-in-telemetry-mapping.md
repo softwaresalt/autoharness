@@ -1,3 +1,25 @@
+---
+title: "120-S / 082-F: state-vs-call-outcome conflation in cross-pack telemetry evidence mapping"
+date: 2026-08-08
+problem_type: documentation-accuracy
+category: telemetry-evidence-mapping
+component: docs/telemetry
+root_cause: "pack-native enum/timestamp/count fields were mapped onto ToolTelemetryEvent provenance fields (status, started_at, result_count) without checking whether the field describes the call's own outcome (vs. a different subsystem's state the call happens to report), the correct point in the call lifecycle (vs. some other lifecycle point), and whether the field exists on the wire at all (vs. requiring adapter-side derivation)"
+resolution_type: design_change
+severity: medium
+message: "SyncStatus::Error mapped directly to status: failed; UsageEvent.timestamp mapped directly to started_at; result_count claimed host_reported/observed with no wire-level field; redaction_applied: true required without requiring actual redaction first"
+file_path: docs/telemetry/graphtor-docs-evidence-map.md
+citations:
+  - "PR #314 (120-S / 082-F)"
+  - "docs/telemetry/engram-evidence-map.md"
+  - "docs/telemetry/graphtor-docs-evidence-map.md"
+  - "docs/telemetry/cross-pack-adapter-gap-report.md"
+tags: [telemetry, tool-telemetry-event, evidence-mapping, engram, graphtor-docs, copilot-review, provenance, redaction, ci-flakiness]
+shipment: 120-S
+feature: 082-F
+pr: 314
+---
+
 # Compound Learning: A Subsystem's Reported State Is Not the Same as the Call's Own Outcome
 
 **Origin**: PR #314 (120-S / 082-F, cross-pack measurability documentation —
@@ -41,7 +63,7 @@ the two silently misattributes a healthy call to a failed status:
 ## The generalizable check
 
 Before mapping any pack-native field onto a `ToolTelemetryEvent` provenance-bearing
-field (`status`, `started_at`, `result_count`, etc.), ask two separate questions:
+field (`status`, `started_at`, `result_count`, etc.), ask three separate questions:
 
 1. **Does this field describe the call's own outcome, or a different subsystem's
    state that the call happens to report?** (the `SyncStatus`/`status` conflation)
@@ -52,10 +74,21 @@ field (`status`, `started_at`, `result_count`, etc.), ask two separate questions
    have to compute from a differently-shaped return value?** (the `result_count`
    provenance overstatement)
 
-A field failing any of these three checks must never be labeled
-`host_reported`/`observed` — it belongs under `derived` (adapter-computed from
-correlated evidence) or `unavailable` (does not exist at any granularity reviewed),
-per the same evidence-class vocabulary already established for 079-F/108-F.
+A field failing any of these three checks against **the specific call/event it is
+being attached to** must never be labeled `host_reported`/`observed` **for that
+call/event** — it belongs under `derived` (adapter-computed from correlated
+evidence) or `unavailable` (does not exist at any granularity reviewed), per the
+same evidence-class vocabulary already established for 079-F/108-F. This is a
+per-target-axis rule, not a blanket downgrade of the source field itself:
+`SyncStatus` genuinely fails check 1 as a mapping onto the calling `get_status`
+invocation's own `status`, but the identical `SyncStatus` value remains
+legitimately `host_reported`/`observed` when it is instead the payload of a
+**separately wrapped sync-cycle event** — exactly the sync-cycle-scoped case this
+document's own mapping tables already carve out. Applying the check without
+qualifying it by the target axis would incorrectly imply `SyncStatus` (or any
+field like it) must always be downgraded, when in fact it is the specific
+call-outcome mapping that is invalid, not the field's evidentiary status in
+general.
 
 ## A related, separate lesson from the same review: metadata flags are not the
 ## redaction itself
