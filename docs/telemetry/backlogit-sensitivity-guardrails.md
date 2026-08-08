@@ -7,7 +7,10 @@ description: Documents backlogit-adapter safety defaults (sensitivity, redaction
 
 > **Navigation**: [README](../../README.md) · [Telemetry Reference](../telemetry-reference.md) ·
 > [Backlogit Evidence Map](backlogit-evidence-map.md) ·
-> [Size + Complexity Reference](../size-complexity-reference.md)
+> [Size + Complexity Reference](../size-complexity-reference.md) ·
+> [Engram Evidence Map](engram-evidence-map.md) ·
+> [graphtor-docs Evidence Map](graphtor-docs-evidence-map.md) ·
+> [Cross-Pack Adapter-Gap Report](cross-pack-adapter-gap-report.md)
 
 ## Purpose and scope
 

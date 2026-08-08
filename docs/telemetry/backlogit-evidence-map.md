@@ -6,7 +6,10 @@ description: Maps backlogit 1.8 telemetry evidence (tool_call_fact, tool_usage, 
 # Backlogit Evidence → ToolTelemetryEvent/ExecutionEpoch Field Map
 
 > **Navigation**: [README](../../README.md) · [Telemetry Reference](../telemetry-reference.md) ·
-> [Size + Complexity Reference](../size-complexity-reference.md)
+> [Size + Complexity Reference](../size-complexity-reference.md) ·
+> [Engram Evidence Map](engram-evidence-map.md) ·
+> [graphtor-docs Evidence Map](graphtor-docs-evidence-map.md) ·
+> [Cross-Pack Adapter-Gap Report](cross-pack-adapter-gap-report.md)
 
 ## Purpose and scope
 

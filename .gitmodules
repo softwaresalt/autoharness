@@ -30,3 +30,7 @@
 	path = references/atv-starterkit
 	url = https://github.com/All-The-Vibes/ATV-StarterKit
 	branch = main
+[submodule "references/atv-phoenix"]
+	path = references/atv-phoenix
+	url = https://github.com/All-The-Vibes/ATV-Phoenix
+	branch = main
