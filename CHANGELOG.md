@@ -31,8 +31,6 @@
   a valid, unrestricted `model_family` value for any workspace that chooses
   it — no schema enum or install default forces this specific family.
 
-### Changed
-
 - Renamed the two dogfood pipeline agent definitions and their templates from
   dot-prefixed to underscore-prefixed filenames: the Stage and Ship agents now
   live at `_stage.agent.md` / `_ship.agent.md` (and `_stage.agent.md.tmpl` /
