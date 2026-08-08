@@ -7,8 +7,8 @@ merge_commit: db8630b6ce7b83bebf9a0006940fcccf01bf3ee0
 merged_at: "2026-08-08T18:49:15Z"
 reviewed_head: c355d3784e9866b3fd4c69d92199f5cb6c5c39cb
 closure_pr: 317
-closure_merge_commit: null
-closure_reviewed_head: b0ebc5c3edd3a6b76c0f08858e68d59be2691d49
+closure_merge_commit: 9a3dc6a27724f57e58d858376e42c1042d83a574
+closure_reviewed_head: a0f67581d8e6b9098b008325b8b6aface838a717
 closure_status: READY
 compaction_status: done
 feature_terminal_status: done
@@ -310,14 +310,18 @@ precedent for a fully-covered feature, `113-F` was moved `status: active` ->
    **done** (this branch).
 5. Closure index resync (`backlogit sync` CLI, 740 artifacts indexed) —
    **done** (this branch, after all archival mutations were committed).
-6. Closure PR — **open**: PR #317
-   (`post-merge/113-f-model-routing-hierarchy-dynamic-reload-121-s` ->
-   `main`), reviewed HEAD `b0ebc5c3edd3a6b76c0f08858e68d59be2691d49` at the
-   time this line was last updated (will be corrected to the final merged
-   HEAD/merge-commit once #317 itself merges, per the same
-   provenance-repair convention used for 119-S's closure PR #311). Its own
-   current-HEAD local review, CI, P-018 gate, and merge-commit-only merge
-   are tracked on PR #317 directly.
+6. Closure PR — **done**: PR #317 merged to `main` with merge commit
+   `9a3dc6a27724f57e58d858376e42c1042d83a574` at final reviewed HEAD
+   `a0f67581d8e6b9098b008325b8b6aface838a717` (own local review + P-018
+   gate + operator approval all satisfied pre-merge). *Correction
+   (provenance-repair, post-#317): this file's `closure_merge_commit`/
+   `closure_reviewed_head` frontmatter originally recorded `null` /
+   `b0ebc5c3edd3a6b76c0f08858e68d59be2691d49` (an intermediate
+   pre-final-push HEAD) instead of the actual #317 merge commit and true
+   final reviewed HEAD; corrected here to the values above. The repair
+   branch's own merge commit is never self-referenced in these fields —
+   they record #317's stable, already-merged provenance only, per the
+   same convention used for 119-S's closure PR #311.
 7. **No follow-ups actioned by Ship in code this session** beyond the
    compound-learning doc above — successor `122-S` is unchanged and out of
    scope, per the operator's explicit directive.

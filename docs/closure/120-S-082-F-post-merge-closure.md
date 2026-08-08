@@ -7,8 +7,8 @@ merge_commit: ca066a053c891fa2152c85c2f2936f6507e81fa3
 merged_at: "2026-08-08T06:17:22Z"
 reviewed_head: d8ef5e5dddf65a2ef835566ef4d5bc2fd4895ac5
 closure_pr: 315
-closure_merge_commit: null
-closure_reviewed_head: 807016997feb24ed01f62825b48c6222339c812b
+closure_merge_commit: 55bfb3454641fe0a68d03ef6736e8456297f6fc1
+closure_reviewed_head: 52032a5a57ee1038fbd20a076037a62917dbf06a
 closure_status: READY
 compaction_status: done
 feature_terminal_status: done
@@ -304,9 +304,16 @@ shipment's three deliverables. `082-F` was moved `status: active` -> `done`
 1. Compound-learning doc:
    `docs/compound/2026-08-08-state-vs-call-outcome-conflation-in-telemetry-mapping.md`
    — **done** (this branch).
-2. This canonical closure artifact (this file) — **done**, `closure_pr`/
-   `closure_merge_commit`/`closure_reviewed_head` to be populated once the
-   closure PR is opened, reviewed, and merged.
+2. This canonical closure artifact (this file) — **done**: `closure_pr`/
+   `closure_merge_commit`/`closure_reviewed_head` populated below. *Correction
+   (provenance-repair, post-#315): this file's `closure_merge_commit`/
+   `closure_reviewed_head` frontmatter originally recorded `null` /
+   `807016997feb24ed01f62825b48c6222339c812b` (an intermediate
+   pre-final-push HEAD) instead of the actual PR #315 merge commit and true
+   final reviewed HEAD; corrected here to `55bfb3454641fe0a68d03ef6736e8456297f6fc1`
+   and `52032a5a57ee1038fbd20a076037a62917dbf06a` respectively. The repair
+   branch's own merge commit is never self-referenced in these fields —
+   they record #315's stable, already-merged provenance only.*
 3. Session memory write + compaction to
    `docs/memory/compacted/2026-08-08-120S-082F-compacted.md` (verbose original
    archived to `docs/archive/memory/2026-08-08-ship-120-S-082-F-session.md`)
