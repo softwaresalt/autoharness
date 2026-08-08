@@ -2904,6 +2904,57 @@ def _add_escalation_route_resolution_check(
     }
 
 
+def _add_reload_propagation_check(
+    report: dict[str, Any],
+    key: str,
+    workspace_path: Path,
+) -> None:
+    """E8B5B3C5/113.005-T (H7): verify freshly re-resolved routes propagate to
+    (a) invoked agents and inherited skills via the Orchestrator's P-013.5
+    directive, and (b) the escalation directive (P-013.6) in each installed
+    pipeline agent -- rather than a stale route surviving a session-start
+    reload. Gated on the Orchestrator agent file's existence for (a); each of
+    Stage/Ship is checked independently for (b) when present."""
+    orchestrator_path = workspace_path / ".github/agents/_orchestrator.agent.md"
+    stage_path = workspace_path / ".github/agents/_stage.agent.md"
+    ship_path = workspace_path / ".github/agents/_ship.agent.md"
+
+    if not orchestrator_path.exists() and not stage_path.exists() and not ship_path.exists():
+        return
+
+    errors: list[str] = []
+
+    if orchestrator_path.exists():
+        content = orchestrator_path.read_text(encoding="utf-8")
+        required = ["inherited skills", "H7"]
+        missing = [token for token in required if token not in content]
+        if missing:
+            errors.append(
+                f"orchestrator agent definition ({orchestrator_path}) is missing "
+                f"the inherited-skill propagation tokens: {missing}"
+            )
+
+    for agent_name, agent_path in (("stage", stage_path), ("ship", ship_path)):
+        if not agent_path.exists():
+            continue
+        content = agent_path.read_text(encoding="utf-8")
+        required = ["Session-Start Dynamic Reload", "H7"]
+        missing = [token for token in required if token not in content]
+        if missing:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) is missing the "
+                f"escalation-reload propagation tokens: {missing}"
+            )
+
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+        "orchestrator_present": orchestrator_path.exists(),
+        "stage_present": stage_path.exists(),
+        "ship_present": ship_path.exists(),
+    }
+
+
 def _add_escalation_directive_check(
     report: dict[str, Any],
     key: str,
@@ -2979,6 +3030,49 @@ def _add_escalation_directive_check(
         "errors": errors,
         "stage_present": stage_present,
         "ship_present": ship_present,
+    }
+
+
+def _add_session_start_reload_check(
+    report: dict[str, Any],
+    key: str,
+    workspace_path: Path,
+) -> None:
+    """E8B5B3C5/113.004-T (H6): verify the installed Orchestrator agent
+    definition documents the session-start dynamic reload contract -- fresh
+    config re-read, schema validation before resolution, and a fail-closed
+    halt on invalid/missing config, rather than falling back to a prior
+    session's resolved routes or an installed agent's baked frontmatter
+    model_family/model_provider/reasoning_effort values. Gated on the
+    Orchestrator agent file's existence: a workspace without it registers no
+    failure."""
+    orchestrator_path = workspace_path / ".github/agents/_orchestrator.agent.md"
+    if not orchestrator_path.exists():
+        return
+
+    required_tokens = [
+        "Session-Start Dynamic Reload",
+        "E8B5B3C5",
+        "fresh",
+        "schema",
+        "HALT",
+        "stale",
+        "H6",
+    ]
+
+    content = orchestrator_path.read_text(encoding="utf-8")
+    missing = [token for token in required_tokens if token not in content]
+    errors: list[str] = []
+    if missing:
+        errors.append(
+            f"orchestrator agent definition ({orchestrator_path}) is missing "
+            f"the session-start dynamic reload directive tokens: {missing}"
+        )
+
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+        "orchestrator_present": True,
     }
 
 
@@ -4188,6 +4282,20 @@ def verify_workspace(
     # neither pipeline agent installed never register a false failure.
     _add_escalation_directive_check(
         report, "escalation_directive_present", workspace_path
+    )
+
+    # E8B5B3C5/113.004-T (H6): session-start dynamic reload directive
+    # presence in the installed Orchestrator agent definition. Gated on file
+    # existence inside the check itself.
+    _add_session_start_reload_check(
+        report, "session_start_reload_directive", workspace_path
+    )
+
+    # E8B5B3C5/113.005-T (H7): freshly re-resolved routes propagate to
+    # invoked agents/inherited skills and to the escalation directive.
+    # Gated on file existence inside the check itself.
+    _add_reload_propagation_check(
+        report, "reload_propagation_directive", workspace_path
     )
 
     project_name = variables.get("PROJECT_NAME", workspace_path.name)

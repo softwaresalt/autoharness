@@ -423,8 +423,58 @@ This agent operates at **Tier 2 (Standard)** by default, but supports an indepen
 * **Resolve**: read the role route; apply tier fallback per unset sub-field.
 * **Declare**: pass the resolved fields as the invocation override when the runtime supports per-invocation model directives — never a baked provider-specific `--model` CLI flag (Core Rule 3).
 * **Degrade explicitly**: when the runtime cannot honor a per-invocation override, emit `ROUTING_DEGRADED` naming the subagent and the resolved route that could not be honored, and surface it to the operator — never silently fall back to the current session model without declaring the degradation.
+* **Propagate to inherited skills (P-013.5/H7)**: skills invoked by Stage/Ship at
+  depth 2 (see the Subagent Depth table below) do not carry an independent
+  `model_family`/`model_provider` binding of their own — they execute inside the
+  depth-1 agent's own invocation, so the depth-1 override declared above already
+  covers them. There is nothing separate to "resolve" or "reload" at the skill
+  layer. If a runtime ever exposes an independent per-skill model binding that
+  could diverge from its parent invocation's override, that divergence is itself
+  a `ROUTING_DEGRADED` condition and must be declared, never silently absorbed.
 
 `verify_workspace` fails closed (P-013.5) when a pipeline agent's installed `model_family`/`model_provider` is empty or an unresolved `{{...}}` placeholder, when this Orchestrator's installed definition lacks the routing directive, or when a declared `stage`/`ship` role route does not resolve.
+
+**Session-Start Dynamic Reload (E8B5B3C5)**: There is no persistent, long-running
+harness process that holds routing state across sessions — every Orchestrator,
+Stage, and Ship invocation is a fresh session. Because of that, "cache
+invalidation" here means never treating a *prior* session's resolved routes, nor
+an installed agent definition's frontmatter `model_family`/`model_provider`/
+`reasoning_effort` (a value baked once at install time by `install-harness`), as
+still-authoritative for a *new* session. At the start of every new session,
+before any P-013.5 invocation-time resolution above is performed:
+
+1. **Re-read fresh**: read `.autoharness/config.yaml` directly from disk. Never
+   reuse a value carried over in conversation context from a previous session,
+   and never treat the frontmatter `model_family`/`model_provider`/
+   `reasoning_effort` baked into `.github/agents/*.agent.md` as the live source
+   of truth — those frontmatter values are install-time DEFAULTS/documentation
+   only (H8); the authoritative value is always this session's fresh config
+   read.
+2. **Schema-validate on reload (H6)**: validate the freshly-read config against
+   `schemas/harness-config.schema.json` (for example via
+   `uv run autoharness verify-workspace --workspace . --json` and inspecting the
+   harness-config schema result) before resolving any role or escalation route
+   from it.
+3. **Fail-closed halt — no stale/baked routes (H6)**: if the config is missing,
+   fails to parse, or fails schema validation, HALT to the operator immediately.
+   Do NOT continue using a previously-resolved/baked route, and do NOT invent a
+   last-known-good fallback. A provider model update or a routing config edit
+   made between sessions MUST take effect on the very next session without
+   requiring the harness to be reinstalled — silently continuing on stale
+   routing after a config edit or a broken config defeats that guarantee and is
+   a defect.
+4. **Re-resolve, then proceed**: once schema validation passes, re-resolve
+   `orchestrator`/`tier2`/`tier3`/`stage`/`ship` (and, per-role, the nested
+   `escalation` hierarchy — see
+   `.github/instructions/escalation-protocol.instructions.md`) from this fresh
+   read, then proceed with the P-013.5 invocation-time enforcement above using
+   these freshly-resolved values.
+
+Freshly re-resolved routes propagate to invoked agents (the P-013.5 invocation
+override) and to the escalation directive (P-013.6) — see the Escalation
+Protocol section and `.github/instructions/escalation-protocol.instructions.md`
+for the propagation contract (H7); a stale directive surviving a reload is a
+defect, not an acceptable degraded mode.
 
 **Configuration shape** (in `.autoharness/config.yaml`, resolved from this
 template's own variables at install time — no vendor identifier is hardcoded

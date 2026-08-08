@@ -4447,6 +4447,139 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertIn("escalation_directive_present", targeted_checks)
             self.assertTrue(targeted_checks["escalation_directive_present"]["ok"])
 
+    def test_session_start_reload_check_skipped_when_orchestrator_not_installed(self) -> None:
+        """Gated entirely on the Orchestrator agent file's existence: a
+        workspace without _orchestrator.agent.md must not register the
+        session_start_reload_directive check at all."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            self.assertNotIn("session_start_reload_directive", report["targeted_checks"])
+
+    def test_session_start_reload_check_fails_when_directive_tokens_missing(self) -> None:
+        """When _orchestrator.agent.md is installed but lacks the
+        session-start dynamic reload (E8B5B3C5/H6) directive tokens, the
+        check fails naming the gap (113.004-T)."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n", encoding="utf-8"
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertFalse(check["ok"])
+            self.assertTrue(any("Session-Start Dynamic Reload" in e for e in check["errors"]))
+
+    def test_session_start_reload_check_passes_when_directive_present(self) -> None:
+        """When _orchestrator.agent.md carries the full session-start dynamic
+        reload directive (fresh re-read, schema validation, fail-closed
+        halt), the check passes."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n\n"
+                "## Model Routing\n\n"
+                "**Session-Start Dynamic Reload (E8B5B3C5)**: every session "
+                "re-reads config fresh from disk and validates it against "
+                "schema (H6) before resolving routes. If invalid or missing, "
+                "HALT to the operator rather than continuing on stale routes.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertTrue(check["ok"], f"expected directive-complete install to pass: {check}")
+
+    def test_reload_propagation_check_skipped_when_no_pipeline_agents_installed(self) -> None:
+        """Gated on file existence: a workspace with none of
+        _orchestrator.agent.md / _stage.agent.md / _ship.agent.md installed
+        must not register the reload_propagation_directive check at all."""
+        from autoharness.verify_workspace import _add_reload_propagation_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            report: dict = {"targeted_checks": {}}
+            _add_reload_propagation_check(
+                report, "reload_propagation_directive", workspace_path
+            )
+            self.assertNotIn("reload_propagation_directive", report["targeted_checks"])
+
+    def test_reload_propagation_check_fails_when_tokens_missing(self) -> None:
+        """When the pipeline agents are installed but lack the H7 propagation
+        tokens (inherited-skill propagation on the orchestrator, and the
+        session-start-reload tie-in on stage/ship), the check fails naming
+        each gap (113.005-T)."""
+        from autoharness.verify_workspace import _add_reload_propagation_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n", encoding="utf-8"
+            )
+            (agents_dir / "_stage.agent.md").write_text("# Stage\n", encoding="utf-8")
+            (agents_dir / "_ship.agent.md").write_text("# Ship\n", encoding="utf-8")
+
+            report: dict = {"targeted_checks": {}}
+            _add_reload_propagation_check(
+                report, "reload_propagation_directive", workspace_path
+            )
+            check = report["targeted_checks"]["reload_propagation_directive"]
+            self.assertFalse(check["ok"])
+            self.assertTrue(any("orchestrator" in e for e in check["errors"]))
+            self.assertTrue(any("stage" in e for e in check["errors"]))
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
+    def test_reload_propagation_check_passes_when_tokens_present(self) -> None:
+        """When each agent carries its H7 propagation tokens, the check
+        passes."""
+        from autoharness.verify_workspace import _add_reload_propagation_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n\nPropagate to inherited skills (H7): ...\n",
+                encoding="utf-8",
+            )
+            (agents_dir / "_stage.agent.md").write_text(
+                "# Stage\n\nSee the Session-Start Dynamic Reload (H7) section.\n",
+                encoding="utf-8",
+            )
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\nSee the Session-Start Dynamic Reload (H7) section.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_reload_propagation_check(
+                report, "reload_propagation_directive", workspace_path
+            )
+            check = report["targeted_checks"]["reload_propagation_directive"]
+            self.assertTrue(check["ok"], f"expected propagation-complete install to pass: {check}")
+
     def test_verify_workspace_flags_missing_release_closure_sequence_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -427,7 +427,11 @@ before falling back to the operator-halt checkpoint:
    `config.model_routing.escalation` (DEPRECATED) -> `model_routing.tier3`
    per-field fallback (`model_family` / `model_provider` /
    `reasoning_effort`). This workspace declares no nested `stage.escalation`
-   override, so the legacy flat route currently resolves.
+   override, so the legacy flat route currently resolves. This resolution
+   always reads the freshly session-start-reloaded config (never a value
+   cached earlier in a long session or resolved by a prior session) — see
+   the Orchestrator's Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section;
+   a stale escalation directive surviving a reload is a defect.
 3. **Same-route guard (role-scoped, H3)**: Stage's explicit role route
    (`claude-opus-5`) is identical to this workspace's `tier3` family. If the
    `escalation` route were ever unset (or reset to an unset/matching value),

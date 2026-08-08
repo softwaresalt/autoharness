@@ -785,7 +785,12 @@ before falling back to the operator-halt checkpoint:
    `{{ESCALATION_PROVIDER}}` / `{{ESCALATION_REASONING_EFFORT}}`, resolving
    this workspace's currently-effective escalation route per the nested
    per-role -> legacy flat (DEPRECATED) -> tier3 precedence defined in
-   `escalation-protocol.instructions.md` (F02FD596). Falls back per field to
+   `escalation-protocol.instructions.md` (F02FD596). This resolution always
+   reads the freshly session-start-reloaded config (never a value cached
+   earlier in a long session or a route resolved by a prior session) — see
+   the Orchestrator's Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section;
+   a stale escalation directive surviving a reload is a defect. Falls back per
+   field to
    `{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` /
    `{{TIER_3_REASONING_EFFORT}}` when no override for a field is declared at
    any tier. This is the config-resolved successor to ad hoc "suggest a
