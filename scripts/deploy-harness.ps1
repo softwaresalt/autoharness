@@ -14,6 +14,18 @@
 #                 resolution happens here (that is the agent's job)
 #   verify     -> optional deterministic `autoharness verify-workspace`
 #
+# Additive checklist phase (114-F / 47971057 bounded, non-D2): runs after
+# preflight and before bootstrap. Detects per-pack PRESENCE and VERSION for
+# backlogit/engram/graphtor-docs (`<tool> --version`; graphtor-docs also checks
+# the workspace-local .graphtor/bin/ path) and prints a REPORT-ONLY recommended
+# action per pack (retain-present / needs-install[deferred] /
+# unsupported-undetectable). It performs NO install/upgrade/provisioning.
+# Interactive check/uncheck prompts are opt-in via -Interactive; the default is
+# a non-interactive report so headless/CI deploys never regress. Actual runtime
+# provisioning execution and its open design questions remain DEFERRED to
+# operator — see
+# docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md.
+#
 # The scaffold/verify phases write ONLY inside the current workspace (cwd). The
 # bootstrap phase installs a GLOBAL tool OUTSIDE cwd BY DESIGN and is therefore
 # gated behind an explicit -Bootstrap opt-in. -DryRun prints the plan without
@@ -54,6 +66,11 @@ param(
 
     # Explicit opt-in for the out-of-cwd GLOBAL install (D6).
     [switch]$Bootstrap,
+
+    # Opt-in to interactive check/uncheck prompts in the pre-merge-install
+    # checklist phase (114.002-T). Default is a non-interactive REPORT so
+    # headless/CI deploys never regress (AC F3).
+    [switch]$Interactive,
 
     [switch]$DryRun,
 
@@ -148,6 +165,49 @@ function Get-PresetDefaultPacks([string]$HomePath, [string]$Preset) {
     return $ids
 }
 
+function Get-PackDetectionStatus([string]$PackName) {
+    # Per-pack presence + version detection (114.001-T / 47971057 bounded).
+    # Detection only: no install/upgrade/provisioning. Status is one of:
+    #   present       -> command found AND `--version` produced parseable output
+    #   undetectable  -> command found but `--version` produced no output
+    #   absent        -> command not found (and, for graphtor-docs, no
+    #                    workspace-local .graphtor/bin/ binary either)
+    $cmd = Get-Command $PackName -ErrorAction SilentlyContinue
+    $exePath = $null
+    if ($cmd) { $exePath = $cmd.Source }
+    if (-not $exePath -and $PackName -eq "graphtor-docs") {
+        # graphtor-docs may be installed workspace-local at .graphtor/bin/ (registry eligibility signal), not just on PATH.
+        foreach ($candidate in @(".graphtor/bin/graphtor-docs.exe", ".graphtor/bin/graphtor-docs")) {
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) { $exePath = $candidate; break }
+        }
+    }
+    if (-not $exePath) {
+        return [pscustomobject]@{ Pack = $PackName; Status = "absent"; Version = $null }
+    }
+    $version = $null
+    try {
+        $output = & $exePath --version 2>$null
+        if ($LASTEXITCODE -eq 0 -and $output) {
+            $version = (@($output) | Select-Object -First 1).ToString().Trim()
+            if (-not $version) { $version = $null }
+        }
+    } catch { }
+    if ($version) {
+        return [pscustomobject]@{ Pack = $PackName; Status = "present"; Version = $version }
+    }
+    return [pscustomobject]@{ Pack = $PackName; Status = "undetectable"; Version = $null }
+}
+
+function Get-PackRecommendedAction([string]$Status) {
+    # Report-only classification (114.002-T / 47971057 bounded). Never executes
+    # any install/upgrade — "needs-install" is a deferred recommendation only.
+    switch ($Status) {
+        "present" { return "retain-present" }
+        "absent" { return "needs-install (deferred)" }
+        default { return "unsupported-undetectable" }
+    }
+}
+
 # ── Phase 1: preflight ──────────────────────────────────────────────────────
 function Invoke-Preflight {
     Write-Phase "preflight"
@@ -173,15 +233,17 @@ function Invoke-Preflight {
     }
 
     # Pack MCP prereqs are advisory: the deploy path seeds config and hands off;
-    # missing MCP tools do not block scaffolding.
+    # missing MCP tools do not block scaffolding. Detection ALSO records version
+    # (114.001-T / 47971057 bounded) for the pre-merge-install checklist phase.
+    $script:PackDetections = @()
     foreach ($mcp in @("backlogit", "engram", "graphtor-docs")) {
-        $present = [bool](Get-Command $mcp -ErrorAction SilentlyContinue)
-        if (-not $present -and $mcp -eq "graphtor-docs") {
-            # graphtor-docs may be installed workspace-local at .graphtor/bin/ (registry eligibility signal), not just on PATH.
-            $present = (Test-Path -LiteralPath ".graphtor/bin/graphtor-docs.exe" -PathType Leaf) -or (Test-Path -LiteralPath ".graphtor/bin/graphtor-docs" -PathType Leaf)
+        $detection = Get-PackDetectionStatus $mcp
+        $script:PackDetections += $detection
+        switch ($detection.Status) {
+            "present" { Write-Ok "$mcp MCP prereq present (version: $($detection.Version))" }
+            "undetectable" { Write-Warn2 "$mcp present but version undetectable (optional pack MCP prereq)" }
+            default { Write-Info "$mcp not found (optional pack MCP prereq)" }
         }
-        if ($present) { Write-Ok "$mcp MCP prereq present" }
-        else { Write-Info "$mcp not found (optional pack MCP prereq)" }
     }
 
     if ($hardMissing.Count -gt 0) {
@@ -189,6 +251,45 @@ function Invoke-Preflight {
         return $false
     }
     Write-Ok "preflight passed"
+    return $true
+}
+
+# ── Phase (additive, 114-F / 47971057 bounded): checklist ───────────────────
+function Invoke-PreMergeInstallChecklist {
+    Write-Phase "checklist (pre-merge-install; report only)"
+    if (-not $script:PackDetections -or $script:PackDetections.Count -eq 0) {
+        Write-Info "no pack detection results available; skipping checklist."
+        return $true
+    }
+
+    # Interactive prompts are opt-in AND require a non-redirected console;
+    # otherwise fall back to the non-interactive report (AC F3: headless/CI
+    # deploys never regress and never block on stdin).
+    $interactive = $Interactive -and (-not [Console]::IsInputRedirected)
+
+    $rows = @()
+    foreach ($d in $script:PackDetections) {
+        $action = Get-PackRecommendedAction $d.Status
+        $selected = "n/a"
+        if ($interactive) {
+            $default = if ($d.Status -eq "present") { "Y" } else { "n" }
+            $answer = Read-Host "Include $($d.Pack) in install plan? [$default]"
+            if ([string]::IsNullOrWhiteSpace($answer)) { $answer = $default }
+            $selected = if ($answer -match '^(y|yes)$') { "included" } else { "excluded" }
+        }
+        $rows += [pscustomobject]@{
+            Pack              = $d.Pack
+            Detected          = $d.Status
+            Version           = if ($d.Version) { $d.Version } else { "-" }
+            RecommendedAction = $action
+            Selected          = $selected
+        }
+    }
+
+    Write-Host ""
+    Write-Host "  Pre-merge-install checklist (REPORT ONLY -- no install/upgrade is executed):" -ForegroundColor Yellow
+    $rows | Format-Table -AutoSize | Out-String | Write-Host
+    Write-Info "Capability-pack runtime provisioning, when implemented, MUST occur BEFORE merge-install composition. Actual install/upgrade execution and all supply-chain/source/OS-matrix design remain DEFERRED to operator -- see docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md."
     return $true
 }
 
@@ -408,6 +509,8 @@ Write-Host "autoharness deploy-harness — workspace: $WorkspaceRoot" -Foregroun
 if ($DryRun) { Write-Host "DRY RUN — no mutations will be performed." -ForegroundColor Magenta }
 
 if (-not (Invoke-Preflight)) { exit 1 }
+
+Invoke-PreMergeInstallChecklist | Out-Null
 
 $homePath = Invoke-Bootstrap
 if (-not $homePath) { exit 2 }
