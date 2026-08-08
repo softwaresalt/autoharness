@@ -4510,6 +4510,69 @@ class VerifyWorkspaceTests(unittest.TestCase):
             check = report["targeted_checks"]["session_start_reload_directive"]
             self.assertTrue(check["ok"], f"expected directive-complete install to pass: {check}")
 
+    def test_session_start_reload_check_fails_for_ship_only_bare_reference(self) -> None:
+        """Copilot review finding (PR #316): Ship explicitly supports direct
+        operator invocation without an installed Orchestrator, so a
+        Ship-only install (no Orchestrator, no Stage) that merely
+        cross-references the Orchestrator's H6 section -- without carrying
+        its own self-contained fail-closed reload directive -- must FAIL
+        this check, not silently pass because the Orchestrator file is
+        absent."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\nSee the Orchestrator's Session-Start Dynamic "
+                "Reload (E8B5B3C5/H6/H7) section for the reload contract.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertFalse(
+                check["ok"],
+                f"expected Ship-only bare cross-reference to fail: {check}",
+            )
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
+    def test_session_start_reload_check_passes_for_ship_only_self_contained_directive(self) -> None:
+        """A Ship-only install (no Orchestrator) that carries its own
+        self-contained H6 fail-closed reload directive (fresh re-read,
+        schema validation, HALT on stale/invalid config) passes independently
+        of whether the Orchestrator is installed."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\n**Session-Start Dynamic Reload (H6) -- "
+                "self-contained for direct invocation**: Ship supports being "
+                "invoked directly without an installed Orchestrator. When "
+                "invoked this way, Ship independently re-reads config fresh "
+                "at the start of the session, validates it against schema "
+                "before resolving any route, and HALTs to the operator on "
+                "invalid, missing, or schema-failing config (E8B5B3C5) -- "
+                "Ship MUST NOT continue on a stale/baked route.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertTrue(
+                check["ok"], f"expected Ship-only self-contained directive to pass: {check}"
+            )
+
     def test_reload_propagation_check_skipped_when_no_pipeline_agents_installed(self) -> None:
         """Gated on file existence: a workspace with none of
         _orchestrator.agent.md / _stage.agent.md / _ship.agent.md installed
@@ -4551,9 +4614,13 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(any("stage" in e for e in check["errors"]))
             self.assertTrue(any("ship" in e for e in check["errors"]))
 
-    def test_reload_propagation_check_passes_when_tokens_present(self) -> None:
-        """When each agent carries its H7 propagation tokens, the check
-        passes."""
+    def test_reload_propagation_check_fails_on_summary_only_reference(self) -> None:
+        """Copilot review finding (PR #316): a bare marker phrase with no
+        substantive propagation semantics near it -- e.g. a one-line
+        "Propagate to inherited skills (H7): ..." summary, or "See the
+        Session-Start Dynamic Reload (H7) section." with nothing else --
+        must NOT satisfy this check. This is the exact minimal text the
+        prior whole-file-substring implementation incorrectly accepted."""
         from autoharness.verify_workspace import _add_reload_propagation_check
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -4570,6 +4637,52 @@ class VerifyWorkspaceTests(unittest.TestCase):
             )
             (agents_dir / "_ship.agent.md").write_text(
                 "# Ship\n\nSee the Session-Start Dynamic Reload (H7) section.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_reload_propagation_check(
+                report, "reload_propagation_directive", workspace_path
+            )
+            check = report["targeted_checks"]["reload_propagation_directive"]
+            self.assertFalse(
+                check["ok"],
+                f"expected summary-only propagation references to fail: {check}",
+            )
+            self.assertTrue(any("orchestrator" in e for e in check["errors"]))
+            self.assertTrue(any("stage" in e for e in check["errors"]))
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
+    def test_reload_propagation_check_passes_when_tokens_present(self) -> None:
+        """When each agent carries its H7 propagation marker AND the
+        substantive content in the scoped window near it (not just a bare
+        summary reference), the check passes."""
+        from autoharness.verify_workspace import _add_reload_propagation_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n\n**Propagate to inherited skills (H7)**: "
+                "skills invoked by Stage/Ship at depth 2 have no independent "
+                "model binding of their own -- they execute inside the "
+                "depth-1 agent's own invocation; an independent per-skill "
+                "divergence is itself a `ROUTING_DEGRADED` condition.\n",
+                encoding="utf-8",
+            )
+            (agents_dir / "_stage.agent.md").write_text(
+                "# Stage\n\nThis resolution always reads the freshly "
+                "session-start-reloaded config -- see the Orchestrator's "
+                "Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section; a "
+                "stale escalation directive surviving a reload is a defect.\n",
+                encoding="utf-8",
+            )
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\nThis resolution always reads the freshly "
+                "session-start-reloaded config -- see the Orchestrator's "
+                "Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section; a "
+                "stale escalation directive surviving a reload is a defect.\n",
                 encoding="utf-8",
             )
 

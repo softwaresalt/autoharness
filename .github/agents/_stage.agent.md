@@ -431,7 +431,17 @@ before falling back to the operator-halt checkpoint:
    always reads the freshly session-start-reloaded config (never a value
    cached earlier in a long session or resolved by a prior session) — see
    the Orchestrator's Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section;
-   a stale escalation directive surviving a reload is a defect.
+   a stale escalation directive surviving a reload is a defect. **Session-Start
+   Dynamic Reload (H6) — self-contained for direct invocation**: Stage may
+   also be invoked directly by the operator without an installed Orchestrator
+   (see Step 0). When invoked this way, Stage independently applies the same
+   fail-closed reload contract at its own session start rather than relying on
+   an Orchestrator that may not be present: re-read `.autoharness/config.yaml`
+   fresh at the start of the session, validate it against schema before
+   resolving any route, and HALT to the operator on invalid, missing, or
+   schema-failing config — Stage MUST NOT continue on a stale/baked route
+   carried over from this file's frontmatter or a prior session's resolved
+   value, and MUST NOT invent a last-known-good fallback.
 3. **Same-route guard (role-scoped, H3)**: Stage's explicit role route
    (`claude-opus-5`) is identical to this workspace's `tier3` family. If the
    `escalation` route were ever unset (or reset to an unset/matching value),

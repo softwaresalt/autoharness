@@ -2814,7 +2814,14 @@ def _add_escalation_route_resolution_check(
     resolved_provider = _resolve_role_route_field(flat_escalation, tier3_fallback, "model_provider")
     resolved_effort = _resolve_role_route_field(flat_escalation, tier3_fallback, "reasoning_effort")
 
-    if not (isinstance(resolved_family, str) and resolved_family.strip()):
+    # The legacy/flat snapshot is only required to resolve when no nested
+    # per-role override is declared anywhere: a fully-specified nested-only
+    # configuration is schema-valid and every role resolves via the per-role
+    # loop below, which already independently validates each role's
+    # effective route. Requiring the unused legacy snapshot to also resolve
+    # in that case would report a false failure even though nothing depends
+    # on it (Copilot review, PR #316).
+    if not nested_present_any and not (isinstance(resolved_family, str) and resolved_family.strip()):
         errors.append(
             "escalation route does not resolve: no model_family from "
             "model_routing.escalation or fallback model_routing.tier3"
@@ -2862,12 +2869,27 @@ def _add_escalation_route_resolution_check(
             role_route = {}
         role_tier_fallback = model_routing.get(fallback_tier_key)
         role_family = _resolve_role_route_field(role_route, role_tier_fallback, "model_family")
+        role_provider = _resolve_role_route_field(role_route, role_tier_fallback, "model_provider")
+        role_effort = _resolve_role_route_field(role_route, role_tier_fallback, "reasoning_effort")
 
+        # ESCALATION_DEGRADED is same-route-tuple equality: (model_family,
+        # model_provider, reasoning_effort) all matching the role's own
+        # already-resolved route, not model_family alone -- two routes
+        # sharing a family but explicitly differing in provider or effort are
+        # a genuine escalation, not a same-route no-op (Copilot review, PR
+        # #316). A field left unspecified on either side (neither the role's
+        # own route/tier nor the escalation target declares it) carries no
+        # signal either way and must not manufacture a false mismatch --
+        # only an explicit, resolved value on BOTH sides can disagree.
+        provider_conflicts = bool(role_provider) and bool(effective_provider) and role_provider != effective_provider
+        effort_conflicts = bool(role_effort) and bool(effective_effort) and role_effort != effective_effort
         is_same_route = (
             isinstance(role_family, str)
             and role_family.strip()
             and isinstance(effective_family, str)
             and role_family == effective_family
+            and not provider_conflicts
+            and not effort_conflicts
         )
         if is_same_route:
             same_route_roles.append(role)
@@ -2878,6 +2900,8 @@ def _add_escalation_route_resolution_check(
             "resolved_provider": effective_provider,
             "resolved_reasoning_effort": effective_effort,
             "role_route_family": role_family,
+            "role_route_provider": role_provider,
+            "role_route_reasoning_effort": role_effort,
             "escalation_degraded": is_same_route,
         }
 
@@ -2914,7 +2938,17 @@ def _add_reload_propagation_check(
     directive, and (b) the escalation directive (P-013.6) in each installed
     pipeline agent -- rather than a stale route surviving a session-start
     reload. Gated on the Orchestrator agent file's existence for (a); each of
-    Stage/Ship is checked independently for (b) when present."""
+    Stage/Ship is checked independently for (b) when present.
+
+    Uses SCOPED action markers (matching the pattern established by
+    `_add_orchestrator_invocation_routing_directive_check` above), not a bare
+    whole-file substring check: a whole-file check is satisfiable by a single
+    marker phrase (e.g. "Propagate to inherited skills (H7): ..." or "See the
+    Session-Start Dynamic Reload (H7) section.") even after the actual
+    propagation/tie-in content it summarizes has been deleted -- found via
+    Copilot review of PR #316. Each marker's window is required to also
+    contain the substantive semantic content next to it, not just the marker
+    itself."""
     orchestrator_path = workspace_path / ".github/agents/_orchestrator.agent.md"
     stage_path = workspace_path / ".github/agents/_stage.agent.md"
     ship_path = workspace_path / ".github/agents/_ship.agent.md"
@@ -2923,27 +2957,53 @@ def _add_reload_propagation_check(
         return
 
     errors: list[str] = []
+    window_span = 600
 
     if orchestrator_path.exists():
         content = orchestrator_path.read_text(encoding="utf-8")
-        required = ["inherited skills", "H7"]
-        missing = [token for token in required if token not in content]
-        if missing:
+        marker = "Propagate to inherited skills"
+        marker_idx = content.find(marker)
+        if marker_idx == -1 or "H7" not in content:
             errors.append(
                 f"orchestrator agent definition ({orchestrator_path}) is missing "
-                f"the inherited-skill propagation tokens: {missing}"
+                f"the inherited-skill propagation marker: {marker!r} / 'H7'"
             )
+        else:
+            window = content[marker_idx : marker_idx + window_span]
+            required_in_window = ["H7", "ROUTING_DEGRADED", "no independent model binding"]
+            missing_in_window = [token for token in required_in_window if token not in window]
+            if missing_in_window:
+                errors.append(
+                    f"orchestrator agent definition ({orchestrator_path}) declares "
+                    f"the '{marker}' marker but is missing substantive propagation "
+                    f"content in the scoped window near it (not just a summary "
+                    f"reference): {missing_in_window}"
+                )
 
     for agent_name, agent_path in (("stage", stage_path), ("ship", ship_path)):
         if not agent_path.exists():
             continue
         content = agent_path.read_text(encoding="utf-8")
-        required = ["Session-Start Dynamic Reload", "H7"]
-        missing = [token for token in required if token not in content]
-        if missing:
+        h7_idx = content.find("H7")
+        if h7_idx == -1:
             errors.append(
-                f"{agent_name} agent definition ({agent_path}) is missing the "
-                f"escalation-reload propagation tokens: {missing}"
+                f"{agent_name} agent definition ({agent_path}) is missing an H7 "
+                "escalation-reload propagation reference"
+            )
+            continue
+        window_start = max(0, h7_idx - window_span // 2)
+        window = content[window_start : h7_idx + window_span // 2]
+        required_in_window = [
+            "Session-Start Dynamic Reload",
+            "stale escalation directive surviving a reload is a defect",
+        ]
+        missing_in_window = [token for token in required_in_window if token not in window]
+        if missing_in_window:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) references 'H7' "
+                f"but is missing the substantive propagation tie-in in the "
+                f"scoped window near it (not just a bare cross-reference): "
+                f"{missing_in_window}"
             )
 
     report["targeted_checks"][key] = {
@@ -3038,16 +3098,27 @@ def _add_session_start_reload_check(
     key: str,
     workspace_path: Path,
 ) -> None:
-    """E8B5B3C5/113.004-T (H6): verify the installed Orchestrator agent
-    definition documents the session-start dynamic reload contract -- fresh
-    config re-read, schema validation before resolution, and a fail-closed
-    halt on invalid/missing config, rather than falling back to a prior
-    session's resolved routes or an installed agent's baked frontmatter
-    model_family/model_provider/reasoning_effort values. Gated on the
-    Orchestrator agent file's existence: a workspace without it registers no
+    """E8B5B3C5/113.004-T (H6): verify every installed, independently
+    invocable pipeline agent definition documents the session-start dynamic
+    reload contract -- fresh config re-read, schema validation before
+    resolution, and a fail-closed halt on invalid/missing config, rather than
+    falling back to a prior session's resolved routes or an installed
+    agent's baked frontmatter model_family/model_provider/reasoning_effort
+    values. Orchestrator is the primary home of this contract, but Stage and
+    Ship both explicitly support direct operator invocation without an
+    installed Orchestrator (each documents its own fallback/direct-invocation
+    path), so each is checked independently for a SELF-CONTAINED H6 fail-
+    closed directive rather than a bare cross-reference to the Orchestrator's
+    section -- a Stage- or Ship-only install must not be able to keep using a
+    stale/baked route after a config edit while this check still passes
+    (Copilot review, PR #316). Gated on at least one of the three agent
+    files existing: a workspace with none of them installed registers no
     failure."""
     orchestrator_path = workspace_path / ".github/agents/_orchestrator.agent.md"
-    if not orchestrator_path.exists():
+    stage_path = workspace_path / ".github/agents/_stage.agent.md"
+    ship_path = workspace_path / ".github/agents/_ship.agent.md"
+
+    if not orchestrator_path.exists() and not stage_path.exists() and not ship_path.exists():
         return
 
     required_tokens = [
@@ -3060,19 +3131,28 @@ def _add_session_start_reload_check(
         "H6",
     ]
 
-    content = orchestrator_path.read_text(encoding="utf-8")
-    missing = [token for token in required_tokens if token not in content]
     errors: list[str] = []
-    if missing:
-        errors.append(
-            f"orchestrator agent definition ({orchestrator_path}) is missing "
-            f"the session-start dynamic reload directive tokens: {missing}"
-        )
+    for agent_name, agent_path in (
+        ("orchestrator", orchestrator_path),
+        ("stage", stage_path),
+        ("ship", ship_path),
+    ):
+        if not agent_path.exists():
+            continue
+        content = agent_path.read_text(encoding="utf-8")
+        missing = [token for token in required_tokens if token not in content]
+        if missing:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) is missing "
+                f"the session-start dynamic reload directive tokens: {missing}"
+            )
 
     report["targeted_checks"][key] = {
         "ok": not errors,
         "errors": errors,
-        "orchestrator_present": True,
+        "orchestrator_present": orchestrator_path.exists(),
+        "stage_present": stage_path.exists(),
+        "ship_present": ship_path.exists(),
     }
 
 

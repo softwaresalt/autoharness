@@ -671,9 +671,19 @@ operator-halt checkpoint:
    always reads the freshly session-start-reloaded config (never a value
    cached earlier in a long session or resolved by a prior session) — see
    the Orchestrator's Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section;
-   a stale escalation directive surviving a reload is a defect. This is the
-   config-resolved successor to ad hoc "suggest a frontier-tier model"
-   prose — the route is now declared, not improvised.
+   a stale escalation directive surviving a reload is a defect. **Session-Start
+   Dynamic Reload (H6) — self-contained for direct invocation**: Ship supports
+   being invoked directly without an installed Orchestrator (see the Fallback
+   path in the Work Intake section). When invoked this way, Ship independently
+   applies the same fail-closed reload contract at its own session start
+   rather than relying on an Orchestrator that may not be present: re-read
+   `.autoharness/config.yaml` fresh at the start of the session, validate it
+   against schema before resolving any route, and HALT to the operator on
+   invalid, missing, or schema-failing config — Ship MUST NOT continue on a
+   stale/baked route carried over from this file's frontmatter or a prior
+   session's resolved value, and MUST NOT invent a last-known-good fallback.
+   This is the config-resolved successor to ad hoc "suggest a frontier-tier
+   model" prose — the route is now declared, not improvised.
 3. **Same-route guard (role-scoped, H3)**: if the resolved escalation tuple
    equals this agent's own role route tuple (P-013.5) — Ship currently
    operates at `claude-sonnet-5`/`anthropic`/`high`, distinct from `tier3`

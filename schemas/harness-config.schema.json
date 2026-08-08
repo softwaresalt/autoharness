@@ -13,15 +13,15 @@
       "anyOf": [
         {
           "required": ["model_family"],
-          "properties": { "model_family": { "type": "string", "minLength": 1 } }
+          "properties": { "model_family": { "type": "string", "minLength": 1, "pattern": "\\S" } }
         },
         {
           "required": ["model_provider"],
-          "properties": { "model_provider": { "type": "string", "minLength": 1 } }
+          "properties": { "model_provider": { "type": "string", "minLength": 1, "pattern": "\\S" } }
         },
         {
           "required": ["reasoning_effort"],
-          "properties": { "reasoning_effort": { "type": "string", "minLength": 1 } }
+          "properties": { "reasoning_effort": { "type": "string", "minLength": 1, "pattern": "\\S" } }
         }
       ]
     }
