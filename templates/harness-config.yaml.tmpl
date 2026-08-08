@@ -93,22 +93,25 @@ model_routing:
     # Takes precedence over the legacy flat model_routing.escalation below;
     # missing sub-fields fall back per-field to tier3 (never to the legacy
     # flat route). MUST NOT be declared alongside a non-empty legacy flat
-    # escalation (both-present is AMBIGUOUS and fails closed, H2). Uncomment
-    # and fill in to declare:
-    # escalation:
-    #   model_family: ""
-    #   model_provider: ""
-    #   reasoning_effort: ""
+    # escalation (both-present is AMBIGUOUS and fails closed, H2). Always
+    # rendered (like the flat escalation block below) so Step 3.4 can
+    # preserve an existing operator value through re-render/tune; leave
+    # sub-fields empty to omit this override.
+    escalation:
+      model_family: "{{STAGE_ESCALATION_FAMILY}}"
+      model_provider: "{{STAGE_ESCALATION_PROVIDER}}"
+      reasoning_effort: "{{STAGE_ESCALATION_REASONING_EFFORT}}"
   ship:
     model_family: "{{SHIP_FAMILY}}"               # Ship role route (falls back to tier2 when empty)
     model_provider: "{{SHIP_PROVIDER}}"
     reasoning_effort: "{{SHIP_REASONING_EFFORT}}"
     # F02FD596: optional nested per-role escalation override for Ship. Same
-    # precedence/ambiguity rules as Stage's nested escalation above.
-    # escalation:
-    #   model_family: ""
-    #   model_provider: ""
-    #   reasoning_effort: ""
+    # precedence/ambiguity/always-rendered rules as Stage's nested
+    # escalation above.
+    escalation:
+      model_family: "{{SHIP_ESCALATION_FAMILY}}"
+      model_provider: "{{SHIP_ESCALATION_PROVIDER}}"
+      reasoning_effort: "{{SHIP_ESCALATION_REASONING_EFFORT}}"
   # P-013.6: optional escalation route for telemetry-driven auto-escalation.
   # Absent/empty sub-fields fall back per-field to tier3. If the resolved
   # route equals a declared role route's resolved route, that is
