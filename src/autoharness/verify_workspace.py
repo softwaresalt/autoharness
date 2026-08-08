@@ -2694,6 +2694,19 @@ def _add_role_route_resolution_check(
     }
 
 
+def _escalation_route_has_any_field(route: Any) -> bool:
+    """True when a route dict declares at least one non-empty
+    model_family/model_provider/reasoning_effort field. Used to distinguish
+    "key present but empty" from "key genuinely declares an override" for the
+    F02FD596 both-present ambiguity check and nested-vs-legacy precedence."""
+    if not isinstance(route, dict):
+        return False
+    return any(
+        isinstance(route.get(field), str) and route.get(field).strip()
+        for field in ("model_family", "model_provider", "reasoning_effort")
+    )
+
+
 def _add_escalation_route_resolution_check(
     report: dict[str, Any],
     key: str,
@@ -2702,22 +2715,39 @@ def _add_escalation_route_resolution_check(
     stage_installed: bool = False,
     ship_installed: bool = False,
 ) -> None:
-    """P-013.6: verify that the escalation route resolves to a non-empty
-    model_family, either from an explicit model_routing.escalation route or
-    via per-field fallback to model_routing.tier3 (mirrors
+    """P-013.6 / F02FD596: verify that each role's escalation route resolves
+    to a non-empty model_family, honoring the nested-per-role escalation
+    hierarchy: `<role>.escalation` -> legacy flat `model_routing.escalation`
+    (deprecated) -> per-field fallback to `model_routing.tier3` (mirrors
     _add_role_route_resolution_check's tier-fallback pattern for stage/ship).
 
-    Also detects the ESCALATION_DEGRADED same-route condition: when the
-    resolved escalation model_family equals the resolved model_family of an
-    already-declared stage/ship role route (P-013.5), an auto-escalation
-    attempt would silently re-run at an identical model -- not a real
-    escalation to deeper reasoning. Comparison is on model_family (the field
-    that actually determines reasoning capability); model_provider and
+    **Both-present fail-closed (H2)**: when the legacy flat
+    `model_routing.escalation` AND at least one nested `<role>.escalation`
+    both declare a non-empty field, the configuration is AMBIGUOUS -- this
+    check fails closed immediately (no per-role resolution attempted) rather
+    than silently picking a winner. This mirrors the schema-level `not`
+    constraint in harness-config.schema.json; this check is the
+    loader-enforced backstop for any shape the schema constraint cannot fully
+    express.
+
+    **Per-field fallback integrity (H4)**: a nested `<role>.escalation` that
+    declares only some fields falls back per-field to `model_routing.tier3`
+    for the missing fields -- NEVER to the legacy flat route. An explicit
+    nested override, even a partial one, never silently defers to the shared
+    legacy escalation.
+
+    **Role-scoped ESCALATION_DEGRADED (H3)**: detects the same-route no-op
+    condition per role: when a role's own effective escalation resolution
+    (nested if declared, else legacy flat, else tier3) equals THAT SAME
+    role's own resolved role-route model_family (P-013.5), an auto-escalation
+    attempt for that role would silently re-run at an identical model -- not
+    a real escalation to deeper reasoning. Comparison is on model_family (the
+    field that actually determines reasoning capability); model_provider and
     reasoning_effort are recorded for diagnostics but are not required to
     match for the degraded condition to fire, since a bare tier3 string
     fallback structurally lacks those sub-fields. Fails closed: an
-    unresolvable route, or an undeclared same-route no-op, is a verification
-    failure -- not a silent pass.
+    unresolvable route, an ambiguous both-present config, or an undeclared
+    same-route no-op, is a verification failure -- not a silent pass.
 
     `stage_installed` / `ship_installed` widen the same-route comparison
     beyond "has an explicit override key in model_routing" (Copilot review
@@ -2727,18 +2757,62 @@ def _add_escalation_route_resolution_check(
     resolves to `tier3`, and if escalation also falls back to `tier3` with
     no distinct override, that is the exact same-route collision this guard
     exists to catch. A role is compared whenever it has an explicit
-    override key OR its corresponding pipeline agent is installed."""
+    override key OR its corresponding pipeline agent is installed.
+
+    The top-level `resolved_escalation_family`/`resolved_escalation_provider`/
+    `resolved_escalation_reasoning_effort` fields are computed from the LEGACY
+    FLAT route (unchanged from the pre-nesting behavior, H1 regression
+    guarantee): when no nested `<role>.escalation` is declared anywhere, this
+    is byte-for-byte identical to the pre-F02FD596 resolution. Per-role
+    effective resolution (which may differ per role when nested overrides are
+    declared) is additionally recorded under `per_role`."""
     model_routing = config.get("model_routing") or {}
     errors: list[str] = []
 
-    escalation_route = model_routing.get("escalation") or {}
-    if not isinstance(escalation_route, dict):
-        escalation_route = {}
+    flat_escalation = model_routing.get("escalation") or {}
+    if not isinstance(flat_escalation, dict):
+        flat_escalation = {}
+    flat_present = _escalation_route_has_any_field(flat_escalation)
     tier3_fallback = model_routing.get("tier3")
 
-    resolved_family = _resolve_role_route_field(escalation_route, tier3_fallback, "model_family")
-    resolved_provider = _resolve_role_route_field(escalation_route, tier3_fallback, "model_provider")
-    resolved_effort = _resolve_role_route_field(escalation_route, tier3_fallback, "reasoning_effort")
+    # H2: both-present ambiguity is checked FIRST, before any per-role
+    # resolution is attempted -- fail closed, never auto-pick a winner.
+    nested_by_role: dict[str, dict[str, Any]] = {}
+    nested_present_any = False
+    for role in ROLE_ROUTE_TIER_FALLBACK:
+        role_block = model_routing.get(role) or {}
+        if not isinstance(role_block, dict):
+            role_block = {}
+        nested = role_block.get("escalation") or {}
+        if not isinstance(nested, dict):
+            nested = {}
+        nested_by_role[role] = nested
+        if _escalation_route_has_any_field(nested):
+            nested_present_any = True
+
+    if flat_present and nested_present_any:
+        report["targeted_checks"][key] = {
+            "ok": False,
+            "errors": [
+                "AMBIGUOUS_ESCALATION_CONFIG: both the legacy flat "
+                "model_routing.escalation and at least one nested "
+                "<role>.escalation are declared -- fail closed, never "
+                "auto-pick a winner (F02FD596/H2). Remove the legacy flat "
+                "model_routing.escalation once migrated to nested per-role "
+                "escalation, or remove the nested override(s) to keep the "
+                "legacy shared route."
+            ],
+            "ambiguous": True,
+            "same_route_roles": [],
+        }
+        return
+
+    # Legacy/flat resolution snapshot -- unchanged computation from the
+    # pre-nesting implementation (H1 regression guarantee: identical to
+    # before when no nested escalation is declared anywhere).
+    resolved_family = _resolve_role_route_field(flat_escalation, tier3_fallback, "model_family")
+    resolved_provider = _resolve_role_route_field(flat_escalation, tier3_fallback, "model_provider")
+    resolved_effort = _resolve_role_route_field(flat_escalation, tier3_fallback, "reasoning_effort")
 
     if not (isinstance(resolved_family, str) and resolved_family.strip()):
         errors.append(
@@ -2748,43 +2822,85 @@ def _add_escalation_route_resolution_check(
 
     role_installed = {"stage": stage_installed, "ship": ship_installed}
     same_route_roles: list[str] = []
-    if resolved_family:
-        for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
-            # In scope for the same-route comparison when the role has
-            # either an explicit override key declared in model_routing, or
-            # its corresponding pipeline agent is actually installed (and
-            # therefore live-adopts the P-013.5 fallback chain regardless of
-            # whether an override key exists).
-            if role not in model_routing and not role_installed.get(role, False):
-                continue
-            role_route = model_routing.get(role) or {}
-            if not isinstance(role_route, dict):
-                role_route = {}
-            role_tier_fallback = model_routing.get(fallback_tier_key)
-            role_family = _resolve_role_route_field(role_route, role_tier_fallback, "model_family")
-            if (
-                isinstance(role_family, str)
-                and role_family.strip()
-                and role_family == resolved_family
-            ):
-                same_route_roles.append(role)
+    per_role: dict[str, dict[str, Any]] = {}
+    deprecated_flat_in_use = False
+
+    for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
+        # In scope for the same-route comparison when the role has
+        # either an explicit override key declared in model_routing, or
+        # its corresponding pipeline agent is actually installed (and
+        # therefore live-adopts the P-013.5 fallback chain regardless of
+        # whether an override key exists).
+        if role not in model_routing and not role_installed.get(role, False):
+            continue
+
+        nested = nested_by_role[role]
+        if _escalation_route_has_any_field(nested):
+            # H4: an explicit nested override falls back per-field to tier3
+            # ONLY -- never to the legacy flat route.
+            effective_source_route = nested
+            source = "nested"
+        else:
+            effective_source_route = flat_escalation
+            source = "legacy_flat" if flat_present else "tier3_fallback"
+            if flat_present:
+                deprecated_flat_in_use = True
+
+        effective_family = _resolve_role_route_field(effective_source_route, tier3_fallback, "model_family")
+        effective_provider = _resolve_role_route_field(effective_source_route, tier3_fallback, "model_provider")
+        effective_effort = _resolve_role_route_field(effective_source_route, tier3_fallback, "reasoning_effort")
+
+        if not (isinstance(effective_family, str) and effective_family.strip()):
+            errors.append(
+                f"{role} escalation route does not resolve: no model_family "
+                f"from model_routing.{role}.escalation, legacy "
+                "model_routing.escalation, or fallback model_routing.tier3"
+            )
+
+        role_route = model_routing.get(role) or {}
+        if not isinstance(role_route, dict):
+            role_route = {}
+        role_tier_fallback = model_routing.get(fallback_tier_key)
+        role_family = _resolve_role_route_field(role_route, role_tier_fallback, "model_family")
+
+        is_same_route = (
+            isinstance(role_family, str)
+            and role_family.strip()
+            and isinstance(effective_family, str)
+            and role_family == effective_family
+        )
+        if is_same_route:
+            same_route_roles.append(role)
+
+        per_role[role] = {
+            "source": source,
+            "resolved_family": effective_family,
+            "resolved_provider": effective_provider,
+            "resolved_reasoning_effort": effective_effort,
+            "role_route_family": role_family,
+            "escalation_degraded": is_same_route,
+        }
 
     if same_route_roles:
         errors.append(
-            "ESCALATION_DEGRADED: resolved escalation model_family "
-            f"{resolved_family!r} equals the resolved role-route model_family "
-            f"for {', '.join(same_route_roles)} -- same-route no-op, not a "
-            "genuine escalation to deeper reasoning; declare an explicit "
-            "model_routing.escalation with a distinct model_family"
+            "ESCALATION_DEGRADED: role(s) "
+            f"{', '.join(same_route_roles)} resolve an escalation route "
+            "identical to their own already-resolved role route -- "
+            "same-route no-op, not a genuine escalation to deeper "
+            "reasoning; declare a distinct model_family for that role's "
+            "escalation route."
         )
 
     report["targeted_checks"][key] = {
         "ok": not errors,
         "errors": errors,
+        "ambiguous": False,
         "resolved_escalation_family": resolved_family,
         "resolved_escalation_provider": resolved_provider,
         "resolved_escalation_reasoning_effort": resolved_effort,
         "same_route_roles": same_route_roles,
+        "deprecated_flat_in_use": deprecated_flat_in_use,
+        "per_role": per_role,
     }
 
 

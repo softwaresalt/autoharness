@@ -4030,6 +4030,148 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertEqual(check["same_route_roles"], [])
         self.assertEqual(check["resolved_escalation_provider"], "openai")
 
+    # -- F02FD596: nested per-role escalation hierarchy (113.002-T) --
+
+    def test_escalation_route_resolution_helper_fails_closed_on_both_present(self) -> None:
+        """H2: a legacy flat model_routing.escalation coexisting with any
+        nested <role>.escalation is AMBIGUOUS and must fail closed -- never
+        auto-pick a winner."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": "claude-opus-5",
+                "escalation": {"model_family": "gpt-5.6-sol", "model_provider": "openai"},
+                "stage": {
+                    "model_family": "claude-opus-5",
+                    "escalation": {"model_family": "claude-sonnet-5"},
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(check["ok"], f"expected both-present ambiguity to fail closed: {check}")
+        self.assertTrue(check.get("ambiguous"))
+        self.assertTrue(
+            any("AMBIGUOUS_ESCALATION_CONFIG" in e for e in check["errors"]),
+            f"expected an AMBIGUOUS_ESCALATION_CONFIG error, got: {check['errors']}",
+        )
+
+    def test_escalation_route_resolution_helper_ignores_empty_flat_alongside_nested(self) -> None:
+        """An empty flat `escalation: {}` (no fields set) does not count as
+        'present' for the both-present ambiguity check -- only a nested
+        override with a genuinely distinct route matters here."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": "claude-opus-5",
+                "escalation": {},
+                "stage": {
+                    "model_family": "claude-opus-5",
+                    "escalation": {"model_family": "claude-sonnet-5"},
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(check.get("ambiguous"))
+        self.assertTrue(check["ok"], f"expected empty flat + nested to resolve cleanly: {check}")
+        self.assertEqual(check["per_role"]["stage"]["source"], "nested")
+        self.assertEqual(check["per_role"]["stage"]["resolved_family"], "claude-sonnet-5")
+
+    def test_escalation_route_resolution_helper_nested_per_field_fallback_to_tier3(self) -> None:
+        """H4: a nested <role>.escalation that declares only some fields
+        falls back per-field to model_routing.tier3 for the missing fields --
+        NEVER to the legacy flat route (there is none declared here, but the
+        point is the fallback target, not merely its absence)."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {
+                    "model": "claude-opus-5",
+                    "model_family": "claude-opus-5",
+                    "model_provider": "anthropic",
+                    "reasoning_effort": "high",
+                },
+                "ship": {
+                    "model_family": "claude-sonnet-5",
+                    # Nested escalation declares only model_family -- provider
+                    # and reasoning_effort must fall back per-field to tier3.
+                    "escalation": {"model_family": "claude-opus-5"},
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(
+            report, "escalation_route_resolution", config, ship_installed=True
+        )
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected nested per-field fallback to resolve: {check}")
+        ship_result = check["per_role"]["ship"]
+        self.assertEqual(ship_result["source"], "nested")
+        self.assertEqual(ship_result["resolved_family"], "claude-opus-5")
+        self.assertEqual(ship_result["resolved_provider"], "anthropic")
+        self.assertEqual(ship_result["resolved_reasoning_effort"], "high")
+
+    def test_escalation_route_resolution_helper_role_scoped_nested_distinct_routes(self) -> None:
+        """H3: role-scoped ESCALATION_DEGRADED comparison -- with distinct
+        nested escalation routes per role, Stage's own nested escalation must
+        be compared only against Stage's own role route (not Ship's), and
+        vice versa. Here Stage's nested escalation collides with its own
+        route (degraded) while Ship's distinct nested escalation does not."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": "claude-opus-5",
+                "tier2": "claude-sonnet-5",
+                "stage": {
+                    "model_family": "claude-opus-5",
+                    # Same-route no-op: Stage's own nested escalation equals
+                    # Stage's own role route.
+                    "escalation": {"model_family": "claude-opus-5"},
+                },
+                "ship": {
+                    "model_family": "claude-sonnet-5",
+                    # Distinct: Ship's nested escalation differs from Ship's
+                    # own route.
+                    "escalation": {"model_family": "claude-opus-5"},
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(check["ok"], f"expected Stage same-route degradation to fail: {check}")
+        self.assertEqual(check["same_route_roles"], ["stage"])
+        self.assertTrue(check["per_role"]["stage"]["escalation_degraded"])
+        self.assertFalse(check["per_role"]["ship"]["escalation_degraded"])
+        self.assertEqual(check["per_role"]["ship"]["resolved_family"], "claude-opus-5")
+
+    def test_escalation_route_resolution_helper_deprecated_flat_flagged_when_used(self) -> None:
+        """A role with no nested override that falls back to the legacy flat
+        route is recorded as using the deprecated path (informational, not a
+        failure)."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": "claude-opus-5",
+                "stage": {"model_family": "claude-opus-5"},
+                "escalation": {"model_family": "gpt-5.6-sol", "model_provider": "openai"},
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected legacy flat fallback to resolve cleanly: {check}")
+        self.assertTrue(check["deprecated_flat_in_use"])
+        self.assertEqual(check["per_role"]["stage"]["source"], "legacy_flat")
+
     def test_verify_workspace_flags_escalation_route_resolution_failure_end_to_end(self) -> None:
         """P-013.6 fail-closed, end to end: an explicitly declared but
         unresolvable escalation route must fail overall verification."""
