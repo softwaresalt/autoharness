@@ -67,7 +67,7 @@ status: implemented
 >   `stage_model_routing_fields` / `ship_model_routing_fields`,
 >   `orchestrator_invocation_routing_directive`, `role_route_resolution`).
 >
-> Dogfood assignment for this repository: Stage → `claude-opus-4.8`
+> Dogfood assignment for this repository: Stage → `claude-opus-5`
 > (anthropic, high), Ship → `claude-sonnet-5` (anthropic, high), per
 > `.autoharness/config.yaml`.
 

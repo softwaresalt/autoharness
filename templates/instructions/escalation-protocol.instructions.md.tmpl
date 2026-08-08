@@ -78,15 +78,43 @@ payload containing the following fields before re-routing or halting:
 | `evidence_path` | Path to any structured telemetry evidence backing the failure (when telemetry is enabled), aligned with `schemas/tool-telemetry-event.schema.json#evidence_path`. Absent/empty when telemetry is disabled — this is not itself a failure condition. |
 | `resumption_checkpoint_ref` | A reference (checkpoint filename, memory doc path, or backlog comment) that lets the resolved escalation route (or the operator) resume the unit of work without losing state. |
 
-## Escalation Route Resolution (P-013.6)
+## Escalation Route Resolution (P-013.6 / F02FD596 nested per-role hierarchy)
 
-The escalation route resolves from `config.model_routing.escalation`
-(`{{ESCALATION_FAMILY}}` / `{{ESCALATION_PROVIDER}}` / `{{ESCALATION_REASONING_EFFORT}}`),
-falling back **per field** to `model_routing.tier3`
-(`{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` / `{{TIER_3_REASONING_EFFORT}}`) when
-the `escalation` route or a given sub-field is absent or empty. This mirrors the
-P-013.5 `stage`/`ship` role-route fallback pattern: a targeted override, never a
-parallel tier taxonomy.
+The escalation route resolves via a role-scoped precedence:
+
+1. **Nested per-role override**: `model_routing.<role>.escalation`
+   (`stage.escalation` or `ship.escalation`, matching the acting agent's own
+   role). When declared, the acting role resolves its escalation route from
+   this nested block. A nested override that declares only some fields falls
+   back **per field** to `model_routing.tier3` for the missing fields —
+   **never** to the legacy flat route below; an explicit nested override
+   never silently defers to the shared legacy route.
+2. **Legacy flat fallback (DEPRECATED)**: when the acting role has no nested
+   `escalation` override, `model_routing.escalation`
+   (`{{ESCALATION_FAMILY}}` / `{{ESCALATION_PROVIDER}}` / `{{ESCALATION_REASONING_EFFORT}}`
+   — the pre-F02FD596 flat, role-agnostic route) resolves instead, with a
+   deprecation notice. This is retained, unremoved, for backward
+   compatibility. Whether this fallback is actually active for the acting
+   role in this installed workspace depends on whether a nested override is
+   declared for that role — check `model_routing.<role>.escalation` at
+   session-start reload time (H6) rather than assuming either shape from this
+   static instruction text, which describes the general precedence rule for
+   any workspace, not a fixed installed fact about this one.
+3. **Tier3 fallback**: any field still unresolved after (1)/(2) falls back
+   per-field to `model_routing.tier3`
+   (`{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` / `{{TIER_3_REASONING_EFFORT}}`).
+
+This mirrors the P-013.5 `stage`/`ship` role-route fallback pattern: a
+targeted override, never a parallel tier taxonomy.
+
+**Both-present fail-closed (H2)**: the legacy flat `model_routing.escalation`
+and any nested `<role>.escalation` (for either role) MUST NOT both declare a
+non-empty field. When both are present, resolution is **AMBIGUOUS** and MUST
+fail closed — a schema-level constraint rejects this shape where expressible,
+and the loader/verification layer enforces the same rule as a backstop.
+Never auto-pick a winner; migrate fully to nested per-role escalation, or
+remove the nested override(s), to resolve the ambiguity.
+
 
 ## `ESCALATION_DEGRADED` (canonical definition — defined once, referenced elsewhere)
 
@@ -96,12 +124,16 @@ parallel tier taxonomy.
    the runtime (the model/provider is not available in this environment).
 2. **Engram unavailable.** The terminal engram handoff surface cannot be reached
    (no MCP tool, no file-based fallback capable of receiving the handoff).
-3. **Same-route no-op.** The fully-resolved escalation tuple
-   `(model_family, model_provider, reasoning_effort)` equals the acting agent's
-   own already-resolved role route tuple (P-013.5) for this session — for
-   example, an agent whose role route is already pinned to `tier3` receiving an
-   unset `escalation` route that also falls back to `tier3` would "escalate" to
-   an identical model, which is not a real escalation.
+3. **Same-route no-op (role-scoped, H3).** The fully-resolved escalation
+   tuple `(model_family, model_provider, reasoning_effort)` for the ACTING
+   role's own effective escalation route (nested `<role>.escalation` if
+   declared, else legacy flat, else tier3 fallback) equals that SAME acting
+   role's own already-resolved role route tuple (P-013.5) for this session —
+   compared only against the acting role's own route, never a different
+   role's route. For example, an agent whose role route is already pinned to
+   `tier3` receiving an unset `escalation` route that also falls back to
+   `tier3` would "escalate" to an identical model, which is not a real
+   escalation.
 
 When `ESCALATION_DEGRADED` is declared, the halting agent MUST fall back to its
 existing **operator-halt** path (the Stop Conditions escalation prompt already

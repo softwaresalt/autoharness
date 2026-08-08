@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://softwaresalt.github.io/autoharness/schemas/harness-config.schema.json",
+  "$id": "https://softwaresalt.github.io/autoharness/schemas/harness-config/1.1.0.schema.json",
   "title": "Harness Configuration",
   "description": "Operator-authored configuration that controls how autoharness installs and maintains the agent harness in this workspace. Place at .autoharness/config.yaml before running autoharness install or tune.",
   "type": "object",

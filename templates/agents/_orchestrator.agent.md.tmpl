@@ -411,7 +411,7 @@ This agent operates at **Tier 2 (Standard)** by default, but supports an indepen
 | Agent | Tier | Default Model Family |
 |---|---|---|
 | Orchestrator | 2 (overridable) | `gpt-5.4` |
-| Stage | 3 (Frontier) | `claude-opus-4.8` |
+| Stage | 3 (Frontier) | `claude-opus-5` |
 | Ship | 2 (Standard) | `claude-sonnet-5` |
 | Auto-MergeInstall | 2 (Standard) | Inherits tier2 default |
 | Auto-Tune | 2 (Standard) | Inherits tier2 default |
@@ -423,8 +423,85 @@ This agent operates at **Tier 2 (Standard)** by default, but supports an indepen
 * **Resolve**: read the role route; apply tier fallback per unset sub-field.
 * **Declare**: pass the resolved fields as the invocation override when the runtime supports per-invocation model directives — never a baked provider-specific `--model` CLI flag (Core Rule 3).
 * **Degrade explicitly**: when the runtime cannot honor a per-invocation override, emit `ROUTING_DEGRADED` naming the subagent and the resolved route that could not be honored, and surface it to the operator — never silently fall back to the current session model without declaring the degradation.
+* **Propagate to inherited skills (P-013.5/H7)**: skills invoked by Stage/Ship at
+  depth 2 (see the Subagent Depth table below) do not carry an independent
+  `model_family`/`model_provider` binding of their own — they execute inside the
+  depth-1 agent's own invocation, so the depth-1 override declared above already
+  covers them. There is nothing separate to "resolve" or "reload" at the skill
+  layer. If a runtime ever exposes an independent per-skill model binding that
+  could diverge from its parent invocation's override, that divergence is itself
+  a `ROUTING_DEGRADED` condition and must be declared, never silently absorbed.
 
 `verify_workspace` fails closed (P-013.5) when a pipeline agent's installed `model_family`/`model_provider` is empty or an unresolved `{{...}}` placeholder, when this Orchestrator's installed definition lacks the routing directive, or when a declared `stage`/`ship` role route does not resolve.
+
+**Session-Start Dynamic Reload (E8B5B3C5)**: There is no persistent, long-running
+harness process that holds routing state across sessions — every Orchestrator,
+Stage, and Ship invocation is a fresh session. Because of that, "cache
+invalidation" here means never treating a *prior* session's resolved routes, nor
+an installed agent definition's frontmatter `model_family`/`model_provider`/
+`reasoning_effort` (a value baked once at install time by `install-harness`), as
+still-authoritative for a *new* session. At the start of every new session,
+before any P-013.5 invocation-time resolution above is performed:
+
+1. **Re-read fresh**: read `.autoharness/config.yaml` directly from disk. Never
+   reuse a value carried over in conversation context from a previous session,
+   and never treat the frontmatter `model_family`/`model_provider`/
+   `reasoning_effort` baked into `.github/agents/*.agent.md` as the live source
+   of truth — those frontmatter values are install-time DEFAULTS/documentation
+   only (H8); the authoritative value is always this session's fresh config
+   read.
+2. **Explicit fail-closed precheck, then schema-validate on reload (H6)**: before
+   trusting any schema result, apply this precheck directly to the freshly-read
+   config: if the file is missing, fails to parse, parses to an empty/falsy
+   document, or omits `schema_version`, treat reload as INVALID and go straight
+   to step 3 — do not proceed to route resolution. This precheck exists because
+   `autoharness verify-workspace` is a general cross-artifact compatibility
+   report, not a strict validation gate: by design (for its broader manifest/
+   config/profile compatibility-scan use, where it must tolerate legacy and
+   partially-populated installs) it skips schema validation entirely for an
+   empty/falsy config document and downgrades a missing `schema_version` to a
+   non-blocking compatibility warning rather than a hard failure. Relying on
+   its output alone would let exactly those two conditions slip past reload
+   silently, so H6 layers this stricter, reload-specific precheck on top of —
+   never in place of — `verify-workspace`'s own compatibility classification.
+   Only once the precheck passes, validate the config against the harness-config
+   schema before resolving any role or escalation route from it. Installed
+   target workspaces do not receive the engine's `schemas/` directory -- the
+   schema lives in the autoharness installation
+   (`{autoharness_home}/schemas/harness-config.schema.json`, per Core Rule 3 and
+   `harness-architecture.instructions.md`), never assumed workspace-relative.
+   Resolve `autoharness_home` via the same order used elsewhere in this agent
+   (`AUTOHARNESS_HOME` env var → `autoharness home` CLI → the directory
+   containing this agent definition, traversed up → `~/.autoharness/`), then
+   run the globally installed CLI:
+   `autoharness verify-workspace --workspace {workspace_path} --autoharness-home {autoharness_home} --json`
+   and inspect the harness-config schema result (`strict_schema_blockers` for
+   the `config` contract) for anything beyond the two precheck conditions above.
+   Do not assume a `uv run`/Python-project-local invocation is available in the
+   target workspace -- that pattern only holds for this self-hosting
+   repository's own dogfood use.
+3. **Fail-closed halt — no stale/baked routes (H6)**: if the precheck in step 2
+   found the config missing, unparseable, empty, or missing `schema_version`,
+   or if the subsequent schema validation reports a `strict_schema_blockers`
+   entry for the config contract, HALT to the operator immediately. Do NOT
+   continue using a previously-resolved/baked route, and do NOT invent a
+   last-known-good fallback. A provider model update or a routing config edit
+   made between sessions MUST take effect on the very next session without
+   requiring the harness to be reinstalled — silently continuing on stale
+   routing after a config edit or a broken config defeats that guarantee and is
+   a defect.
+4. **Re-resolve, then proceed**: once schema validation passes, re-resolve
+   `orchestrator`/`tier2`/`tier3`/`stage`/`ship` (and, per-role, the nested
+   `escalation` hierarchy — see
+   `.github/instructions/escalation-protocol.instructions.md`) from this fresh
+   read, then proceed with the P-013.5 invocation-time enforcement above using
+   these freshly-resolved values.
+
+Freshly re-resolved routes propagate to invoked agents (the P-013.5 invocation
+override) and to the escalation directive (P-013.6) — see the Escalation
+Protocol section and `.github/instructions/escalation-protocol.instructions.md`
+for the propagation contract (H7); a stale directive surviving a reload is a
+defect, not an acceptable degraded mode.
 
 **Configuration shape** (in `.autoharness/config.yaml`, resolved from this
 template's own variables at install time — no vendor identifier is hardcoded
@@ -456,7 +533,7 @@ model_routing:
 
 An installed workspace resolves each placeholder to concrete values (for
 example, this repository's own dogfood `.autoharness/config.yaml` resolves
-`stage` to `claude-opus-4.8`/`anthropic` and `ship` to
+`stage` to `claude-opus-5`/`anthropic` and `ship` to
 `claude-sonnet-5`/`anthropic`) — but the `.tmpl` source itself never bakes in
 a provider or model-family string, preserving environment agnosticism (Core
 Rule 3).

@@ -3918,7 +3918,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
         model_family (Stage's explicit route equals tier3, and no distinct
         escalation route is declared), the auto-escalation attempt would be a
         same-route no-op -- this must fail as ESCALATION_DEGRADED, not pass
-        silently."""
+        silently. This also doubles as the one-sided-missing-fields
+        regression case Copilot review round 3 (PR #316) asked for: Stage
+        declares an explicit model_provider/reasoning_effort but the
+        escalation side (bare tier3 fallback) declares neither -- the
+        one-sided-unspecified fields must not manufacture a false conflict
+        that would incorrectly suppress the same-route degraded finding."""
         from autoharness.verify_workspace import _add_escalation_route_resolution_check
 
         report: dict = {"targeted_checks": {}}
@@ -3944,6 +3949,77 @@ class VerifyWorkspaceTests(unittest.TestCase):
             any("ESCALATION_DEGRADED" in e for e in check["errors"]),
             f"expected an ESCALATION_DEGRADED error, got: {check['errors']}",
         )
+
+    def test_escalation_route_resolution_helper_treats_explicit_provider_conflict_as_distinct_route(
+        self,
+    ) -> None:
+        """Copilot review round 3 (PR #316): a matching model_family alone
+        must NOT be treated as same-route when both sides explicitly resolve
+        a differing model_provider. Here Stage's explicit route and the
+        escalation route's tier3 fallback share model_family
+        "claude-opus-4.8", but Stage declares model_provider "anthropic"
+        while tier3 (and therefore the escalation fallback) declares
+        "openai" -- an explicit, resolved conflict on both sides, so this
+        must be a genuine distinct escalation route, not ESCALATION_DEGRADED."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "model_provider": "openai",
+                    "reasoning_effort": "high",
+                },
+                "stage": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "model_provider": "anthropic",
+                    "reasoning_effort": "high",
+                },
+                # No explicit escalation route -> resolves entirely via tier3
+                # fallback, matching family but explicitly conflicting on
+                # provider with Stage's own route.
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected explicit provider conflict to NOT degrade: {check}")
+        self.assertNotIn("stage", check.get("same_route_roles", []))
+
+    def test_escalation_route_resolution_helper_treats_explicit_effort_conflict_as_distinct_route(
+        self,
+    ) -> None:
+        """Copilot review round 3 (PR #316): a matching model_family alone
+        must NOT be treated as same-route when both sides explicitly resolve
+        a differing reasoning_effort. Provider is omitted on both sides
+        (no signal, not a conflict) so only the effort field disagreement is
+        exercised here."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "reasoning_effort": "max",
+                },
+                "stage": {
+                    "model": "claude-opus-4.8",
+                    "model_family": "claude-opus-4.8",
+                    "reasoning_effort": "high",
+                },
+                # No explicit escalation route -> resolves entirely via tier3
+                # fallback, matching family but explicitly conflicting on
+                # reasoning_effort with Stage's own route.
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected explicit effort conflict to NOT degrade: {check}")
+        self.assertNotIn("stage", check.get("same_route_roles", []))
 
     def test_escalation_route_resolution_helper_flags_installed_agent_without_override_as_degraded(
         self,
@@ -4029,6 +4105,148 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertTrue(check["ok"], f"expected distinct escalation route to pass: {check}")
         self.assertEqual(check["same_route_roles"], [])
         self.assertEqual(check["resolved_escalation_provider"], "openai")
+
+    # -- F02FD596: nested per-role escalation hierarchy (113.002-T) --
+
+    def test_escalation_route_resolution_helper_fails_closed_on_both_present(self) -> None:
+        """H2: a legacy flat model_routing.escalation coexisting with any
+        nested <role>.escalation is AMBIGUOUS and must fail closed -- never
+        auto-pick a winner."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": "claude-opus-5",
+                "escalation": {"model_family": "gpt-5.6-sol", "model_provider": "openai"},
+                "stage": {
+                    "model_family": "claude-opus-5",
+                    "escalation": {"model_family": "claude-sonnet-5"},
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(check["ok"], f"expected both-present ambiguity to fail closed: {check}")
+        self.assertTrue(check.get("ambiguous"))
+        self.assertTrue(
+            any("AMBIGUOUS_ESCALATION_CONFIG" in e for e in check["errors"]),
+            f"expected an AMBIGUOUS_ESCALATION_CONFIG error, got: {check['errors']}",
+        )
+
+    def test_escalation_route_resolution_helper_ignores_empty_flat_alongside_nested(self) -> None:
+        """An empty flat `escalation: {}` (no fields set) does not count as
+        'present' for the both-present ambiguity check -- only a nested
+        override with a genuinely distinct route matters here."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": "claude-opus-5",
+                "escalation": {},
+                "stage": {
+                    "model_family": "claude-opus-5",
+                    "escalation": {"model_family": "claude-sonnet-5"},
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(check.get("ambiguous"))
+        self.assertTrue(check["ok"], f"expected empty flat + nested to resolve cleanly: {check}")
+        self.assertEqual(check["per_role"]["stage"]["source"], "nested")
+        self.assertEqual(check["per_role"]["stage"]["resolved_family"], "claude-sonnet-5")
+
+    def test_escalation_route_resolution_helper_nested_per_field_fallback_to_tier3(self) -> None:
+        """H4: a nested <role>.escalation that declares only some fields
+        falls back per-field to model_routing.tier3 for the missing fields --
+        NEVER to the legacy flat route (there is none declared here, but the
+        point is the fallback target, not merely its absence)."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": {
+                    "model": "claude-opus-5",
+                    "model_family": "claude-opus-5",
+                    "model_provider": "anthropic",
+                    "reasoning_effort": "high",
+                },
+                "ship": {
+                    "model_family": "claude-sonnet-5",
+                    # Nested escalation declares only model_family -- provider
+                    # and reasoning_effort must fall back per-field to tier3.
+                    "escalation": {"model_family": "claude-opus-5"},
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(
+            report, "escalation_route_resolution", config, ship_installed=True
+        )
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected nested per-field fallback to resolve: {check}")
+        ship_result = check["per_role"]["ship"]
+        self.assertEqual(ship_result["source"], "nested")
+        self.assertEqual(ship_result["resolved_family"], "claude-opus-5")
+        self.assertEqual(ship_result["resolved_provider"], "anthropic")
+        self.assertEqual(ship_result["resolved_reasoning_effort"], "high")
+
+    def test_escalation_route_resolution_helper_role_scoped_nested_distinct_routes(self) -> None:
+        """H3: role-scoped ESCALATION_DEGRADED comparison -- with distinct
+        nested escalation routes per role, Stage's own nested escalation must
+        be compared only against Stage's own role route (not Ship's), and
+        vice versa. Here Stage's nested escalation collides with its own
+        route (degraded) while Ship's distinct nested escalation does not."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": "claude-opus-5",
+                "tier2": "claude-sonnet-5",
+                "stage": {
+                    "model_family": "claude-opus-5",
+                    # Same-route no-op: Stage's own nested escalation equals
+                    # Stage's own role route.
+                    "escalation": {"model_family": "claude-opus-5"},
+                },
+                "ship": {
+                    "model_family": "claude-sonnet-5",
+                    # Distinct: Ship's nested escalation differs from Ship's
+                    # own route.
+                    "escalation": {"model_family": "claude-opus-5"},
+                },
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertFalse(check["ok"], f"expected Stage same-route degradation to fail: {check}")
+        self.assertEqual(check["same_route_roles"], ["stage"])
+        self.assertTrue(check["per_role"]["stage"]["escalation_degraded"])
+        self.assertFalse(check["per_role"]["ship"]["escalation_degraded"])
+        self.assertEqual(check["per_role"]["ship"]["resolved_family"], "claude-opus-5")
+
+    def test_escalation_route_resolution_helper_deprecated_flat_flagged_when_used(self) -> None:
+        """A role with no nested override that falls back to the legacy flat
+        route is recorded as using the deprecated path (informational, not a
+        failure)."""
+        from autoharness.verify_workspace import _add_escalation_route_resolution_check
+
+        report: dict = {"targeted_checks": {}}
+        config = {
+            "model_routing": {
+                "tier3": "claude-opus-5",
+                "stage": {"model_family": "claude-opus-5"},
+                "escalation": {"model_family": "gpt-5.6-sol", "model_provider": "openai"},
+            }
+        }
+        _add_escalation_route_resolution_check(report, "escalation_route_resolution", config)
+        check = report["targeted_checks"]["escalation_route_resolution"]
+        self.assertTrue(check["ok"], f"expected legacy flat fallback to resolve cleanly: {check}")
+        self.assertTrue(check["deprecated_flat_in_use"])
+        self.assertEqual(check["per_role"]["stage"]["source"], "legacy_flat")
 
     def test_verify_workspace_flags_escalation_route_resolution_failure_end_to_end(self) -> None:
         """P-013.6 fail-closed, end to end: an explicitly declared but
@@ -4304,6 +4522,294 @@ class VerifyWorkspaceTests(unittest.TestCase):
             targeted_checks = report["targeted_checks"]
             self.assertIn("escalation_directive_present", targeted_checks)
             self.assertTrue(targeted_checks["escalation_directive_present"]["ok"])
+
+    def test_session_start_reload_check_skipped_when_orchestrator_not_installed(self) -> None:
+        """Gated entirely on the Orchestrator agent file's existence: a
+        workspace without _orchestrator.agent.md must not register the
+        session_start_reload_directive check at all."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            self.assertNotIn("session_start_reload_directive", report["targeted_checks"])
+
+    def test_session_start_reload_check_fails_when_directive_tokens_missing(self) -> None:
+        """When _orchestrator.agent.md is installed but lacks the
+        session-start dynamic reload (E8B5B3C5/H6) directive tokens, the
+        check fails naming the gap (113.004-T)."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n", encoding="utf-8"
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertFalse(check["ok"])
+            self.assertTrue(any("Session-Start Dynamic Reload" in e for e in check["errors"]))
+
+    def test_session_start_reload_check_passes_when_directive_present(self) -> None:
+        """When _orchestrator.agent.md carries the full session-start dynamic
+        reload directive (fresh re-read, schema validation, fail-closed
+        halt), the check passes."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n\n"
+                "## Model Routing\n\n"
+                "**Session-Start Dynamic Reload (E8B5B3C5)**: every session "
+                "re-reads config fresh from disk and validates it against "
+                "schema (H6) before resolving routes. If invalid or missing, "
+                "HALT to the operator rather than continuing on stale routes.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertTrue(check["ok"], f"expected directive-complete install to pass: {check}")
+
+    def test_session_start_reload_check_fails_for_ship_only_bare_reference(self) -> None:
+        """Copilot review finding (PR #316): Ship explicitly supports direct
+        operator invocation without an installed Orchestrator, so a
+        Ship-only install (no Orchestrator, no Stage) that merely
+        cross-references the Orchestrator's H6 section -- without carrying
+        its own self-contained fail-closed reload directive -- must FAIL
+        this check, not silently pass because the Orchestrator file is
+        absent."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\nSee the Orchestrator's Session-Start Dynamic "
+                "Reload (E8B5B3C5/H6/H7) section for the reload contract.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertFalse(
+                check["ok"],
+                f"expected Ship-only bare cross-reference to fail: {check}",
+            )
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
+    def test_session_start_reload_check_passes_for_ship_only_self_contained_directive(self) -> None:
+        """A Ship-only install (no Orchestrator) that carries its own
+        self-contained H6 fail-closed reload directive (fresh re-read,
+        schema validation, HALT on stale/invalid config) passes independently
+        of whether the Orchestrator is installed."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\n**Session-Start Dynamic Reload (H6) -- "
+                "self-contained for direct invocation**: Ship supports being "
+                "invoked directly without an installed Orchestrator. When "
+                "invoked this way, Ship independently re-reads config fresh "
+                "at the start of the session, validates it against schema "
+                "before resolving any route, and HALTs to the operator on "
+                "invalid, missing, or schema-failing config (E8B5B3C5) -- "
+                "Ship MUST NOT continue on a stale/baked route.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertTrue(
+                check["ok"], f"expected Ship-only self-contained directive to pass: {check}"
+            )
+
+    def test_session_start_reload_check_fails_on_summary_only_marker_with_scattered_tokens(
+        self,
+    ) -> None:
+        """Copilot review round 3 (PR #316): a whole-file substring check for
+        the H6 required tokens ("fresh", "schema", "HALT", "stale") is
+        satisfiable even after the actual session-start reload directive
+        content has been deleted, because these are common English words
+        that a large agent definition can retain incidentally elsewhere. Here
+        the "Session-Start Dynamic Reload" marker is present but immediately
+        followed only by a bare one-line summary with no substantive
+        directive, while the required tokens appear scattered far away
+        (beyond the scoped window) in unrelated sections -- this MUST fail,
+        not silently pass on a whole-file scan."""
+        from autoharness.verify_workspace import _add_session_start_reload_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            filler = "Unrelated padding text to push distant sections outside the scoped window. " * 40
+            content = (
+                "# Ship\n\n"
+                "See the Session-Start Dynamic Reload summary above.\n\n"
+                + filler
+                + "\n\nElsewhere: this deployment must stay fresh, validate "
+                "against schema, HALT on any stale (E8B5B3C5/H6) drift, "
+                "unrelated to the actual reload directive removed above.\n"
+            )
+            (agents_dir / "_ship.agent.md").write_text(content, encoding="utf-8")
+
+            report: dict = {"targeted_checks": {}}
+            _add_session_start_reload_check(
+                report, "session_start_reload_directive", workspace_path
+            )
+            check = report["targeted_checks"]["session_start_reload_directive"]
+            self.assertFalse(
+                check["ok"],
+                f"expected scattered-token summary-only reference to fail: {check}",
+            )
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
+
+    def test_reload_propagation_check_skipped_when_no_pipeline_agents_installed(self) -> None:
+        """Gated on file existence: a workspace with none of
+        _orchestrator.agent.md / _stage.agent.md / _ship.agent.md installed
+        must not register the reload_propagation_directive check at all."""
+        from autoharness.verify_workspace import _add_reload_propagation_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            report: dict = {"targeted_checks": {}}
+            _add_reload_propagation_check(
+                report, "reload_propagation_directive", workspace_path
+            )
+            self.assertNotIn("reload_propagation_directive", report["targeted_checks"])
+
+    def test_reload_propagation_check_fails_when_tokens_missing(self) -> None:
+        """When the pipeline agents are installed but lack the H7 propagation
+        tokens (inherited-skill propagation on the orchestrator, and the
+        session-start-reload tie-in on stage/ship), the check fails naming
+        each gap (113.005-T)."""
+        from autoharness.verify_workspace import _add_reload_propagation_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n", encoding="utf-8"
+            )
+            (agents_dir / "_stage.agent.md").write_text("# Stage\n", encoding="utf-8")
+            (agents_dir / "_ship.agent.md").write_text("# Ship\n", encoding="utf-8")
+
+            report: dict = {"targeted_checks": {}}
+            _add_reload_propagation_check(
+                report, "reload_propagation_directive", workspace_path
+            )
+            check = report["targeted_checks"]["reload_propagation_directive"]
+            self.assertFalse(check["ok"])
+            self.assertTrue(any("orchestrator" in e for e in check["errors"]))
+            self.assertTrue(any("stage" in e for e in check["errors"]))
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
+    def test_reload_propagation_check_fails_on_summary_only_reference(self) -> None:
+        """Copilot review finding (PR #316): a bare marker phrase with no
+        substantive propagation semantics near it -- e.g. a one-line
+        "Propagate to inherited skills (H7): ..." summary, or "See the
+        Session-Start Dynamic Reload (H7) section." with nothing else --
+        must NOT satisfy this check. This is the exact minimal text the
+        prior whole-file-substring implementation incorrectly accepted."""
+        from autoharness.verify_workspace import _add_reload_propagation_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n\nPropagate to inherited skills (H7): ...\n",
+                encoding="utf-8",
+            )
+            (agents_dir / "_stage.agent.md").write_text(
+                "# Stage\n\nSee the Session-Start Dynamic Reload (H7) section.\n",
+                encoding="utf-8",
+            )
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\nSee the Session-Start Dynamic Reload (H7) section.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_reload_propagation_check(
+                report, "reload_propagation_directive", workspace_path
+            )
+            check = report["targeted_checks"]["reload_propagation_directive"]
+            self.assertFalse(
+                check["ok"],
+                f"expected summary-only propagation references to fail: {check}",
+            )
+            self.assertTrue(any("orchestrator" in e for e in check["errors"]))
+            self.assertTrue(any("stage" in e for e in check["errors"]))
+            self.assertTrue(any("ship" in e for e in check["errors"]))
+
+    def test_reload_propagation_check_passes_when_tokens_present(self) -> None:
+        """When each agent carries its H7 propagation marker AND the
+        substantive content in the scoped window near it (not just a bare
+        summary reference), the check passes."""
+        from autoharness.verify_workspace import _add_reload_propagation_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_orchestrator.agent.md").write_text(
+                "# Orchestrator\n\n**Propagate to inherited skills (H7)**: "
+                "skills invoked by Stage/Ship at depth 2 have no independent "
+                "model binding of their own -- they execute inside the "
+                "depth-1 agent's own invocation; an independent per-skill "
+                "divergence is itself a `ROUTING_DEGRADED` condition.\n",
+                encoding="utf-8",
+            )
+            (agents_dir / "_stage.agent.md").write_text(
+                "# Stage\n\nThis resolution always reads the freshly "
+                "session-start-reloaded config -- see the Orchestrator's "
+                "Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section; a "
+                "stale escalation directive surviving a reload is a defect.\n",
+                encoding="utf-8",
+            )
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\nThis resolution always reads the freshly "
+                "session-start-reloaded config -- see the Orchestrator's "
+                "Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section; a "
+                "stale escalation directive surviving a reload is a defect.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_reload_propagation_check(
+                report, "reload_propagation_directive", workspace_path
+            )
+            check = report["targeted_checks"]["reload_propagation_directive"]
+            self.assertTrue(check["ok"], f"expected propagation-complete install to pass: {check}")
 
     def test_verify_workspace_flags_missing_release_closure_sequence_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

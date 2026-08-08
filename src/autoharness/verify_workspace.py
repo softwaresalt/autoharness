@@ -2694,6 +2694,19 @@ def _add_role_route_resolution_check(
     }
 
 
+def _escalation_route_has_any_field(route: Any) -> bool:
+    """True when a route dict declares at least one non-empty
+    model_family/model_provider/reasoning_effort field. Used to distinguish
+    "key present but empty" from "key genuinely declares an override" for the
+    F02FD596 both-present ambiguity check and nested-vs-legacy precedence."""
+    if not isinstance(route, dict):
+        return False
+    return any(
+        isinstance(route.get(field), str) and route.get(field).strip()
+        for field in ("model_family", "model_provider", "reasoning_effort")
+    )
+
+
 def _add_escalation_route_resolution_check(
     report: dict[str, Any],
     key: str,
@@ -2702,22 +2715,45 @@ def _add_escalation_route_resolution_check(
     stage_installed: bool = False,
     ship_installed: bool = False,
 ) -> None:
-    """P-013.6: verify that the escalation route resolves to a non-empty
-    model_family, either from an explicit model_routing.escalation route or
-    via per-field fallback to model_routing.tier3 (mirrors
+    """P-013.6 / F02FD596: verify that each role's escalation route resolves
+    to a non-empty model_family, honoring the nested-per-role escalation
+    hierarchy: `<role>.escalation` -> legacy flat `model_routing.escalation`
+    (deprecated) -> per-field fallback to `model_routing.tier3` (mirrors
     _add_role_route_resolution_check's tier-fallback pattern for stage/ship).
 
-    Also detects the ESCALATION_DEGRADED same-route condition: when the
-    resolved escalation model_family equals the resolved model_family of an
-    already-declared stage/ship role route (P-013.5), an auto-escalation
-    attempt would silently re-run at an identical model -- not a real
-    escalation to deeper reasoning. Comparison is on model_family (the field
-    that actually determines reasoning capability); model_provider and
-    reasoning_effort are recorded for diagnostics but are not required to
-    match for the degraded condition to fire, since a bare tier3 string
-    fallback structurally lacks those sub-fields. Fails closed: an
-    unresolvable route, or an undeclared same-route no-op, is a verification
-    failure -- not a silent pass.
+    **Both-present fail-closed (H2)**: when the legacy flat
+    `model_routing.escalation` AND at least one nested `<role>.escalation`
+    both declare a non-empty field, the configuration is AMBIGUOUS -- this
+    check fails closed immediately (no per-role resolution attempted) rather
+    than silently picking a winner. This mirrors the schema-level `not`
+    constraint in harness-config.schema.json; this check is the
+    loader-enforced backstop for any shape the schema constraint cannot fully
+    express.
+
+    **Per-field fallback integrity (H4)**: a nested `<role>.escalation` that
+    declares only some fields falls back per-field to `model_routing.tier3`
+    for the missing fields -- NEVER to the legacy flat route. An explicit
+    nested override, even a partial one, never silently defers to the shared
+    legacy escalation.
+
+    **Role-scoped ESCALATION_DEGRADED (H3)**: detects the same-route no-op
+    condition per role: when a role's own effective escalation resolution
+    (nested if declared, else legacy flat, else tier3) equals THAT SAME
+    role's own resolved role-route full `(model_family, model_provider,
+    reasoning_effort)` tuple (P-013.5), an auto-escalation attempt for that
+    role would silently re-run at an identical model -- not a real
+    escalation to deeper reasoning. Comparison is same-route-tuple equality,
+    not model_family alone: two routes sharing a family but explicitly
+    differing in provider or effort are a genuine escalation, not a
+    same-route no-op (Copilot review, PR #316). A field left unspecified on
+    either side (neither the role's own route/tier nor the escalation target
+    declares it) carries no signal either way and must not manufacture a
+    false mismatch -- only an explicit, resolved value on BOTH sides can
+    disagree; this keeps a bare tier3 string fallback (which structurally
+    lacks provider/effort sub-fields) from spuriously conflicting with an
+    explicit role route that does declare them. Fails closed: an
+    unresolvable route, an ambiguous both-present config, or an undeclared
+    same-route no-op, is a verification failure -- not a silent pass.
 
     `stage_installed` / `ship_installed` widen the same-route comparison
     beyond "has an explicit override key in model_routing" (Copilot review
@@ -2727,20 +2763,71 @@ def _add_escalation_route_resolution_check(
     resolves to `tier3`, and if escalation also falls back to `tier3` with
     no distinct override, that is the exact same-route collision this guard
     exists to catch. A role is compared whenever it has an explicit
-    override key OR its corresponding pipeline agent is installed."""
+    override key OR its corresponding pipeline agent is installed.
+
+    The top-level `resolved_escalation_family`/`resolved_escalation_provider`/
+    `resolved_escalation_reasoning_effort` fields are computed from the LEGACY
+    FLAT route (unchanged from the pre-nesting behavior, H1 regression
+    guarantee): when no nested `<role>.escalation` is declared anywhere, this
+    is byte-for-byte identical to the pre-F02FD596 resolution. Per-role
+    effective resolution (which may differ per role when nested overrides are
+    declared) is additionally recorded under `per_role`."""
     model_routing = config.get("model_routing") or {}
     errors: list[str] = []
 
-    escalation_route = model_routing.get("escalation") or {}
-    if not isinstance(escalation_route, dict):
-        escalation_route = {}
+    flat_escalation = model_routing.get("escalation") or {}
+    if not isinstance(flat_escalation, dict):
+        flat_escalation = {}
+    flat_present = _escalation_route_has_any_field(flat_escalation)
     tier3_fallback = model_routing.get("tier3")
 
-    resolved_family = _resolve_role_route_field(escalation_route, tier3_fallback, "model_family")
-    resolved_provider = _resolve_role_route_field(escalation_route, tier3_fallback, "model_provider")
-    resolved_effort = _resolve_role_route_field(escalation_route, tier3_fallback, "reasoning_effort")
+    # H2: both-present ambiguity is checked FIRST, before any per-role
+    # resolution is attempted -- fail closed, never auto-pick a winner.
+    nested_by_role: dict[str, dict[str, Any]] = {}
+    nested_present_any = False
+    for role in ROLE_ROUTE_TIER_FALLBACK:
+        role_block = model_routing.get(role) or {}
+        if not isinstance(role_block, dict):
+            role_block = {}
+        nested = role_block.get("escalation") or {}
+        if not isinstance(nested, dict):
+            nested = {}
+        nested_by_role[role] = nested
+        if _escalation_route_has_any_field(nested):
+            nested_present_any = True
 
-    if not (isinstance(resolved_family, str) and resolved_family.strip()):
+    if flat_present and nested_present_any:
+        report["targeted_checks"][key] = {
+            "ok": False,
+            "errors": [
+                "AMBIGUOUS_ESCALATION_CONFIG: both the legacy flat "
+                "model_routing.escalation and at least one nested "
+                "<role>.escalation are declared -- fail closed, never "
+                "auto-pick a winner (F02FD596/H2). Remove the legacy flat "
+                "model_routing.escalation once migrated to nested per-role "
+                "escalation, or remove the nested override(s) to keep the "
+                "legacy shared route."
+            ],
+            "ambiguous": True,
+            "same_route_roles": [],
+        }
+        return
+
+    # Legacy/flat resolution snapshot -- unchanged computation from the
+    # pre-nesting implementation (H1 regression guarantee: identical to
+    # before when no nested escalation is declared anywhere).
+    resolved_family = _resolve_role_route_field(flat_escalation, tier3_fallback, "model_family")
+    resolved_provider = _resolve_role_route_field(flat_escalation, tier3_fallback, "model_provider")
+    resolved_effort = _resolve_role_route_field(flat_escalation, tier3_fallback, "reasoning_effort")
+
+    # The legacy/flat snapshot is only required to resolve when no nested
+    # per-role override is declared anywhere: a fully-specified nested-only
+    # configuration is schema-valid and every role resolves via the per-role
+    # loop below, which already independently validates each role's
+    # effective route. Requiring the unused legacy snapshot to also resolve
+    # in that case would report a false failure even though nothing depends
+    # on it (Copilot review, PR #316).
+    if not nested_present_any and not (isinstance(resolved_family, str) and resolved_family.strip()):
         errors.append(
             "escalation route does not resolve: no model_family from "
             "model_routing.escalation or fallback model_routing.tier3"
@@ -2748,43 +2835,189 @@ def _add_escalation_route_resolution_check(
 
     role_installed = {"stage": stage_installed, "ship": ship_installed}
     same_route_roles: list[str] = []
-    if resolved_family:
-        for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
-            # In scope for the same-route comparison when the role has
-            # either an explicit override key declared in model_routing, or
-            # its corresponding pipeline agent is actually installed (and
-            # therefore live-adopts the P-013.5 fallback chain regardless of
-            # whether an override key exists).
-            if role not in model_routing and not role_installed.get(role, False):
-                continue
-            role_route = model_routing.get(role) or {}
-            if not isinstance(role_route, dict):
-                role_route = {}
-            role_tier_fallback = model_routing.get(fallback_tier_key)
-            role_family = _resolve_role_route_field(role_route, role_tier_fallback, "model_family")
-            if (
-                isinstance(role_family, str)
-                and role_family.strip()
-                and role_family == resolved_family
-            ):
-                same_route_roles.append(role)
+    per_role: dict[str, dict[str, Any]] = {}
+    deprecated_flat_in_use = False
+
+    for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
+        # In scope for the same-route comparison when the role has
+        # either an explicit override key declared in model_routing, or
+        # its corresponding pipeline agent is actually installed (and
+        # therefore live-adopts the P-013.5 fallback chain regardless of
+        # whether an override key exists).
+        if role not in model_routing and not role_installed.get(role, False):
+            continue
+
+        nested = nested_by_role[role]
+        if _escalation_route_has_any_field(nested):
+            # H4: an explicit nested override falls back per-field to tier3
+            # ONLY -- never to the legacy flat route.
+            effective_source_route = nested
+            source = "nested"
+        else:
+            effective_source_route = flat_escalation
+            source = "legacy_flat" if flat_present else "tier3_fallback"
+            if flat_present:
+                deprecated_flat_in_use = True
+
+        effective_family = _resolve_role_route_field(effective_source_route, tier3_fallback, "model_family")
+        effective_provider = _resolve_role_route_field(effective_source_route, tier3_fallback, "model_provider")
+        effective_effort = _resolve_role_route_field(effective_source_route, tier3_fallback, "reasoning_effort")
+
+        if not (isinstance(effective_family, str) and effective_family.strip()):
+            errors.append(
+                f"{role} escalation route does not resolve: no model_family "
+                f"from model_routing.{role}.escalation, legacy "
+                "model_routing.escalation, or fallback model_routing.tier3"
+            )
+
+        role_route = model_routing.get(role) or {}
+        if not isinstance(role_route, dict):
+            role_route = {}
+        role_tier_fallback = model_routing.get(fallback_tier_key)
+        role_family = _resolve_role_route_field(role_route, role_tier_fallback, "model_family")
+        role_provider = _resolve_role_route_field(role_route, role_tier_fallback, "model_provider")
+        role_effort = _resolve_role_route_field(role_route, role_tier_fallback, "reasoning_effort")
+
+        # ESCALATION_DEGRADED is same-route-tuple equality: (model_family,
+        # model_provider, reasoning_effort) all matching the role's own
+        # already-resolved route, not model_family alone -- two routes
+        # sharing a family but explicitly differing in provider or effort are
+        # a genuine escalation, not a same-route no-op (Copilot review, PR
+        # #316). A field left unspecified on either side (neither the role's
+        # own route/tier nor the escalation target declares it) carries no
+        # signal either way and must not manufacture a false mismatch --
+        # only an explicit, resolved value on BOTH sides can disagree.
+        provider_conflicts = bool(role_provider) and bool(effective_provider) and role_provider != effective_provider
+        effort_conflicts = bool(role_effort) and bool(effective_effort) and role_effort != effective_effort
+        is_same_route = (
+            isinstance(role_family, str)
+            and role_family.strip()
+            and isinstance(effective_family, str)
+            and role_family == effective_family
+            and not provider_conflicts
+            and not effort_conflicts
+        )
+        if is_same_route:
+            same_route_roles.append(role)
+
+        per_role[role] = {
+            "source": source,
+            "resolved_family": effective_family,
+            "resolved_provider": effective_provider,
+            "resolved_reasoning_effort": effective_effort,
+            "role_route_family": role_family,
+            "role_route_provider": role_provider,
+            "role_route_reasoning_effort": role_effort,
+            "escalation_degraded": is_same_route,
+        }
 
     if same_route_roles:
         errors.append(
-            "ESCALATION_DEGRADED: resolved escalation model_family "
-            f"{resolved_family!r} equals the resolved role-route model_family "
-            f"for {', '.join(same_route_roles)} -- same-route no-op, not a "
-            "genuine escalation to deeper reasoning; declare an explicit "
-            "model_routing.escalation with a distinct model_family"
+            "ESCALATION_DEGRADED: role(s) "
+            f"{', '.join(same_route_roles)} resolve an escalation route "
+            "identical to their own already-resolved role route -- "
+            "same-route no-op, not a genuine escalation to deeper "
+            "reasoning; declare a distinct model_family for that role's "
+            "escalation route."
         )
 
     report["targeted_checks"][key] = {
         "ok": not errors,
         "errors": errors,
+        "ambiguous": False,
         "resolved_escalation_family": resolved_family,
         "resolved_escalation_provider": resolved_provider,
         "resolved_escalation_reasoning_effort": resolved_effort,
         "same_route_roles": same_route_roles,
+        "deprecated_flat_in_use": deprecated_flat_in_use,
+        "per_role": per_role,
+    }
+
+
+def _add_reload_propagation_check(
+    report: dict[str, Any],
+    key: str,
+    workspace_path: Path,
+) -> None:
+    """E8B5B3C5/113.005-T (H7): verify freshly re-resolved routes propagate to
+    (a) invoked agents and inherited skills via the Orchestrator's P-013.5
+    directive, and (b) the escalation directive (P-013.6) in each installed
+    pipeline agent -- rather than a stale route surviving a session-start
+    reload. Gated on the Orchestrator agent file's existence for (a); each of
+    Stage/Ship is checked independently for (b) when present.
+
+    Uses SCOPED action markers (matching the pattern established by
+    `_add_orchestrator_invocation_routing_directive_check` above), not a bare
+    whole-file substring check: a whole-file check is satisfiable by a single
+    marker phrase (e.g. "Propagate to inherited skills (H7): ..." or "See the
+    Session-Start Dynamic Reload (H7) section.") even after the actual
+    propagation/tie-in content it summarizes has been deleted -- found via
+    Copilot review of PR #316. Each marker's window is required to also
+    contain the substantive semantic content next to it, not just the marker
+    itself."""
+    orchestrator_path = workspace_path / ".github/agents/_orchestrator.agent.md"
+    stage_path = workspace_path / ".github/agents/_stage.agent.md"
+    ship_path = workspace_path / ".github/agents/_ship.agent.md"
+
+    if not orchestrator_path.exists() and not stage_path.exists() and not ship_path.exists():
+        return
+
+    errors: list[str] = []
+    window_span = 600
+
+    if orchestrator_path.exists():
+        content = orchestrator_path.read_text(encoding="utf-8")
+        marker = "Propagate to inherited skills"
+        marker_idx = content.find(marker)
+        if marker_idx == -1 or "H7" not in content:
+            errors.append(
+                f"orchestrator agent definition ({orchestrator_path}) is missing "
+                f"the inherited-skill propagation marker: {marker!r} / 'H7'"
+            )
+        else:
+            window = content[marker_idx : marker_idx + window_span]
+            required_in_window = ["H7", "ROUTING_DEGRADED", "no independent model binding"]
+            missing_in_window = [token for token in required_in_window if token not in window]
+            if missing_in_window:
+                errors.append(
+                    f"orchestrator agent definition ({orchestrator_path}) declares "
+                    f"the '{marker}' marker but is missing substantive propagation "
+                    f"content in the scoped window near it (not just a summary "
+                    f"reference): {missing_in_window}"
+                )
+
+    for agent_name, agent_path in (("stage", stage_path), ("ship", ship_path)):
+        if not agent_path.exists():
+            continue
+        content = agent_path.read_text(encoding="utf-8")
+        h7_idx = content.find("H7")
+        if h7_idx == -1:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) is missing an H7 "
+                "escalation-reload propagation reference"
+            )
+            continue
+        window_start = max(0, h7_idx - window_span // 2)
+        window = content[window_start : h7_idx + window_span // 2]
+        required_in_window = [
+            "Session-Start Dynamic Reload",
+            "stale escalation directive surviving a reload is a defect",
+        ]
+        missing_in_window = [token for token in required_in_window if token not in window]
+        if missing_in_window:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) references 'H7' "
+                f"but is missing the substantive propagation tie-in in the "
+                f"scoped window near it (not just a bare cross-reference): "
+                f"{missing_in_window}"
+            )
+
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+        "orchestrator_present": orchestrator_path.exists(),
+        "stage_present": stage_path.exists(),
+        "ship_present": ship_path.exists(),
     }
 
 
@@ -2864,6 +3097,95 @@ def _add_escalation_directive_check(
         "stage_present": stage_present,
         "ship_present": ship_present,
     }
+
+
+def _add_session_start_reload_check(
+    report: dict[str, Any],
+    key: str,
+    workspace_path: Path,
+) -> None:
+    """E8B5B3C5/113.004-T (H6): verify every installed, independently
+    invocable pipeline agent definition documents the session-start dynamic
+    reload contract -- fresh config re-read, schema validation before
+    resolution, and a fail-closed halt on invalid/missing config, rather than
+    falling back to a prior session's resolved routes or an installed
+    agent's baked frontmatter model_family/model_provider/reasoning_effort
+    values. Orchestrator is the primary home of this contract, but Stage and
+    Ship both explicitly support direct operator invocation without an
+    installed Orchestrator (each documents its own fallback/direct-invocation
+    path), so each is checked independently for a SELF-CONTAINED H6 fail-
+    closed directive rather than a bare cross-reference to the Orchestrator's
+    section -- a Stage- or Ship-only install must not be able to keep using a
+    stale/baked route after a config edit while this check still passes
+    (Copilot review, PR #316). Gated on at least one of the three agent
+    files existing: a workspace with none of them installed registers no
+    failure.
+
+    Uses a SCOPED window anchored on the "Session-Start Dynamic Reload"
+    marker, not a bare whole-file substring check: several of the required
+    tokens ("fresh", "schema", "HALT", "stale") are common English words that
+    a large agent definition can retain elsewhere after the actual H6 reload
+    directive content has been edited out or moved, letting a whole-file
+    check still pass with no substantive directive present (Copilot review
+    round 3, PR #316) -- the same false-pass risk `_add_reload_propagation_check`
+    (H7) was fixed for above."""
+    orchestrator_path = workspace_path / ".github/agents/_orchestrator.agent.md"
+    stage_path = workspace_path / ".github/agents/_stage.agent.md"
+    ship_path = workspace_path / ".github/agents/_ship.agent.md"
+
+    if not orchestrator_path.exists() and not stage_path.exists() and not ship_path.exists():
+        return
+
+    required_tokens = [
+        "Session-Start Dynamic Reload",
+        "E8B5B3C5",
+        "fresh",
+        "schema",
+        "HALT",
+        "stale",
+        "H6",
+    ]
+    marker = "Session-Start Dynamic Reload"
+    # Orchestrator's full H6 procedure (re-read/schema-validate/fail-closed/
+    # re-resolve steps) spans a longer section than Stage/Ship's compact
+    # self-contained paragraph; size each agent's window to comfortably
+    # cover its own established content without spanning the whole file.
+    window_spans = {"orchestrator": 3700, "stage": 1500, "ship": 1500}
+
+    errors: list[str] = []
+    for agent_name, agent_path in (
+        ("orchestrator", orchestrator_path),
+        ("stage", stage_path),
+        ("ship", ship_path),
+    ):
+        if not agent_path.exists():
+            continue
+        content = agent_path.read_text(encoding="utf-8")
+        marker_idx = content.find(marker)
+        if marker_idx == -1:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) is missing "
+                f"the '{marker}' marker entirely"
+            )
+            continue
+        window = content[marker_idx : marker_idx + window_spans[agent_name]]
+        missing = [token for token in required_tokens if token not in window]
+        if missing:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) declares the "
+                f"'{marker}' marker but is missing substantive session-start "
+                f"reload content in the scoped window near it (not just the "
+                f"marker itself): {missing}"
+            )
+
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+        "orchestrator_present": orchestrator_path.exists(),
+        "stage_present": stage_path.exists(),
+        "ship_present": ship_path.exists(),
+    }
+
 
 
 def _add_text_check(
@@ -4072,6 +4394,20 @@ def verify_workspace(
     # neither pipeline agent installed never register a false failure.
     _add_escalation_directive_check(
         report, "escalation_directive_present", workspace_path
+    )
+
+    # E8B5B3C5/113.004-T (H6): session-start dynamic reload directive
+    # presence in the installed Orchestrator agent definition. Gated on file
+    # existence inside the check itself.
+    _add_session_start_reload_check(
+        report, "session_start_reload_directive", workspace_path
+    )
+
+    # E8B5B3C5/113.005-T (H7): freshly re-resolved routes propagate to
+    # invoked agents/inherited skills and to the escalation directive.
+    # Gated on file existence inside the check itself.
+    _add_reload_propagation_check(
+        report, "reload_propagation_directive", workspace_path
     )
 
     project_name = variables.get("PROJECT_NAME", workspace_path.name)

@@ -662,16 +662,32 @@ operator-halt checkpoint:
    (threshold-kind + count = `consecutive_task_failures` / 3, failure summary,
    last-N action/observation refs, artifact refs, telemetry-evidence pointers,
    resumption checkpoint ref).
-2. **Resolve the escalation route**: `config.model_routing.escalation`
-   (`model_family` / `model_provider` / `reasoning_effort`), falling back
-   per field to `model_routing.tier3` when the `escalation` route or a
-   sub-field is unset. This is the config-resolved successor to ad hoc
-   "suggest a frontier-tier model" prose — the route is now declared, not
-   improvised.
-3. **Same-route guard**: if the resolved escalation tuple equals this
-   agent's own role route tuple (P-013.5) — Ship currently operates at
-   `claude-sonnet-5`/`anthropic`/`high`, distinct from `tier3`
-   (`claude-opus-4.8`), so an unset escalation route is a genuine
+2. **Resolve the escalation route**: `config.model_routing.ship.escalation`
+   (nested per-role override, F02FD596) -> legacy flat
+   `config.model_routing.escalation` (DEPRECATED) -> `model_routing.tier3`
+   per-field fallback (`model_family` / `model_provider` /
+   `reasoning_effort`). This workspace declares no nested `ship.escalation`
+   override, so the legacy flat route currently resolves. This resolution
+   always reads the freshly session-start-reloaded config (never a value
+   cached earlier in a long session or resolved by a prior session) — see
+   the Orchestrator's Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section;
+   a stale escalation directive surviving a reload is a defect. **Session-Start
+   Dynamic Reload (H6) — self-contained for direct invocation**: Ship supports
+   being invoked directly without an installed Orchestrator (see the Fallback
+   path in the Work Intake section). When invoked this way, Ship independently
+   applies the same fail-closed reload contract at its own session start
+   rather than relying on an Orchestrator that may not be present: re-read
+   `.autoharness/config.yaml` fresh at the start of the session, validate it
+   against schema before resolving any route, and HALT to the operator on
+   invalid, missing, or schema-failing config — Ship MUST NOT continue on a
+   stale/baked route carried over from this file's frontmatter or a prior
+   session's resolved value, and MUST NOT invent a last-known-good fallback.
+   This is the config-resolved successor to ad hoc "suggest a frontier-tier
+   model" prose — the route is now declared, not improvised.
+3. **Same-route guard (role-scoped, H3)**: if the resolved escalation tuple
+   equals this agent's own role route tuple (P-013.5) — Ship currently
+   operates at `claude-sonnet-5`/`anthropic`/`high`, distinct from `tier3`
+   (`claude-opus-5`), so an unset escalation route is a genuine
    escalation for Ship, not a same-route no-op — treat any future
    same-tuple resolution as `ESCALATION_DEGRADED` per the canonical
    definition in `escalation-protocol.instructions.md`.

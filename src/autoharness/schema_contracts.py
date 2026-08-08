@@ -71,8 +71,25 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "contract_name": "harness-config",
         "schema_file": "harness-config.schema.json",
         "versioned_schema_dir": "harness-config",
-        "current_version": "1.0.0",
-        "known_versions": ("0.9.0", "1.0.0"),
+        # Schema-version decision (F02FD596/113.001-T, revised in PR #316
+        # review-fix cycle, mirroring the tool-telemetry-event v1.0->v1.1
+        # precedent): adding nested `stage.escalation`/`ship.escalation`
+        # properties (each `additionalProperties: false`) plus a
+        # model_routing-level `not` ambiguity constraint changes what a
+        # document validating under "1.0.0" means -- an old 1.0.0 validator
+        # rejects a document using the new nested escalation override while
+        # a patched-in-place 1.0.0 validator accepts it, making the same
+        # version identifier mean two different byte-level contracts.
+        # Bumped to 1.1.0 instead: the published `1.0.0.schema.json` is
+        # restored to its exact original pre-PR-#316 bytes (never mutated in
+        # place) and a new `1.1.0.schema.json` mirror carries the nested
+        # per-role escalation additions. The root schema tracks current
+        # (1.1.0). An installed config with schema_version: 1.0.0 continues
+        # to validate against the untouched 1.0.0 contract (no nested
+        # escalation override available); adopting nested per-role
+        # escalation requires bumping schema_version to 1.1.0.
+        "current_version": "1.1.0",
+        "known_versions": ("0.9.0", "1.0.0", "1.1.0"),
         "compatibility_model": "versioned-contract",
     },
     "profile": {

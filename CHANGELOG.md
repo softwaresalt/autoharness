@@ -4,6 +4,53 @@
 
 ### Changed
 
+- **F02FD596**: Added a nested per-role escalation hierarchy for P-013.6
+  telemetry-driven auto-escalation. `model_routing.stage.escalation` and
+  `model_routing.ship.escalation` now take precedence over the legacy flat
+  `model_routing.escalation` (retained, DEPRECATED, for backward
+  compatibility), which in turn falls back per-field to `model_routing.tier3`.
+  Declaring both a non-empty legacy flat `escalation` and any nested
+  `<role>.escalation` is AMBIGUOUS and fails closed at both the schema level
+  (`harness-config.schema.json` / `harness-config/1.1.0.schema.json`) and the
+  `verify_workspace` loader/verification layer (H2). The `ESCALATION_DEGRADED`
+  same-route guard is now role-scoped: it compares the acting role's own
+  resolved escalation tuple only against that same role's own resolved role
+  route, never a different role's route (H3). A nested override missing some
+  sub-fields falls back per-field to `tier3` only, never to the legacy flat
+  route (H4). Updated `escalation-protocol.instructions.md` (template and
+  installed mirror), `workflow-policies.md.tmpl` (P-013.6, changelog `1.18.0`),
+  `_stage.agent.md.tmpl` / `_ship.agent.md.tmpl`, and
+  `install-harness/SKILL.md`'s variable-resolution table accordingly.
+- **F02FD596 schema-versioning fix (PR #316 Copilot review)**: The nested
+  `stage.escalation`/`ship.escalation` properties and the model_routing-level
+  ambiguity `not` constraint were initially added in place to the published
+  `harness-config/1.0.0.schema.json` mirror, which made the "1.0.0" version
+  identifier ambiguous (an old 1.0.0 validator would reject a document using
+  the new nested override; the patched-in-place 1.0.0 validator would accept
+  it) — forbidden by the versioned-contract discipline in
+  `src/autoharness/schema_contracts.py`. Fixed by restoring
+  `harness-config/1.0.0.schema.json` to its exact pre-F02FD596 bytes and
+  publishing the nested-escalation additions under a new
+  `harness-config/1.1.0.schema.json` mirror instead (mirroring the
+  tool-telemetry-event v1.0->v1.1 precedent). `schema_contracts.py`'s
+  `current_version`/`known_versions` for the `config` contract now track
+  `1.1.0`; the root `schemas/harness-config.schema.json` and
+  `templates/harness-config.yaml.tmpl`'s default `schema_version` both bumped
+  to `1.1.0`; this repository's own dogfood `.autoharness/config.yaml` bumped
+  its `schema_version` to `1.1.0` accordingly (no escalation data values
+  changed). A config declaring `schema_version: 1.0.0` continues to validate
+  unmodified against the untouched, restored 1.0.0 contract; adopting nested
+  per-role escalation requires declaring `schema_version: 1.1.0`.
+- Renamed this repository's own dogfood Stage/tier3 model-routing assignment
+  from `claude-opus-4.8` to `claude-opus-5` in `.autoharness/config.yaml`,
+  `_stage.agent.md`, `_orchestrator.agent.md` (and its template), and the
+  illustrative examples in `install-harness/SKILL.md`,
+  `harness-config.yaml.tmpl`, `getting-started.md`, and
+  `orchestrator-model-routing-spec.md`. This is a dogfood configuration/
+  documentation update only; the flat/legacy `claude-opus-4.8` string remains
+  a valid, unrestricted `model_family` value for any workspace that chooses
+  it — no schema enum or install default forces this specific family.
+
 - Renamed the two dogfood pipeline agent definitions and their templates from
   dot-prefixed to underscore-prefixed filenames: the Stage and Ship agents now
   live at `_stage.agent.md` / `_ship.agent.md` (and `_stage.agent.md.tmpl` /
