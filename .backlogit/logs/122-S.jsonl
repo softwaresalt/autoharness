@@ -3,3 +3,4 @@
 {"timestamp":"2026-08-07T21:43:51.522865-07:00","actor":"backlogit","item_id":"122-S","event_type":"shipment_item_added","delta":{"item_id":"114.002-T"}}
 {"timestamp":"2026-08-07T21:43:53.1736045-07:00","actor":"backlogit","item_id":"122-S","event_type":"shipment_item_added","delta":{"item_id":"114.003-T"}}
 {"timestamp":"2026-08-08T12:30:29.2036497-07:00","actor":"backlogit","item_id":"122-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-08T13:28:14.9026543-07:00","actor":"backlogit","item_id":"122-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/122-S.md"}}
