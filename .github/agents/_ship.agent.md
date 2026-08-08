@@ -662,16 +662,18 @@ operator-halt checkpoint:
    (threshold-kind + count = `consecutive_task_failures` / 3, failure summary,
    last-N action/observation refs, artifact refs, telemetry-evidence pointers,
    resumption checkpoint ref).
-2. **Resolve the escalation route**: `config.model_routing.escalation`
-   (`model_family` / `model_provider` / `reasoning_effort`), falling back
-   per field to `model_routing.tier3` when the `escalation` route or a
-   sub-field is unset. This is the config-resolved successor to ad hoc
-   "suggest a frontier-tier model" prose — the route is now declared, not
-   improvised.
-3. **Same-route guard**: if the resolved escalation tuple equals this
-   agent's own role route tuple (P-013.5) — Ship currently operates at
-   `claude-sonnet-5`/`anthropic`/`high`, distinct from `tier3`
-   (`claude-opus-4.8`), so an unset escalation route is a genuine
+2. **Resolve the escalation route**: `config.model_routing.ship.escalation`
+   (nested per-role override, F02FD596) -> legacy flat
+   `config.model_routing.escalation` (DEPRECATED) -> `model_routing.tier3`
+   per-field fallback (`model_family` / `model_provider` /
+   `reasoning_effort`). This workspace declares no nested `ship.escalation`
+   override, so the legacy flat route currently resolves. This is the
+   config-resolved successor to ad hoc "suggest a frontier-tier model"
+   prose — the route is now declared, not improvised.
+3. **Same-route guard (role-scoped, H3)**: if the resolved escalation tuple
+   equals this agent's own role route tuple (P-013.5) — Ship currently
+   operates at `claude-sonnet-5`/`anthropic`/`high`, distinct from `tier3`
+   (`claude-opus-5`), so an unset escalation route is a genuine
    escalation for Ship, not a same-route no-op — treat any future
    same-tuple resolution as `ESCALATION_DEGRADED` per the canonical
    definition in `escalation-protocol.instructions.md`.

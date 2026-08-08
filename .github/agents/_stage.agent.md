@@ -7,7 +7,7 @@ tools: vscode/getProjectSetupInfo, vscode/installExtension, vscode/memory, vscod
 max_subagent_tier: 3
 reasoning_effort: "high"
 model_provider: "anthropic"
-model_family: "claude-opus-4.8"
+model_family: "claude-opus-5"
 subagent_depth: 2
 ---
 
@@ -422,17 +422,20 @@ before falling back to the operator-halt checkpoint:
 1. **Compile the escalation payload** per the escalation-payload contract
    (threshold-kind + count, failure summary, last-N action/observation refs,
    artifact refs, telemetry-evidence pointers, resumption checkpoint ref).
-2. **Resolve the escalation route**: `config.model_routing.escalation`
-   (`model_family` / `model_provider` / `reasoning_effort`), falling back
-   per field to `model_routing.tier3` when the `escalation` route or a
-   sub-field is unset.
-3. **Same-route guard**: Stage's explicit role route (`claude-opus-4.8`) is
-   identical to this workspace's `tier3` family. If the `escalation` route
-   were ever unset (or reset to an unset/matching value), resolution would
-   fall back to `tier3` and land on the same model family as Stage's own
-   route — that must be treated as `ESCALATION_DEGRADED` (same-route no-op)
-   per the canonical definition in `escalation-protocol.instructions.md`
-   rather than silently "escalating" to an identical model. This workspace's
+2. **Resolve the escalation route**: `config.model_routing.stage.escalation`
+   (nested per-role override, F02FD596) -> legacy flat
+   `config.model_routing.escalation` (DEPRECATED) -> `model_routing.tier3`
+   per-field fallback (`model_family` / `model_provider` /
+   `reasoning_effort`). This workspace declares no nested `stage.escalation`
+   override, so the legacy flat route currently resolves.
+3. **Same-route guard (role-scoped, H3)**: Stage's explicit role route
+   (`claude-opus-5`) is identical to this workspace's `tier3` family. If the
+   `escalation` route were ever unset (or reset to an unset/matching value),
+   resolution would fall back to `tier3` and land on the same model family
+   as Stage's own route — that must be treated as `ESCALATION_DEGRADED`
+   (same-route no-op) per the canonical definition in
+   `escalation-protocol.instructions.md` rather than silently "escalating"
+   to an identical model. This workspace's
    `config.model_routing.escalation` currently declares an explicit, distinct
    route (`gpt-5.6-sol`/`openai`/`high`) specifically to keep genuine
    escalation available; re-verify this guard whenever the escalation or

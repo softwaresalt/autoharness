@@ -838,10 +838,13 @@ halt without first following this auto-escalation directive
    refs, artifact refs, telemetry-evidence pointers, resumption checkpoint
    ref).
 2. **Resolve the escalation route**: `{{ESCALATION_FAMILY}}` /
-   `{{ESCALATION_PROVIDER}}` / `{{ESCALATION_REASONING_EFFORT}}`, falling
-   back per field to `{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` /
-   `{{TIER_3_REASONING_EFFORT}}` when the `escalation` route or a sub-field
-   is unset.
+   `{{ESCALATION_PROVIDER}}` / `{{ESCALATION_REASONING_EFFORT}}`, resolving
+   this workspace's currently-effective escalation route per the nested
+   per-role -> legacy flat (DEPRECATED) -> tier3 precedence defined in
+   `escalation-protocol.instructions.md` (F02FD596). Falls back per field to
+   `{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` /
+   `{{TIER_3_REASONING_EFFORT}}` when no override for a field is declared at
+   any tier.
 3. **Same-route guard**: if the resolved escalation tuple equals this
    agent's own role route tuple (Stage already operates at Tier 3 — see
    Model Routing below — so an unset `escalation` route resolves to the

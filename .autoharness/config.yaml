@@ -59,11 +59,11 @@ model_routing:
     model: "gpt-5.6-luna"
     model_family: "gpt-5.6-luna"
   tier2: "claude-sonnet-5"
-  tier3: "claude-opus-4.8"
+  tier3: "claude-opus-5"
   orchestrator: "gpt-5.6-sol"
-  # P-013.5: role routes — dogfood assignment (Stage -> claude-opus-4.8, Ship -> claude-sonnet-5)
+  # P-013.5: role routes — dogfood assignment (Stage -> claude-opus-5, Ship -> claude-sonnet-5)
   stage:
-    model_family: "claude-opus-4.8"
+    model_family: "claude-opus-5"
     model_provider: "anthropic"
     reasoning_effort: "high"
   ship:
@@ -71,7 +71,7 @@ model_routing:
     model_provider: "anthropic"
     reasoning_effort: "high"
   # P-013.6: explicit escalation route — distinct vendor/family from the
-  # Stage role route (claude-opus-4.8/anthropic, already == tier3) so an
+  # Stage role route (claude-opus-5/anthropic, already == tier3) so an
   # auto-escalation attempt is a genuine escalation, not a same-route no-op
   # (ESCALATION_DEGRADED guard, 011-DL(b)/106-F).
   escalation:

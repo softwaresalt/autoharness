@@ -74,7 +74,7 @@ model_routing:
     model_provider: "{{TIER_2_PROVIDER}}"
     model_family: "{{TIER_2_FAMILY}}"
   tier3:
-    model: {{MODEL_ROUTING_TIER3}}              # Frontier: planning, architecture, analysis (e.g., claude-opus-4.8)
+    model: {{MODEL_ROUTING_TIER3}}              # Frontier: planning, architecture, analysis (e.g., claude-opus-5)
     reasoning_effort: "{{TIER_3_REASONING_EFFORT}}"
     model_provider: "{{TIER_3_PROVIDER}}"
     model_family: "{{TIER_3_FAMILY}}"
@@ -89,16 +89,38 @@ model_routing:
     model_family: "{{STAGE_FAMILY}}"             # Stage role route (falls back to tier3 when empty)
     model_provider: "{{STAGE_PROVIDER}}"
     reasoning_effort: "{{STAGE_REASONING_EFFORT}}"
+    # F02FD596: optional nested per-role escalation override for Stage.
+    # Takes precedence over the legacy flat model_routing.escalation below;
+    # missing sub-fields fall back per-field to tier3 (never to the legacy
+    # flat route). MUST NOT be declared alongside a non-empty legacy flat
+    # escalation (both-present is AMBIGUOUS and fails closed, H2). Uncomment
+    # and fill in to declare:
+    # escalation:
+    #   model_family: ""
+    #   model_provider: ""
+    #   reasoning_effort: ""
   ship:
     model_family: "{{SHIP_FAMILY}}"               # Ship role route (falls back to tier2 when empty)
     model_provider: "{{SHIP_PROVIDER}}"
     reasoning_effort: "{{SHIP_REASONING_EFFORT}}"
+    # F02FD596: optional nested per-role escalation override for Ship. Same
+    # precedence/ambiguity rules as Stage's nested escalation above.
+    # escalation:
+    #   model_family: ""
+    #   model_provider: ""
+    #   reasoning_effort: ""
   # P-013.6: optional escalation route for telemetry-driven auto-escalation.
   # Absent/empty sub-fields fall back per-field to tier3. If the resolved
   # route equals a declared role route's resolved route, that is
   # ESCALATION_DEGRADED (same-route no-op) -- declare a distinct family here
   # to keep genuine escalation available; do not remove this block to
   # "disable" escalation, leave sub-fields empty instead.
+  # F02FD596 -- DEPRECATED-LEGACY: prefer nested per-role escalation
+  # (stage.escalation / ship.escalation above) instead of this flat,
+  # role-agnostic block. Retained for backward compatibility (H9); MUST NOT
+  # coexist with any nested <role>.escalation override -- both-present is
+  # AMBIGUOUS and fails closed (H2). Migrate fully to nested per-role
+  # escalation, or remove the nested override(s), before declaring both.
   escalation:
     model_family: "{{ESCALATION_FAMILY}}"          # Escalation route (falls back to tier3 when empty)
     model_provider: "{{ESCALATION_PROVIDER}}"
