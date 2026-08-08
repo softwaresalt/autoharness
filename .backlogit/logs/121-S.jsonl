@@ -1,0 +1,6 @@
+{"timestamp":"2026-08-07T21:33:19.2754573-07:00","actor":"backlogit","item_id":"121-S","event_type":"shipment_created","delta":{"items":["113-F"],"title":"Model-routing hierarchy + dynamic reload (F02FD596 + E8B5B3C5) — 113-F"}}
+{"timestamp":"2026-08-07T21:33:24.9440739-07:00","actor":"backlogit","item_id":"121-S","event_type":"shipment_item_added","delta":{"item_id":"113.001-T"}}
+{"timestamp":"2026-08-07T21:33:29.3928829-07:00","actor":"backlogit","item_id":"121-S","event_type":"shipment_item_added","delta":{"item_id":"113.002-T"}}
+{"timestamp":"2026-08-07T21:33:34.9245094-07:00","actor":"backlogit","item_id":"121-S","event_type":"shipment_item_added","delta":{"item_id":"113.003-T"}}
+{"timestamp":"2026-08-07T21:33:42.6341183-07:00","actor":"backlogit","item_id":"121-S","event_type":"shipment_item_added","delta":{"item_id":"113.004-T"}}
+{"timestamp":"2026-08-07T21:33:52.2125297-07:00","actor":"backlogit","item_id":"121-S","event_type":"shipment_item_added","delta":{"item_id":"113.005-T"}}
