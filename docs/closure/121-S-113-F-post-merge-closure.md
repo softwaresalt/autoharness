@@ -6,9 +6,9 @@ feature_pr: 316
 merge_commit: db8630b6ce7b83bebf9a0006940fcccf01bf3ee0
 merged_at: "2026-08-08T18:49:15Z"
 reviewed_head: c355d3784e9866b3fd4c69d92199f5cb6c5c39cb
-closure_pr: null
+closure_pr: 317
 closure_merge_commit: null
-closure_reviewed_head: null
+closure_reviewed_head: b0ebc5c3edd3a6b76c0f08858e68d59be2691d49
 closure_status: READY
 compaction_status: done
 feature_terminal_status: done
@@ -310,10 +310,14 @@ precedent for a fully-covered feature, `113-F` was moved `status: active` ->
    **done** (this branch).
 5. Closure index resync (`backlogit sync` CLI, 740 artifacts indexed) —
    **done** (this branch, after all archival mutations were committed).
-6. Closure PR — pending: to be opened from this branch
-   (`post-merge/113-f-model-routing-hierarchy-dynamic-reload-121-s`), with
-   its own current-HEAD local review, CI, P-018 gate, and merge-commit-only
-   merge, per the Post-Merge Branch Protocol.
+6. Closure PR — **open**: PR #317
+   (`post-merge/113-f-model-routing-hierarchy-dynamic-reload-121-s` ->
+   `main`), reviewed HEAD `b0ebc5c3edd3a6b76c0f08858e68d59be2691d49` at the
+   time this line was last updated (will be corrected to the final merged
+   HEAD/merge-commit once #317 itself merges, per the same
+   provenance-repair convention used for 119-S's closure PR #311). Its own
+   current-HEAD local review, CI, P-018 gate, and merge-commit-only merge
+   are tracked on PR #317 directly.
 7. **No follow-ups actioned by Ship in code this session** beyond the
    compound-learning doc above — successor `122-S` is unchanged and out of
    scope, per the operator's explicit directive.

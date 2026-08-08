@@ -1,3 +1,25 @@
+---
+title: "121-S / 113-F: schema mirror mutated in place without a version bump"
+date: 2026-08-08
+problem_type: contract-versioning-violation
+category: schema-contract-versioning
+component: schemas/harness-config, src/autoharness/schema_contracts.py
+root_cause: "a new additive schema constraint (nested additionalProperties:false properties + a cross-field not ambiguity check) was applied uniformly across the root schema AND an already-published versioned mirror file, without bumping the version identifier, so the same schema_version string silently came to mean two different byte-level validation contracts"
+resolution_type: code_fix
+severity: high
+message: "schema_version.const and SCHEMA_CONTRACTS[\"config\"].current_version left at 1.0.0 while schemas/harness-config/1.0.0.schema.json was mutated in place with new additionalProperties:false nested properties and a new not constraint"
+file_path: schemas/harness-config/1.0.0.schema.json
+citations:
+  - "PR #316 (121-S / 113-F)"
+  - "src/autoharness/schema_contracts.py:42-54"
+  - "commit 6da2f55b (PR #294 review cycle 2, tool-telemetry-event v1.0->v1.1 precedent)"
+  - "docs/design-docs/2026-08-08-escalation-flat-to-nested-per-role-migration.md"
+tags: [schema-versioning, contract-integrity, copilot-review, harness-config, versioned-contract, migration]
+shipment: 121-S
+feature: 113-F
+pr: 316
+---
+
 # Compound Learning: A schema-behavior change without a version bump silently redefines an already-published version
 
 **Discovered**: 2026-08-08, PR #316 review round 5 (Copilot), shipment 121-S /
