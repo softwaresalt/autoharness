@@ -6,9 +6,9 @@ feature_pr: 318
 merge_commit: d923820e29473cb24e0c4c7d76070b4d811d55a5
 merged_at: "2026-08-08T20:23:52Z"
 reviewed_head: b255143df7fb58ceae61a2d778fa74a31c5da6d3
-closure_pr: null
-closure_merge_commit: null
-closure_reviewed_head: null
+closure_pr: 319
+closure_merge_commit: f0c3538cad7a954e21e41790fd9907b54c67019c
+closure_reviewed_head: e7b6b630adc5dfb63eb2ba1632aeaf242786da63
 closure_status: READY
 compaction_status: done
 feature_terminal_status: done
@@ -340,13 +340,18 @@ fully-covered feature, `114-F` was moved `status: active` -> `done`
    touched, 0 plans consolidated, 0 additional closure records compacted.
 5. Closure index resync (`backlogit sync` CLI, 740 artifacts indexed) —
    **done** (this branch, after all archival mutations were committed).
-6. Closure PR — to be opened from
-   `post-merge/114-f-capability-pack-runtime-detection-pre-merge-install-checklist-122-s`
-   -> `main`. Its own current-HEAD local review, CI, P-018 gate (if
-   Copilot engages), and merge-commit-only merge are tracked on that PR
-   directly, per the same provenance-repair convention used for prior
-   closure PRs (values above will be corrected to the final merged
-   HEAD/merge-commit once it merges).
+6. Closure PR — **done**: PR #319 merged to `main` with merge commit
+   `f0c3538cad7a954e21e41790fd9907b54c67019c` at final reviewed HEAD
+   `e7b6b630adc5dfb63eb2ba1632aeaf242786da63` (own current-HEAD local
+   review, CI, P-018 gate, and merge-commit-only merge all satisfied
+   pre-merge). *Correction (provenance-repair, post-#319): this file's
+   `closure_pr`/`closure_merge_commit`/`closure_reviewed_head` frontmatter
+   originally recorded `null`/`null`/`null` (populated only after PR #319
+   was opened, reviewed, and merged); corrected here to `319` /
+   `f0c3538cad7a954e21e41790fd9907b54c67019c` /
+   `e7b6b630adc5dfb63eb2ba1632aeaf242786da63` respectively — #319's stable,
+   already-merged provenance, per the same convention used for 119-S's
+   closure PR #311 and 120-S's closure PR #315.*
 7. **No follow-ups actioned by Ship in code this session** beyond the
    compound-learning doc above — the deferred provisioning-execution scope
    remains unchanged, per the accepted deliberation's Option C boundary.
