@@ -56,7 +56,8 @@ The script runs a deterministic, single-pass sequence (no internal retry loop):
 
 | Phase | Action | Safety |
 |---|---|---|
-| **preflight** | Verify prerequisites (`python`, `git`; optional `gh` and the target CLI). Fail closed on missing hard prerequisites. | Read-only |
+| **preflight** | Verify prerequisites (`python`, `git`; optional `gh` and the target CLI). Fail closed on missing hard prerequisites. Also detects per-pack **presence and version** for `backlogit`/`engram`/`graphtor-docs` (`<tool> --version`; graphtor-docs also checks the workspace-local `.graphtor/bin/` path) — detection only, no install/upgrade. | Read-only |
+| **checklist** *(additive, non-D2)* | Pre-merge-install checklist: prints a REPORT-ONLY per-pack recommended action (`retain-present` / `needs-install (deferred)` / `unsupported-undetectable`) from the preflight detection results, plus an explicit reminder that runtime provisioning (when implemented) must occur **before** merge-install composition. Default is non-interactive (headless/CI-safe); pass `-Interactive`/`--interactive` to opt into check/uncheck prompts. Performs **no** install/upgrade/provisioning. | Read-only / report |
 | **bootstrap** | Locate or acquire `autoharness_home` (the **global** install). | Out-of-cwd; gated behind explicit `-Bootstrap`/`--bootstrap` |
 | **register** | Register the AI environment (`setup-vscode`, `copilot plugin install`, `setup-claude`, `setup-codex`). | Per-environment config |
 | **scaffold** | Write `.autoharness/config.yaml` with the preset and its resolved capability packs (an omitted `--packs` resolves to the preset's `default_in_preset` members; explicit `all` selects every registry pack). | cwd-only; backup-before-overwrite; never clobbers `.env.local` |
@@ -72,6 +73,16 @@ Engram, and graphtor-docs remain separate binary prerequisites. If a launcher is
 kept as bare `bunx` because `bunx --bun` compatibility was not verified, keep
 Node available too.
 
+**Capability-pack runtime provisioning order**: selected pack runtimes must be
+provisioned **before** merge-install composition. The scripted deploy path's
+`checklist` phase reports per-pack presence/version and a recommended action
+category, but it does **not** execute any install or upgrade — actual
+provisioning execution, plus every supply-chain/source/version-channel/
+OS-matrix/elevation/offline/model-provisioning/rollback/CI-parity design
+decision, remains explicitly **deferred to the operator**. See
+[`docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md`](decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md)
+for the recorded open questions.
+
 ### Flags
 
 The PowerShell and shell scripts mirror the same flags and semantics:
@@ -84,6 +95,7 @@ The PowerShell and shell scripts mirror the same flags and semantics:
 | `-InstallMethod` | `--install-method` | `pip` | Global install method for bootstrap: `pip`, `clone` |
 | `-Home` | `--home` | *(auto)* | Explicit `autoharness_home` override |
 | `-Bootstrap` | `--bootstrap` | off | Opt in to the out-of-cwd **global** install |
+| `-Interactive` | `--interactive` | off | Opt in to interactive check/uncheck prompts in the pre-merge-install checklist phase (report only; never installs) |
 | `-DryRun` | `--dry-run` | off | Print the plan without mutating anything |
 | `-Force` | `--force` | off | Overwrite an existing `.autoharness/config.yaml` (a timestamped backup is written first) |
 

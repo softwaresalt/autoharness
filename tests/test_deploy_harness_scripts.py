@@ -187,6 +187,122 @@ class DeployHarnessScaffoldSymlinkTests(unittest.TestCase):
                 self.assertIn(markers[name], _read(instance))
 
 
+# ── Capability-pack runtime detection + pre-merge-install checklist ─────────
+# (114.001-T / 114.002-T / 114.003-T, 47971057 bounded)
+#
+# Guards the bounded detection/checklist/report increment from
+# docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md:
+# per-pack presence+version detection, a REPORT-ONLY recommended-action
+# checklist (retain-present / needs-install[deferred] / unsupported-
+# undetectable), a non-interactive-by-default CI-safe fallback, and the
+# explicit provision-before-compose ordering statement. NO install/upgrade/
+# provisioning execution may ever be introduced by this increment.
+class DeployHarnessCapabilityPackChecklistTests(unittest.TestCase):
+    def test_detection_helper_present(self) -> None:
+        markers = {"ps1": "Get-PackDetectionStatus", "sh": "pack_detect_status"}
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                self.assertIn(markers[name], _read(instance))
+
+    def test_checklist_phase_present(self) -> None:
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                self.assertIn(
+                    "checklist (pre-merge-install; report only)", _read(instance)
+                )
+
+    def test_recommended_action_categories_present(self) -> None:
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                for category in (
+                    "retain-present",
+                    "needs-install (deferred)",
+                    "unsupported-undetectable",
+                ):
+                    self.assertIn(category, text, f"{name}: missing '{category}'")
+
+    def test_report_only_no_provisioning_wording(self) -> None:
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                self.assertIn("REPORT ONLY", text)
+                self.assertIn("no install/upgrade is executed", text)
+
+    def test_provision_before_compose_ordering_statement(self) -> None:
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                self.assertIn(
+                    "MUST occur BEFORE merge-install composition", text
+                )
+                self.assertIn(
+                    "docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md",
+                    text,
+                )
+
+    def test_interactive_flag_present_and_opt_in(self) -> None:
+        markers = {"ps1": "[switch]$Interactive", "sh": "--interactive"}
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                self.assertIn(markers[name], _read(instance))
+
+    def test_checklist_runs_between_preflight_and_bootstrap(self) -> None:
+        # The checklist phase must run after preflight (it consumes detection
+        # results) and before bootstrap in the orchestration order.
+        markers = {
+            "ps1": (
+                "if (-not (Invoke-Preflight)) { exit 1 }",
+                "Invoke-PreMergeInstallChecklist",
+                "$homePath = Invoke-Bootstrap",
+            ),
+            "sh": (
+                "invoke_preflight || exit 1",
+                "invoke_checklist",
+                "invoke_bootstrap || exit 2",
+            ),
+        }
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                preflight_marker, checklist_marker, bootstrap_marker = markers[name]
+                # Search within the orchestration section (after the function
+                # definitions) so the CALL order is checked, not incidental
+                # earlier occurrences of the checklist function/name in its
+                # own definition.
+                preflight_idx = text.find(preflight_marker)
+                self.assertNotEqual(preflight_idx, -1)
+                checklist_idx = text.find(checklist_marker, preflight_idx)
+                self.assertNotEqual(checklist_idx, -1)
+                bootstrap_idx = text.find(bootstrap_marker, checklist_idx)
+                self.assertNotEqual(bootstrap_idx, -1)
+                self.assertLess(preflight_idx, checklist_idx)
+                self.assertLess(checklist_idx, bootstrap_idx)
+
+    def test_no_provisioning_execution_verbs_introduced(self) -> None:
+        # Bounded-increment guard: this scope must never introduce actual
+        # install/upgrade EXECUTION for capability packs (detection/report
+        # only). The pre-existing bootstrap install of autoharness ITSELF
+        # (pip install / git clone of autoharness_home) is a different,
+        # already-existing concern and is excluded from this guard.
+        forbidden = ("pip install", "npm install", "brew install", "choco install")
+        for name, _, instance in _PAIRS:
+            with self.subTest(script=name):
+                text = _read(instance)
+                checklist_start = text.find("checklist (pre-merge-install")
+                self.assertNotEqual(checklist_start, -1)
+                # Slice from the checklist phase heading to the bootstrap
+                # phase heading; only the checklist's own body is scoped here.
+                bootstrap_heading = (
+                    "Phase 2: bootstrap" if name == "ps1" else "Phase 2: bootstrap"
+                )
+                checklist_end = text.find(bootstrap_heading, checklist_start)
+                self.assertNotEqual(checklist_end, -1)
+                checklist_body = text[checklist_start:checklist_end]
+                for verb in forbidden:
+                    self.assertNotIn(verb, checklist_body)
+
+
 # ── Opt-in pack-selection precedence (096.002-T / 096.003-T) ─────────────────
 #
 # These tests EXECUTE the real deploy wrappers in a throwaway workspace and read
@@ -398,6 +514,99 @@ class DeployWrapperRegistryEnumerationTests(unittest.TestCase):
         full_defaults = set(_preset_default_packs("full"))
         self.assertNotIn("agent-intercom", full_defaults)
         self.assertLess(full_defaults, set(_all_registry_packs()))
+
+
+# ── Checklist phase EXECUTION tests (non-interactive default; no hang) ──────
+# Guards that the default (no -Interactive/--interactive) run never blocks on
+# stdin and always prints the REPORT-ONLY per-pack recommended action.
+class _ChecklistExecutionMixin:
+    interpreter: str = ""
+
+    def _run(self, workspace: Path):  # noqa: ANN001
+        raise NotImplementedError
+
+    def test_checklist_report_prints_non_interactively(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            proc = self._run(workspace)
+            self.assertEqual(  # type: ignore[attr-defined]
+                proc.returncode,
+                0,
+                f"{self.interpreter}: non-zero exit {proc.returncode}\n"  # type: ignore[attr-defined]
+                f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}",
+            )
+            combined = proc.stdout + proc.stderr
+            self.assertIn(  # type: ignore[attr-defined]
+                "checklist (pre-merge-install; report only)", combined
+            )
+            self.assertIn("REPORT ONLY", combined)  # type: ignore[attr-defined]
+            # At least one recommended-action category must appear (packs are
+            # typically absent in a throwaway CI/test workspace).
+            self.assertTrue(  # type: ignore[attr-defined]
+                any(
+                    cat in combined
+                    for cat in (
+                        "retain-present",
+                        "needs-install (deferred)",
+                        "unsupported-undetectable",
+                    )
+                ),
+                f"no recommended-action category found:\n{combined}",
+            )
+
+
+@unittest.skipUnless(_PWSH, "PowerShell (pwsh/powershell) not available")
+class DeployHarnessPs1ChecklistExecutionTests(
+    _ChecklistExecutionMixin, unittest.TestCase
+):
+    interpreter = "ps1"
+
+    def _run(self, workspace):  # noqa: ANN001
+        args = [
+            _PWSH,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(_PS1_INSTANCE),
+            "-Home",
+            str(_REPO_ROOT),
+            "-Register",
+            "none",
+            "-Preset",
+            "starter",
+            "-DryRun",
+        ]
+        return subprocess.run(
+            args, cwd=workspace, capture_output=True, text=True, timeout=180
+        )
+
+
+@unittest.skipIf(sys.platform == "win32", "bash on Windows is WSL; run sh on POSIX/CI")
+@unittest.skipUnless(_BASH, "bash not available")
+class DeployHarnessShChecklistExecutionTests(
+    _ChecklistExecutionMixin, unittest.TestCase
+):
+    interpreter = "sh"
+
+    def _run(self, workspace):  # noqa: ANN001
+        lf_script = workspace / "_deploy-harness.sh"
+        lf_script.write_bytes(_read(_SH_INSTANCE).encode("utf-8"))
+        lf_script.chmod(0o755)
+        args = [
+            _BASH,
+            str(lf_script),
+            "--home",
+            str(_REPO_ROOT),
+            "--register",
+            "none",
+            "--preset",
+            "starter",
+            "--dry-run",
+        ]
+        return subprocess.run(
+            args, cwd=workspace, capture_output=True, text=True, timeout=180
+        )
 
 
 if __name__ == "__main__":

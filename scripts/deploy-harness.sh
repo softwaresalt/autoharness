@@ -15,6 +15,18 @@
 #                 resolution happens here (that is the agent's job)
 #   verify     -> optional deterministic `autoharness verify-workspace`
 #
+# Additive checklist phase (114-F / 47971057 bounded, non-D2): runs after
+# preflight and before bootstrap. Detects per-pack PRESENCE and VERSION for
+# backlogit/engram/graphtor-docs (`<tool> --version`; graphtor-docs also checks
+# the workspace-local .graphtor/bin/ path) and prints a REPORT-ONLY recommended
+# action per pack (retain-present / needs-install[deferred] /
+# unsupported-undetectable). It performs NO install/upgrade/provisioning.
+# Interactive check/uncheck prompts are opt-in via --interactive; the default
+# is a non-interactive report so headless/CI deploys never regress. Actual
+# runtime provisioning execution and its open design questions remain
+# DEFERRED to operator — see
+# docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md.
+#
 # The scaffold/verify phases write ONLY inside the current workspace (cwd). The
 # bootstrap phase installs a GLOBAL tool OUTSIDE cwd BY DESIGN and is therefore
 # gated behind an explicit --bootstrap opt-in. --dry-run prints the plan without
@@ -26,7 +38,7 @@
 #
 # Usage: ./deploy-harness.sh [--preset P] [--packs all|a,b] [--register ENV]
 #          [--install-method pip|clone] [--home PATH] [--bootstrap]
-#          [--dry-run] [--force]
+#          [--interactive] [--dry-run] [--force]
 #   Requires execute permission on first use: chmod +x deploy-harness.sh
 #
 # Exit codes:
@@ -47,6 +59,7 @@ REGISTER="copilot-cli"
 INSTALL_METHOD="pip"
 HOME_OVERRIDE=""
 BOOTSTRAP=0
+INTERACTIVE=0
 DRY_RUN=0
 FORCE=0
 PYTHON_BIN=""
@@ -69,6 +82,7 @@ while [[ $# -gt 0 ]]; do
 		--install-method) INSTALL_METHOD="$2"; shift 2 ;;
 		--home) HOME_OVERRIDE="$2"; shift 2 ;;
 		--bootstrap) BOOTSTRAP=1; shift ;;
+		--interactive) INTERACTIVE=1; shift ;;
 		--dry-run) DRY_RUN=1; shift ;;
 		--force) FORCE=1; shift ;;
 		-h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -152,6 +166,47 @@ preset_default_packs() {
 	done < "$registry"
 }
 
+PACK_DETECT_NAMES=()
+PACK_DETECT_STATUS=()
+PACK_DETECT_VERSION=()
+
+pack_detect_status() {
+	# Per-pack presence + version detection (114.001-T / 47971057 bounded).
+	# Detection only: no install/upgrade/provisioning. Appends to the global
+	# parallel PACK_DETECT_* arrays with status one of:
+	#   present       -> command found AND `--version` produced parseable output
+	#   undetectable  -> command found but `--version` produced no output
+	#   absent        -> command not found (and, for graphtor-docs, no
+	#                    workspace-local .graphtor/bin/ binary either)
+	local mcp="$1" exe="" version="" status="absent"
+	if command -v "$mcp" >/dev/null 2>&1; then
+		exe="$mcp"
+	elif [[ "$mcp" == "graphtor-docs" ]]; then
+		# graphtor-docs may be installed workspace-local at .graphtor/bin/ (registry eligibility signal), not just on PATH.
+		if [[ -f ".graphtor/bin/graphtor-docs" && -x ".graphtor/bin/graphtor-docs" ]]; then exe=".graphtor/bin/graphtor-docs"
+		elif [[ -f ".graphtor/bin/graphtor-docs.exe" && -x ".graphtor/bin/graphtor-docs.exe" ]]; then exe=".graphtor/bin/graphtor-docs.exe"
+		fi
+	fi
+	if [[ -n "$exe" ]]; then
+		version="$("$exe" --version 2>/dev/null | head -n1 || true)"
+		version="$(echo "$version" | xargs 2>/dev/null || true)"
+		if [[ -n "$version" ]]; then status="present"; else status="undetectable"; fi
+	fi
+	PACK_DETECT_NAMES+=("$mcp")
+	PACK_DETECT_STATUS+=("$status")
+	PACK_DETECT_VERSION+=("$version")
+}
+
+pack_recommended_action() {
+	# Report-only classification (114.002-T / 47971057 bounded). Never executes
+	# any install/upgrade -- "needs-install" is a deferred recommendation only.
+	case "$1" in
+		present) echo "retain-present" ;;
+		absent) echo "needs-install (deferred)" ;;
+		*) echo "unsupported-undetectable" ;;
+	esac
+}
+
 # ── Phase 1: preflight ──────────────────────────────────────────────────────
 invoke_preflight() {
 	phase "preflight"
@@ -168,15 +223,61 @@ invoke_preflight() {
 		if command -v "$cli_tool" >/dev/null 2>&1; then ok "$cli_tool present"; else warn "$cli_tool not found (needed to register the $REGISTER environment)"; fi
 	fi
 
+	# Pack MCP prereqs are advisory: the deploy path seeds config and hands off;
+	# missing MCP tools do not block scaffolding. Detection ALSO records version
+	# (114.001-T / 47971057 bounded) for the pre-merge-install checklist phase.
+	PACK_DETECT_NAMES=()
+	PACK_DETECT_STATUS=()
+	PACK_DETECT_VERSION=()
 	for mcp in backlogit engram graphtor-docs; do
-		# graphtor-docs may be installed workspace-local at .graphtor/bin/ (registry eligibility signal), not just on PATH.
-		if command -v "$mcp" >/dev/null 2>&1; then ok "$mcp MCP prereq present"
-		elif [[ "$mcp" == "graphtor-docs" && ( ( -f ".graphtor/bin/graphtor-docs" && -x ".graphtor/bin/graphtor-docs" ) || ( -f ".graphtor/bin/graphtor-docs.exe" && -x ".graphtor/bin/graphtor-docs.exe" ) ) ]]; then ok "$mcp MCP prereq present"
-		else info "$mcp not found (optional pack MCP prereq)"; fi
+		pack_detect_status "$mcp"
+		local idx=$((${#PACK_DETECT_NAMES[@]} - 1))
+		case "${PACK_DETECT_STATUS[$idx]}" in
+			present) ok "$mcp MCP prereq present (version: ${PACK_DETECT_VERSION[$idx]})" ;;
+			undetectable) warn "$mcp present but version undetectable (optional pack MCP prereq)" ;;
+			*) info "$mcp not found (optional pack MCP prereq)" ;;
+		esac
 	done
 
 	if [[ -n "$hard_missing" ]]; then fail "Missing hard prerequisites:$hard_missing"; return 1; fi
 	ok "preflight passed"
+	return 0
+}
+
+# ── Phase (additive, 114-F / 47971057 bounded): checklist ───────────────────
+invoke_checklist() {
+	phase "checklist (pre-merge-install; report only)"
+	if [[ "${#PACK_DETECT_NAMES[@]}" -eq 0 ]]; then
+		info "no pack detection results available; skipping checklist."
+		return 0
+	fi
+
+	# Interactive prompts are opt-in AND require a real terminal on stdin;
+	# otherwise fall back to the non-interactive report (AC F3: headless/CI
+	# deploys never regress and never block on stdin).
+	local do_interactive=0
+	if [[ "$INTERACTIVE" -eq 1 && -t 0 ]]; then do_interactive=1; fi
+
+	printf '\n  Pre-merge-install checklist (REPORT ONLY -- no install/upgrade is executed):\n'
+	printf '  %-16s %-14s %-10s %-24s %-10s\n' "PACK" "DETECTED" "VERSION" "RECOMMENDED-ACTION" "SELECTED"
+	local i pack status version action selected default_ans answer
+	for ((i = 0; i < ${#PACK_DETECT_NAMES[@]}; i++)); do
+		pack="${PACK_DETECT_NAMES[$i]}"
+		status="${PACK_DETECT_STATUS[$i]}"
+		version="${PACK_DETECT_VERSION[$i]}"
+		[[ -z "$version" ]] && version="-"
+		action="$(pack_recommended_action "$status")"
+		selected="n/a"
+		if [[ "$do_interactive" -eq 1 ]]; then
+			default_ans="n"; [[ "$status" == "present" ]] && default_ans="y"
+			read -r -p "  Include $pack in install plan? [$default_ans] " answer || answer=""
+			[[ -z "$answer" ]] && answer="$default_ans"
+			case "$answer" in y|Y|yes|YES) selected="included" ;; *) selected="excluded" ;; esac
+		fi
+		printf '  %-16s %-14s %-10s %-24s %-10s\n' "$pack" "$status" "$version" "$action" "$selected"
+	done
+	printf '\n'
+	info "Capability-pack runtime provisioning, when implemented, MUST occur BEFORE merge-install composition. Actual install/upgrade execution and all supply-chain/source/OS-matrix design remain DEFERRED to operator -- see docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md."
 	return 0
 }
 
@@ -344,6 +445,7 @@ printf 'autoharness deploy-harness — workspace: %s\n' "$WORKSPACE_ROOT"
 [[ "$DRY_RUN" -eq 1 ]] && printf 'DRY RUN — no mutations will be performed.\n'
 
 invoke_preflight || exit 1
+invoke_checklist
 invoke_bootstrap || exit 2
 invoke_register || exit 3
 invoke_scaffold "$RESOLVED_HOME" || exit 4
