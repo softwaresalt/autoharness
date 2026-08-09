@@ -171,5 +171,163 @@ class DagReadinessDegradedTests(unittest.TestCase):
         self.assertIn("DEGRADED", out)
 
 
+class DagReadinessNextEligibleFieldsTests(unittest.TestCase):
+    """AC1/AC10 (115.002-T): the three next_eligible* fields are emitted
+    unconditionally, identically shaped across ok/empty/cycle/degraded
+    paths, and on non-degraded paths are taken verbatim from
+    compute_next_eligible(...).to_dict()."""
+
+    def test_ok_path_includes_next_eligible_fields_from_analyzer(self) -> None:
+        shipments = (_shipment("001-S", "queued"),)
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_FakeReaders(shipments)
+        ):
+            out, _, code = _run("gate", "dag-readiness", "--json")
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["next_eligible"], "001-S")
+        self.assertEqual(payload["next_eligible_reason"], "ready_set_head")
+        self.assertEqual(
+            payload["next_eligible_detail"], {"candidate_ids": ["001-S"], "offending_ids": []}
+        )
+
+    def test_empty_path_includes_no_candidates_reason(self) -> None:
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_FakeReaders(())
+        ):
+            out, _, code = _run("gate", "dag-readiness", "--json")
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertIsNone(payload["next_eligible"])
+        self.assertEqual(payload["next_eligible_reason"], "no_candidates")
+        self.assertEqual(
+            payload["next_eligible_detail"], {"candidate_ids": [], "offending_ids": []}
+        )
+
+    def test_cycle_path_includes_cycle_detected_reason_with_offending_nodes(self) -> None:
+        shipments = (
+            _shipment("001-S", "queued", deps=("002-S",)),
+            _shipment("002-S", "queued", deps=("001-S",)),
+        )
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_FakeReaders(shipments)
+        ):
+            out, _, code = _run("gate", "dag-readiness", "--json")
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertIsNone(payload["next_eligible"])
+        self.assertEqual(payload["next_eligible_reason"], "cycle_detected")
+        self.assertEqual(payload["next_eligible_detail"]["candidate_ids"], [])
+        self.assertEqual(set(payload["next_eligible_detail"]["offending_ids"]), {"001-S", "002-S"})
+
+    def test_multi_active_anomaly_reported_but_exit_code_still_zero(self) -> None:
+        shipments = (
+            _shipment("001-S", "active"),
+            _shipment("002-S", "active"),
+        )
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_FakeReaders(shipments)
+        ):
+            out, _, code = _run("gate", "dag-readiness", "--json")
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertIsNone(payload["next_eligible"])
+        self.assertEqual(payload["next_eligible_reason"], "multi_active_anomaly")
+        self.assertEqual(payload["next_eligible_detail"]["offending_ids"], ["001-S", "002-S"])
+
+    def test_ok_path_preserves_existing_phase1_fields_unchanged(self) -> None:
+        # H6: a consumer that ignores the three new fields still parses the
+        # payload unchanged. Every Phase 1 field keeps its exact name, type,
+        # and meaning.
+        shipments = (
+            _shipment("001-S", "shipped"),
+            _shipment("002-S", "queued", deps=("001-S",)),
+        )
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_FakeReaders(shipments)
+        ):
+            out, _, code = _run("gate", "dag-readiness", "--json")
+        payload = json.loads(out)
+        self.assertEqual(payload["ready_set"], ["002-S"])
+        self.assertEqual(payload["critical_path"], ["001-S", "002-S"])
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["cycle_detected"], False)
+        self.assertEqual(payload["cycle_nodes"], [])
+        self.assertIn("downstream_dependents", payload)
+        self.assertIn("degraded_reason", payload)
+
+    def test_human_report_adds_at_most_one_next_eligible_line(self) -> None:
+        shipments = (_shipment("001-S", "queued"),)
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_FakeReaders(shipments)
+        ):
+            out, _, code = _run("gate", "dag-readiness")
+        self.assertEqual(code, 0)
+        next_eligible_lines = [line for line in out.splitlines() if "next eligible" in line]
+        self.assertEqual(len(next_eligible_lines), 1)
+        self.assertIn("001-S", next_eligible_lines[0])
+        self.assertIn("ready_set_head", next_eligible_lines[0])
+
+    def test_human_report_renders_next_eligible_line_on_cycle_path(self) -> None:
+        shipments = (
+            _shipment("001-S", "queued", deps=("002-S",)),
+            _shipment("002-S", "queued", deps=("001-S",)),
+        )
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_FakeReaders(shipments)
+        ):
+            out, _, code = _run("gate", "dag-readiness")
+        self.assertEqual(code, 0)
+        next_eligible_lines = [line for line in out.splitlines() if "next eligible" in line]
+        self.assertEqual(len(next_eligible_lines), 1)
+        self.assertIn("cycle_detected", next_eligible_lines[0])
+        self.assertIn("(none)", next_eligible_lines[0])
+
+
+class DagReadinessDegradedNextEligibleTests(unittest.TestCase):
+    """AC5/AC9 (115.002-T): degraded outcome is CLI-exclusive, synthesized
+    literally WITHOUT invoking compute_next_eligible, with the exact
+    two-empty-array detail shape."""
+
+    def test_degraded_next_eligible_detail_is_exactly_two_empty_arrays(self) -> None:
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_UnavailableReaders()
+        ):
+            out, _, code = _run("gate", "dag-readiness", "--json")
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertIsNone(payload["next_eligible"])
+        self.assertEqual(payload["next_eligible_reason"], "degraded")
+        self.assertEqual(
+            payload["next_eligible_detail"], {"candidate_ids": [], "offending_ids": []}
+        )
+
+    def test_degraded_path_never_invokes_the_analyzer(self) -> None:
+        with (
+            mock.patch(
+                "autoharness.gates.topology.FilesystemTopologyReaders",
+                return_value=_UnavailableReaders(),
+            ),
+            mock.patch("autoharness.gates.topology.compute_next_eligible") as mocked_analyzer,
+        ):
+            out, _, code = _run("gate", "dag-readiness", "--json")
+        self.assertEqual(code, 0)
+        mocked_analyzer.assert_not_called()
+        payload = json.loads(out)
+        self.assertEqual(payload["next_eligible_reason"], "degraded")
+
+    def test_degraded_human_report_renders_next_eligible_none_degraded(self) -> None:
+        with mock.patch(
+            "autoharness.gates.topology.FilesystemTopologyReaders", return_value=_UnavailableReaders()
+        ):
+            out, _, code = _run("gate", "dag-readiness")
+        self.assertEqual(code, 0)
+        self.assertIn("DEGRADED", out)
+        next_eligible_lines = [line for line in out.splitlines() if "next eligible" in line]
+        self.assertEqual(len(next_eligible_lines), 1)
+        self.assertIn("(none)", next_eligible_lines[0])
+        self.assertIn("degraded", next_eligible_lines[0])
+
+
 if __name__ == "__main__":
     unittest.main()

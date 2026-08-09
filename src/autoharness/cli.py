@@ -899,12 +899,14 @@ def _format_dag_readiness_report(payload: dict) -> str:
     lines = [f"DAG readiness — {status.upper()}"]
     if status == "degraded":
         lines.append(f"  DEGRADED: {payload.get('degraded_reason') or 'backlog unreachable'}")
+        lines.append(_format_next_eligible_line(payload))
         return "\n".join(lines)
     ready_set = payload["ready_set"]
     lines.append(f"  ready-set: {', '.join(ready_set) if ready_set else '(none)'}")
     if payload["cycle_detected"]:
         lines.append(f"  cycle detected: {', '.join(payload['cycle_nodes'])}")
         lines.append("  critical path / downstream dependents suppressed (cycle guard)")
+        lines.append(_format_next_eligible_line(payload))
         return "\n".join(lines)
     critical_path = payload["critical_path"]
     lines.append(f"  critical path: {' -> '.join(critical_path) if critical_path else '(none)'}")
@@ -916,7 +918,25 @@ def _format_dag_readiness_report(payload: dict) -> str:
             lines.append(f"    {node} -> {', '.join(non_empty[node])}")
     else:
         lines.append("  downstream dependents: (none)")
+    lines.append(_format_next_eligible_line(payload))
     return "\n".join(lines)
+
+
+def _format_next_eligible_line(payload: dict) -> str:
+    """Render the single next-eligible-cursor report line (115.002-T AC4).
+
+    Renders on EVERY path -- ok, empty, cycle, and degraded -- so the
+    operator never sees a report that silently omits the cursor.
+    """
+    reason = payload["next_eligible_reason"]
+    cursor = payload["next_eligible"]
+    if cursor is not None:
+        return f"  next eligible: {cursor} ({reason})"
+    detail = payload["next_eligible_detail"]
+    offending_ids = detail["offending_ids"]
+    if offending_ids:
+        return f"  next eligible: (none) — {reason}: {', '.join(offending_ids)}"
+    return f"  next eligible: (none) — {reason}"
 
 
 def _gate_dag_readiness_command(rest: list[str]) -> None:
@@ -938,7 +958,11 @@ def _gate_dag_readiness_command(rest: list[str]) -> None:
     try:
         shipments = tuple(readers.list_shipments())
     except topology.BacklogUnavailableError as exc:
-        # Read-only, non-fatal degradation: never fabricate a graph.
+        # Read-only, non-fatal degradation: never fabricate a graph. This is
+        # the CLI-EXCLUSIVE synthesis of gate outcome 1 (`degraded`) --
+        # constructed literally, WITHOUT calling compute_next_eligible,
+        # because on this path neither `shipments` nor a DagReadinessResult
+        # ever comes into existence (115.002-T AC5/AC9).
         payload = {
             "status": "degraded",
             "ready_set": [],
@@ -947,6 +971,9 @@ def _gate_dag_readiness_command(rest: list[str]) -> None:
             "cycle_detected": False,
             "cycle_nodes": [],
             "degraded_reason": str(exc),
+            "next_eligible": None,
+            "next_eligible_reason": "degraded",
+            "next_eligible_detail": {"candidate_ids": [], "offending_ids": []},
         }
         if parsed["emit_json"]:
             print(json.dumps(payload, indent=2))
@@ -961,6 +988,12 @@ def _gate_dag_readiness_command(rest: list[str]) -> None:
         payload["status"] = "empty"
     else:
         payload["status"] = "ok"
+
+    # Non-degraded paths: the three cursor fields are taken verbatim from
+    # compute_next_eligible(...).to_dict() -- no second definition of any
+    # reason value and no re-derivation of the cursor (115.002-T AC10).
+    next_eligible_result = topology.compute_next_eligible(shipments, result)
+    payload.update(next_eligible_result.to_dict())
 
     if parsed["emit_json"]:
         print(json.dumps(payload, indent=2))
