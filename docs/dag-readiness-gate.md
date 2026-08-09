@@ -141,26 +141,41 @@ it accepts no `is_degraded`/`degraded` sentinel input by design. This document
 never describes a seven-branch analyzer; it is six analyzer branches plus one
 CLI-synthesized outcome.
 
-Resolution order for the six analyzer branches, evaluated against the full
+Resolution order for the six analyzer branches — using the same canonical
+outcome numbers as the ownership-split table above (outcome 1 is the CLI's
+`degraded`; the analyzer owns outcomes 2–7), evaluated against the full
 unfiltered shipment enumeration (anomaly-first — never an early-narrowed
 subset):
 
-1. `readiness.cycle_detected` → null cursor / `cycle_detected` (offending
-   ids = the cycle's nodes).
-2. Any shipment with ambiguous live+archive provenance → null cursor /
+2. `readiness.cycle_detected` → null cursor / `cycle_detected`.
+   `next_eligible_detail` stays `{"candidate_ids": [], "offending_ids": []}`
+   here — the cycle's participating nodes are already reported via the
+   existing Phase 1 `cycle_nodes` field, not duplicated into
+   `next_eligible_detail`.
+3. Any shipment with ambiguous live+archive provenance → null cursor /
    `ambiguous_provenance` (offending ids = the ambiguous shipment ids).
    Checked **before** active/ready partitioning — a single `active` shipment
    that is **also** ambiguous reports `ambiguous_provenance`, never
    `resume_active`, and is never folded into `multi_active_anomaly` or
    `no_candidates`.
-3. More than one `active` shipment → null cursor / `multi_active_anomaly`
+4. More than one `active` shipment → null cursor / `multi_active_anomaly`
    (offending ids = every active shipment id). Never picks a winner and never
    falls through to the ready-set.
-4. Exactly one `active` shipment → that id is the cursor, reason
-   `resume_active`.
-5. Zero `active`, non-empty `ready_set` → the tie-broken head of
-   `ready_set`, reason `ready_set_head`.
-6. Zero `active`, empty `ready_set` → null cursor / `no_candidates`.
+5. Exactly one `active` shipment → that id is the cursor, reason
+   `resume_active`. `candidate_ids` stays empty here too — there is exactly
+   one `active` shipment and nothing to tie-break, so the resolved cursor is
+   reported only via `next_eligible` itself.
+6. Zero `active`, non-empty `ready_set` → the tie-broken head of
+   `ready_set`, reason `ready_set_head` (`candidate_ids` = the full
+   tie-broken `ready_set`, in order).
+7. Zero `active`, empty `ready_set` → null cursor / `no_candidates`.
+
+**`next_eligible_detail` population is normative, not "empty unless
+otherwise noted"**: `candidate_ids` is non-empty **only** for outcome 6
+(`ready_set_head`); `offending_ids` is non-empty **only** for outcomes 3
+(`ambiguous_provenance`) and 4 (`multi_active_anomaly`). Every other outcome
+— including `degraded`, `cycle_detected`, `resume_active`, and
+`no_candidates` — reports both arrays empty.
 
 ### Tie-Break (branch 6, `ready_set_head`, ONLY)
 
@@ -174,7 +189,7 @@ When more than one shipment is in `ready_set`, the cursor is chosen by:
 Shipment ids are unique, so this ordering is **total**: it never depends on
 dict/filesystem iteration order and is therefore run-to-run stable for the
 same graph, regardless of input ordering. This tie-break applies to branch 6
-(`ready_set_head`) **only** — it never applies to branch 4 (`resume_active`),
+(`ready_set_head`) **only** — it never applies to branch 5 (`resume_active`),
 which by definition has exactly one `active` shipment and nothing to
 tie-break.
 

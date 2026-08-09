@@ -274,7 +274,12 @@ class ComputeNextEligibleCycleDetectedTests(unittest.TestCase, ComputeNextEligib
     """Branch 2 (gate outcome 2): cycle_detected -- highest priority, evaluated
     before any provenance/active/ready partitioning."""
 
-    def test_cycle_detected_returns_null_cursor_with_offending_cycle_nodes(self) -> None:
+    def test_cycle_detected_returns_null_cursor_with_empty_detail(self) -> None:
+        # offending_ids is populated ONLY for multi_active_anomaly and
+        # ambiguous_provenance per the normative detail-shape contract; the
+        # cycle's participating nodes are already reported via the Phase 1
+        # readiness.cycle_nodes field, so next_eligible_detail stays empty
+        # on both arrays here.
         shipments = (
             _shipment("001-S", "queued", deps=("002-S",)),
             _shipment("002-S", "queued", deps=("001-S",)),
@@ -284,7 +289,7 @@ class ComputeNextEligibleCycleDetectedTests(unittest.TestCase, ComputeNextEligib
         self.assertIsNone(result.next_eligible)
         self.assertEqual(result.next_eligible_reason, "cycle_detected")
         self.assertEqual(result.candidate_ids, ())
-        self.assertEqual(set(result.offending_ids), {"001-S", "002-S"})
+        self.assertEqual(result.offending_ids, ())
 
     def test_cycle_detected_takes_priority_over_active_shipment_present(self) -> None:
         # An active shipment elsewhere in the graph must NOT cause
@@ -376,7 +381,11 @@ class ComputeNextEligibleResumeActiveTests(unittest.TestCase, ComputeNextEligibl
         result = self._next_eligible(shipments)
         self.assertEqual(result.next_eligible, "001-S")
         self.assertEqual(result.next_eligible_reason, "resume_active")
-        self.assertEqual(result.candidate_ids, ("001-S",))
+        # candidate_ids is populated ONLY for ready_set_head per the
+        # normative detail-shape contract; resume_active has nothing to
+        # tie-break among, so the array stays empty even though the
+        # resolved cursor itself is non-null.
+        self.assertEqual(result.candidate_ids, ())
         self.assertEqual(result.offending_ids, ())
 
     def test_resume_active_wins_over_nonempty_ready_set(self) -> None:
@@ -404,18 +413,22 @@ class ComputeNextEligibleReadySetHeadTests(unittest.TestCase, ComputeNextEligibl
         self.assertEqual(result.offending_ids, ())
 
     def test_tie_break_prefers_higher_downstream_fan_out(self) -> None:
-        # 002-S has 2 transitive downstream dependents (004-S, 005-S via
-        # 004-S); 003-S has 0. Both are independently ready (no predecessors).
-        # 002-S must win despite 003-S having a lexicographically smaller id.
+        # 005-S has 1 downstream dependent (009-S); 002-S has 0. Both are
+        # independently ready (no predecessors). Critically, 005-S is
+        # lexicographically LATER than 002-S, so a naive ascending-id-only
+        # implementation (with the fan-out sort key removed) would
+        # incorrectly pick 002-S -- this makes the assertion below a real
+        # regression for the fan-out sort key, not merely a restatement of
+        # ascending-id ordering.
         shipments = (
             _shipment("002-S", "queued"),
-            _shipment("003-S", "queued"),
-            _shipment("004-S", "queued", deps=("002-S",)),
+            _shipment("005-S", "queued"),
+            _shipment("009-S", "queued", deps=("005-S",)),
         )
         result = self._next_eligible(shipments)
         self.assertEqual(result.next_eligible_reason, "ready_set_head")
-        self.assertEqual(result.next_eligible, "002-S")
-        self.assertEqual(set(result.candidate_ids), {"002-S", "003-S"})
+        self.assertEqual(result.next_eligible, "005-S")
+        self.assertEqual(set(result.candidate_ids), {"002-S", "005-S"})
 
     def test_tie_break_falls_back_to_ascending_id_on_equal_fan_out(self) -> None:
         # Both candidates have zero downstream dependents (equal fan-out):

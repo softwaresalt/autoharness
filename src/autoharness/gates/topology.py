@@ -1913,7 +1913,16 @@ class NextEligibleResult:
 
     ``next_eligible_detail`` (via ``to_dict()``) always exposes BOTH
     ``candidate_ids`` and ``offending_ids`` as arrays -- empty arrays when
-    not applicable, never ``{}`` and never ``null``.
+    not applicable, never ``{}`` and never ``null``. Per the normative
+    detail-shape contract: ``candidate_ids`` is populated ONLY for
+    ``ready_set_head`` (the tie-broken ordered ``ready_set``); it is empty
+    for every other branch, including ``resume_active`` (the single
+    resolved cursor is reported via ``next_eligible`` alone, with nothing
+    to tie-break). ``offending_ids`` is populated ONLY for
+    ``multi_active_anomaly`` and ``ambiguous_provenance``; it is empty for
+    every other branch, including ``cycle_detected`` (whose participating
+    nodes are already reported via the Phase 1 ``cycle_nodes`` field, not
+    duplicated here).
     """
 
     next_eligible: str | None
@@ -1946,13 +1955,18 @@ def compute_next_eligible(
     cannot express "backlog unreachable" to this function.
     """
     # Branch 2 (gate outcome 2): cycle_detected -- highest priority, checked
-    # before any provenance/active/ready partitioning.
+    # before any provenance/active/ready partitioning. offending_ids is
+    # empty here per the normative detail-shape contract (014-DL plan):
+    # offending_ids is populated ONLY for multi_active_anomaly or
+    # ambiguous_provenance. The cycle's participating nodes are already
+    # reported via readiness.cycle_nodes on the Phase 1 payload -- this
+    # analyzer does not duplicate them into next_eligible_detail.
     if readiness.cycle_detected:
         return NextEligibleResult(
             next_eligible=None,
             next_eligible_reason="cycle_detected",
             candidate_ids=(),
-            offending_ids=tuple(readiness.cycle_nodes),
+            offending_ids=(),
         )
 
     # Branch 3 (gate outcome 3): ambiguous live/archive provenance, over the
@@ -1983,10 +1997,15 @@ def compute_next_eligible(
             offending_ids=active_ids,
         )
     if len(active_ids) == 1:
+        # candidate_ids is populated ONLY for ready_set_head (the
+        # tie-broken ordered candidate list); it is empty here per the
+        # normative detail-shape contract (014-DL plan) -- resume_active
+        # has nothing to tie-break among, so there is no candidate list to
+        # report, only the single resolved cursor in next_eligible itself.
         return NextEligibleResult(
             next_eligible=active_ids[0],
             next_eligible_reason="resume_active",
-            candidate_ids=active_ids,
+            candidate_ids=(),
             offending_ids=(),
         )
 

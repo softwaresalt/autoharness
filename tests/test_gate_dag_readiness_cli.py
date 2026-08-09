@@ -204,7 +204,7 @@ class DagReadinessNextEligibleFieldsTests(unittest.TestCase):
             payload["next_eligible_detail"], {"candidate_ids": [], "offending_ids": []}
         )
 
-    def test_cycle_path_includes_cycle_detected_reason_with_offending_nodes(self) -> None:
+    def test_cycle_path_includes_cycle_detected_reason_with_empty_detail(self) -> None:
         shipments = (
             _shipment("001-S", "queued", deps=("002-S",)),
             _shipment("002-S", "queued", deps=("001-S",)),
@@ -218,7 +218,11 @@ class DagReadinessNextEligibleFieldsTests(unittest.TestCase):
         self.assertIsNone(payload["next_eligible"])
         self.assertEqual(payload["next_eligible_reason"], "cycle_detected")
         self.assertEqual(payload["next_eligible_detail"]["candidate_ids"], [])
-        self.assertEqual(set(payload["next_eligible_detail"]["offending_ids"]), {"001-S", "002-S"})
+        # offending_ids is populated ONLY for multi_active_anomaly and
+        # ambiguous_provenance per the normative detail-shape contract; the
+        # cycle's participating nodes are already surfaced via the Phase 1
+        # cycle_nodes field.
+        self.assertEqual(payload["next_eligible_detail"]["offending_ids"], [])
 
     def test_multi_active_anomaly_reported_but_exit_code_still_zero(self) -> None:
         shipments = (
