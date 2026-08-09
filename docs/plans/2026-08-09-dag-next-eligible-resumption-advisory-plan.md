@@ -46,11 +46,39 @@ other external change.
 
 ### Resolution order (resumption-first)
 
-Evaluated in this exact order against the **unfiltered** shipment enumeration:
+The gate exposes **seven** observable outcomes, numbered 1–7 below and referenced
+by these numbers everywhere in this feature. Ownership is **split by
+reachability**, and the split is normative:
+
+* **Outcome 1 (`degraded`) is CLI-only.** It is synthesized deterministically by
+  `115.002-T` inside the existing `BacklogUnavailableError` handler in
+  `_gate_dag_readiness_command`, **before the analyzer is invoked**. It is **not**
+  an analyzer branch.
+* **Outcomes 2–7 are the analyzer's six branches.** `compute_next_eligible`
+  (`115.001-T`) implements exactly these six and no others.
+
+**Why the split (reachability proof).** `BacklogUnavailableError` is raised by
+`readers.list_shipments()`. When it is raised, the `shipments` tuple never comes
+into existence, `compute_dag_readiness` is never called, and therefore no
+`DagReadinessResult` and no readiness/`ready_set` value exists. The analyzer's
+inputs are `(shipments, readiness)` — both of which are unavailable on exactly the
+path that would signal degradation. A `degraded` branch inside the analyzer is
+therefore **unreachable by construction** and MUST NOT be claimed, implemented, or
+tested as an analyzer branch. Adding a separate "is degraded" input parameter just
+to reach it was considered and **rejected**: it would let a caller assert
+degradation while simultaneously passing successfully-read data, creating a
+self-contradictory input space for no benefit. The analyzer's contract is simply
+**"successfully-read data only."**
+
+The seven outcomes resolve in this exact order. Outcome 1 is decided by the CLI
+**before** the analyzer runs; the analyzer then evaluates outcomes 2–7 in this
+exact order against the **unfiltered** shipment enumeration:
 
 1. **DEGRADED** (backlog unreachable, `BacklogUnavailableError`) →
-   `next_eligible: null`, `next_eligible_reason: "degraded"`. The graph was never
-   read; any cursor would be fabricated.
+   `next_eligible: null`, `next_eligible_reason: "degraded"`,
+   `next_eligible_detail: {"candidate_ids": [], "offending_ids": []}`. The graph was
+   never read; any cursor would be fabricated. **CLI-synthesized (`115.002-T`);
+   never reached by, and never implemented in, the analyzer.**
 2. **Cycle detected** → `null`, reason `"cycle_detected"`. Mirrors Phase 1's
    existing refusal to fabricate a `ready_set` or `critical_path` under a cycle.
 3. **Any shipment carrying ambiguous live/archive provenance** (the same corruption
@@ -72,6 +100,10 @@ Evaluated in this exact order against the **unfiltered** shipment enumeration:
 Branch 3 deliberately precedes branches 4–7 so that provenance corruption is
 reported as itself rather than being re-expressed as some downstream symptom.
 
+Branches 2–7 are the analyzer's **six** branches; outcome 1 is the CLI's sole
+responsibility. The union of the two is the full seven-value
+`next_eligible_reason` enum observable at the gate boundary.
+
 ### `next_eligible` is NOT a `ready_set` member (interop contract)
 
 Under branch 5 the cursor is an **`active`** shipment, and Phase 1's `ready_set`
@@ -82,7 +114,12 @@ authoritative discriminator: `resume_active` means the cursor is in-flight work 
 be resumed, `ready_set_head` means it is a ready-set candidate. This must be stated
 in both the docs task and the `--json` field table.
 
-### Deterministic tie-break (branch 5)
+### Deterministic tie-break (branch 6 — `ready_set_head`)
+
+The tie-break applies **only** to branch 6 (`ready_set_head`), where a candidate
+must be chosen from `ready_set`. It does **not** apply to branch 5
+(`resume_active`): that branch has exactly one `active` shipment, so there is
+nothing to tie-break.
 
 Sort candidates by:
 
@@ -119,8 +156,8 @@ backward compatible):
 | Field | Type | Description |
 |---|---|---|
 | `next_eligible` | shipment id or `null` | The single recommended cursor, or `null` on any fail-closed branch. |
-| `next_eligible_reason` | string | Exactly one of `resume_active`, `ready_set_head`, `no_candidates`, `multi_active_anomaly`, `ambiguous_provenance`, `cycle_detected`, `degraded`. Always populated — never empty, even when `next_eligible` is `null`. |
-| `next_eligible_detail` | object | `{"candidate_ids": [...], "offending_ids": [...]}`. `candidate_ids` holds the tie-broken ordered candidate list under `ready_set_head` (empty otherwise); `offending_ids` holds the ids that triggered `multi_active_anomaly` or `ambiguous_provenance` (empty otherwise). Both keys are always present so consumers need no key-existence checks. |
+| `next_eligible_reason` | string | Exactly one of `resume_active`, `ready_set_head`, `no_candidates`, `multi_active_anomaly`, `ambiguous_provenance`, `cycle_detected`, `degraded`. Always populated — never empty, even when `next_eligible` is `null`. The analyzer emits the first six; `degraded` is emitted only by the CLI's synthesized degraded payload. |
+| `next_eligible_detail` | object | Always exactly `{"candidate_ids": [...], "offending_ids": [...]}`. `candidate_ids` holds the tie-broken ordered candidate list under `ready_set_head` (an empty array otherwise); `offending_ids` holds the ids that triggered `multi_active_anomaly` or `ambiguous_provenance` (an empty array otherwise). **Both keys are present on every outcome, including `degraded`, where the value is exactly `{"candidate_ids": [], "offending_ids": []}` — two empty arrays, never the empty object `{}` and never a null.** Consumers therefore need no key-existence checks and may index both keys unconditionally. |
 
 Every Phase 1 field keeps its exact meaning and shape. Exit codes stay
 `0` (report: ok/empty/degraded) and `2` (bad args) — dag-readiness still has no
@@ -167,6 +204,15 @@ mutating anything itself. See the Hardening section below.
 * **H4 — Read-only proof.** The analyzer receives already-read `ShipmentState`
   values and performs no I/O. The CLI path adds no write. A regression test asserts
   no backlogit/git mutation occurs on any branch, including the anomaly branches.
+* **H4b — Degraded ownership is single-sited.** `degraded` is synthesized in exactly
+  one place (the CLI's `BacklogUnavailableError` handler) and the analyzer is not
+  invoked on that path. Implementing a `degraded` branch inside the analyzer, or
+  emitting `degraded` from the analyzer, is a P0 defect: it would be dead code
+  asserting a state the analyzer's inputs cannot represent. A regression test
+  asserts the degraded payload carries `next_eligible: null`,
+  `next_eligible_reason: "degraded"`, and
+  `next_eligible_detail == {"candidate_ids": [], "offending_ids": []}` with the same
+  key set as the ok/empty payloads.
 * **H5 — Total-order determinism.** A regression test feeds the same graph with
   shuffled input ordering and asserts an identical cursor across runs, covering a
   fan-out tie resolved by the id fallback.
