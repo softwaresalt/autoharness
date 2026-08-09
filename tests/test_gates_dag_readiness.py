@@ -9,12 +9,15 @@ reader (see 110.001-T acceptance criteria 5).
 
 from __future__ import annotations
 
+import json
 import unittest
 
 from autoharness.gates.topology import (
     DagReadinessResult,
+    NextEligibleResult,
     ShipmentState,
     compute_dag_readiness,
+    compute_next_eligible,
 )
 
 
@@ -254,6 +257,309 @@ class DagReadinessResultToDictTests(unittest.TestCase):
         self.assertIn("downstream_dependents", reloaded)
         self.assertIn("cycle_detected", reloaded)
         self.assertIn("cycle_nodes", reloaded)
+
+
+class ComputeNextEligibleHelpersMixin:
+    """Shared helper: run the analyzer end-to-end from a shipment tuple by
+    first computing DagReadinessResult (reused, unmodified) then feeding it
+    to compute_next_eligible -- exactly the intended two-step call shape."""
+
+    @staticmethod
+    def _next_eligible(shipments: tuple[ShipmentState, ...]) -> NextEligibleResult:
+        readiness = compute_dag_readiness(shipments)
+        return compute_next_eligible(shipments, readiness)
+
+
+class ComputeNextEligibleCycleDetectedTests(unittest.TestCase, ComputeNextEligibleHelpersMixin):
+    """Branch 2 (gate outcome 2): cycle_detected -- highest priority, evaluated
+    before any provenance/active/ready partitioning."""
+
+    def test_cycle_detected_returns_null_cursor_with_empty_detail(self) -> None:
+        # offending_ids is populated ONLY for multi_active_anomaly and
+        # ambiguous_provenance per the normative detail-shape contract; the
+        # cycle's participating nodes are already reported via the Phase 1
+        # readiness.cycle_nodes field, so next_eligible_detail stays empty
+        # on both arrays here.
+        shipments = (
+            _shipment("001-S", "queued", deps=("002-S",)),
+            _shipment("002-S", "queued", deps=("001-S",)),
+        )
+        result = self._next_eligible(shipments)
+        self.assertIsInstance(result, NextEligibleResult)
+        self.assertIsNone(result.next_eligible)
+        self.assertEqual(result.next_eligible_reason, "cycle_detected")
+        self.assertEqual(result.candidate_ids, ())
+        self.assertEqual(result.offending_ids, ())
+
+    def test_cycle_detected_takes_priority_over_active_shipment_present(self) -> None:
+        # An active shipment elsewhere in the graph must NOT cause
+        # resume_active to win over a detected cycle.
+        shipments = (
+            _shipment("001-S", "active"),
+            _shipment("002-S", "queued", deps=("003-S",)),
+            _shipment("003-S", "queued", deps=("002-S",)),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible_reason, "cycle_detected")
+        self.assertIsNone(result.next_eligible)
+
+
+class ComputeNextEligibleAmbiguousProvenanceTests(unittest.TestCase, ComputeNextEligibleHelpersMixin):
+    """Branch 3 (gate outcome 3): ambiguous live/archive provenance, checked
+    BEFORE active/ready partitioning. AC6 dedicated regression, including the
+    single-active-but-ambiguous case which MUST report ambiguous_provenance
+    and MUST NOT report resume_active."""
+
+    def test_ambiguous_shipment_returns_null_cursor_with_offending_id(self) -> None:
+        shipments = (_shipment("001-S", "queued", archived_status="shipped"),)
+        result = self._next_eligible(shipments)
+        self.assertIsNone(result.next_eligible)
+        self.assertEqual(result.next_eligible_reason, "ambiguous_provenance")
+        self.assertEqual(result.candidate_ids, ())
+        self.assertEqual(result.offending_ids, ("001-S",))
+
+    def test_single_active_but_ambiguous_reports_ambiguous_not_resume_active(self) -> None:
+        # H3b: exactly one 'active' shipment that is ALSO ambiguous must
+        # report ambiguous_provenance, never resume_active, and must never be
+        # folded into multi_active_anomaly or no_candidates.
+        shipments = (
+            _shipment("001-S", "active", archived_status="shipped"),
+            _shipment("002-S", "queued"),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible_reason, "ambiguous_provenance")
+        self.assertIsNone(result.next_eligible)
+        self.assertEqual(result.offending_ids, ("001-S",))
+
+    def test_ambiguous_takes_priority_over_multi_active_anomaly(self) -> None:
+        shipments = (
+            _shipment("001-S", "active", archived_status="shipped"),
+            _shipment("002-S", "active"),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible_reason, "ambiguous_provenance")
+        self.assertEqual(result.offending_ids, ("001-S",))
+
+
+class ComputeNextEligibleMultiActiveAnomalyTests(unittest.TestCase, ComputeNextEligibleHelpersMixin):
+    """Branch 4 (gate outcome 4): AC5 dedicated regression -- two or more
+    active shipments must never pick a winner and must never fall through to
+    the ready-set."""
+
+    def test_two_active_shipments_returns_null_cursor_with_both_offending_ids(self) -> None:
+        shipments = (
+            _shipment("001-S", "active"),
+            _shipment("002-S", "active"),
+            _shipment("003-S", "queued"),
+        )
+        result = self._next_eligible(shipments)
+        self.assertIsNone(result.next_eligible)
+        self.assertEqual(result.next_eligible_reason, "multi_active_anomaly")
+        self.assertEqual(result.offending_ids, ("001-S", "002-S"))
+        self.assertEqual(result.candidate_ids, ())
+
+    def test_three_active_shipments_all_listed_as_offending(self) -> None:
+        shipments = (
+            _shipment("003-S", "active"),
+            _shipment("001-S", "active"),
+            _shipment("002-S", "active"),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible_reason, "multi_active_anomaly")
+        self.assertEqual(result.offending_ids, ("001-S", "002-S", "003-S"))
+
+
+class ComputeNextEligibleResumeActiveTests(unittest.TestCase, ComputeNextEligibleHelpersMixin):
+    """Branch 5 (gate outcome 5): exactly one active shipment resumes -- no
+    tie-break applies here (nothing to tie-break with exactly one)."""
+
+    def test_exactly_one_active_shipment_is_the_cursor(self) -> None:
+        shipments = (
+            _shipment("001-S", "active"),
+            _shipment("002-S", "queued"),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible, "001-S")
+        self.assertEqual(result.next_eligible_reason, "resume_active")
+        # candidate_ids is populated ONLY for ready_set_head per the
+        # normative detail-shape contract; resume_active has nothing to
+        # tie-break among, so the array stays empty even though the
+        # resolved cursor itself is non-null.
+        self.assertEqual(result.candidate_ids, ())
+        self.assertEqual(result.offending_ids, ())
+
+    def test_resume_active_wins_over_nonempty_ready_set(self) -> None:
+        shipments = (
+            _shipment("001-S", "active"),
+            _shipment("002-S", "queued"),
+            _shipment("003-S", "queued"),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible, "001-S")
+        self.assertEqual(result.next_eligible_reason, "resume_active")
+
+
+class ComputeNextEligibleReadySetHeadTests(unittest.TestCase, ComputeNextEligibleHelpersMixin):
+    """Branch 6 (gate outcome 6): zero active shipments, non-empty ready_set.
+    Tie-break: DESC transitive downstream fan-out, then ASC shipment id. This
+    is the ONLY branch the tie-break applies to (AC7)."""
+
+    def test_single_ready_candidate_is_the_cursor(self) -> None:
+        shipments = (_shipment("001-S", "queued"),)
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible, "001-S")
+        self.assertEqual(result.next_eligible_reason, "ready_set_head")
+        self.assertEqual(result.candidate_ids, ("001-S",))
+        self.assertEqual(result.offending_ids, ())
+
+    def test_tie_break_prefers_higher_downstream_fan_out(self) -> None:
+        # 005-S has 1 downstream dependent (009-S); 002-S has 0. Both are
+        # independently ready (no predecessors). Critically, 005-S is
+        # lexicographically LATER than 002-S, so a naive ascending-id-only
+        # implementation (with the fan-out sort key removed) would
+        # incorrectly pick 002-S -- this makes the assertion below a real
+        # regression for the fan-out sort key, not merely a restatement of
+        # ascending-id ordering.
+        shipments = (
+            _shipment("002-S", "queued"),
+            _shipment("005-S", "queued"),
+            _shipment("009-S", "queued", deps=("005-S",)),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible_reason, "ready_set_head")
+        self.assertEqual(result.next_eligible, "005-S")
+        self.assertEqual(set(result.candidate_ids), {"002-S", "005-S"})
+
+    def test_tie_break_falls_back_to_ascending_id_on_equal_fan_out(self) -> None:
+        # Both candidates have zero downstream dependents (equal fan-out):
+        # fall back to ascending shipment id.
+        shipments = (
+            _shipment("005-S", "queued"),
+            _shipment("002-S", "queued"),
+            _shipment("003-S", "queued"),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible_reason, "ready_set_head")
+        self.assertEqual(result.next_eligible, "002-S")
+
+    def test_total_order_determinism_under_shuffled_input(self) -> None:
+        # H5: identical graph, shuffled input list order, must yield an
+        # identical cursor every time -- covers the fan-out tie resolved by
+        # the ASC-id fallback.
+        base = [
+            _shipment("005-S", "queued"),
+            _shipment("002-S", "queued"),
+            _shipment("003-S", "queued"),
+            _shipment("004-S", "queued", deps=("002-S",)),
+            _shipment("006-S", "queued", deps=("003-S",)),
+        ]
+        orderings = [
+            tuple(base),
+            tuple(reversed(base)),
+            (base[2], base[0], base[4], base[1], base[3]),
+            (base[4], base[3], base[2], base[1], base[0]),
+        ]
+        results = [self._next_eligible(shipments) for shipments in orderings]
+        first = results[0]
+        for other in results[1:]:
+            self.assertEqual(other.next_eligible, first.next_eligible)
+            self.assertEqual(other.next_eligible_reason, first.next_eligible_reason)
+            self.assertEqual(set(other.candidate_ids), set(first.candidate_ids))
+
+
+class ComputeNextEligibleNoCandidatesTests(unittest.TestCase, ComputeNextEligibleHelpersMixin):
+    """Branch 7 (gate outcome 7): zero active shipments, empty ready_set."""
+
+    def test_empty_graph_returns_no_candidates(self) -> None:
+        result = self._next_eligible(())
+        self.assertIsNone(result.next_eligible)
+        self.assertEqual(result.next_eligible_reason, "no_candidates")
+        self.assertEqual(result.candidate_ids, ())
+        self.assertEqual(result.offending_ids, ())
+
+    def test_all_shipped_graph_returns_no_candidates(self) -> None:
+        shipments = (
+            _shipment("001-S", "shipped"),
+            _shipment("002-S", "shipped", deps=("001-S",)),
+        )
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible_reason, "no_candidates")
+        self.assertIsNone(result.next_eligible)
+
+    def test_all_blocked_queued_with_unfinished_predecessors_returns_no_candidates(self) -> None:
+        shipments = (
+            _shipment("001-S", "queued"),
+            _shipment("002-S", "queued", deps=("001-S",)),
+        )
+        result = self._next_eligible(shipments)
+        # 001-S itself IS ready (no predecessors), so this is ready_set_head,
+        # not no_candidates -- use a genuinely blocked-everywhere graph instead.
+        self.assertEqual(result.next_eligible_reason, "ready_set_head")
+
+    def test_genuinely_all_blocked_returns_no_candidates(self) -> None:
+        shipments = (_shipment("002-S", "queued", deps=("999-S",)),)
+        result = self._next_eligible(shipments)
+        self.assertEqual(result.next_eligible_reason, "no_candidates")
+        self.assertIsNone(result.next_eligible)
+
+
+class ComputeNextEligibleDetailShapeTests(unittest.TestCase, ComputeNextEligibleHelpersMixin):
+    """AC4: detail payload always exposes BOTH candidate_ids and
+    offending_ids keys as arrays (never {}, never null, never omitted)."""
+
+    def test_to_dict_shape_present_on_every_branch(self) -> None:
+        graphs = {
+            "cycle_detected": (
+                _shipment("001-S", "queued", deps=("002-S",)),
+                _shipment("002-S", "queued", deps=("001-S",)),
+            ),
+            "ambiguous_provenance": (_shipment("001-S", "queued", archived_status="shipped"),),
+            "multi_active_anomaly": (
+                _shipment("001-S", "active"),
+                _shipment("002-S", "active"),
+            ),
+            "resume_active": (_shipment("001-S", "active"),),
+            "ready_set_head": (_shipment("001-S", "queued"),),
+            "no_candidates": (),
+        }
+        for expected_reason, shipments in graphs.items():
+            with self.subTest(expected_reason=expected_reason):
+                result = self._next_eligible(shipments)
+                self.assertEqual(result.next_eligible_reason, expected_reason)
+                payload = result.to_dict()
+                self.assertIn("next_eligible", payload)
+                self.assertIn("next_eligible_reason", payload)
+                self.assertIn("next_eligible_detail", payload)
+                detail = payload["next_eligible_detail"]
+                self.assertEqual(set(detail.keys()), {"candidate_ids", "offending_ids"})
+                self.assertIsInstance(detail["candidate_ids"], list)
+                self.assertIsInstance(detail["offending_ids"], list)
+                # JSON round-trip safety.
+                reloaded = json.loads(json.dumps(payload))
+                self.assertEqual(
+                    set(reloaded["next_eligible_detail"].keys()),
+                    {"candidate_ids", "offending_ids"},
+                )
+
+    def test_analyzer_never_emits_degraded_reason(self) -> None:
+        # AC3/AC10: the analyzer must never emit 'degraded' -- that outcome
+        # is CLI-only (115.002-T), synthesized before this analyzer is ever
+        # invoked. Sweep every branch-representative graph and assert none
+        # of them produce 'degraded'.
+        graphs = [
+            (),
+            (_shipment("001-S", "queued"),),
+            (_shipment("001-S", "active"),),
+            (_shipment("001-S", "active"), _shipment("002-S", "active")),
+            (_shipment("001-S", "queued", archived_status="shipped"),),
+            (
+                _shipment("001-S", "queued", deps=("002-S",)),
+                _shipment("002-S", "queued", deps=("001-S",)),
+            ),
+        ]
+        for shipments in graphs:
+            result = self._next_eligible(shipments)
+            self.assertNotEqual(result.next_eligible_reason, "degraded")
 
 
 if __name__ == "__main__":

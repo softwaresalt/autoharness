@@ -1870,6 +1870,171 @@ def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessRes
     )
 
 
+@dataclass(frozen=True)
+class NextEligibleResult:
+    """Pure, read-only resumption-cursor advisory over an already-computed
+    ``DagReadinessResult`` and the same ``ShipmentState`` enumeration
+    (115.001-T, 115-F).
+
+    This analyzer implements SIX of the gate's SEVEN observable outcomes --
+    outcomes 2-7 in the canonical gate-level numbering: ``cycle_detected``,
+    ``ambiguous_provenance``, ``multi_active_anomaly``, ``resume_active``,
+    ``ready_set_head``, ``no_candidates``. Outcome 1, ``degraded``, is
+    CLI-ONLY (115.002-T): it is synthesized deterministically in the
+    ``BacklogUnavailableError`` handler BEFORE this analyzer is ever
+    invoked, because on that path neither a ``shipments`` tuple nor a
+    ``DagReadinessResult`` exists. This analyzer performs NO I/O and NO
+    backlogit/git mutation on ANY branch, including every anomaly branch.
+
+    RESOLUTION ORDER (anomaly-first, over the FULL UNFILTERED shipment
+    enumeration -- never an early-narrowed subset):
+      2. ``readiness.cycle_detected`` -> null cursor / ``cycle_detected``.
+      3. ANY shipment with ambiguous live+archive provenance (reused
+         ``_has_ambiguous_shipment_records``) -> null cursor /
+         ``ambiguous_provenance`` + offending ids. Checked BEFORE
+         active/ready partitioning, so a single ambiguous-but-``active``
+         shipment reports ``ambiguous_provenance``, never
+         ``resume_active``, and is never folded into
+         ``multi_active_anomaly`` or ``no_candidates``.
+      4. More than one ``active`` shipment -> null cursor /
+         ``multi_active_anomaly`` + offending ids. Never picks a winner and
+         never falls through to the ready-set.
+      5. Exactly one ``active`` shipment -> that id is the cursor, reason
+         ``resume_active``. No tie-break applies (nothing to tie-break with
+         exactly one).
+      6. Zero ``active`` -> tie-broken head of ``readiness.ready_set``,
+         reason ``ready_set_head``. Tie-break: DESC
+         ``len(readiness.downstream_dependents[id])``, then ASC shipment
+         id. Shipment ids are unique so the ordering is TOTAL -- never
+         ambiguous, never dependent on dict/filesystem iteration order.
+         This tie-break applies to THIS branch ONLY.
+      7. Zero ``active`` and an empty ``ready_set`` -> null cursor /
+         ``no_candidates``.
+
+    ``next_eligible_detail`` (via ``to_dict()``) always exposes BOTH
+    ``candidate_ids`` and ``offending_ids`` as arrays -- empty arrays when
+    not applicable, never ``{}`` and never ``null``. Per the normative
+    detail-shape contract: ``candidate_ids`` is populated ONLY for
+    ``ready_set_head`` (the tie-broken ordered ``ready_set``); it is empty
+    for every other branch, including ``resume_active`` (the single
+    resolved cursor is reported via ``next_eligible`` alone, with nothing
+    to tie-break). ``offending_ids`` is populated ONLY for
+    ``multi_active_anomaly`` and ``ambiguous_provenance``; it is empty for
+    every other branch, including ``cycle_detected`` (whose participating
+    nodes are already reported via the Phase 1 ``cycle_nodes`` field, not
+    duplicated here).
+    """
+
+    next_eligible: str | None
+    next_eligible_reason: str
+    candidate_ids: tuple[str, ...] = ()
+    offending_ids: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "next_eligible": self.next_eligible,
+            "next_eligible_reason": self.next_eligible_reason,
+            "next_eligible_detail": {
+                "candidate_ids": list(self.candidate_ids),
+                "offending_ids": list(self.offending_ids),
+            },
+        }
+
+
+def compute_next_eligible(
+    shipments: Sequence[ShipmentState],
+    readiness: DagReadinessResult,
+) -> NextEligibleResult:
+    """Pure, read-only resumption-cursor analyzer. See ``NextEligibleResult``
+    for the full branch/ordering/tie-break contract.
+
+    Consumes already-read ``ShipmentState`` values and the existing
+    ``DagReadinessResult`` -- performs NO I/O and NO mutation whatsoever.
+    Accepts ONLY successfully-read data: there is no ``is_degraded``/
+    ``degraded`` sentinel input, by design (115.001-T AC10). A caller
+    cannot express "backlog unreachable" to this function.
+    """
+    # Branch 2 (gate outcome 2): cycle_detected -- highest priority, checked
+    # before any provenance/active/ready partitioning. offending_ids is
+    # empty here per the normative detail-shape contract (014-DL plan):
+    # offending_ids is populated ONLY for multi_active_anomaly or
+    # ambiguous_provenance. The cycle's participating nodes are already
+    # reported via readiness.cycle_nodes on the Phase 1 payload -- this
+    # analyzer does not duplicate them into next_eligible_detail.
+    if readiness.cycle_detected:
+        return NextEligibleResult(
+            next_eligible=None,
+            next_eligible_reason="cycle_detected",
+            candidate_ids=(),
+            offending_ids=(),
+        )
+
+    # Branch 3 (gate outcome 3): ambiguous live/archive provenance, over the
+    # FULL UNFILTERED enumeration -- checked BEFORE active/ready
+    # partitioning so an active-but-ambiguous record is never silently
+    # excluded or misreported as resume_active/multi_active_anomaly.
+    ambiguous_ids = tuple(
+        sorted(shipment.shipment_id for shipment in shipments if _has_ambiguous_shipment_records(shipment))
+    )
+    if ambiguous_ids:
+        return NextEligibleResult(
+            next_eligible=None,
+            next_eligible_reason="ambiguous_provenance",
+            candidate_ids=(),
+            offending_ids=ambiguous_ids,
+        )
+
+    # Branches 4-5 (gate outcomes 4-5): partition by active count. Reuse
+    # _normalized_live_status rather than re-deriving "active" semantics.
+    active_ids = tuple(
+        sorted(shipment.shipment_id for shipment in shipments if _normalized_live_status(shipment) == "active")
+    )
+    if len(active_ids) > 1:
+        return NextEligibleResult(
+            next_eligible=None,
+            next_eligible_reason="multi_active_anomaly",
+            candidate_ids=(),
+            offending_ids=active_ids,
+        )
+    if len(active_ids) == 1:
+        # candidate_ids is populated ONLY for ready_set_head (the
+        # tie-broken ordered candidate list); it is empty here per the
+        # normative detail-shape contract (014-DL plan) -- resume_active
+        # has nothing to tie-break among, so there is no candidate list to
+        # report, only the single resolved cursor in next_eligible itself.
+        return NextEligibleResult(
+            next_eligible=active_ids[0],
+            next_eligible_reason="resume_active",
+            candidate_ids=(),
+            offending_ids=(),
+        )
+
+    # Branch 6 (gate outcome 6): zero active, non-empty ready_set. Tie-break
+    # applies to THIS branch only: DESC downstream fan-out, then ASC id.
+    # readiness.downstream_dependents/ready_set are already computed by the
+    # reused compute_dag_readiness -- no new graph traversal is added here.
+    if readiness.ready_set:
+        def _tie_break_key(shipment_id: str) -> tuple[int, str]:
+            fan_out = len(readiness.downstream_dependents.get(shipment_id, ()))
+            return (-fan_out, shipment_id)
+
+        head = min(readiness.ready_set, key=_tie_break_key)
+        return NextEligibleResult(
+            next_eligible=head,
+            next_eligible_reason="ready_set_head",
+            candidate_ids=tuple(readiness.ready_set),
+            offending_ids=(),
+        )
+
+    # Branch 7 (gate outcome 7): zero active, empty ready_set.
+    return NextEligibleResult(
+        next_eligible=None,
+        next_eligible_reason="no_candidates",
+        candidate_ids=(),
+        offending_ids=(),
+    )
+
+
 def evaluate(
     topology_input: TopologyInput,
     readers: TopologyReaders | None = None,
