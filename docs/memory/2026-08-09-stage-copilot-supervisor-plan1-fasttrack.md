@@ -708,6 +708,42 @@ harvested as `118.004-T`).
 
 The terminal state below is unchanged by cycle 6.
 
+### Cycle 7 — no new P0/P1; three consistency defects
+
+The seventh Copilot review (HEAD `857e208d`) again reported "no new comments" at
+top level with **three suppressed comments**, all valid, none a new P0/P1. The
+blocking set is now **stable at exactly F16-F20 across three consecutive
+reviews** - cycles 5, 6 and 7 have produced only evidence-robustness and
+record-consistency defects, never a new plan finding. That stability is itself
+evidence that the five open P1s are the real remaining gate.
+
+1. **The documented `-Repo` invocation did not actually work.** A relative
+   `-Repo` passed the initial `.backlogit` existence check - which resolves
+   against the *invocation* directory - but was then stored unresolved. V9's
+   archive probes run after `Set-Location $repo`, and the final
+   `Set-Location $repo` runs from the *temp fixture*, so a relative path would be
+   re-resolved against a different directory each time. The advertised
+   out-of-tree reproduction path was broken for exactly the users it was added
+   for. `-Repo` is now canonicalized with `Resolve-Path` before any
+   `Set-Location`, and the harness was re-run with `-Repo .` to prove it.
+
+   This is the same failure family as cycle 6's `git status` defect: a
+   correctness property that was *documented* but never *executed*. Anything the
+   README tells a reader to run must actually be run at least once.
+
+2. **The Ship handoff checkpoint recorded a stale reviewed HEAD.** It still named
+   `df3924f5` while the PR declared `857e208d`, so a consumer restoring it would
+   have picked up stale review provenance. Reconciled to the current HEAD with
+   the full supersession chain, and annotated with the cycle-5/6/7 outcome so the
+   next reader can see the blocking set has been stable rather than merely
+   unexamined.
+
+3. A safety-properties line in the spike README still said fixtures are created
+   under `$env:TEMP`, contradicting the portability fix (and its own explanation
+   later in the same file). Corrected.
+
+The terminal state below is unchanged by cycle 7.
+
 ### Terminal state (final)
 
 **Five open P1s: F16, F17, F18, F19, F20.** All require operator product

@@ -224,6 +224,33 @@ Two were defects in the planning record, both corrected:
   (`supervise/redact.py`, harvested as `118.004-T`). Corrected so the
   credential-response control traces to its actual implementation task.
 
+### Cycle 4 (seventh Copilot pass, HEAD `857e208d`) — no new P0/P1; blocking set now stable
+
+The seventh review raised **no new P0 and no new P1**. Its three suppressed
+comments were all valid consistency defects and are all fixed. The open finding
+set is unchanged at exactly **F16, F17, F18, F19, F20** — **stable across three
+consecutive reviews** (cycles 5, 6 and 7), each of which produced only
+evidence-robustness or record-consistency defects and never a new plan finding.
+
+* **The documented `-Repo` invocation did not work.** A relative `-Repo` passed
+  the initial `.backlogit` existence check (resolved against the *invocation*
+  directory) but was stored unresolved, so V9's archive probes and the final
+  `Set-Location $repo` — which runs from the temp fixture — would re-resolve it
+  against a different directory. The advertised out-of-tree reproduction path was
+  broken for exactly the users it was added for. `-Repo` is now canonicalized
+  with `Resolve-Path` before any `Set-Location`, and the harness was re-run with
+  `-Repo .` to prove the documented path executes. Same failure family as cycle
+  6: a correctness property that was documented but never executed.
+* **The Ship handoff checkpoint recorded a stale reviewed HEAD** (`df3924f5`
+  against a PR declaring `857e208d`), so a consumer restoring it would have
+  picked up stale review provenance. Reconciled to the current HEAD with the full
+  supersession chain and the cycle-5/6/7 outcome.
+* A safety-properties line in the spike README still described fixtures as
+  created under `$env:TEMP`, contradicting the portability fix and its own
+  explanation later in the same file. Corrected.
+
+Assertion totals are unchanged by this cycle: **64/64** and **196/196**.
+
 ## Decomposition check (2-hour rule, width isolation)
 
 * **19 tasks**, each scoped to a single module or a single script surface.

@@ -27,7 +27,12 @@ if (-not $Repo) {
 if (-not (Test-Path (Join-Path $Repo '.backlogit'))) {
     throw "No .backlogit workspace found under '$Repo'. Pass -Repo <path-to-clone>."
 }
-$repo = $Repo
+# CANONICALIZE before any Set-Location. A relative -Repo passes the check above
+# (it resolves against the INVOCATION directory) but would then be re-resolved
+# against whatever the current directory happens to be later - V9's archive
+# probes run from the repo, and the final `Set-Location $repo` runs from the
+# temp fixture, so a relative path would silently point somewhere else or fail.
+$repo = (Resolve-Path $Repo).Path
 
 function Assert([bool]$Cond, [string]$Msg) {
     $script:total++

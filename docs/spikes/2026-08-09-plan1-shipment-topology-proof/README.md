@@ -41,7 +41,9 @@ them changes no product behavior.
 ## Safety properties
 
 * **Never mutates the live workspace.** Every closure assertion runs against
-  throwaway backlogit workspaces created under `$env:TEMP`.
+  throwaway backlogit workspaces created under the system temp directory
+  (`[System.IO.Path]::GetTempPath()` — not `$env:TEMP`, which is not guaranteed
+  to be set on POSIX).
 * `verify-plan1-shipment-topology.ps1` Part 1 issues **read-only** `SELECT`
   queries and `backlogit get` reads against the real `.backlogit` workspace.
 * The real `ClaimShipment` / `ShipShipment` engine (backlogit **1.8.0**) is
