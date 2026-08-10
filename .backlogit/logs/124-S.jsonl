@@ -1,0 +1,6 @@
+{"timestamp":"2026-08-10T00:17:19.5174304-07:00","actor":"backlogit","item_id":"124-S","event_type":"shipment_created","delta":{"items":["117-F"],"title":"S1 Copilot supervisor: safety contracts + characterization baseline (P0)"}}
+{"timestamp":"2026-08-10T00:17:37.172598-07:00","actor":"backlogit","item_id":"124-S","event_type":"shipment_item_added","delta":{"item_id":"117.002-T"}}
+{"timestamp":"2026-08-10T00:17:41.2446935-07:00","actor":"backlogit","item_id":"124-S","event_type":"shipment_item_added","delta":{"item_id":"117.001-T"}}
+{"timestamp":"2026-08-10T00:17:45.7153364-07:00","actor":"backlogit","item_id":"124-S","event_type":"shipment_item_added","delta":{"item_id":"117.003-T"}}
+{"timestamp":"2026-08-10T00:17:49.3087626-07:00","actor":"backlogit","item_id":"124-S","event_type":"shipment_item_added","delta":{"item_id":"117.005-T"}}
+{"timestamp":"2026-08-10T00:17:53.5876425-07:00","actor":"backlogit","item_id":"124-S","event_type":"shipment_item_added","delta":{"item_id":"117.004-T"}}

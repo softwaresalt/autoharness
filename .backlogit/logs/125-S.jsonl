@@ -1,0 +1,7 @@
+{"timestamp":"2026-08-10T00:17:22.7460756-07:00","actor":"backlogit","item_id":"125-S","event_type":"shipment_created","delta":{"items":[],"title":"S2 Copilot supervisor: supervision core library (P0)"}}
+{"timestamp":"2026-08-10T00:17:58.5238393-07:00","actor":"backlogit","item_id":"125-S","event_type":"shipment_item_added","delta":{"item_id":"117.006-T"}}
+{"timestamp":"2026-08-10T00:18:02.4508357-07:00","actor":"backlogit","item_id":"125-S","event_type":"shipment_item_added","delta":{"item_id":"117.007-T"}}
+{"timestamp":"2026-08-10T00:18:06.6204311-07:00","actor":"backlogit","item_id":"125-S","event_type":"shipment_item_added","delta":{"item_id":"117.008-T"}}
+{"timestamp":"2026-08-10T00:18:10.7240697-07:00","actor":"backlogit","item_id":"125-S","event_type":"shipment_item_added","delta":{"item_id":"117.009-T"}}
+{"timestamp":"2026-08-10T00:18:14.6858501-07:00","actor":"backlogit","item_id":"125-S","event_type":"shipment_item_added","delta":{"item_id":"117.010-T"}}
+{"timestamp":"2026-08-10T00:18:19.4836284-07:00","actor":"backlogit","item_id":"125-S","event_type":"shipment_item_added","delta":{"item_id":"117.011-T"}}

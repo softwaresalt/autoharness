@@ -128,3 +128,61 @@ blocking on it.
 * `.backlogit/stash.jsonl` — `34D50F2D` appended, still ACTIVE
 * `docs/decisions/2026-08-09-composability-single-source-of-truth-spike.md` — new
 * `docs/memory/2026-08-09-stage-34d50f2d-candidate-a-composability-spike.md` — this file
+
+---
+
+## Reconciliation — 2026-08-09 operator product decision (APPEND-ONLY)
+
+> All text above is preserved verbatim. This section supersedes only the
+> *disposition*; the evidence is unchanged.
+
+**Disposition: `CONDITIONAL PROCEED` → `PROCEED` (evidence-backed, medium-high),
+under a clarified scope.**
+
+The `CONDITIONAL PROCEED` above was issued against the only reading then on the
+table — product-spec §3 as an **in-process action/observation execution engine**.
+That reading remains **NO-GO**. The operator's authoritative decision asks a
+different question: autoharness becomes a **local supervisor / control-plane
+runtime for long-horizon Copilot CLI workloads**, with Copilot CLI preserved as
+the reasoning/agent-execution engine. Bright line:
+
+> **Supervising an external agent runtime is IN SCOPE.
+> Implementing a new agent runtime is OUT OF SCOPE.**
+
+That is precisely the condition this spike attached ("proceed only as
+consolidation of logic that already exists"): `start.ps1` (121 lines) and
+`start.sh` already *are* an untested, duplicated, two-language supervisor, with
+no test coverage and two divergent implementations.
+
+**Two corrections so PR #325 reads coherently.** (1) **MCP parity is not
+recommended and never was the deliverable** — a native autoharness MCP server
+remains an **explicit non-goal** absent a concrete consumer; no MCP server, no
+HTTP API, no transport parity. (2) **Process-supervision scope is not wholly
+rejected** — the NO-GO narrows to an in-process *model reasoning loop*,
+sequential model pipelining, and stderr-to-model routing. Supervising an
+external Copilot child process is in scope.
+
+**Evidence preserved unchanged**: 10 top-level / 17 leaf CLI command paths
+(the "11 commands" figure stays retracted); the three distinct MCP vocabularies
+(server-framework **absence** in `src/`; registry-validation vocabulary in
+`verify_workspace.py`; telemetry vocabulary in `tool_event.py:35`); D1–D10;
+R1–R5; the "already good" dependency-injected cores.
+
+**Boundaries reaffirmed**: Engram read-only/no authority; backlogit owns
+backlog + checkpoints; graphtor owns docs; `.autoharness/config.yaml` is routing
+authority; candidate (c) is **not** implemented (hooks only); **Gradio,
+devtunnel, remote UI/control/auth/approvals, browser terminal streaming, and all
+remote services are excluded** and deferred to Plan 2.
+
+**Candidate (a) is CONSUMED** by the harvested Plan 1 work; `34D50F2D` stays
+**ACTIVE** for candidate (c).
+
+### Additional artifacts (this reconciliation session)
+
+* `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md` — Plan 1
+* `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md` — P-006, HARDENED
+* `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md` — PASS (0 P0 / 0 P1)
+* `docs/design-docs/2026-08-09-deferred-gradio-devtunnel-remote-control-plan.md` — Plan 2, DEFERRED
+* `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md` — session memory for the fast-track
+* `.backlogit/archive/004-SP.md`, `docs/decisions/2026-08-09-composability-single-source-of-truth-spike.md`,
+  `.backlogit/checkpoints/checkpoint-20260810-005125.json` — reconciled append-only

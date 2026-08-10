@@ -288,3 +288,108 @@ If harvested, the covering feature carries **elevated blast radius** and
 * Candidate **(c)** remains DEFERRED and requires its own
   spike → impl-plan → plan-review → harvest cycle.
 * No implementation feature, task, or shipment was created by this spike.
+
+---
+
+## RECONCILIATION — 2026-08-09 (operator product decision; APPEND-ONLY)
+
+> All text above is **preserved verbatim**. Nothing has been deleted. This
+> section supersedes only the *disposition* recorded above; every factual
+> finding, every file-and-line citation, and every non-goal above still stands
+> unless explicitly restated here.
+
+### What changed: the scope question, not the evidence
+
+The **CONDITIONAL PROCEED** recorded above was issued against the only
+interpretation then on the table: product-spec §3 read literally, as an
+**in-process action/observation execution engine** inside autoharness. That
+reading was, and **remains, NO-GO**.
+
+The operator has since issued an authoritative product decision that asks a
+different question. autoharness becomes a **local supervisor / control-plane
+runtime for long-horizon Copilot CLI workloads**, with **Copilot CLI preserved
+as the reasoning/agent-execution engine**. The bright line is:
+
+> **Supervising an external agent runtime is IN SCOPE.
+> Implementing a new agent runtime is OUT OF SCOPE.**
+
+### Reconciled verdict: PROCEED (confidence medium-high)
+
+The disposition moves from **CONDITIONAL PROCEED** to an evidence-backed
+**PROCEED**, because the operator's clarified scope *is* the condition this spike
+attached. The condition was "proceed only as consolidation of logic that already
+exists, not as a runtime build". Supervision of an external process is exactly
+that: `start.ps1` (121 lines) and `start.sh` **already are** an untested,
+duplicated, two-language supervisor — `.env.local` loading with no-clobber
+precedence and single-pair quote stripping, workspace-local `COPILOT_HOME` /
+`ENGRAM_DATA_DIR`, `gh auth token` resolution, `backlogit sync`, Engram direct
+pre-warm with daemon-`bind` fallback, Copilot resolution
+(`COPILOT_EXE_PATH` → `COPILOT_EXE` → `PATH`), opt-in `--remote`, and a
+foreground child launch. That policy has **no test coverage and two divergent
+implementations**. Consolidating it into tested shared Python application
+services with thin `start.ps1` / `start.sh` / CLI adapters is the same
+consolidation thesis this spike already endorsed, applied to the launch path.
+
+### Evidence explicitly carried forward unchanged
+
+* **10 top-level commands / 17 executable leaf command paths** (7 ungrouped
+  leaves + `gate` 5 + `telemetry` 3 + `eval` 2), per the 2026-08-09 correction.
+  The earlier "11 commands" figure remains **wrong** and is not reinstated.
+* **The three MCP vocabularies remain distinct** and none of them is softened
+  here: (a) **no native MCP server implementation or framework identifiers exist
+  in `src/`** (no MCP SDK dependency; zero `FastMCP` / `mcp.server` /
+  `stdio_server` / `@mcp.` / `Server(` hits) — this is the supported, narrow
+  claim; (b) **registry-validation vocabulary** for *external* tools
+  (`verify_workspace.py`, 31 occurrences, `OP_CREATE_MCP`..`OP_RESOLVE_CHECKPOINT_MCP`
+  at `:140-159`); (c) **telemetry vocabulary** (`tool_event.py:35`,
+  `TOOL_SURFACES` contains `'mcp'`, 1 occurrence; the sole emission site still
+  hardcodes `tool_surface='cli'` at `cli.py:789`).
+* **D1–D10**, the "already good" finding (surface-independent, dependency-injected
+  gate/telemetry cores), R1–R5, and the product-vs-external boundary all stand.
+
+### Corrections to earlier recommendations
+
+1. **MCP parity is NOT recommended and never was the deliverable.** Any reading
+   of this document as recommending MCP-surface parity is superseded here: a
+   **native autoharness MCP server remains an explicit non-goal absent a concrete
+   consumer.** The reconciled work introduces no MCP server, no HTTP API, and no
+   transport parity requirement.
+2. **Process-supervision scope is NOT wholly rejected.** The earlier NO-GO is
+   narrowed to its actual target — an **in-process model action/observation
+   reasoning loop**, sequential model pipelining, and stderr-routed-back-to-the-
+   model correction. Supervising an external Copilot CLI child process is a
+   *different* thing and is now in scope.
+3. **Candidate (a) is CONSUMED** by the harvested Plan 1 work. Stash `34D50F2D`
+   nonetheless **stays ACTIVE**, because candidate **(c)** (background
+   Verification & Compaction) is still outstanding and unselected.
+
+### Boundaries reaffirmed under the reconciled scope
+
+* Copilot CLI remains the external reasoning/tool-execution runtime; autoharness
+  implements **no** action/observation loop.
+* **Engram** remains a read-only memory sidecar with **no authority**;
+  **backlogit** owns backlog and checkpoints; **graphtor** owns docs retrieval;
+  autoharness owns lifecycle/policy/supervision only.
+* `.autoharness/config.yaml` remains model-routing authority; product-spec model
+  names are illustrative.
+* **Candidate (c) is not implemented.** Plan 1 may expose events/hooks a future
+  (c) could consume, but ships no such consumer and grants Engram no authority.
+* **Gradio, Microsoft devtunnel, remote UI/control, remote authentication,
+  remote approvals, browser terminal streaming, and remote services are wholly
+  EXCLUDED** from this reconciled scope and are **DEFERRED to Plan 2**
+  (`docs/design-docs/2026-08-09-deferred-gradio-devtunnel-remote-control-plan.md`),
+  which has its own tracker and **no implementation feature, tasks, or
+  shipment**.
+
+### Where the reconciled work now lives
+
+| Artifact | Path |
+|---|---|
+| Plan 1 implementation plan | `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md` |
+| Plan 1 P-006 hardening | `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md` |
+| Plan 1 plan-review (PASS) | `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md` |
+| Plan 2 (DEFERRED, design only) | `docs/design-docs/2026-08-09-deferred-gradio-devtunnel-remote-control-plan.md` |
+
+The T1–T8 "bounded next-step decomposition (proposed only)" table above was a
+*proposal under the old framing* and was never harvested. It is **not** the
+harvested decomposition; the authoritative decomposition is Plan 1 §10.
