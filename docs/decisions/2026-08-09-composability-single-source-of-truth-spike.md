@@ -43,12 +43,23 @@ worktree exception was deliberately *not* exercised.
 
 | Surface | Status | Evidence |
 |---|---|---|
-| **CLI** | **The only real surface.** 11 commands, hand-rolled arg parsing (no `argparse`). | `pyproject.toml` `[project.scripts] autoharness = "autoharness.cli:main"`; `cli.py:2253` `main()` |
+| **CLI** | **The only real surface.** 10 top-level commands / 17 executable leaf command paths, hand-rolled arg parsing (no `argparse`). | `pyproject.toml` `[project.scripts] autoharness = "autoharness.cli:main"`; `cli.py:2253` `main()` |
 | **Python library** | **Nominal, not contractual.** Importable core exists but has zero consumers outside `src/` and `tests/`; no `__all__`, no declared public API. | `autoharness/__init__.py` is 7 lines; scans of `scripts/` and `templates/` for `from autoharness` / `import autoharness` return zero hits |
-| **MCP (own)** | **ABSENT** — not partial. No MCP SDK dependency, no server implementation. | Deps are only `jsonschema` + `PyYAML`; zero hits for `FastMCP`, `mcp.server`, `stdio_server`, `@mcp.`, `Server(` in `src/` |
-| **MCP (consumed / validated)** | Present. autoharness validates *other tools'* MCP registry mappings. | `verify_workspace.py:140-159` — `OP_CREATE_MCP` … `OP_RESOLVE_CHECKPOINT_MCP` |
+| **MCP (own)** | **ABSENT** — not partial. No MCP SDK dependency, and **no native MCP server implementation or framework identifiers in `src/`**. | Deps are only `jsonschema` + `PyYAML`; zero hits for `FastMCP`, `mcp.server`, `stdio_server`, `@mcp.`, `Server(` in `src/` |
+| **MCP (consumed / validated)** | Present. autoharness validates *other tools'* MCP registry mappings — **registry-validation vocabulary, not a server**. | `verify_workspace.py:140-159` — `OP_CREATE_MCP` … `OP_RESOLVE_CHECKPOINT_MCP` (31 `mcp` occurrences in that file) |
+| **MCP (telemetry vocabulary)** | Present as an **enumerated allowed value only** — names a surface autoharness does not yet expose. | `telemetry/tool_event.py:35` `TOOL_SURFACES` includes `"mcp"` (1 occurrence); the sole emission site hardcodes `tool_surface='cli'` (`cli.py:789`) |
 | **Agent prose (de-facto 2nd surface)** | Present but stringly-typed: argv + exit codes + ad-hoc JSON. | Templates/skills shell out, e.g. `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase pre_claim --json` |
 | **Marketplace plugin** | Packaging only (agents + skills). No code surface. | `plugin.json` |
+
+**Counting convention.** A *top-level command* is a token dispatched directly by
+`main()` (`cli.py:2253`); an *executable leaf command path* is a fully-specified
+invocation that runs work. `main()` exposes **10 top-level commands** — `home`,
+`version`, `verify-workspace`, `gate`, `telemetry`, `eval`, `setup-vscode`,
+`setup-copilot-cli`, `setup-claude`, `setup-codex`. Expanding the three grouped
+dispatchers — `gate` (5: `check`, `size`, `copilot-review`, `pipeline-topology`,
+`dag-readiness`), `telemetry` (3: `begin`, `record`, `event`), and `eval`
+(2: `review`, `run`) — yields **17 executable leaf command paths**
+(7 ungrouped + 5 + 3 + 2).
 
 A telling detail: the telemetry contract *already models* the multi-surface world
 that does not yet exist. `telemetry/tool_event.py:35` defines

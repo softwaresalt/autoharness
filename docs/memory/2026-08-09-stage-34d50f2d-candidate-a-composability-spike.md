@@ -40,8 +40,12 @@ findings/decision artifact. No implementation work was performed or authorized.
 ### Headline findings
 
 1. The **CLI is the only real surface**; autoharness exposes **no MCP server of
-   its own** (MCP strings in `src/` are backlog-registry *validation* codes for
-   external tools).
+   its own** — there are **no native MCP server implementation or framework
+   identifiers in `src/`**. The `mcp` tokens that do exist in `src/` are two
+   distinct *non-server* vocabularies: backlog-registry **validation** codes for
+   external tools (`verify_workspace.py`, 31 occurrences) and **telemetry**
+   vocabulary enumerating an allowed `tool_surface` value
+   (`tool_event.py:35`, 1 occurrence).
 2. The **Python library surface is nominal** — zero consumers outside `src/` and
    `tests/`, no `__all__`, no declared public API.
 3. **Policy is leaked into the CLI adapter**: verdict mutation on `--force`,
@@ -88,9 +92,39 @@ exercised. External sidecars (`backlogit`, Engram, `graphtor`) read-only.
 4. Candidate **(c)** remains DEFERRED, needing its own
    spike → impl-plan → plan-review → harvest.
 
+## Correction cycle — 2026-08-09 (PR #325 Copilot review)
+
+Seven valid review findings were corrected as a **research-artifact-only** cycle
+(no source code, no feature/task/shipment, no branch/worktree, no commit/push/PR,
+no GitHub thread replies, no Ship work):
+
+1. **CLI count convention** — the earlier "11 commands" figure was wrong and
+   convention-free. Corrected everywhere to one explicit convention:
+   **10 top-level commands / 17 executable leaf command paths** (grouped `gate` 5,
+   `telemetry` 3, `eval` 2).
+2. **MCP vocabulary** — the claim that *every* `mcp` string in `src/` is
+   registry-validation vocabulary was an overstatement, disproven by
+   `telemetry/tool_event.py:35`. Narrowed to the supported conclusion — **no
+   native MCP server implementation or framework identifiers exist in `src/`** —
+   with server-framework absence, registry-validation vocabulary, and telemetry
+   vocabulary kept explicitly distinct.
+3. **Artifact link** — the spike link was repointed from the nonexistent
+   `.backlogit/queue/004-SP.md` to `.backlogit/archive/004-SP.md`.
+4. **Checkpoint chronology** — `checkpoint-20260810-005125.json` had an
+   impossible `created_at` > `updated_at`; repaired in place to the
+   filename-derived `2026-08-10T00:51:25Z`, still `resolved`, no active
+   recovery candidate created.
+5. **Living tracker `34D50F2D`** — an append-only correction was added via the
+   supported `backlogit stash edit` path; historical text preserved verbatim and
+   the tracker remains ACTIVE.
+
+**The core spike conclusion is unchanged**: PARTIAL GAP / CONDITIONAL PROCEED,
+no native autoharness MCP server, and candidate (c) benefits from (a) without
+blocking on it.
+
 ## Artifacts changed (uncommitted)
 
-* `.backlogit/queue/004-SP.md` — new spike artifact (status `done`)
+* `.backlogit/archive/004-SP.md` — new spike artifact (status `done`; auto-archived on completion)
 * `.backlogit/stash.jsonl` — `34D50F2D` appended, still ACTIVE
 * `docs/decisions/2026-08-09-composability-single-source-of-truth-spike.md` — new
 * `docs/memory/2026-08-09-stage-34d50f2d-candidate-a-composability-spike.md` — this file
