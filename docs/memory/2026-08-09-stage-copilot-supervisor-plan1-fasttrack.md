@@ -712,10 +712,11 @@ The terminal state below is unchanged by cycle 6.
 
 The seventh Copilot review (HEAD `857e208d`) again reported "no new comments" at
 top level with **three suppressed comments**, all valid, none a new P0/P1. The
-blocking set is now **stable at exactly F16-F20 across three consecutive
-reviews** - cycles 5, 6 and 7 have produced only evidence-robustness and
-record-consistency defects, never a new plan finding. That stability is itself
-evidence that the five open P1s are the real remaining gate.
+blocking set was unchanged at F16-F20 across cycles 5, 6 and 7, which produced
+only evidence-robustness and record-consistency defects. **[RETRACTED IN CYCLE 8:
+this section originally read that stability as evidence the five open P1s were
+the complete remaining gate. Cycle 8 raised F21. Absence of new findings is not
+evidence of absence of defects - see the Cycle 8 section below.]**
 
 1. **The documented `-Repo` invocation did not actually work.** A relative
    `-Repo` passed the initial `.backlogit` existence check - which resolves
@@ -744,10 +745,71 @@ evidence that the five open P1s are the real remaining gate.
 
 The terminal state below is unchanged by cycle 7.
 
+### Cycle 8 — a NEW P1 (F21), and the retraction of my stability claim
+
+The eighth Copilot review (HEAD `66f1220f`) raised a **new P1**. One cycle
+earlier I had written that the blocking set was "stable at exactly F16-F20 across
+three consecutive reviews" and treated that stability as *evidence the set was
+complete*. **That inference was wrong and is withdrawn.** Three quiet cycles were
+not evidence of completeness; they were three cycles that happened not to surface
+the next defect. The open set is now **six**: F16-F21.
+
+This is worth carrying forward as a general lesson: **absence of new findings is
+not evidence of absence of defects**, and it is especially tempting to treat it
+that way when you are trying to reach a terminal state. I should have reported
+the quiet cycles as "no new findings in cycles 5-7" without the inferential
+gloss.
+
+**F21 - the fail-closed approval channel can be omitted from the shipped runtime
+without any task failing.** Verified against the live dependency graph rather
+than inferred:
+* `120.005-T` (T16, `approvals.py`) DEPENDS ON `120.004-T` (T15, `run_session()`)
+  and has **zero reverse dependencies** - nothing in the program depends on it.
+* The runtime chain `120.004-T` -> `120.006-T` (T17, CLI adapter) ->
+  `120.007-T` (T18, shims) -> `120.008-T` (T19, docs) is fully satisfiable with
+  `120.005-T` never started.
+* Yet T15 is specified as THE SINGLE ORCHESTRATOR, and plan section 3.6 places
+  the approval exchange inside supervisor runtime behaviour.
+
+So T15's acceptance can be met against a `run_session()` with no approval path,
+and no later task forces the wiring. The H2 fail-closed guarantee - non-interactive
+approvals resolve to a declared safe default or REFUSED, never silent
+auto-approval - is a SAFETY control that this ordering permits to be dropped
+silently. Same family as F19 (a shared contract ordered downstream of its only
+consumer), but with a safety consequence rather than only an unimplementable
+order.
+
+Recorded, not adopted: the budget is spent and the fix is a decomposition change
+to an already-reviewed plan. Options (A) split the approval CONTRACT ahead of
+T15 and make T15 depend on it, leaving console rendering downstream;
+(B) make T15 depend on T16 and move the approval-path integration tests into
+T15's DoD; (C) attach an explicit wiring obligation plus a test asserting
+`run_session()` routes approvals through `approvals.py` to a task already on the
+runtime chain. **Option (A) matches the direction already recorded for F19, so
+one decomposition change could discharge both.** Blocking comments were appended
+to `120.005-T`, `120.004-T` and `120.006-T`; no dependency edge was changed.
+
+**The checkpoint HEAD chase, ended structurally.** The review's second comment
+noted the durable handoff still named a stale reviewed HEAD - which it did, and
+would have again, because **a commit cannot embed its own resulting SHA**. Naming
+the "current" HEAD inside a committed artifact is unwinnable by construction, and
+I had been re-fixing the symptom each cycle. The field now records the **evidence
+HEAD** (the tree the 64/64 + 196/196 run was executed against) and points to the
+PR readiness record for current-HEAD coverage, which is the only place that can
+be authoritative because it is edited *after* each push.
+
+Assertion totals are unchanged: **64/64** and **196/196**. F21 is a decomposition
+and safety-ordering defect; it does not touch the topology, the 27 dependency
+edges, or the closure evidence.
+
 ### Terminal state (final)
 
-**Five open P1s: F16, F17, F18, F19, F20.** All require operator product
+**Six open P1s: F16, F17, F18, F19, F20, F21.** All require operator product
 decisions; Stage adopted none. **No shipment is safely claimable**: F17 gates
-`127-S`; F18 + F19 gate `128-S`; F16 + F20 gate `129-S`. None of F16–F20
+`127-S`; F18 + F19 gate `128-S`; F16 + F20 + F21 gate `129-S`. None of F16–F21
 invalidates the F14 structural elimination, the shipment topology, or the
 64/64 + 196/196 closure evidence.
+
+**Do not read a quiet review cycle as completeness.** Cycles 5, 6 and 7 raised no
+new P0/P1; cycle 8 raised F21. The honest statement is "no new findings in that
+window", never "the set is complete".

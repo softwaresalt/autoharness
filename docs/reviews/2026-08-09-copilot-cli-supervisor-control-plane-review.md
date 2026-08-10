@@ -21,7 +21,7 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: BLOCKED — 0 unresolved P0, **5 unresolved P1 (F16, F17, F18, F19, F20)**
+## Verdict: BLOCKED — 0 unresolved P0, **6 unresolved P1 (F16, F17, F18, F19, F20, F21)**
 
 > **Cycle-3 verdict was PASS (0 P0 / 0 P1) and remains accurate as of HEAD
 > `48368657` for findings F1–F15.** Five **new** P1s (**F16**, **F17**,
@@ -115,10 +115,10 @@ must be dispositioned before `129-S` is claimed.
 | **F17** | **P1** | **The plan's "two divergent implementations of the same policy" premise is factually wrong for `start.sh`, and it invalidates S1 acceptance criteria in the ELIGIBLE shipment.** Plan §5 (and the `004-SP` PROCEED reconciliation, and the composability decision doc) assert that `start.ps1` and `start.sh` already implement the same seven-dimension launch policy in two languages. Verified against the working tree: `start.sh` (80 lines) implements **only** `.env.local` no-clobber parsing with quote stripping (lines 20–36), a `COPILOT_HOME` default (54), an unguarded `export GITHUB_TOKEN="$(gh auth token)"` (56), Copilot exe resolution (57–64), and `exec "$copilot_exe" "$@"` (66). It has **no** `ENGRAM_DATA_DIR` default (line 55 is commented out), **no** backlogit sync, **no** Engram pre-warm/fallback, **no** `GITHUB_PERSONAL_ACCESS_TOKEN` handling, and **no** `COPILOT_USE_REMOTE`/`--remote` logic (0 occurrences each). Separately, `start.ps1:65` sets `GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token)` **unconditionally and unguarded**; the non-fatal `try`/`Write-Warning` path at 68–77 covers `GITHUB_TOKEN` only. Consequences: `118.002-T` requires a suite that "passes against today's `start.sh` unmodified" across "the same seven dimensions" — **unsatisfiable**, because three of those dimensions do not exist in `start.sh`; and `118.001-T`'s criterion (c) that PAT resolution is non-fatal when `gh` is absent or failing **misstates `start.ps1`'s actual behavior**. | **OPEN — ESCALATED. BLOCKS THE ELIGIBLE CURSOR.** Unlike F16, `118.001-T` and `118.002-T` are members of **`127-S`**, so this blocks the shipment Ship would claim first. Resolution requires re-inventorying both scripts and separating *shared* behavior from *PowerShell-only* behavior, then revising the H1 characterize-before-migrate contract so each suite characterizes **its own** script's real contract, with any cross-platform normalization reclassified as an **explicit behavior change** (which S1's "zero observable behavior change" rule forbids, so it must move to S3 or be separately approved). The `004-SP` PROCEED rationale and the composability decision doc's evidence paragraph must be corrected in the same pass, since both rest on the same overstated premise. Stage does not amend them here: the review budget is exhausted and the consolidation thesis underpinning the PROCEED disposition is an operator product decision. |
 | **F18** | **P1** | **The plan's state-transition diagram contradicts its own DRAINING rule and the harvested task.** Plan §3.2's diagram routes operator cancellation `CANCELLING -> EXITED`, bypassing `DRAINING`, while the rules immediately below state that DRAINING is the **only** path from RUNNING to a terminal state and always flushes the journal, releases the lock, and reaps the child. `119.006-T` independently mandates `RUNNING -> CANCELLING -> DRAINING -> EXITED`. Implementing the diagram as drawn would leak the workspace lock and the child process and lose journal data on every cancellation. Relatedly, `119.003-T`'s linear state summary omits `LOCKING -> REFUSED`, the bootstrap/resolve/launch failure edges to `FAILED`, and `RESTARTING -> LAUNCHING`; because absent transitions must raise `ILLEGAL_TRANSITION`, implementing that summary verbatim would reject documented outcomes. | **OPEN — low-ambiguity, but still unresolved.** Unlike F16/F17 the correct resolution is not genuinely contested: the diagram is the outlier, and both the prose rules and `119.006-T` already mandate routing cancellation through `DRAINING`. The fix is to correct the §3.2 diagram and complete `119.003-T`'s transition table against Plan §3.2. Stage records rather than applies it because the review budget is exhausted and it is a plan-document amendment. `119.003-T` and `119.006-T` are members of `128-S`, so this does **not** block the eligible cursor `127-S`, but it must be dispositioned before `128-S` is claimed. |
 
-**Revised containment across F16–F20.** `127-S` is **no longer safely
+**Revised containment across F16–F21.** `127-S` is **no longer safely
 claimable**: F17 invalidates acceptance criteria in `118.001-T` and `118.002-T`,
-both S1 members. F18 and F19 must be dispositioned before `128-S`; F16 and F20
-before `129-S`.
+both S1 members. F18 and F19 must be dispositioned before `128-S`; F16, F20 and
+F21 before `129-S`.
 None of these findings affect the F14 structural elimination, the shipment
 topology, or the 64/64 + 196/196 closure evidence, all of which stand.
 
@@ -251,6 +251,32 @@ evidence-robustness or record-consistency defects and never a new plan finding.
 
 Assertion totals are unchanged by this cycle: **64/64** and **196/196**.
 
+### Cycle 4 (eighth Copilot pass, HEAD `66f1220f`) — a NEW P1: F21
+
+**This cycle retracts the stability claim made one cycle earlier.** Section
+"seventh Copilot pass" above recorded that the blocking set had been stable
+across three consecutive reviews and treated that as evidence the set was
+complete. The eighth review raised a **new P1**, so that inference was wrong and
+is withdrawn. Three quiet cycles were not evidence of completeness; they were
+three cycles that happened not to surface the next defect. The open set is now
+**six**: F16, F17, F18, F19, F20, **F21**.
+
+| ID | Severity | Finding | Disposition |
+|---|---|---|---|
+| **F21** | **P1** | **The fail-closed approval channel can be omitted from the shipped runtime without any task failing.** Verified against the live dependency graph: `120.005-T` (T16, `approvals.py`) **depends on** `120.004-T` (T15, `run_session()`) and has **zero reverse dependencies** — nothing in the program depends on it. The runtime chain `120.004-T` → `120.006-T` (T17, CLI adapter) → `120.007-T` (T18, shims) → `120.008-T` (T19, docs) is fully satisfiable with `120.005-T` never started. Yet T15 is specified as **the single orchestrator**, and plan §3.6 places the approval exchange inside supervisor runtime behaviour. T15's acceptance can therefore be met against a `run_session()` with no approval path, and no later task forces the wiring — so the **H2 fail-closed guarantee** (non-interactive approvals resolve to a declared safe default or `REFUSED`, never silent auto-approval) is a *safety* control this ordering permits to be silently dropped. | **OPEN.** Same family as F19 — a shared contract ordered downstream of its only consumer — but with a safety consequence rather than only an unimplementable order. Resolution options: **(A)** split the approval *contract* (typed request/response + fail-closed semantics) into a task ordered **before** T15, make T15 depend on it, leave console rendering downstream; **(B)** keep T16 whole, make T15 depend on it, and move the approval-path integration tests into T15's DoD; **(C)** attach an explicit wiring obligation, with a test asserting `run_session()` routes approvals through `approvals.py`, to a task already on the runtime chain. **(A) matches the direction already recorded for F19, so one decomposition change could discharge both.** Requires an operator product decision; Stage adopted none and changed no dependency edge. Member of `129-S`, which is now gated by **F16, F20 and F21**. |
+
+The review's second suppressed comment concerned the durable Ship checkpoint,
+which kept recording a *stale* reviewed HEAD each time it was updated — because a
+commit cannot embed its own resulting SHA, so naming the "current" HEAD inside
+the committed artifact is structurally unwinnable. Fixed by changing what the
+field claims: it now records the **evidence HEAD** (the tree the 64/64 + 196/196
+run was executed against) and points to the PR readiness record for
+current-HEAD coverage, instead of asserting a "current" value it cannot hold.
+
+Assertion totals are unchanged: **64/64** and **196/196**. F21 is a decomposition
+and safety-ordering defect; it does not touch the topology, the 27 dependency
+edges, or the closure evidence.
+
 ## Decomposition check (2-hour rule, width isolation)
 
 * **19 tasks**, each scoped to a single module or a single script surface.
@@ -353,12 +379,12 @@ out-of-scope work exists).
 * **Role-boundary clear** — the close path requires nothing outside Ship's
   enumerated claim/move/close/archive capabilities. The P-010 violation that
   cycle 2 would have required is gone.
-* **Verdict: BLOCKED (current).** 0 unresolved P0, **5 unresolved P1s (F16, F17, F18,
-  F19, F20)**. Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
+* **Verdict: BLOCKED (current).** 0 unresolved P0, **6 unresolved P1s (F16, F17, F18,
+  F19, F20, F21)**. Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
   available.** Cycles 1–3 concluded PASS and that conclusion stands for F1–F15;
   the verdict was subsequently downgraded when the PR #325 Copilot review of HEAD
   `48368657` raised **F16**, plus the follow-on findings **F17**, **F18**,
-  **F19** and **F20** recorded in the Cycle 4 section. All five are open and
-  require operator disposition. Do **not** read this document as an approval to
+  **F19**, **F20** and **F21** recorded in the Cycle 4 sections. All six are open
+  and require operator disposition. Do **not** read this document as an approval to
   claim **any** shipment: **F17 gates `127-S`**, **F18 + F19 gate `128-S`**, and
-  **F16 + F20 gate `129-S`**.
+  **F16 + F20 + F21 gate `129-S`**.

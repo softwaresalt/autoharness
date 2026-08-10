@@ -183,7 +183,7 @@ all of the above; no total in this document predates it.
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **5 open P1s F16/F17/F18/F19/F20** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19 gate `128-S`, F16+F20 gate `129-S`) —
+* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **6 open P1s F16/F17/F18/F19/F20/F21** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19 gate `128-S`, F16+F20+F21 gate `129-S`) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`
 * Close-path contract — `docs/compound/097-S-shipment-task-only-safe-close.md`,
