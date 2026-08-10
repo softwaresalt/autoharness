@@ -24,16 +24,20 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 ## Verdict: BLOCKED — 0 unresolved P0, **6 unresolved P1 (F16, F17, F18, F19, F20, F21)**
 
 > **Cycle-3 verdict was PASS (0 P0 / 0 P1) and remains accurate as of HEAD
-> `48368657` for findings F1–F15.** Five **new** P1s (**F16**, **F17**,
-> **F18**, **F19**, **F20**) were raised by PR #325 Copilot reviews of HEADs
-> `48368657`, `91538e74` and `d8644c46`, *after* the 3-cycle budget was
-> exhausted. Because no review cycle remains and their resolutions are genuine
-> product trade-offs, they are recorded as **open and escalated** rather than
-> absorbed, and the verdict is downgraded to **BLOCKED**. See *Cycle 4* below.
+> `48368657` for findings F1–F15.** **Six** new P1s (**F16**, **F17**, **F18**,
+> **F19**, **F20**, **F21**) were raised by successive PR #325 Copilot reviews of
+> HEADs `48368657`, `91538e74`, `d8644c46` and `66f1220f`, *after* the 3-cycle
+> budget was exhausted. Because no review cycle remains and their resolutions are
+> genuine product trade-offs, they are recorded as **open and escalated** rather
+> than absorbed, and the verdict is downgraded to **BLOCKED**. See the *Cycle 4*
+> sections below.
 >
 > **NO SHIPMENT IS SAFELY CLAIMABLE.** F17 invalidates acceptance criteria in
 > `118.001-T` and `118.002-T`, both members of the otherwise-eligible cursor
-> `127-S`. F18 and F19 gate `128-S`; F16 and F20 gate `129-S`.
+> `127-S`. F18 and F19 gate `128-S`; **F16, F20 and F21 gate `129-S`**.
+>
+> Cycles 5–7 raised no new P0/P1; **cycle 8 raised F21**. A quiet cycle is not
+> evidence the set is complete.
 
 Review cycles used: **3 of 3 (limit reached)**. Cycle 1 (2026-08-09) raised
 F1–F12, all resolved in-cycle by amending the plan and hardening documents before
@@ -276,6 +280,35 @@ current-HEAD coverage, instead of asserting a "current" value it cannot hold.
 Assertion totals are unchanged: **64/64** and **196/196**. F21 is a decomposition
 and safety-ordering defect; it does not touch the topology, the 27 dependency
 edges, or the closure evidence.
+
+### Cycle 4 (ninth Copilot pass, HEAD `11de7aba`) — no new P0/P1; consistency fallout from recording F21
+
+The ninth review raised **no new P0 and no new P1**. All four suppressed comments
+were consistency defects introduced by the F21 recording pass itself, and all are
+fixed. The open set remains **F16–F21**.
+
+* This document's **top-level verdict summary** still described five post-budget
+  findings and omitted F21 from the gate map, while its own header and final gate
+  re-run already said six — so a reader stopping at the summary would have
+  concluded `129-S` was gated only by F16/F20. Reconciled.
+* `117-F`'s hardening summary still said "the three complexity-high tasks" — the
+  same undercount corrected in H8 and **F7** a cycle earlier, not yet propagated
+  into the live feature record. Now names all four (T7, T11, T15, T18) with their
+  live IDs.
+* The durable checkpoint attributed **all six** P1s to five reviews ending at
+  `df3924f5`, which is internally impossible since F21 was raised in cycle 8 on
+  `66f1220f`. Corrected to the full eight-review HEAD range, retaining the
+  evidence-HEAD distinction.
+* **`117-F`'s event log still ended with "NEVER re-add 117-F to a manifest"** —
+  the opposite of the current close contract, since H10.5 deliberately makes the
+  childless umbrella an explicit member of the final shipment `129-S`. A
+  log-based consumer reading only the event stream would have received an
+  instruction contradicting every other artifact. Fixed by **appending** a
+  superseding comment event (the historical event preserved verbatim, not
+  rewritten) that records why the original was correct for its topology and why
+  it no longer applies.
+
+Assertion totals unchanged: **64/64** and **196/196**.
 
 ## Decomposition check (2-hour rule, width isolation)
 

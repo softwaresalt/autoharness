@@ -802,6 +802,42 @@ Assertion totals are unchanged: **64/64** and **196/196**. F21 is a decompositio
 and safety-ordering defect; it does not touch the topology, the 27 dependency
 edges, or the closure evidence.
 
+### Cycle 9 — no new P0/P1; four consistency defects from recording F21
+
+The ninth Copilot review (HEAD `11de7aba`) raised **no new P0/P1**. All four
+suppressed comments were consistency defects created by my own F21 recording pass
+- a useful reminder that adding a finding is a multi-artifact edit, and the
+places that summarize the finding set drift silently.
+
+1. The review document's **top-level verdict summary** still described five
+   post-budget findings and omitted F21 from the gate map, while its header and
+   final gate re-run already said six. A reader stopping at the summary would
+   have concluded `129-S` was gated only by F16/F20.
+2. `117-F`'s hardening summary still said "the three complexity-high tasks",
+   the same undercount I had corrected in H8 and F7 one cycle earlier but had not
+   propagated into the live feature record. Now names all four (T7, T11, T15,
+   T18) with their live IDs.
+3. The checkpoint's final reconciliation attributed **all six** P1s to five
+   reviews ending at `df3924f5` - internally impossible, since F21 was raised in
+   cycle 8 on `66f1220f`. Corrected to eight reviews with the full HEAD range,
+   retaining the evidence-HEAD distinction.
+4. **`117-F`'s event log still ended with "NEVER re-add 117-F to a manifest"** -
+   the exact opposite of the current close contract, since the H10.5 redesign
+   deliberately makes the childless umbrella a member of the final shipment
+   `129-S`. This was the most consequential of the four: a log-based consumer
+   reading only the event stream would have received an instruction contradicting
+   every other artifact. Fixed by APPENDING a superseding comment event that
+   explains why the earlier instruction was correct for the topology it was
+   written against and why it no longer applies - the historical event is
+   preserved verbatim, not rewritten.
+
+Lesson worth carrying: **the event log is a consumer surface, not just an audit
+trail.** When a decision is reversed, an append-only correction has to be written
+into the log itself; correcting the artifact body is not sufficient.
+
+Assertion totals unchanged: **64/64** and **196/196**. Open set unchanged at six:
+F16-F21.
+
 ### Terminal state (final)
 
 **Six open P1s: F16, F17, F18, F19, F20, F21.** All require operator product
