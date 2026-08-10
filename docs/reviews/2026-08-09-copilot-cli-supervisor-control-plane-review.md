@@ -223,10 +223,12 @@ out-of-scope work exists).
 * **Role-boundary clear** — the close path requires nothing outside Ship's
   enumerated claim/move/close/archive capabilities. The P-010 violation that
   cycle 2 would have required is gone.
-* **Verdict: BLOCKED (current).** 0 unresolved P0, **1 unresolved P1 (F16)**.
-  Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
+* **Verdict: BLOCKED (current).** 0 unresolved P0, **3 unresolved P1s (F16, F17,
+  F18)**. Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
   available.** Cycles 1–3 concluded PASS and that conclusion stands for F1–F15;
   the verdict was subsequently downgraded when the PR #325 Copilot review of HEAD
   `48368657` raised **F16**, plus the follow-on findings **F17** and **F18**
-  recorded in the Cycle 4 section. Those findings are open and require operator
-  disposition; do **not** read this document as an approval to claim `129-S`.
+  recorded in the Cycle 4 section. All three are open and require operator
+  disposition. Do **not** read this document as an approval to claim **any**
+  shipment: **F17 gates `127-S`**, **F18 gates `128-S`**, and **F16 gates
+  `129-S`**.
