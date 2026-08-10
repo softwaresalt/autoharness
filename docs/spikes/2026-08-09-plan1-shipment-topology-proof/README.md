@@ -78,7 +78,7 @@ real 27-edge dependency DAG — in the system temp directory
 (`[System.IO.Path]::GetTempPath()`, which is portable; `$env:TEMP` is not
 guaranteed on POSIX) and closes all three shipments for real.
 
-**Result: 196/196 assertions passed**, `returned_ids: []` on every close, zero
+**Result: 197/197 assertions passed**, `returned_ids: []` on every close, zero
 non-archived residue in the terminal state.
 
 ## Reproducing
@@ -108,8 +108,8 @@ The closure simulation originally published **57/57** and the verifier
 **194/194**. Successive Copilot reviews of this PR raised robustness defects
 against the harnesses themselves — **including two that had made part of the
 published claim inaccurate**. All are fixed here. The totals rose to **64/64**
-and **196/196** solely because the fixes *added* assertions; the simulation
-progressed 57 → 60 → 63 → 64 and the verifier 194 → 196, and **no** correction
+and **197/197** solely because the fixes *added* assertions; the simulation
+progressed 57 → 60 → 63 → 64 and the verifier 194 → 196 → 197, and **no** correction
 changed observed engine behaviour.
 
 **A real defect in the evidence, now corrected.** The Part 2 replay was described
@@ -165,7 +165,7 @@ The remaining fixes:
    changed them**. The assertion would therefore have passed vacuously on any
    clean checkout — the `$LASTEXITCODE` fix above hardened a check that was
    measuring the wrong thing. V10 now computes the branch's actual footprint
-   from `merge-base(origin/main, HEAD)..HEAD` and **unions in** the worktree
+   from `merge-base(<base ref>, HEAD)..HEAD` (see items 9-10) and **unions in** the worktree
    status so an uncommitted edit cannot slip past either. Verified: the branch
    touches 60 `.backlogit` files and **none** of the pre-existing flagged
    artifacts.
@@ -176,14 +176,52 @@ The remaining fixes:
    dirty fixture. Now asserted, matching what Part 2 of the verifier already
    did. This is the sole reason the simulation total is **64** rather than 63.
 
-The **64/64** and **196/196** totals published above are from the re-run *after*
+8. **A third assertion that tested the wrong proposition.** V4's message claimed
+   to verify the umbrella's three `related_to` links, but the assertion projected
+   only `target_id` and discarded `link_type` — so a link of **any** type,
+   including the hierarchical or `blocks` edge this proof exists to rule out for
+   `117-F`, would have satisfied it, and Part 2 would then have replayed a
+   relationship the live topology does not have. V4 now filters on `link_type`
+   **before** asserting the three targets, *and* separately asserts that the set
+   of non-`related_to` outgoing links is empty, so a stray edge cannot hide
+   behind a passing lookup.
+9. **A hardcoded base ref defeated the advertised "any clone" reproduction.**
+   The merge-base fix in item 6 resolved against `origin/main`, which is not
+   guaranteed to exist in a source archive, a fork whose remote is not named
+   `origin`, or a clone with pruned remote-tracking refs — V10 would `throw`
+   before the topology proof ran. The base ref is now resolved as
+   `origin/HEAD` → `origin/main` → `origin/master` → `main` → `master`, with an
+   explicit `-BaseRef` override, failing only when **none** resolves.
+10. **The first attempt at item 9 re-introduced the vacuity it was fixing —
+    caught by running it.** That version tried the branch's **tracked upstream**
+    first, on the reasoning that it is the most authoritative base. For a topic
+    branch the tracked upstream is *the remote copy of the same branch*, so
+    `merge-base(upstream, HEAD) == HEAD`, the diff range was empty, and the run
+    reported a **0-file** branch footprint — passing while proving nothing, the
+    exact defect item 6 existed to remove. `@{upstream}` is gone, and V10 now
+    carries a **degeneracy guard**: if the resolved merge-base equals `HEAD`, the
+    range cannot demonstrate anything and the harness `throw`s instead of
+    reporting a vacuous pass. The guard makes the check safe under *any* base
+    ref, including a bad `-BaseRef` supplied by an operator.
+
+Items 6, 7, 8 and 10 are the same failure mode four times over: **an assertion
+can be robust and still test the wrong proposition.** Adding `$LASTEXITCODE`
+checks made these checks reliable at measuring something that was never the
+claim. Item 10 is the sharpest instance, because it was introduced *by a fix for
+an earlier instance of the same mistake* and was caught only by **reading the
+numbers a passing run printed** rather than the PASS line. The durable lesson is
+to state the proposition first, confirm the assertion would fail if it were
+false, and treat a suspiciously empty measurement as failure rather than
+success.
+
+The **64/64** and **197/197** totals published above are from the re-run *after*
 all of the above; no total in this document predates it.
 
 ## Provenance
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **6 open P1s F16/F17/F18/F19/F20/F21** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19 gate `128-S`, F16+F20+F21 gate `129-S`) —
+* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **8 open P1s F16–F23** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19+F22+F23 gate `128-S` with F22 possibly touching `127-S`, F16+F20+F21 gate `129-S`) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`
 * Close-path contract — `docs/compound/097-S-shipment-task-only-safe-close.md`,

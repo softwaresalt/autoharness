@@ -88,7 +88,7 @@ Under those two conditions the cascade the Durable Rule guards against is
 **structurally impossible** rather than merely avoided, and a single
 `backlogit shipment ship` closes the release unit with `returned_ids: []` and no
 post-close repair. Verified end to end on the real engine: **64/64** and
-**196/196** assertions, including a fixture replay of the exact live topology
+**197/197** assertions, including a fixture replay of the exact live topology
 (`verify-plan1-shipment-topology.ps1`).
 
 **Which rule applies when.**

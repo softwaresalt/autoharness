@@ -13,7 +13,10 @@
 
 [CmdletBinding()]
 param(
-    [string]$Repo
+    [string]$Repo,
+    # Base ref for V10's branch-footprint diff. Defaults to the tracked upstream,
+    # then origin/main, origin/master, main, master - the first that resolves.
+    [string]$BaseRef
 )
 
 $ErrorActionPreference = 'Stop'
@@ -131,8 +134,17 @@ foreach ($s in @('127-S', '128-S')) {
     Assert ('117-F' -notin $m) "$s does NOT list 117-F"
 }
 Assert ('117-F' -in @((Get-Art '129-S').custom_fields.items)) "129-S (final) DOES list 117-F for engine-native program closure"
-$uLinks = @((Get-Art '117-F').links | ForEach-Object { $_.target_id })
-foreach ($f in @('118-F', '119-F', '120-F')) { Assert ($f -in $uLinks) "117-F -> $f related_to link present (non-hierarchical grouping)" }
+# The message claims `related_to`, so the assertion has to TEST that. Projecting
+# only target_id would pass on a link of ANY type - including a hierarchical or
+# `blocks` edge, which is precisely the thing this proof exists to rule out for
+# the umbrella - and Part 2 would then replay a different relationship than the
+# live topology. Filter on link_type FIRST, and assert the non-related_to set is
+# empty so a stray edge of another type cannot hide behind a passing lookup.
+$uAll = @((Get-Art '117-F').links)
+$uLinks = @($uAll | Where-Object { $_.link_type -eq 'related_to' } | ForEach-Object { $_.target_id })
+foreach ($f in @('118-F', '119-F', '120-F')) { Assert ($f -in $uLinks) "117-F -> $f link present AND its link_type is related_to (non-hierarchical grouping)" }
+$uOther = @($uAll | Where-Object { $_.link_type -ne 'related_to' } | ForEach-Object { "$($_.link_type):$($_.target_id)" })
+Assert ($uOther.Count -eq 0) "117-F has NO outgoing link of any other type (found: $($uOther -join ','))"
 
 Write-Host "`n--- V5: cross-shipment reachability - no feature is an ancestor of a foreign shipment's member ---"
 foreach ($s in $plan.Keys | Sort-Object) {
@@ -236,11 +248,46 @@ Write-Host "    (out-of-scope pre-existing findings on untouched artifacts: $($p
 # so an uncommitted edit cannot slip past either. Both are NATIVE calls, whose
 # nonzero exits are not terminated by $ErrorActionPreference, so each exit code
 # is checked explicitly - same contract as Invoke-Bl.
-$mergeBase = (git --no-pager merge-base origin/main HEAD)
+# `origin/main` is NOT guaranteed to exist in the "any clone" this proof
+# advertises: a source archive, a fork whose remote is not named `origin`, or a
+# clone with pruned remote-tracking refs all lack it, and V10 would abort before
+# the topology proof ran. Resolve a base ref in order of decreasing authority and
+# let the operator override it; only fail when NONE resolves.
+# NOT `@{upstream}`: for a TOPIC BRANCH the tracked upstream is the REMOTE COPY
+# OF THE SAME BRANCH, so merge-base(upstream, HEAD) == HEAD and the footprint
+# comes back EMPTY - making this assertion vacuous exactly as the raw
+# `git status` version was. The base must be the repository's DEFAULT branch.
+$baseCandidates = @()
+if ($BaseRef) { $baseCandidates += $BaseRef }
+else {
+    $head = (git --no-pager symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($head)) { $baseCandidates += $head.Trim() }
+    $baseCandidates += @('origin/main', 'origin/master', 'main', 'master')
+}
+$resolvedBase = $null
+foreach ($c in $baseCandidates) {
+    $null = (git --no-pager rev-parse --verify --quiet "$c^{commit}" 2>$null)
+    if ($LASTEXITCODE -eq 0) { $resolvedBase = $c; break }
+}
+if (-not $resolvedBase) {
+    throw "No base ref resolved (tried: $($baseCandidates -join ', ')) - pass -BaseRef <ref> to establish the branch footprint"
+}
+Write-Host "    (base ref: $resolvedBase)"
+$mergeBase = (git --no-pager merge-base $resolvedBase HEAD)
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($mergeBase)) {
-    throw "git merge-base FAILED (exit $LASTEXITCODE) - cannot establish the branch footprint"
+    throw "git merge-base FAILED (exit $LASTEXITCODE) against '$resolvedBase' - cannot establish the branch footprint"
 }
 $mergeBase = $mergeBase.Trim()
+# DEGENERACY GUARD - the assertion below can only prove something if the diff
+# range is non-empty. If merge-base == HEAD the chosen base is an ANCESTOR-OR-SELF
+# of HEAD (a self-referential upstream, or a base ref pointing at this very
+# commit), the range is empty, and "no debt files touched" would pass while
+# proving NOTHING. Fail loudly and make the operator supply a real base instead.
+$headSha = (git --no-pager rev-parse HEAD)
+if ($LASTEXITCODE -ne 0) { throw "git rev-parse HEAD FAILED (exit $LASTEXITCODE)" }
+if ($mergeBase -eq $headSha.Trim()) {
+    throw "Base ref '$resolvedBase' resolves to HEAD itself - the branch footprint would be EMPTY and this check VACUOUS. Pass -BaseRef <default-branch>."
+}
 $branchTouched = @(git --no-pager diff --name-only "$mergeBase..HEAD" -- .backlogit)
 if ($LASTEXITCODE -ne 0) { throw "git diff FAILED (exit $LASTEXITCODE) - cannot prove pre-existing debt was untouched" }
 $worktreeTouched = @(git --no-pager status --short -- .backlogit)

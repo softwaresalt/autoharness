@@ -301,7 +301,7 @@ arms against the real backlogit 1.8.0 engine on disposable fixtures: ARM A
 all three shipments with `returned_ids: []` and a clean `doctor`. 64/64
 assertions. `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` additionally replays the
 *exact* live topology — including the real 27-edge dependency DAG — through real
-`ShipShipment` calls: 196/196 assertions, `returned_ids: []` on every close.
+`ShipShipment` calls: 197/197 assertions, `returned_ids: []` on every close.
 
 ## Hardening verdict
 

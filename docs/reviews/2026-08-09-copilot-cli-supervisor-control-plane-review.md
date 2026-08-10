@@ -21,23 +21,32 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: BLOCKED — 0 unresolved P0, **6 unresolved P1 (F16, F17, F18, F19, F20, F21)**
+## Verdict: BLOCKED — 0 unresolved P0, **8 unresolved P1 (F16–F23)**
 
 > **Cycle-3 verdict was PASS (0 P0 / 0 P1) and remains accurate as of HEAD
-> `48368657` for findings F1–F15.** **Six** new P1s (**F16**, **F17**, **F18**,
-> **F19**, **F20**, **F21**) were raised by successive PR #325 Copilot reviews of
-> HEADs `48368657`, `91538e74`, `d8644c46` and `66f1220f`, *after* the 3-cycle
-> budget was exhausted. Because no review cycle remains and their resolutions are
+> `48368657` for findings F1–F15.** **Eight** new P1s (**F16** through **F23**)
+> were raised by successive PR #325 Copilot reviews of HEADs `48368657`,
+> `91538e74`, `d8644c46`, `66f1220f` and `914cb214`, *after* the 3-cycle budget
+> was exhausted. Because no review cycle remains and their resolutions are
 > genuine product trade-offs, they are recorded as **open and escalated** rather
 > than absorbed, and the verdict is downgraded to **BLOCKED**. See the *Cycle 4*
 > sections below.
 >
 > **NO SHIPMENT IS SAFELY CLAIMABLE.** F17 invalidates acceptance criteria in
 > `118.001-T` and `118.002-T`, both members of the otherwise-eligible cursor
-> `127-S`. F18 and F19 gate `128-S`; **F16, F20 and F21 gate `129-S`**.
+> `127-S`. F18, F19, F22 and F23 gate `128-S` — and **F22 may also touch `127-S`**
+> if the lock-release obligation is placed on `118.005-T` rather than on the
+> transition table. **F16, F20 and F21 gate `129-S`**.
 >
-> Cycles 5–7 raised no new P0/P1; **cycle 8 raised F21**. A quiet cycle is not
-> evidence the set is complete.
+> **Two clusters, not eight independent decisions.** F18 + F22 + F23 are one
+> missing invariant (cleanup and cancellation are guaranteed only from
+> `RUNNING`); F19 + F21 are one missing contract boundary (a shared event/approval
+> contract landing after its consumers). Framing them as two rulings rather than
+> eight is the fastest path off BLOCKED.
+>
+> Cycles 5–7 raised no new P0/P1; **cycle 8 raised F21 and cycle 10 raised F22 and
+> F23**. A quiet cycle is not evidence the set is complete — this has now been
+> demonstrated twice.
 
 Review cycles used: **3 of 3 (limit reached)**. Cycle 1 (2026-08-09) raised
 F1–F12, all resolved in-cycle by amending the plan and hardening documents before
@@ -119,12 +128,14 @@ must be dispositioned before `129-S` is claimed.
 | **F17** | **P1** | **The plan's "two divergent implementations of the same policy" premise is factually wrong for `start.sh`, and it invalidates S1 acceptance criteria in the ELIGIBLE shipment.** Plan §5 (and the `004-SP` PROCEED reconciliation, and the composability decision doc) assert that `start.ps1` and `start.sh` already implement the same seven-dimension launch policy in two languages. Verified against the working tree: `start.sh` (80 lines) implements **only** `.env.local` no-clobber parsing with quote stripping (lines 20–36), a `COPILOT_HOME` default (54), an unguarded `export GITHUB_TOKEN="$(gh auth token)"` (56), Copilot exe resolution (57–64), and `exec "$copilot_exe" "$@"` (66). It has **no** `ENGRAM_DATA_DIR` default (line 55 is commented out), **no** backlogit sync, **no** Engram pre-warm/fallback, **no** `GITHUB_PERSONAL_ACCESS_TOKEN` handling, and **no** `COPILOT_USE_REMOTE`/`--remote` logic (0 occurrences each). Separately, `start.ps1:65` sets `GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token)` **unconditionally and unguarded**; the non-fatal `try`/`Write-Warning` path at 68–77 covers `GITHUB_TOKEN` only. Consequences: `118.002-T` requires a suite that "passes against today's `start.sh` unmodified" across "the same seven dimensions" — **unsatisfiable**, because three of those dimensions do not exist in `start.sh`; and `118.001-T`'s criterion (c) that PAT resolution is non-fatal when `gh` is absent or failing **misstates `start.ps1`'s actual behavior**. | **OPEN — ESCALATED. BLOCKS THE ELIGIBLE CURSOR.** Unlike F16, `118.001-T` and `118.002-T` are members of **`127-S`**, so this blocks the shipment Ship would claim first. Resolution requires re-inventorying both scripts and separating *shared* behavior from *PowerShell-only* behavior, then revising the H1 characterize-before-migrate contract so each suite characterizes **its own** script's real contract, with any cross-platform normalization reclassified as an **explicit behavior change** (which S1's "zero observable behavior change" rule forbids, so it must move to S3 or be separately approved). The `004-SP` PROCEED rationale and the composability decision doc's evidence paragraph must be corrected in the same pass, since both rest on the same overstated premise. Stage does not amend them here: the review budget is exhausted and the consolidation thesis underpinning the PROCEED disposition is an operator product decision. |
 | **F18** | **P1** | **The plan's state-transition diagram contradicts its own DRAINING rule and the harvested task.** Plan §3.2's diagram routes operator cancellation `CANCELLING -> EXITED`, bypassing `DRAINING`, while the rules immediately below state that DRAINING is the **only** path from RUNNING to a terminal state and always flushes the journal, releases the lock, and reaps the child. `119.006-T` independently mandates `RUNNING -> CANCELLING -> DRAINING -> EXITED`. Implementing the diagram as drawn would leak the workspace lock and the child process and lose journal data on every cancellation. Relatedly, `119.003-T`'s linear state summary omits `LOCKING -> REFUSED`, the bootstrap/resolve/launch failure edges to `FAILED`, and `RESTARTING -> LAUNCHING`; because absent transitions must raise `ILLEGAL_TRANSITION`, implementing that summary verbatim would reject documented outcomes. | **OPEN — low-ambiguity, but still unresolved.** Unlike F16/F17 the correct resolution is not genuinely contested: the diagram is the outlier, and both the prose rules and `119.006-T` already mandate routing cancellation through `DRAINING`. The fix is to correct the §3.2 diagram and complete `119.003-T`'s transition table against Plan §3.2. Stage records rather than applies it because the review budget is exhausted and it is a plan-document amendment. `119.003-T` and `119.006-T` are members of `128-S`, so this does **not** block the eligible cursor `127-S`, but it must be dispositioned before `128-S` is claimed. |
 
-**Revised containment across F16–F21.** `127-S` is **no longer safely
+**Revised containment across F16–F23.** `127-S` is **no longer safely
 claimable**: F17 invalidates acceptance criteria in `118.001-T` and `118.002-T`,
-both S1 members. F18 and F19 must be dispositioned before `128-S`; F16, F20 and
-F21 before `129-S`.
+both S1 members. F18, F19, **F22** and **F23** must be dispositioned before
+`128-S`; F16, F20 and F21 before `129-S`. **F22 may additionally touch `127-S`**
+if the guaranteed-lock-release obligation is placed on `118.005-T` (T5) rather
+than on the `119.003-T` transition table.
 None of these findings affect the F14 structural elimination, the shipment
-topology, or the 64/64 + 196/196 closure evidence, all of which stand.
+topology, or the 64/64 + 197/197 closure evidence, all of which stand.
 
 ### Cycle 4 (third Copilot pass, HEAD `d8644c46`) — two further P1s
 
@@ -316,6 +327,100 @@ fixed. The open set remains **F16–F21**.
 
 Assertion totals unchanged: **64/64** and **196/196**.
 
+### Cycle 4 (tenth Copilot pass, HEAD `914cb214`) — TWO NEW P1 (F22, F23); open set now EIGHT
+
+The tenth review reported "no new comments" at top level with **five suppressed
+comments**. Three were defects in my own evidence and records and are fixed. Two
+are **new P1 plan findings**, verified against the plan text rather than accepted
+on assertion. The open set is now **F16–F23**.
+
+Both new findings are instances of one structural gap: **the plan guarantees
+cleanup only from `RUNNING`.** Rule 2 of §3.2 states that `DRAINING` "is the only
+path to a terminal state **from `RUNNING`**", and `DRAINING` is where the plan
+places journal flush, lock release and child reaping. Every phase between
+`LOCKING` and `RUNNING` therefore has terminal edges with no defined cleanup.
+
+#### F22 (P1, OPEN, NEW): post-`LOCKING` failures terminate without releasing the workspace lock
+
+`§3.2` routes three failure edges straight to `FAILED`, all of them *after*
+`LOCKING` has already succeeded:
+
+* `BOOTSTRAPPING ─(fatal)→ FAILED`
+* `RESOLVING ─(no copilot exe)→ FAILED`
+* `LAUNCHING ─(spawn error)→ FAILED`
+
+None passes through `DRAINING`, so on this plan the lockfile is never released.
+`§3.4` then makes the consequence durable rather than transient: **"Lock
+contention → `REFUSED` (never auto-break). Stale lock (dead PID / mismatched
+start-time) requires an explicit operator `--force-unlock`."** The fail-closed
+stale policy is deliberate and correct on its own; combined with the missing
+cleanup edges it converts an ordinary failure into a **persistent self-inflicted
+lockout of the operator's own workspace**.
+
+The severity comes from *which* failure triggers it. `RESOLVING ─(no copilot
+exe)` is the single most likely first-run outcome on a machine where the Copilot
+CLI is not on `PATH` — so the plan's most probable first failure leaves the
+workspace locked, and the operator must discover an undocumented
+`--force-unlock` before they can retry. Every retry fails the same way.
+
+Owners: `119.003-T` (T8, transition table) and `118.005-T` (T5, lock lifecycle).
+Note that `118.005-T` sits in **`127-S`**, so a fix that puts the release
+obligation on T5 (for example scope-guarding acquisition so release is
+structural) touches the first shipment, whereas a fix in the transition table is
+confined to `128-S`.
+
+#### F23 (P1, OPEN, NEW): `119.006-T`'s "cancel during launch" test is unsatisfiable
+
+`119.006-T` lists `cancel during launch` among its required tests, but §3.2
+defines exactly one cancellation edge, `RUNNING ─(operator cancel)→ CANCELLING`,
+and Rule 1 states that transitions outside the table are rejected with
+`ILLEGAL_TRANSITION`. A cancel request while `LAUNCHING` can therefore only be
+*refused* — which contradicts the cancellation contract stated in the same task
+("operator cancel drives `RUNNING → CANCELLING → DRAINING → EXITED`, …
+releasing the lock").
+
+This is the same defect class as **F17**: a task carries acceptance criteria that
+the fixed contract it depends on cannot satisfy. Left unresolved the implementer
+either silently drops the test — leaving cancellation during a slow bootstrap or
+resolve undefined — or unilaterally invents a state-machine edge, diverging from
+the contract `119.003-T` owns and that `119.004-T`/`119.005-T` are written
+against.
+
+#### These two, plus F18, are one decision
+
+F18 (`CANCELLING → EXITED` bypassing `DRAINING`), F22 (post-lock failures
+bypassing `DRAINING`) and F23 (no pre-`RUNNING` cancellation edge) are three
+symptoms of the same missing invariant. A single operator ruling — *"once
+`LOCKING` succeeds, every terminal exit routes through `DRAINING`, and operator
+cancel is legal from every post-`LOCKING` phase"* — discharges all three and
+turns Rule 2 into an unconditional guarantee instead of a `RUNNING`-scoped one.
+Stage has NOT adopted this; it is recorded as the recommended framing for the
+operator decision, alongside F21's Option A which would likewise discharge F19.
+
+#### Non-blocking defects in Stage's own artifacts (all fixed)
+
+* **V4 claimed to verify `related_to` links but did not test `link_type`.** The
+  assertion projected only `target_id`, so a link of *any* type — including the
+  hierarchical or `blocks` edge this proof exists to rule out for the umbrella —
+  would have passed, and Part 2 would then have replayed a relationship the live
+  topology does not have. This is the **fourth** instance of the recurring family
+  "the assertion is robust but tests the wrong proposition". Fixed by filtering on
+  `link_type` first *and* asserting that the set of non-`related_to` outgoing
+  links is empty, so a stray edge cannot hide behind a passing lookup.
+* **V10's base ref was hardcoded to `origin/main`**, which is not guaranteed in
+  the "any clone" the proof advertises (source archive, fork with a differently
+  named remote, pruned remote-tracking refs). V10 would abort before the topology
+  proof ran. Now resolves tracked upstream → `origin/main` → `origin/master` →
+  `main` → `master`, with an explicit `-BaseRef` override, failing only when none
+  resolves.
+* **The checkpoint's structured `decisions` collection still carried the retired
+  state**: decision #4 recorded the gate as `PASS, 0 P0 / 0 P1`, and decision #8
+  recorded the retired 117.x/124-126-S topology. The corrections existed only in
+  `tasks_remaining` and the free-form `resume_hint`, so a consumer reading
+  `decisions` as authoritative received stale state. Fixed **append-only**: two
+  explicit superseding decisions now carry the BLOCKED verdict and the
+  127/128/129-S topology, with the originals preserved verbatim.
+
 ## Decomposition check (2-hour rule, width isolation)
 
 * **19 tasks**, each scoped to a single module or a single script surface.
@@ -418,12 +523,17 @@ out-of-scope work exists).
 * **Role-boundary clear** — the close path requires nothing outside Ship's
   enumerated claim/move/close/archive capabilities. The P-010 violation that
   cycle 2 would have required is gone.
-* **Verdict: BLOCKED (current).** 0 unresolved P0, **6 unresolved P1s (F16, F17, F18,
-  F19, F20, F21)**. Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
+* **Verdict: BLOCKED (current).** 0 unresolved P0, **8 unresolved P1s (F16–F23)**.
+  Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
   available.** Cycles 1–3 concluded PASS and that conclusion stands for F1–F15;
   the verdict was subsequently downgraded when the PR #325 Copilot review of HEAD
-  `48368657` raised **F16**, plus the follow-on findings **F17**, **F18**,
-  **F19**, **F20** and **F21** recorded in the Cycle 4 sections. All six are open
-  and require operator disposition. Do **not** read this document as an approval to
-  claim **any** shipment: **F17 gates `127-S`**, **F18 + F19 gate `128-S`**, and
-  **F16 + F20 + F21 gate `129-S`**.
+  `48368657` raised **F16**, plus the follow-on findings **F17**–**F23** recorded
+  in the Cycle 4 sections. All eight are open and require operator disposition.
+  Do **not** read this document as an approval to claim **any** shipment:
+  **F17 gates `127-S`**, **F18 + F19 + F22 + F23 gate `128-S`** (with **F22**
+  potentially touching `127-S` as well), and **F16 + F20 + F21 gate `129-S`**.
+* **Two rulings, not eight.** F18 + F22 + F23 collapse into one invariant
+  (*every terminal exit after `LOCKING` routes through `DRAINING`, and operator
+  cancel is legal from every post-`LOCKING` phase*); F19 + F21 collapse into one
+  contract-placement ruling (*where the shared event/approval contract lives and
+  which task owns it*). F16, F17 and F20 remain genuinely independent.

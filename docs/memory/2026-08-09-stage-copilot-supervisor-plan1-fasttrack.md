@@ -378,7 +378,7 @@ program closure, zero operator action.
 * `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` — **64/64**. ARM A (cycle-2 control) reproduces the
   defect: closing S1 returns **14/14** downstream tasks with `parent_id` cleared. ARM B
   (H10.5) closes all three shipments with `returned_ids: []` and a clean fixture doctor.
-* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` — **196/196**. Part 1 = 11 read-only
+* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` — **197/197**. Part 1 = 11 read-only
   structural checks against the live workspace; Part 2 = fixture replay of the **exact**
   live topology including the real 27-edge DAG, driven through real `ShipShipment`:
   `returned_ids: []` on every close, zero non-archived residue at the end.
@@ -557,7 +557,7 @@ section, and the checkpoint (whose Ship-claim instruction is now **gated**:
 decisions; Stage adopted none of them, because the 3-cycle review budget was
 exhausted before they surfaced. **`127-S` is NOT safely claimable** pending F17.
 None of F16–F18 invalidates the F14 structural elimination, the shipment
-topology, or the 64/64 + 196/196 closure evidence.
+topology, or the 64/64 + 197/197 closure evidence.
 
 ---
 
@@ -839,13 +839,67 @@ into the log itself; correcting the artifact body is not sufficient.
 Assertion totals unchanged: **64/64** and **196/196**. Open set unchanged at six:
 F16-F21.
 
+### Cycle 10 — TWO NEW P1s (F22, F23), and the most instructive self-inflicted defect yet
+
+The tenth Copilot review raised **two genuine new P1 plan findings**, taking the
+open set to **eight (F16–F23)**. Both were verified against the plan text before
+recording, not accepted on assertion.
+
+**F22 — post-`LOCKING` failures never release the workspace lock.** Plan §3.2
+sends `BOOTSTRAPPING —(fatal)→ FAILED`, `RESOLVING —(no copilot exe)→ FAILED`
+and `LAUNCHING —(spawn error)→ FAILED` straight to terminal states. None goes
+through `DRAINING`, and Rule 2 scopes the cleanup guarantee to "the only path to
+a terminal state **from `RUNNING`**". §3.4 then makes it permanent: a stale lock
+is never auto-broken and needs an explicit `--force-unlock`. So the single most
+likely first-run failure — Copilot CLI not on `PATH` — locks the operator out of
+their own workspace, and every retry returns `REFUSED`.
+
+**F23 — `119.006-T`'s "cancel during launch" test cannot be written.** §3.2 has
+exactly one cancellation edge (`RUNNING → CANCELLING`) and Rule 1 rejects
+anything outside the table with `ILLEGAL_TRANSITION`. Same class as F17:
+acceptance criteria the fixed contract cannot satisfy.
+
+**The synthesis worth carrying to the operator:** F18, F22 and F23 are not three
+problems. They are one missing invariant — *cleanup and cancellation are
+guaranteed only from `RUNNING`* — and a single ruling ("every terminal exit after
+`LOCKING` routes through `DRAINING`; operator cancel is legal from every
+post-`LOCKING` phase") discharges all three. Likewise F19 + F21 are one
+contract-placement ruling. Eight findings, **two** decisions. Presenting them as
+eight would have made the blockage look far more intractable than it is.
+
+#### The defect I introduced while fixing a defect
+
+The review also caught V4 asserting `related_to` links without ever testing
+`link_type`, and V10 hard-coding `origin/main`. Fixing the latter, I resolved the
+branch's **tracked upstream** first — it seemed like the most authoritative base.
+For a topic branch the tracked upstream is *the remote copy of the same branch*,
+so `merge-base(upstream, HEAD) == HEAD`, the diff range was empty, and the run
+printed a **0-file** branch footprint. It passed. It proved nothing. **It was the
+exact vacuity that V10's rewrite existed to eliminate, re-introduced by the fix
+for the previous instance of the same mistake.**
+
+I caught it only because I read the numbers the passing run printed instead of
+the PASS line — `0 .backlogit files` for a branch that had touched sixty of them
+is not a plausible measurement. Two changes followed: `@{upstream}` is gone
+(`origin/HEAD` first), and V10 now **throws** when the merge-base equals `HEAD`,
+so no base ref — including a bad operator-supplied `-BaseRef` — can produce a
+vacuous pass again.
+
+That is now **four** instances of one family: an assertion can be robust and
+still test the wrong proposition. The habit that actually catches it is not
+"check exit codes"; it is **treat a suspiciously empty measurement as failure**,
+and read what a green run reports rather than that it was green.
+
+Totals after re-execution: **197/197** (V4 gained the negative link-type
+assertion) and **64/64**.
+
 ### Terminal state (final)
 
 **Six open P1s: F16, F17, F18, F19, F20, F21.** All require operator product
 decisions; Stage adopted none. **No shipment is safely claimable**: F17 gates
 `127-S`; F18 + F19 gate `128-S`; F16 + F20 + F21 gate `129-S`. None of F16–F21
 invalidates the F14 structural elimination, the shipment topology, or the
-64/64 + 196/196 closure evidence.
+64/64 + 197/197 closure evidence.
 
 **Do not read a quiet review cycle as completeness.** Cycles 5, 6 and 7 raised no
 new P0/P1; cycle 8 raised F21. The honest statement is "no new findings in that
