@@ -350,6 +350,13 @@ implied here.
 
 **Rollback**
 
+* The **childless product umbrella** `117-F` stays `queued` for the entire chain
+  and is closed engine-natively as a member of the final shipment `129-S`. It
+  has no children, so no single shipment close can promote, archive, or orphan
+  any Plan-1 work through it (H10.5).
+* Each shipment's own ROOT covering feature (`118-F`/`119-F`/`120-F`) is fully
+  covered by its own manifest, so a close affects only that shipment's scope.
+  Rolling back one shipment never disturbs a sibling's parentage.
 * S1/S2 are additive: revert the commit; nothing else is affected.
 * S3 rollback is a **single-file revert of each shim** back to the current
   `start.ps1` / `start.sh` (both preserved verbatim in git history and referenced
@@ -364,6 +371,24 @@ Ordering principle (operator directive): **process safety, contracts, and
 characterization tests before UI/convenience.**
 
 ### Shipment 1 — Safety contracts + characterization baseline (P0, eligible)
+
+> **Manifest contract (H10.5 — supersedes H10.4):** each shipment owns its own
+> **ROOT** covering feature that is **fully covered by** and an **explicit member
+> of** that shipment's manifest, listed **first**:
+>
+> | Shipment | Covering feature (ROOT) | Tasks |
+> |---|---|---|
+> | `127-S` (S1) | `118-F` | `118.001-T`…`118.005-T` |
+> | `128-S` (S2) | `119-F` | `119.001-T`…`119.006-T` |
+> | `129-S` (S3) | `120-F` | `120.001-T`…`120.008-T` (+ `117-F` last) |
+>
+> Full coverage means `returnUnreleasedFeatureItems` has nothing to return, so
+> **no** `parent_id` is ever cleared; ROOT placement means `featureScopeRoots`
+> cannot walk out of one shipment's scope into a sibling's. The product umbrella
+> `117-F` is **childless** and grouped to these features by non-hierarchical
+> `related_to` links only. No close requires `adopt_item` or any post-close
+> repair. See H10.5 in the hardening doc for the engine-level rationale and the
+> executed closure proof.
 
 * **T1** — Characterization suite for `start.ps1` observable contract. Test-only.
 * **T2** — Characterization suite for `start.sh` parity. Test-only.

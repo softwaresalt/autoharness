@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-10T00:14:16.0514393-07:00","actor":"agent","item_id":"117.008-T","event_type":"estimate_history","delta":{"actor":"agent","size":"M","size_ruleset_version":"2h-width-isolated-v1","size_source":"agent"}}
+{"timestamp":"2026-08-10T01:10:36.6845075-07:00","actor":"backlogit","item_id":"119.003-T","event_type":"adopted","delta":{"new_id":"119.003-T","new_parent_id":"119-F","old_id":"117.008-T","origin_feature":"117-F","rewritten_artifact_ids":["117.009-T","117.011-T","117.015-T"],"was_orphan":false}}

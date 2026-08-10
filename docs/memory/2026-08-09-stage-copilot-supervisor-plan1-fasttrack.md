@@ -65,7 +65,7 @@ scope.
 |---|---|---|
 | Implementation plan | `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md` | authored |
 | P-006 hardening | `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md` | **HARDENED** (H1–H10) |
-| Plan review gate | `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md` | **PASS**, 0 P0 / 0 P1 outstanding, 1 of 3 cycles |
+| Plan review gate | `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md` | **PASS**, 0 P0 / 0 P1 outstanding, **2 of 3 cycles** (cycle 2 = 2026-08-10 PR #325 review-fix, F13/F14) |
 
 Hardening themes: H1 characterize-before-migrate (hard ordering constraint), H2
 fail-closed invariant table, H3 exit-status fidelity, H4 subprocess safety (argv-array
@@ -102,55 +102,77 @@ only; `.autoharness/config.yaml` remains the model-routing authority.
 
 ## Harvested backlog (Plan 1 only)
 
-**Covering feature `117-F`** — "Local Copilot CLI supervisor / control-plane runtime
-(Plan 1, fast-track)" with 19 width-isolated sub-2h tasks `117.001-T`…`117.019-T`, each
-carrying **two independent axes** (`size` + `complexity`) as structured fields *and* as
-labeled prose, plus **27 `blocks` dependency edges**.
+> **CYCLE-3 REDESIGN (2026-08-10).** The IDs in this section were remapped by the
+> F14 structural fix. `117-F` is now a **childless product umbrella**; the 19
+> tasks live under three new ROOT covering features. See the cycle-3 section at
+> the end of this document for the full remap table and rationale. The original
+> IDs are retained below for provenance and are annotated inline.
+
+**Product umbrella `117-F`** — "Local Copilot CLI supervisor / control-plane runtime
+(Plan 1, fast-track)". Originally the direct parent of 19 width-isolated sub-2h tasks
+`117.001-T`…`117.019-T`; **now childless**, grouped to the per-shipment features by
+`related_to` links. Each task carries **two independent axes** (`size` + `complexity`)
+as structured fields *and* as labeled prose, plus **27 `blocks` dependency edges**
+(all preserved across the remap).
 
 **Serial shipment chain (only the first is eligible):**
 
-| Order | ID | Scope | Priority | Items |
-|---|---|---|---|---|
-| 1 (cursor) | `124-S` | S1 safety contracts + characterization baseline — zero behavior change | critical (P0) | `117-F`, `117.002-T`, `117.001-T`, `117.003-T`, `117.005-T`, `117.004-T` |
-| 2 | `125-S` | S2 supervision core — unwired library | critical (P0) | `117.006-T`…`117.011-T` |
-| 3 | `126-S` | S3 application services, adapters, `start.ps1`/`start.sh` migration — the only behavior-changing shipment | high (P1) | `117.012-T`…`117.019-T` |
+| Order | ID | Covering feature (ROOT) | Scope | Priority | Items |
+|---|---|---|---|---|---|
+| 1 (cursor) | `127-S` | `118-F` | S1 safety contracts + characterization baseline — zero behavior change | critical (P0) | `118-F` (first), `118.003-T`, `118.001-T`, `118.002-T`, `118.004-T`, `118.005-T` |
+| 2 | `128-S` | `119-F` | S2 supervision core — unwired library | critical (P0) | `119-F` (first), `119.001-T`…`119.006-T` |
+| 3 | `129-S` | `120-F` | S3 application services, adapters, `start.ps1`/`start.sh` migration — the only behavior-changing shipment | high (P1) | `120-F` (first), `120.001-T`…`120.008-T`, `117-F` (last) |
 
-`125-S` **blocks-on** `124-S`; `126-S` **blocks-on** `125-S`. Ordering deliberately
+`128-S` **blocks-on** `127-S`; `129-S` **blocks-on** `128-S`. Ordering deliberately
 front-loads process safety, typed contracts, and characterization tests **before** any
 adapter or convenience surface.
 
-### Task ↔ plan map (note: the first five task IDs are not in T-order)
+*(Superseded: `124-S`/`125-S`/`126-S` — archived, not deleted, with `supersedes` links
+from their replacements.)*
 
-| Plan | ID | Focus | Shipment | Size | Complexity |
-|---|---|---|---|---|---|
-| T1 | `117.001-T` | `start.ps1` characterization suite | S1 | M | medium |
-| T3 | `117.002-T` | `result.py` + `errors.py` contracts | S1 | S | low |
-| T2 | `117.003-T` | `start.sh` characterization suite | S1 | S | low |
-| T5 | `117.004-T` | `locking.py` | S1 | M | medium |
-| T4 | `117.005-T` | `redact.py` | S1 | S | medium |
-| T6 | `117.006-T` | `process.py` Protocol + Pipe backend | S2 | M | medium |
-| T7 | `117.007-T` | `process_pty.py` ConPTY/POSIX | S2 | M | high |
-| T8 | `117.008-T` | `session.py` state machine | S2 | M | medium |
-| T9 | `117.009-T` | `events.py` event bus | S2 | S | low |
-| T10 | `117.010-T` | `journal.py` | S2 | M | medium |
-| T11 | `117.011-T` | `recovery.py` | S2 | M | high |
-| T12 | `117.012-T` | `bootstrap.py` | S3 | M | medium |
-| T13 | `117.013-T` | `sidecar.py` | S3 | M | medium |
-| T14 | `117.014-T` | `resolve.py` | S3 | S | low |
-| T15 | `117.015-T` | `app.py` `run_session()` | S3 | M | high |
-| T16 | `117.016-T` | `approvals.py` (console-only) | S3 | M | medium |
-| T17 | `117.017-T` | `autoharness run` CLI adapter | S3 | S | medium |
-| T18 | `117.018-T` | `start.ps1`/`start.sh` → shims | S3 | M | high |
-| T19 | `117.019-T` | observability + rollout/rollback docs | S3 | S | low |
+**Each manifest is fully covered and root-isolated (H10.5, supersedes H10.4).** Every
+shipment lists its own ROOT covering feature **first**, plus exactly that feature's
+children. Full coverage means no `parent_id` is ever cleared on close; ROOT placement
+means no close can reach a sibling shipment's scope. `117-F` is childless and appears
+only in the final shipment, where the engine closes it natively. **No close requires
+`adopt_item` or any post-close repair.**
+
+### Task ↔ plan map (cycle-3 IDs; `origin_feature: 117-F` retained on every task)
+
+> Column **Old ID** is the pre-cycle-3 identifier, kept for cross-referencing PR #325
+> and the archived `124-S`/`125-S`/`126-S` manifests.
+
+| Plan | ID (current) | Old ID | Focus | Shipment | Size | Complexity |
+|---|---|---|---|---|---|---|
+| T1 | `118.001-T` | `117.001-T` | `start.ps1` characterization suite | S1 | M | medium |
+| T3 | `118.003-T` | `117.002-T` | `result.py` + `errors.py` contracts | S1 | S | low |
+| T2 | `118.002-T` | `117.003-T` | `start.sh` characterization suite | S1 | S | low |
+| T5 | `118.005-T` | `117.004-T` | `locking.py` | S1 | M | medium |
+| T4 | `118.004-T` | `117.005-T` | `redact.py` | S1 | S | medium |
+| T6 | `119.001-T` | `117.006-T` | `process.py` Protocol + Pipe backend | S2 | M | medium |
+| T7 | `119.002-T` | `117.007-T` | `process_pty.py` ConPTY/POSIX | S2 | M | high |
+| T8 | `119.003-T` | `117.008-T` | `session.py` state machine | S2 | M | medium |
+| T9 | `119.004-T` | `117.009-T` | `events.py` event bus | S2 | S | low |
+| T10 | `119.005-T` | `117.010-T` | `journal.py` | S2 | M | medium |
+| T11 | `119.006-T` | `117.011-T` | `recovery.py` | S2 | M | high |
+| T12 | `120.001-T` | `117.012-T` | `bootstrap.py` | S3 | M | medium |
+| T13 | `120.002-T` | `117.013-T` | `sidecar.py` | S3 | M | medium |
+| T14 | `120.003-T` | `117.014-T` | `resolve.py` | S3 | S | low |
+| T15 | `120.004-T` | `117.015-T` | `app.py` `run_session()` | S3 | M | high |
+| T16 | `120.005-T` | `117.016-T` | `approvals.py` (console-only) | S3 | M | medium |
+| T17 | `120.006-T` | `117.017-T` | `autoharness run` CLI adapter | S3 | S | medium |
+| T18 | `120.007-T` | `117.018-T` | `start.ps1`/`start.sh` → shims | S3 | M | high |
+| T19 | `120.008-T` | `117.019-T` | observability + rollout/rollback docs | S3 | S | low |
 
 ## Plan 2 — deferred
 
 * Design doc: `docs/design-docs/2026-08-09-deferred-gradio-devtunnel-remote-control-plan.md`
-  (remote threat model with 6 assets / 6 adversary classes / T1–T10 threats; Entra ID
+  (remote threat model with 6 assets / 6 adversary classes / T1–T11 threats, incl. T11
+  credential compromise; Entra ID
   authentication; 4-tier authorization with a local-only privileged tier; cryptographic
   workspace binding; two-channel streaming/control protocol; remote approvals; devtunnel
   lifecycle with crash-safe teardown; multi-user/session concerns; optional-extra
-  deployment; rollback; 7 open questions).
+  deployment; rollback plus the §11.1 credential-compromise runbook; 7 open questions).
 * Dedicated living tracker: **stash `04AFF97B`** (kind `feature`, priority `low`, marked
   DEFERRED).
 * **No implementation feature, tasks, or shipment exist**, and Plan 2 is **not** a Plan 1
@@ -193,6 +215,210 @@ branch or worktree creation, **no** commit/push/PR mutation, **no** shipment cla
 
 ## Next steps for Ship
 
-1. Claim `124-S` (S1) — the only eligible cursor. `125-S` and `126-S` are blocked.
+1. Claim `127-S` (S1) — the only eligible cursor. `128-S` and `129-S` are blocked.
 2. Honor H1: land the characterization suites before any policy moves to Python.
 3. Do not begin S3 migration until S1 and S2 are released.
+4. **No post-close backlog repair is required or permitted.** Each shipment closes
+   cleanly on its own fully covered ROOT feature; `returnUnreleasedFeatureItems`
+   returns `∅` on every close (proven, `returned_ids: []`). Do **not** call
+   `adopt_item`, re-parent tasks, reactivate a feature, or hand-edit parentage —
+   those are outside Ship's Role Boundary (P-010) and are banned by Non-Goal 11.
+   If a close *does* return a non-empty `returned_ids`, that is a regression:
+   **halt and escalate to Stage** rather than repairing it.
+5. **Do not add or remove members from any manifest.** Each shipment's manifest is
+   a safety contract (H10.5): exactly its own ROOT covering feature listed first
+   plus that feature's children. Adding a foreign item, or nesting the covering
+   features under `117-F`, reinstates the cascade hazard.
+6. `117-F` is a **childless umbrella** and is already a member of the final
+   shipment `129-S`. The engine closes and archives it at `129-S` close — no
+   separate closing action is needed.
+
+---
+
+## Review-fix cycle — 2026-08-10 (PR #325 Copilot findings)
+
+Bounded Stage planning review-fix cycle. No source implementation, no shipment claim,
+no branch/worktree, no commit/push, no PR thread mutation.
+
+### Finding 1 (critical, shipment safety) — RESOLVED
+
+`124-S` listed the covering feature `117-F` in `custom_fields.items` alongside the five
+S1 tasks.
+
+**Why it was critical.** Backlogit `ShipShipment` (v1.8.0, `fd8d2c9d`) gates both of its
+destructive covering-feature operations on **explicit manifest membership**:
+
+* `setArtifactStatus(featureID, done)` fires only when `explicitScope[featureID]`.
+* `collectArchiveCandidateIDs` sweeps the feature — plus its descendants and its linked
+  deliberations — into the archive set only when `explicitScope[featureID]`.
+
+So closing S1 would have marked `117-F` **done and archived it** while 14 of its 19
+children (`117.006-T`…`117.019-T`) were still queued in `125-S`/`126-S`.
+
+**Correction.** `117-F` removed from the `124-S` manifest. There is **no**
+remove-from-shipment operation in backlogit (`shipment` exposes only `add`, `claim`,
+`get`, `list`, `return-blocked`, `ship`; `return-blocked` would have wrongly forced a
+`blocked` status), so the minimum safe correction was a direct frontmatter edit followed
+by `backlogit sync`. No IDs, statuses, priorities, dependencies, or queue positions were
+recreated or changed. An append-only `manifest_corrected` event was added to
+`.backlogit/logs/124-S.jsonl`.
+
+**Accepted trade-off.** Backlogit derives the read-only `covering_feature` render
+projection from a *root feature member*, so it is now omitted for `124-S` — uniform with
+`125-S`/`126-S`, which were always task-only. Lifecycle correctness outranks a render
+convenience; the feature link stays recoverable from member `parent_id` and the shared
+`117.` ID prefix.
+
+**Residual (F14, P1, accepted with mandatory mitigation).**
+`returnUnreleasedFeatureItems` is **not** gated by `explicitScope` and clears `parent_id`
+on a non-member ancestor feature's unreleased descendants — see "Next steps for Ship"
+step 4. Recoverable relationship change only: no closure, no archival, no data loss.
+Recorded for a separate upstream backlogit report.
+
+### Finding 2 (deferred remote threat model) — RESOLVED
+
+`docs/design-docs/2026-08-09-deferred-gradio-devtunnel-remote-control-plan.md` advised
+that an exposed credential be "rotated (`gh auth refresh`)". That is wrong:
+`gh auth refresh` re-authorizes scopes on the **same** credential and leaves an exposed
+secret fully valid.
+
+Replaced with threat **T11** and a new **§11.1 credential-compromise runbook** requiring
+issuer-side **revocation** plus **replacement** with a newly issued least-privilege
+credential; `gh auth refresh` is explicitly confined to scope/authorization changes on a
+credential that is *not* compromised. **Containment outranks preserving in-flight work**:
+a controlled supervisor session restart is explicitly permitted and, where the old value
+is still resident in a live process environment, required — and the document's general
+"rollback must never terminate in-flight agent work" guarantee is explicitly suspended
+for this path. Asset table, T11, rollback, runbook, and the Plan 2 stash tracker
+(`04AFF97B`) are reconciled.
+
+### Gate results
+
+* **plan-review: PASS re-affirmed** — 0 unresolved P0, 0 unresolved P1.
+  Cycles used **2 of 3** (truthful; cycle 1 = F1–F12 on 2026-08-09, cycle 2 = F13/F14 on
+  2026-08-10). One cycle remains.
+* **plan-harden: HARDENED re-affirmed** — H10.4 added; H1–H9 re-read and unaffected. The
+  correction is fail-safe in direction: it *removes* a destructive capability from the S1
+  close path rather than adding a new mechanism that must itself be trusted.
+
+---
+
+## Review-fix cycle 3 of 3 — 2026-08-10 (F14 structural elimination)
+
+FINAL permitted review-fix cycle. Bounded Stage planning work only: no source
+implementation, no shipment claim, no branch/worktree, no commit/push, no PR or thread
+activity. All changes left uncommitted for the Orchestrator.
+
+### Why cycle 2's F14 resolution was rejected
+
+Cycle 2 discharged F14 (P1) by requiring Ship to re-adopt orphaned tasks via
+`backlogit_adopt_item` after each predecessor close. That is invalid on two independent
+grounds:
+
+1. **P-010 role-boundary violation.** Ship's Role Boundary enumerates claim, move, close,
+   and archive. Re-parent/adopt is not enumerated; the fail-closed rule makes it
+   *forbidden*, not merely undocumented. A review cannot clear a P1 by prescribing a
+   policy violation.
+2. **Not reliability-first.** It mandates fragile manual repair after every close, on the
+   exact path where one missed step silently detaches two thirds of the program.
+
+So the cycle-2 "0 unresolved P1" claim was not truthful. F14 was reopened as **F14-R** and
+eliminated structurally.
+
+### The engine defect, precisely
+
+`ShipShipment` builds `releaseScope` = manifest members + all their descendants, and
+`featureScopeRoots` = every ancestor feature reachable by walking `parent_id` **upward**
+from the members. It then runs `returnUnreleasedFeatureItems` for **every** feature in
+that set — **member or not** — forcing each out-of-scope descendant to `queued` and
+calling `clearParentID`.
+
+The `explicitScope` gate added by backlogit `133-F` covers `setArtifactStatus(done)` and
+`collectArchiveCandidateIDs`, but **not** this path. So the cycle-2 task-only design
+disarmed the archive cascade and *armed* the parent-clearing cascade.
+
+Two further engine properties were decisive:
+
+* `featureScopeRoots` walks `parent_id` **only** — it does **not** traverse `item_links`.
+  Semantic links therefore carry zero lifecycle reachability.
+* `findCrossArtifactReferences` (used by `AdoptItem`) rewrites `parent_id`,
+  `dependencies`, and `links`, but **not** shipment `custom_fields.items` — and backlogit
+  1.8.0 exposes no remove-from-shipment operation. Manifests are effectively immutable,
+  which is why the shipments had to be replaced rather than edited (finding F15).
+
+### The fix — H10.5 (supersedes H10.4)
+
+Two invariants, both required, neither sufficient alone:
+
+1. **FULL COVERAGE** — every descendant of a shipment's covering feature is in that same
+   shipment's release scope ⇒ `returnUnreleasedFeatureItems` returns `∅` ⇒ nothing is
+   ever orphaned.
+2. **ROOT PLACEMENT** — the covering feature has no parent ⇒ the upward walk cannot
+   escape into a sibling shipment's scope.
+
+**Trap avoided:** nesting `118-F`/`119-F`/`120-F` under `117-F` satisfies (1) but breaks
+(2) — closing S1 would walk `118.001-T → 118-F → 117-F` and orphan *everything* under
+`119-F` and `120-F`, strictly worse than the original defect. The per-shipment features
+**must stay root-level**.
+
+**Membership reversed on purpose.** Because each feature is fully covered, listing it in
+its own manifest is *safer* than omitting it: the engine marks it done and archives it
+with its own tasks. Omitting it would leave a permanently-`queued` feature with all
+children done, requiring a manual archive — i.e. the post-close repair this cycle forbids.
+
+**Grouping preserved without lifecycle coupling.** `117-F` becomes a **childless**
+umbrella linked by `related_to` to the three per-shipment features. Childless ⇒
+`descendantItems(117-F)` is empty ⇒ it is inert even when in scope. It is a member of the
+final shipment `129-S` only, listed **last** so `120-F` wins the read-only
+`covering_feature` render projection; the engine closes and archives it there — native
+program closure, zero operator action.
+
+### Evidence (real backlogit 1.8.0, disposable fixtures)
+
+* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` — **57/57**. ARM A (cycle-2 control) reproduces the
+  defect: closing S1 returns **14/14** downstream tasks with `parent_id` cleared. ARM B
+  (H10.5) closes all three shipments with `returned_ids: []` and a clean fixture doctor.
+* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` — **194/194**. Part 1 = 11 read-only
+  structural checks against the live workspace; Part 2 = fixture replay of the **exact**
+  live topology including the real 27-edge DAG, driven through real `ShipShipment`:
+  `returned_ids: []` on every close, zero non-archived residue at the end.
+
+Both harnesses were **re-executed on the final corrected tree** immediately before
+push and reproduced their published totals exactly (57/57 and 194/194) — the
+evidence in this document is verified, not merely asserted from an earlier run.
+
+**Evidence placement — P-010 role-boundary adjudication.** The two harnesses were
+originally written to `scripts/`. That directory is a **product and CI tooling
+surface**: it holds the shipped `deploy-harness.ps1` / `deploy-harness.sh`
+installers and `ci-topology-check.sh`, which `.github/workflows/ci.yml:135`
+invokes directly, and its history is exclusively task-ID-tagged Ship execution
+commits. Committing Stage-authored executables there would have extended the
+product/CI surface under a Stage commit — a P-010 violation. The evidence was
+therefore **relocated, not deleted**, to
+`docs/spikes/2026-08-09-plan1-shipment-topology-proof/` (with a README recording
+provenance, safety properties, and reproduction steps), and all references in the
+plan, hardening, review, and memory documents were repointed. `scripts/` is
+restored bit-for-bit to its committed state; nothing in CI, `pyproject.toml`
+packaging, or the deploy wrappers referenced the moved files, so the relocation
+changes no product behavior. Consequently this PR remains **docs + backlog only
+and non-code-changing**, and the code-changing build gate is not triggered.
+
+Three first-pass FAILs were adjudicated as probe defects, not product defects:
+`get --format json` does not project `size`/`complexity` (read the `items` table instead);
+a regex over `checkpoint list` false-positives on both `resume_hint` prose and the summary
+field name `"quarantined": 0` (assert structured fields instead); and a loose `\b003[-.]`
+pattern matches task filenames like `118.003-T.md`. `backlogit doctor` reports **zero**
+findings against any Plan-1 artifact; the 62 remaining findings are pre-existing debt on
+`048.00x-T` and `003-*`, artifacts this session never touched (verified via git status).
+
+### Gate results — cycle 3
+
+* **plan-review: PASS (final)** — 0 unresolved P0, 0 unresolved P1. F14-R structurally
+  eliminated; F15 resolved. Cycles used **3 of 3 — limit reached.**
+* **plan-harden: HARDENED re-affirmed** — H10.5 added, H10.4 superseded; H1–H9 re-read
+  and unaffected. H10.5 is fail-safe in a stronger sense than H10.4: it removes the
+  *precondition* for the destructive path rather than a capability.
+  `returnUnreleasedFeatureItems` still runs on every close — it simply has nothing to act
+  on, verified empirically rather than argued.
+* **Blast radius of this cycle:** backlog metadata and planning documents only. No source,
+  schema, template, or CLI file touched.

@@ -1,0 +1,286 @@
+# READ-ONLY structural verification of the live .backlogit workspace, plus a
+# disposable-fixture REPLAY of the exact live Plan-1 topology through the real
+# backlogit 1.8.0 ShipShipment engine.
+#
+# Part 1 performs ONLY SELECT queries and `backlogit get` reads against the real
+# workspace. It never mutates it.
+# Part 2 rebuilds an isomorphic copy of the live topology in $env:TEMP and closes
+# all three shipments for real, asserting the F14 elimination end to end.
+
+$ErrorActionPreference = 'Stop'
+$script:fail = 0
+$script:total = 0
+$repo = 'C:\Source\GitHub\autoharness'
+
+function Assert([bool]$Cond, [string]$Msg) {
+    $script:total++
+    if ($Cond) { Write-Host "  PASS  $Msg" }
+    else { Write-Host "  FAIL  $Msg" -ForegroundColor Red; $script:fail++ }
+}
+
+function Invoke-Bl {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$BlArgs)
+    return ((& backlogit --log-level error @BlArgs 2>&1) | Out-String)
+}
+
+function Invoke-Sql([string]$Sql) {
+    $o = Invoke-Bl query $Sql
+    $i = $o.IndexOf('[')
+    if ($i -lt 0) { return @() }
+    $parsed = $o.Substring($i) | ConvertFrom-Json
+    return @($parsed)
+}
+
+function Get-Art([string]$Id) {
+    $o = Invoke-Bl get $Id --format json
+    return ($o.Substring($o.IndexOf('{')) | ConvertFrom-Json)
+}
+
+# ===========================================================================
+# PART 1 - READ-ONLY VERIFICATION OF THE LIVE WORKSPACE
+# ===========================================================================
+Set-Location $repo
+Write-Host "`n########## PART 1: READ-ONLY VERIFICATION OF THE LIVE WORKSPACE ##########"
+
+$plan = @{
+    '127-S' = @{ Feat = '118-F'; Tasks = @('118.001-T', '118.002-T', '118.003-T', '118.004-T', '118.005-T') }
+    '128-S' = @{ Feat = '119-F'; Tasks = @('119.001-T', '119.002-T', '119.003-T', '119.004-T', '119.005-T', '119.006-T') }
+    '129-S' = @{ Feat = '120-F'; Tasks = @('120.001-T', '120.002-T', '120.003-T', '120.004-T', '120.005-T', '120.006-T', '120.007-T', '120.008-T') }
+}
+
+Write-Host "`n--- V1: every task has a valid, queued covering feature ---"
+# NOTE: `backlogit get --format json` does NOT project size/complexity. Those two
+# fields must be read from the `items` table, which is the authoritative store.
+# Reading them via the JSON projection produced 38 false FAILs in the first pass.
+$sizeEnum = @('XS', 'S', 'M', 'L', 'XL'); $cxEnum = @('trivial', 'low', 'medium', 'high')
+$sc = @{}
+foreach ($r in (Invoke-Sql "SELECT id, size, complexity, priority FROM items WHERE id LIKE '118.%' OR id LIKE '119.%' OR id LIKE '120.%'")) { $sc[$r.id] = $r }
+foreach ($s in $plan.Keys | Sort-Object) {
+    $f = $plan[$s].Feat
+    $fa = Get-Art $f
+    Assert ($fa.artifact_type -eq 'feature') "$f is a feature"
+    Assert ($fa.status -eq 'queued') "$f status queued = '$($fa.status)'"
+    foreach ($t in $plan[$s].Tasks) {
+        $ta = Get-Art $t
+        Assert ($ta.parent_id -eq $f) "$t parent_id = '$($ta.parent_id)' (expect $f)"
+        Assert ($ta.status -eq 'queued') "$t status queued"
+        Assert ($sc.ContainsKey($t) -and $sc[$t].size -in $sizeEnum) "$t size = '$($sc[$t].size)' (valid enum)"
+        Assert ($sc.ContainsKey($t) -and $sc[$t].complexity -in $cxEnum) "$t complexity = '$($sc[$t].complexity)' (valid enum)"
+        Assert ($sc[$t].size -notin @('L', 'XL')) "$t satisfies the 2-hour rule (size not L/XL)"
+        Assert ($ta.custom_fields.origin_feature -eq '117-F') "$t retains origin_feature provenance = '$($ta.custom_fields.origin_feature)'"
+    }
+}
+
+Write-Host "`n--- V2: ROOT PLACEMENT - no covering feature has a parent ---"
+foreach ($f in @('117-F', '118-F', '119-F', '120-F')) {
+    $fa = Get-Art $f
+    Assert ([string]::IsNullOrEmpty($fa.parent_id)) "$f is a ROOT feature (parent_id = '$($fa.parent_id)')"
+}
+
+Write-Host "`n--- V3: FULL COVERAGE - each feature's children == its shipment's task members ---"
+foreach ($s in $plan.Keys | Sort-Object) {
+    $f = $plan[$s].Feat
+    $kids = @(Invoke-Sql "SELECT id FROM items WHERE parent_id = '$f' ORDER BY id" | ForEach-Object { $_.id })
+    $expect = @($plan[$s].Tasks | Sort-Object)
+    Assert (($kids -join ',') -eq ($expect -join ',')) "$f children == $s task members: [$($kids -join ',')]"
+    $ship = Get-Art $s
+    $members = @($ship.custom_fields.items)
+    $missing = @($expect | Where-Object { $_ -notin $members })
+    Assert ($missing.Count -eq 0) "$s manifest covers every child of $f (missing: $($missing.Count))"
+    Assert ($members[0] -eq $f) "$s lists covering feature $f FIRST (parent-first ordering)"
+    Assert ($f -in $members) "$s includes its covering feature as an EXPLICIT member"
+    $extraneous = @($members | Where-Object { $_ -ne $f -and $_ -notin $expect -and $_ -ne '117-F' })
+    Assert ($extraneous.Count -eq 0) "$s manifest contains no foreign items (extraneous: $($extraneous -join ','))"
+}
+
+Write-Host "`n--- V4: umbrella 117-F is CHILDLESS and is a member of the FINAL shipment only ---"
+$uKids = @(Invoke-Sql "SELECT id FROM items WHERE parent_id = '117-F'")
+Assert ($uKids.Count -eq 0) "117-F has ZERO children (count = $($uKids.Count))"
+foreach ($s in @('127-S', '128-S')) {
+    $m = @((Get-Art $s).custom_fields.items)
+    Assert ('117-F' -notin $m) "$s does NOT list 117-F"
+}
+Assert ('117-F' -in @((Get-Art '129-S').custom_fields.items)) "129-S (final) DOES list 117-F for engine-native program closure"
+$uLinks = @((Get-Art '117-F').links | ForEach-Object { $_.target_id })
+foreach ($f in @('118-F', '119-F', '120-F')) { Assert ($f -in $uLinks) "117-F -> $f related_to link present (non-hierarchical grouping)" }
+
+Write-Host "`n--- V5: cross-shipment reachability - no feature is an ancestor of a foreign shipment's member ---"
+foreach ($s in $plan.Keys | Sort-Object) {
+    $members = @((Get-Art $s).custom_fields.items)
+    $roots = @()
+    foreach ($m in $members) {
+        $cur = $m
+        while ($cur) { $a = Get-Art $cur; if ($a.artifact_type -eq 'feature') { $roots += $a.id }; $cur = $a.parent_id }
+    }
+    $roots = @($roots | Sort-Object -Unique)
+    $allowed = if ($s -eq '129-S') { @('117-F', '120-F') } else { @($plan[$s].Feat) }
+    $leak = @($roots | Where-Object { $_ -notin $allowed })
+    Assert ($leak.Count -eq 0) "$s featureScopeRoots = [$($roots -join ',')] - no leak outside [$($allowed -join ',')]"
+}
+
+Write-Host "`n--- V6: dependency DAG is acyclic ---"
+$edges = @(Invoke-Sql "SELECT item_id, depends_on FROM item_deps")
+$adj = @{}
+foreach ($e in $edges) { if (-not $adj.ContainsKey($e.item_id)) { $adj[$e.item_id] = @() }; $adj[$e.item_id] += $e.depends_on }
+$state = @{}
+$cycle = $null
+function Test-Dfs([string]$n) {
+    if ($script:cycle) { return }
+    $state[$n] = 1
+    foreach ($m in ($adj[$n] | Where-Object { $_ })) {
+        if ($state[$m] -eq 1) { $script:cycle = "$n -> $m"; return }
+        if (-not $state.ContainsKey($m)) { Test-Dfs $m }
+    }
+    $state[$n] = 2
+}
+foreach ($n in $adj.Keys) { if (-not $state.ContainsKey($n)) { Test-Dfs $n } }
+Assert ($null -eq $script:cycle) "dependency DAG over $($edges.Count) edges is ACYCLIC ($script:cycle)"
+
+Write-Host "`n--- V7: 27 Plan-1 task blocks edges survived re-parenting ---"
+$p1 = @(Invoke-Sql "SELECT item_id, depends_on FROM item_deps WHERE (item_id LIKE '118.%' OR item_id LIKE '119.%' OR item_id LIKE '120.%')")
+Assert ($p1.Count -eq 27) "Plan-1 task-level blocks edges = $($p1.Count) (expect 27, unchanged from pre-redesign)"
+$dangling = @($p1 | Where-Object { $_.depends_on -like '117.*' })
+Assert ($dangling.Count -eq 0) "no dependency still points at a retired 117.x task ID ($($dangling.Count))"
+
+Write-Host "`n--- V8: serial chain - only the FIRST shipment is eligible ---"
+foreach ($pair in @(@('128-S', '127-S'), @('129-S', '128-S'))) {
+    $d = @(Invoke-Sql "SELECT depends_on FROM item_deps WHERE item_id = '$($pair[0])' AND depends_on = '$($pair[1])'")
+    Assert ($d.Count -eq 1) "$($pair[0]) blocks-on $($pair[1])"
+}
+$s127deps = @(Invoke-Sql "SELECT depends_on FROM item_deps WHERE item_id = '127-S'")
+Assert ($s127deps.Count -eq 0) "127-S has no blocking predecessor - it is the ONLY eligible cursor"
+foreach ($s in @('127-S', '128-S', '129-S')) { Assert ((Get-Art $s).status -eq 'queued') "$s is queued (unclaimed)" }
+
+Write-Host "`n--- V9: retired artifacts archived, not deleted; supersession recorded ---"
+foreach ($old in @('124-S', '125-S', '126-S')) {
+    Assert (Test-Path "$repo\.backlogit\archive\$old.md") "$old preserved in archive (not deleted)"
+    Assert (-not (Test-Path "$repo\.backlogit\queue\$old.md")) "$old removed from queue (not claimable)"
+}
+foreach ($pair in @(@('127-S', '124-S'), @('128-S', '125-S'), @('129-S', '126-S'))) {
+    $l = @((Get-Art $pair[0]).links | Where-Object { $_.target_id -eq $pair[1] -and $_.link_type -eq 'supersedes' })
+    Assert ($l.Count -eq 1) "$($pair[0]) supersedes $($pair[1])"
+}
+Assert (@(Invoke-Sql "SELECT id FROM items WHERE id LIKE '117.%'").Count -eq 0) "no stale 117.x task artifacts remain"
+
+Write-Host "`n--- V10: no orphans / duplicates, scoped to Plan-1 artifacts (backlogit doctor) ---"
+# The workspace carries PRE-EXISTING debt unrelated to this change: orphaned
+# 048.001/002/003-T and archived_from_self_ref on 003-F/003.00x-T. Those artifacts
+# are untouched by this session (proven below), so the assertion is scoped to the
+# Plan-1 ID space rather than demanding a globally clean workspace.
+$doc = Invoke-Bl doctor
+$docFindings = @($doc -split '\[' | Where-Object { $_ -match '\]' })
+$plan1Re = '\b(117|118|119|120|124|125|126|127|128|129)[-.]'
+$plan1Findings = @($docFindings | Where-Object { $_ -match $plan1Re })
+foreach ($l in $plan1Findings) { Write-Host "    PLAN-1 FINDING: $($l.Trim())" -ForegroundColor Yellow }
+Assert ($plan1Findings.Count -eq 0) "doctor: ZERO findings against any Plan-1 artifact ($($plan1Findings.Count))"
+$preExisting = @($docFindings | Where-Object { $_ -notmatch $plan1Re })
+Write-Host "    (out-of-scope pre-existing findings on untouched artifacts: $($preExisting.Count))"
+$touchedDebt = @(git --no-pager status --short -- .backlogit | Where-Object { $_ -match '(^|[/\\])(048|003)(\.\d+)?-[FT]\.md$' })
+Assert ($touchedDebt.Count -eq 0) "doctor: none of the pre-existing flagged artifacts were modified by this session"
+
+Write-Host "`n--- V11: checkpoints - zero errors / quarantine / active ---"
+# NOTE: a regex over the raw listing false-positives on both the long `resume_hint`
+# prose AND the summary field name `"quarantined": 0`. Assert structured fields.
+$cpRaw = Invoke-Bl checkpoint list
+$cp = ($cpRaw.Substring($cpRaw.IndexOf('{')) | ConvertFrom-Json)
+$allCp = @($cp.checkpoints)
+Write-Host "    total checkpoints: $($allCp.Count); engine quarantined count: $($cp.quarantined)"
+Assert (@($allCp | Where-Object { $_.status -eq 'active' }).Count -eq 0) "ZERO active checkpoints"
+Assert ([int]$cp.quarantined -eq 0) "engine-reported quarantined count is 0 (got '$($cp.quarantined)')"
+Assert ([int]$cp.total -eq $allCp.Count) "engine total ($($cp.total)) == enumerated records - no dropped/unparseable record"
+Assert (@($allCp | Where-Object { $_.agent -notin @('stage', 'ship') -or [string]::IsNullOrEmpty($_.status) }).Count -eq 0) "every checkpoint has a valid owner agent and status"
+
+# ===========================================================================
+# PART 2 - FIXTURE REPLAY OF THE EXACT LIVE TOPOLOGY (real close, disposable)
+# ===========================================================================
+Write-Host "`n########## PART 2: FIXTURE REPLAY OF THE LIVE TOPOLOGY (real ShipShipment) ##########"
+$fx = Join-Path $env:TEMP ("blverify-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+New-Item -ItemType Directory -Force -Path $fx | Out-Null
+Set-Location $fx
+Invoke-Bl init | Out-Null
+Write-Host "  fixture: $fx"
+
+function New-A([string]$Type, [string]$Title, [string]$Parent) {
+    if ($Parent) { $o = Invoke-Bl add --type $Type --title $Title --parent $Parent } else { $o = Invoke-Bl add --type $Type --title $Title }
+    if ($o -match 'Created\s+\w+:\s+(\S+)') { return $Matches[1] }
+    throw "parse failure: $o"
+}
+function New-S([string]$Title, [string[]]$Items) {
+    $o = Invoke-Bl shipment create --title $Title --items ($Items -join ',')
+    return ($o.Substring($o.IndexOf('{')) | ConvertFrom-Json).id
+}
+
+# Isomorphic rebuild: umbrella first (=117-F), then F1/F2/F3 (=118/119/120-F).
+$U = New-A feature 'umbrella 117-F' $null
+$F1 = New-A feature 'covering 118-F' $null
+$F2 = New-A feature 'covering 119-F' $null
+$F3 = New-A feature 'covering 120-F' $null
+$T1 = @(); 1..5 | ForEach-Object { $T1 += New-A task "118.00$_-T" $F1 }
+$T2 = @(); 1..6 | ForEach-Object { $T2 += New-A task "119.00$_-T" $F2 }
+$T3 = @(); 1..8 | ForEach-Object { $T3 += New-A task "120.00$_-T" $F3 }
+
+# Replay the live 27-edge task DAG shape (indices are 0-based).
+$liveEdges = @(
+    @($T1[4], $T1[2]),
+    @($T2[0], $T1[2]), @($T2[1], $T2[0]), @($T2[2], $T1[2]), @($T2[3], $T2[2]), @($T2[3], $T1[3]),
+    @($T2[4], $T2[3]), @($T2[5], $T2[4]), @($T2[5], $T2[2]),
+    @($T3[0], $T1[2]), @($T3[0], $T1[0]), @($T3[1], $T1[2]), @($T3[2], $T1[2]),
+    @($T3[3], $T2[1]), @($T3[3], $T2[2]), @($T3[3], $T2[0]), @($T3[3], $T2[4]), @($T3[3], $T3[1]), @($T3[3], $T3[2]), @($T3[3], $T3[0]),
+    @($T3[4], $T2[3]), @($T3[4], $T3[3]), @($T3[5], $T3[3]),
+    @($T3[6], $T3[5]), @($T3[6], $T1[0]), @($T3[6], $T1[1]), @($T3[6], $T1[4]),
+    @($T3[7], $T3[6])
+)
+foreach ($e in $liveEdges) { Invoke-Bl dep add $e[0] $e[1] --type blocks | Out-Null }
+foreach ($f in @($F1, $F2, $F3)) { Invoke-Bl link add $U $f related_to | Out-Null }
+
+$S1 = New-S 'S1' (@($F1) + $T1)
+$S2 = New-S 'S2' (@($F2) + $T2)
+$S3 = New-S 'S3' (@($F3) + $T3 + @($U))
+Invoke-Bl dep add $S2 $S1 --type blocks | Out-Null
+Invoke-Bl dep add $S3 $S2 --type blocks | Out-Null
+
+function Test-Intact([string[]]$Tasks, [string]$Feat, [string]$Label) {
+    $bad = 0
+    foreach ($i in $Tasks) { $a = Get-Art $i; if ($a.parent_id -ne $Feat -or $a.status -ne 'queued') { $bad++ } }
+    Assert ($bad -eq 0) "$Label all $($Tasks.Count) tasks keep parent_id=$Feat and status=queued ($bad deviations)"
+    Assert ((Get-Art $Feat).status -eq 'queued') "$Label covering feature $Feat still queued"
+}
+
+foreach ($step in @(@($S1, 'S1'), @($S2, 'S2'), @($S3, 'S3'))) {
+    $sid = $step[0]; $lbl = $step[1]
+    Write-Host "`n=== CLOSE $sid ($lbl) ==="
+    Invoke-Bl shipment claim $sid | Out-Null
+    $r = Invoke-Bl shipment ship $sid --sha ('a' * 40)
+    $res = $r.Substring($r.IndexOf('{')) | ConvertFrom-Json
+    Write-Host "  returned_ids = [$($res.returned_ids -join ',')]"
+    Write-Host "  archived_ids = [$($res.archived_ids -join ',')]"
+    Assert (@($res.returned_ids).Count -eq 0) "$lbl close: returned_ids EMPTY - no parent_id cleared, no cascade"
+    if ($lbl -eq 'S1') {
+        Test-Intact $T2 $F2 'after-S1'; Test-Intact $T3 $F3 'after-S1'
+        Assert ((Get-Art $U).status -eq 'queued') 'after-S1 umbrella untouched'
+        Assert ($F2 -notin $res.archived_ids -and $F3 -notin $res.archived_ids -and $U -notin $res.archived_ids) 'after-S1 no foreign feature archived'
+        Assert ($F1 -in $res.archived_ids) 'after-S1 own covering feature archived'
+    }
+    elseif ($lbl -eq 'S2') {
+        Test-Intact $T3 $F3 'after-S2'
+        Assert ((Get-Art $U).status -eq 'queued') 'after-S2 umbrella untouched'
+        Assert ($F3 -notin $res.archived_ids -and $U -notin $res.archived_ids) 'after-S2 no foreign feature archived'
+        Assert ($F2 -in $res.archived_ids) 'after-S2 own covering feature archived'
+    }
+    else {
+        Assert ($F3 -in $res.archived_ids) 'after-S3 own covering feature archived'
+        Assert ($U -in $res.archived_ids) 'after-S3 umbrella archived by the FINAL shipment (engine-native closure)'
+        Assert ((Get-Art $U).status -eq 'archived') 'after-S3 umbrella terminal'
+    }
+}
+
+$leftover = @(Invoke-Sql "SELECT id FROM items WHERE status != 'archived'")
+Assert ($leftover.Count -eq 0) "terminal state: ZERO non-archived residue ($($leftover.Count) left)"
+$d2 = Invoke-Bl doctor
+Assert ($d2 -match 'No issues found') "fixture doctor after full chain: clean"
+
+Set-Location $repo
+Write-Host "`n=== RESULT: $($script:total - $script:fail)/$($script:total) assertions passed ==="
+if ($script:fail -gt 0) { Write-Host 'VERIFICATION FAILED' -ForegroundColor Red; exit 1 }
+Write-Host 'VERIFICATION PASSED'
+exit 0

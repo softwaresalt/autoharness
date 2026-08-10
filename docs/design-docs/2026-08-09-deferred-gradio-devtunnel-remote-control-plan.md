@@ -1,7 +1,7 @@
 ---
 title: "DEFERRED Design & Operational Plan — Gradio + Microsoft devtunnel Remote Control Plane (Plan 2)"
 date: "2026-08-09"
-description: "DEFERRED to a later autoharness version. Design and operational plan for remote control of a supervised Copilot CLI session via a Gradio UI exposed through a Microsoft devtunnel: remote threat model, authentication, authorization, workspace binding, streaming/control protocol, remote approvals, tunnel lifecycle, multi-user/session concerns, deployment and rollback. NO implementation feature, tasks, or shipment exist for this plan."
+description: "DEFERRED to a later autoharness version. Design and operational plan for remote control of a supervised Copilot CLI session via a Gradio UI exposed through a Microsoft devtunnel: remote threat model, authentication, authorization, workspace binding, streaming/control protocol, remote approvals, tunnel lifecycle, multi-user/session concerns, deployment, rollback, and the credential-compromise response runbook (issuer-side revocation and replacement; `gh auth refresh` is explicitly not rotation). NO implementation feature, tasks, or shipment exist for this plan."
 doc_type: design-doc
 status: DEFERRED
 source: docs/design-docs/2026-08-09-deferred-gradio-devtunnel-remote-control-plan.md
@@ -67,7 +67,7 @@ rider on a local-supervisor increment.
 
 | Asset | Exposure if compromised |
 |---|---|
-| Live `GITHUB_TOKEN` / `GITHUB_PERSONAL_ACCESS_TOKEN` in the session environment | Full impersonation of the operator's GitHub identity |
+| Live `GITHUB_TOKEN` / `GITHUB_PERSONAL_ACCESS_TOKEN` in the session environment | Full impersonation of the operator's GitHub identity. **Once exposed, the credential is unrecoverable by any local action** — it stays valid until revoked at the issuer (§3.3 T11, §11.1). |
 | The supervised Copilot CLI session | Arbitrary code execution on the operator's machine, in the operator's workspace, as the operator |
 | The approval channel | Approving destructive operations the operator never saw |
 | The workspace filesystem | Source, secrets, `.env.local`, git credentials |
@@ -102,6 +102,7 @@ rider on a local-supervisor increment.
 | T8 | Wrong-workspace control | Cryptographic workspace binding (§6): a remote session is bound to exactly one workspace/session id and rejects any command carrying a different one. |
 | T9 | Tunnel outliving the session | Tunnel lifetime is strictly nested inside session lifetime; supervisor drain **must** tear the tunnel down, including on crash (§8). |
 | T10 | Audit gap | Every remote-originated command and approval is journaled with authenticated principal, timestamp, source, and outcome — non-repudiable and locally inspectable. |
+| T11 | Exposed GitHub credential (PAT / OAuth token) treated as recoverable by re-authentication | **A compromised credential is only neutralized by issuer-side revocation.** The exposed PAT/OAuth token must be **revoked at GitHub** and **replaced with a newly issued credential**. `gh auth refresh` is **not** a remediation — it re-authorizes scopes for the *same* credential and leaves the exposed secret valid. See §11.1 for the required response sequence. |
 
 ## 4. Authentication
 
@@ -214,9 +215,58 @@ rider on a local-supervisor increment.
   unaffected because Plan 2 adds only an optional adapter over existing services.
 * Emergency: local console `revoke-remote` kills remote sessions and tears down
   the tunnel without stopping the supervised Copilot session.
-* Any credential exposed during an incident is treated as compromised and rotated
-  (`gh auth refresh`), and the incident is journaled.
-* Rollback must never require terminating in-flight agent work.
+* Rollback of the *remote surface* must never require terminating in-flight agent
+  work. **This convenience guarantee does not extend to credential
+  compromise** — see §11.1, where containment explicitly outranks preserving
+  in-flight work.
+
+### 11.1 Credential-compromise response (runbook)
+
+Any credential that may have been exposed during an incident is treated as
+**compromised**, not as suspect-but-usable.
+
+**`gh auth refresh` is not a remediation.** It refreshes scopes/authorization for
+the **same underlying credential**; it neither invalidates the exposed secret nor
+issues a replacement. An attacker holding the exposed PAT or OAuth token retains
+full access after a `refresh`. It may be used only for its actual purpose —
+adjusting scopes on a credential that is *not* believed to be compromised — and
+must never be described, documented, or scripted as rotation.
+
+**Required sequence (in order):**
+
+1. **Contain first.** Tear down the tunnel and terminate all remote sessions
+   (`revoke-remote`). Assume the credential is already replicated off-machine.
+2. **Revoke at the issuer.** Delete/revoke the exposed PAT, or revoke the OAuth
+   authorization, in GitHub settings (or via the org/enterprise admin path for a
+   managed identity). Revocation is the **only** action that invalidates the
+   exposed secret; every other step is secondary.
+3. **Issue a replacement.** Mint a **new** credential with least-privilege
+   scopes. Rotation means *revoke the old and issue a new one* — never reuse,
+   never re-scope the exposed credential.
+4. **Purge the old credential from every process environment.** The exposed value
+   is resident in the supervisor process, the supervised Copilot CLI child, and
+   any process they spawned; those environments cannot be rewritten in place.
+   **A controlled supervisor session restart is therefore explicitly permitted
+   and, where the old value is still resident in a live process environment,
+   required** — drain the session, release the workspace lock, and relaunch so
+   the child is spawned with only the replacement credential. **Containment
+   outranks preserving in-flight work:** the general "rollback must never
+   terminate in-flight agent work" guarantee is **suspended** for this path. Loss
+   of in-progress agent work is an accepted and expected cost.
+5. **Purge at-rest copies.** Remove the old value from `.env.local`, shell
+   history, CI/secret stores, and any local credential helper cache.
+6. **Journal the incident.** Record detection, containment, revocation
+   confirmation, replacement issuance, restart, and purge — with timestamps and
+   the authenticated principal — as a non-repudiable local record. Journal the
+   **event**, never the credential value; the redaction choke point (T5) applies
+   unchanged.
+7. **Verify.** Confirm the old credential is rejected by the issuer and that the
+   supervised session is operating on the replacement.
+
+**Rollback dependency.** Rolling back the remote surface (uninstalling the extra,
+disabling the flag, tearing down the tunnel) does **not** discharge steps 2–7. A
+disabled remote surface does not invalidate a credential that has already left
+the machine.
 
 ## 12. Open questions (must be answered before any Plan 2 harvest)
 
