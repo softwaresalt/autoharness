@@ -223,7 +223,13 @@ foreach ($l in $plan1Findings) { Write-Host "    PLAN-1 FINDING: $($l.Trim())" -
 Assert ($plan1Findings.Count -eq 0) "doctor: ZERO findings against any Plan-1 artifact ($($plan1Findings.Count))"
 $preExisting = @($docFindings | Where-Object { $_ -notmatch $plan1Re })
 Write-Host "    (out-of-scope pre-existing findings on untouched artifacts: $($preExisting.Count))"
-$touchedDebt = @(git --no-pager status --short -- .backlogit | Where-Object { $_ -match '(^|[/\\])(048|003)(\.\d+)?-[FT]\.md$' })
+# `git status` is a NATIVE call: a nonzero exit is not terminated by
+# $ErrorActionPreference, so piping it straight into a filter would let this
+# assertion pass VACUOUSLY (empty output => zero matches => "untouched") if git
+# failed. Capture, check $LASTEXITCODE, then filter - same contract as Invoke-Bl.
+$statusOut = @(git --no-pager status --short -- .backlogit)
+if ($LASTEXITCODE -ne 0) { throw "git status FAILED (exit $LASTEXITCODE) - cannot prove pre-existing debt was untouched" }
+$touchedDebt = @($statusOut | Where-Object { $_ -match '(^|[/\\])(048|003)(\.\d+)?-[FT]\.md$' })
 Assert ($touchedDebt.Count -eq 0) "doctor: none of the pre-existing flagged artifacts were modified by this session"
 
 Write-Host "`n--- V11: checkpoints - zero errors / quarantine / active ---"

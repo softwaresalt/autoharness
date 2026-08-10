@@ -148,6 +148,46 @@ parent-clearing path, and the spurious edge only made the replayed graph strictl
 more constrained), but the isomorphism *claim* was inaccurate and is corrected
 here rather than quietly restated.
 
+### Cycle 4 (fifth Copilot pass, HEAD `df3924f5`) — no new P0/P1; one contract reconciliation
+
+The fifth review raised **no new P0 and no new P1**. Its findings were clerical
+(stale counts and a mislabelled fixture comment, all corrected) plus one
+substantive **contract reconciliation** and one further vacuous-assertion defect
+in this review's evidence. Neither changes the finding ledger: the open set
+remains exactly **F16, F17, F18, F19, F20**.
+
+**Contract reconciliation — close-path guidance vs. these manifests.** The
+durable compound rule `docs/compound/097-S-shipment-task-only-safe-close.md`
+states that a shipment manifest must be task-only and must never list its
+covering feature. `127-S`/`128-S`/`129-S` deliberately do the opposite, so Ship
+would have received two contradictory close instructions. Adjudicated as **two
+hazards, two manifest shapes**:
+
+* the durable rule governs **partial-feature** manifests, where the covering
+  feature retains children outside the manifest and a broad close cascades into
+  unshipped siblings — unchanged and still correct;
+* task-only membership does **not** confer safety on its own, because
+  `returnUnreleasedFeatureItems` is not gated by `explicitScope` and also runs
+  for a non-member **ancestor** feature reached by the `featureScopeRoots`
+  upward walk (ARM A reproduces this and orphans 14/14 downstream tasks);
+* the **fully-covered root** shape — every child in the manifest, feature has no
+  parent — makes the cascade *structurally impossible*, which is the shape these
+  three shipments were redesigned into under H10.5.
+
+Recorded as an append-only reconciliation section in the compound doc (original
+rule preserved verbatim, plus a table stating which contract applies to which
+shape) and cross-referenced from all three manifests and the spike README.
+Documentation only: no topology, task, dependency edge, or manifest changed.
+
+**A further vacuous assertion in the evidence, corrected.** V10's proof that
+pre-existing out-of-scope backlog debt was left untouched piped
+`git --no-pager status` directly into a filter. `git` is a native call, so a
+nonzero exit yields empty output, zero rows match, and the assertion would have
+passed **vacuously** — "no matches" silently read as "untouched". It now
+captures, checks `$LASTEXITCODE`, throws on failure, and only then filters. This
+is the third instance of the same root cause in these harnesses (native nonzero
+exits do not terminate under `$ErrorActionPreference = 'Stop'`). Both harnesses
+re-run after the fix: **63/63** and **196/196**, V7 set-equality clean.
 ## Decomposition check (2-hour rule, width isolation)
 
 * **19 tasks**, each scoped to a single module or a single script surface.

@@ -72,8 +72,9 @@ superseded `124-S`/`125-S`/`126-S`, doctor cleanliness scoped to Plan-1
 artifacts, and checkpoint integrity.
 
 Part 2 rebuilds an **isomorphic copy of the exact live topology** — including the
-real 27-edge dependency DAG — in `$env:TEMP` and closes all three shipments for
-real.
+real 27-edge dependency DAG — in the system temp directory
+(`[System.IO.Path]::GetTempPath()`, which is portable; `$env:TEMP` is not
+guaranteed on POSIX) and closes all three shipments for real.
 
 **Result: 196/196 assertions passed**, `returned_ids: []` on every close, zero
 non-archived residue in the terminal state.
@@ -102,7 +103,7 @@ was never actually constructed.
 ## Harness hardening (post-cycle-3)
 
 The closure simulation originally published **57/57** and the verifier
-**196/196**. Two successive Copilot reviews of this PR raised robustness defects
+**194/194**. Successive Copilot reviews of this PR raised robustness defects
 against the harnesses themselves — **including one that had made part of the
 published claim inaccurate**. All are fixed here. The totals rose to **63/63**
 and **196/196** solely because the fixes *added* assertions.
@@ -147,6 +148,12 @@ The remaining fixes:
    guaranteed to be set on POSIX and would have broken the advertised
    cross-platform reproduction. Both now use
    `[System.IO.Path]::GetTempPath()`.
+5. **One more swallowed native failure.** V10's proof that pre-existing backlog
+   debt was left untouched piped `git --no-pager status` straight into a filter.
+   `git` is a native call, so a nonzero exit would have produced empty output and
+   the assertion would have passed **vacuously** ("no matches" read as
+   "untouched"). It now captures the output, checks `$LASTEXITCODE`, and throws
+   before filtering — the same contract `Invoke-Bl` applies to `backlogit`.
 
 The **63/63** and **196/196** totals published above are from the re-run *after*
 all of the above; no total in this document predates it.
@@ -155,6 +162,11 @@ all of the above; no total in this document predates it.
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (cycles 1-3 PASS; verdict now **BLOCKED** — 3 open P1s F16/F17/F18 raised post-budget by PR #325 Copilot review) —
+* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **5 open P1s F16/F17/F18/F19/F20** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19 gate `128-S`, F16+F20 gate `129-S`) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`
+* Close-path contract — `docs/compound/097-S-shipment-task-only-safe-close.md`,
+  section "Reconciliation — the FULLY-COVERED ROOT exception". The task-only rule
+  recorded there targets **partial-feature** shipments; this topology is the
+  fully-covered-root case, which is why `127-S`/`128-S`/`129-S` intentionally
+  list their covering features.

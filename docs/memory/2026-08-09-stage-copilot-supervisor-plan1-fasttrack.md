@@ -611,6 +611,58 @@ path, and the spurious edge only made the replayed graph strictly more
 constrained — but the isomorphism *claim* was inaccurate and was corrected rather
 than quietly restated.
 
+### Cycle 5 — compound-library reconciliation and the last vacuous assertion
+
+The fifth Copilot review raised no new P0/P1. It surfaced clerical drift plus one
+substantive reconciliation, all resolved here.
+
+**Substantive: the durable close guidance contradicted these manifests.**
+`docs/compound/097-S-shipment-task-only-safe-close.md` records a durable rule that
+a shipment manifest must be **task-only** and must never list its covering
+feature. `127-S`/`128-S`/`129-S` do exactly the opposite. Left unreconciled, Ship
+would have received two contradictory close instructions for the same artifacts.
+
+Adjudication: **both are correct for different manifest shapes**, and the durable
+rule's hazard model is narrower than its wording.
+
+* The durable rule targets a **PARTIAL-feature** shipment — a covering feature
+  with children *outside* the manifest — where `shipment ship` cascades into
+  unshipped siblings. Correct and unchanged for that shape.
+* The opposite hazard exists too, and task-only membership does **not** avoid it.
+  On backlogit 1.8.0 `returnUnreleasedFeatureItems` is not gated by
+  `explicitScope`; it also runs for a non-member **ancestor** feature reached via
+  `featureScopeRoots`' upward `parent_id` walk. ARM A of the closure simulation
+  reproduces exactly that and orphans **14/14** downstream tasks.
+* The **FULLY-COVERED ROOT** exception applies when (1) every child of the
+  covering feature is in the same manifest, and (2) the feature has no parent.
+  Then the remainder set is empty and the scope walk cannot escape upward, so the
+  cascade is **structurally impossible** rather than procedurally avoided.
+
+Recorded as an append-only "Reconciliation" section in the compound doc (the
+original rule is preserved verbatim, with a table stating which contract applies
+to which shape) and cross-referenced from all three shipment manifests and from
+the spike README. This is a documentation reconciliation only — no topology, no
+task, and no manifest changed.
+
+**One more vacuous assertion, same family as the earlier ones.** V10's proof that
+pre-existing backlog debt was left untouched piped `git --no-pager status`
+straight into a filter. `git` is a native call, so under a nonzero exit the output
+would be empty, zero rows would match, and the assertion would have passed
+**vacuously** — "no matches" silently read as "untouched". It now captures,
+checks `$LASTEXITCODE`, throws on failure, and only then filters, matching the
+`Invoke-Bl` contract. This is the third instance of the same root cause
+(native/nonzero exits do not terminate under `$ErrorActionPreference = 'Stop'`),
+which is worth carrying forward as a standing review check for any harness.
+
+Both harnesses re-run after these edits: **63/63** and **196/196**, V7 set
+equality clean. Clerical fixes: README provenance still said 3 open P1s and still
+described the temp directory as `$env:TEMP`; the closure fixture comment
+mislabelled the covering features as `127-F/128-F/129-F` (they are
+`118-F/119-F/120-F`); the Ship checkpoint's `resume_hint` said "All three" where
+five findings are listed and still cited the superseded reviewed HEAD.
+
+The terminal state below is unchanged by cycle 5.
+
 ### Terminal state (final)
 
 **Five open P1s: F16, F17, F18, F19, F20.** All require operator product

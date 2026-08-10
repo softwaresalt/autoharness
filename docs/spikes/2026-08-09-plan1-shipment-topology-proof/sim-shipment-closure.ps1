@@ -118,7 +118,8 @@ New-Fixture 'redesign'
 
 # Childless product umbrella (mirrors 117-F post-redesign).
 $U = New-Artifact feature 'UMBRELLA Plan-1 product grouping (childless)' $null
-# Three ROOT per-shipment covering features (mirror 127-F / 128-F / 129-F).
+# Three ROOT per-shipment covering features (mirror 118-F / 119-F / 120-F,
+# the covering features of 127-S / 128-S / 129-S respectively).
 $F1 = New-Artifact feature 'S1 safety contracts + characterization baseline' $null
 $F2 = New-Artifact feature 'S2 supervision core library (unwired)' $null
 $F3 = New-Artifact feature 'S3 application services + adapters + migration' $null
