@@ -27,7 +27,28 @@ function Assert([bool]$Cond, [string]$Msg) {
 function Invoke-Bl {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$BlArgs)
     $out = & backlogit --log-level error @BlArgs 2>&1
+    # $ErrorActionPreference='Stop' does NOT make a NATIVE nonzero exit terminate.
+    # Without this check a failed `dep add`/`link`/`claim`/`ship` would be captured
+    # as ordinary output and the proof would continue against a topology that was
+    # never actually created, silently invalidating every downstream assertion.
+    if ($LASTEXITCODE -ne 0) {
+        throw "backlogit $($BlArgs -join ' ') FAILED (exit $LASTEXITCODE): $($out | Out-String)"
+    }
     return ($out | Out-String)
+}
+
+# Parses a `shipment ship` result and asserts that returned_ids EXISTS and is
+# EMPTY. A negative regex is not sufficient: it also "passes" when the field is
+# absent, null, or emitted in an unexpected shape, which would prove nothing.
+function Assert-NoReturnedIds([string]$ShipOutput, [string]$Label) {
+    $i = $ShipOutput.IndexOf('{')
+    if ($i -lt 0) { Assert $false "$Label close emitted parseable JSON"; return }
+    $res = $ShipOutput.Substring($i) | ConvertFrom-Json
+    $has = $null -ne ($res.PSObject.Properties.Name | Where-Object { $_ -eq 'returned_ids' })
+    Assert $has "$Label close result HAS a returned_ids field (field present, not merely absent)"
+    if (-not $has) { return }
+    $n = @($res.returned_ids).Count
+    Assert ($n -eq 0) "$Label close returned ZERO items to backlog (returned_ids present and empty; count=$n)"
 }
 
 function New-Artifact([string]$Type, [string]$Title, [string]$Parent) {
@@ -134,7 +155,7 @@ Write-Host "`n=== CLOSE $S1 (S1) ==="
 Invoke-Bl shipment claim $S1 | Out-Null
 $r1 = Invoke-Bl shipment ship $S1 --sha '2222222222222222222222222222222222222222'
 Write-Host $r1.Trim()
-Assert ($r1 -notmatch '"returned_ids"\s*:\s*\[\s*"') "S1 close returned ZERO items to backlog (no parent clearing)"
+Assert-NoReturnedIds $r1 'S1'
 Test-Untouched $T2 $F2 'after-S1'
 Test-Untouched $T3 $F3 'after-S1'
 $ua = Get-Art $U; Assert ($ua.status -eq 'queued') "after-S1 umbrella $U untouched = '$($ua.status)'"
@@ -145,7 +166,7 @@ Write-Host "`n=== CLOSE $S2 (S2) ==="
 Invoke-Bl shipment claim $S2 | Out-Null
 $r2 = Invoke-Bl shipment ship $S2 --sha '3333333333333333333333333333333333333333'
 Write-Host $r2.Trim()
-Assert ($r2 -notmatch '"returned_ids"\s*:\s*\[\s*"') "S2 close returned ZERO items to backlog (no parent clearing)"
+Assert-NoReturnedIds $r2 'S2'
 Test-Untouched $T3 $F3 'after-S2'
 $ua = Get-Art $U; Assert ($ua.status -eq 'queued') "after-S2 umbrella $U untouched = '$($ua.status)'"
 $f2 = Get-Art $F2; Assert ($f2.status -eq 'archived') "after-S2 own feature $F2 archived cleanly = '$($f2.status)'"
@@ -155,7 +176,7 @@ Write-Host "`n=== CLOSE $S3 (S3) ==="
 Invoke-Bl shipment claim $S3 | Out-Null
 $r3 = Invoke-Bl shipment ship $S3 --sha '4444444444444444444444444444444444444444'
 Write-Host $r3.Trim()
-Assert ($r3 -notmatch '"returned_ids"\s*:\s*\[\s*"') "S3 close returned ZERO items to backlog (no parent clearing)"
+Assert-NoReturnedIds $r3 'S3'
 $f3 = Get-Art $F3; Assert ($f3.status -eq 'archived') "after-S3 own feature $F3 archived cleanly = '$($f3.status)'"
 $ua = Get-Art $U; Assert ($ua.status -eq 'archived') "after-S3 umbrella $U archived by the FINAL shipment = '$($ua.status)'"
 

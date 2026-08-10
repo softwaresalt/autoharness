@@ -375,7 +375,7 @@ program closure, zero operator action.
 
 ### Evidence (real backlogit 1.8.0, disposable fixtures)
 
-* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` — **57/57**. ARM A (cycle-2 control) reproduces the
+* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` — **60/60**. ARM A (cycle-2 control) reproduces the
   defect: closing S1 returns **14/14** downstream tasks with `parent_id` cleared. ARM B
   (H10.5) closes all three shipments with `returned_ids: []` and a clean fixture doctor.
 * `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` — **194/194**. Part 1 = 11 read-only
@@ -384,8 +384,31 @@ program closure, zero operator action.
   `returned_ids: []` on every close, zero non-archived residue at the end.
 
 Both harnesses were **re-executed on the final corrected tree** immediately before
-push and reproduced their published totals exactly (57/57 and 194/194) — the
+push and reproduced their published totals exactly (60/60 and 194/194) — the
 evidence in this document is verified, not merely asserted from an earlier run.
+
+**Harness hardening (post-cycle-3, in response to Copilot robustness findings).**
+The closure simulation originally published **57/57**. Three defects were fixed
+and the harnesses re-run green; the total rose to **60/60** purely because the
+fixes *added* assertions, not because behaviour changed:
+
+1. The three `returned_ids` checks were negative regexes (`-notmatch '"returned_ids"\s*:\s*\[\s*"'`).
+   Those also "pass" when the field is **absent, null, or renamed** — i.e. they
+   could have proven nothing. Replaced with a parse-and-assert helper that
+   requires the property to **exist** and to have **zero elements**. This is the
+   source of the +3 assertions (one existence check per shipment close).
+2. `Invoke-Bl` in **both** harnesses ignored `$LASTEXITCODE`. `$ErrorActionPreference = 'Stop'`
+   does **not** make a native nonzero exit terminate, so a failed `dep add` /
+   `link` / `claim` / `ship` would have been captured as ordinary output and the
+   proof would have continued against a topology that was never constructed.
+   Both now throw on nonzero exit.
+3. `verify-plan1-shipment-topology.ps1` hardcoded `$repo = 'C:\Source\GitHub\autoharness'`.
+   It now resolves the root from `$PSScriptRoot` (with a `-Repo` override and a
+   fail-fast `.backlogit` existence check), so the published proof is
+   reproducible in any clone.
+
+Both totals above (**60/60**, **194/194**) are from the re-run **after** this
+hardening — no total in this document is carried over from a pre-hardening run.
 
 **Evidence placement — P-010 role-boundary adjudication.** The two harnesses were
 originally written to `scripts/`. That directory is a **product and CI tooling
@@ -460,8 +483,76 @@ re-asserting PASS here would have repeated exactly that failure in a worse form.
 route (`claude-opus-5` / `anthropic`), so the **same-route guard does not fire**
 and escalation is genuine, not `ESCALATION_DEGRADED`.
 
-**Containment — the handoff is still useful.** F16 touches only `120.007-T` and
-`120.008-T`, both members of `129-S`, the **final** shipment, gated behind
-`127-S` and `128-S`. It does **not** block the eligible cursor `127-S`, does not
-affect `128-S`, and invalidates none of the F14 structural-elimination work or
-its evidence. It must be dispositioned before `129-S` is claimed.
+**Containment — SUPERSEDED, see F17 below.** F16 itself touches only `120.007-T`
+and `120.008-T`, both members of `129-S`, the **final** shipment, gated behind
+`127-S` and `128-S`. Considered alone it does **not** block the eligible cursor
+`127-S`, does not affect `128-S`, and invalidates none of the F14
+structural-elimination work or its evidence. It must be dispositioned before
+`129-S` is claimed. **However, the "eligible cursor is unaffected" conclusion no
+longer holds for the session as a whole** — the later F17 finding does block
+`127-S`. See the next section.
+
+---
+
+## Cycle 4 (cont.) — TWO FURTHER OPEN P1s (F17, F18)
+
+A second Copilot review, requested on the F16 HEAD, reported "no new comments" at
+the top level but carried **24 suppressed comments** inside a collapsed
+`<details>` block. Reading the full review body (not just the summary) surfaced
+two more genuine defects plus clerical fallout of my own re-parenting.
+
+### F17 (P1) — **BLOCKS THE ELIGIBLE CURSOR `127-S`**
+
+`118.001-T` / `118.002-T` assert a characterization baseline over "the same seven
+dimensions against an unmodified `start.sh`". Empirically verified against the
+actual files, that premise is false:
+
+* `start.sh` is 80 lines: `.env.local` no-clobber parsing with quote stripping
+  (20–36), `COPILOT_HOME` default (54), an **unguarded**
+  `export GITHUB_TOKEN="$(gh auth token)"` (56), exe resolution (57–64),
+  `exec "$copilot_exe" "$@"` (66). It contains **zero** occurrences of
+  `backlogit`, `COPILOT_USE_REMOTE`, or `GITHUB_PERSONAL_ACCESS_TOKEN`;
+  `ENGRAM_DATA_DIR` appears only in a **commented-out** line 55.
+* `start.ps1:65` sets `$env:GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token)`
+  **unconditionally**; the non-fatal `try` / `Write-Warning` at 68–77 guards
+  `GITHUB_TOKEN` only.
+
+So the seven-dimension parity baseline is **unsatisfiable as written**, and
+`118.001-T` criterion (c) misstates the current behaviour. The same overstated
+premise underpins the `004-SP` PROCEED reconciliation and the composability
+decision doc. Because `118.001-T` and `118.002-T` are members of **`127-S`**,
+this blocks the only eligible shipment.
+
+**Operator decision needed:** re-inventory the real `start.ps1` / `start.sh`
+contracts and restate the baseline; and decide whether cross-platform
+normalization belongs in **S3** or requires separate approval, given that **S1
+mandates zero observable behaviour change**.
+
+### F18 (P1) — state-machine contradiction (gates `128-S`)
+
+Plan §3.2's diagram routes `CANCELLING -> EXITED`, bypassing `DRAINING`, which
+contradicts the plan's own prose rule and `119.006-T`. Separately,
+`119.003-T`'s transition table omits `LOCKING -> REFUSED`, the failure edges to
+`FAILED`, and `RESTARTING -> LAUNCHING`.
+
+Resolution is low-ambiguity (the diagram is almost certainly the outlier), but it
+is still a plan amendment and the review budget is spent, so it is recorded open
+rather than adopted. **Operator confirmation needed** that cancellation routes
+through `DRAINING`.
+
+### Clerical fallout corrected (not findings)
+
+Seven stale `117.x` task references — fallout from my own cycle-3 re-parenting —
+were repointed to live IDs using the authoritative remap table above; zero
+residual, every target resolves. Verdict-consistency defects were fixed in the
+review doc header and tail, the spike README provenance, `117-F`'s Review
+section, and the checkpoint (whose Ship-claim instruction is now **gated**:
+"DO NOT CLAIM ANY SHIPMENT YET — open P1 F17 blocks 127-S").
+
+### Terminal state
+
+**Three open P1s: F16, F17, F18.** All three require operator **product**
+decisions; Stage adopted none of them, because the 3-cycle review budget was
+exhausted before they surfaced. **`127-S` is NOT safely claimable** pending F17.
+None of F16–F18 invalidates the F14 structural elimination, the shipment
+topology, or the 60/60 + 194/194 closure evidence.

@@ -56,7 +56,7 @@ them changes no product behavior.
 | **ARM A** (control) | Pre-redesign: one shared covering feature, task-only manifests | Demonstrates the defect is **real**, not theoretical |
 | **ARM B** (redesign) | Per-shipment **root** covering feature, fully covered, explicit manifest member | Demonstrates the redesign **removes** it |
 
-**Result: 57/57 assertions passed.** ARM A orphans 14/14 downstream tasks on the
+**Result: 60/60 assertions passed.** ARM A orphans 14/14 downstream tasks on the
 first close. ARM B closes all three shipments with `returned_ids: []`, zero
 `parent_id` clearing, zero cross-shipment cascade, and a clean terminal
 `doctor`.
@@ -87,17 +87,45 @@ pwsh docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.p
 pwsh docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1
 ```
 
-`verify-plan1-shipment-topology.ps1` pins the workspace under verification via a
-`$repo` variable at the top of the file; adjust it if the clone lives elsewhere.
-The verification harness is intentionally slow (it shells out to the CLI per
-assertion) and takes several minutes.
+`verify-plan1-shipment-topology.ps1` resolves the workspace under verification
+from its own location (`$PSScriptRoot` ascended three levels), so it works in any
+clone; pass `-Repo <path>` to verify a workspace elsewhere. It fails fast if no
+`.backlogit` directory is found at the resolved root. The verification harness is
+intentionally slow (it shells out to the CLI per assertion) and takes roughly
+25 minutes.
 
-Both harnesses exit non-zero on any failed assertion.
+Both harnesses exit non-zero on any failed assertion, and both treat a nonzero
+`backlogit` exit code as fatal — a failed CLI call throws rather than being
+captured as ordinary output, so a proof can never "pass" against a topology that
+was never actually constructed.
+
+## Harness hardening (post-cycle-3)
+
+The closure simulation originally published **57/57**. Copilot review of this PR
+raised three robustness defects, all fixed here; the total rose to **60/60**
+solely because the fixes *added* assertions:
+
+1. **Vacuous negative assertions.** The three `returned_ids` checks used
+   `-notmatch '"returned_ids"\s*:\s*\[\s*"'`, which also passes when the field is
+   absent, null, or renamed — so a green result could have proven nothing. They
+   now parse the result and assert the property **exists** and has **zero
+   elements** (+3 existence assertions, one per close).
+2. **Swallowed CLI failures.** `Invoke-Bl` ignored `$LASTEXITCODE` in both
+   harnesses. `$ErrorActionPreference = 'Stop'` does not make a native nonzero
+   exit terminate, so a failed `dep add` / `link` / `claim` / `ship` would have
+   been treated as ordinary output and the proof would have continued against a
+   topology that was never built. Both now throw.
+3. **Non-portable root.** The verifier hardcoded one developer's checkout path.
+   It now derives the root from `$PSScriptRoot`, accepts `-Repo`, and fails fast
+   when no `.backlogit` workspace is present.
+
+The **60/60** and **194/194** totals published above are from the re-run *after*
+this hardening; no total in this document predates it.
 
 ## Provenance
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (3 cycles, final PASS, P0=0 / P1=0) —
+* Review (cycles 1-3 PASS; verdict now **BLOCKED** — 3 open P1s F16/F17/F18 raised post-budget by PR #325 Copilot review) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`

@@ -6,11 +6,28 @@
 # workspace. It never mutates it.
 # Part 2 rebuilds an isomorphic copy of the live topology in $env:TEMP and closes
 # all three shipments for real, asserting the F14 elimination end to end.
+#
+# The repository root is resolved from the script's own location rather than a
+# hardcoded checkout, so the published proof is reproducible in any clone and on
+# POSIX. Override with -Repo for out-of-tree verification.
+
+[CmdletBinding()]
+param(
+    [string]$Repo
+)
 
 $ErrorActionPreference = 'Stop'
 $script:fail = 0
 $script:total = 0
-$repo = 'C:\Source\GitHub\autoharness'
+
+if (-not $Repo) {
+    # <repo>/docs/spikes/<this-dir>/verify-plan1-shipment-topology.ps1 -> up 3
+    $Repo = (Resolve-Path (Join-Path $PSScriptRoot '..' '..' '..')).Path
+}
+if (-not (Test-Path (Join-Path $Repo '.backlogit'))) {
+    throw "No .backlogit workspace found under '$Repo'. Pass -Repo <path-to-clone>."
+}
+$repo = $Repo
 
 function Assert([bool]$Cond, [string]$Msg) {
     $script:total++
@@ -20,7 +37,15 @@ function Assert([bool]$Cond, [string]$Msg) {
 
 function Invoke-Bl {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$BlArgs)
-    return ((& backlogit --log-level error @BlArgs 2>&1) | Out-String)
+    $out = (& backlogit --log-level error @BlArgs 2>&1) | Out-String
+    # $ErrorActionPreference='Stop' does NOT make a NATIVE nonzero exit terminate.
+    # Without this, a failed dep add / link / claim / ship / sync / doctor call is
+    # captured as ordinary output and the proof continues against a topology that
+    # was never created, invalidating every downstream assertion.
+    if ($LASTEXITCODE -ne 0) {
+        throw "backlogit $($BlArgs -join ' ') FAILED (exit $LASTEXITCODE): $out"
+    }
+    return $out
 }
 
 function Invoke-Sql([string]$Sql) {
