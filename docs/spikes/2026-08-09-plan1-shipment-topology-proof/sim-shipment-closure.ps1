@@ -185,7 +185,12 @@ $f3 = Get-Art $F3; Assert ($f3.status -eq 'archived') "after-S3 own feature $F3 
 $ua = Get-Art $U; Assert ($ua.status -eq 'archived') "after-S3 umbrella $U archived by the FINAL shipment = '$($ua.status)'"
 
 Write-Host "`n=== DOCTOR (redesign fixture, terminal state) ==="
-Write-Host (Invoke-Bl doctor).Trim()
+$d = Invoke-Bl doctor
+Write-Host $d.Trim()
+# ASSERT, do not merely PRINT. `backlogit doctor` exits 0 while REPORTING
+# findings (V10 of the verifier relies on exactly that behaviour), so echoing
+# its output would let this 64/64 proof pass against a DIRTY terminal fixture.
+Assert ($d -match 'No issues found') 'terminal fixture doctor: clean (asserted, not merely printed)'
 
 Set-Location $origin
 Write-Host "`n=== RESULT: $($script:total - $script:fail)/$($script:total) assertions passed ==="

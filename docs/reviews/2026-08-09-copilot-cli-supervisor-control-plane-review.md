@@ -61,7 +61,7 @@ the Stage role boundary (P-010), and the 2-hour task rule.
 | **F4** | **P1** | The session journal (checkpoints + resume cursor) risked becoming a second checkpoint/backlog authority competing with backlogit. | **RESOLVED** — H6.1 and Plan §3.7 declare the journal gitignored local operational state, explicitly not readable by any agent-recovery protocol and not a checkpoint. backlogit remains sole authority. |
 | **F5** | **P1** | The typed event bus is exactly the hook candidate (c) needs; incremental "just one subscriber" additions would silently implement candidate (c) and could drift Engram toward authority. | **RESOLVED** — H7.1 permits only the journal and console renderer as subscribers; no background verification/summarization/compaction thread. H6.2 forbids any supervisor decision from reading Engram. Plan §8 and §11.6 restate it. `34D50F2D` stays ACTIVE as candidate (c)'s tracker. |
 | **F6** | **P1** | Exit-code masking is a *known, already-realized* defect class in this repository's shell scripts (compound learning, trailing `|| true`). A new shim layer reintroduces the exact surface. | **RESOLVED** — H3 makes verbatim exit-status propagation a hard invariant with a dedicated round-trip test over `{0,1,2,42,130}` across both process backends and both shims, and explicitly prohibits `|| true` / `-ErrorAction SilentlyContinue` around the child launch. |
-| **F7** | **P1** | Three tasks carry `complexity: high`; without de-risking controls they would likely exceed the 2-hour box. | **RESOLVED** — H8 assigns a specific control to each: T7 is off the default path with a documented pipe-only degradation escape; T11's restart budget defaults to 0 so the complex path is opt-in; T15 is pure composition over already-tested dependencies and *must be split* if it grows an algorithm. T18 is gated by T1/T2 plus an escape hatch. |
+| **F7** | **P1** | **Four** tasks carry `complexity: high` (T7, T11, T15, T18); without de-risking controls they would likely exceed the 2-hour box. | **RESOLVED** — H8 assigns a specific control to each: T7 is off the default path with a documented pipe-only degradation escape; T11's restart budget defaults to 0 so the complex path is opt-in; T15 is pure composition over already-tested dependencies and *must be split* if it grows an algorithm. T18 is gated by T1/T2 plus an escape hatch. |
 | **F8** | **P2** | "Control plane" invites daemon/database/framework overreach (scheduler, SQLite session store, asyncio rewrite, TUI library). | **RESOLVED** — Plan §6 lists these as explicitly rejected; §11.4 makes daemon/scheduler/database/web-framework/plugin-registry non-goals; §7 confines any Go re-evaluation to a hypothetical future persistent multi-workspace daemon with no work item now. |
 | **F9** | **P2** | Secret redaction implemented per-writer would eventually be forgotten by one writer. | **RESOLVED** — H5 makes redaction a single choke point with no raw-write API, registers resolved secret *values* (not just regex patterns), and adds a ≥8-character no-substring-survival property test. |
 | **F10** | **P2** | Sidecar degradation (e.g. Engram unavailable) could be mapped onto the supervisor call's own `status`, repeating a documented telemetry defect. | **RESOLVED** — Plan §8 cites compound learning `2026-08-08-state-vs-call-outcome-conflation-in-telemetry-mapping` and requires a sidecar's reported state to stay a per-sidecar typed outcome, never the supervisor's `status`. Telemetry, if emitted, is emitted by the service with `tool_surface` supplied by the adapter. |
@@ -83,7 +83,7 @@ is the last permitted cycle (3 of 3).
 
 | ID | Sev | Finding | Resolution |
 |---|---|---|---|
-| **F14-R** | **P1** | **F14's `adopt_item` mitigation is invalid; the defect must be structurally eliminated.** Two independent grounds. (a) **P-010 role-boundary violation.** The mitigation assigns Ship a re-parent/adopt mutation after each close. Ship's Role Boundary enumerates claim, move, close, and archive; re-parent/adopt is not enumerated, and the fail-closed rule renders an unenumerated mutation *forbidden*, not merely undocumented. A review cannot discharge a P1 by prescribing a policy violation. (b) **Not reliability-first.** It mandates manual repair after *every* predecessor close, on the precise path where a single missed step silently detaches two thirds of the program — a latent, high-blast-radius failure gated on operator diligence. Consequently the cycle-2 claim of "0 unresolved P1" was not truthful, because the only thing standing between the plan and a 14-task orphaning event was a forbidden manual step. | **RESOLVED — STRUCTURALLY ELIMINATED (no mitigation, no repair step).** The decomposition was redesigned so the destructive code path has nothing to act on. Each serial shipment now owns its own **ROOT** covering feature that is **fully covered** by, and an **explicit member** of, that shipment's manifest (H10.5). Full coverage ⇒ `returnUnreleasedFeatureItems` iterates an empty remainder and returns `∅`; root placement ⇒ `featureScopeRoots`' upward `parent_id` walk cannot reach a sibling shipment's scope. `117-F` is demoted to a **childless** product umbrella, grouped by `related_to` links (which `featureScopeRoots` does not traverse) and closed engine-natively as a member of the final shipment. `adopt_item`, post-close repair, feature reactivation, forbidden status transitions, and operator intervention are all absent from the close path — and are banned by new Non-Goal 11. Proven empirically against the real backlogit 1.8.0 engine: `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` ARM A reproduces the defect (14/14 orphaned), ARM B shows the redesign closing all three shipments with `returned_ids: []` (63/63); `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` replays the exact live topology including the real 27-edge DAG (196/196, `returned_ids: []` on every close). |
+| **F14-R** | **P1** | **F14's `adopt_item` mitigation is invalid; the defect must be structurally eliminated.** Two independent grounds. (a) **P-010 role-boundary violation.** The mitigation assigns Ship a re-parent/adopt mutation after each close. Ship's Role Boundary enumerates claim, move, close, and archive; re-parent/adopt is not enumerated, and the fail-closed rule renders an unenumerated mutation *forbidden*, not merely undocumented. A review cannot discharge a P1 by prescribing a policy violation. (b) **Not reliability-first.** It mandates manual repair after *every* predecessor close, on the precise path where a single missed step silently detaches two thirds of the program — a latent, high-blast-radius failure gated on operator diligence. Consequently the cycle-2 claim of "0 unresolved P1" was not truthful, because the only thing standing between the plan and a 14-task orphaning event was a forbidden manual step. | **RESOLVED — STRUCTURALLY ELIMINATED (no mitigation, no repair step).** The decomposition was redesigned so the destructive code path has nothing to act on. Each serial shipment now owns its own **ROOT** covering feature that is **fully covered** by, and an **explicit member** of, that shipment's manifest (H10.5). Full coverage ⇒ `returnUnreleasedFeatureItems` iterates an empty remainder and returns `∅`; root placement ⇒ `featureScopeRoots`' upward `parent_id` walk cannot reach a sibling shipment's scope. `117-F` is demoted to a **childless** product umbrella, grouped by `related_to` links (which `featureScopeRoots` does not traverse) and closed engine-natively as a member of the final shipment. `adopt_item`, post-close repair, feature reactivation, forbidden status transitions, and operator intervention are all absent from the close path — and are banned by new Non-Goal 11. Proven empirically against the real backlogit 1.8.0 engine: `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` ARM A reproduces the defect (14/14 orphaned), ARM B shows the redesign closing all three shipments with `returned_ids: []` (64/64); `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` replays the exact live topology including the real 27-edge DAG (196/196, `returned_ids: []` on every close). |
 | **F15** | **P2** | **Manifest edits are not possible in place.** `AdoptItem` rewrites `parent_id`, hierarchical IDs, filenames, and cross-artifact dependency/link edges, but it does **not** rewrite shipment `custom_fields.items`; and backlogit 1.8.0 exposes no remove-item-from-shipment operation. The old manifests therefore could not be corrected in place. | **RESOLVED.** Replacement shipments `127-S`/`128-S`/`129-S` were created with correct manifests; `124-S`/`125-S`/`126-S` were annotated with supersession rationale and full ID remap tables, linked via `supersedes`, and **archived rather than deleted** so traceability and link targets remain resolvable. Verified by V9 (archived, absent from queue, supersedes links present, zero stale `117.x` artifacts). |
 
 **Upstream report still stands.** The `explicitScope` asymmetry in
@@ -120,7 +120,7 @@ claimable**: F17 invalidates acceptance criteria in `118.001-T` and `118.002-T`,
 both S1 members. F18 and F19 must be dispositioned before `128-S`; F16 and F20
 before `129-S`.
 None of these findings affect the F14 structural elimination, the shipment
-topology, or the 63/63 + 196/196 closure evidence, all of which stand.
+topology, or the 64/64 + 196/196 closure evidence, all of which stand.
 
 ### Cycle 4 (third Copilot pass, HEAD `d8644c46`) — two further P1s
 
@@ -142,7 +142,7 @@ list carried a spurious `120.004-T -> 119.002-T` edge absent from the live graph
 only *counted* live edges without comparing them to the replay. Both harnesses
 were corrected — V7 now asserts **set equality** against 27 named endpoint pairs,
 and Part 2 **derives** its replay from that verified list so drift is impossible
-by construction — and both were re-run: **63/63** and **196/196**. The safety
+by construction — and both were re-run: **64/64** and **196/196**. The safety
 *conclusion* is unaffected (dependency edges play no part in `ShipShipment`'s
 parent-clearing path, and the spurious edge only made the replayed graph strictly
 more constrained), but the isomorphism *claim* was inaccurate and is corrected
@@ -187,7 +187,43 @@ passed **vacuously** — "no matches" silently read as "untouched". It now
 captures, checks `$LASTEXITCODE`, throws on failure, and only then filters. This
 is the third instance of the same root cause in these harnesses (native nonzero
 exits do not terminate under `$ErrorActionPreference = 'Stop'`). Both harnesses
-re-run after the fix: **63/63** and **196/196**, V7 set-equality clean.
+re-run after the fix: **64/64** and **196/196**, V7 set-equality clean.
+### Cycle 4 (sixth Copilot pass, HEAD `e50fc808`) — no new P0/P1; evidence and record defects
+
+The sixth review raised **no new P0 and no new P1**. Its four suppressed comments
+were all valid and are all fixed. The open finding set is unchanged at exactly
+**F16, F17, F18, F19, F20**.
+
+Two landed on this review's own evidence:
+
+* **A hardened assertion that was measuring the wrong proposition.** Cycle 5
+  added `$LASTEXITCODE` handling to V10's `git status` call — a real fix, but
+  `git status` was the wrong instrument. It reports only *uncommitted* worktree
+  changes, so on the committed HEAD every published run executes against, it
+  returns nothing for the pre-existing-debt paths **whether or not this branch
+  changed them**; the assertion passed vacuously on any clean checkout. V10 now
+  derives the branch footprint from `merge-base(origin/main, HEAD)..HEAD` and
+  unions in the worktree status. Re-verified: 60 `.backlogit` files touched by
+  the branch, **zero** of them pre-existing-debt artifacts — the claim was true,
+  but is now actually proven.
+* **A printed result treated as an asserted one.** The closure simulation printed
+  `backlogit doctor` at the terminal fixture state without asserting it.
+  `doctor` exits 0 while reporting findings (V10 relies on that), so the proof
+  could have passed against a dirty fixture. Now asserted. The simulation total
+  rises to **64/64**; the verifier is unchanged at **196/196**.
+
+Two were defects in the planning record, both corrected:
+
+* H8 of the hardening record stated "Three tasks carry `complexity: high`" while
+  its own table lists **four** — T7, T11, T15, T18 — matching exactly the four
+  queued tasks whose `complexity` is `high` (`119.002-T`, `119.006-T`,
+  `120.004-T`, `120.007-T`). The same undercount had propagated into F7 above and
+  is corrected there too.
+* The deferred Plan-2 credential-rotation runbook attributed the redaction choke
+  point to **T5**, which is workspace/session locking. It is **T4**
+  (`supervise/redact.py`, harvested as `118.004-T`). Corrected so the
+  credential-response control traces to its actual implementation task.
+
 ## Decomposition check (2-hour rule, width isolation)
 
 * **19 tasks**, each scoped to a single module or a single script surface.

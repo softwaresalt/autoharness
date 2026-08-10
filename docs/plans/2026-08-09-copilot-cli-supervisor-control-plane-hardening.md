@@ -145,8 +145,10 @@ import away from Plan 2.
 
 ## H8 — De-risking the high-complexity tasks
 
-Three tasks carry `complexity: high`. Each gets an explicit de-risking control so
-"high complexity" does not silently mean "> 2 hours".
+**Four** tasks carry `complexity: high` — T7, T11, T15 and T18, matching exactly
+the four queued tasks whose `complexity` field is `high` (`119.002-T`,
+`119.006-T`, `120.004-T`, `120.007-T`). Each gets an explicit de-risking control
+so "high complexity" does not silently mean "> 2 hours".
 
 | Task | Why high | De-risking control |
 |---|---|---|
@@ -296,7 +298,7 @@ match the pattern.)
 **Proof obligation discharged.** `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` runs both
 arms against the real backlogit 1.8.0 engine on disposable fixtures: ARM A
 (H10.4 control) orphans 14/14 downstream tasks; ARM B (H10.5 redesign) closes
-all three shipments with `returned_ids: []` and a clean `doctor`. 63/63
+all three shipments with `returned_ids: []` and a clean `doctor`. 64/64
 assertions. `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` additionally replays the
 *exact* live topology — including the real 27-edge dependency DAG — through real
 `ShipShipment` calls: 196/196 assertions, `returned_ids: []` on every close.

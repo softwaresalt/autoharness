@@ -223,14 +223,27 @@ foreach ($l in $plan1Findings) { Write-Host "    PLAN-1 FINDING: $($l.Trim())" -
 Assert ($plan1Findings.Count -eq 0) "doctor: ZERO findings against any Plan-1 artifact ($($plan1Findings.Count))"
 $preExisting = @($docFindings | Where-Object { $_ -notmatch $plan1Re })
 Write-Host "    (out-of-scope pre-existing findings on untouched artifacts: $($preExisting.Count))"
-# `git status` is a NATIVE call: a nonzero exit is not terminated by
-# $ErrorActionPreference, so piping it straight into a filter would let this
-# assertion pass VACUOUSLY (empty output => zero matches => "untouched") if git
-# failed. Capture, check $LASTEXITCODE, then filter - same contract as Invoke-Bl.
-$statusOut = @(git --no-pager status --short -- .backlogit)
+# `git status` shows ONLY UNCOMMITTED worktree changes. Once this session's work
+# is committed - which is the state every published run is executed in - it
+# reports nothing for these paths whether or not the branch changed them, so the
+# assertion would pass VACUOUSLY on any clean checkout. The branch's actual
+# footprint is `merge-base(origin/main, HEAD)..HEAD`; the worktree is unioned in
+# so an uncommitted edit cannot slip past either. Both are NATIVE calls, whose
+# nonzero exits are not terminated by $ErrorActionPreference, so each exit code
+# is checked explicitly - same contract as Invoke-Bl.
+$mergeBase = (git --no-pager merge-base origin/main HEAD)
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($mergeBase)) {
+    throw "git merge-base FAILED (exit $LASTEXITCODE) - cannot establish the branch footprint"
+}
+$mergeBase = $mergeBase.Trim()
+$branchTouched = @(git --no-pager diff --name-only "$mergeBase..HEAD" -- .backlogit)
+if ($LASTEXITCODE -ne 0) { throw "git diff FAILED (exit $LASTEXITCODE) - cannot prove pre-existing debt was untouched" }
+$worktreeTouched = @(git --no-pager status --short -- .backlogit)
 if ($LASTEXITCODE -ne 0) { throw "git status FAILED (exit $LASTEXITCODE) - cannot prove pre-existing debt was untouched" }
-$touchedDebt = @($statusOut | Where-Object { $_ -match '(^|[/\\])(048|003)(\.\d+)?-[FT]\.md$' })
-Assert ($touchedDebt.Count -eq 0) "doctor: none of the pre-existing flagged artifacts were modified by this session"
+Write-Host "    (branch footprint vs $($mergeBase.Substring(0,8)): $($branchTouched.Count) .backlogit files; uncommitted: $($worktreeTouched.Count))"
+$debtRe = '(^|[/\\])(048|003)(\.\d+)?-[FT]\.md$'
+$touchedDebt = @(@($branchTouched + $worktreeTouched) | Where-Object { $_ -match $debtRe })
+Assert ($touchedDebt.Count -eq 0) "doctor: none of the pre-existing flagged artifacts were modified by this BRANCH (committed + uncommitted)"
 
 Write-Host "`n--- V11: checkpoints - zero errors / quarantine / active ---"
 # NOTE: a regex over the raw listing false-positives on both the long `resume_hint`

@@ -375,7 +375,7 @@ program closure, zero operator action.
 
 ### Evidence (real backlogit 1.8.0, disposable fixtures)
 
-* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` — **63/63**. ARM A (cycle-2 control) reproduces the
+* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` — **64/64**. ARM A (cycle-2 control) reproduces the
   defect: closing S1 returns **14/14** downstream tasks with `parent_id` cleared. ARM B
   (H10.5) closes all three shipments with `returned_ids: []` and a clean fixture doctor.
 * `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` — **196/196**. Part 1 = 11 read-only
@@ -384,12 +384,14 @@ program closure, zero operator action.
   `returned_ids: []` on every close, zero non-archived residue at the end.
 
 Both harnesses were **re-executed on the final corrected tree** immediately before
-push and reproduced their published totals exactly (63/63 and 196/196) — the
+push and reproduced their published totals exactly (63/63 and 196/196 — the
+cycle-4 figures; see Cycle 6 for the progression to the current 64/64) — the
 evidence in this document is verified, not merely asserted from an earlier run.
 
 **Harness hardening (post-cycle-3, in response to Copilot robustness findings).**
 The closure simulation originally published **57/57**. Three defects were fixed
-and the harnesses re-run green; the total rose to **63/63** purely because the
+and the harnesses re-run green; the total rose to **63/63** (the cycle-4 figure;
+now **64/64**, see Cycle 6) purely because the
 fixes *added* assertions, not because behaviour changed:
 
 1. The three `returned_ids` checks were negative regexes (`-notmatch '"returned_ids"\s*:\s*\[\s*"'`).
@@ -407,7 +409,7 @@ fixes *added* assertions, not because behaviour changed:
    fail-fast `.backlogit` existence check), so the published proof is
    reproducible in any clone.
 
-Both totals above (**63/63**, **196/196**) are from the re-run **after** this
+Both totals above (**64/64**, **196/196**) are from the re-run **after** this
 hardening — no total in this document is carried over from a pre-hardening run.
 
 **Evidence placement — P-010 role-boundary adjudication.** The two harnesses were
@@ -555,7 +557,7 @@ section, and the checkpoint (whose Ship-claim instruction is now **gated**:
 decisions; Stage adopted none of them, because the 3-cycle review budget was
 exhausted before they surfaced. **`127-S` is NOT safely claimable** pending F17.
 None of F16–F18 invalidates the F14 structural elimination, the shipment
-topology, or the 63/63 + 196/196 closure evidence.
+topology, or the 64/64 + 196/196 closure evidence.
 
 ---
 
@@ -605,7 +607,7 @@ Also fixed: the `returned_ids` emptiness checks still passed on a **null** value
 zero-length**; and both used `$env:TEMP`, which is not guaranteed on POSIX,
 now `[System.IO.Path]::GetTempPath()`.
 
-Re-run after all corrections: **63/63** and **196/196**. The safety *conclusion*
+Re-run after all corrections: **64/64** and **196/196**. The safety *conclusion*
 is unaffected — dependency edges play no part in `ShipShipment`'s parent-clearing
 path, and the spurious edge only made the replayed graph strictly more
 constrained — but the isomorphism *claim* was inaccurate and was corrected rather
@@ -654,7 +656,7 @@ checks `$LASTEXITCODE`, throws on failure, and only then filters, matching the
 (native/nonzero exits do not terminate under `$ErrorActionPreference = 'Stop'`),
 which is worth carrying forward as a standing review check for any harness.
 
-Both harnesses re-run after these edits: **63/63** and **196/196**, V7 set
+Both harnesses re-run after these edits: **64/64** and **196/196**, V7 set
 equality clean. Clerical fixes: README provenance still said 3 open P1s and still
 described the temp directory as `$env:TEMP`; the closure fixture comment
 mislabelled the covering features as `127-F/128-F/129-F` (they are
@@ -663,10 +665,53 @@ five findings are listed and still cited the superseded reviewed HEAD.
 
 The terminal state below is unchanged by cycle 5.
 
+### Cycle 6 — no new P0/P1; two more vacuous assertions in my own evidence
+
+The sixth Copilot review (HEAD `e50fc808`) reported "no new comments" at top
+level and **four suppressed comments**, all valid, none a new P0/P1. The open
+finding set is unchanged at exactly **F16-F20**. Two of the four landed on the
+evidence again, and both are worth carrying forward as review checks.
+
+**1. I hardened a check that was measuring the wrong thing.** In cycle 5 I added
+`$LASTEXITCODE` handling to V10's `git status` call, which was a real fix - but
+`git status` was the wrong instrument entirely. It reports only *uncommitted*
+worktree changes, so on the committed HEAD that every published run executes
+against, it returns nothing for the pre-existing-debt paths **whether or not this
+branch changed them**. The assertion passed vacuously on any clean checkout. V10
+now derives the branch's real footprint from
+`merge-base(origin/main, HEAD)..HEAD` and unions in the worktree status so an
+uncommitted edit cannot slip past either. Re-verified: the branch touches 60
+`.backlogit` files, **zero** of them pre-existing-debt artifacts - so the claim
+was true, but for the first time it is actually *proven*.
+
+Lesson: a robustness fix to an assertion is not evidence that the assertion tests
+the right proposition. Ask what would have to be true for the check to fail
+before hardening how it fails.
+
+**2. A printed result masquerading as an asserted one.** The closure simulation
+*printed* `backlogit doctor` output at the terminal fixture state and never
+asserted it. `doctor` exits 0 while reporting findings - V10 depends on exactly
+that behaviour - so the advertised proof could have passed against a dirty
+fixture. Now asserted, as Part 2 of the verifier already did. The simulation
+total is therefore **64/64**, up from 63/63; the verifier is unchanged at
+**196/196**. Progression to date: simulation 57 -> 60 -> 63 -> 64, verifier
+194 -> 196, with no correction ever changing observed engine behaviour.
+
+The other two suppressed comments were documentation defects, both real and both
+fixed: H8 in the hardening record said "Three tasks carry `complexity: high`"
+while its own table lists four (T7, T11, T15, T18), matching the four queued
+tasks with `complexity: high` (`119.002-T`, `119.006-T`, `120.004-T`,
+`120.007-T`) - the same undercount had propagated into review finding F7; and the
+deferred Plan-2 credential-rotation runbook attributed the redaction choke point
+to T5, which is workspace/session locking, when it is T4 (`supervise/redact.py`,
+harvested as `118.004-T`).
+
+The terminal state below is unchanged by cycle 6.
+
 ### Terminal state (final)
 
 **Five open P1s: F16, F17, F18, F19, F20.** All require operator product
 decisions; Stage adopted none. **No shipment is safely claimable**: F17 gates
 `127-S`; F18 + F19 gate `128-S`; F16 + F20 gate `129-S`. None of F16–F20
 invalidates the F14 structural elimination, the shipment topology, or the
-63/63 + 196/196 closure evidence.
+64/64 + 196/196 closure evidence.

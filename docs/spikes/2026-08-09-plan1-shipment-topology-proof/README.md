@@ -56,7 +56,7 @@ them changes no product behavior.
 | **ARM A** (control) | Pre-redesign: one shared covering feature, task-only manifests | Demonstrates the defect is **real**, not theoretical |
 | **ARM B** (redesign) | Per-shipment **root** covering feature, fully covered, explicit manifest member | Demonstrates the redesign **removes** it |
 
-**Result: 63/63 assertions passed.** ARM A orphans 14/14 downstream tasks on the
+**Result: 64/64 assertions passed.** ARM A orphans 14/14 downstream tasks on the
 first close. ARM B closes all three shipments with `returned_ids: []`, zero
 `parent_id` clearing, zero cross-shipment cascade, and a clean terminal
 `doctor`.
@@ -104,9 +104,11 @@ was never actually constructed.
 
 The closure simulation originally published **57/57** and the verifier
 **194/194**. Successive Copilot reviews of this PR raised robustness defects
-against the harnesses themselves — **including one that had made part of the
-published claim inaccurate**. All are fixed here. The totals rose to **63/63**
-and **196/196** solely because the fixes *added* assertions.
+against the harnesses themselves — **including two that had made part of the
+published claim inaccurate**. All are fixed here. The totals rose to **64/64**
+and **196/196** solely because the fixes *added* assertions; the simulation
+progressed 57 → 60 → 63 → 64 and the verifier 194 → 196, and **no** correction
+changed observed engine behaviour.
 
 **A real defect in the evidence, now corrected.** The Part 2 replay was described
 as an "isomorphic replay of the exact live 27-edge DAG". It was not: the
@@ -154,8 +156,25 @@ The remaining fixes:
    the assertion would have passed **vacuously** ("no matches" read as
    "untouched"). It now captures the output, checks `$LASTEXITCODE`, and throws
    before filtering — the same contract `Invoke-Bl` applies to `backlogit`.
+6. **A second, deeper defect in the very same V10 assertion.** Checking
+   `git status` at all was the wrong instrument: it reports only *uncommitted*
+   worktree changes, so on the committed HEAD that every published run executes
+   against it returns nothing for those paths **whether or not this branch
+   changed them**. The assertion would therefore have passed vacuously on any
+   clean checkout — the `$LASTEXITCODE` fix above hardened a check that was
+   measuring the wrong thing. V10 now computes the branch's actual footprint
+   from `merge-base(origin/main, HEAD)..HEAD` and **unions in** the worktree
+   status so an uncommitted edit cannot slip past either. Verified: the branch
+   touches 60 `.backlogit` files and **none** of the pre-existing flagged
+   artifacts.
+7. **A printed result masquerading as an asserted one.** The closure
+   simulation *printed* `backlogit doctor` at the terminal fixture state without
+   asserting it. `doctor` exits 0 while reporting findings — V10 depends on
+   exactly that behaviour — so the advertised proof could have passed against a
+   dirty fixture. Now asserted, matching what Part 2 of the verifier already
+   did. This is the sole reason the simulation total is **64** rather than 63.
 
-The **63/63** and **196/196** totals published above are from the re-run *after*
+The **64/64** and **196/196** totals published above are from the re-run *after*
 all of the above; no total in this document predates it.
 
 ## Provenance

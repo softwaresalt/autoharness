@@ -258,8 +258,9 @@ must never be described, documented, or scripted as rotation.
 6. **Journal the incident.** Record detection, containment, revocation
    confirmation, replacement issuance, restart, and purge — with timestamps and
    the authenticated principal — as a non-repudiable local record. Journal the
-   **event**, never the credential value; the redaction choke point (T5) applies
-   unchanged.
+   **event**, never the credential value; the redaction choke point (T4 —
+   `supervise/redact.py`, harvested as `118.004-T`) applies unchanged. T5 is
+   workspace/session locking and is not the control meant here.
 7. **Verify.** Confirm the old credential is rejected by the issuer and that the
    supervised session is operating on the replacement.
 
