@@ -412,7 +412,6 @@ findings against any Plan-1 artifact; the 62 remaining findings are pre-existing
 `048.00x-T` and `003-*`, artifacts this session never touched (verified via git status).
 
 ### Gate results — cycle 3
-
 * **plan-review: PASS (final)** — 0 unresolved P0, 0 unresolved P1. F14-R structurally
   eliminated; F15 resolved. Cycles used **3 of 3 — limit reached.**
 * **plan-harden: HARDENED re-affirmed** — H10.5 added, H10.4 superseded; H1–H9 re-read
@@ -422,3 +421,47 @@ findings against any Plan-1 artifact; the 62 remaining findings are pre-existing
   on, verified empirically rather than argued.
 * **Blast radius of this cycle:** backlog metadata and planning documents only. No source,
   schema, template, or CLI file touched.
+
+
+### Cycle 4 — NEW OPEN P1 (F16), session terminal state: BLOCKED
+
+The PR #325 Copilot review of HEAD `48368657` (the corrected topology HEAD)
+raised one new finding, and it is valid.
+
+**F16 (P1, OPEN).** T18's rollback requirements are mutually exclusive.
+`120.007-T` forbids any legacy shell policy surviving in the shim — which is also
+hard **DoD #2** — while simultaneously requiring an `AUTOHARNESS_SUPERVISOR=0`
+escape hatch that executes the legacy inline path **without a redeploy**. A
+runtime branch needs the legacy path present in the shipped shim; a git SHA is
+documentation and cannot supply one. The contradiction originates **upstream in
+the reviewed plan** (§9 rollback bullet, §10 T18) and hardening (H8 T18 row, H10
+S3), and propagates into `120.008-T`, which is told to document the escape hatch
+in the rollback runbook.
+
+**Why it was not fixed in-session.** The 3-cycle plan-review budget was already
+exhausted at cycle 3, and the resolution is a genuine product trade-off, not a
+clerical correction: Option A drops the escape hatch (preserves DoD #2; rollback
+becomes a documented single-file revert per shim; costs redeploy-free rollback
+during the S3 bake), while Option B retains a versioned legacy implementation
+(preserves redeploy-free rollback; **relaxes** DoD #2 and the no-duplication
+invariant, requiring amendments to the plan, hardening doc, and both tasks).
+Stage may not pick between these unilaterally after the budget is spent.
+
+Per the operator's standing rule — *any new P0/P1 blocks and escalates* — the
+review verdict was downgraded **PASS -> BLOCKED**, F16 was recorded as **open**
+rather than absorbed, and both affected tasks carry a blocking backlog comment.
+Cycle 3 explicitly condemned an untruthful "0 unresolved P1" claim; silently
+re-asserting PASS here would have repeated exactly that failure in a worse form.
+
+**Escalation route resolved** (fresh config reload, H6): no nested
+`model_routing.stage.escalation` override exists, so the flat
+`model_routing.escalation` route resolves to `gpt-5.6-sol` / `openai` /
+`reasoning_effort: high`. That is a different vendor and family from Stage's own
+route (`claude-opus-5` / `anthropic`), so the **same-route guard does not fire**
+and escalation is genuine, not `ESCALATION_DEGRADED`.
+
+**Containment — the handoff is still useful.** F16 touches only `120.007-T` and
+`120.008-T`, both members of `129-S`, the **final** shipment, gated behind
+`127-S` and `128-S`. It does **not** block the eligible cursor `127-S`, does not
+affect `128-S`, and invalidates none of the F14 structural-elimination work or
+its evidence. It must be dispositioned before `129-S` is claimed.

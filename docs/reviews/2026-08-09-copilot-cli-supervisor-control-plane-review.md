@@ -5,7 +5,7 @@ description: "Adversarial plan review of the Plan 1 local Copilot CLI supervisor
 doc_type: review
 source: docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md
 review_id: "PLAN-1-R"
-verdict: "PASS"
+verdict: "BLOCKED"
 stash_ids: ["34D50F2D"]
 model_route:
   model_family: claude-opus-5
@@ -21,7 +21,14 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: PASS — 0 unresolved P0, 0 unresolved P1
+## Verdict: BLOCKED — 0 unresolved P0, **1 unresolved P1 (F16)**
+
+> **Cycle-3 verdict was PASS (0 P0 / 0 P1) and remains accurate as of HEAD
+> `48368657` for findings F1–F15.** A **new** P1 (**F16**) was raised by the PR
+> #325 Copilot review of that same HEAD, *after* the 3-cycle budget was
+> exhausted. Because no review cycle remains and F16's resolution is a genuine
+> product trade-off, it is recorded as **open and escalated** rather than
+> absorbed, and the verdict is downgraded to **BLOCKED**. See *Cycle 4* below.
 
 Review cycles used: **3 of 3 (limit reached)**. Cycle 1 (2026-08-09) raised
 F1–F12, all resolved in-cycle by amending the plan and hardening documents before
@@ -78,6 +85,25 @@ is the last permitted cycle (3 of 3).
 `returnUnreleasedFeatureItems` remains a genuine backlogit defect and is still
 recorded for a separate upstream report. H10.5 makes *this* plan immune to it;
 it does not fix it for other consumers.
+
+### Cycle 4 (post-cycle-limit) — OPEN P1 raised by PR #325 Copilot review on HEAD `48368657`
+
+> **STATUS: UNRESOLVED — BLOCKING. Requires an operator product decision.**
+> The 3-cycle plan-review budget was already exhausted, so this finding is
+> recorded as **open** rather than silently absorbed. The document verdict is
+> therefore downgraded from PASS to **BLOCKED** until F16 is dispositioned. The
+> cycle-3 review rejected an untruthful "0 unresolved P1" claim; repeating that
+> error here would be a worse failure than reporting the block.
+
+| ID | Severity | Finding | Disposition |
+|---|---|---|---|
+| **F16** | **P1** | **T18's rollback requirements are mutually exclusive.** `120.007-T` mandates that the shim contain **no** legacy shell policy ("NO POLICY DUPLICATION MAY SURVIVE in PowerShell or bash"), which is also hard **DoD #2** ("No orchestration policy remains in PowerShell or bash"). The *same* task simultaneously mandates an `AUTOHARNESS_SUPERVISOR=0` escape hatch that "makes the shim execute the legacy inline path **without a redeploy**". A runtime branch into the legacy inline path requires that path to be present in the shipped shim — which is precisely the duplication the task and the DoD forbid. A git SHA reference is *documentation*; it cannot supply a runtime branch. The contradiction is not confined to the harvested task: it originates in the reviewed plan (§9 rollback bullet, §10 T18) and hardening (H8 T18 row, H10 S3) and propagates into `120.008-T`, which is instructed to document the escape hatch in the migration/rollback runbook. | **OPEN — ESCALATED, NOT DISPOSITIONED.** Resolving it is a genuine product trade-off that Stage may not decide unilaterally after the review budget is spent. **Option A — drop the escape hatch:** rollback becomes a documented single-file revert per shim (plus the `templates/` copies), preserving DoD #2 and the no-duplication invariant intact, at the cost of requiring a redeploy to roll back during the S3 bake. **Option B — retain a versioned legacy implementation:** keep the legacy inline path as an explicitly versioned, separately-named artifact the shim can dispatch to, which **relaxes** DoD #2 and the no-duplication invariant and therefore requires amending the plan, the hardening doc, `120.007-T`, and `120.008-T`. Option A is the smaller blast radius and is consistent with the already-reviewed H9.6 ("rollback is a single-file revert per shim"); Option B is the only one that preserves redeploy-free rollback. **No option is adopted here.** |
+
+**Containment.** F16 affects `120.007-T` and `120.008-T`, both members of
+`129-S` — the **final** shipment, gated behind `127-S` and `128-S`. It therefore
+does **not** block execution of the eligible cursor `127-S`, and does not
+invalidate the F14 structural elimination or any evidence in this document. It
+must be dispositioned before `129-S` is claimed.
 
 ## Decomposition check (2-hour rule, width isolation)
 
