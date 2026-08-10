@@ -736,8 +736,9 @@ evidence of absence of defects - see the Cycle 8 section below.]**
    `df3924f5` while the PR declared `857e208d`, so a consumer restoring it would
    have picked up stale review provenance. Reconciled to the current HEAD with
    the full supersession chain, and annotated with the cycle-5/6/7 outcome so the
-   next reader can see the blocking set has been stable rather than merely
-   unexamined.
+   next reader can see those cycles produced no new findings rather than being
+   merely unexamined. (As written at the time this said the set "has been
+   stable" - RETRACTED in the cycle-8 section below, where F21 falsified it.)
 
 3. A safety-properties line in the spike README still said fixtures are created
    under `$env:TEMP`, contradicting the portability fix (and its own explanation

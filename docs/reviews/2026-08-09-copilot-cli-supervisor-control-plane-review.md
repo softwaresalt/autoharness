@@ -228,13 +228,19 @@ Two were defects in the planning record, both corrected:
   (`supervise/redact.py`, harvested as `118.004-T`). Corrected so the
   credential-response control traces to its actual implementation task.
 
-### Cycle 4 (seventh Copilot pass, HEAD `857e208d`) — no new P0/P1; blocking set now stable
+### Cycle 4 (seventh Copilot pass, HEAD `857e208d`) — no new P0/P1 (heading claim of a "stable" set RETRACTED below)
 
 The seventh review raised **no new P0 and no new P1**. Its three suppressed
 comments were all valid consistency defects and are all fixed. The open finding
-set is unchanged at exactly **F16, F17, F18, F19, F20** — **stable across three
-consecutive reviews** (cycles 5, 6 and 7), each of which produced only
-evidence-robustness or record-consistency defects and never a new plan finding.
+set is unchanged at exactly **F16, F17, F18, F19, F20** across cycles 5, 6 and 7,
+each of which produced only evidence-robustness or record-consistency defects and
+never a new plan finding.
+
+> **RETRACTED.** As originally written, this paragraph read that three-cycle
+> quiet window as evidence that the blocking set was *stable* — i.e. complete.
+> Cycle 8 raised **F21**, a genuine new P1, and falsified it. Absence of new
+> findings in a window is not evidence of completeness; it is only evidence about
+> that window. The accurate statement is "no new findings in cycles 5-7".
 
 * **The documented `-Repo` invocation did not work.** A relative `-Repo` passed
   the initial `.backlogit` existence check (resolved against the *invocation*
