@@ -313,8 +313,12 @@ Assert (@($allCp | Where-Object { $_.agent -notin @('stage', 'ship') -or [string
 # PART 2 - FIXTURE REPLAY OF THE EXACT LIVE TOPOLOGY (real close, disposable)
 # ===========================================================================
 Write-Host "`n########## PART 2: FIXTURE REPLAY OF THE LIVE TOPOLOGY (real ShipShipment) ##########"
-$fx = Join-Path ([System.IO.Path]::GetTempPath()) ("blverify-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
-New-Item -ItemType Directory -Force -Path $fx | Out-Null
+# FULL GUID (not a 32-bit prefix) and no `-Force`: `-Force` silently REUSES an
+# existing directory, which on a collision with a stale or concurrent fixture
+# would replay this topology into a polluted workspace and prove nothing.
+$fx = Join-Path ([System.IO.Path]::GetTempPath()) ("blverify-" + [guid]::NewGuid().ToString('N'))
+if (Test-Path $fx) { throw "Fixture path already exists, refusing to reuse it: $fx" }
+New-Item -ItemType Directory -Path $fx | Out-Null
 Set-Location $fx
 Invoke-Bl init | Out-Null
 Write-Host "  fixture: $fx"

@@ -73,9 +73,16 @@ function Get-Art([string]$Id) {
 }
 
 function New-Fixture([string]$Tag) {
-    $r = Join-Path ([System.IO.Path]::GetTempPath()) ("blsim-$Tag-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
-    Remove-Item -Recurse -Force $r -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $r | Out-Null
+    # FULL GUID, and NO pre-emptive recursive delete. The earlier version took the
+    # first 8 hex chars (32 bits) and ran `Remove-Item -Recurse -Force` on the
+    # result, so a collision with a stale or CONCURRENT fixture would have
+    # DESTROYED that workspace before this proof started. `-Force` on New-Item is
+    # also wrong here: it silently REUSES an existing directory, which would run
+    # the proof against a polluted fixture. Create it fresh and fail if the name
+    # is somehow taken - with 128 bits that indicates a real problem, not noise.
+    $r = Join-Path ([System.IO.Path]::GetTempPath()) ("blsim-$Tag-" + [guid]::NewGuid().ToString('N'))
+    if (Test-Path $r) { throw "Fixture path already exists, refusing to reuse or delete it: $r" }
+    New-Item -ItemType Directory -Path $r | Out-Null
     Set-Location $r
     Invoke-Bl init | Out-Null
     Write-Host "  fixture: $r"

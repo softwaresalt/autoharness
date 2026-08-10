@@ -204,6 +204,20 @@ The remaining fixes:
     reporting a vacuous pass. The guard makes the check safe under *any* base
     ref, including a bad `-BaseRef` supplied by an operator.
 
+11. **The fixture setup could have destroyed an unrelated workspace.** Both
+    harnesses built their temp fixture path from the **first 8 hex characters**
+    of a GUID — 32 bits — and the simulation then ran
+    `Remove-Item -Recurse -Force` on it "to be safe". On a collision with a
+    stale or **concurrent** fixture that recursive delete would have destroyed
+    someone else's workspace *before the proof started*. `New-Item -Force` was
+    the mirror-image hazard: it silently **reuses** an existing directory, so a
+    collision would have replayed the topology into a polluted fixture and
+    proven nothing. Both now use the **full 128-bit GUID**, create the directory
+    without `-Force`, and **throw** if the path somehow already exists — at 128
+    bits that signals a real problem rather than noise. A destructive
+    pre-emptive delete has no place in setup code that runs outside a workspace
+    it owns.
+
 Items 6, 7, 8 and 10 are the same failure mode four times over: **an assertion
 can be robust and still test the wrong proposition.** Adding `$LASTEXITCODE`
 checks made these checks reliable at measuring something that was never the
