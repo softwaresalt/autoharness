@@ -21,19 +21,19 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: BLOCKED — 0 unresolved P0, **3 unresolved P1 (F16, F17, F18)**
+## Verdict: BLOCKED — 0 unresolved P0, **5 unresolved P1 (F16, F17, F18, F19, F20)**
 
 > **Cycle-3 verdict was PASS (0 P0 / 0 P1) and remains accurate as of HEAD
-> `48368657` for findings F1–F15.** Three **new** P1s (**F16**, **F17**,
-> **F18**) were raised by PR #325 Copilot reviews of HEAD `48368657` and
-> `91538e74`, *after* the 3-cycle budget was exhausted. Because no review cycle
-> remains and their resolutions are genuine product trade-offs, they are
-> recorded as **open and escalated** rather than absorbed, and the verdict is
-> downgraded to **BLOCKED**. See *Cycle 4* below.
+> `48368657` for findings F1–F15.** Five **new** P1s (**F16**, **F17**,
+> **F18**, **F19**, **F20**) were raised by PR #325 Copilot reviews of HEADs
+> `48368657`, `91538e74` and `d8644c46`, *after* the 3-cycle budget was
+> exhausted. Because no review cycle remains and their resolutions are genuine
+> product trade-offs, they are recorded as **open and escalated** rather than
+> absorbed, and the verdict is downgraded to **BLOCKED**. See *Cycle 4* below.
 >
-> **`127-S` is NOT safely claimable.** F17 invalidates acceptance criteria in
-> `118.001-T` and `118.002-T`, both members of the otherwise-eligible cursor.
-> F18 gates `128-S`; F16 gates `129-S`.
+> **NO SHIPMENT IS SAFELY CLAIMABLE.** F17 invalidates acceptance criteria in
+> `118.001-T` and `118.002-T`, both members of the otherwise-eligible cursor
+> `127-S`. F18 and F19 gate `128-S`; F16 and F20 gate `129-S`.
 
 Review cycles used: **3 of 3 (limit reached)**. Cycle 1 (2026-08-09) raised
 F1–F12, all resolved in-cycle by amending the plan and hardening documents before
@@ -83,7 +83,7 @@ is the last permitted cycle (3 of 3).
 
 | ID | Sev | Finding | Resolution |
 |---|---|---|---|
-| **F14-R** | **P1** | **F14's `adopt_item` mitigation is invalid; the defect must be structurally eliminated.** Two independent grounds. (a) **P-010 role-boundary violation.** The mitigation assigns Ship a re-parent/adopt mutation after each close. Ship's Role Boundary enumerates claim, move, close, and archive; re-parent/adopt is not enumerated, and the fail-closed rule renders an unenumerated mutation *forbidden*, not merely undocumented. A review cannot discharge a P1 by prescribing a policy violation. (b) **Not reliability-first.** It mandates manual repair after *every* predecessor close, on the precise path where a single missed step silently detaches two thirds of the program — a latent, high-blast-radius failure gated on operator diligence. Consequently the cycle-2 claim of "0 unresolved P1" was not truthful, because the only thing standing between the plan and a 14-task orphaning event was a forbidden manual step. | **RESOLVED — STRUCTURALLY ELIMINATED (no mitigation, no repair step).** The decomposition was redesigned so the destructive code path has nothing to act on. Each serial shipment now owns its own **ROOT** covering feature that is **fully covered** by, and an **explicit member** of, that shipment's manifest (H10.5). Full coverage ⇒ `returnUnreleasedFeatureItems` iterates an empty remainder and returns `∅`; root placement ⇒ `featureScopeRoots`' upward `parent_id` walk cannot reach a sibling shipment's scope. `117-F` is demoted to a **childless** product umbrella, grouped by `related_to` links (which `featureScopeRoots` does not traverse) and closed engine-natively as a member of the final shipment. `adopt_item`, post-close repair, feature reactivation, forbidden status transitions, and operator intervention are all absent from the close path — and are banned by new Non-Goal 11. Proven empirically against the real backlogit 1.8.0 engine: `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` ARM A reproduces the defect (14/14 orphaned), ARM B shows the redesign closing all three shipments with `returned_ids: []` (60/60); `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` replays the exact live topology including the real 27-edge DAG (194/194, `returned_ids: []` on every close). |
+| **F14-R** | **P1** | **F14's `adopt_item` mitigation is invalid; the defect must be structurally eliminated.** Two independent grounds. (a) **P-010 role-boundary violation.** The mitigation assigns Ship a re-parent/adopt mutation after each close. Ship's Role Boundary enumerates claim, move, close, and archive; re-parent/adopt is not enumerated, and the fail-closed rule renders an unenumerated mutation *forbidden*, not merely undocumented. A review cannot discharge a P1 by prescribing a policy violation. (b) **Not reliability-first.** It mandates manual repair after *every* predecessor close, on the precise path where a single missed step silently detaches two thirds of the program — a latent, high-blast-radius failure gated on operator diligence. Consequently the cycle-2 claim of "0 unresolved P1" was not truthful, because the only thing standing between the plan and a 14-task orphaning event was a forbidden manual step. | **RESOLVED — STRUCTURALLY ELIMINATED (no mitigation, no repair step).** The decomposition was redesigned so the destructive code path has nothing to act on. Each serial shipment now owns its own **ROOT** covering feature that is **fully covered** by, and an **explicit member** of, that shipment's manifest (H10.5). Full coverage ⇒ `returnUnreleasedFeatureItems` iterates an empty remainder and returns `∅`; root placement ⇒ `featureScopeRoots`' upward `parent_id` walk cannot reach a sibling shipment's scope. `117-F` is demoted to a **childless** product umbrella, grouped by `related_to` links (which `featureScopeRoots` does not traverse) and closed engine-natively as a member of the final shipment. `adopt_item`, post-close repair, feature reactivation, forbidden status transitions, and operator intervention are all absent from the close path — and are banned by new Non-Goal 11. Proven empirically against the real backlogit 1.8.0 engine: `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` ARM A reproduces the defect (14/14 orphaned), ARM B shows the redesign closing all three shipments with `returned_ids: []` (63/63); `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` replays the exact live topology including the real 27-edge DAG (196/196, `returned_ids: []` on every close). |
 | **F15** | **P2** | **Manifest edits are not possible in place.** `AdoptItem` rewrites `parent_id`, hierarchical IDs, filenames, and cross-artifact dependency/link edges, but it does **not** rewrite shipment `custom_fields.items`; and backlogit 1.8.0 exposes no remove-item-from-shipment operation. The old manifests therefore could not be corrected in place. | **RESOLVED.** Replacement shipments `127-S`/`128-S`/`129-S` were created with correct manifests; `124-S`/`125-S`/`126-S` were annotated with supersession rationale and full ID remap tables, linked via `supersedes`, and **archived rather than deleted** so traceability and link targets remain resolvable. Verified by V9 (archived, absent from queue, supersedes links present, zero stale `117.x` artifacts). |
 
 **Upstream report still stands.** The `explicitScope` asymmetry in
@@ -115,11 +115,38 @@ must be dispositioned before `129-S` is claimed.
 | **F17** | **P1** | **The plan's "two divergent implementations of the same policy" premise is factually wrong for `start.sh`, and it invalidates S1 acceptance criteria in the ELIGIBLE shipment.** Plan §5 (and the `004-SP` PROCEED reconciliation, and the composability decision doc) assert that `start.ps1` and `start.sh` already implement the same seven-dimension launch policy in two languages. Verified against the working tree: `start.sh` (80 lines) implements **only** `.env.local` no-clobber parsing with quote stripping (lines 20–36), a `COPILOT_HOME` default (54), an unguarded `export GITHUB_TOKEN="$(gh auth token)"` (56), Copilot exe resolution (57–64), and `exec "$copilot_exe" "$@"` (66). It has **no** `ENGRAM_DATA_DIR` default (line 55 is commented out), **no** backlogit sync, **no** Engram pre-warm/fallback, **no** `GITHUB_PERSONAL_ACCESS_TOKEN` handling, and **no** `COPILOT_USE_REMOTE`/`--remote` logic (0 occurrences each). Separately, `start.ps1:65` sets `GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token)` **unconditionally and unguarded**; the non-fatal `try`/`Write-Warning` path at 68–77 covers `GITHUB_TOKEN` only. Consequences: `118.002-T` requires a suite that "passes against today's `start.sh` unmodified" across "the same seven dimensions" — **unsatisfiable**, because three of those dimensions do not exist in `start.sh`; and `118.001-T`'s criterion (c) that PAT resolution is non-fatal when `gh` is absent or failing **misstates `start.ps1`'s actual behavior**. | **OPEN — ESCALATED. BLOCKS THE ELIGIBLE CURSOR.** Unlike F16, `118.001-T` and `118.002-T` are members of **`127-S`**, so this blocks the shipment Ship would claim first. Resolution requires re-inventorying both scripts and separating *shared* behavior from *PowerShell-only* behavior, then revising the H1 characterize-before-migrate contract so each suite characterizes **its own** script's real contract, with any cross-platform normalization reclassified as an **explicit behavior change** (which S1's "zero observable behavior change" rule forbids, so it must move to S3 or be separately approved). The `004-SP` PROCEED rationale and the composability decision doc's evidence paragraph must be corrected in the same pass, since both rest on the same overstated premise. Stage does not amend them here: the review budget is exhausted and the consolidation thesis underpinning the PROCEED disposition is an operator product decision. |
 | **F18** | **P1** | **The plan's state-transition diagram contradicts its own DRAINING rule and the harvested task.** Plan §3.2's diagram routes operator cancellation `CANCELLING -> EXITED`, bypassing `DRAINING`, while the rules immediately below state that DRAINING is the **only** path from RUNNING to a terminal state and always flushes the journal, releases the lock, and reaps the child. `119.006-T` independently mandates `RUNNING -> CANCELLING -> DRAINING -> EXITED`. Implementing the diagram as drawn would leak the workspace lock and the child process and lose journal data on every cancellation. Relatedly, `119.003-T`'s linear state summary omits `LOCKING -> REFUSED`, the bootstrap/resolve/launch failure edges to `FAILED`, and `RESTARTING -> LAUNCHING`; because absent transitions must raise `ILLEGAL_TRANSITION`, implementing that summary verbatim would reject documented outcomes. | **OPEN — low-ambiguity, but still unresolved.** Unlike F16/F17 the correct resolution is not genuinely contested: the diagram is the outlier, and both the prose rules and `119.006-T` already mandate routing cancellation through `DRAINING`. The fix is to correct the §3.2 diagram and complete `119.003-T`'s transition table against Plan §3.2. Stage records rather than applies it because the review budget is exhausted and it is a plan-document amendment. `119.003-T` and `119.006-T` are members of `128-S`, so this does **not** block the eligible cursor `127-S`, but it must be dispositioned before `128-S` is claimed. |
 
-**Revised containment across F16–F18.** `127-S` is **no longer safely
+**Revised containment across F16–F20.** `127-S` is **no longer safely
 claimable**: F17 invalidates acceptance criteria in `118.001-T` and `118.002-T`,
-both S1 members. F18 must be dispositioned before `128-S`; F16 before `129-S`.
+both S1 members. F18 and F19 must be dispositioned before `128-S`; F16 and F20
+before `129-S`.
 None of these findings affect the F14 structural elimination, the shipment
-topology, or the 60/60 + 194/194 closure evidence, all of which stand.
+topology, or the 63/63 + 196/196 closure evidence, all of which stand.
+
+### Cycle 4 (third Copilot pass, HEAD `d8644c46`) — two further P1s
+
+The third review raised **no new P0/P1 against the topology work** — both of its
+top-level comments restated F18. Its suppressed comments, however, surfaced two
+additional decomposition/plan defects and a genuine defect **in this review's own
+evidence** (recorded below the table).
+
+| ID | Severity | Finding | Disposition |
+|---|---|---|---|
+| **F19** | **P1** | **Circular ordering between the state machine and its event contract.** `119.003-T` requires `session.py` to emit `SessionPhaseChanged`, but that event type is not defined until `119.004-T`, whose dependency edge points **back** to `119.003-T` (`119.004-T -> 119.003-T`, confirmed in the live graph). The staged implementation therefore cannot satisfy `119.003-T` without either defining the event in the wrong module or implementing `119.004-T` early — i.e. the declared order is unimplementable as written. | **OPEN.** Resolution requires moving the shared event contract into an earlier dependency (or splitting a minimal `events.py` contract task ahead of the state machine) and revising the task/dependency split accordingly. That is a decomposition change to an already-reviewed plan, so Stage records rather than applies it. Members of `128-S`; does **not** affect the eligible cursor `127-S`, but must be dispositioned before `128-S` is claimed. |
+| **F20** | **P1** | **The "no mutation" authority boundary contradicts the mandated pre-warm.** Plan §3.1's `Must NOT` contract forbids the service writing a sidecar store, and `120.002-T` states the service "does not mutate backlogit or Engram" — while the *same* task and plan row **require** `backlogit sync` and an Engram bind/sync pre-warm. Those lifecycle calls necessarily refresh tool-managed indexes and state, so an implementation cannot honour both statements literally; whichever reading is taken, the other requirement is violated. | **OPEN.** The intended distinction is almost certainly domain-content/authority mutation (forbidden) versus cache/index lifecycle refresh (required and benign), but that is not what the documents say, and `120.002-T` is a **P1-blast-radius** task. Resolution is to restrict the prohibition to domain-record/authority mutations while explicitly permitting index and lifecycle refresh, consistently in plan §3.1 and `120.002-T`. Member of `129-S`; must be dispositioned before `129-S` is claimed. |
+
+**A defect in this review's own evidence — found, corrected, and disclosed.** The
+same pass found that the Part 2 fixture replay was **not** the "isomorphic replay
+of the exact live 27-edge DAG" this document claimed: its hand-maintained edge
+list carried a spurious `120.004-T -> 119.002-T` edge absent from the live graph
+(**28 replayed vs 27 live**), and the original V7 could not detect this because it
+only *counted* live edges without comparing them to the replay. Both harnesses
+were corrected — V7 now asserts **set equality** against 27 named endpoint pairs,
+and Part 2 **derives** its replay from that verified list so drift is impossible
+by construction — and both were re-run: **63/63** and **196/196**. The safety
+*conclusion* is unaffected (dependency edges play no part in `ShipShipment`'s
+parent-clearing path, and the spurious edge only made the replayed graph strictly
+more constrained), but the isomorphism *claim* was inaccurate and is corrected
+here rather than quietly restated.
 
 ## Decomposition check (2-hour rule, width isolation)
 
@@ -223,12 +250,12 @@ out-of-scope work exists).
 * **Role-boundary clear** — the close path requires nothing outside Ship's
   enumerated claim/move/close/archive capabilities. The P-010 violation that
   cycle 2 would have required is gone.
-* **Verdict: BLOCKED (current).** 0 unresolved P0, **3 unresolved P1s (F16, F17,
-  F18)**. Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
+* **Verdict: BLOCKED (current).** 0 unresolved P0, **5 unresolved P1s (F16, F17, F18,
+  F19, F20)**. Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
   available.** Cycles 1–3 concluded PASS and that conclusion stands for F1–F15;
   the verdict was subsequently downgraded when the PR #325 Copilot review of HEAD
-  `48368657` raised **F16**, plus the follow-on findings **F17** and **F18**
-  recorded in the Cycle 4 section. All three are open and require operator
-  disposition. Do **not** read this document as an approval to claim **any**
-  shipment: **F17 gates `127-S`**, **F18 gates `128-S`**, and **F16 gates
-  `129-S`**.
+  `48368657` raised **F16**, plus the follow-on findings **F17**, **F18**,
+  **F19** and **F20** recorded in the Cycle 4 section. All five are open and
+  require operator disposition. Do **not** read this document as an approval to
+  claim **any** shipment: **F17 gates `127-S`**, **F18 + F19 gate `128-S`**, and
+  **F16 + F20 gate `129-S`**.

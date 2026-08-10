@@ -375,21 +375,21 @@ program closure, zero operator action.
 
 ### Evidence (real backlogit 1.8.0, disposable fixtures)
 
-* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` — **60/60**. ARM A (cycle-2 control) reproduces the
+* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` — **63/63**. ARM A (cycle-2 control) reproduces the
   defect: closing S1 returns **14/14** downstream tasks with `parent_id` cleared. ARM B
   (H10.5) closes all three shipments with `returned_ids: []` and a clean fixture doctor.
-* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` — **194/194**. Part 1 = 11 read-only
+* `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` — **196/196**. Part 1 = 11 read-only
   structural checks against the live workspace; Part 2 = fixture replay of the **exact**
   live topology including the real 27-edge DAG, driven through real `ShipShipment`:
   `returned_ids: []` on every close, zero non-archived residue at the end.
 
 Both harnesses were **re-executed on the final corrected tree** immediately before
-push and reproduced their published totals exactly (60/60 and 194/194) — the
+push and reproduced their published totals exactly (63/63 and 196/196) — the
 evidence in this document is verified, not merely asserted from an earlier run.
 
 **Harness hardening (post-cycle-3, in response to Copilot robustness findings).**
 The closure simulation originally published **57/57**. Three defects were fixed
-and the harnesses re-run green; the total rose to **60/60** purely because the
+and the harnesses re-run green; the total rose to **63/63** purely because the
 fixes *added* assertions, not because behaviour changed:
 
 1. The three `returned_ids` checks were negative regexes (`-notmatch '"returned_ids"\s*:\s*\[\s*"'`).
@@ -407,7 +407,7 @@ fixes *added* assertions, not because behaviour changed:
    fail-fast `.backlogit` existence check), so the published proof is
    reproducible in any clone.
 
-Both totals above (**60/60**, **194/194**) are from the re-run **after** this
+Both totals above (**63/63**, **196/196**) are from the re-run **after** this
 hardening — no total in this document is carried over from a pre-hardening run.
 
 **Evidence placement — P-010 role-boundary adjudication.** The two harnesses were
@@ -555,4 +555,66 @@ section, and the checkpoint (whose Ship-claim instruction is now **gated**:
 decisions; Stage adopted none of them, because the 3-cycle review budget was
 exhausted before they surfaced. **`127-S` is NOT safely claimable** pending F17.
 None of F16–F18 invalidates the F14 structural elimination, the shipment
-topology, or the 60/60 + 194/194 closure evidence.
+topology, or the 63/63 + 196/196 closure evidence.
+
+---
+
+## Cycle 4 (cont.) — TWO MORE OPEN P1s (F19, F20) + a corrected evidence defect
+
+A third Copilot review (HEAD `d8644c46`) raised **no new P0/P1 against the
+topology work** — both top-level comments restated F18. Its suppressed comments
+surfaced two more decomposition/plan defects, and one genuine defect in my own
+evidence.
+
+### F19 (P1) — circular ordering, gates `128-S`
+
+`119.003-T` requires `session.py` to emit `SessionPhaseChanged`, but that event
+type is not defined until `119.004-T`, whose dependency edge points **back** to
+`119.003-T` (`119.004-T -> 119.003-T`, confirmed in the live graph). The declared
+order is unimplementable: satisfying `119.003-T` requires defining the event in
+the wrong module or implementing `119.004-T` early. Needs the shared event
+contract moved into an earlier dependency and the task/dependency split revised.
+
+### F20 (P1) — authority boundary contradiction, gates `129-S`
+
+`120.002-T` requires a `backlogit sync` + Engram bind/sync pre-warm while
+simultaneously asserting the service "does not mutate backlogit or Engram"; plan
+§3.1's `Must NOT` row likewise forbids writing a sidecar store. Lifecycle calls
+necessarily refresh tool-managed indexes, so no implementation honours both
+literally. Intended distinction is almost certainly domain/authority mutation
+(forbidden) vs cache/index refresh (required) — but that is not what the
+documents say, on a P1-blast-radius task.
+
+### Evidence defect found, corrected, disclosed
+
+The Part 2 replay was **not** the "isomorphic replay of the exact live 27-edge
+DAG" I had published. Its hand-maintained index-based edge list carried a
+spurious `120.004-T -> 119.002-T` edge absent from the live graph — **28 replayed
+vs 27 live** — and the original V7 could not catch it because it only *counted*
+live edges without comparing them to the replay.
+
+Fixed in two parts, so this class of drift cannot recur:
+* V7 now asserts **set equality** against 27 explicitly named endpoint pairs and
+  reports any missing/extra edge by name (a count-only check would still pass if
+  one valid edge were swapped for another).
+* Part 2 **derives** its replay from that same verified list via an ID map, so
+  the fixture cannot drift from what V7 proved — isomorphism by construction.
+
+Also fixed: the `returned_ids` emptiness checks still passed on a **null** value
+(`@($null).Count` is `0`), so both harnesses now require **present, non-null and
+zero-length**; and both used `$env:TEMP`, which is not guaranteed on POSIX,
+now `[System.IO.Path]::GetTempPath()`.
+
+Re-run after all corrections: **63/63** and **196/196**. The safety *conclusion*
+is unaffected — dependency edges play no part in `ShipShipment`'s parent-clearing
+path, and the spurious edge only made the replayed graph strictly more
+constrained — but the isomorphism *claim* was inaccurate and was corrected rather
+than quietly restated.
+
+### Terminal state (final)
+
+**Five open P1s: F16, F17, F18, F19, F20.** All require operator product
+decisions; Stage adopted none. **No shipment is safely claimable**: F17 gates
+`127-S`; F18 + F19 gate `128-S`; F16 + F20 gate `129-S`. None of F16–F20
+invalidates the F14 structural elimination, the shipment topology, or the
+63/63 + 196/196 closure evidence.

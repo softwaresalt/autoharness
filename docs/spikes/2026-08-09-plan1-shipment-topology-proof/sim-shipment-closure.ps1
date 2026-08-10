@@ -1,7 +1,7 @@
 # DISPOSABLE FIXTURE SIMULATION — backlogit 1.8.0 shipment-close proof.
 #
 # Read-only w.r.t. the real workspace: creates throwaway backlogit workspaces
-# under $env:TEMP and exercises the REAL ClaimShipment/ShipShipment engine.
+# under the system temp directory and exercises the REAL ClaimShipment/ShipShipment engine.
 # Never touches C:\Source\GitHub\autoharness\.backlogit.
 #
 # Proves the Plan-1 structural redesign (F14 elimination):
@@ -47,8 +47,11 @@ function Assert-NoReturnedIds([string]$ShipOutput, [string]$Label) {
     $has = $null -ne ($res.PSObject.Properties.Name | Where-Object { $_ -eq 'returned_ids' })
     Assert $has "$Label close result HAS a returned_ids field (field present, not merely absent)"
     if (-not $has) { return }
+    # @($null).Count is 0, so counting alone would let a NULL value pass and make
+    # the proof vacuous. Assert non-null explicitly before checking the length.
+    Assert ($null -ne $res.returned_ids) "$Label close returned_ids is NON-NULL (null would satisfy a naive emptiness check)"
     $n = @($res.returned_ids).Count
-    Assert ($n -eq 0) "$Label close returned ZERO items to backlog (returned_ids present and empty; count=$n)"
+    Assert ($null -ne $res.returned_ids -and $n -eq 0) "$Label close returned ZERO items to backlog (present, non-null, empty; count=$n)"
 }
 
 function New-Artifact([string]$Type, [string]$Title, [string]$Parent) {
@@ -70,7 +73,7 @@ function Get-Art([string]$Id) {
 }
 
 function New-Fixture([string]$Tag) {
-    $r = Join-Path $env:TEMP ("blsim-$Tag-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $r = Join-Path ([System.IO.Path]::GetTempPath()) ("blsim-$Tag-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
     Remove-Item -Recurse -Force $r -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $r | Out-Null
     Set-Location $r

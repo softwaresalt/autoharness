@@ -296,10 +296,10 @@ match the pattern.)
 **Proof obligation discharged.** `docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1` runs both
 arms against the real backlogit 1.8.0 engine on disposable fixtures: ARM A
 (H10.4 control) orphans 14/14 downstream tasks; ARM B (H10.5 redesign) closes
-all three shipments with `returned_ids: []` and a clean `doctor`. 60/60
+all three shipments with `returned_ids: []` and a clean `doctor`. 63/63
 assertions. `docs/spikes/2026-08-09-plan1-shipment-topology-proof/verify-plan1-shipment-topology.ps1` additionally replays the
 *exact* live topology — including the real 27-edge dependency DAG — through real
-`ShipShipment` calls: 194/194 assertions, `returned_ids: []` on every close.
+`ShipShipment` calls: 196/196 assertions, `returned_ids: []` on every close.
 
 ## Hardening verdict
 

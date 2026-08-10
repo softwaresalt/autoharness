@@ -56,7 +56,7 @@ them changes no product behavior.
 | **ARM A** (control) | Pre-redesign: one shared covering feature, task-only manifests | Demonstrates the defect is **real**, not theoretical |
 | **ARM B** (redesign) | Per-shipment **root** covering feature, fully covered, explicit manifest member | Demonstrates the redesign **removes** it |
 
-**Result: 60/60 assertions passed.** ARM A orphans 14/14 downstream tasks on the
+**Result: 63/63 assertions passed.** ARM A orphans 14/14 downstream tasks on the
 first close. ARM B closes all three shipments with `returned_ids: []`, zero
 `parent_id` clearing, zero cross-shipment cascade, and a clean terminal
 `doctor`.
@@ -75,7 +75,7 @@ Part 2 rebuilds an **isomorphic copy of the exact live topology** — including 
 real 27-edge dependency DAG — in `$env:TEMP` and closes all three shipments for
 real.
 
-**Result: 194/194 assertions passed**, `returned_ids: []` on every close, zero
+**Result: 196/196 assertions passed**, `returned_ids: []` on every close, zero
 non-archived residue in the terminal state.
 
 ## Reproducing
@@ -101,15 +101,40 @@ was never actually constructed.
 
 ## Harness hardening (post-cycle-3)
 
-The closure simulation originally published **57/57**. Copilot review of this PR
-raised three robustness defects, all fixed here; the total rose to **60/60**
-solely because the fixes *added* assertions:
+The closure simulation originally published **57/57** and the verifier
+**196/196**. Two successive Copilot reviews of this PR raised robustness defects
+against the harnesses themselves — **including one that had made part of the
+published claim inaccurate**. All are fixed here. The totals rose to **63/63**
+and **196/196** solely because the fixes *added* assertions.
 
-1. **Vacuous negative assertions.** The three `returned_ids` checks used
+**A real defect in the evidence, now corrected.** The Part 2 replay was described
+as an "isomorphic replay of the exact live 27-edge DAG". It was not: the
+hand-maintained index-based edge list carried a spurious `120.004-T -> 119.002-T`
+edge that does **not** exist in the live graph — **28 replayed edges against 27
+live**. The original V7 could not detect this because it only *counted* the live
+edges; it never compared them to what Part 2 replayed. Fixed in two parts:
+
+* V7 now asserts **set equality** between the live edge set and an explicit list
+  of 27 expected endpoint pairs, reporting any missing/extra edge by name. A
+  count-only check would still pass if one valid edge were swapped for another.
+* Part 2 now **derives** its replay from that same verified list via an ID map,
+  so the fixture cannot drift from what V7 proved. Drift is impossible by
+  construction rather than by discipline.
+
+The safety **conclusion** is unaffected — dependency edges play no part in
+`ShipShipment`'s parent-clearing path, and the extra edge only made the replayed
+graph strictly more constrained — but the *isomorphism claim* was wrong and is
+now both corrected and enforced.
+
+The remaining fixes:
+
+1. **Vacuous emptiness assertions.** The three `returned_ids` checks used
    `-notmatch '"returned_ids"\s*:\s*\[\s*"'`, which also passes when the field is
-   absent, null, or renamed — so a green result could have proven nothing. They
-   now parse the result and assert the property **exists** and has **zero
-   elements** (+3 existence assertions, one per close).
+   absent, null, or renamed — so a green result could have proven nothing. The
+   first correction (assert the property **exists**, then count) was still
+   insufficient, because `@($null).Count` is `0` and a null value would have
+   passed. Both harnesses now require the field to be **present, non-null, and
+   zero-length**.
 2. **Swallowed CLI failures.** `Invoke-Bl` ignored `$LASTEXITCODE` in both
    harnesses. `$ErrorActionPreference = 'Stop'` does not make a native nonzero
    exit terminate, so a failed `dep add` / `link` / `claim` / `ship` would have
@@ -118,9 +143,13 @@ solely because the fixes *added* assertions:
 3. **Non-portable root.** The verifier hardcoded one developer's checkout path.
    It now derives the root from `$PSScriptRoot`, accepts `-Repo`, and fails fast
    when no `.backlogit` workspace is present.
+4. **Non-portable temp directory.** Both harnesses used `$env:TEMP`, which is not
+   guaranteed to be set on POSIX and would have broken the advertised
+   cross-platform reproduction. Both now use
+   `[System.IO.Path]::GetTempPath()`.
 
-The **60/60** and **194/194** totals published above are from the re-run *after*
-this hardening; no total in this document predates it.
+The **63/63** and **196/196** totals published above are from the re-run *after*
+all of the above; no total in this document predates it.
 
 ## Provenance
 

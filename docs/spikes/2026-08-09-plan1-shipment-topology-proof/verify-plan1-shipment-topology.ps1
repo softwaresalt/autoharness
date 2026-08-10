@@ -4,7 +4,7 @@
 #
 # Part 1 performs ONLY SELECT queries and `backlogit get` reads against the real
 # workspace. It never mutates it.
-# Part 2 rebuilds an isomorphic copy of the live topology in $env:TEMP and closes
+# Part 2 rebuilds an isomorphic copy of the live topology in the system temp directory and closes
 # all three shipments for real, asserting the F14 elimination end to end.
 #
 # The repository root is resolved from the script's own location rather than a
@@ -162,8 +162,31 @@ foreach ($n in $adj.Keys) { if (-not $state.ContainsKey($n)) { Test-Dfs $n } }
 Assert ($null -eq $script:cycle) "dependency DAG over $($edges.Count) edges is ACYCLIC ($script:cycle)"
 
 Write-Host "`n--- V7: 27 Plan-1 task blocks edges survived re-parenting ---"
+# The authoritative expected edge set, as real live IDs. Part 2's fixture replay
+# is DERIVED from this same list (see $liveEdges below), so the replay cannot
+# silently drift from what V7 verified. A count-only check is insufficient:
+# swapping one valid edge for another still yields 27 and would let the harness
+# replay an obsolete graph while claiming an "exact live topology" proof.
+$script:expectedEdges = @(
+    '118.005-T->118.003-T',
+    '119.001-T->118.003-T', '119.002-T->119.001-T', '119.003-T->118.003-T',
+    '119.004-T->118.004-T', '119.004-T->119.003-T', '119.005-T->119.004-T',
+    '119.006-T->119.003-T', '119.006-T->119.005-T',
+    '120.001-T->118.001-T', '120.001-T->118.003-T', '120.002-T->118.003-T',
+    '120.003-T->118.003-T',
+    '120.004-T->119.001-T', '120.004-T->119.003-T', '120.004-T->119.005-T',
+    '120.004-T->120.001-T', '120.004-T->120.002-T', '120.004-T->120.003-T',
+    '120.005-T->119.004-T', '120.005-T->120.004-T', '120.006-T->120.004-T',
+    '120.007-T->118.001-T', '120.007-T->118.002-T', '120.007-T->118.005-T',
+    '120.007-T->120.006-T', '120.008-T->120.007-T'
+)
 $p1 = @(Invoke-Sql "SELECT item_id, depends_on FROM item_deps WHERE (item_id LIKE '118.%' OR item_id LIKE '119.%' OR item_id LIKE '120.%')")
 Assert ($p1.Count -eq 27) "Plan-1 task-level blocks edges = $($p1.Count) (expect 27, unchanged from pre-redesign)"
+$liveSet = @($p1 | ForEach-Object { "$($_.item_id)->$($_.depends_on)" } | Sort-Object)
+$expSet = @($script:expectedEdges | Sort-Object)
+$missing = @($expSet | Where-Object { $_ -notin $liveSet })
+$extra = @($liveSet | Where-Object { $_ -notin $expSet })
+Assert ($missing.Count -eq 0 -and $extra.Count -eq 0) "live edge SET matches the expected 27 endpoint pairs exactly (missing: $($missing -join ','); extra: $($extra -join ','))"
 $dangling = @($p1 | Where-Object { $_.depends_on -like '117.*' })
 Assert ($dangling.Count -eq 0) "no dependency still points at a retired 117.x task ID ($($dangling.Count))"
 
@@ -219,7 +242,7 @@ Assert (@($allCp | Where-Object { $_.agent -notin @('stage', 'ship') -or [string
 # PART 2 - FIXTURE REPLAY OF THE EXACT LIVE TOPOLOGY (real close, disposable)
 # ===========================================================================
 Write-Host "`n########## PART 2: FIXTURE REPLAY OF THE LIVE TOPOLOGY (real ShipShipment) ##########"
-$fx = Join-Path $env:TEMP ("blverify-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$fx = Join-Path ([System.IO.Path]::GetTempPath()) ("blverify-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Force -Path $fx | Out-Null
 Set-Location $fx
 Invoke-Bl init | Out-Null
@@ -244,17 +267,24 @@ $T1 = @(); 1..5 | ForEach-Object { $T1 += New-A task "118.00$_-T" $F1 }
 $T2 = @(); 1..6 | ForEach-Object { $T2 += New-A task "119.00$_-T" $F2 }
 $T3 = @(); 1..8 | ForEach-Object { $T3 += New-A task "120.00$_-T" $F3 }
 
-# Replay the live 27-edge task DAG shape (indices are 0-based).
-$liveEdges = @(
-    @($T1[4], $T1[2]),
-    @($T2[0], $T1[2]), @($T2[1], $T2[0]), @($T2[2], $T1[2]), @($T2[3], $T2[2]), @($T2[3], $T1[3]),
-    @($T2[4], $T2[3]), @($T2[5], $T2[4]), @($T2[5], $T2[2]),
-    @($T3[0], $T1[2]), @($T3[0], $T1[0]), @($T3[1], $T1[2]), @($T3[2], $T1[2]),
-    @($T3[3], $T2[1]), @($T3[3], $T2[2]), @($T3[3], $T2[0]), @($T3[3], $T2[4]), @($T3[3], $T3[1]), @($T3[3], $T3[2]), @($T3[3], $T3[0]),
-    @($T3[4], $T2[3]), @($T3[4], $T3[3]), @($T3[5], $T3[3]),
-    @($T3[6], $T3[5]), @($T3[6], $T1[0]), @($T3[6], $T1[1]), @($T3[6], $T1[4]),
-    @($T3[7], $T3[6])
-)
+# Replay the live task DAG by DERIVING it from the SAME $expectedEdges list that
+# V7 just proved equals the live edge set. Hand-maintaining a parallel index-based
+# list previously allowed drift: it carried a spurious '120.004-T -> 119.002-T'
+# edge that does not exist live (28 replayed vs 27 live), which the old count-only
+# V7 could not detect. Deriving guarantees isomorphism by construction.
+$idMap = @{}
+1..5 | ForEach-Object { $idMap["118.00$_-T"] = $T1[$_ - 1] }
+1..6 | ForEach-Object { $idMap["119.00$_-T"] = $T2[$_ - 1] }
+1..8 | ForEach-Object { $idMap["120.00$_-T"] = $T3[$_ - 1] }
+
+$liveEdges = @($script:expectedEdges | ForEach-Object {
+        $parts = $_ -split '->'
+        if (-not $idMap.ContainsKey($parts[0]) -or -not $idMap.ContainsKey($parts[1])) {
+            throw "edge '$_' references an ID with no fixture counterpart - replay would not be isomorphic"
+        }
+        , @($idMap[$parts[0]], $idMap[$parts[1]])
+    })
+Assert ($liveEdges.Count -eq 27) "fixture replay derives exactly 27 edges from the verified live set ($($liveEdges.Count))"
 foreach ($e in $liveEdges) { Invoke-Bl dep add $e[0] $e[1] --type blocks | Out-Null }
 foreach ($f in @($F1, $F2, $F3)) { Invoke-Bl link add $U $f related_to | Out-Null }
 
@@ -279,7 +309,11 @@ foreach ($step in @(@($S1, 'S1'), @($S2, 'S2'), @($S3, 'S3'))) {
     $res = $r.Substring($r.IndexOf('{')) | ConvertFrom-Json
     Write-Host "  returned_ids = [$($res.returned_ids -join ',')]"
     Write-Host "  archived_ids = [$($res.archived_ids -join ',')]"
-    Assert (@($res.returned_ids).Count -eq 0) "$lbl close: returned_ids EMPTY - no parent_id cleared, no cascade"
+    # Existence alone is not enough, and neither is @(...).Count: @($null).Count
+    # is 0, so a null-valued field would satisfy a naive emptiness check and the
+    # proof would be vacuous. Require present AND non-null AND zero-length.
+    $has = $null -ne ($res.PSObject.Properties.Name | Where-Object { $_ -eq 'returned_ids' })
+    Assert ($has -and $null -ne $res.returned_ids -and @($res.returned_ids).Count -eq 0) "$lbl close: returned_ids PRESENT, NON-NULL and EMPTY - no parent_id cleared, no cascade"
     if ($lbl -eq 'S1') {
         Test-Intact $T2 $F2 'after-S1'; Test-Intact $T3 $F3 'after-S1'
         Assert ((Get-Art $U).status -eq 'queued') 'after-S1 umbrella untouched'
