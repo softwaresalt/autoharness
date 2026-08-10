@@ -14,8 +14,11 @@
 [CmdletBinding()]
 param(
     [string]$Repo,
-    # Base ref for V10's branch-footprint diff. Defaults to the tracked upstream,
-    # then origin/main, origin/master, main, master - the first that resolves.
+    # Base ref for V10's branch-footprint diff. Defaults to origin/HEAD (the
+    # repository's default branch), then origin/main, origin/master, main,
+    # master - the first that resolves. Deliberately NOT the tracked upstream:
+    # for a topic branch that is the remote copy of the SAME branch, which makes
+    # merge-base == HEAD and the footprint empty. See the note at V10.
     [string]$BaseRef
 )
 

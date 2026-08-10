@@ -895,12 +895,23 @@ assertion) and **64/64**.
 
 ### Terminal state (final)
 
-**Six open P1s: F16, F17, F18, F19, F20, F21.** All require operator product
-decisions; Stage adopted none. **No shipment is safely claimable**: F17 gates
-`127-S`; F18 + F19 gate `128-S`; F16 + F20 + F21 gate `129-S`. None of F16–F21
-invalidates the F14 structural elimination, the shipment topology, or the
-64/64 + 197/197 closure evidence.
+**Eight open P1s: F16, F17, F18, F19, F20, F21, F22, F23.** All require operator
+product decisions; Stage adopted none and changed no dependency edge. **No
+shipment is safely claimable**: F17 gates `127-S`; **F18 + F19 + F22 + F23** gate
+`128-S`; F16 + F20 + F21 gate `129-S`. **F22 may additionally reach `127-S`** if
+the guaranteed-lock-release obligation is placed on `118.005-T` (T5) rather than
+on the `119.003-T` transition table. None of F16–F23 invalidates the F14
+structural elimination, the shipment topology, or the 64/64 + 197/197 closure
+evidence.
+
+**They are two decisions, not eight.** F18 + F22 + F23 are one missing invariant
+(*cleanup and cancellation are guaranteed only from `RUNNING`* — one ruling that
+every terminal exit after `LOCKING` routes through `DRAINING` and that operator
+cancel is legal from every post-`LOCKING` phase discharges all three). F19 + F21
+are one contract-placement ruling. F16, F17 and F20 are independent. Those two
+rulings alone clear five of the eight.
 
 **Do not read a quiet review cycle as completeness.** Cycles 5, 6 and 7 raised no
-new P0/P1; cycle 8 raised F21. The honest statement is "no new findings in that
-window", never "the set is complete".
+new P0/P1 and I briefly published that as evidence the set was stable; cycle 8
+raised F21 and cycle 10 raised F22 and F23. Demonstrated twice. The honest
+statement is "no new findings in that window", never "the set is complete".
