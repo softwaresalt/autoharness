@@ -5,7 +5,7 @@ description: "Adversarial plan review of the Plan 1 local Copilot CLI supervisor
 doc_type: review
 source: docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md
 review_id: "PLAN-1-R"
-verdict: "PASS"
+verdict: "BLOCKED"
 stash_ids: ["34D50F2D"]
 model_route:
   model_family: claude-opus-5
@@ -21,8 +21,60 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: PASS (Cycle 18 focused validation) — 0 unresolved P0, 0 unresolved P1
+## Verdict: BLOCKED — 0 unresolved P0, **1 unresolved P1 (F34)**
 
+> **THE CYCLE-18 PASS BELOW IS WITHDRAWN.** The confirmatory current-HEAD review
+> of `df9cee4e` returned one new P1, and it is a defect **in the F31 remediation
+> itself**. Per the operator's standing one-pass instruction, Stage has **halted,
+> attempted no fix**, and withdrawn the clearance.
+>
+> ### F34 (P1) — the cleanup protocol written for F31 cannot be implemented under the backends F27 permits
+>
+> `118.005-T` permits exclusion to be established by **either**
+> `os.open(path, O_CREAT|O_EXCL)` **or** an OS advisory lock. `118.006-T` then
+> requires force-unlock to *first acquire that same primitive* and to **refuse if
+> it cannot**. Those two requirements are jointly unsatisfiable:
+>
+> * **Under `O_CREAT|O_EXCL`** — a stale lock means the path **already exists**,
+>   so exclusive-create can *never* succeed. Force-unlock would therefore always
+>   refuse, and `--force-unlock` — documented in §10/T17 as **the only reachable
+>   remedy for a stranded lock** — becomes permanently unreachable. The workspace
+>   would be strandable with no recovery path.
+> * **Under an advisory lock on a file that is then unlinked** — the protocol is
+>   unsafe for a different reason: A holds the lock on inode₁ and unlinks it while
+>   B creates and locks inode₂, so **both believe they hold exclusion**. That is a
+>   path/inode race, not the holder-record race the compare-and-delete addresses,
+>   so the mismatch check does not catch it.
+>
+> **This is my own remediation failing, and it is the same shape as F19** — a
+> requirement that reads as a tightening but cannot actually be satisfied by the
+> thing it constrains. I specified "acquire the same primitive" because it was the
+> correct *safety* property, without checking it against the *permitted backend
+> set*, and the compare-and-delete refinement made the protocol look more rigorous
+> while leaving it unimplementable.
+>
+> **Indicated direction (recorded, NOT adopted — this needs an operator ruling).**
+> The reviewer's suggestion is sound: separate the *guard* from the *record* — a
+> stable, never-deleted guard file that both normal acquisition and cleanup lock,
+> with holder metadata in a separate removable record — or else narrow the
+> permitted backend contract so the cleanup protocol is well-defined. Either is a
+> **design change to `118.005-T` and `118.006-T`**, i.e. the additional round the
+> operator prohibited.
+>
+> **Gate state:** `127-S` reverts to **GATED** (F31/F34 land there, in
+> `118.005-T`/`118.006-T`). `128-S` and `129-S` carry no F34 obligation, but the
+> **program verdict is BLOCKED**. `127-S` remains structurally eligible —
+> eligibility is not clearance.
+>
+> **F30 and F32/F33 were NOT re-opened** by this review and their Cycle-18
+> dispositions stand, including the V13/V14 structural validation.
+>
+> ---
+>
+> **The superseded Cycle-18 PASS rationale follows, retained for audit.**
+>
+> ~~Verdict: PASS (Cycle 18 focused validation) — 0 unresolved P0, 0 unresolved P1~~
+>
 > **Scope of this verdict, stated narrowly on purpose.** All fourteen post-budget
 > P1s (F16–F29) plus the three that survived Cycle 17 (**F30, F31, F32/F33**)
 > have operator rulings, every ruling is applied, and every disposition has been

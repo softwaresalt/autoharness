@@ -1289,3 +1289,45 @@ specifically because that cluster came from the operator's accepted rulings rath
 than my own analysis, so I treated it as settled input instead of a claim to
 check. **Provenance is not correctness.** The input I was least willing to
 question was the one that was wrong.
+
+
+## Cycle 19 — F34: my own tightening turned out to be unimplementable
+
+The confirmatory review of `df9cee4e` returned one P1, and it is a defect **in the
+F31 remediation I had just written**. Halted; no fix attempted.
+
+**The contradiction.** `118.005-T` permits exclusion via *either*
+`os.open(O_CREAT|O_EXCL)` *or* an OS advisory lock. `118.006-T` then requires
+force-unlock to first **acquire that same primitive** and to **refuse if it
+cannot**. Under `O_CREAT|O_EXCL` a stale lock means the path **already exists**,
+so exclusive-create can never succeed — force-unlock always refuses, and the only
+documented remedy for a stranded lock becomes permanently unreachable. Under an
+advisory lock on a file that is then unlinked, A holds inode₁ and unlinks it while
+B creates and locks inode₂, and **both believe they hold exclusion** — a
+path/inode race that the compare-and-delete check does not address, because that
+check guards the *holder record*, not the *identity of the lock object*.
+
+**What I actually did wrong.** I derived the right safety property — cleanup must
+be mutually exclusive with acquisition — and never checked it against the
+**permitted backend set** in the neighbouring task. I was reasoning about the
+protocol in the abstract while the constraint that broke it sat one task away in
+the spec I had edited minutes earlier.
+
+**And the refinement made it worse, not better.** Adding compare-and-delete and
+refuse-on-mismatch made the protocol *read* as more rigorous, which is exactly why
+it survived my own validation: the added rigour was real but orthogonal, and it
+lent credibility to a step that was already impossible. **Detail is not
+soundness**, and a tightening that cannot be executed is weaker than the loose
+version it replaced, because it also looks finished.
+
+**This is the same shape as F19** — a requirement that reads as a tightening but
+cannot be satisfied by the thing it constrains. Third instance of the pattern in
+this review, and the first where I authored it myself rather than inherited it.
+
+**One thing did work.** F30 and F32/F33 were **not** re-opened. The V13/V14
+structural blocks — generic predicate with negative controls, and reachability
+asserted on the live graph — held under a review that was actively looking for
+holes. Validating against the *behaviour a finding demands* rather than the *edit
+a ruling ordered* is the right technique; I simply did not apply it to F31's
+implementability, because "can this be built at all" is a question I was not
+asking of my own text.
