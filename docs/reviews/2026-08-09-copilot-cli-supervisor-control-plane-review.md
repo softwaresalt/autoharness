@@ -39,14 +39,18 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 > transition table. **F24 also gates `128-S`**; **F16, F20, F21 and F25 gate
 > `129-S`**.
 >
-> **Three clusters, not ten independent decisions.** F18 + F22 + F23 are one
+> **Ten findings, but six rulings — not three.** Clustering reduces the ten to
+> **six operator rulings**: three clusters *plus* three findings that stay
+> genuinely independent (**F16, F17, F20**). Clearing only the clusters does
+> **not** clear the gate. The clusters: F18 + F22 + F23 are one
 > missing invariant (cleanup and cancellation are guaranteed only from
 > `RUNNING`); F19 + F21 are one missing contract boundary (a shared event/approval
 > contract landing after its consumers); **F24 + F25 are one missing *reachability*
 > rule** (a capability is specified in one task and no task is obligated to make it
 > real — an ignore rule with no installing surface, CLI flags with no exposing
-> task). Framing these as three rulings rather than ten is the fastest path off
-> BLOCKED. **F25 compounds F22**: `--force-unlock` is the documented remedy for the
+> task). Clustering is the fastest path off BLOCKED — it converts seven findings
+> into three decisions — but **F16, F17 and F20 must still each be decided on
+> their own**. **F25 compounds F22**: `--force-unlock` is the documented remedy for the
 > very lockout F22 creates, so one finding sets the trap and the other removes the
 > exit.
 >
@@ -616,13 +620,17 @@ out-of-scope work exists).
   **F17 gates `127-S`**, **F18 + F19 + F22 + F23 + F24 gate `128-S`** (with
   **F22** potentially touching `127-S` as well), and
   **F16 + F20 + F21 + F25 gate `129-S`**.
-* **Three rulings, not ten.** F18 + F22 + F23 collapse into one invariant
+* **Six rulings, not ten — and not three.** Clustering collapses ten findings into
+  **six operator rulings**: the three clusters below **plus F16, F17 and F20,
+  which remain independent and must each be decided separately.** Resolving only
+  the three clusters clears seven of ten findings and leaves the gate CLOSED.
+  F18 + F22 + F23 collapse into one invariant
   (*every terminal exit after `LOCKING` routes through `DRAINING`, and operator
   cancel is legal from every post-`LOCKING` phase*); F19 + F21 collapse into one
   contract-placement ruling (*where the shared event/approval contract lives and
   which task owns it*); **F24 + F25 collapse into one reachability ruling**
   (*every specified capability must have a task obligated to make it reachable —
   an ignore rule needs an installing surface, a CLI flag needs an exposing task*).
-  F16, F17 and F20 remain genuinely independent. **F25 is not merely analogous to
+  **F25 is not merely analogous to
   F22, it compounds it**: `--force-unlock` is F22's own documented remedy, so
   resolving F22 without F25 leaves the lockout with no reachable exit.

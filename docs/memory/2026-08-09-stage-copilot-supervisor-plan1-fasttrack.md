@@ -960,13 +960,18 @@ on `118.005-T` (T5) rather than on the `119.003-T` transition table. None of
 F16–F25 invalidates the F14 structural elimination, the shipment topology, or the
 64/64 + 197/197 closure evidence.
 
-**They are three decisions, not ten.** F18 + F22 + F23 are one missing invariant
+**They are six decisions, not ten — and not three.** Clustering reduces ten
+findings to **six operator rulings**: the three clusters below *plus* F16, F17 and
+F20, which remain independent. I have to be careful with the compression here —
+"three rulings" is true about the *clusters* and false about the *gate*, because
+clearing the three clusters still leaves three findings open. F18 + F22 + F23 are one missing invariant
 (*cleanup and cancellation are guaranteed only from `RUNNING`* — one ruling that
 every terminal exit after `LOCKING` routes through `DRAINING` and that operator
 cancel is legal from every post-`LOCKING` phase discharges all three). F19 + F21
 are one contract-placement ruling. **F24 + F25 are one reachability ruling**
-(*every specified capability needs a task obligated to make it reachable*). F16,
-F17 and F20 are independent. Those three rulings clear seven of the ten.
+(*every specified capability needs a task obligated to make it reachable*). Those
+three clustered rulings clear **seven of the ten findings** — and the gate stays
+closed until F16, F17 and F20 are each decided too.
 
 **Do not read a quiet review cycle as completeness.** Cycles 5, 6 and 7 raised no
 new P0/P1 and I briefly published that as evidence the set was stable; cycle 8
