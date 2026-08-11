@@ -1172,3 +1172,60 @@ proving the safety of a command Ship was forbidden to run. Ruling 8 resolved tha
 by changing what Ship may call — but only once `118.007-T` lands. Hardening could
 never have reached that class of defect; only tracing an artifact to its executor
 can.
+
+
+## Cycle 17 (confirmatory review of HEAD `90a011c5`) — THE PASS WAS FALSIFIED; HALTED
+
+I recorded a PASS, then ran the confirmatory Copilot review of the same commit to
+prove it. That review returned four new P1s and **falsified the PASS I had just
+recorded**. Three survive as `F30`, `F31`, `F32/F33`. Per the operator's standing
+one-pass instruction I **halted, fixed nothing, and withdrew the PASS**.
+
+**The one that matters is F32/F33, because it is not a new defect — it is an old
+defect I declared resolved.** Ruling 2 clustered F19 and F21 as "one
+contract-placement decision" and moved the approval types into `118.003-T`. That
+genuinely fixes F19, which was a *definition-ordering* defect. **F21 was never a
+definition-ordering defect.** It was a *runtime wiring* defect: nothing on the
+runtime chain is obliged to ever call the approval path. Moving a type definition
+upstream does not create a caller. At `90a011c5` it is still true, and the live
+data says so twice over — `item_deps where depends_on='120.005-T'` returns **zero
+rows**, and `120.004-T`, specified as THE SINGLE ORCHESTRATOR, contains **no
+occurrence of the string "approval"**. The H2 fail-closed guarantee can still be
+omitted from the shipped runtime, which is exactly what F21 said in the first
+place.
+
+**Why my validation pass could not have caught this, and what that means.** I
+validated that each ruling had been *applied to the artifacts it named*. I did
+not re-derive whether the ruling, as written, *discharged the finding*. For ten of
+eleven rulings those are the same question. For ruling 2 they were not — the
+defect was **in the ruling's premise**, and a validation that takes the ruling as
+its specification is structurally incapable of finding a defect in the ruling.
+That is a real and general limit of self-validation, not bad luck.
+
+**It is also the second time in this review that a shared root cause turned out
+not to share a remedy.** I caught that pattern once — F24/F25, where I corrected
+my own compression from "ten rulings" to eleven. I then failed to apply the same
+scepticism to F19/F21, because that cluster came from the *operator's accepted
+rulings* rather than from my own analysis, and I treated it as settled input
+rather than as a claim to check. **Provenance is not correctness.** An
+authoritative source can still ship a wrong premise, and the ruling I was least
+willing to question was the one that was wrong.
+
+**Two further surviving P1s, both narrower:**
+* **F30** — the `118.007-T` P-015 exception I drafted requires a manifest to hold
+  the covering feature's children "and nothing else". `129-S` deliberately also
+  holds the childless root `117-F`, so my own check would **reject** `129-S`. My
+  claim that the 64/64 cascade simulation covers the permitted operation for all
+  three manifests therefore does not hold. Self-inflicted, in the very artifact I
+  created to resolve F26.
+* **F31** — ruling 9 made *acquisition* atomic. `--force-unlock` stale cleanup is
+  a **separate** check-then-act window: diagnose stale → a live acquirer takes the
+  lock → the unchecked delete removes the **live** holder. Atomicity in one
+  operation does not confer it on a neighbouring one.
+
+**What I did not do.** I did not attempt a fix. Three of these need decomposition
+or ruling changes, which is precisely the "another round" the operator prohibited.
+I also did not leave the PASS standing while reporting the halt in prose — a
+clearance I know to be false is worse in the repository than in a message, so the
+verdict, `117-F`, and all three shipment gate states were reverted to BLOCKED /
+GATED before this commit.

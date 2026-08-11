@@ -5,7 +5,7 @@ description: "Adversarial plan review of the Plan 1 local Copilot CLI supervisor
 doc_type: review
 source: docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md
 review_id: "PLAN-1-R"
-verdict: "PASS"
+verdict: "BLOCKED"
 stash_ids: ["34D50F2D"]
 model_route:
   model_family: claude-opus-5
@@ -21,8 +21,73 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: PASS (focused remediation validation) — 0 unresolved P0, 0 unresolved P1
+## Verdict: BLOCKED — 0 unresolved P0, **3 unresolved P1 (F30, F31, F32/F33)**
 
+> **THE CYCLE-16 PASS BELOW IS WITHDRAWN. It was falsified by the very
+> current-HEAD review that was run to confirm it.** Read this block first.
+>
+> The focused validation pass recorded a PASS at HEAD `90a011c5`. The
+> confirmatory Copilot review of that same HEAD then returned **four new P1
+> findings**, one of which shows the PASS was **materially wrong** rather than
+> merely incomplete:
+>
+> * **F32/F33 — ruling 2 was applied to only HALF of the F19+F21 cluster, and
+>   the PASS did not catch it.** Ruling 2 moved the approval TYPES up into
+>   `118.003-T` (`contracts.py`), which genuinely fixes **F19**, a
+>   definition-ordering defect. But **F21 was never a definition-ordering
+>   defect** — it was a *runtime wiring* defect: nothing on the runtime chain
+>   is obliged to call the approval path. That is still true at `90a011c5`, and
+>   it is verifiable in two independent places:
+>   `select * from item_deps where depends_on='120.005-T'` returns **zero rows**
+>   (nothing depends on the approvals task), and `120.004-T` — specified as
+>   THE SINGLE ORCHESTRATOR — contains **no occurrence of the string
+>   "approval" at all**. The H2 fail-closed guarantee can therefore still be
+>   omitted from the shipped runtime exactly as F21 originally described. The
+>   `120.004-T` and `120.005-T` event logs still ending with OPEN/BLOCKING
+>   events are **accurate**, not stale; it was the gate-clear declaration that
+>   was wrong.
+> * **F30 — the `118.007-T` P-015 exception as drafted excludes `129-S`.** The
+>   drafted machine check requires a manifest to contain the covering feature's
+>   children "and nothing else", but `129-S` deliberately also contains the
+>   independent childless root `117-F`. The check would reject `129-S` and fall
+>   back to safe-close, so the claim that the 64/64 cascade simulation covers
+>   the permitted operation for **all three** manifests does not hold.
+> * **F31 — atomicity does not make `--force-unlock` safe.** Ruling 9 fixed
+>   *acquisition*. Stale-holder cleanup remains a separate check-then-act race:
+>   a holder diagnosed as stale can be replaced by a live acquirer before the
+>   deletion lands, and an unchecked delete then removes the **live** holder.
+>   Needs ownership/inode-token revalidation or a compare-and-delete, plus a
+>   race test between cleanup and acquisition.
+>
+> **This is the halt.** The operator authorised exactly ONE bounded remediation
+> pass with a standing instruction to halt on any surviving P0/P1 rather than
+> open another round. F30, F31 and F32/F33 survive. Stage has therefore
+> **stopped**, has **not** attempted to fix them, and has withdrawn the PASS
+> instead of leaving a clearance in the repository that it knows to be false.
+>
+> **All three shipments revert to GATED. `127-S` remains structurally eligible
+> but is NOT gate-clear** — F30 and F31 both land inside it (`118.007-T`,
+> `118.006-T`/`118.005-T`), and F32/F33 gate `129-S`.
+>
+> **What this episode demonstrates about the PASS itself.** The validation pass
+> checked that each ruling had been *applied to the artifacts named in it*. It
+> did not re-derive whether the ruling, as written, actually *discharged the
+> finding*. For ten of eleven rulings those are the same thing. For ruling 2
+> they were not, because the ruling's own clustering ("F19+F21 as one
+> contract-placement decision") embedded the wrong premise — and a validation
+> that takes the ruling as its specification cannot detect a defect in the
+> ruling. That is a real limit of self-validation, and it is the second time in
+> this review that a shared-root-cause cluster proved not to share a remedy
+> (see the F24/F25 note below). **A shared root cause is not a shared remedy —
+> and this time the cluster was in the operator ruling, not in my analysis of
+> it.**
+>
+> ---
+>
+> **The superseded Cycle-16 PASS rationale follows, retained for audit.**
+>
+> ~~Verdict: PASS (focused remediation validation) — 0 unresolved P0, 0 unresolved P1~~
+>
 > **Read the basis before relying on this verdict.** It is deliberately NARROW.
 > It is **not** the product of a sixteenth open-ended review round, and it does
 > **not** assert that finding discovery has converged. It records exactly this:
