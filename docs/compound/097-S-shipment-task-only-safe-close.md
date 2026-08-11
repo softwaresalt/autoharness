@@ -64,7 +64,9 @@ broad `shipment ship` would cascade into unshipped siblings. That reasoning is
 correct and unchanged for that case.
 
 **A second, opposite hazard exists, and task-only manifests do not avoid it.**
-On backlogit 1.8.0, `returnUnreleasedFeatureItems` is **not** gated by
+On backlogit **v1.8.0-dirty, commit `fd8d2c9d`** (the exact engine this evidence
+was produced against — see the version-binding caveat at the end of this
+document), `returnUnreleasedFeatureItems` is **not** gated by
 `explicitScope`: it also runs for a non-member *ancestor* feature discovered via
 `featureScopeRoots`' upward `parent_id` walk. So a **task-only** manifest whose
 tasks share a covering feature with tasks in a *later* shipment causes the first
@@ -172,10 +174,71 @@ case and intentionally list their covering features — a manifest shape that is
 valid under **either** close path. **However, Ship must NOT treat this
 reconciliation as overriding the unconditional cascade prohibition in its own
 agent file** until `118.007-T` amends that file and P-015 (F26, ruling 8).
-As of 2026-08-11 those three shipments are **gate-clear** — all fourteen
-post-budget P1s were dispositioned by accepted operator rulings — and `127-S` is
-the only structurally eligible cursor. The close command to use is therefore:
+As of 2026-08-11 those three shipments are **GATED, not gate-clear**: the
+confirmatory current-HEAD review raised **F34** (P1, unresolved) against the
+force-unlock protocol in `118.005-T`/`118.006-T`, which are members of `127-S`.
+An earlier revision of this document claimed gate-clear status; that claim was
+made before F34 and is **withdrawn**. `127-S` remains the only *structurally*
+eligible cursor, but it is not releasable while F34 is open. The close command to use is therefore:
 **safe-close** until `118.007-T` lands, and the verified fully-covered-root
 cascade thereafter. Because `118.007-T` is itself a member of `127-S`, the
 amendment lands *within* the first shipment and before that shipment's own
 close.
+
+## Version binding of this evidence (recorded 2026-08-11)
+
+Every close claim in this document is bound to the engine it was executed
+against, **not** to the string "1.8.0":
+
+| Field | Value |
+|---|---|
+| CLI version | `v1.8.0-dirty` |
+| Commit | `fd8d2c9d` |
+| CLI build date | `2026-08-11T01:25:43Z` |
+| MCP daemon build date | `2026-08-02T07:27:31Z` (same commit `fd8d2c9d`) |
+| Binary | `C:\Tools\backlogit.exe` |
+
+Three caveats a future reader must not skip:
+
+1. **The build is `-dirty`.** It was produced from a working tree with
+   uncommitted changes, so its exact behaviour is **not reproducible from any
+   commit**. "Verified on 1.8.0" is therefore a weaker claim than it appears.
+   The only currently uncommitted file in the backlogit checkout is
+   `.backlogit/stash.jsonl` (a data file, not source), which is consistent with
+   the dirty marker being benign — but that is *inference about the present*,
+   not proof about the state at build time.
+2. **Two different builds of the same commit are in use.** Backlog *mutations*
+   this session went through the MCP daemon (built 08-02); the *evidence*
+   (verifier, simulation) went through the CLI (built 08-11). They agree on the
+   facts that matter here — the CLI independently read back and validated every
+   dependency edge the MCP surface wrote — so this is recorded as a known split,
+   not an unresolved risk.
+3. **The installed engine is behind its source, and an update is advertised.**
+   `C:\Source\GitHub\backlogit` is **128 commits ahead** of `fd8d2c9d`, with
+   substantial changes to precisely the close surface this document describes:
+   `shipment_lifecycle.go` (+188), `dependencies.go` (+178), a **new**
+   `shipment_gate_manifest.go` (+177), plus `shipment_covering.go`,
+   `shipment_verify.go`, and `archive.go`.
+
+### Does the unreleased work invalidate the F30 premise?
+
+**No — on inspection, but this was checked rather than assumed.** The F30 ruling
+depends on covering-feature derivation tolerating a manifest that carries an
+additional verified-childless terminal umbrella (`117-F` in `129-S`). On
+backlogit's current default branch, `DeriveCoveringFeature` still selects **the
+first manifest item, in parent-first order, that is a root feature**, and does
+not reject additional root features. The new `deriveCoveringFeatureStrict` is
+fail-closed only about *lookup errors*, and is reachable **only** from the
+opt-in formal-gate proof digest (`formalGateEnforced()`), which is not enabled
+here. So the F30 structural exception holds on both the installed engine and
+current source.
+
+**This is not a licence to upgrade mid-flight.** The close-path refactor is
+large and was not executed here, so the 66/66 result certifies `fd8d2c9d` only.
+
+> **Ship-facing guard.** Ship closes against whatever is installed *at close
+> time*. Before closing `127-S`/`128-S`/`129-S`, re-run
+> `sim-shipment-closure.ps1` and confirm the `ENGINE UNDER TEST` block still
+> reports commit `fd8d2c9d`. If it reports anything else, the backlogit engine
+> was upgraded after this evidence was produced and the close proof must be
+> re-established before proceeding — do not rely on this document's result.

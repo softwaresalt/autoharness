@@ -46,8 +46,11 @@ them changes no product behavior.
   to be set on POSIX).
 * `verify-plan1-shipment-topology.ps1` Part 1 issues **read-only** `SELECT`
   queries and `backlogit get` reads against the real `.backlogit` workspace.
-* The real `ClaimShipment` / `ShipShipment` engine (backlogit **1.8.0**) is
-  exercised — these are not mocks or re-implementations.
+* The real `ClaimShipment` / `ShipShipment` engine (backlogit **`v1.8.0-dirty`,
+  commit `fd8d2c9d`**) is exercised — these are not mocks or re-implementations.
+  The simulation now prints an `ENGINE UNDER TEST` block and **fails closed** if
+  the version or commit cannot be resolved, so the result is attributable to a
+  specific build rather than to a version string.
 
 ## The harnesses
 
@@ -58,7 +61,7 @@ them changes no product behavior.
 | **ARM A** (control) | Pre-redesign: one shared covering feature, task-only manifests | Demonstrates the defect is **real**, not theoretical |
 | **ARM B** (redesign) | Per-shipment **root** covering feature, fully covered, explicit manifest member | Demonstrates the redesign **removes** it |
 
-**Result: 64/64 assertions passed.** ARM A orphans 14/14 downstream tasks on the
+**Result: 66/66 assertions passed** (64 structural + 2 version-binding). ARM A orphans 14/14 downstream tasks on the
 first close. ARM B closes all three shipments with `returned_ids: []`, zero
 `parent_id` clearing, zero cross-shipment cascade, and a clean terminal
 `doctor`.
@@ -78,12 +81,14 @@ real 27-edge dependency DAG — in the system temp directory
 (`[System.IO.Path]::GetTempPath()`, which is portable; `$env:TEMP` is not
 guaranteed on POSIX) and closes all three shipments for real.
 
-**Result: 197/197 assertions passed**, `returned_ids: []` on every close, zero
+**Result: 221/221 assertions passed**, `returned_ids: []` on every close, zero
 non-archived residue in the terminal state.
 
 ## Reproducing
 
-Requires `backlogit` 1.8.0 on `PATH`.
+Requires `backlogit` on `PATH`. The evidence published here was produced
+against **`v1.8.0-dirty`, commit `fd8d2c9d`**; see *Version binding* below
+before quoting any result against a different build.
 
 ```powershell
 pwsh docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1
@@ -371,8 +376,13 @@ to state the proposition first, confirm the assertion would fail if it were
 false, and treat a suspiciously empty measurement as failure rather than
 success.
 
-The **64/64** and **197/197** totals published above are from the re-run *after*
-all of the above; no total in this document predates it.
+The **64/64** and **197/197** totals discussed in this section are the totals as
+they stood at the close of that correction round; no total quoted in this
+section predates it. They have since been superseded by the current published
+figures — **66/66** (simulation) and **221/221** (verifier) — which rose again
+when Cycle 18 added the V13/V14 blocks and the version-binding assertions. The
+counts changed only because assertions were *added*; no assertion was weakened
+or removed to make a total go up.
 
 ## Provenance
 
@@ -386,3 +396,41 @@ all of the above; no total in this document predates it.
   recorded there targets **partial-feature** shipments; this topology is the
   fully-covered-root case, which is why `127-S`/`128-S`/`129-S` intentionally
   list their covering features.
+
+## Version binding (2026-08-11)
+
+The operator asked whether backlogit had been upgraded, and whether any newer
+close semantics invalidate this evidence. Both were checked directly rather than
+inferred from the version number.
+
+**backlogit was NOT upgraded.** The MCP surface and the CLI both report commit
+`fd8d2c9d`. The CLI reports `v1.8.0-dirty` built `2026-08-11T01:25:43Z`; the MCP
+daemon reports the same commit built `2026-08-02T07:27:31Z` — two builds of one
+commit, not two versions. Every result in this document was produced **today,
+against that installed CLI**, so none of it is stale relative to what is
+installed.
+
+Three things are nevertheless recorded, because "not upgraded" is not the same
+as "safe to assume forever":
+
+* **The build is `-dirty`** — not reproducible from any commit. The simulation
+  now surfaces this as an explicit `CAVEAT` line rather than letting the
+  transcript imply a clean build. It is *not* treated as a failure: Stage cannot
+  rebuild or reinstall the binary, so failing there would block on something
+  this role cannot remediate.
+* **The source is 128 commits ahead**, with heavy changes to the exact close
+  surface these proofs exercise — `shipment_lifecycle.go` (+188),
+  `dependencies.go` (+178), a **new** `shipment_gate_manifest.go` (+177), plus
+  `shipment_covering.go`, `shipment_verify.go`, and `archive.go`. An update is
+  advertised by the CLI, so an upgrade is one command away.
+* **The F30 premise survives that unreleased work** — verified by reading it,
+  not assumed. `DeriveCoveringFeature` still picks the first root feature in
+  parent-first order and still tolerates an extra root, so `129-S`'s childless
+  terminal umbrella (`117-F`) remains valid; the new strict variant is
+  fail-closed only on lookup errors and is reachable solely from the opt-in
+  formal-gate digest, which is disabled here.
+
+Because the refactored engine was **not executed**, these totals certify
+`fd8d2c9d` and nothing else. The Ship-facing guard is in
+`docs/compound/097-S-shipment-task-only-safe-close.md`: re-run this simulation
+before closing and confirm `ENGINE UNDER TEST` still reports `fd8d2c9d`.

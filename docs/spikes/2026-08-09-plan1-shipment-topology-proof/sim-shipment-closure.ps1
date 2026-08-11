@@ -1,4 +1,13 @@
-# DISPOSABLE FIXTURE SIMULATION — backlogit 1.8.0 shipment-close proof.
+# DISPOSABLE FIXTURE SIMULATION — backlogit shipment-close proof.
+#
+# VERSION BINDING (2026-08-11). This proof certifies the close semantics of the
+# ENGINE IT ACTUALLY RAN AGAINST, not a version string. The close path lives in
+# internal/core/shipment_lifecycle.go + dependencies.go + archive.go, and those
+# files have changed substantially on backlogit's default branch since the build
+# installed here — so "1.8.0" alone is NOT evidence of compatibility. The block
+# below records the exact active build into the transcript and FAILS CLOSED if
+# the version cannot be determined, so a future reader can tell which engine the
+# 64/64 result belongs to instead of assuming it is current.
 #
 # Read-only w.r.t. the real workspace: creates throwaway backlogit workspaces
 # under the system temp directory and exercises the REAL ClaimShipment/ShipShipment engine.
@@ -35,6 +44,39 @@ function Invoke-Bl {
         throw "backlogit $($BlArgs -join ' ') FAILED (exit $LASTEXITCODE): $($out | Out-String)"
     }
     return ($out | Out-String)
+}
+
+# ---------------------------------------------------------------------------
+# VERSION BINDING — records the EXACT engine this proof ran against.
+#
+# `backlogit version` is invoked directly rather than through Invoke-Bl because
+# Invoke-Bl injects `--log-level error`, and the version command must be read
+# verbatim. A missing/unparseable version FAILS the proof rather than being
+# skipped: an unattributable 64/64 is worse than a failure, because it would be
+# quoted later as evidence for whatever build happens to be installed then.
+# ---------------------------------------------------------------------------
+$verRaw = (& backlogit version 2>&1 | Out-String)
+if ($LASTEXITCODE -ne 0) { throw "backlogit version FAILED (exit $LASTEXITCODE): $verRaw" }
+$verLine = ($verRaw -split "`n" | Where-Object { $_ -match '\S' } | Select-Object -First 1).Trim()
+$verCommit = if ($verRaw -match '(?im)commit[^0-9a-f]*([0-9a-f]{7,40})') { $Matches[1] } else { '' }
+$binPath = (Get-Command backlogit -ErrorAction SilentlyContinue).Source
+
+Write-Host "`n########## ENGINE UNDER TEST ##########"
+Write-Host "  version : $verLine"
+Write-Host "  commit  : $verCommit"
+Write-Host "  binary  : $binPath"
+
+Assert ($verLine -ne '') 'engine version string is resolvable (proof is attributable to a build)'
+Assert ($verCommit -ne '') 'engine commit SHA is resolvable (proof is pinned to source, not just a version string)'
+
+# A `-dirty` build was produced from a working tree with uncommitted changes, so
+# its behaviour is NOT reproducible from any commit. That does not invalidate the
+# close result -- the engine still ran -- but it MUST be surfaced, otherwise the
+# proof reads as more reproducible than it is. Recorded as a visible caveat
+# rather than a failure, because failing here would block on a condition the
+# Stage role cannot remediate (it cannot rebuild or reinstall the binary).
+if ($verLine -match '(?i)dirty') {
+    Write-Host "  CAVEAT : build is -dirty; exact engine source state is NOT reproducible from commit $verCommit"
 }
 
 # Parses a `shipment ship` result and asserts that returned_ids EXISTS and is

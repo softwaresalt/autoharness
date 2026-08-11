@@ -23,6 +23,58 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 ## Verdict: BLOCKED — 0 unresolved P0, **1 unresolved P1 (F34)**
 
+### Engine version verification (2026-08-11) — no change to the verdict
+
+The operator directed that the active backlogit version be established before
+F30 is finalised, and that compatibility **not** be inferred from the version
+number. Result: **backlogit was not upgraded.**
+
+| Surface | Version | Commit | Built |
+|---|---|---|---|
+| CLI (`C:\Tools\backlogit.exe`) | `v1.8.0-dirty` | `fd8d2c9d` | `2026-08-11T01:25:43Z` |
+| MCP daemon | `1.8.0` | `fd8d2c9d` | `2026-08-02T07:27:31Z` |
+
+All Cycle-18 evidence was produced against that installed CLI, so it is current
+for what is installed — the simulation was re-run and now reports **66/66**
+(64 structural + 2 new version-binding assertions that fail closed if the build
+cannot be identified).
+
+Beyond the version check, the unreleased engine work was **read** rather than
+assumed compatible, because the F30 ruling depends on covering-feature
+derivation tolerating `129-S`'s extra verified-childless umbrella (`117-F`).
+backlogit's source is **128 commits ahead** of the installed build, with heavy
+changes to the close surface (`shipment_lifecycle.go` +188, `dependencies.go`
++178, a new `shipment_gate_manifest.go` +177, plus `shipment_covering.go`,
+`shipment_verify.go`, `archive.go`). On that newer source, `DeriveCoveringFeature`
+still selects the first parent-first root feature and still tolerates additional
+roots, and the new `deriveCoveringFeatureStrict` is fail-closed only on lookup
+errors and is reachable **only** from the opt-in formal-gate digest (disabled
+here). **The F30 premise therefore holds on both builds** — no new finding, and
+no expansion of scope.
+
+Two caveats are recorded rather than buried, because neither is remediable by
+Stage and both weaken how this evidence should be quoted later:
+
+1. The installed build is **`-dirty`**, so its exact behaviour is not
+   reproducible from any commit. "Verified on 1.8.0" is a weaker claim than it
+   reads as. (The only file currently uncommitted in the backlogit checkout is
+   `.backlogit/stash.jsonl`, a data file — consistent with a benign marker, but
+   that is inference about now, not proof about build time.)
+2. Backlog **mutations** went through the MCP build (08-02) while **evidence**
+   went through the CLI build (08-11). Same commit, two builds. They are
+   cross-checked in practice: the CLI independently read back and validated
+   every dependency edge the MCP surface wrote.
+
+Because the refactored engine was never executed, the close proofs certify
+`fd8d2c9d` only. A Ship-facing guard is recorded in
+`docs/compound/097-S-shipment-task-only-safe-close.md` requiring the simulation
+to be re-run and the `ENGINE UNDER TEST` commit reconfirmed immediately before
+any shipment close.
+
+**This check neither clears nor adds a blocker. F34 remains the sole unresolved
+P1 and the verdict stays BLOCKED.**
+
+
 > **THE CYCLE-18 PASS BELOW IS WITHDRAWN.** The confirmatory current-HEAD review
 > of `df9cee4e` returned one new P1, and it is a defect **in the F31 remediation
 > itself**. Per the operator's standing one-pass instruction, Stage has **halted,
