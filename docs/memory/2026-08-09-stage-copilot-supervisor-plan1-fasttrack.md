@@ -1331,3 +1331,65 @@ holes. Validating against the *behaviour a finding demands* rather than the *edi
 a ruling ordered* is the right technique; I simply did not apply it to F31's
 implementability, because "can this be built at all" is a question I was not
 asking of my own text.
+
+## Engine version verification (`afa7ed23`, 2026-08-11)
+
+**Question asked:** had backlogit been upgraded, and does any newer close
+semantics invalidate F30 or the close evidence?
+
+**Answer: not upgraded.** CLI and MCP both report commit `fd8d2c9d`. The CLI is
+`v1.8.0-dirty` built 08-11; the MCP daemon is the same commit built 08-02 — two
+builds of one commit, not two versions. Every Cycle-18 result was produced
+against the installed CLI, so nothing was stale.
+
+**What made this worth more than a version check.** The operator's "do not infer
+compatibility from version alone" was the right instinct: the version string was
+unchanged, but backlogit's source is **128 commits ahead** of the installed
+build, and the diff lands squarely on the close path — `shipment_lifecycle.go`
+(+188), `dependencies.go` (+178), a **new** `shipment_gate_manifest.go` (+177),
+plus `shipment_covering.go`, `shipment_verify.go`, `archive.go`. A pure version
+comparison would have reported "same version, no risk" and missed all of it.
+
+So the unreleased code was read. `DeriveCoveringFeature` still selects the first
+parent-first root feature and still tolerates an additional root — which is
+exactly what `129-S`'s childless terminal umbrella (`117-F`) depends on. The new
+`deriveCoveringFeatureStrict` looked alarming (fail-closed, "strict") but is
+fail-closed only on *lookup errors* and is reachable **only** from the opt-in
+formal-gate proof digest, which is disabled here. **F30's premise holds on both
+builds.** No new finding; no scope expansion.
+
+**The distinction that actually matters:** *not upgraded* is not the same as
+*safe forever*. Ship closes against whatever is installed **at close time**, and
+the refactored engine was never executed here. So the evidence was re-bound from
+the string "1.8.0" to the commit `fd8d2c9d`, and a Ship-facing guard now requires
+re-running the simulation and reconfirming the `ENGINE UNDER TEST` commit
+immediately before any close. Binding evidence to a *version string* was the
+latent defect — the string would have stayed true across an upgrade that changed
+the behaviour underneath it.
+
+**Made the proof self-attributing.** The simulation now prints an `ENGINE UNDER
+TEST` block and **fails closed** if version or commit cannot be resolved: an
+unattributable 66/66 is worse than a failure, because it would later be quoted as
+evidence for whatever build happened to be installed then. The `-dirty` marker is
+surfaced as a visible `CAVEAT` rather than a failure — Stage cannot rebuild or
+reinstall the binary, so failing there would block on something this role cannot
+remediate. Totals moved 64/64 -> **66/66** purely by *adding* assertions.
+
+**Two caveats recorded rather than buried:** the installed build is `-dirty` so
+its behaviour is not reproducible from any commit (the only uncommitted file in
+the backlogit checkout is `.backlogit/stash.jsonl`, a data file — consistent with
+a benign marker, but that is inference about *now*, not proof about build time);
+and mutations went through the MCP build while evidence went through the CLI
+build (cross-checked — the CLI independently read back and validated every edge
+the MCP surface wrote).
+
+**Two stale claims caught while editing** — both would have overstated readiness:
+the compound close-path doc still called the three shipments *gate-clear* (that
+was withdrawn by F34), and the spike README still published **197/197** for the
+verifier when the current figure is **221/221**. Withdrawn clearances have to be
+chased across *every* artifact that repeats them, not just the review doc; this
+is the second time a stale PASS survived in a secondary document.
+
+**Verdict unchanged: BLOCKED, F34 the sole unresolved P1.** This pass was
+documentation and evidence-binding only — no disposition was reopened, no
+remediation attempted.
