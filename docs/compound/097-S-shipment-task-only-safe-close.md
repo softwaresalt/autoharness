@@ -91,13 +91,48 @@ post-close repair. Verified end to end on the real engine: **64/64** and
 **197/197** assertions, including a fixture replay of the exact live topology
 (`verify-plan1-shipment-topology.ps1`).
 
+> ### ⛔ CONTESTED — F26 (P1, OPEN): this exception is NOT operative
+>
+> **Ship MUST NOT act on the exception below until the operator rules on F26.**
+> The reconciliation instructs Ship to close with a single `backlogit shipment
+> ship`, but `.github/agents/_ship.agent.md` prohibits that operation
+> **unconditionally** ("NEVER the cascade `backlogit_ship_shipment`, P-015" /
+> "Do NOT call `backlogit shipment ship`"), with no fully-covered-root carve-out.
+> **P-015** in `templates/policies/workflow-policies.md.tmpl` scopes its *Applies
+> when* to partial-feature shipments, but its Statement and Postcondition are
+> absolute and the Ship agent repeats them without the qualification.
+>
+> **A planning artifact cannot grant Ship an exemption from Ship's own operative
+> prohibition.** This document declared an exception without amending the policy,
+> the Ship agent, or the `shipment-reconcile` skill — so under fail-closed
+> P-010/P-015 the instruction below is currently **unexecutable**, and following
+> it would be a P-015 violation.
+>
+> **The topology is not affected.** Under safe-close the fully-covered-root
+> manifests are still correct: the covering feature is itself a manifest item and
+> no unshipped siblings exist, so the protected set is empty and safe-close
+> archives exactly the release unit. What is contested is the **close command**,
+> and with it the **scope of the evidence** — the 64/64 simulation proves cascade
+> safety, which is a property of an operation Ship may not be permitted to call.
+>
+> **Operator ruling required (Stage adopted none):** either (a) amend P-015, the
+> Ship agent and `shipment-reconcile` coherently to recognise a *verified*
+> fully-covered-root exception, or (b) keep safe-close as the only close path and
+> revise this contract plus its expected evidence, since `returned_ids: []` would
+> no longer be the artifact to expect. Detail:
+> `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`.
+
 **Which rule applies when.**
 
 | Manifest shape | Contract |
 |---|---|
 | Covering feature has children **outside** the manifest (partial) | Durable Rule above: task-only `items`; close the feature separately with `move` + `archive`; do **not** use `shipment ship`. |
-| Covering feature is **fully covered** and **root** | This exception: list the feature FIRST in `items`, then all its children; close with a single `shipment ship`. |
+| Covering feature is **fully covered** and **root** | This exception: list the feature FIRST in `items`, then all its children; close with a single `shipment ship`. **⛔ CONTESTED — see the F26 banner above; the close command is not operative pending an operator ruling.** |
 
 `127-S` / `128-S` / `129-S` (Plan-1 supervisor program) are the fully-covered-root
-case and intentionally list their covering features. Ship should read this
-reconciliation, not the partial-feature rule, for those three shipments.
+case and intentionally list their covering features — a manifest shape that is
+valid under **either** close path. **However, Ship must NOT treat this
+reconciliation as overriding the unconditional cascade prohibition in its own
+agent file (F26).** Those three shipments are in any case blocked on eleven open
+P1s and are not claimable; when they are unblocked, the close command to use is
+whichever the operator's F26 ruling establishes.

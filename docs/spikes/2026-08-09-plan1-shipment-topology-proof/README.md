@@ -102,6 +102,33 @@ Both harnesses exit non-zero on any failed assertion, and both treat a nonzero
 captured as ordinary output, so a proof can never "pass" against a topology that
 was never actually constructed.
 
+## ⛔ Evidence scope caveat — F26 (P1, OPEN)
+
+**What this suite proves is contested, though nothing in it is wrong.** Both
+harnesses exercise the **cascade** close operation `backlogit shipment ship`, and
+prove that under the fully-covered-root topology it returns `returned_ids: []`
+with no post-close repair. But `.github/agents/_ship.agent.md` prohibits that
+operation **unconditionally** under **P-015** ("NEVER the cascade
+`backlogit_ship_shipment`"), with no fully-covered-root carve-out — so if
+`shipment-reconcile` safe-close is the operative close path, **this evidence
+concerns an operation Ship will never call.**
+
+The proposition that would then matter is different: that archiving each manifest
+item in turn, with an **empty protected set**, leaves the backlog consistent.
+
+This is worth naming precisely, because every assertion below is sound and the
+run is green: it is **not a vacuous assertion inside a proof, but a rigorous proof
+of a proposition that may not be the operative one**. No amount of
+assertion-hardening catches that — only asking *who will execute this, and what
+will they actually call?*
+
+**The topology is unaffected either way**: under safe-close the fully-covered-root
+manifest is still correct, since the covering feature is itself a manifest item
+and no unshipped siblings exist, so the protected set is empty. F14's structural
+elimination stands. Pending the operator's F26 ruling, read the totals below as
+**cascade-close** evidence specifically. See
+`docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`.
+
 ## Harness hardening (post-cycle-3)
 
 The closure simulation originally published **57/57** and the verifier
@@ -269,7 +296,7 @@ all of the above; no total in this document predates it.
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **10 open P1s F16–F25** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19+F22+F23+F24 gate `128-S` with F22 possibly touching `127-S`, F16+F20+F21+F25 gate `129-S`) —
+* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **11 open P1s F16–F26** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19+F22+F23+F24 gate `128-S` with F22 possibly touching `127-S`, F16+F20+F21+F25 gate `129-S`, and **F26 gates all three**) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`
 * Close-path contract — `docs/compound/097-S-shipment-task-only-safe-close.md`,

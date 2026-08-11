@@ -949,36 +949,91 @@ shipment record says DO NOT CLAIM — a feature record is a consumer surface, so
 that was an authorization a Ship reader could have acted on. It now separates
 *structural eligibility* from *claimability*.
 
+## Cycle 14 — F26: a planning doc cannot grant Ship an exemption from Ship's own rule
+
+The fourteenth review pointed at `docs/compound/097-S-shipment-task-only-safe-close.md`
+and said its close command conflicts with policy. I verified all three files, and
+it is right — this is a **new P1**, and the most consequential since F17.
+
+The compound doc says the fully-covered-root case closes "with a single
+`shipment ship`" and that "Ship should read this reconciliation, not the
+partial-feature rule". But `.github/agents/_ship.agent.md` says "**NEVER** the
+cascade `backlogit_ship_shipment`, P-015" and "**Do NOT call
+`backlogit shipment ship`**" — **unconditionally**, with no fully-covered-root
+carve-out. P-015 in `templates/policies/workflow-policies.md.tmpl` *is* scoped to
+partial-feature shipments in its "Applies when", but its Statement and
+Postcondition are absolute and the Ship agent repeats them without the
+qualification. Under fail-closed P-010/P-015, an operation Ship's own agent file
+says never to call is **forbidden**, whatever a planning document asserts.
+
+**That is the real lesson, and it is a role-boundary one.** I wrote a compound doc
+that declared an exception to a policy without amending the policy or the Ship
+agent, and then told Ship to prefer my document over its own rule. **Stage does
+not have that authority.** Documenting an exception is not being granted one, and
+the fact that the exception is *technically* sound — the preconditions really do
+make the cascade harmless — does not make it *operative*. It should have been
+raised as a policy amendment for the operator to rule on, not published as a
+contract Ship was instructed to follow.
+
+**A second-order consequence I should have seen unaided.** The 64/64 simulation
+proves `shipment ship` returns `returned_ids: []` under this topology — it proves
+the safety of **an operation Ship must never call**. If closure actually runs
+through `shipment-reconcile` safe-close, the relevant proposition is different:
+that archiving each manifest item in turn, with an **empty** protected set, leaves
+the backlog consistent. So the strongest evidence in this PR answers a question
+Ship will never ask. That is the **vacuity family one level up** — not a vacuous
+assertion inside a proof, but a **rigorous proof of the wrong proposition**. Sixth
+instance, and the largest: no amount of assertion-hardening would have caught it,
+because every assertion was sound. Only asking *"who executes this, and what will
+they actually call?"* catches it.
+
+**What is NOT broken:** the topology. Under safe-close the fully-covered-root
+manifests remain correct — the covering feature is itself a manifest item and
+there are no unshipped siblings, so the protected set is empty and safe-close
+archives exactly the release unit. F14's structural elimination stands. What
+breaks is the **close command** in the contract and the **scope** of the evidence.
+
+Resolution is an operator/policy ruling and Stage adopted none: either amend
+P-015, the Ship agent and `shipment-reconcile` coherently for a *verified*
+fully-covered-root exception, or keep safe-close and revise the compound contract
+and its expected evidence (`returned_ids: []` stops being the artifact to expect).
+**Gates all three shipments**, since closure is on every shipment's path.
+
 ### Terminal state (final)
 
-**Ten open P1s: F16, F17, F18, F19, F20, F21, F22, F23, F24, F25.** All require
-operator product decisions; Stage adopted none and changed no dependency edge.
-**No shipment is safely claimable**: F17 gates `127-S`; **F18 + F19 + F22 + F23 +
-F24** gate `128-S`; **F16 + F20 + F21 + F25** gate `129-S`. **F22 may
-additionally reach `127-S`** if the guaranteed-lock-release obligation is placed
-on `118.005-T` (T5) rather than on the `119.003-T` transition table. None of
-F16–F25 invalidates the F14 structural elimination, the shipment topology, or the
-64/64 + 197/197 closure evidence.
+**Eleven open P1s: F16–F26.** All require operator product decisions; Stage
+adopted none and changed no dependency edge. **No shipment is safely claimable**:
+F17 gates `127-S`; **F18 + F19 + F22 + F23 + F24** gate `128-S`;
+**F16 + F20 + F21 + F25** gate `129-S`; and **F26 gates all three**, because
+closure is on every shipment's path. **F22 may additionally reach `127-S`** if the
+guaranteed-lock-release obligation is placed on `118.005-T` (T5) rather than on
+the `119.003-T` transition table. None of F16–F26 invalidates the F14 structural
+elimination or the shipment topology. **F26 does narrow the evidence**: the 64/64
+run proves cascade-close safety, and if closure runs through safe-close instead,
+that proof concerns an operation Ship will not call — the topology is correct
+either way, but the *proof of the close path* would need re-aiming.
 
-**They are six decisions, not ten — and not three.** Clustering reduces ten
-findings to **six operator rulings**: the three clusters below *plus* F16, F17 and
-F20, which remain independent. I have to be careful with the compression here —
-"three rulings" is true about the *clusters* and false about the *gate*, because
-clearing the three clusters still leaves three findings open. F18 + F22 + F23 are one missing invariant
+**They are seven decisions, not eleven — and not three.** Clustering reduces
+eleven findings to **seven operator rulings**: the three clusters below *plus*
+F16, F17, F20 and F26, which remain independent. I have to be careful with the
+compression here — "three rulings" is true about the *clusters* and false about
+the *gate*, because clearing the three clusters still leaves four findings open. F18 + F22 + F23 are one missing invariant
 (*cleanup and cancellation are guaranteed only from `RUNNING`* — one ruling that
 every terminal exit after `LOCKING` routes through `DRAINING` and that operator
 cancel is legal from every post-`LOCKING` phase discharges all three). F19 + F21
 are one contract-placement ruling. **F24 + F25 are one reachability ruling**
 (*every specified capability needs a task obligated to make it reachable*). Those
-three clustered rulings clear **seven of the ten findings** — and the gate stays
-closed until F16, F17 and F20 are each decided too.
+three clustered rulings clear **seven of the eleven findings** — and the gate
+stays closed until **F16, F17, F20 and F26** are each decided too. **Seven
+rulings in total.**
 
 **Do not read a quiet review cycle as completeness.** Cycles 5, 6 and 7 raised no
 new P0/P1 and I briefly published that as evidence the set was stable; cycle 8
 raised F21, cycle 10 raised F22 and F23, and cycle 12 raised F24 and F25.
-Demonstrated **three** times, across three separate quiet-then-new-P1 windows.
-The honest statement is "no new findings in that window", never "the set is
-complete" — and at this point the **non-convergence is itself the finding to
-report**: twelve review passes have not reached a fixed point, which says the
-plan's defect density is higher than any remaining review budget can drain.
-Continuing to review is not the path off BLOCKED; the three rulings are.
+Cycle 14 then raised F26. Demonstrated **four** times, across four separate
+quiet-then-new-P1 windows. The honest statement is "no new findings in that
+window", never "the set is complete" — and at this point the **non-convergence is
+itself the finding to report**: fourteen review passes have not reached a fixed
+point, which says the plan's defect density is higher than any remaining review
+budget can drain. Continuing to review is not the path off BLOCKED; the seven
+rulings are.
