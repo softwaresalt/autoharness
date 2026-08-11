@@ -107,7 +107,8 @@ was never actually constructed.
 The closure simulation originally published **57/57** and the verifier
 **194/194**. Successive Copilot reviews of this PR raised robustness defects
 against the harnesses themselves — **including two that had made part of the
-published claim inaccurate**. All are fixed here. The totals rose to **64/64**
+published claim inaccurate** — and one review found a **destructive** fixture-setup
+hazard. All are fixed here. The totals rose to **64/64**
 and **197/197** solely because the fixes *added* assertions; the simulation
 progressed 57 → 60 → 63 → 64 and the verifier 194 → 196 → 197, and **no** correction
 changed observed engine behaviour.
@@ -218,12 +219,45 @@ The remaining fixes:
     pre-emptive delete has no place in setup code that runs outside a workspace
     it owns.
 
-Items 6, 7, 8 and 10 are the same failure mode four times over: **an assertion
+12. **`Invoke-Sql` could not tell "zero rows" from "unparsed output".** It
+    returned `@()` whenever the captured output contained no `[` marker, so a
+    format change, a truncated read or an unexpected banner would have been
+    indistinguishable from an empty result set. That is precisely the wrong
+    default here, because several of the **strongest** proofs in this suite are
+    **zero-result** proofs — V8's "`127-S` has no dependencies", V9's "no stale
+    `117.x` tasks", V4's "`117-F` has no children". Every one of them would have
+    passed **vacuously** the moment the query stopped reporting.
+
+    **The first fix for this was itself wrong, and running it is what proved
+    it.** Making the absence of a `[` marker throw seemed obviously correct —
+    and it immediately failed V4, a proof that had been passing for twelve
+    review cycles. The cause was not a regression: **backlogit emits the literal
+    JSON token `null` for a zero-row query, never `[]`.** So the strict guard had
+    replaced one conflation with another, treating a *legitimate* empty result as
+    a harness failure. The shipped version distinguishes all three cases: `null`
+    is a genuine zero-row result and is accepted, a `[` array is parsed, and
+    **anything else throws**. The check is also now an *exact* payload match with
+    log lines stripped, rather than a substring search for a bracket — substring
+    matching is how the original vacuity got in, since it accepted any output
+    containing a bracket anywhere.
+
+    This is the **second** time a fix for this family introduced a new defect
+    (item 10 was the first). Both were caught the same way: by **running the fix
+    and reading what it actually reported** rather than trusting that the
+    reasoning behind it was sound. A guard that has never been observed to fire
+    correctly on a real empty result is an untested guard.
+
+Items 6, 7, 8, 10 and 12 are the same failure mode five times over: **an assertion
 can be robust and still test the wrong proposition.** Adding `$LASTEXITCODE`
 checks made these checks reliable at measuring something that was never the
 claim. Item 10 is the sharpest instance, because it was introduced *by a fix for
 an earlier instance of the same mistake* and was caught only by **reading the
-numbers a passing run printed** rather than the PASS line. The durable lesson is
+numbers a passing run printed** rather than the PASS line. Item 12 shows the
+family has a **signature**: every instance turns a failure to *observe* into the
+observation "nothing was there" — and it also shows the correction has a
+symmetric failure mode, since over-strictness turns a real empty result into a
+phantom failure. The fix is never "be stricter"; it is **enumerate the outcomes
+the tool can actually produce and handle each explicitly**. The durable lesson is
 to state the proposition first, confirm the assertion would fail if it were
 false, and treat a suspiciously empty measurement as failure rather than
 success.
@@ -235,7 +269,7 @@ all of the above; no total in this document predates it.
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **8 open P1s F16–F23** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19+F22+F23 gate `128-S` with F22 possibly touching `127-S`, F16+F20+F21 gate `129-S`) —
+* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **10 open P1s F16–F25** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19+F22+F23+F24 gate `128-S` with F22 possibly touching `127-S`, F16+F20+F21+F25 gate `129-S`) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`
 * Close-path contract — `docs/compound/097-S-shipment-task-only-safe-close.md`,

@@ -885,33 +885,95 @@ is not a plausible measurement. Two changes followed: `@{upstream}` is gone
 so no base ref — including a bad operator-supplied `-BaseRef` — can produce a
 vacuous pass again.
 
-That is now **four** instances of one family: an assertion can be robust and
-still test the wrong proposition. The habit that actually catches it is not
+That is now **four** instances of one family (a fifth, `Invoke-Sql`, follows in
+cycle 12): an assertion can be robust and still test the wrong proposition. The habit that actually catches it is not
 "check exit codes"; it is **treat a suspiciously empty measurement as failure**,
 and read what a green run reports rather than that it was green.
 
 Totals after re-execution: **197/197** (V4 gained the negative link-type
 assertion) and **64/64**.
 
+## Cycle 12 (twelfth Copilot review, HEAD `a20c5b50`) — F24 and F25: capabilities nobody has to make real
+
+Two more new P1s, and they are the same shape as each other: **a capability is
+specified in one task and no task is obligated to make it reachable.** The DAG is
+satisfiable with the capability simply absent.
+
+**F24** — `119.005-T` says "add `.autoharness/sessions/` to the gitignore
+template". I went looking for that template. **It does not exist.** `templates/`
+has no gitignore artifact at all; workspace ignore rules are handled
+*procedurally* by the install-harness skill, which only *confirms* an existing
+`.gitignore` covers `.env.local`. So the criterion is discharged by searching for
+a nonexistent file and finding nothing to change. That is worse than F17 or F23,
+which at least fail loudly — **this one fails silently**. And it takes an H6
+hardening property with it: the same task calls the journal "gitignored local
+operational state" and uses that to argue authority containment. In a generated
+workspace nothing installs the rule, so the journal is git-tracked and the
+property is simply false there.
+
+**F25** — `120.006-T` is the *only* task that touches the CLI, and it never says
+which options `autoharness run` accepts. `--force-unlock` lives in `118.005-T`
+(`locking.py`); `--max-restarts N` and resume live in `119.006-T` (`recovery.py`).
+Neither touches `cli.py`. Every task can pass while both controls are unreachable
+from the product's sole public surface. **And `--force-unlock` is F22's own
+documented remedy** — so F22 sets the lockout trap and F25 removes the exit. That
+compounding is the part worth carrying forward: two findings that are individually
+arguable become jointly severe.
+
+The lesson I want to keep: **"is it specified?" and "is it reachable?" are
+different questions**, and a task-level DoD review only ever answers the first.
+Reachability is a property of the *graph*, not of any task, so nothing in a
+per-task review will surface it. F21 was the same defect and I did not generalize
+it at the time; had I done so, F25 would have been found four cycles earlier.
+
+Also fixed this cycle: `Invoke-Sql` returned `@()` whenever output contained no
+JSON array marker — the **fifth** instance of the vacuity family, and the most
+dangerous, because several of the strongest proofs here are *zero-result* proofs
+(V8, V9, V4) that would all have passed on a swallowed format change.
+
+**My first fix for it was wrong, and only running it showed that.** Making a
+missing `[` throw looked unarguable — and it instantly failed V4, a proof that had
+passed for twelve cycles. Not a regression: **backlogit emits the literal `null`
+for a zero-row query, never `[]`**, so I had swapped one conflation for another
+and turned a legitimate empty result into a phantom failure. The shipped version
+enumerates all three outcomes — `null` accepted as genuinely empty, `[` parsed,
+everything else throws — and matches the payload *exactly* with log lines
+stripped, since substring-searching for a bracket is how the original vacuity got
+in. That is **twice** now that a fix for this family was itself defective (item 10
+was the first), and both were caught by running the fix and reading its output
+rather than trusting the reasoning. **A guard never observed to fire correctly on
+a real empty result is an untested guard**, and "be stricter" is not the
+correction — enumerating the outcomes the tool can actually emit is. And
+`118-F` still called `127-S` "the ONLY eligible shipment in the chain" while the
+shipment record says DO NOT CLAIM — a feature record is a consumer surface, so
+that was an authorization a Ship reader could have acted on. It now separates
+*structural eligibility* from *claimability*.
+
 ### Terminal state (final)
 
-**Eight open P1s: F16, F17, F18, F19, F20, F21, F22, F23.** All require operator
-product decisions; Stage adopted none and changed no dependency edge. **No
-shipment is safely claimable**: F17 gates `127-S`; **F18 + F19 + F22 + F23** gate
-`128-S`; F16 + F20 + F21 gate `129-S`. **F22 may additionally reach `127-S`** if
-the guaranteed-lock-release obligation is placed on `118.005-T` (T5) rather than
-on the `119.003-T` transition table. None of F16–F23 invalidates the F14
-structural elimination, the shipment topology, or the 64/64 + 197/197 closure
-evidence.
+**Ten open P1s: F16, F17, F18, F19, F20, F21, F22, F23, F24, F25.** All require
+operator product decisions; Stage adopted none and changed no dependency edge.
+**No shipment is safely claimable**: F17 gates `127-S`; **F18 + F19 + F22 + F23 +
+F24** gate `128-S`; **F16 + F20 + F21 + F25** gate `129-S`. **F22 may
+additionally reach `127-S`** if the guaranteed-lock-release obligation is placed
+on `118.005-T` (T5) rather than on the `119.003-T` transition table. None of
+F16–F25 invalidates the F14 structural elimination, the shipment topology, or the
+64/64 + 197/197 closure evidence.
 
-**They are two decisions, not eight.** F18 + F22 + F23 are one missing invariant
+**They are three decisions, not ten.** F18 + F22 + F23 are one missing invariant
 (*cleanup and cancellation are guaranteed only from `RUNNING`* — one ruling that
 every terminal exit after `LOCKING` routes through `DRAINING` and that operator
 cancel is legal from every post-`LOCKING` phase discharges all three). F19 + F21
-are one contract-placement ruling. F16, F17 and F20 are independent. Those two
-rulings alone clear five of the eight.
+are one contract-placement ruling. **F24 + F25 are one reachability ruling**
+(*every specified capability needs a task obligated to make it reachable*). F16,
+F17 and F20 are independent. Those three rulings clear seven of the ten.
 
 **Do not read a quiet review cycle as completeness.** Cycles 5, 6 and 7 raised no
 new P0/P1 and I briefly published that as evidence the set was stable; cycle 8
-raised F21 and cycle 10 raised F22 and F23. Demonstrated twice. The honest
-statement is "no new findings in that window", never "the set is complete".
+raised F21, cycle 10 raised F22 and F23, and cycle 12 raised F24 and F25.
+Demonstrated **three** times, across three separate quiet-then-new-P1 windows.
+The honest statement is "no new findings in that window", never "the set is
+complete" — and at this point the **non-convergence is itself the finding to
+report**: twelve review passes have not reached a fixed point, which says the
+plan's defect density is higher than any remaining review budget can drain.
+Continuing to review is not the path off BLOCKED; the three rulings are.

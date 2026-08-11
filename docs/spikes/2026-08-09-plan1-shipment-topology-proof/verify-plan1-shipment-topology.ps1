@@ -60,10 +60,29 @@ function Invoke-Bl {
 }
 
 function Invoke-Sql([string]$Sql) {
+    # DISTINGUISH "the query reported zero rows" FROM "the query did not report".
+    # The original version returned @() for ANY output lacking a '[' marker, which
+    # collapsed those two cases. That is exactly the wrong default here, because
+    # several of the STRONGEST proofs in this suite are ZERO-RESULT proofs - V8's
+    # "127-S has no dependencies", V9's "no stale 117.x tasks", V4's "117-F has no
+    # children". Under the old behaviour a format change, a truncated read or an
+    # unexpected banner would have been indistinguishable from an empty result set
+    # and every one of those proofs would have passed VACUOUSLY.
+    #
+    # Verified against backlogit 1.8.0: a zero-row query emits the literal JSON
+    # token `null`, NOT `[]`. So `null` is a LEGITIMATE empty result and must be
+    # accepted; anything that is neither `null` nor a JSON array means the query
+    # did not report its result, which is a HARNESS FAILURE and must throw.
     $o = Invoke-Bl query $Sql
-    $i = $o.IndexOf('[')
-    if ($i -lt 0) { return @() }
-    $parsed = $o.Substring($i) | ConvertFrom-Json
+    # Strip structured log lines so the payload check below can be exact rather
+    # than a substring search (a substring search is how the original vacuity got
+    # in: it accepted any output that happened to contain a bracket anywhere).
+    $payload = (($o -split "`r?`n") | Where-Object { $_ -notmatch '^\s*time=' } | Out-String).Trim()
+    if ($payload -eq 'null') { return @() }        # genuine zero-row result
+    if (-not $payload.StartsWith('[')) {
+        throw "backlogit query did not report a JSON result (expected a '[' array or the literal 'null' for zero rows) - refusing to treat unparsed output as an empty result set. Query: $Sql`nPayload: $payload"
+    }
+    $parsed = $payload | ConvertFrom-Json
     return @($parsed)
 }
 

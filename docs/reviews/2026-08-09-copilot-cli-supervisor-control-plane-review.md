@@ -21,12 +21,12 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: BLOCKED — 0 unresolved P0, **8 unresolved P1 (F16–F23)**
+## Verdict: BLOCKED — 0 unresolved P0, **10 unresolved P1 (F16–F25)**
 
 > **Cycle-3 verdict was PASS (0 P0 / 0 P1) and remains accurate as of HEAD
-> `48368657` for findings F1–F15.** **Eight** new P1s (**F16** through **F23**)
+> `48368657` for findings F1–F15.** **Ten** new P1s (**F16** through **F25**)
 > were raised by successive PR #325 Copilot reviews of HEADs `48368657`,
-> `91538e74`, `d8644c46`, `66f1220f` and `914cb214`, *after* the 3-cycle budget
+> `91538e74`, `d8644c46`, `66f1220f`, `914cb214` and `a20c5b50`, *after* the 3-cycle budget
 > was exhausted. Because no review cycle remains and their resolutions are
 > genuine product trade-offs, they are recorded as **open and escalated** rather
 > than absorbed, and the verdict is downgraded to **BLOCKED**. See the *Cycle 4*
@@ -36,17 +36,26 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 > `118.001-T` and `118.002-T`, both members of the otherwise-eligible cursor
 > `127-S`. F18, F19, F22 and F23 gate `128-S` — and **F22 may also touch `127-S`**
 > if the lock-release obligation is placed on `118.005-T` rather than on the
-> transition table. **F16, F20 and F21 gate `129-S`**.
+> transition table. **F24 also gates `128-S`**; **F16, F20, F21 and F25 gate
+> `129-S`**.
 >
-> **Two clusters, not eight independent decisions.** F18 + F22 + F23 are one
+> **Three clusters, not ten independent decisions.** F18 + F22 + F23 are one
 > missing invariant (cleanup and cancellation are guaranteed only from
 > `RUNNING`); F19 + F21 are one missing contract boundary (a shared event/approval
-> contract landing after its consumers). Framing them as two rulings rather than
-> eight is the fastest path off BLOCKED.
+> contract landing after its consumers); **F24 + F25 are one missing *reachability*
+> rule** (a capability is specified in one task and no task is obligated to make it
+> real — an ignore rule with no installing surface, CLI flags with no exposing
+> task). Framing these as three rulings rather than ten is the fastest path off
+> BLOCKED. **F25 compounds F22**: `--force-unlock` is the documented remedy for the
+> very lockout F22 creates, so one finding sets the trap and the other removes the
+> exit.
 >
-> Cycles 5–7 raised no new P0/P1; **cycle 8 raised F21 and cycle 10 raised F22 and
-> F23**. A quiet cycle is not evidence the set is complete — this has now been
-> demonstrated twice.
+> Cycles 5–7 raised no new P0/P1; **cycle 8 raised F21, cycle 10 raised F22 and
+> F23, and cycle 12 raised F24 and F25**. A quiet cycle is not evidence the set is
+> complete — this has now been demonstrated **three** times, across three separate
+> quiet-then-new-P1 windows. **Finding discovery has not converged**, and that
+> non-convergence is itself a reportable result: the correct claim is "no new
+> findings in *that* window", never "the set is complete".
 
 Review cycles used: **3 of 3 (limit reached)**. Cycle 1 (2026-08-09) raised
 F1–F12, all resolved in-cycle by amending the plan and hardening documents before
@@ -128,7 +137,7 @@ must be dispositioned before `129-S` is claimed.
 | **F17** | **P1** | **The plan's "two divergent implementations of the same policy" premise is factually wrong for `start.sh`, and it invalidates S1 acceptance criteria in the ELIGIBLE shipment.** Plan §5 (and the `004-SP` PROCEED reconciliation, and the composability decision doc) assert that `start.ps1` and `start.sh` already implement the same seven-dimension launch policy in two languages. Verified against the working tree: `start.sh` (80 lines) implements **only** `.env.local` no-clobber parsing with quote stripping (lines 20–36), a `COPILOT_HOME` default (54), an unguarded `export GITHUB_TOKEN="$(gh auth token)"` (56), Copilot exe resolution (57–64), and `exec "$copilot_exe" "$@"` (66). It has **no** `ENGRAM_DATA_DIR` default (line 55 is commented out), **no** backlogit sync, **no** Engram pre-warm/fallback, **no** `GITHUB_PERSONAL_ACCESS_TOKEN` handling, and **no** `COPILOT_USE_REMOTE`/`--remote` logic (0 occurrences each). Separately, `start.ps1:65` sets `GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token)` **unconditionally and unguarded**; the non-fatal `try`/`Write-Warning` path at 68–77 covers `GITHUB_TOKEN` only. Consequences: `118.002-T` requires a suite that "passes against today's `start.sh` unmodified" across "the same seven dimensions" — **unsatisfiable**, because three of those dimensions do not exist in `start.sh`; and `118.001-T`'s criterion (c) that PAT resolution is non-fatal when `gh` is absent or failing **misstates `start.ps1`'s actual behavior**. | **OPEN — ESCALATED. BLOCKS THE ELIGIBLE CURSOR.** Unlike F16, `118.001-T` and `118.002-T` are members of **`127-S`**, so this blocks the shipment Ship would claim first. Resolution requires re-inventorying both scripts and separating *shared* behavior from *PowerShell-only* behavior, then revising the H1 characterize-before-migrate contract so each suite characterizes **its own** script's real contract, with any cross-platform normalization reclassified as an **explicit behavior change** (which S1's "zero observable behavior change" rule forbids, so it must move to S3 or be separately approved). The `004-SP` PROCEED rationale and the composability decision doc's evidence paragraph must be corrected in the same pass, since both rest on the same overstated premise. Stage does not amend them here: the review budget is exhausted and the consolidation thesis underpinning the PROCEED disposition is an operator product decision. |
 | **F18** | **P1** | **The plan's state-transition diagram contradicts its own DRAINING rule and the harvested task.** Plan §3.2's diagram routes operator cancellation `CANCELLING -> EXITED`, bypassing `DRAINING`, while the rules immediately below state that DRAINING is the **only** path from RUNNING to a terminal state and always flushes the journal, releases the lock, and reaps the child. `119.006-T` independently mandates `RUNNING -> CANCELLING -> DRAINING -> EXITED`. Implementing the diagram as drawn would leak the workspace lock and the child process and lose journal data on every cancellation. Relatedly, `119.003-T`'s linear state summary omits `LOCKING -> REFUSED`, the bootstrap/resolve/launch failure edges to `FAILED`, and `RESTARTING -> LAUNCHING`; because absent transitions must raise `ILLEGAL_TRANSITION`, implementing that summary verbatim would reject documented outcomes. | **OPEN — low-ambiguity, but still unresolved.** Unlike F16/F17 the correct resolution is not genuinely contested: the diagram is the outlier, and both the prose rules and `119.006-T` already mandate routing cancellation through `DRAINING`. The fix is to correct the §3.2 diagram and complete `119.003-T`'s transition table against Plan §3.2. Stage records rather than applies it because the review budget is exhausted and it is a plan-document amendment. `119.003-T` and `119.006-T` are members of `128-S`, so this does **not** block the eligible cursor `127-S`, but it must be dispositioned before `128-S` is claimed. |
 
-**Revised containment across F16–F23.** `127-S` is **no longer safely
+**Revised containment across F16–F25.** `127-S` is **no longer safely
 claimable**: F17 invalidates acceptance criteria in `118.001-T` and `118.002-T`,
 both S1 members. F18, F19, **F22** and **F23** must be dispositioned before
 `128-S`; F16, F20 and F21 before `129-S`. **F22 may additionally touch `127-S`**
@@ -421,6 +430,80 @@ operator decision, alongside F21's Option A which would likewise discharge F19.
   explicit superseding decisions now carry the BLOCKED verdict and the
   127/128/129-S topology, with the originals preserved verbatim.
 
+### Cycle 4 (twelfth Copilot pass, HEAD `a20c5b50`) — TWO NEW P1 (F24, F25); open set now TEN
+
+Two more new P1s, both **reachability** defects: a capability is specified in one
+task and **no task is obligated to make it real**, so the DAG is satisfiable with
+the capability absent. Open set is now **F16–F25**.
+
+#### F24 (P1, OPEN, NEW): `119.005-T` targets a gitignore template that does not exist
+
+`119.005-T` requires "Add `.autoharness/sessions/` to the gitignore template."
+**There is no gitignore template in this repository.** Verified: `templates/`
+contains no `*gitignore*` artifact, and the root `.gitignore` covers only this
+dogfood checkout. Target-workspace ignore rules are handled **procedurally** by
+`.github/skills/install-harness/SKILL.md`, which *confirms* an existing workspace
+`.gitignore` ignores `.env.local` rather than rendering a template.
+
+Two consequences:
+
+* **Unsatisfiable by vacuity.** The criterion is "met" by searching for a
+  nonexistent artifact and finding nothing to change. Same class as F17 and F23,
+  but **worse**, because it fails *silently* — nothing forces the implementer to
+  notice.
+* **It falsifies an H6 hardening property.** The same task asserts the journal is
+  "gitignored local operational state" and leans on that for authority
+  containment. If nothing installs the rule into generated workspaces, that is
+  simply untrue there: every supervised session writes JSONL under
+  `<workspace>/.autoharness/sessions/` and git tracks it. The journal is redacted
+  at the `118.004-T` choke point so this is not a direct secret leak, but
+  operational session state would be committed to every consumer repository and a
+  documented hardening guarantee would be unbacked.
+
+Resolution requires assigning the rule to the surfaces that actually install
+workspace files (install-harness skill, tuner) and requiring a real
+`git check-ignore` test in a disposable target workspace. That likely moves scope
+out of S2 and into the installer surfaces — a **shipment-boundary** question, not
+a wording fix. Gates `128-S`.
+
+#### F25 (P1, OPEN, NEW): the CLI task never defines the option contract, so two operator controls are unreachable
+
+`120.006-T` is the **only** task that touches the CLI, and it does not enumerate
+the `autoharness run` options. Two controls are specified elsewhere with no task
+obligated to expose them:
+
+* **`--force-unlock`** — required by `118.005-T` (T5, `locking.py`) and §3.4;
+* **`--max-restarts N`** and resume-from-cursor — required by `119.006-T` (T11,
+  `recovery.py`).
+
+Neither T5 nor T11 touches `cli.py`. `120.006-T`'s tests cover "argument parsing,
+human and `--json` rendering, and exit-code propagation" but never say *which
+arguments*. So every task can pass while these controls remain unreachable from
+the product's sole public surface — **structurally identical to F21**.
+
+**F25 is sharper than F21 because it compounds with F22.** `--force-unlock` is the
+documented remedy for exactly the lockout F22 creates. If no task must expose that
+flag, **the escape hatch for the lockout is itself unreachable**, and the
+operator's only recourse is deleting the lockfile by hand. One finding creates the
+trap; the other removes the exit. Gates `129-S`.
+
+#### Non-blocking defects (all fixed)
+
+* **A fifth instance of the recurring family, in `Invoke-Sql`.** It returned `@()`
+  whenever the output contained no JSON array marker — so a format change, a
+  truncated read or an unexpected banner would have been indistinguishable from
+  "zero rows". Several of the strongest proofs here are **zero-result** proofs
+  (V8's "`127-S` has no dependencies", V9's "no stale `117.x` tasks", V4's "`117-F`
+  has no children"), and every one of them would have passed vacuously. It now
+  throws: an absent array marker means the query did not report its result, which
+  is a harness failure, not an empty set.
+* **`118-F` still called `127-S` "the ONLY eligible shipment in the chain"** while
+  the shipment record says **DO NOT CLAIM**. Feature records are a consumer
+  surface, so a Ship reader could have taken that as authorization. It now
+  distinguishes *structural eligibility* (a scheduling fact) from *claimability*
+  (a gate decision), names F17 as the current block, and notes the F22/F24
+  exposure.
+
 ## Decomposition check (2-hour rule, width isolation)
 
 * **19 tasks**, each scoped to a single module or a single script surface.
@@ -523,17 +606,23 @@ out-of-scope work exists).
 * **Role-boundary clear** — the close path requires nothing outside Ship's
   enumerated claim/move/close/archive capabilities. The P-010 violation that
   cycle 2 would have required is gone.
-* **Verdict: BLOCKED (current).** 0 unresolved P0, **8 unresolved P1s (F16–F23)**.
+* **Verdict: BLOCKED (current).** 0 unresolved P0, **10 unresolved P1s (F16–F25)**.
   Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
   available.** Cycles 1–3 concluded PASS and that conclusion stands for F1–F15;
   the verdict was subsequently downgraded when the PR #325 Copilot review of HEAD
-  `48368657` raised **F16**, plus the follow-on findings **F17**–**F23** recorded
-  in the Cycle 4 sections. All eight are open and require operator disposition.
+  `48368657` raised **F16**, plus the follow-on findings **F17**–**F25** recorded
+  in the Cycle 4 sections. All ten are open and require operator disposition.
   Do **not** read this document as an approval to claim **any** shipment:
-  **F17 gates `127-S`**, **F18 + F19 + F22 + F23 gate `128-S`** (with **F22**
-  potentially touching `127-S` as well), and **F16 + F20 + F21 gate `129-S`**.
-* **Two rulings, not eight.** F18 + F22 + F23 collapse into one invariant
+  **F17 gates `127-S`**, **F18 + F19 + F22 + F23 + F24 gate `128-S`** (with
+  **F22** potentially touching `127-S` as well), and
+  **F16 + F20 + F21 + F25 gate `129-S`**.
+* **Three rulings, not ten.** F18 + F22 + F23 collapse into one invariant
   (*every terminal exit after `LOCKING` routes through `DRAINING`, and operator
   cancel is legal from every post-`LOCKING` phase*); F19 + F21 collapse into one
   contract-placement ruling (*where the shared event/approval contract lives and
-  which task owns it*). F16, F17 and F20 remain genuinely independent.
+  which task owns it*); **F24 + F25 collapse into one reachability ruling**
+  (*every specified capability must have a task obligated to make it reachable —
+  an ignore rule needs an installing surface, a CLI flag needs an exposing task*).
+  F16, F17 and F20 remain genuinely independent. **F25 is not merely analogous to
+  F22, it compounds it**: `--force-unlock` is F22's own documented remedy, so
+  resolving F22 without F25 leaves the lockout with no reachable exit.
