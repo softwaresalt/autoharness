@@ -1229,3 +1229,63 @@ I also did not leave the PASS standing while reporting the halt in prose — a
 clearance I know to be false is worse in the repository than in a message, so the
 verdict, `117-F`, and all three shipment gate states were reverted to BLOCKED /
 GATED before this commit.
+
+
+## Cycle 18 — three final rulings, and a validation that checks behaviour instead of application
+
+The operator authorised one bounded remediation for the three survivors and ruled
+on all of them. What matters here is less the fixes than **why Cycle 16's PASS
+missed one of them**, because that is a repeatable failure and not bad luck.
+
+**Cycle 16 validated the wrong proposition.** It checked that each ruling had been
+*applied to the artifacts it named*. Every ruling had been. But "the ruling was
+applied" and "the finding is discharged" are different claims, and they diverge
+exactly when the ruling's own premise is wrong. Ruling 2 clustered F19 and F21 as
+one contract-placement decision; F19 genuinely was one, F21 never was. A
+validation that takes the ruling as its specification is **structurally incapable**
+of noticing that. So Cycle 18's assertions target the *behaviour each finding
+demanded*, not the *edit each ruling ordered*.
+
+**F32/F33 — the fix is a reversed edge.** `120.005-T` depended on `120.004-T`,
+leaving it with zero reverse dependencies, so the runtime chain T15 → T17 → T18 →
+T19 was satisfiable with approvals never started. Reversing it puts approvals on
+the critical path. The verifier now asserts approvals are **transitively reachable
+from the chain tail** — the property F21 actually named. That assertion **would
+have failed at the moment Cycle 16 declared F21 resolved**, which is the clearest
+possible demonstration of the gap.
+
+**Net edge count stayed at 30 across the reversal.** One edge out, one in. A count
+assertion would have passed unchanged across a change that *inverted the meaning
+of the graph*. I have now been saved twice by keeping that expectation a SET —
+once when it named a missing edge I had wrongly excluded, and once here.
+
+**F30 — generalising a predicate is where vacuity gets in.** The old wording was
+scoped to one covering feature "and nothing else", which would have rejected
+`129-S` and its childless umbrella. The corrected predicate quantifies over every
+feature member. But "fully covered" is **vacuously true for a childless feature**,
+so the generalisation could admit `117-F` for the wrong reason. Childlessness must
+therefore be *positively verified* against the live workspace, never inferred from
+"nothing was found missing". I also went back and removed the literal `'117-F'`
+exemption I had left in V3 and derived it instead — an id-specific allowance would
+have masked the exact defect F30 describes, and it contradicted the rule I had
+just written into `118.007-T`. That cost a restart of a two-hour verifier run. It
+was worth it: an evidence harness that special-cases the one interesting case
+proves nothing about it.
+
+**F31 — atomicity does not transfer between neighbouring operations.** Ruling 9
+made *acquisition* atomic and it was tempting to treat locking as settled.
+Cleanup is a different operation with its own TOCTOU window: diagnose stale → a
+live contender acquires → the unchecked delete removes a **live** holder, and does
+it silently, because the deleter believes it removed a corpse. Force-unlock must
+now hold the same primitive across inspection *and* removal, compare-and-delete,
+and refuse on mismatch — with a **positive control** proving the race test fails
+against a compare-free delete, since a race test that never fails is
+indistinguishable from one that cannot detect the race.
+
+**The through-line across F24/F25, F19/F21 and F30.** Three times now the trap has
+been the same shape: a grouping that is right as *diagnosis* and wrong as
+*remedy*. I caught it for F24/F25, missed it for F19/F21 — and I missed it
+specifically because that cluster came from the operator's accepted rulings rather
+than my own analysis, so I treated it as settled input instead of a claim to
+check. **Provenance is not correctness.** The input I was least willing to
+question was the one that was wrong.

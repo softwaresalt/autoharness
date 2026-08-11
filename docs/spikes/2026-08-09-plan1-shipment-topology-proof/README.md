@@ -139,6 +139,47 @@ item and no unshipped siblings exist, so the protected set is empty. F14's
 structural elimination stands. See
 `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`.
 
+## Expectation update — 2026-08-11 Cycle 18 (F30/F31/F32-F33): a NET-ZERO edge change, and two new structural blocks
+
+The three final rulings produced the most easily-missed kind of topology change:
+**the edge count did not move.** `120.005-T→120.004-T` was **removed** and
+`120.004-T→120.005-T` **added** — still 30 edges, with the meaning of the graph
+inverted. A count assertion would have passed unchanged. This is the second time
+the **SET** form of the expectation has earned its keep, and the reason it must
+never be relaxed to a count.
+
+Why the reversal: F21 was a **reachability** defect, not a definition-ordering
+one. `120.005-T` (approvals) depended on the orchestrator and had **zero reverse
+dependencies**, so the runtime chain T15→T17→T18→T19 was fully satisfiable with
+approvals never started — and the H2 fail-closed guarantee could be omitted from
+the shipped runtime while every task passed. Ruling 2 had moved the approval
+*types* upstream, which fixed F19 and created no caller.
+
+Two blocks were added, both asserting **behaviour rather than text**:
+
+* **V13 (F30)** implements the corrected P-015 close-path predicate
+  **generically** — every feature member must be a root and fully covered,
+  nothing outside those features and their children, whole-manifest
+  qualification — and runs it against all three real manifests. Three **negative
+  controls** confirm it still rejects partial coverage, a foreign member, and a
+  manifest with no feature member. Without those, a predicate that admits
+  everything would look identical to a correct one.
+* **V14 (F32/F33)** asserts the approval service now has a reverse dependency,
+  that `120.004-T` is among them, that the inverted edge is gone, and that
+  approvals are **transitively reachable from the chain tail** `120.008-T`.
+  **V14 would have failed before the reversal**, including at the moment the
+  earlier PASS declared F21 resolved.
+
+**A correction to this harness itself.** V3 previously exempted the literal id
+`'117-F'` from its foreign-member check. That is an id-specific allowance for the
+single most interesting case — precisely what F30 is about, and precisely what
+`118.007-T` now forbids in policy, agent and skill. It is now **derived**: a
+member outside the feature's scope is allowed only if it is itself a root feature
+that is *positively verified childless*. If `117-F` ever gains a child, V3 starts
+failing. Making that change meant discarding an in-flight verifier run and
+restarting it; an evidence harness that special-cases the case it is meant to
+prove is not evidence.
+
 ## Expectation update — 2026-08-11 ruling delta (27 → 30 edges, 5 → 7 S1 tasks)
 
 The eleven accepted rulings changed the live topology, so the verifier's
@@ -165,8 +206,7 @@ change was made in the shape that preserves its detective power:
   replay would otherwise throw on `118.006-T` having no fixture counterpart — the
   derivation is what keeps the replay isomorphic by construction.
 * The `origin_feature` assertion became **conditional in both directions**. The
-  nineteen re-parented tasks must still carry `117-F`; `118.006-T` and
-  `118.007-T` were created natively under `118-F` and must assert **no**
+  nineteen re-parented tasks must still carry `117-F`; `118.006-T` and  `118.007-T` were created natively under `118-F` and must assert **no**
   provenance. Asserting it unconditionally would have demanded a *false*
   provenance record; deleting it would have stopped detecting provenance loss on
   the nineteen.

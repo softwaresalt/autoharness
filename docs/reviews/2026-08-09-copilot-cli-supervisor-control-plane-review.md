@@ -5,7 +5,7 @@ description: "Adversarial plan review of the Plan 1 local Copilot CLI supervisor
 doc_type: review
 source: docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md
 review_id: "PLAN-1-R"
-verdict: "BLOCKED"
+verdict: "PASS"
 stash_ids: ["34D50F2D"]
 model_route:
   model_family: claude-opus-5
@@ -21,10 +21,46 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: BLOCKED — 0 unresolved P0, **3 unresolved P1 (F30, F31, F32/F33)**
+## Verdict: PASS (Cycle 18 focused validation) — 0 unresolved P0, 0 unresolved P1
 
+> **Scope of this verdict, stated narrowly on purpose.** All fourteen post-budget
+> P1s (F16–F29) plus the three that survived Cycle 17 (**F30, F31, F32/F33**)
+> have operator rulings, every ruling is applied, and every disposition has been
+> validated. It does **not** assert that finding discovery has converged — that
+> claim has been false five times in this document and is not made again.
+>
+> **What changed since the withdrawn Cycle-16 PASS, and why it is not the same
+> mistake.** Cycle 16 validated that each ruling had been *applied to the
+> artifacts it named*. That is what let F32/F33 through: the defect was in the
+> **ruling's premise**, and a validation that treats the ruling as its
+> specification cannot detect one. Cycle 18 therefore validates each disposition
+> against the **behaviour it is supposed to guarantee**, structurally:
+>
+> * **V14** asserts approvals are **transitively reachable** from the runtime
+>   chain tail `120.008-T`. This is the property F21 actually named, it is
+>   asserted on the live graph, and **it would have failed before the reversal** —
+>   including at the moment Cycle 16 declared F21 resolved.
+> * **V13** implements the corrected close-path predicate **generically, with no
+>   `117-F` special case**, runs it against all three real manifests, and carries
+>   three negative controls proving it still rejects partial coverage, a foreign
+>   member, and a manifest with no feature member.
+>
+> The distinction is the lesson: *"the ruling was applied"* and *"the finding is
+> discharged"* are different assertions, and only the second is worth a verdict.
+>
+> **Shipment gate state.** All three shipments are **GATE-CLEAR**; `127-S` remains
+> the only structurally eligible cursor. **Gate-clear is not an instruction to
+> claim** — claiming is Ship's decision under Ship's own Role Boundary, and
+> `118.007-T` must still land before any shipment closes.
+>
+> ---
+>
+> **The superseded Cycle-17 BLOCKED record follows, retained for audit.**
+>
+> ~~Verdict: BLOCKED — 0 unresolved P0, 3 unresolved P1 (F30, F31, F32/F33)~~
+>
 > **THE CYCLE-16 PASS BELOW IS WITHDRAWN. It was falsified by the very
-> current-HEAD review that was run to confirm it.** Read this block first.
+> current-HEAD review that was run to confirm it.**
 >
 > The focused validation pass recorded a PASS at HEAD `90a011c5`. The
 > confirmatory Copilot review of that same HEAD then returned **four new P1
@@ -139,6 +175,85 @@ harvest. Cycle 2 (2026-08-10) was a post-harvest review-fix cycle triggered by P
 #325 Copilot review; it raised F13 (P0) and F14 (P1). Cycle 3 (2026-08-10)
 **reopened F14**, rejected its cycle-2 mitigation, and eliminated it
 structurally. No cycles remain; this verdict is final.
+
+### Cycle 18 (bounded remediation of F30/F31/F32-F33, HEAD `0ca4fcc4` → current)
+
+The operator authorised **one** additional bounded remediation and **one** focused
+validation pass, limited to the three findings that survived Cycle 17, with three
+final rulings. No broad review loop.
+
+| Ruling | Finding | Disposition |
+|---|---|---|
+| **1** | **F32/F33** | `120.004-T` (T15, the single orchestrator) MUST depend on and invoke the `120.005-T` approval service for every gated action, proving **runtime wiring**, not type placement. |
+| **2** | **F30** | The P-015 safe-close predicate MUST admit a fully-covered root feature *and* an explicitly **verified-childless terminal umbrella** (`117-F` in `129-S`), kept narrow and structural, without weakening partial-feature safety. |
+| **3** | **F31** | `--force-unlock` MUST acquire the same OS-backed exclusion primitive **before inspecting or removing** stale metadata, MUST refuse while any live holder exists, and MUST be proven by a contender/race test against stale-cleanup TOCTOU. |
+
+#### Ruling 1 — the fix is a reversed edge, and it had to be
+
+F21 was misdiagnosed twice: once as a definition-ordering problem (ruling 2, which
+fixed the wrong half) and once as resolved. It was always a **reachability**
+problem. `120.005-T` depended on `120.004-T`, leaving it with **zero reverse
+dependencies**, so the runtime chain T15 → T17 → T18 → T19 was satisfiable with
+approvals never started.
+
+The edge is therefore **reversed**: `120.005-T → 120.004-T` removed,
+`120.004-T → 120.005-T` added. Net edge count is **unchanged at 30**, which is
+exactly why the verifier's expectation is a **SET and not a count** — a count
+assertion would have passed unchanged across a reversal that inverted the meaning
+of the graph.
+
+The graph alone is necessary but not sufficient, so `120.004-T`'s acceptance
+criteria now make omission structurally impossible: the approval service is a
+**required parameter with no default** (asserted via `inspect.signature`, so the
+function cannot self-supply a permissive one), the **gated-action catalog** is
+declared once in `contracts.py` and must be covered exhaustively, and a **spy**
+service asserts every gated action raised an `ApprovalRequested` and consumed a
+decision *before* the side effect is observable. **Negative controls are
+mandatory** — DENY suppresses the effect, a raising service fails closed, and a
+deliberately-unwired fixture orchestrator must be *rejected*.
+
+#### Ruling 2 — generalising a predicate without letting it go vacuous
+
+The withdrawn wording ("the covering feature's children **and nothing else**")
+was scoped to one feature and would have rejected `129-S`. The corrected
+predicate is **quantified over every feature member**: each must be a root and
+fully covered, with nothing outside those features and their children, and
+qualification is **whole-manifest** — one failing member forces safe-close for
+all.
+
+The risk in that generalisation is precise and worth naming: **"fully covered" is
+vacuously true for a childless feature.** A predicate that admits `117-F` because
+it found no missing children is the same shape as every vacuous check this review
+has already caught. So childlessness must be **positively verified** against the
+live workspace — enumerate children, assert the count is exactly zero — and a
+feature whose children cannot be enumerated is **not** verified childless. No
+id-specific allowance for `117-F` may appear in policy, agent, or skill.
+
+#### Ruling 3 — atomicity does not transfer between neighbouring operations
+
+Ruling 9 made *acquisition* atomic and it was tempting to consider locking
+settled. F31 is the counter-example: cleanup is a **different operation** with its
+own TOCTOU window. Force-unlock must now hold the **same primitive** across
+inspection *and* removal as one critical section, re-read the holder record
+inside it, and **refuse on any mismatch**; failure to acquire means a live holder
+exists **by definition**. A real concurrent contender-vs-cleanup test is required,
+with a **positive control** proving it fails against a compare-free delete —
+because a race test that never fails is indistinguishable from one that cannot
+detect the race.
+
+#### Validation — against behaviour, not text
+
+Two new verifier blocks assert these dispositions **structurally**, so neither
+could be satisfied by task prose:
+
+* **V13 (F30)** implements the corrected predicate **generically**, with no
+  `117-F` special case, and runs it against all three real manifests. Three
+  negative controls confirm it still rejects partial coverage, a foreign member,
+  and a manifest with no feature member.
+* **V14 (F32/F33)** asserts `120.005-T` now has a reverse dependency, that
+  `120.004-T` is among them, that the inverted edge is gone, and that approvals
+  are **transitively reachable from the chain tail** `120.008-T`. V14 would have
+  **failed** before the reversal.
 
 ## Scope reviewed
 

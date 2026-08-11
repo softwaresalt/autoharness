@@ -156,7 +156,7 @@ unit-testable without spawning Copilot.
 | `errors.py` | One `AutoharnessError` base carrying a machine-readable `kind`; supervisor error taxonomy; machine-readable exit-code contract. | Call `sys.exit`. |
 | `redact.py` | Secret redaction applied at the **emit/persist boundary** for every event, log line, and journal record. | Be optional or bypassable by any writer. |
 | `locking.py` | Workspace/session lock: one active supervised session per workspace. Lockfile carries PID + process start-time + session id. | Auto-break a live lock. |
-| `contracts.py` | **Shared core contracts (F19/F21, ruling 2): the `SupervisorEvent` type catalog and the approval request/response types.** Definition lives here so no runtime component depends on the event bus or the approval channel merely to *name* what it emits. | Contain transport, delivery, or I/O — definition only. |
+| `contracts.py` | **Shared core contracts (F19, ruling 2): the `SupervisorEvent` type catalog, the approval request/response types, and the enumerated GATED-ACTION catalog (F32/F33, ruling 1).** Definition lives here so no runtime component depends on the event bus or the approval channel merely to *name* what it emits. **This row previously also credited F21; that attribution is WITHDRAWN** — placing the types here fixed definition ORDERING only, and never created the caller F21 was about. | Contain transport, delivery, or I/O — definition only. |
 | `process.py` | `ChildProcess` Protocol (spawn/read/write/signal/wait/close) + **`InheritStdioChildProcess` (the DEFAULT, preserving TTY attachment)** and `PipeChildProcess` (tests / explicitly non-interactive runs). Argv-array spawn only. | Use `shell=True`; mask child exit status; make pipes the interactive default. |
 | `process_pty.py` | `PtyChildProcess`: ConPTY on Windows, stdlib `pty` on POSIX, behind the identical Protocol. Opt-in, adds **output capture** without losing terminal semantics. | Become the only path; **must degrade to inherited stdio, never to pipes**. |
 | `session.py` | Explicit session state machine + legal-transition table. | Perform I/O or spawn. |
@@ -232,7 +232,7 @@ Rules:
    control.
 5. Every transition emits exactly one `SessionPhaseChanged` event, journaled.
    The event **type** is defined in the shared core (`supervise/contracts.py`,
-   T3), not in the event bus — see F19/F21, ruling 2.
+   T3), not in the event bus — see F19, ruling 2.
 6. `REFUSED` is a distinct terminal state from `FAILED` — a contended workspace
    is a policy outcome, not an error.
 
@@ -319,6 +319,36 @@ Constraints: console/TTY only; no socket, no HTTP, no tunnel, no remote
 identity, no delegated approver. In a non-interactive session an approval request
 resolves to its declared safe default (or `REFUSED` where no safe default
 exists) and is journaled as `auto-resolved`, never silently approved.
+
+**Runtime wiring is mandatory and structural (F32/F33, ruling 1).** An earlier
+revision claimed F21 was discharged by moving the approval *types* into
+`contracts.py`. **That claim was false and is withdrawn.** Contract placement
+fixed F19, a definition-ordering defect. F21 was a *wiring* defect, and moving a
+type definition upstream does not create a caller: T16 still had **zero** reverse
+dependencies, and T15 — the single orchestrator — did not reference approvals at
+all, so the fail-closed guarantee above remained fully omissible from a shipped
+supervisor while every task passed.
+
+The fix is structural, in two halves:
+
+* **Graph half.** The `T16 → T15` dependency is **reversed** to `T15 → T16`, so
+  approvals sit *on* the critical path and the runtime chain
+  T15 → T17 → T18 → T19 can no longer be satisfied with approvals unstarted.
+* **Test half.** T15 takes the approval service as a **required parameter with no
+  default** (no `None`-accepting overload, no module-level fallback); the set of
+  **gated actions** is declared once in `contracts.py` and T15's dispatch must
+  cover it exhaustively; and a spy service asserts every gated action raised an
+  `ApprovalRequested` and consumed a decision **before** the side effect is
+  observable.
+
+**Negative controls are mandatory**, because the failure mode here is a check
+that passes without exercising anything: a `DENY` must suppress the side effect
+and resolve the session to `REFUSED`; an approval service that *raises* must fail
+closed; and a deliberately-unwired fixture orchestrator must be **rejected** by
+the same assertions. A non-interactive end-to-end run asserts the safe-default /
+`REFUSED` resolution **at the T15 level**, not only inside T16's own unit tests —
+F21's whole point was that a guarantee proven only in an unreachable module is
+not a guarantee.
 
 ### 3.7 Workspace and session containment
 
@@ -506,11 +536,25 @@ characterization tests before UI/convenience.**
   prohibited), **idempotent release**, and a **parallel-contender** test suite
   (F27, ruling 9). PID + start-time is staleness *diagnosis* only.
 * **T6a (118.006-T)** — stale-lock lifecycle, `--force-unlock` semantics, and
-  **recycled-PID rejection**; split from T5 to stay inside the 2-hour box.
+  **cleanup mutual exclusion (F31, ruling 3): force-unlock must ACQUIRE the same
+  OS-backed primitive as acquisition and hold it across BOTH inspection and
+  removal as one critical section, re-reading the holder record inside it and
+  REFUSING on any mismatch. Ruling 9 made *acquisition* atomic; it did not make
+  *cleanup* safe — a diagnosed-stale holder can be replaced by a live acquirer
+  before the delete lands, so an unchecked delete removes a LIVE holder through
+  the very remedy meant to restore the invariant. A real concurrent
+  contender-vs-cleanup race test is required, with a positive control proving it
+  fails against a compare-free delete.**
+  Also covers **recycled-PID rejection**; split from T5 to stay inside the 2-hour box.
 * **T7a (118.007-T)** — amend **P-015** (policy template, Ship agent template,
   shipment-reconcile skill, compound close-path doc) so the permitted close
-  operation and the executable evidence agree, via a machine-checkable *verified
-  fully-covered-root* exception (F26, ruling 8). Must land before **any** close.
+  operation and the executable evidence agree, via a machine-checkable
+  *fully-covered-root* exception **quantified over every feature member**
+  (F26, ruling 8; **corrected by F30, ruling 2**, which withdrew the
+  single-covering-feature "and nothing else" wording that would have rejected
+  `129-S` and its verified-childless terminal umbrella `117-F`). Childlessness
+  must be **positively verified**, never inferred, since it makes full coverage
+  vacuously true. Must land before **any** close.
 
 ### Shipment 2 — Supervision core (P0, blocked by S1)
 
@@ -548,12 +592,16 @@ characterization tests before UI/convenience.**
 * **T14** — `supervise/resolve.py`: Copilot exe resolution order, `--remote`
   opt-in truthiness, verbatim passthrough.
 * **T15** — `supervise/app.py`: `run_session()` orchestration returning
-  `SupervisorResult`.
+  `SupervisorResult`. **Depends on T16 and must route every gated action through
+  it (F32/F33, ruling 1)**, with the approval service as a required no-default
+  parameter and an exhaustive gated-action catalog.
 * **T16** — `supervise/approvals.py`: local console-only structured command +
   approval channel **implementing the upstream `contracts.py` approval contract**
-  (F21, ruling 2), non-interactive safe-default resolution. Because the contract
-  lives upstream and T16 depends on it, the fail-closed channel can no longer be
-  silently omitted from a satisfiable runtime chain.
+  (F19, ruling 2), non-interactive safe-default resolution. **The former claim
+  that upstream contract placement alone made the channel non-omissible is
+  WITHDRAWN (F32/F33)** — it did not, because a type definition creates no
+  caller. What makes it non-omissible is the **reversed `T15 → T16` edge**, which
+  puts approvals on the runtime critical path.
 * **T17** — `autoharness run` CLI adapter: parse → call → render → exit. No
   policy in the adapter. **Defines the complete, stable option contract (F25,
   ruling 7)** and is the only surface exposing it — including `--force-unlock`

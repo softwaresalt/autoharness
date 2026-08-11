@@ -75,8 +75,9 @@ Task-only membership is therefore **not** sufficient for safety on its own, and
 the proposed repair (Ship calling `adopt_item` afterwards) is outside Ship's Role
 Boundary (fail-closed **P-010**).
 
-**The exception, and its preconditions.** A covering feature MAY be an explicit
-member of `custom_fields.items` when **both** hold:
+**The exception, and its preconditions.** The predicate is quantified over
+**every feature member** of `custom_fields.items` — not over a single "covering
+feature" — and each such member MUST satisfy **both**:
 
 1. **FULL COVERAGE** — every child of that feature is also in the same manifest,
    so `returnUnreleasedFeatureItems` iterates an empty remainder and returns the
@@ -84,12 +85,37 @@ member of `custom_fields.items` when **both** hold:
 2. **ROOT PLACEMENT** — the feature has no parent, so `featureScopeRoots` cannot
    escape upward into another shipment's scope.
 
-Under those two conditions the cascade the Durable Rule guards against is
+The manifest MUST contain **nothing beyond** those root feature members and their
+children, and qualification is **whole-manifest**: if any feature member fails,
+the entire manifest falls back to safe-close.
+
+> **CORRECTED 2026-08-11 (F30).** This previously read "the covering feature …
+> and **nothing else**", scoped to *one* feature. That wording would have
+> **rejected `129-S`**, which deliberately also carries the childless terminal
+> umbrella `117-F` — so the drafted check would have selected safe-close and the
+> claim that the 64/64 cascade evidence covers the permitted operation for *all
+> three* manifests did not hold. The quantified form admits `117-F` because a
+> childless root is trivially fully covered.
+>
+> **Anti-vacuity requirement.** "Fully covered" is **vacuously true** for a
+> childless feature — precisely the shape of check that passes because it found
+> nothing to test. Childlessness MUST therefore be **positively verified against
+> the live workspace** (enumerate children, assert the count is exactly zero) and
+> MUST NOT be inferred from "no missing children were found". A feature whose
+> children cannot be enumerated is **not** verified childless and the prohibition
+> applies unchanged. No id-specific allowance for `117-F` may appear anywhere.
+>
+> **Partial-feature safety is not weakened**: any feature member with a child
+> absent, any non-root feature member, and any member that is neither a
+> qualifying root feature nor a child of one still force safe-close.
+
+Under those conditions the cascade the Durable Rule guards against is
 **structurally impossible** rather than merely avoided, and a single
 `backlogit shipment ship` closes the release unit with `returned_ids: []` and no
-post-close repair. Verified end to end on the real engine: **64/64** and
-**197/197** assertions, including a fixture replay of the exact live topology
-(`verify-plan1-shipment-topology.ps1`).
+post-close repair. Verified end to end on the real engine, including negative
+controls proving the predicate actually rejects partial coverage, foreign
+members, and non-root feature members
+(`verify-plan1-shipment-topology.ps1`, V13).
 
 > ### ⏳ RESOLVED IN PRINCIPLE, NOT YET OPERATIVE — F26 (P1, resolved 2026-08-11); gated on `118.007-T`
 >

@@ -166,8 +166,24 @@ foreach ($s in $plan.Keys | Sort-Object) {
     Assert ($missing.Count -eq 0) "$s manifest covers every child of $f (missing: $($missing.Count))"
     Assert ($members[0] -eq $f) "$s lists covering feature $f FIRST (parent-first ordering)"
     Assert ($f -in $members) "$s includes its covering feature as an EXPLICIT member"
-    $extraneous = @($members | Where-Object { $_ -ne $f -and $_ -notin $expect -and $_ -ne '117-F' })
-    Assert ($extraneous.Count -eq 0) "$s manifest contains no foreign items (extraneous: $($extraneous -join ','))"
+    # A member outside this feature's scope is allowed ONLY if it is itself a
+    # ROOT feature that is POSITIVELY VERIFIED CHILDLESS - the terminal-umbrella
+    # case (F30, ruling 2). Derived, not hardcoded: an earlier revision exempted
+    # the literal id '117-F', which would have masked exactly the defect F30
+    # describes and contradicts 118.007-T's requirement that no id-specific
+    # allowance appear anywhere. If 117-F ever gains a child, this check must
+    # start FAILING - that is the whole point of deriving it.
+    $extraneous = @()
+    foreach ($m in $members) {
+        if ($m -eq $f -or $m -in $expect) { continue }
+        $ma = Get-Art $m
+        if ($ma.artifact_type -eq 'feature' -and -not $ma.parent_id) {
+            $mk = @(Invoke-Sql "SELECT id FROM items WHERE parent_id = '$m'")
+            if ($mk.Count -eq 0) { continue }   # verified-childless terminal umbrella
+        }
+        $extraneous += $m
+    }
+    Assert ($extraneous.Count -eq 0) "$s manifest contains no foreign items - only its own scope plus verified-childless root umbrellas (extraneous: $($extraneous -join ','))"
 }
 
 Write-Host "`n--- V4: umbrella 117-F is CHILDLESS and is a member of the FINAL shipment only ---"
@@ -249,8 +265,26 @@ Write-Host "`n--- V7: 30 Plan-1 task blocks edges (27 survived re-parenting, the
 #   ADDED   '119.004-T->118.003-T'  - F19/ruling 2, the replacement edge: the bus
 #     now depends on the shared contract that defines what it delivers.
 #   ADDED   '120.005-T->118.003-T'  - F21/ruling 2: approvals implement the
-#     upstream contract, so the fail-closed channel is no longer omissible from a
-#     satisfiable runtime chain.
+#     upstream contract. NOTE: the comment previously attached to this edge -
+#     that it made "the fail-closed channel no longer omissible from a
+#     satisfiable runtime chain" - was FALSE and is withdrawn. Ruling 2 fixed
+#     definition ORDERING (F19). It did not create a CALLER, so the approval
+#     path remained fully omissible. See the F32/F33 pair below.
+#   REMOVED '120.005-T->120.004-T'  - F32/F33/ruling 1. The approvals task
+#     depended on the orchestrator, leaving 120.005-T with ZERO reverse
+#     dependencies: the runtime chain T15 -> T17 -> T18 -> T19 was fully
+#     satisfiable with approvals never started, which is exactly what F21
+#     described and what ruling 2 failed to fix.
+#   ADDED   '120.004-T->120.005-T'  - F32/F33/ruling 1, the REVERSAL and the
+#     actual structural fix: the single orchestrator now depends on the approval
+#     service, so approvals sit ON the critical path and the runtime chain can no
+#     longer be completed without them. This edge is the graph-level half of the
+#     fix; the test-level half is 120.004-T's no-default required-parameter,
+#     exhaustive gated-action catalog, and spy/deny/raise negative controls.
+#     Net edge count is UNCHANGED at 30 (one removed, one added) - which is
+#     precisely why this check must remain a SET and never a count: a count
+#     assertion would have passed unchanged across a reversal that inverted the
+#     meaning of the graph.
 #   ADDED   '120.006-T->118.006-T'  - F25+F27/rulings 7 and 9: the CLI exposes
 #     --force-unlock, whose stale-lock semantics 118.006-T owns.
 #   ADDED   '118.006-T->118.005-T'  - F27/ruling 9, declared when 118.006-T was
@@ -267,13 +301,14 @@ $script:expectedEdges = @(
     '120.003-T->118.003-T',
     '120.004-T->119.001-T', '120.004-T->119.003-T', '120.004-T->119.005-T',
     '120.004-T->120.001-T', '120.004-T->120.002-T', '120.004-T->120.003-T',
-    '120.005-T->118.003-T', '120.005-T->119.004-T', '120.005-T->120.004-T',
+    '120.004-T->120.005-T',
+    '120.005-T->118.003-T', '120.005-T->119.004-T',
     '120.006-T->118.006-T', '120.006-T->120.004-T',
     '120.007-T->118.001-T', '120.007-T->118.002-T', '120.007-T->118.005-T',
     '120.007-T->120.006-T', '120.008-T->120.007-T'
 )
 $p1 = @(Invoke-Sql "SELECT item_id, depends_on FROM item_deps WHERE (item_id LIKE '118.%' OR item_id LIKE '119.%' OR item_id LIKE '120.%')")
-Assert ($p1.Count -eq 30) "Plan-1 task-level blocks edges = $($p1.Count) (expect 30 = 27 pre-redesign - 1 removed + 4 added by the 2026-08-11 rulings)"
+Assert ($p1.Count -eq 30) "Plan-1 task-level blocks edges = $($p1.Count) (expect 30 = 27 pre-redesign - 1 removed + 4 added by the 2026-08-11 rulings; the 2026-08-11 F32/F33 reversal is net-zero: -1 '120.005-T->120.004-T', +1 '120.004-T->120.005-T')"
 $liveSet = @($p1 | ForEach-Object { "$($_.item_id)->$($_.depends_on)" } | Sort-Object)
 $expSet = @($script:expectedEdges | Sort-Object)
 $missing = @($expSet | Where-Object { $_ -notin $liveSet })
@@ -489,6 +524,94 @@ $d2 = Invoke-Bl doctor
 Assert ($d2 -match 'No issues found') "fixture doctor after full chain: clean"
 
 Set-Location $repo
+
+# ---------------------------------------------------------------------------
+# V13 (F30): the P-015 close-path predicate, implemented GENERICALLY and run
+# against the three REAL manifests.
+#
+# The withdrawn wording required "the covering feature's children AND NOTHING
+# ELSE", which would have REJECTED 129-S because it deliberately also carries the
+# childless terminal umbrella 117-F. That is the F30 defect. The corrected
+# predicate is quantified over EVERY feature member: each must be a ROOT and
+# FULLY COVERED, and nothing outside those features and their children may
+# appear.
+#
+# Implemented here with NO id-specific allowance for 117-F. If the predicate only
+# passed because '117-F' were special-cased, this block would prove nothing about
+# the rule that actually ships.
+# ---------------------------------------------------------------------------
+Write-Host "`n--- V13: P-015 fully-covered-root predicate (F30), generic, all three manifests ---"
+function Test-CascadeEligible([string[]]$Members) {
+    # Returns @{ Ok = [bool]; Reason = [string] }
+    if ($Members.Count -eq 0) { return @{ Ok = $false; Reason = 'empty manifest' } }
+    $feats = @($Members | Where-Object { (Get-Art $_).artifact_type -eq 'feature' })
+    if ($feats.Count -eq 0) { return @{ Ok = $false; Reason = 'no feature member' } }
+    $covered = @()
+    foreach ($f in $feats) {
+        $art = Get-Art $f
+        if ($art.parent_id) { return @{ Ok = $false; Reason = "$f is not a ROOT (parent_id=$($art.parent_id))" } }
+        # ANTI-VACUITY: enumerate children POSITIVELY. A childless root is
+        # trivially "fully covered", so the count must be observed from the live
+        # workspace, never inferred from "no missing children were found".
+        $kids = @(Invoke-Sql "SELECT id FROM items WHERE parent_id = '$f' ORDER BY id" | ForEach-Object { $_.id })
+        if ($null -eq $kids) { return @{ Ok = $false; Reason = "$f children indeterminate" } }
+        $absent = @($kids | Where-Object { $_ -notin $Members })
+        if ($absent.Count -gt 0) { return @{ Ok = $false; Reason = "$f partially covered (absent: $($absent -join ','))" } }
+        $covered += $f; $covered += $kids
+    }
+    $foreign = @($Members | Where-Object { $_ -notin $covered })
+    if ($foreign.Count -gt 0) { return @{ Ok = $false; Reason = "foreign members: $($foreign -join ',')" } }
+    return @{ Ok = $true; Reason = 'all feature members are fully-covered roots' }
+}
+foreach ($s in @('127-S', '128-S', '129-S')) {
+    $r = Test-CascadeEligible @((Get-Art $s).custom_fields.items)
+    Assert $r.Ok "$s SELECTS the cascade path under the corrected predicate ($($r.Reason))"
+}
+# 129-S is the REQUIRED regression case: it is the manifest the withdrawn wording
+# rejected, and it is only admissible because a childless root is fully covered.
+$u = @(Invoke-Sql "SELECT id FROM items WHERE parent_id = '117-F'")
+Assert ($u.Count -eq 0) "F30 premise holds: 117-F is POSITIVELY verified childless (count = $($u.Count))"
+Assert ('117-F' -in @((Get-Art '129-S').custom_fields.items)) '129-S carries the childless terminal umbrella (the case F30 exposed)'
+
+# NEGATIVE CONTROLS. A predicate that never rejects is indistinguishable from one
+# that cannot reject, and the whole risk of generalizing to "every root feature"
+# is that it silently starts admitting partial features.
+$s129 = @((Get-Art '129-S').custom_fields.items)
+$noKid = Test-CascadeEligible @($s129 | Where-Object { $_ -ne '120.004-T' })
+Assert (-not $noKid.Ok) "NEGATIVE CONTROL: dropping a child makes 120-F partially covered -> REJECTED ($($noKid.Reason))"
+$foreignM = Test-CascadeEligible @($s129 + '119.001-T')
+Assert (-not $foreignM.Ok) "NEGATIVE CONTROL: a task belonging to no member feature -> REJECTED ($($foreignM.Reason))"
+$nonRoot = Test-CascadeEligible @('118.003-T')
+Assert (-not $nonRoot.Ok) "NEGATIVE CONTROL: a manifest with no feature member -> REJECTED ($($nonRoot.Reason))"
+
+# ---------------------------------------------------------------------------
+# V14 (F32/F33): approvals must be ON the runtime chain, not merely defined.
+#
+# Ruling 2 moved the approval TYPES upstream and the disposition was declared
+# resolved. It was not: F21 was a WIRING defect, and a type definition does not
+# create a caller. The property that was actually missing is REACHABILITY - the
+# orchestrator must depend on the approval service, so the runtime chain cannot
+# be satisfied with approvals unstarted.
+#
+# This is asserted on the GRAPH, which is why it would have failed before the
+# reversal and could not have been satisfied by any amount of task prose.
+# ---------------------------------------------------------------------------
+Write-Host "`n--- V14: approval service is ON the runtime chain (F32/F33) ---"
+$revApp = @(Invoke-Sql "SELECT item_id FROM item_deps WHERE depends_on = '120.005-T'" | ForEach-Object { $_.item_id })
+Assert ($revApp.Count -gt 0) "120.005-T has at least one REVERSE dependency - it had ZERO when F21 was wrongly declared resolved (now: $($revApp -join ','))"
+Assert ('120.004-T' -in $revApp) '120.004-T (THE SINGLE ORCHESTRATOR) depends on 120.005-T - approvals are not omissible'
+$oldEdge = @(Invoke-Sql "SELECT depends_on FROM item_deps WHERE item_id = '120.005-T' AND depends_on = '120.004-T'")
+Assert ($oldEdge.Count -eq 0) 'the inverted 120.005-T->120.004-T edge is REMOVED (it is what allowed the omission)'
+# Reachability from the chain tail: T19 must transitively require approvals.
+$seen = @{}; $stack = @('120.008-T')
+while ($stack.Count -gt 0) {
+    $cur = $stack[0]; $stack = @($stack | Select-Object -Skip 1)
+    if ($seen.ContainsKey($cur)) { continue }
+    $seen[$cur] = $true
+    $stack += @(Invoke-Sql "SELECT depends_on FROM item_deps WHERE item_id = '$cur'" | ForEach-Object { $_.depends_on })
+}
+Assert ($seen.ContainsKey('120.005-T')) 'approvals are TRANSITIVELY REACHABLE from the runtime chain tail 120.008-T - the chain can no longer complete without them'
+
 Write-Host "`n=== RESULT: $($script:total - $script:fail)/$($script:total) assertions passed ==="
 if ($script:fail -gt 0) { Write-Host 'VERIFICATION FAILED' -ForegroundColor Red; exit 1 }
 Write-Host 'VERIFICATION PASSED'
