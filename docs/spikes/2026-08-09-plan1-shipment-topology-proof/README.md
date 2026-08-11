@@ -296,7 +296,7 @@ all of the above; no total in this document predates it.
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **11 open P1s F16–F26** raised post-budget by PR #325 Copilot reviews; F17 gates `127-S`, F18+F19+F22+F23+F24 gate `128-S` with F22 possibly touching `127-S`, F16+F20+F21+F25 gate `129-S`, and **F26 gates all three**) —
+* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **14 open P1s F16–F29** raised post-budget by fifteen PR #325 Copilot reviews; **F17+F27 gate `127-S`**, F18+F19+F22+F23+F24+F28+F29 gate `128-S` with F22 possibly touching `127-S`, F16+F20+F21+F25 gate `129-S`, and **F26 gates all three**. **F27 is a second finding on the eligible cursor**: `118.005-T`, a `127-S` member, never requires ATOMIC lock acquisition, so the single-active invariant these harnesses assume at the topology level is not guaranteed at the runtime level. That does not affect any assertion here — these harnesses verify shipment/feature structure and close behaviour, not lock runtime — but it does mean **passing evidence in this directory must not be read as clearance to claim `127-S`**) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`
 * Close-path contract — `docs/compound/097-S-shipment-task-only-safe-close.md`,

@@ -21,12 +21,12 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: BLOCKED — 0 unresolved P0, **11 unresolved P1 (F16–F26)**
+## Verdict: BLOCKED — 0 unresolved P0, **14 unresolved P1 (F16–F29)**
 
 > **Cycle-3 verdict was PASS (0 P0 / 0 P1) and remains accurate as of HEAD
-> `48368657` for findings F1–F15.** **Eleven** new P1s (**F16** through **F26**)
+> `48368657` for findings F1–F15.** **Fourteen** new P1s (**F16** through **F29**)
 > were raised by successive PR #325 Copilot reviews of HEADs `48368657`,
-> `91538e74`, `d8644c46`, `66f1220f`, `914cb214`, `a20c5b50` and `045bbb7f`, *after* the 3-cycle budget
+> `91538e74`, `d8644c46`, `66f1220f`, `914cb214`, `a20c5b50`, `045bbb7f` and `1f14795e`, *after* the 3-cycle budget
 > was exhausted. Because no review cycle remains and their resolutions are
 > genuine product trade-offs, they are recorded as **open and escalated** rather
 > than absorbed, and the verdict is downgraded to **BLOCKED**. See the *Cycle 4*
@@ -34,15 +34,16 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 >
 > **NO SHIPMENT IS SAFELY CLAIMABLE.** F17 invalidates acceptance criteria in
 > `118.001-T` and `118.002-T`, both members of the otherwise-eligible cursor
-> `127-S`. F18, F19, F22 and F23 gate `128-S` — and **F22 may also touch `127-S`**
-> if the lock-release obligation is placed on `118.005-T` rather than on the
-> transition table. **F24 also gates `128-S`**; **F16, F20, F21 and F25 gate
-> `129-S`**; and **F26 gates ALL THREE**, because closure is on every
-> shipment's path.
+> `127-S`, and **F27 lands a SECOND P1 directly on that same cursor** by leaving
+> `118.005-T`'s lock acquisition non-atomic. F18, F19, F22 and F23 gate `128-S`
+> — and **F22 may also touch `127-S`** if the lock-release obligation is placed
+> on `118.005-T` rather than on the transition table. **F24, F28 and F29 also
+> gate `128-S`**; **F16, F20, F21 and F25 gate `129-S`**; and **F26 gates ALL
+> THREE**, because closure is on every shipment's path.
 >
-> **Eleven findings, but seven rulings — not three.** Clustering reduces the eleven
-> to **seven operator rulings**: three clusters *plus* four findings that stay
-> genuinely independent (**F16, F17, F20, F26**). Clearing only the clusters does
+> **Fourteen findings, but ten rulings — not three.** Clustering reduces the fourteen
+> to **ten operator rulings**: three clusters *plus* **seven** findings that stay
+> genuinely independent (**F16, F17, F20, F26, F27, F28, F29**). Clearing only the clusters does
 > **not** clear the gate. The clusters: F18 + F22 + F23 are one
 > missing invariant (cleanup and cancellation are guaranteed only from
 > `RUNNING`); F19 + F21 are one missing contract boundary (a shared event/approval
@@ -50,17 +51,21 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 > rule** (a capability is specified in one task and no task is obligated to make it
 > real — an ignore rule with no installing surface, CLI flags with no exposing
 > task). Clustering is the fastest path off BLOCKED — it converts seven findings
-> into three decisions — but **F16, F17, F20 and F26 must still each be decided on
-> their own**. **F25 compounds F22**: `--force-unlock` is the documented remedy for the
+> into three decisions — but **F16, F17, F20, F26, F27, F28 and F29 must still each
+> be decided on their own**. **F25 compounds F22**: `--force-unlock` is the documented remedy for the
 > very lockout F22 creates, so one finding sets the trap and the other removes the
 > exit.
 >
-> Cycles 5–7 raised no new P0/P1; **cycle 8 raised F21, cycle 10 raised F22 and
-> F23, cycle 12 raised F24 and F25, and cycle 14 raised F26**. A quiet cycle is not
-> evidence the set is complete — this has now been demonstrated **four** times,
-> across four separate quiet-then-new-P1 windows. **Finding discovery has not converged**, and that
-> non-convergence is itself a reportable result: the correct claim is "no new
-> findings in *that* window", never "the set is complete".
+> Cycles 5–7, 9, 11 and 13 raised no new P0/P1; **cycle 8 raised F21, cycle 10
+> raised F22 and F23, cycle 12 raised F24 and F25, cycle 14 raised F26, and cycle
+> 15 raised F27, F28 and F29**. A quiet cycle is not evidence the set is complete —
+> this has now been demonstrated **five** times, across five separate
+> quiet-then-new-P1 windows, and the largest single-cycle yield since cycle 10 came
+> *after* a quiet one. **Finding discovery has not converged**, and that
+> non-convergence is itself the reportable result: the correct claim is "no new
+> findings in *that* window", never "the set is complete". Stage stops at fifteen
+> passes not because the set is closed but because every additional finding lands
+> on the same operator gate that is already blocking.
 
 Review cycles used: **3 of 3 (limit reached)**. Cycle 1 (2026-08-09) raised
 F1–F12, all resolved in-cycle by amending the plan and hardening documents before
@@ -142,14 +147,20 @@ must be dispositioned before `129-S` is claimed.
 | **F17** | **P1** | **The plan's "two divergent implementations of the same policy" premise is factually wrong for `start.sh`, and it invalidates S1 acceptance criteria in the ELIGIBLE shipment.** Plan §5 (and the `004-SP` PROCEED reconciliation, and the composability decision doc) assert that `start.ps1` and `start.sh` already implement the same seven-dimension launch policy in two languages. Verified against the working tree: `start.sh` (80 lines) implements **only** `.env.local` no-clobber parsing with quote stripping (lines 20–36), a `COPILOT_HOME` default (54), an unguarded `export GITHUB_TOKEN="$(gh auth token)"` (56), Copilot exe resolution (57–64), and `exec "$copilot_exe" "$@"` (66). It has **no** `ENGRAM_DATA_DIR` default (line 55 is commented out), **no** backlogit sync, **no** Engram pre-warm/fallback, **no** `GITHUB_PERSONAL_ACCESS_TOKEN` handling, and **no** `COPILOT_USE_REMOTE`/`--remote` logic (0 occurrences each). Separately, `start.ps1:65` sets `GITHUB_PERSONAL_ACCESS_TOKEN = (gh auth token)` **unconditionally and unguarded**; the non-fatal `try`/`Write-Warning` path at 68–77 covers `GITHUB_TOKEN` only. Consequences: `118.002-T` requires a suite that "passes against today's `start.sh` unmodified" across "the same seven dimensions" — **unsatisfiable**, because three of those dimensions do not exist in `start.sh`; and `118.001-T`'s criterion (c) that PAT resolution is non-fatal when `gh` is absent or failing **misstates `start.ps1`'s actual behavior**. | **OPEN — ESCALATED. BLOCKS THE ELIGIBLE CURSOR.** Unlike F16, `118.001-T` and `118.002-T` are members of **`127-S`**, so this blocks the shipment Ship would claim first. Resolution requires re-inventorying both scripts and separating *shared* behavior from *PowerShell-only* behavior, then revising the H1 characterize-before-migrate contract so each suite characterizes **its own** script's real contract, with any cross-platform normalization reclassified as an **explicit behavior change** (which S1's "zero observable behavior change" rule forbids, so it must move to S3 or be separately approved). The `004-SP` PROCEED rationale and the composability decision doc's evidence paragraph must be corrected in the same pass, since both rest on the same overstated premise. Stage does not amend them here: the review budget is exhausted and the consolidation thesis underpinning the PROCEED disposition is an operator product decision. |
 | **F18** | **P1** | **The plan's state-transition diagram contradicts its own DRAINING rule and the harvested task.** Plan §3.2's diagram routes operator cancellation `CANCELLING -> EXITED`, bypassing `DRAINING`, while the rules immediately below state that DRAINING is the **only** path from RUNNING to a terminal state and always flushes the journal, releases the lock, and reaps the child. `119.006-T` independently mandates `RUNNING -> CANCELLING -> DRAINING -> EXITED`. Implementing the diagram as drawn would leak the workspace lock and the child process and lose journal data on every cancellation. Relatedly, `119.003-T`'s linear state summary omits `LOCKING -> REFUSED`, the bootstrap/resolve/launch failure edges to `FAILED`, and `RESTARTING -> LAUNCHING`; because absent transitions must raise `ILLEGAL_TRANSITION`, implementing that summary verbatim would reject documented outcomes. | **OPEN — low-ambiguity, but still unresolved.** Unlike F16/F17 the correct resolution is not genuinely contested: the diagram is the outlier, and both the prose rules and `119.006-T` already mandate routing cancellation through `DRAINING`. The fix is to correct the §3.2 diagram and complete `119.003-T`'s transition table against Plan §3.2. Stage records rather than applies it because the review budget is exhausted and it is a plan-document amendment. `119.003-T` and `119.006-T` are members of `128-S`, so this does **not** block the eligible cursor `127-S`, but it must be dispositioned before `128-S` is claimed. |
 
-**Revised containment across F16–F26.** `127-S` is **no longer safely
-claimable**: F17 invalidates acceptance criteria in `118.001-T` and `118.002-T`,
-both S1 members. F18, F19, **F22** and **F23** must be dispositioned before
-`128-S`; F16, F20 and F21 before `129-S`. **F22 may additionally touch `127-S`**
-if the guaranteed-lock-release obligation is placed on `118.005-T` (T5) rather
-than on the `119.003-T` transition table.
-None of these findings affect the F14 structural elimination, the shipment
-topology, or the 64/64 + 197/197 closure evidence, all of which stand.
+**Revised containment across F16–F29.** `127-S` is **no longer safely
+claimable**, on **two** independent grounds: F17 invalidates acceptance criteria
+in `118.001-T` and `118.002-T`, and **F27** leaves `118.005-T`'s lock acquisition
+non-atomic — all three are S1 members. F18, F19, **F22**, **F23**, **F24**,
+**F28** and **F29** must be dispositioned before `128-S`; F16, F20, F21 and F25
+before `129-S`; and **F26 gates all three**. **F22 may additionally touch
+`127-S`** if the guaranteed-lock-release obligation is placed on `118.005-T` (T5)
+rather than on the `119.003-T` transition table — which would make it the *third*
+finding on the eligible cursor.
+None of these findings affect the F14 structural elimination or the shipment
+topology, both of which stand. **F26 does, however, narrow the scope of the
+64/64 closure evidence** — it proves cascade-close safety for a command Ship may
+not be permitted to call, not safe-close correctness; the 197/197 topology
+verification is unaffected.
 
 ### Cycle 4 (third Copilot pass, HEAD `d8644c46`) — two further P1s
 
@@ -567,7 +578,94 @@ the `117-F` event log's newest event, the checkpoint's `tasks_remaining` and
 rulings" while the checkpoint's own `decisions` array said six. **Three surfaces
 in two files disagreed with a fourth surface in one of the same files** — the
 identical multi-surface drift already corrected twice. Fixed by appending (never
-rewriting), and the count is now **seven rulings over eleven findings**.
+rewriting), and the count was then **seven rulings over eleven findings**.
+*(Superseded by cycle 15: the count is now **ten rulings over fourteen findings**.)*
+
+### Cycle 4 (fifteenth Copilot pass, HEAD `1f14795e`) — THREE NEW P1 (F27, F28, F29); open set now FOURTEEN
+
+The largest single-cycle yield since cycle 10, and the **fifth** time a quiet
+cycle was immediately followed by new P1s. One of the three lands on the
+**eligible cursor**.
+
+#### F27 (P1, OPEN, NEW): the single-active lock is never required to be acquired *atomically*
+
+`118.005-T` owns the lockfile that enforces the single-active-session invariant —
+the H2/H4 safety property the whole supervisor exists to guarantee. Its
+requirements specify a **PID + process-start-time liveness check** (correctly
+handling PID reuse) and its acceptance criteria specify **sequential** contention:
+start A, then start B, assert B refuses. **Nothing in the task requires the
+acquisition to be atomic.**
+
+The read-then-write sequence (check for a live holder, then write the lockfile)
+is a textbook TOCTOU window. Two supervisors starting *simultaneously* — the case
+that actually matters, e.g. two terminals or an editor auto-start racing a manual
+one — can both observe no live holder and both write, producing exactly the two
+concurrent sessions the module forbids, **while every listed acceptance criterion
+passes**.
+
+This is the wrong-proposition family a sixth time, and the cleanest instance yet:
+a sequential test proves mutual exclusion *against a non-contending peer*, which
+is not the property under test. No amount of hardening the sequential assertion
+would surface it.
+
+**Containment:** `118.005-T` is a member of **`127-S`** — the only eligible
+shipment. This is the **second** open P1 on the cursor Ship would claim first,
+alongside F17.
+
+**Resolution (operator ruling; Stage adopted none):** name an atomic primitive —
+`O_CREAT|O_EXCL` exclusive create, or an OS advisory lock (`flock`/`msvcrt`) held
+for the session lifetime — and add a **simultaneous-contender** acceptance test
+that launches contenders in parallel and asserts exactly one wins. The liveness
+check remains necessary for stale-lock recovery; it is simply not sufficient.
+
+#### F28 (P1, OPEN, NEW): the anti-drift listener guard is lexical, and it is the control discharging a cycle-1 P0
+
+`119.004-T`'s H7 guard asserts that `supervise/` contains no `bind`/`listen` token
+and imports no banned web framework. Four standard-library constructs open a
+listening socket while matching **neither** condition: `socket.create_server`,
+`socketserver.TCPServer`, `asyncio.start_server` and `http.server.HTTPServer`.
+
+The severity is not hygiene. This guard is the control that **discharges F2, a
+cycle-1 P0** about network-listener drift into deferred Plan-2 scope. A P0
+mitigation that can be bypassed by ordinary stdlib calls is materially weaker
+than this document recorded when it closed F2.
+
+**Resolution (operator ruling; Stage adopted none):** make the check
+**behavioural** — instrument socket creation or install an audit hook and assert
+no listening socket is opened during the suite — and demote the denylist to a
+fast pre-filter. Gates **`128-S`**.
+
+#### F29 (P1, OPEN, NEW): piped stdio silently changes the interactive contract S1/S2 promise not to change
+
+`119.001-T` establishes `subprocess.PIPE` as the **default** child stdio. The
+contract being migrated is **TTY-attached**: `start.sh:66` is
+`exec "$copilot_exe" "$@"`, which *replaces* the shell process and leaves the
+child directly on the terminal, and `start.ps1` likewise inherits terminal
+handles. Piping makes stdin/stdout/stderr non-TTY, which changes interactive
+prompt rendering, input handling, colour output and buffering — Copilot CLI is an
+interactive TUI, so this is the primary user-visible surface.
+
+The T1/T2 characterization cases never capture terminal attachment. The migration
+can therefore satisfy **every** assertion while breaking ordinary interactive
+sessions — falsifying the "zero observable behaviour change" premise that S1 and
+S2 both rest on. **Same defect class as F17 and F23**: the characterization
+baseline omits the very property the change most affects.
+
+**Resolution (operator ruling; Stage adopted none):** inherit stdio (or allocate a
+PTY) for interactive launches, add an explicit TTY-attachment characterization
+case, and rule on how `ChildOutput` journaling in `119.005-T` degrades when stdio
+is inherited — the two requirements are in direct tension and the plan currently
+resolves it silently in favour of journaling. Gates **`128-S`**.
+
+#### What the fifteenth pass says about convergence
+
+Cycles 5–7, 9, 11 and 13 were quiet; cycles 8, 10, 12, 14 and 15 each produced
+new P1s. **Five quiet-then-new-P1 windows in fifteen passes.** A quiet cycle has
+never once predicted a fixed point in this PR. The absence of convergence is
+itself the reportable result, and it is why Stage stops here rather than
+requesting a sixteenth pass: continuing would keep finding real defects at a
+roughly constant rate without ever reaching a state the operator has not already
+been asked to rule on.
 
 ## Decomposition check (2-hour rule, width isolation)
 
@@ -671,21 +769,21 @@ out-of-scope work exists).
 * **Role-boundary clear** — the close path requires nothing outside Ship's
   enumerated claim/move/close/archive capabilities. The P-010 violation that
   cycle 2 would have required is gone.
-* **Verdict: BLOCKED (current).** 0 unresolved P0, **11 unresolved P1s (F16–F26)**.
+* **Verdict: BLOCKED (current).** 0 unresolved P0, **14 unresolved P1s (F16–F29)**.
   Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
   available.** Cycles 1–3 concluded PASS and that conclusion stands for F1–F15;
   the verdict was subsequently downgraded when the PR #325 Copilot review of HEAD
-  `48368657` raised **F16**, plus the follow-on findings **F17**–**F26** recorded
-  in the Cycle 4 sections. All eleven are open and require operator disposition.
+  `48368657` raised **F16**, plus the follow-on findings **F17**–**F29** recorded
+  in the Cycle 4 sections. All fourteen are open and require operator disposition.
   Do **not** read this document as an approval to claim **any** shipment:
-  **F17 gates `127-S`**, **F18 + F19 + F22 + F23 + F24 gate `128-S`** (with
-  **F22** potentially touching `127-S` as well),
+  **F17 + F27 gate `127-S`**, **F18 + F19 + F22 + F23 + F24 + F28 + F29 gate
+  `128-S`** (with **F22** potentially touching `127-S` as well),
   **F16 + F20 + F21 + F25 gate `129-S`**, and **F26 gates ALL THREE**.
-* **Seven rulings, not eleven — and not three.** Clustering collapses eleven
-  findings into **seven operator rulings**: the three clusters below **plus F16,
-  F17, F20 and F26, which remain independent and must each be decided
-  separately.** Resolving only the three clusters clears seven of eleven findings
-  and leaves the gate CLOSED.
+* **Ten rulings, not fourteen — and not three.** Clustering collapses fourteen
+  findings into **ten operator rulings**: the three clusters below **plus F16,
+  F17, F20, F26, F27, F28 and F29, which remain independent and must each be
+  decided separately.** Resolving only the three clusters clears seven of fourteen
+  findings and leaves the gate CLOSED.
   F18 + F22 + F23 collapse into one invariant
   (*every terminal exit after `LOCKING` routes through `DRAINING`, and operator
   cancel is legal from every post-`LOCKING` phase*); F19 + F21 collapse into one

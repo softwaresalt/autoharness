@@ -341,7 +341,23 @@ shipment-safety contract; H1–H9 re-read, unchanged and unaffected.
   empirically (`returned_ids: []`) rather than argued.
 * **Blast radius of the redesign itself:** backlog metadata only. No source,
   schema, template, or CLI file is touched by this pass.
-* **One residual, explicitly carried** — the `parent_id`-clearing asymmetry
-  (F14, P1), accepted with a required Ship-side re-adoption mitigation and an
-  upstream report. It is a recoverable, non-destructive relationship change (no
-  status change, no archival, no data loss), which is why it is P1 and not P0.
+* **⛔ RETRACTED — the "one residual" paragraph that stood here is WITHDRAWN.**
+  It read: *"One residual, explicitly carried — the `parent_id`-clearing
+  asymmetry (F14, P1), accepted with a required Ship-side re-adoption mitigation
+  and an upstream report."* That was the **cycle-2** disposition and it was
+  **reopened and REJECTED in cycle 3**. It is quoted here rather than deleted so
+  the change of position is auditable.
+
+  **Ship MUST NOT perform any re-adoption or re-parenting.** Re-parenting is not
+  in Ship's Role Boundary, so under fail-closed **P-010** it is *forbidden*, not
+  merely discouraged — the "required mitigation" above would have instructed Ship
+  to commit a policy violation. F14 is now **structurally eliminated**, not
+  mitigated: per-shipment fully-covered **root** covering features (H10.5) mean no
+  feature ever has an unreleased child when its shipment closes, so
+  `returnUnreleasedFeatureItems` has nothing to return and no repair is needed.
+  See the H10.5 disposition immediately above, which is authoritative.
+
+  Caught by the fifteenth PR #325 Copilot review: leaving this paragraph in place
+  meant Ship could read **two opposite closure instructions** from the same
+  document — the same failure mode as F26, where a planning artifact told Ship to
+  do something Ship's own rules forbid.

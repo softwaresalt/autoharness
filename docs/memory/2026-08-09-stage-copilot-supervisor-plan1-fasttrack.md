@@ -999,41 +999,107 @@ fully-covered-root exception, or keep safe-close and revise the compound contrac
 and its expected evidence (`returned_ids: []` stops being the artifact to expect).
 **Gates all three shipments**, since closure is on every shipment's path.
 
+## Cycle 15 — F27, F28, F29: three findings, and the one that hit the cursor
+
+The fifteenth pass was the largest single-cycle yield since cycle 10, and it came
+straight after a quiet cycle — the **fifth** time that has happened.
+
+**F27 is the one that matters most, because it lands on `127-S`.** `118.005-T`
+owns the lockfile that enforces the single-active-session invariant — the whole
+point of the module. It specifies a PID + process-start-time liveness check
+(genuinely good: it handles PID reuse) and sequential contention tests. It never
+requires the acquisition to be **atomic**. Check-then-write is a TOCTOU window, so
+two supervisors starting *simultaneously* can both see no live holder and both
+write. Every acceptance criterion still passes.
+
+This is the wrong-proposition family for a sixth time, and the clearest instance
+of it yet: **a sequential contention test proves mutual exclusion against a
+non-contending peer.** That is a different proposition from the one the invariant
+needs. No amount of tightening the sequential assertion reaches it — the test
+would have to be restructured to start contenders in parallel. Worth remembering
+that the *sound-looking* part (the liveness check) is what made the gap easy to
+miss: it is necessary for stale-lock recovery and it is not sufficient for
+exclusion, and the task text reads as if it were both.
+
+**F28**: `119.004-T`'s anti-drift guard is lexical — no `bind`/`listen` token, no
+banned framework import. `socket.create_server`, `socketserver.TCPServer`,
+`asyncio.start_server` and `http.server.HTTPServer` all sail through. What makes
+it P1 rather than hygiene is *what the guard is for*: it is the control that
+discharged **F2, a cycle-1 P0**. So a P0 I recorded as mitigated is less mitigated
+than this review's own record claims. Lesson: when a guard closes a P0, the guard
+inherits that severity, and a denylist should never be the whole of it.
+
+**F29**: `119.001-T` defaults child stdio to `subprocess.PIPE`. But `start.sh:66`
+is `exec "$copilot_exe" "$@"` — the child *replaces* the shell and stays on the
+terminal — and `start.ps1` inherits handles. Piping makes stdio non-TTY, which
+changes prompts, input handling, colour and buffering for what is an interactive
+TUI. T1/T2 never characterize terminal attachment, so the migration can pass every
+assertion and still break normal use. **Same class as F17 and F23: the
+characterization baseline omits the property the change most affects.** Three
+findings now share that shape, which makes it a pattern rather than an accident —
+if a plan promises "zero observable behaviour change", the first question is which
+observable properties the baseline actually captures.
+
+**Where I stopped, and why.** Cycles 5–7, 9, 11 and 13 were quiet; 8, 10, 12, 14
+and 15 each produced new P1s. Five quiet-then-new-P1 windows in fifteen passes
+means a quiet cycle has *never once* predicted a fixed point in this PR. I could
+keep going and would almost certainly keep finding real defects. But every one of
+them lands on the same operator gate that is already blocking all three shipments,
+so additional cycles add findings without changing the decision the operator has
+to make. **Non-convergence is the result to report**, not a reason to keep
+looping.
+
+**Two other things I fixed this cycle, both mine.** The hardening doc still
+carried a bullet saying F14 was "accepted with a required Ship-side re-adoption
+mitigation" — a cycle-2 position that cycle 3 rejected. Left standing, it was a
+live instruction telling Ship to re-parent items, which is **not in Ship's role
+boundary and therefore P-010-forbidden**. That is *exactly* F26's defect class,
+sitting in my own document, and I had read past it for twelve cycles. I retracted
+it by quoting it rather than deleting it, so the change of position stays
+auditable. And `117-F`'s summary line still said "plan-review PASS (0 P0 / 0 P1)"
+with no qualification — the single most dangerous sentence in the backlog, since a
+summary line is what an agent skims before claiming.
+
 ### Terminal state (final)
 
-**Eleven open P1s: F16–F26.** All require operator product decisions; Stage
+**Fourteen open P1s: F16–F29.** All require operator product decisions; Stage
 adopted none and changed no dependency edge. **No shipment is safely claimable**:
-F17 gates `127-S`; **F18 + F19 + F22 + F23 + F24** gate `128-S`;
-**F16 + F20 + F21 + F25** gate `129-S`; and **F26 gates all three**, because
-closure is on every shipment's path. **F22 may additionally reach `127-S`** if the
-guaranteed-lock-release obligation is placed on `118.005-T` (T5) rather than on
-the `119.003-T` transition table. None of F16–F26 invalidates the F14 structural
+**F17 + F27** gate `127-S`; **F18 + F19 + F22 + F23 + F24 + F28 + F29** gate
+`128-S`; **F16 + F20 + F21 + F25** gate `129-S`; and **F26 gates all three**,
+because closure is on every shipment's path. **F22 may additionally reach
+`127-S`** if the guaranteed-lock-release obligation is placed on `118.005-T` (T5)
+rather than on the `119.003-T` transition table — which would make it the third
+finding on the eligible cursor. None of F16–F29 invalidates the F14 structural
 elimination or the shipment topology. **F26 does narrow the evidence**: the 64/64
 run proves cascade-close safety, and if closure runs through safe-close instead,
 that proof concerns an operation Ship will not call — the topology is correct
 either way, but the *proof of the close path* would need re-aiming.
 
-**They are seven decisions, not eleven — and not three.** Clustering reduces
-eleven findings to **seven operator rulings**: the three clusters below *plus*
-F16, F17, F20 and F26, which remain independent. I have to be careful with the
-compression here — "three rulings" is true about the *clusters* and false about
-the *gate*, because clearing the three clusters still leaves four findings open. F18 + F22 + F23 are one missing invariant
-(*cleanup and cancellation are guaranteed only from `RUNNING`* — one ruling that
-every terminal exit after `LOCKING` routes through `DRAINING` and that operator
-cancel is legal from every post-`LOCKING` phase discharges all three). F19 + F21
-are one contract-placement ruling. **F24 + F25 are one reachability ruling**
-(*every specified capability needs a task obligated to make it reachable*). Those
-three clustered rulings clear **seven of the eleven findings** — and the gate
-stays closed until **F16, F17, F20 and F26** are each decided too. **Seven
-rulings in total.**
+**They are ten decisions, not fourteen — and not three.** Clustering reduces
+fourteen findings to **ten operator rulings**: the three clusters *plus* F16, F17,
+F20, F26, F27, F28 and F29, which remain independent. I have to keep being careful
+with this compression — "three rulings" is true about the *clusters* and false
+about the *gate*, because clearing the three clusters still leaves seven findings
+open. F18 + F22 + F23 are one missing invariant (*cleanup and cancellation are
+guaranteed only from `RUNNING`*). F19 + F21 are one contract-placement ruling.
+**F24 + F25 are one reachability ruling.** Those three clustered rulings clear
+**seven of the fourteen findings** — and the gate stays closed until **F16, F17,
+F20, F26, F27, F28 and F29** are each decided too. **Ten rulings in total.**
 
 **Do not read a quiet review cycle as completeness.** Cycles 5, 6 and 7 raised no
 new P0/P1 and I briefly published that as evidence the set was stable; cycle 8
-raised F21, cycle 10 raised F22 and F23, and cycle 12 raised F24 and F25.
-Cycle 14 then raised F26. Demonstrated **four** times, across four separate
-quiet-then-new-P1 windows. The honest statement is "no new findings in that
-window", never "the set is complete" — and at this point the **non-convergence is
-itself the finding to report**: fourteen review passes have not reached a fixed
-point, which says the plan's defect density is higher than any remaining review
-budget can drain. Continuing to review is not the path off BLOCKED; the seven
-rulings are.
+raised F21, cycle 10 raised F22 and F23, cycle 12 raised F24 and F25, cycle 14
+raised F26, and cycle 15 raised F27, F28 and F29. Demonstrated **five** times,
+across five separate quiet-then-new-P1 windows — and the largest yield came right
+after a quiet one. The honest statement is "no new findings in that window", never
+"the set is complete" — and at this point the **non-convergence is itself the
+finding to report**: fifteen review passes have not reached a fixed point, which
+says the plan's defect density is higher than any remaining review budget can
+drain. Continuing to review is not the path off BLOCKED; the ten rulings are.
+
+**The single most useful question I found.** Six of the fourteen findings, and
+five of my own defects, came from one habit: asking *"who executes this, and what
+will they actually call?"* rather than *"is this assertion correct?"* Every
+assertion in the 64/64 harness is sound, and F26 still means the harness may prove
+the safety of a command Ship is forbidden to run. Hardening cannot reach that
+class — only tracing the artifact to its executor can.
