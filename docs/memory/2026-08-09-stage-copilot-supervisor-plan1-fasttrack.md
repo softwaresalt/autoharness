@@ -1060,46 +1060,115 @@ auditable. And `117-F`'s summary line still said "plan-review PASS (0 P0 / 0 P1)
 with no qualification — the single most dangerous sentence in the backlog, since a
 summary line is what an agent skims before claiming.
 
+## Cycle 16 — the operator ruled, and I got to find out which of my compressions were wrong
+
+The operator accepted **all eleven** recommended rulings and authorised exactly
+one bounded remediation + focused validation pass, with a standing instruction to
+**halt** on any surviving P0/P1 rather than open round sixteen. That instruction
+mattered more than it looks: it removed the temptation I had been resisting for
+five cycles — to solicit one more review and hope it came back quiet.
+
+**I had been saying "ten rulings". It was eleven.** F24 and F25 were correctly
+*diagnosed* as one cluster: both were capabilities specified in one task with no
+task obligated to make them real. The diagnosis is what caught them. But the
+fixes land on completely unrelated surfaces — core-owned ignore behaviour inside
+`journal.py` versus the `autoharness run` option contract — so collapsing them
+into one ruling would have produced a decision that could not be executed as a
+single change. **A shared root cause is not a shared remedy**, and I had let the
+tidiness of "three clusters" carry an inference it did not support. I corrected
+the count in the review doc rather than quietly keeping ten.
+
+**Ruling 8 was the one that tested my own boundary.** It required amending P-015
+and the Ship agent so the permitted close operation and the executable evidence
+agree. Both live in `templates/` — the **product**. The tempting move was to make
+the edit, since the operator had approved the ruling and the change is small. But
+F26 exists *precisely because* a Stage planning artifact tried to grant Ship an
+exemption from Ship's own operative prohibition. Editing the Ship agent template
+myself would have been the same defect at a higher privilege level: Stage
+rewriting the constraints Stage is bound by. I created **`118.007-T`** instead and
+placed it in **`127-S`**, the first shipment, so the amendment lands before any
+close in the chain. The compound doc now says safe-close governs *until that task
+lands* — which is the honest state, not the convenient one.
+
+**Placing `118.007-T` in the first shipment instead of building a new one.** The
+alternative was a prerequisite feature plus a fourth shipment ahead of `127-S`.
+That would have re-chained the serial order and disturbed exactly the topology
+the 197-assertion verifier was built to protect, to solve a sequencing problem
+that membership in `127-S` already solves. The invariants both hold: full
+coverage (I re-verified `118-F`'s child count *after* adding the two tasks —
+adding a child to a covering feature without adding it to the manifest is
+precisely how H10.5 breaks) and root isolation (both new tasks are children of
+`118-F`, which has no parent).
+
+**Updating my own evidence harness was the subtle risk.** The verifier hardcoded
+the pre-ruling task list, edge set and counts, so after the rulings it would have
+failed against a *correct* topology. But an evidence script that gets edited until
+it passes proves nothing. I kept the expected edge **set** rather than a count,
+enumerated each of the four deltas inline with the finding that caused it, and
+widened the S1 fixture from five to seven. The assertion I nearly got wrong was
+`origin_feature`: the nineteen re-parented tasks must still carry `117-F`, but
+`118.006-T` and `118.007-T` were created natively under `118-F` and never lived
+under `117-F`. Asserting it unconditionally would have demanded a **false
+provenance record**; deleting the assertion would have stopped detecting
+provenance loss on the nineteen. It had to become **conditional in both
+directions** — the new tasks are now asserted to claim *no* provenance.
+
+**The validation pass caught me building an expectation from a stale index.** My
+first corrected edge set said **29**, and the verifier failed with
+`extra: 118.006-T->118.005-T`. The live graph was right; my *expectation* was
+wrong. I had derived it from a `backlogit query` run **before** `backlogit sync`,
+so the index had not yet picked up the `dependencies:` frontmatter written when
+`118.006-T` was created — an edge I had authored myself minutes earlier. Two
+things saved it. First, the expectation is a **set**, not a count: a count check
+would have failed identically but told me only that a number was off, whereas the
+set named the missing edge outright. Second, I had not touched the assertion to
+make it pass. The temptation with a red evidence script is to adjust it until it
+is green, which is exactly how such a script stops being evidence. The right
+reading was that the check had done its job on its own author.
+
+**What the DRAINING ruling actually bought.** F18, F22 and F23 all reduced to one
+missing invariant, and the fix is structural rather than enumerative: `DRAINING`
+is the **sole terminal gateway**, verified by a **graph-property test** instead of
+a list of paths. That distinction is the whole lesson. The defect class here is
+*an edge nobody thought to enumerate* — so an enumerated path list can never be
+the control for it. The same reasoning drove F28's fix: a lexical denylist cannot
+catch `socket.create_server`, so the control had to become behavioural, with
+positive controls proving it fires.
+
 ### Terminal state (final)
 
-**Fourteen open P1s: F16–F29.** All require operator product decisions; Stage
-adopted none and changed no dependency edge. **No shipment is safely claimable**:
-**F17 + F27** gate `127-S`; **F18 + F19 + F22 + F23 + F24 + F28 + F29** gate
-`128-S`; **F16 + F20 + F21 + F25** gate `129-S`; and **F26 gates all three**,
-because closure is on every shipment's path. **F22 may additionally reach
-`127-S`** if the guaranteed-lock-release obligation is placed on `118.005-T` (T5)
-rather than on the `119.003-T` transition table — which would make it the third
-finding on the eligible cursor. None of F16–F29 invalidates the F14 structural
-elimination or the shipment topology. **F26 does narrow the evidence**: the 64/64
-run proves cascade-close safety, and if closure runs through safe-close instead,
-that proof concerns an operation Ship will not call — the topology is correct
-either way, but the *proof of the close path* would need re-aiming.
+**Zero open P0. Zero open P1.** All fourteen post-budget findings (F16–F29) were
+dispositioned by **eleven** accepted operator rulings, applied to the owning task
+specs and validated in one bounded pass (Cycle 16). All three shipments are
+**GATE-CLEAR**; `127-S` remains the only structurally eligible cursor.
 
-**They are ten decisions, not fourteen — and not three.** Clustering reduces
-fourteen findings to **ten operator rulings**: the three clusters *plus* F16, F17,
-F20, F26, F27, F28 and F29, which remain independent. I have to keep being careful
-with this compression — "three rulings" is true about the *clusters* and false
-about the *gate*, because clearing the three clusters still leaves seven findings
-open. F18 + F22 + F23 are one missing invariant (*cleanup and cancellation are
-guaranteed only from `RUNNING`*). F19 + F21 are one contract-placement ruling.
-**F24 + F25 are one reachability ruling.** Those three clustered rulings clear
-**seven of the fourteen findings** — and the gate stays closed until **F16, F17,
-F20, F26, F27, F28 and F29** are each decided too. **Ten rulings in total.**
+**This verdict is narrow, and the narrowness is the point.** It says every
+disposition matches its accepted ruling. It does **not** say finding discovery
+converged. Fifteen review passes never reached a fixed point, and five separate
+quiet-then-new-P1 windows proved that a quiet cycle is not evidence of
+completeness. That non-convergence is unchanged and still the honest characterisation
+of the plan's defect density. What ended the block was **operator authority over
+product trade-offs**, which is the only thing that could have — no amount of
+additional reviewing would have produced a decision Stage had no standing to make.
 
-**Do not read a quiet review cycle as completeness.** Cycles 5, 6 and 7 raised no
-new P0/P1 and I briefly published that as evidence the set was stable; cycle 8
-raised F21, cycle 10 raised F22 and F23, cycle 12 raised F24 and F25, cycle 14
-raised F26, and cycle 15 raised F27, F28 and F29. Demonstrated **five** times,
-across five separate quiet-then-new-P1 windows — and the largest yield came right
-after a quiet one. The honest statement is "no new findings in that window", never
-"the set is complete" — and at this point the **non-convergence is itself the
-finding to report**: fifteen review passes have not reached a fixed point, which
-says the plan's defect density is higher than any remaining review budget can
-drain. Continuing to review is not the path off BLOCKED; the ten rulings are.
+**Gate-clear is not permission to claim.** Claiming remains Ship's call under
+Ship's own boundary, and one gate is deliberately sequenced *inside* the first
+shipment: until **`118.007-T`** lands, the cascade close operation is still
+prohibited to Ship and safe-close governs. Ship must read `127-S` and the review
+artifact, not this summary line.
+
+**Topology delta to carry forward.** `118-F` now has **seven** children
+(`118.006-T`, `118.007-T` added); `127-S`'s manifest has **eight** items. Plan-1
+task edges went **27 → 30**: removed `119.004-T→119.003-T` (that edge *was* the
+F19 cycle), added `119.004-T→118.003-T`, `120.005-T→118.003-T`,
+`120.006-T→118.006-T` and `118.006-T→118.005-T` (declared when the task was created — the stale-lock lifecycle operates on the primitive `118.005-T` defines; both are `127-S` members, so it orders work *within* the eligible cursor and does not affect eligibility). None of it touches the F14 structural elimination or the
+three-shipment serial chain.
 
 **The single most useful question I found.** Six of the fourteen findings, and
 five of my own defects, came from one habit: asking *"who executes this, and what
 will they actually call?"* rather than *"is this assertion correct?"* Every
-assertion in the 64/64 harness is sound, and F26 still means the harness may prove
-the safety of a command Ship is forbidden to run. Hardening cannot reach that
-class — only tracing the artifact to its executor can.
+assertion in the 64/64 harness was sound, and F26 still meant the harness might be
+proving the safety of a command Ship was forbidden to run. Ruling 8 resolved that
+by changing what Ship may call — but only once `118.007-T` lands. Hardening could
+never have reached that class of defect; only tracing an artifact to its executor
+can.

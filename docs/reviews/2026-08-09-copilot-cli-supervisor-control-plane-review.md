@@ -5,7 +5,7 @@ description: "Adversarial plan review of the Plan 1 local Copilot CLI supervisor
 doc_type: review
 source: docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md
 review_id: "PLAN-1-R"
-verdict: "BLOCKED"
+verdict: "PASS"
 stash_ids: ["34D50F2D"]
 model_route:
   model_family: claude-opus-5
@@ -21,51 +21,52 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: BLOCKED — 0 unresolved P0, **14 unresolved P1 (F16–F29)**
+## Verdict: PASS (focused remediation validation) — 0 unresolved P0, 0 unresolved P1
 
-> **Cycle-3 verdict was PASS (0 P0 / 0 P1) and remains accurate as of HEAD
-> `48368657` for findings F1–F15.** **Fourteen** new P1s (**F16** through **F29**)
-> were raised by successive PR #325 Copilot reviews of HEADs `48368657`,
-> `91538e74`, `d8644c46`, `66f1220f`, `914cb214`, `a20c5b50`, `045bbb7f` and `1f14795e`, *after* the 3-cycle budget
-> was exhausted. Because no review cycle remains and their resolutions are
-> genuine product trade-offs, they are recorded as **open and escalated** rather
-> than absorbed, and the verdict is downgraded to **BLOCKED**. See the *Cycle 4*
-> sections below.
+> **Read the basis before relying on this verdict.** It is deliberately NARROW.
+> It is **not** the product of a sixteenth open-ended review round, and it does
+> **not** assert that finding discovery has converged. It records exactly this:
+> all **fourteen** post-budget P1s (**F16–F29**) received explicit **operator
+> rulings**; every ruling was applied to the owning task specifications and
+> planning documents; and each resulting disposition was validated against its
+> ruling in **one bounded pass** (Cycle 16, below). Nothing else is claimed.
 >
-> **NO SHIPMENT IS SAFELY CLAIMABLE.** F17 invalidates acceptance criteria in
-> `118.001-T` and `118.002-T`, both members of the otherwise-eligible cursor
-> `127-S`, and **F27 lands a SECOND P1 directly on that same cursor** by leaving
-> `118.005-T`'s lock acquisition non-atomic. F18, F19, F22 and F23 gate `128-S`
-> — and **F22 may also touch `127-S`** if the lock-release obligation is placed
-> on `118.005-T` rather than on the transition table. **F24, F28 and F29 also
-> gate `128-S`**; **F16, F20, F21 and F25 gate `129-S`**; and **F26 gates ALL
-> THREE**, because closure is on every shipment's path.
+> **The prior BLOCKED verdict was correct and is now discharged, not retracted.**
+> F16–F29 were genuine product trade-offs that Stage had no authority to decide,
+> which is why they were escalated rather than absorbed. The operator decided
+> them. That is the only thing that changed — and it is the only thing that
+> *could* have changed the verdict.
 >
-> **Fourteen findings, but ten rulings — not three.** Clustering reduces the fourteen
-> to **ten operator rulings**: three clusters *plus* **seven** findings that stay
-> genuinely independent (**F16, F17, F20, F26, F27, F28, F29**). Clearing only the clusters does
-> **not** clear the gate. The clusters: F18 + F22 + F23 are one
-> missing invariant (cleanup and cancellation are guaranteed only from
-> `RUNNING`); F19 + F21 are one missing contract boundary (a shared event/approval
-> contract landing after its consumers); **F24 + F25 are one missing *reachability*
-> rule** (a capability is specified in one task and no task is obligated to make it
-> real — an ignore rule with no installing surface, CLI flags with no exposing
-> task). Clustering is the fastest path off BLOCKED — it converts seven findings
-> into three decisions — but **F16, F17, F20, F26, F27, F28 and F29 must still each
-> be decided on their own**. **F25 compounds F22**: `--force-unlock` is the documented remedy for the
-> very lockout F22 creates, so one finding sets the trap and the other removes the
-> exit.
+> **Non-convergence still stands as a separate, unchanged fact.** Cycles 5–7, 9,
+> 11 and 13 raised no new P0/P1; cycle 8 raised F21, cycle 10 raised F22 and F23,
+> cycle 12 raised F24 and F25, cycle 14 raised F26, and cycle 15 raised F27, F28
+> and F29 — **five** separate quiet-then-new-P1 windows. A quiet window is not
+> evidence a set is complete, and this PASS must not be read as retroactively
+> making one. It is a statement about **dispositions that were validated**, not
+> about **findings that may exist**. Anyone treating it as proof of completeness
+> is making precisely the inference this document has recorded as false five
+> times.
 >
-> Cycles 5–7, 9, 11 and 13 raised no new P0/P1; **cycle 8 raised F21, cycle 10
-> raised F22 and F23, cycle 12 raised F24 and F25, cycle 14 raised F26, and cycle
-> 15 raised F27, F28 and F29**. A quiet cycle is not evidence the set is complete —
-> this has now been demonstrated **five** times, across five separate
-> quiet-then-new-P1 windows, and the largest single-cycle yield since cycle 10 came
-> *after* a quiet one. **Finding discovery has not converged**, and that
-> non-convergence is itself the reportable result: the correct claim is "no new
-> findings in *that* window", never "the set is complete". Stage stops at fifteen
-> passes not because the set is closed but because every additional finding lands
-> on the same operator gate that is already blocking.
+> **Every earlier PASS statement is superseded and non-operative.** The cycles-1–3
+> PASS covered findings F1–F15 only and was correctly downgraded when F16 arrived.
+> Stale clearance language has been removed from the backlog artifacts, the plan,
+> the hardening document and the compound close-path contract, so this section is
+> the single operative verdict.
+>
+> **Shipment gate state.** All three shipments are **GATE-CLEAR**: `127-S`
+> (F17, F22, F26, F27 resolved), `128-S` (F18, F19, F22, F23, F24, F28, F29
+> resolved), `129-S` (F16, F20, F21, F25, F26 resolved). `127-S` remains the only
+> structurally eligible cursor. **Gate-clear is not an instruction to claim** —
+> claiming is Ship's decision under Ship's own Role Boundary, and one gate is
+> deliberately sequenced *inside* `127-S`: `118.007-T` must land before any
+> shipment closes, because until it does the cascade close operation remains
+> prohibited to Ship (see F26).
+>
+> **Eleven rulings, fourteen findings.** The clustering analysis held: F18+F22+F23
+> resolved as one invariant, F19+F21 as one contract-placement decision. F24 and
+> F25 were *not* ultimately one ruling — the reachability framing was correct as
+> diagnosis, but the two were fixed on different surfaces (core-owned ignore rule
+> vs. CLI option contract), so they are recorded as separate rulings 6 and 7.
 
 Review cycles used: **3 of 3 (limit reached)**. Cycle 1 (2026-08-09) raised
 F1–F12, all resolved in-cycle by amending the plan and hardening documents before
@@ -667,6 +668,102 @@ requesting a sixteenth pass: continuing would keep finding real defects at a
 roughly constant rate without ever reaching a state the operator has not already
 been asked to rule on.
 
+### Cycle 16 — FOCUSED REMEDIATION VALIDATION (2026-08-11), not a review round
+
+**What this is, and what it deliberately is not.** After cycle 15 Stage reported
+non-convergence and declined a sixteenth review pass. The operator then
+**accepted all eleven recommended rulings** and authorised **exactly one bounded
+remediation + focused validation pass**. This section is that pass. It is scoped
+to a single question — *does each of F16–F29 now have a disposition that matches
+its accepted ruling?* — and it is explicitly **not** a search for new findings.
+No new Copilot review was solicited to produce it, because soliciting one is what
+the fifteen preceding cycles proved does not terminate.
+
+**Standing instruction honoured:** if any P0/P1 had survived this pass, the
+correct action was to **halt with the exact finding and no further round**. None
+did; the halt condition was not reached. Had it been, this section would record a
+halt rather than a verdict.
+
+#### Ruling → disposition → owning task → evidence
+
+| # | Ruling (accepted) | Findings | Owning task(s) | What actually changed |
+|---|---|---|---|---|
+| 1 | Explicit `DRAINING` state + cancellation invariant | F18, F22, F23 | `119.003-T`, `119.006-T`, `118.005-T` | `DRAINING` is now the **sole terminal gateway**: no `CANCELLING → EXITED` edge, no direct edge to `FAILED`, and `REFUSED` excepted only because it precedes lock acquisition. Cancel is legal from **every** post-`LOCKING` phase, making `119.006-T`'s "cancel during launch" case satisfiable. Enforced by a **graph-property test**, not an enumerated path list — the defect class is *an edge nobody enumerated*, so enumeration cannot be the control. `119.006-T` asserts lock-released-exactly-once. Plan §3.2 diagram and rules rewritten; §3.4 rows corrected. |
+| 2 | Contracts live in the shared supervisor core | F19, F21 | `118.003-T`, `119.004-T`, `120.005-T` | Event catalog **and** approval request/response types moved **up** into `supervise/contracts.py` (T3). Edge `119.004-T → 119.003-T` **removed** — that edge *was* the F19 cycle — and replaced by `119.004-T → 118.003-T`; `120.005-T → 118.003-T` added so the fail-closed approval channel is no longer omissible from a satisfiable runtime chain. |
+| 3 | No policy escape hatch; DoD #2 preserved | F16 | `120.007-T`, `120.008-T` | `AUTOHARNESS_SUPERVISOR=0` **withdrawn** from the task, the runbook, plan §9/§10 and hardening H8/H10. Rollback is a single-file revert per shim and **requires a redeploy** — accepted deliberately. A test asserts no shim carries an environment-variable branch into a legacy path, so the hatch cannot reappear silently. |
+| 4 | Re-inventory and correct F17 completely | F17 | `118.001-T`, `118.002-T` | The "two divergent implementations of the same policy" premise is **factually withdrawn**. `start.sh` implements **five** dimensions and **four asserted absences** (no `ENGRAM_DATA_DIR` — the line is commented out; no PAT; no `COPILOT_USE_REMOTE`/`--remote`; no sidecars). `start.ps1:65` assigns the PAT **unguarded** while its `GITHUB_TOKEN` sits in a guarded non-fatal `try/catch`. T1/T2 now pin **each script's own contract**; convergence is reclassified as a **deliberate POSIX behaviour change owned by S3**. |
+| 5 | Narrow the mutation scope | F20 | `120.002-T` | The blanket "backlogit and graphtor are not mutated" phrasing — which contradicted the task's own mandate to run those very operations — is withdrawn. Prohibition now scoped to **domain/authority** mutation; `backlogit sync` and Engram pre-warm/bind are **explicitly permitted** as derived-index maintenance creating no domain facts. |
+| 6 | Core owns ignore-rule behaviour | F24 | `119.005-T` | The nonexistent "gitignore template" dependency is removed. `journal.py` **itself** idempotently ensures `.autoharness/sessions/` is ignored at journal-root creation, with a test asserting a fresh session directory is *actually* `git check-ignore`d. This converts a criterion that was **satisfiable by vacuity and failed silently** into an enforced one, and restores the H6 containment property. Scope stays in S2 — no shipment-boundary move was needed. |
+| 7 | Stable CLI option contract | F25 | `120.006-T` | `120.006-T` now defines the **complete, stable** `autoharness run` option contract and is declared its only surface — including `--force-unlock` (the sole reachable remedy for the F22 lockout) and `--max-restarts N` (default 0). Every option is tested for **parse *and* forward**, since parsing alone was never evidence of reachability. Edge `120.006-T → 118.006-T` added. |
+| 8 | Amend P-015 so the permitted close op and the evidence agree | F26 | **`118.007-T` (new)** | A new task amends **four** surfaces coherently: the P-015 policy template, the Ship agent template, the `shipment-reconcile` skill, and the compound close-path doc — adding a **machine-checkable verified fully-covered-root exception**. It requires **no P-010-forbidden operation of Ship**. It is a member of **`127-S`**, the *first* shipment, so the amendment lands before **any** close in the chain. |
+| 9 | Atomic OS-backed lock + real contender test | F27 | `118.005-T`, **`118.006-T` (new)** | `118.005-T` now **requires** atomic acquisition (`O_CREAT|O_EXCL` or OS advisory lock), **prohibits** check-then-write, demotes PID+start-time to staleness *diagnosis*, and mandates **≥8 simultaneous contenders × ≥50 iterations**; a sequential contention test is declared insufficient evidence. Stale-lock lifecycle, `--force-unlock` semantics and **recycled-PID rejection** split into `118.006-T` to stay inside the 2-hour box. |
+| 10 | Behavioural listener enforcement | F28 | `119.004-T` | The lexical denylist is demoted to a fast pre-filter and replaced by a `sys.addaudithook` socket interception with **mandatory positive controls** proving it catches `socket.create_server`, `socketserver.TCPServer`, `asyncio.start_server` and `http.server.HTTPServer`. This restores the strength of the control that discharges **cycle-1 P0 F2**. |
+| 11 | Preserve inherited TTY/PTY; journal capture separately | F29 | `119.001-T`, `119.002-T`, `119.005-T` | `InheritStdioChildProcess` becomes the **default**; `PipeChildProcess` is retained for tests and non-interactive runs only. PTY is opt-in **capture** that degrades to **inherited stdio, never to pipes** — a missing extra costs capture, never terminal attachment. `journal.py` writes an explicit `ChildOutputUnavailable(reason="inherited-stdio")` marker instead of an empty stream. T1/T2 gain a TTY-attachment characterization case. |
+
+#### Two dispositions that required judgement, recorded explicitly
+
+**Ruling 8 was implemented as a task, not as an edit (P-010).** P-015 lives in
+`templates/policies/workflow-policies.md.tmpl` and the Ship agent in
+`templates/agents/_ship.agent.md.tmpl`. **Templates are the product**, so
+amending them is implementation work outside Stage's Role Boundary. Editing them
+directly to satisfy the ruling would have reproduced the exact defect F26
+identified — a planning surface asserting authority over Ship's operative
+constraints. Stage therefore created `118.007-T` and placed it in the first
+shipment. Until it lands, the **safe-close** path governs and the compound
+document says so.
+
+**F24 and F25 were diagnosed as one cluster but resolved as two rulings.** The
+shared diagnosis (*a capability specified with no task obligated to make it
+reachable*) was correct, and it is why both were caught. But the fixes land on
+unrelated surfaces — core-owned ignore behaviour versus a CLI option contract —
+so collapsing them into a single ruling would have produced a decision that could
+not be executed as one change. The clustering claim is corrected here rather than
+preserved for tidiness: **eleven rulings, not ten**.
+
+#### Validation performed
+
+* **Structural** — `backlogit doctor --target` PASS on `117-F`, `118-F`, `119-F`,
+  `120-F`, `118.006-T`, `118.007-T`, `127-S`, `128-S`, `129-S`.
+* **Coverage invariant re-verified after mutation** — `118-F` now has **seven**
+  children and `127-S`'s manifest contains all seven plus the feature. Adding a
+  child to a covering feature *without* adding it to the manifest is precisely
+  the defect that would break H10.5, so this was re-checked rather than assumed.
+* **Topology** — dependency DAG acyclic (347 edges workspace-wide); the Plan-1
+  task edge set is **30** (27 → −1 F19 cycle edge → +4 ruling edges), each delta
+  enumerated in the verifier rather than absorbed into a new total; serial chain
+  intact (`129-S` → `128-S` → `127-S`); **`127-S` is the only eligible cursor**;
+  `124-S`/`125-S`/`126-S` archived with supersession recorded.
+* **Harness result: 209/209 assertions**, `returned_ids: []` on every close in the
+  fixture replay, zero non-archived residue, fixture doctor clean.
+* **Evidence harness expectations updated, and why that is legitimate** — the
+  Stage-owned verifier hardcoded the pre-ruling task list, edge set and counts.
+  Left unchanged it would have failed against a *correct* topology; changed
+  carelessly it would have rubber-stamped any topology. The expected edge **set**
+  (not a count) was updated with each delta justified inline, the S1 fixture
+  widened from five to seven tasks, and the `origin_feature` provenance assertion
+  made **conditional** — the nineteen re-parented tasks must still carry
+  `117-F`, while `118.006-T`/`118.007-T` were created natively under `118-F` and
+  must **not** claim a provenance they never had. Asserting it unconditionally
+  would have demanded a false record; dropping it would have stopped detecting
+  provenance loss.
+* **The pass found one thing, and it was in the evidence, not the plan.** The
+  first corrected edge expectation said 29 and the run failed with
+  `extra: 118.006-T->118.005-T`. The **live graph was correct**; the expectation
+  had been derived from a `backlogit query` issued *before* `backlogit sync`, so
+  the index had not yet seen the `dependencies:` frontmatter written when
+  `118.006-T` was created. This is **not a P0/P1 against the plan** and did not
+  trigger the halt condition — it is a stale-expectation defect in a Stage-owned
+  evidence script, found by that script. Two properties made it visible rather
+  than silent: the expectation is a **set** (a count check would have failed
+  identically while naming nothing), and it was **not adjusted to make the run
+  green**. The edge itself is legitimate — `118.006-T`'s stale-lock lifecycle
+  operates on the primitive `118.005-T` defines, and both are `127-S` members, so
+  it orders work *within* the eligible cursor without affecting eligibility.
+  Corrected to 30, re-run clean.
+* **Stale clearance removed** — every superseded PASS/clearance statement across
+  the backlog artifacts, plan, hardening document and compound contract was
+  located and either replaced or explicitly marked historical and non-operative.
+
 ## Decomposition check (2-hour rule, width isolation)
 
 * **19 tasks**, each scoped to a single module or a single script surface.
@@ -769,7 +866,11 @@ out-of-scope work exists).
 * **Role-boundary clear** — the close path requires nothing outside Ship's
   enumerated claim/move/close/archive capabilities. The P-010 violation that
   cycle 2 would have required is gone.
-* **Verdict: BLOCKED (current).** 0 unresolved P0, **14 unresolved P1s (F16–F29)**.
+* **Verdict: BLOCKED — SUPERSEDED 2026-08-11 by the Cycle 16 focused remediation
+  validation (see the top of this document and the Cycle 16 section). Retained
+  verbatim below as the historical cycle-3 gate record; it is **no longer the
+  operative verdict**, and the gate map it states is no longer the current one —
+  all three shipments are now GATE-CLEAR.** 0 unresolved P0, **14 unresolved P1s (F16–F29)** *(as of that date)*.
   Cycles used: **3 of 3 — limit reached, no further review-fix cycle is
   available.** Cycles 1–3 concluded PASS and that conclusion stands for F1–F15;
   the verdict was subsequently downgraded when the PR #325 Copilot review of HEAD
@@ -779,7 +880,11 @@ out-of-scope work exists).
   **F17 + F27 gate `127-S`**, **F18 + F19 + F22 + F23 + F24 + F28 + F29 gate
   `128-S`** (with **F22** potentially touching `127-S` as well),
   **F16 + F20 + F21 + F25 gate `129-S`**, and **F26 gates ALL THREE**.
-* **Ten rulings, not fourteen — and not three.** Clustering collapses fourteen
+* **Ten rulings, not fourteen — and not three.** *(CORRECTED 2026-08-11: it was
+  **eleven**. The clustering below is retained because its diagnosis was right and
+  is what caught F24/F25 — but F24 and F25 ultimately resolved on unrelated
+  surfaces, so they could not be executed as one decision. A shared root cause is
+  not a shared remedy.)* Clustering collapses fourteen
   findings into **ten operator rulings**: the three clusters below **plus F16,
   F17, F20, F26, F27, F28 and F29, which remain independent and must each be
   decided separately.** Resolving only the three clusters clears seven of fourteen

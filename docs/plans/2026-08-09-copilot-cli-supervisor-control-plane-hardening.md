@@ -62,7 +62,9 @@ semantics while "porting" them. The current behavior is subtle: no-clobber
 | Illegal state transition | Raises `ErrorKind.ILLEGAL_TRANSITION`; the session drains and fails. There is no permissive fallback transition. |
 | Non-interactive approval | Resolves to a declared safe default, or `REFUSED` where none exists. **Never auto-approves.** |
 | Restart budget | Default **0**. Restart requires both remaining budget and explicit operator confirmation. Budget exhaustion drains to a terminal state; it never loops. |
-| PTY unavailable | Degrades to pipe with a recorded warning. A *requested-and-unavailable* PTY never silently becomes an interactive-looking pipe without that warning. |
+| PTY unavailable | **Degrades to INHERITED STDIO — never to pipes** (F29, ruling 11, 2026-08-11) — with a recorded warning. A missing optional extra costs *output capture*, never *terminal attachment*, so a requested-and-unavailable PTY can never silently downgrade an interactive session into a non-TTY one. Where capture is consequently unavailable, `journal.py` writes an explicit `ChildOutputUnavailable(reason="inherited-stdio")` marker rather than an empty stream. |
+| Post-`LOCKING` termination | **Every** path to a terminal state routes through `DRAINING`, which always releases the lock idempotently (F18/F22/F23, ruling 1). There is no direct edge to `FAILED` and no `CANCELLING → EXITED` edge. `REFUSED` is the sole exception and is reachable only *before* a lock is acquired. Verified by a graph-property test, not an enumerated path list. |
+| Lock acquisition | **Atomic** (`O_CREAT|O_EXCL` or OS advisory lock); check-then-write is prohibited, and contention is proven by a parallel-contender suite rather than a sequential one (F27, ruling 9). |
 | Copilot CLI unresolvable | Fatal `FAILED` with the current actionable message. Never falls back to a guessed path. |
 
 ## H3 — Exit-status fidelity (regression-class defect already in the corpus)
@@ -155,7 +157,7 @@ so "high complexity" does not silently mean "> 2 hours".
 | **T7** — PTY/ConPTY backend | Platform-divergent, optional dependency, hardest to test | Bounded by the `ChildProcess` Protocol already fixed by T6. Scope is *one* class. Not on the default path. If `pywinpty` integration exceeds the box, the fallback is to ship pipe-only and re-file PTY as a follow-up — the plan degrades gracefully. |
 | **T11** — cancellation / restart / resume | Concurrency + partial state | State machine (T8) and journal (T10) are already fixed contracts. Restart budget defaults to **0**, so the default path is "cancel and drain" — the complex restart path is opt-in and separately testable against the fake child. |
 | **T15** — `run_session()` orchestration | Integrates everything | Pure composition: every dependency (T6, T8, T10, T12, T13, T14) is already implemented and independently tested. T15 adds no new algorithm; if it grows one, that is a decomposition failure and the task must be split. |
-| **T18** — shim migration | Highest blast radius | Gated by the unchanged T1/T2 suites, plus the `AUTOHARNESS_SUPERVISOR=0` escape hatch and a single-file-revert rollback. |
+| **T18** — shim migration | Highest blast radius | Gated by the unchanged T1/T2 suites (now including a TTY-attachment case, F29) and a single-file-revert rollback. **The `AUTOHARNESS_SUPERVISOR=0` escape hatch is WITHDRAWN** (F16, ruling 3, 2026-08-11): retaining an executable legacy inline path inside the shim *is* orchestration policy remaining in shell, which DoD #2 forbids absolutely. The contradiction is resolved in favour of DoD #2, so rollback **requires a redeploy** — a cost accepted deliberately in exchange for the guarantee, and enforced by a test asserting no shim contains an environment-variable branch into any legacy path. This de-risking row is correspondingly **weaker than originally written**, and that is a deliberate, recorded trade. |
 
 ## H9 — Backward-compatibility guarantees (explicit contract)
 
@@ -185,8 +187,13 @@ The three shipments form a **strict serial chain** with explicit `blocks` edges:
 * **S2** must land as an **unwired library** — nothing in `cli.py`, `start.ps1`,
   or `start.sh` calls it yet.
 * **S3** is the only shipment permitted to change observable behavior, and it
-  lands behind the S1 characterization gate plus the `AUTOHARNESS_SUPERVISOR=0`
-  escape hatch.
+  lands behind the S1 characterization gate. It no longer lands behind an
+  `AUTOHARNESS_SUPERVISOR=0` escape hatch — **withdrawn** under F16/ruling 3 to
+  preserve DoD #2; rollback is a single-file revert per shim requiring a
+  redeploy. S3 also carries a **deliberate POSIX behaviour change**: `start.sh`
+  never implemented `ENGRAM_DATA_DIR`, the PAT, `--remote`, or the sidecars
+  (F17, ruling 4), so convergence *adds* those dimensions rather than merely
+  consolidating them, and that is owned here rather than assumed away in S1.
 
 ### H10.4 — Task-only manifests (SUPERSEDED by H10.5 on 2026-08-10)
 

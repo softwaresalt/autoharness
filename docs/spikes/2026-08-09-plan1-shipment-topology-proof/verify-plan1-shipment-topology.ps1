@@ -98,10 +98,20 @@ Set-Location $repo
 Write-Host "`n########## PART 1: READ-ONLY VERIFICATION OF THE LIVE WORKSPACE ##########"
 
 $plan = @{
-    '127-S' = @{ Feat = '118-F'; Tasks = @('118.001-T', '118.002-T', '118.003-T', '118.004-T', '118.005-T') }
+    # 118.006-T (F27 stale-lock/--force-unlock split) and 118.007-T (F26 P-015
+    # amendment) were ADDED on 2026-08-11 by accepted operator rulings. They are
+    # children of 118-F, so V1's FULL COVERAGE assertion requires them here: a new
+    # child that is not in the manifest is exactly the defect that check exists to
+    # catch, and omitting them here would have made the verifier agree with a
+    # broken topology.
+    '127-S' = @{ Feat = '118-F'; Tasks = @('118.001-T', '118.002-T', '118.003-T', '118.004-T', '118.005-T', '118.006-T', '118.007-T') }
     '128-S' = @{ Feat = '119-F'; Tasks = @('119.001-T', '119.002-T', '119.003-T', '119.004-T', '119.005-T', '119.006-T') }
     '129-S' = @{ Feat = '120-F'; Tasks = @('120.001-T', '120.002-T', '120.003-T', '120.004-T', '120.005-T', '120.006-T', '120.007-T', '120.008-T') }
 }
+
+# Tasks created NATIVELY under their covering feature (never re-parented off
+# 117-F), and therefore expected to carry no origin_feature provenance.
+$script:nativeTasks = @('118.006-T', '118.007-T')
 
 Write-Host "`n--- V1: every task has a valid, queued covering feature ---"
 # NOTE: `backlogit get --format json` does NOT project size/complexity. Those two
@@ -122,7 +132,19 @@ foreach ($s in $plan.Keys | Sort-Object) {
         Assert ($sc.ContainsKey($t) -and $sc[$t].size -in $sizeEnum) "$t size = '$($sc[$t].size)' (valid enum)"
         Assert ($sc.ContainsKey($t) -and $sc[$t].complexity -in $cxEnum) "$t complexity = '$($sc[$t].complexity)' (valid enum)"
         Assert ($sc[$t].size -notin @('L', 'XL')) "$t satisfies the 2-hour rule (size not L/XL)"
-        Assert ($ta.custom_fields.origin_feature -eq '117-F') "$t retains origin_feature provenance = '$($ta.custom_fields.origin_feature)'"
+        # Provenance is asserted CONDITIONALLY, and the condition is the point.
+        # 118.001-T..120.008-T were re-parented off 117-F and MUST retain
+        # origin_feature = '117-F'. 118.006-T / 118.007-T were created natively
+        # under 118-F on 2026-08-11 and were never under 117-F, so they MUST NOT
+        # claim that provenance. Asserting it unconditionally would demand a FALSE
+        # provenance record; dropping the assertion entirely would stop detecting
+        # provenance loss on the 19 re-parented tasks. Both halves are checked.
+        if ($t -in $script:nativeTasks) {
+            Assert ($null -eq $ta.custom_fields.origin_feature) "$t was created natively under $f and correctly claims NO origin_feature"
+        }
+        else {
+            Assert ($ta.custom_fields.origin_feature -eq '117-F') "$t retains origin_feature provenance = '$($ta.custom_fields.origin_feature)'"
+        }
     }
 }
 
@@ -200,32 +222,63 @@ function Test-Dfs([string]$n) {
 foreach ($n in $adj.Keys) { if (-not $state.ContainsKey($n)) { Test-Dfs $n } }
 Assert ($null -eq $script:cycle) "dependency DAG over $($edges.Count) edges is ACYCLIC ($script:cycle)"
 
-Write-Host "`n--- V7: 27 Plan-1 task blocks edges survived re-parenting ---"
+Write-Host "`n--- V7: 30 Plan-1 task blocks edges (27 survived re-parenting, then ruling-driven delta) ---"
 # The authoritative expected edge set, as real live IDs. Part 2's fixture replay
 # is DERIVED from this same list (see $liveEdges below), so the replay cannot
 # silently drift from what V7 verified. A count-only check is insufficient:
-# swapping one valid edge for another still yields 27 and would let the harness
-# replay an obsolete graph while claiming an "exact live topology" proof.
+# swapping one valid edge for another still yields the same total and would let
+# the harness replay an obsolete graph while claiming an "exact live topology"
+# proof. That is why the expected value below is an explicit SET, and why the
+# 2026-08-11 ruling delta is enumerated rather than absorbed into a new count.
+#
+# RULING DELTA 2026-08-11 (27 -> 30): one edge REMOVED, FOUR ADDED.
+#
+# CAUTION, AND THE REASON THIS LIST IS A SET AND NOT A COUNT: the first draft of
+# this delta listed only THREE additions and expected 29. It was built from a
+# `backlogit query` run BEFORE `backlogit sync`, so the index had not yet picked
+# up the `dependencies:` frontmatter written when 118.006-T was created. The live
+# graph was correct; the EXPECTATION was stale. A count-only check would have been
+# equally wrong and would have reported the same failure with no way to see what
+# was missing - the set check named the absent edge directly. Rebuild this list
+# from a POST-SYNC query.
+#   REMOVED '119.004-T->119.003-T'  - F19/ruling 2. The event catalog moved UP
+#     into 118.003-T (contracts.py), so events.py no longer depends on the state
+#     machine. This edge WAS the cycle F19 reported: 119.003-T had to emit an
+#     event type only 119.004-T defined, while 119.004-T depended back on
+#     119.003-T. Removing it is the structural fix, not a reordering.
+#   ADDED   '119.004-T->118.003-T'  - F19/ruling 2, the replacement edge: the bus
+#     now depends on the shared contract that defines what it delivers.
+#   ADDED   '120.005-T->118.003-T'  - F21/ruling 2: approvals implement the
+#     upstream contract, so the fail-closed channel is no longer omissible from a
+#     satisfiable runtime chain.
+#   ADDED   '120.006-T->118.006-T'  - F25+F27/rulings 7 and 9: the CLI exposes
+#     --force-unlock, whose stale-lock semantics 118.006-T owns.
+#   ADDED   '118.006-T->118.005-T'  - F27/ruling 9, declared when 118.006-T was
+#     created: the stale-lock lifecycle, --force-unlock and recycled-PID rejection
+#     operate on the lock primitive 118.005-T defines, so the split task depends on
+#     the task it was split from. Both are 127-S members, so this edge orders work
+#     WITHIN the eligible cursor and does not affect shipment eligibility.
 $script:expectedEdges = @(
-    '118.005-T->118.003-T',
+    '118.005-T->118.003-T', '118.006-T->118.005-T',
     '119.001-T->118.003-T', '119.002-T->119.001-T', '119.003-T->118.003-T',
-    '119.004-T->118.004-T', '119.004-T->119.003-T', '119.005-T->119.004-T',
+    '119.004-T->118.003-T', '119.004-T->118.004-T', '119.005-T->119.004-T',
     '119.006-T->119.003-T', '119.006-T->119.005-T',
     '120.001-T->118.001-T', '120.001-T->118.003-T', '120.002-T->118.003-T',
     '120.003-T->118.003-T',
     '120.004-T->119.001-T', '120.004-T->119.003-T', '120.004-T->119.005-T',
     '120.004-T->120.001-T', '120.004-T->120.002-T', '120.004-T->120.003-T',
-    '120.005-T->119.004-T', '120.005-T->120.004-T', '120.006-T->120.004-T',
+    '120.005-T->118.003-T', '120.005-T->119.004-T', '120.005-T->120.004-T',
+    '120.006-T->118.006-T', '120.006-T->120.004-T',
     '120.007-T->118.001-T', '120.007-T->118.002-T', '120.007-T->118.005-T',
     '120.007-T->120.006-T', '120.008-T->120.007-T'
 )
 $p1 = @(Invoke-Sql "SELECT item_id, depends_on FROM item_deps WHERE (item_id LIKE '118.%' OR item_id LIKE '119.%' OR item_id LIKE '120.%')")
-Assert ($p1.Count -eq 27) "Plan-1 task-level blocks edges = $($p1.Count) (expect 27, unchanged from pre-redesign)"
+Assert ($p1.Count -eq 30) "Plan-1 task-level blocks edges = $($p1.Count) (expect 30 = 27 pre-redesign - 1 removed + 4 added by the 2026-08-11 rulings)"
 $liveSet = @($p1 | ForEach-Object { "$($_.item_id)->$($_.depends_on)" } | Sort-Object)
 $expSet = @($script:expectedEdges | Sort-Object)
 $missing = @($expSet | Where-Object { $_ -notin $liveSet })
 $extra = @($liveSet | Where-Object { $_ -notin $expSet })
-Assert ($missing.Count -eq 0 -and $extra.Count -eq 0) "live edge SET matches the expected 27 endpoint pairs exactly (missing: $($missing -join ','); extra: $($extra -join ','))"
+Assert ($missing.Count -eq 0 -and $extra.Count -eq 0) "live edge SET matches the expected 30 endpoint pairs exactly (missing: $($missing -join ','); extra: $($extra -join ','))"
 $dangling = @($p1 | Where-Object { $_.depends_on -like '117.*' })
 Assert ($dangling.Count -eq 0) "no dependency still points at a retired 117.x task ID ($($dangling.Count))"
 
@@ -360,7 +413,7 @@ $U = New-A feature 'umbrella 117-F' $null
 $F1 = New-A feature 'covering 118-F' $null
 $F2 = New-A feature 'covering 119-F' $null
 $F3 = New-A feature 'covering 120-F' $null
-$T1 = @(); 1..5 | ForEach-Object { $T1 += New-A task "118.00$_-T" $F1 }
+$T1 = @(); 1..7 | ForEach-Object { $T1 += New-A task "118.00$_-T" $F1 }   # 7, not 5: 118.006-T / 118.007-T added 2026-08-11
 $T2 = @(); 1..6 | ForEach-Object { $T2 += New-A task "119.00$_-T" $F2 }
 $T3 = @(); 1..8 | ForEach-Object { $T3 += New-A task "120.00$_-T" $F3 }
 
@@ -370,7 +423,7 @@ $T3 = @(); 1..8 | ForEach-Object { $T3 += New-A task "120.00$_-T" $F3 }
 # edge that does not exist live (28 replayed vs 27 live), which the old count-only
 # V7 could not detect. Deriving guarantees isomorphism by construction.
 $idMap = @{}
-1..5 | ForEach-Object { $idMap["118.00$_-T"] = $T1[$_ - 1] }
+1..7 | ForEach-Object { $idMap["118.00$_-T"] = $T1[$_ - 1] }
 1..6 | ForEach-Object { $idMap["119.00$_-T"] = $T2[$_ - 1] }
 1..8 | ForEach-Object { $idMap["120.00$_-T"] = $T3[$_ - 1] }
 
@@ -381,7 +434,7 @@ $liveEdges = @($script:expectedEdges | ForEach-Object {
         }
         , @($idMap[$parts[0]], $idMap[$parts[1]])
     })
-Assert ($liveEdges.Count -eq 27) "fixture replay derives exactly 27 edges from the verified live set ($($liveEdges.Count))"
+Assert ($liveEdges.Count -eq 30) "fixture replay derives exactly 30 edges from the verified live set ($($liveEdges.Count))"
 foreach ($e in $liveEdges) { Invoke-Bl dep add $e[0] $e[1] --type blocks | Out-Null }
 foreach ($f in @($F1, $F2, $F3)) { Invoke-Bl link add $U $f related_to | Out-Null }
 

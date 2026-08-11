@@ -89,10 +89,30 @@ New evidence supporting the supervisor framing:
   for `GITHUB_TOKEN` / `GITHUB_PERSONAL_ACCESS_TOKEN`, `backlogit sync`, Engram
   direct pre-warm with daemon-`bind` fallback, Copilot CLI resolution
   (`COPILOT_EXE_PATH` → `COPILOT_EXE` → `PATH`), opt-in `--remote`, and a
-  foreground child launch. `start.sh` duplicates this policy in bash.
-* That policy has **no test coverage and two divergent implementations**. It is
-  the highest-value, lowest-controversy consolidation target in the repository,
-  and it is exactly the seam a supervisor needs.
+  foreground child launch.
+* **CORRECTED 2026-08-11 (F17, ruling 4).** The earlier claim that `start.sh`
+  "duplicates this policy in bash" was **factually wrong and is withdrawn**. The
+  two scripts do not implement the same policy at different fidelities; they
+  implement **different, smaller and larger, policies**. `start.sh` (80 lines)
+  implements only five dimensions: `.env.local` parsing, a workspace-local
+  `COPILOT_HOME` default, an **unguarded** `export GITHUB_TOKEN="$(gh auth token)"`,
+  Copilot executable resolution, and `exec "$copilot_exe" "$@"` at line 66. It
+  **does not** set `ENGRAM_DATA_DIR` (the line exists but is commented out), does
+  **not** handle `GITHUB_PERSONAL_ACCESS_TOKEN`, has **no** `COPILOT_USE_REMOTE` /
+  `--remote` logic, and runs **neither** `backlogit sync` **nor** any Engram
+  pre-warm. `start.ps1:65` conversely assigns the PAT **unguarded** while its
+  `GITHUB_TOKEN` assignment sits in a guarded, non-fatal `try/catch` — so even
+  the shared dimension is not shared behaviour.
+* Two consequences follow, and both are load-bearing. **(a)** Characterization
+  (T1/T2) pins **each script's own contract**, asserting `start.sh`'s four
+  absences **as absences**; a parity assertion would have been unsatisfiable, and
+  writing one is what F17 caught. **(b)** Convergence is therefore a **deliberate
+  behaviour change on POSIX**, owned by Shipment 3, not a free side effect of
+  consolidation.
+* The policy nonetheless has **no test coverage** in either implementation, which
+  is the actual justification for this work: it is the highest-value,
+  lowest-controversy consolidation target in the repository, and exactly the seam
+  a supervisor needs.
 
 **What is still NO-GO** and remains a non-goal: an in-process action/observation
 reasoning loop, sequential model pipelining, stderr-routed-back-to-the-model
@@ -116,8 +136,9 @@ plugin registry. No Go component.
    │                        ▼                                         │
    │  bootstrap.py   sidecar.py   resolve.py   session.py   events.py │
    │  locking.py     journal.py   recovery.py  approvals.py redact.py │
-   │  process.py (Protocol) ──┬── PipeChildProcess (stdlib, default)  │
-   │  result.py / errors.py   └── PtyChildProcess (ConPTY / posix pty)│
+   │  process.py (Protocol) ──┬── InheritStdio (DEFAULT, TTY-attached)│
+   │  contracts.py            ├── PtyChildProcess (opt-in capture)    │
+   │  result.py / errors.py   └── PipeChildProcess (tests/non-interactive)│
    └──────────────────────────────────────────────────────────────────┘
                               │ supervises (never reimplements)
                               ▼
@@ -135,11 +156,12 @@ unit-testable without spawning Copilot.
 | `errors.py` | One `AutoharnessError` base carrying a machine-readable `kind`; supervisor error taxonomy; machine-readable exit-code contract. | Call `sys.exit`. |
 | `redact.py` | Secret redaction applied at the **emit/persist boundary** for every event, log line, and journal record. | Be optional or bypassable by any writer. |
 | `locking.py` | Workspace/session lock: one active supervised session per workspace. Lockfile carries PID + process start-time + session id. | Auto-break a live lock. |
-| `process.py` | `ChildProcess` Protocol (spawn/read/write/signal/wait/close) + `PipeChildProcess` stdlib implementation. Argv-array spawn only. | Use `shell=True`; mask child exit status. |
-| `process_pty.py` | `PtyChildProcess`: ConPTY on Windows, stdlib `pty` on POSIX, behind the identical Protocol. | Become the only path; must degrade to pipe. |
+| `contracts.py` | **Shared core contracts (F19/F21, ruling 2): the `SupervisorEvent` type catalog and the approval request/response types.** Definition lives here so no runtime component depends on the event bus or the approval channel merely to *name* what it emits. | Contain transport, delivery, or I/O — definition only. |
+| `process.py` | `ChildProcess` Protocol (spawn/read/write/signal/wait/close) + **`InheritStdioChildProcess` (the DEFAULT, preserving TTY attachment)** and `PipeChildProcess` (tests / explicitly non-interactive runs). Argv-array spawn only. | Use `shell=True`; mask child exit status; make pipes the interactive default. |
+| `process_pty.py` | `PtyChildProcess`: ConPTY on Windows, stdlib `pty` on POSIX, behind the identical Protocol. Opt-in, adds **output capture** without losing terminal semantics. | Become the only path; **must degrade to inherited stdio, never to pipes**. |
 | `session.py` | Explicit session state machine + legal-transition table. | Perform I/O or spawn. |
-| `events.py` | Typed `SupervisorEvent` records + in-process subscriber fan-out. **The hook surface candidate (c) may later consume.** | Ship a candidate-(c) consumer, or give Engram authority. |
-| `journal.py` | Append-only redacted JSONL session journal + resume cursor under `.autoharness/sessions/<session-id>/`. | Duplicate backlogit checkpoints or claim backlog authority. |
+| `events.py` | In-process subscriber fan-out and **delivery** of `SupervisorEvent` records whose **types are defined upstream in `contracts.py`** (F19). Also owns the H7 anti-drift guard, which is **behavioural** (a `sys.addaudithook` socket interception with mandatory positive controls over `socket.create_server`, `socketserver.TCPServer`, `asyncio.start_server` and `http.server.HTTPServer`), with the lexical denylist demoted to a fast pre-filter (F28, ruling 10). **The hook surface candidate (c) may later consume.** | Define event types; ship a candidate-(c) consumer; give Engram authority; rely on lexical checks alone. |
+| `journal.py` | Append-only redacted JSONL session journal + resume cursor under `.autoharness/sessions/<session-id>/`. **Owns the ignore rule for its own state (F24, ruling 6):** on journal-root creation it idempotently ensures `.autoharness/sessions/` is git-ignored, verified by a test asserting a fresh session directory is *actually* ignored. | Duplicate backlogit checkpoints or claim backlog authority; assume some other surface installs its ignore rule. |
 | `recovery.py` | Cancellation, bounded restart budget/backoff, operator-confirmed restart, resume-from-cursor. | Auto-restart without budget, or restart silently. |
 | `bootstrap.py` | `.env.local` load, workspace-local `COPILOT_HOME`/`ENGRAM_DATA_DIR`, GitHub token resolution. **Sole authority** for that policy. | Leave residual policy in `start.ps1`/`start.sh`. |
 | `sidecar.py` | Sidecar preflight: `backlogit sync`; Engram direct pre-warm → daemon `bind` + daemon-sync fallback; per-sidecar typed outcome. | Make any sidecar failure fatal, or write to a sidecar's store. |
@@ -151,39 +173,96 @@ unit-testable without spawning Copilot.
 
 ```
 INIT
- └▶ LOCKING ─(lock held by live session)─▶ REFUSED   [terminal]
-     └▶ BOOTSTRAPPING ─(fatal)─▶ FAILED              [terminal]
+ └▶ LOCKING ─(lock held by live session)─▶ REFUSED   [terminal, NO lock acquired]
+     └▶ BOOTSTRAPPING ─(fatal)───────┐
          └▶ PREFLIGHT ─(sidecar degraded)─▶ PREFLIGHT (warn, continue)
-             └▶ RESOLVING ─(no copilot exe)─▶ FAILED [terminal]
-                 └▶ LAUNCHING ─(spawn error)─▶ FAILED[terminal]
-                     └▶ RUNNING
-                         ├─(operator cancel)─▶ CANCELLING ─▶ EXITED   [terminal]
+             └▶ RESOLVING ─(no copilot exe)─┤
+                 └▶ LAUNCHING ─(spawn error)──┤
+                     └▶ RUNNING                │
                          ├─(child exit, budget left, operator-confirmed)
                          │      ─▶ RESTARTING ─▶ LAUNCHING
                          ├─(child exit, budget exhausted OR declined)
-                         │      ─▶ DRAINING ─▶ EXITED                 [terminal]
-                         └─(supervisor fault)─▶ DRAINING ─▶ FAILED    [terminal]
+                         │                       │
+                         └─(supervisor fault)────┤
+                                                 │
+   (operator cancel, legal from ANY of          │
+    BOOTSTRAPPING/PREFLIGHT/RESOLVING/          │
+    LAUNCHING/RUNNING/RESTARTING)               │
+                         └─▶ CANCELLING ────────┤
+                                                 │
+                                                 ▼
+                                             DRAINING
+                                    (journal flush, lock release,
+                                     child reaping — ALWAYS)
+                                                 │
+                          ┌──────────────────────┼────────────┐
+                          ▼                      ▼                ▼
+                       EXITED                 FAILED          CANCELLED
+                     [terminal]             [terminal]        [terminal]
 ```
+
+**CORRECTED 2026-08-11 (F18 + F22 + F23, ruling 1).** The previous diagram routed
+`CANCELLING → EXITED` directly, contradicting its own Rule 2, and sent three
+post-`LOCKING` failure edges (`BOOTSTRAPPING`/`RESOLVING`/`LAUNCHING` → `FAILED`)
+straight to a terminal state without ever passing through `DRAINING` — where lock
+release lives. Because §3.4 never auto-breaks a stale lock, the most likely
+first-run failure of all (no Copilot executable on `PATH`) would have left the
+operator **locked out of their own workspace**, with every retry returning
+`REFUSED`. The diagram above eliminates that class of defect structurally rather
+than by adding cases.
 
 Rules:
 
 1. Transitions not in the table are rejected with `ErrorKind.ILLEGAL_TRANSITION`;
    there are no implicit transitions.
-2. `DRAINING` always runs: journal flush, lock release, child reaping. It is the
-   only path to a terminal state from `RUNNING`.
-3. Every transition emits exactly one `SessionPhaseChanged` event, journaled.
-4. `REFUSED` is a distinct terminal state from `FAILED` — a contended workspace
+2. **`DRAINING` is the SOLE TERMINAL GATEWAY.** Every path from any state at or
+   after `LOCKING` to any terminal state passes through `DRAINING`, which always
+   runs journal flush, **lock release**, and child reaping. There is no
+   `CANCELLING → EXITED` edge and no direct failure edge to `FAILED`. The single
+   exception is `REFUSED`, which is reachable only from `LOCKING` **before** a
+   lock is acquired, so there is nothing to release. Release is **idempotent**, so
+   a fault inside `DRAINING` cannot double-release.
+3. **Operator cancellation is legal from EVERY post-`LOCKING` phase**, not only
+   from `RUNNING`. This is what makes 119.006-T's "cancel during launch" case
+   satisfiable; under the previous table it could only ever be refused.
+4. Rules 2 and 3 are verified by a **graph-property test**, not by a
+   hand-enumerated list of paths: for every state and every edge, assert that no
+   terminal state is reachable except through `DRAINING`. The defect this prevents
+   is precisely an edge nobody thought to enumerate, so enumeration cannot be the
+   control.
+5. Every transition emits exactly one `SessionPhaseChanged` event, journaled.
+   The event **type** is defined in the shared core (`supervise/contracts.py`,
+   T3), not in the event bus — see F19/F21, ruling 2.
+6. `REFUSED` is a distinct terminal state from `FAILED` — a contended workspace
    is a policy outcome, not an error.
 
 ### 3.3 PTY / process strategy
 
-* **Default is pipe-based** (`PipeChildProcess`, stdlib `subprocess` with argv
-  arrays, never `shell=True`). This keeps the base install dependency-light and
-  is the path CI exercises.
-* **PTY is opt-in** (`PtyChildProcess`): ConPTY on Windows via an optional
+* **CORRECTED 2026-08-11 (F29, ruling 11).** The default was previously specified
+  as redirected pipes. That is **not** the contract being migrated: `start.sh:66`
+  is `exec "$copilot_exe" "$@"` and `start.ps1` inherits terminal handles, so the
+  child today runs **TTY-attached**. `subprocess.PIPE` makes stdin/stdout/stderr
+  non-TTY, changing interactive prompts, input handling, colour and buffering — a
+  migration could have passed every assertion while breaking ordinary interactive
+  Copilot sessions, contradicting the zero-observable-change premise of S1/S2.
+* **Default is inherited stdio** (`InheritStdioChildProcess`, stdlib `subprocess`
+  with argv arrays, never `shell=True`, child file handles inherited). This
+  preserves terminal attachment exactly as today and keeps the base install
+  dependency-light. T1/T2 characterize TTY attachment explicitly.
+* `PipeChildProcess` is **retained but demoted** to tests and explicitly
+  non-interactive runs. It is never selected implicitly for an interactive
+  session.
+* **PTY is opt-in** (`PtyChildProcess`) and exists to add **output capture**
+  without losing terminal semantics: ConPTY on Windows via an optional
   `pywinpty` extra; stdlib `pty` on POSIX. Selected only when the operator
-  requests interactive fidelity *and* the implementation imports cleanly;
-  otherwise it degrades to pipe with a recorded `warning`, never a hard failure.
+  requests capture *and* the implementation imports cleanly; otherwise it
+  **degrades to inherited stdio — never to pipes** — with a recorded `warning`.
+  A missing optional extra therefore costs *capture*, never *terminal
+  attachment*.
+* Under inherited stdio the supervisor cannot observe child output, so
+  `journal.py` (T10) writes an explicit `ChildOutputUnavailable(reason=
+  "inherited-stdio")` marker rather than silently journaling an empty stream. The
+  absence of capture is a **declared degradation**, not an invisible one.
 * Both satisfy an identical `ChildProcess` Protocol, so the supervisor is
   **replaceable**: if a future persistent multi-workspace daemon ever justifies a
   native process supervisor, only this Protocol's implementations change. That
@@ -198,12 +277,15 @@ Rules:
 | Condition | Semantics |
 |---|---|
 | Sidecar (`backlogit`/Engram) failure | **Non-fatal**, matching today's `start.ps1`. Typed per-sidecar outcome `ok \| degraded \| unavailable` + warning. Never silently swallowed. |
-| Copilot CLI not resolvable | **Fatal**, `FAILED`, distinct error kind, actionable message (preserves today's `throw`). |
-| Child spawn failure | **Fatal**, `FAILED`, no restart consumed. |
+| Copilot CLI not resolvable | **Fatal**, `DRAINING → FAILED` (lock released on the way out — F22), distinct error kind, actionable message (preserves today's `throw`). |
+| Child spawn failure | **Fatal**, `DRAINING → FAILED` (lock released — F22), no restart consumed. |
+| Bootstrap fatal | **Fatal**, `DRAINING → FAILED` (lock released — F22). |
+| Operator cancel (any post-`LOCKING` phase) | `CANCELLING → DRAINING → CANCELLED` (lock released — F18/F23). |
 | Child non-zero exit | Not a supervisor failure. Exit code propagates verbatim. Restart only if budget remains **and** the operator confirms. |
 | Supervisor internal fault | `DRAINING → FAILED`; child is terminated, lock released, journal flushed. |
 | Restart budget | Default 0 (opt-in `--max-restarts N`), hard ceiling, exponential backoff, every restart journaled with its reason. |
-| Lock contention | `REFUSED` (never auto-break). Stale lock (dead PID / mismatched start-time) requires an explicit operator `--force-unlock`. |
+| Lock contention | `REFUSED` (never auto-break). Stale lock (dead PID / mismatched start-time) requires an explicit operator `--force-unlock`, which §10/T17 obliges the CLI to actually expose (F25) and T6/118.006-T to implement, including rejection of a **recycled PID** whose start-time does not match. |
+| Lock acquisition | **Atomic** — `O_CREAT\|O_EXCL` or an OS advisory lock (F27). Check-then-write is **prohibited**: two supervisors starting simultaneously could both observe no live lock and both write it, producing exactly the concurrent sessions the module exists to prevent. The PID + start-time record is **diagnosis of staleness only**, never the acquisition mechanism, and contention is proven by a **parallel-contender** test, not a sequential one. |
 
 ### 3.5 Security and secret handling
 
@@ -243,8 +325,16 @@ exists) and is journaled as `auto-resolved`, never silently approved.
 * One active supervised session per workspace, enforced by `locking.py`.
 * Session id: `<utc-timestamp>-<pid>`; state under
   `.autoharness/sessions/<session-id>/{journal.jsonl,session.json}`.
-* `.autoharness/sessions/` is gitignored; the journal is local operational
-  telemetry, not a durable backlog artifact. **backlogit remains the sole
+* `.autoharness/sessions/` is gitignored **by `journal.py` itself** — corrected
+  2026-08-11 under F24/ruling 6. The earlier plan assumed a "gitignore template"
+  in `templates/`; **no such artifact exists**, and workspace ignore rules are
+  handled procedurally by the install-harness skill, which merely *confirms* an
+  existing `.gitignore` covers `.env.local`. The requirement was therefore
+  satisfiable **by vacuity** — "met" by finding nothing to change — and it failed
+  **silently**, leaving every supervised session's JSONL git-tracked in generated
+  workspaces. Core now ensures the rule and a `git check-ignore` test enforces it,
+  so the H6 containment property is *enforced* rather than asserted. The journal is
+  local operational telemetry, not a durable backlog artifact. **backlogit remains the sole
   authority for backlog state and agent checkpoints** — the session journal never
   substitutes for a backlogit checkpoint.
 
@@ -362,8 +452,19 @@ implied here.
   `start.ps1` / `start.sh` (both preserved verbatim in git history and referenced
   by SHA in the migration doc). The Python services can remain installed and
   dormant — they have no effect unless `autoharness run` is invoked.
-* Escape hatch during S3 bake: `AUTOHARNESS_SUPERVISOR=0` makes the shim execute
-  the legacy inline path, so rollback needs no redeploy.
+* **WITHDRAWN 2026-08-11 (F16, ruling 3).** An earlier draft offered an escape
+  hatch during S3 bake — `AUTOHARNESS_SUPERVISOR=0` making the shim execute the
+  legacy inline path so rollback needed no redeploy. That requirement was
+  **mutually exclusive with DoD #2**: retaining an executable legacy inline path
+  inside the shim *is* orchestration policy remaining in PowerShell and bash. The
+  contradiction is resolved **in favour of DoD #2**, which is preserved intact.
+* There is therefore **no environment-variable escape hatch**. Rollback is a
+  single-file revert per shim to the git-SHA-preserved pre-migration script, and
+  it **requires a redeploy**. That cost is accepted deliberately: it buys the
+  guarantee that no orchestration policy survives in shell, which is the entire
+  point of the migration. A test asserts that no shim contains an
+  environment-variable branch into any legacy path, so the hatch cannot
+  reappear silently.
 
 ## 10. Work decomposition (2-hour rule, width-isolated)
 
@@ -391,26 +492,44 @@ characterization tests before UI/convenience.**
 > executed closure proof.
 
 * **T1** — Characterization suite for `start.ps1` observable contract. Test-only.
-* **T2** — Characterization suite for `start.sh` parity. Test-only.
-* **T3** — `supervise/result.py` + `supervise/errors.py`: typed envelope, error
-  taxonomy, machine-readable exit-code contract table. Pure, no I/O.
+* **T2** — Characterization suite for **`start.sh`'s own five-dimension contract**,
+  with its four absences (no `ENGRAM_DATA_DIR`, no PAT, no `--remote`, no sidecars)
+  asserted **as absences**. Not a parity suite — see §5 (F17, ruling 4). Test-only.
+* **T3** — `supervise/result.py` + `supervise/errors.py` **+ `supervise/contracts.py`**:
+  typed envelope, error taxonomy, machine-readable exit-code contract table, and
+  the shared **event type catalog + approval request/response contracts** that T8,
+  T9 and T16 all bind to (F19/F21, ruling 2). Pure, no I/O.
 * **T4** — `supervise/redact.py`: pattern set, whole-match redaction,
   no-partial-leak property tests.
-* **T5** — `supervise/locking.py`: single-active workspace/session lock, PID +
-  start-time liveness, fail-closed stale policy, explicit `--force-unlock`.
+* **T5** — `supervise/locking.py`: single-active workspace/session lock with
+  **atomic acquisition** (`O_CREAT|O_EXCL` or OS advisory lock; check-then-write
+  prohibited), **idempotent release**, and a **parallel-contender** test suite
+  (F27, ruling 9). PID + start-time is staleness *diagnosis* only.
+* **T6a (118.006-T)** — stale-lock lifecycle, `--force-unlock` semantics, and
+  **recycled-PID rejection**; split from T5 to stay inside the 2-hour box.
+* **T7a (118.007-T)** — amend **P-015** (policy template, Ship agent template,
+  shipment-reconcile skill, compound close-path doc) so the permitted close
+  operation and the executable evidence agree, via a machine-checkable *verified
+  fully-covered-root* exception (F26, ruling 8). Must land before **any** close.
 
 ### Shipment 2 — Supervision core (P0, blocked by S1)
 
-* **T6** — `supervise/process.py`: `ChildProcess` Protocol + `PipeChildProcess`,
-  argv-array spawn, exit-status fidelity, signal/cancel.
+* **T6** — `supervise/process.py`: `ChildProcess` Protocol + **`InheritStdioChildProcess`
+  as the DEFAULT** (TTY-attached, F29) with `PipeChildProcess` retained for tests
+  and non-interactive runs; argv-array spawn, exit-status fidelity, signal/cancel.
 * **T7** — `supervise/process_pty.py`: ConPTY/POSIX PTY behind the same Protocol,
-  optional extra, guarded import, degrade-to-pipe.
-* **T8** — `supervise/session.py`: state machine + legal-transition table +
-  illegal-transition rejection.
-* **T9** — `supervise/events.py`: typed events, in-process fan-out,
-  redaction-on-emit wiring.
+  optional extra, guarded import, **degrade to inherited stdio — never to pipes**.
+* **T8** — `supervise/session.py`: state machine + legal-transition table with
+  **`DRAINING` as the sole terminal gateway** and cancel legal from every
+  post-`LOCKING` phase, enforced by a **graph-property test**; illegal-transition
+  rejection (F18/F22/F23, ruling 1).
+* **T9** — `supervise/events.py`: fan-out and delivery of the **contracts.py**
+  event catalog, redaction-on-emit wiring, and the **behavioural** H7 listener
+  guard with mandatory positive controls (F19 + F28).
 * **T10** — `supervise/journal.py`: append-only redacted JSONL, resume cursor,
-  workspace-containment checks.
+  workspace-containment checks, **core-owned session ignore rule with a
+  `git check-ignore` test** (F24), and an explicit `ChildOutputUnavailable`
+  marker under inherited stdio (F29).
 * **T11** — `supervise/recovery.py`: cancellation, bounded restart budget +
   backoff, operator-confirmed restart, resume-from-cursor.
 
@@ -419,18 +538,33 @@ characterization tests before UI/convenience.**
 * **T12** — `supervise/bootstrap.py`: `.env.local`, `COPILOT_HOME` /
   `ENGRAM_DATA_DIR`, token resolution — satisfies T1/T2 assertions.
 * **T13** — `supervise/sidecar.py`: `backlogit sync` + Engram direct→daemon
-  fallback pre-warm, typed per-sidecar outcome, non-fatal degradation.
+  fallback pre-warm, typed per-sidecar outcome, non-fatal degradation. **Scope of
+  the no-mutation rule is narrowed (F20, ruling 5):** no *domain/authority*
+  mutation (no artifact/shipment/checkpoint writes, no Engram authority records,
+  no decision authority), while `backlogit sync` and Engram pre-warm/bind are
+  **explicitly permitted** as derived-index maintenance creating no domain facts.
+  The previous blanket "backlogit and graphtor are not mutated" phrasing
+  contradicted this task's own mandate and is withdrawn.
 * **T14** — `supervise/resolve.py`: Copilot exe resolution order, `--remote`
   opt-in truthiness, verbatim passthrough.
 * **T15** — `supervise/app.py`: `run_session()` orchestration returning
   `SupervisorResult`.
 * **T16** — `supervise/approvals.py`: local console-only structured command +
-  approval channel, non-interactive safe-default resolution.
+  approval channel **implementing the upstream `contracts.py` approval contract**
+  (F21, ruling 2), non-interactive safe-default resolution. Because the contract
+  lives upstream and T16 depends on it, the fail-closed channel can no longer be
+  silently omitted from a satisfiable runtime chain.
 * **T17** — `autoharness run` CLI adapter: parse → call → render → exit. No
-  policy in the adapter.
+  policy in the adapter. **Defines the complete, stable option contract (F25,
+  ruling 7)** and is the only surface exposing it — including `--force-unlock`
+  (the sole reachable remedy for a stranded lock, compounding F22) and
+  `--max-restarts N` (default 0). Every option is tested both for **parsing** and
+  for **forwarding**, since parsing alone was never evidence of reachability.
 * **T18** — `start.ps1` / `start.sh` (+ their `templates/` copies) converted to
-  compatibility shims; T1/T2 suites re-run **unchanged**; `AUTOHARNESS_SUPERVISOR=0`
-  escape hatch.
+  compatibility shims; T1/T2 suites re-run **unchanged**, including the TTY
+  attachment case (F29). **No `AUTOHARNESS_SUPERVISOR=0` escape hatch** —
+  withdrawn under ruling 3 to preserve DoD #2 (see §9); rollback is a single-file
+  revert requiring redeploy.
 * **T19** — Observability + rollout/rollback documentation: event catalog,
   journal schema, redaction guarantees, migration/rollback runbook.
 
@@ -463,10 +597,10 @@ characterization tests before UI/convenience.**
 | R1 | Behavior drift when `start.ps1` policy moves to Python | T1/T2 characterization suites written **first** and re-run unchanged (T18 acceptance criterion) |
 | R2 | Scope creep into a runtime/agent-loop build (invited by spec §3) | §11 non-goals + P-006 hardening + plan-review gate |
 | R3 | Remote/Gradio scope leaking into Plan 1 | Plan 2 split to its own deferred tracker; "no network listener" is an S1 test-level invariant |
-| R4 | PTY/ConPTY portability burden | Pipe is default and CI path; PTY optional, guarded, degrade-to-pipe |
+| R4 | PTY/ConPTY portability burden | **Inherited stdio** is default and CI path (F29); PTY optional, guarded, degrades to inherited stdio never to pipes |
 | R5 | Secret leakage into journals/events | Redaction is the only write path; no-partial-leak property tests (T4) |
-| R6 | Session journal drifting into a second backlog/checkpoint authority | Journal is gitignored local operational state; backlogit remains sole backlog/checkpoint authority |
-| R7 | Silent candidate-(c) implementation via the event bus | Hooks only; no subscriber shipped; Engram non-authoritative asserted in review |
+| R6 | Session journal drifting into a second backlog/checkpoint authority | Journal is gitignored local operational state — **the ignore rule installed and tested by `journal.py` itself** (F24), not assumed from a nonexistent template; backlogit remains sole backlog/checkpoint authority |
+| R7 | Silent candidate-(c) implementation via the event bus | Hooks only; no subscriber shipped; Engram non-authoritative asserted in review; **listener drift caught behaviourally by an audit hook with positive controls** (F28) rather than by a bypassable lexical denylist |
 | R8 | Exit-code masking through the new shim layer | Exit-status fidelity is a hard invariant with dedicated tests (compound learning, `|| true` masking) |
 
 ## 13. Acceptance criteria (feature-level)

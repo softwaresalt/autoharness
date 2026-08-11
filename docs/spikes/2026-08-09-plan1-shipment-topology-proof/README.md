@@ -102,32 +102,74 @@ Both harnesses exit non-zero on any failed assertion, and both treat a nonzero
 captured as ordinary output, so a proof can never "pass" against a topology that
 was never actually constructed.
 
-## ⛔ Evidence scope caveat — F26 (P1, OPEN)
+## ⏳ Evidence scope caveat — F26 (P1, resolved 2026-08-11; operative once `118.007-T` lands)
 
-**What this suite proves is contested, though nothing in it is wrong.** Both
-harnesses exercise the **cascade** close operation `backlogit shipment ship`, and
-prove that under the fully-covered-root topology it returns `returned_ids: []`
-with no post-close repair. But `.github/agents/_ship.agent.md` prohibits that
-operation **unconditionally** under **P-015** ("NEVER the cascade
+**What this suite proves was contested — though nothing in it was ever wrong.**
+Both harnesses exercise the **cascade** close operation `backlogit shipment ship`
+and prove that under the fully-covered-root topology it returns
+`returned_ids: []` with no post-close repair. The contest was never about the
+assertions; it was that `.github/agents/_ship.agent.md` prohibits that operation
+**unconditionally** under **P-015** ("NEVER the cascade
 `backlogit_ship_shipment`"), with no fully-covered-root carve-out — so if
-`shipment-reconcile` safe-close is the operative close path, **this evidence
-concerns an operation Ship will never call.**
+safe-close were the operative path, this evidence would concern **an operation
+Ship will never call**.
 
-The proposition that would then matter is different: that archiving each manifest
-item in turn, with an **empty protected set**, leaves the backlog consistent.
+This is worth naming precisely, because it is a failure mode that
+assertion-hardening cannot reach: **not a vacuous assertion inside a proof, but a
+rigorous proof of a proposition that may not be the operative one.** Only asking
+*who will execute this, and what will they actually call?* surfaces it.
 
-This is worth naming precisely, because every assertion below is sound and the
-run is green: it is **not a vacuous assertion inside a proof, but a rigorous proof
-of a proposition that may not be the operative one**. No amount of
-assertion-hardening catches that — only asking *who will execute this, and what
-will they actually call?*
+**Operator ruling 8 (accepted 2026-08-11) resolves it in this evidence's favour —
+but not yet.** The ruling amends P-015 so the permitted close operation and the
+executable evidence agree, via a machine-checkable *verified fully-covered-root*
+exception, without requiring Ship to perform any P-010-forbidden operation. Once
+that lands, the cascade **is** the operative close path and the totals below prove
+a property of the command that will actually be called.
 
-**The topology is unaffected either way**: under safe-close the fully-covered-root
-manifest is still correct, since the covering feature is itself a manifest item
-and no unshipped siblings exist, so the protected set is empty. F14's structural
-elimination stands. Pending the operator's F26 ruling, read the totals below as
-**cascade-close** evidence specifically. See
+**Until then, read the totals below as cascade-close evidence specifically.** The
+ruling settles what the contract will say; it does not by itself change the files
+that bind Ship. The amendment is carried by **`118.007-T`**, a member of
+**`127-S`** — the first shipment — so it lands before any close in the chain.
+Until it completes, **safe-close governs**, and under safe-close this suite's
+totals still do not speak to the operative path.
+
+**The topology was unaffected throughout.** Under either close path the
+fully-covered-root manifest is correct: the covering feature is itself a manifest
+item and no unshipped siblings exist, so the protected set is empty. F14's
+structural elimination stands. See
 `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`.
+
+## Expectation update — 2026-08-11 ruling delta (27 → 30 edges, 5 → 7 S1 tasks)
+
+The eleven accepted rulings changed the live topology, so the verifier's
+hardcoded expectations had to change with it. **This is the dangerous kind of
+edit** — an evidence script revised until it passes proves nothing — so the
+change was made in the shape that preserves its detective power:
+
+* The expectation remains an explicit **edge SET**, never a count. A count-only
+  check would accept one valid edge swapped for another; the set does not.
+* Each of the five deltas is enumerated **inline with the finding that caused
+  it**: `119.004-T→119.003-T` **removed** (that edge *was* the F19 cycle — the
+  bus defined an event type the state machine had to emit while depending back on
+  it), and `119.004-T→118.003-T`, `120.005-T→118.003-T`,
+  `120.006-T→118.006-T`, `118.006-T→118.005-T` **added** by rulings 2, 2, 7/9
+  and 9 respectively.
+* **The set check caught a stale expectation — on its own author.** The first
+  corrected list said 29 edges and the run failed with
+  `extra: 118.006-T->118.005-T`. The live graph was correct; the expectation had
+  been built from a `backlogit query` issued **before** `backlogit sync`, so the
+  index had not yet seen the `dependencies:` frontmatter written when
+  `118.006-T` was created. A count-only check would have failed identically while
+  naming nothing. Rebuild expectations from a **post-sync** query.
+* The Part 2 fixture widened from **five to seven** S1 tasks, because the derived
+  replay would otherwise throw on `118.006-T` having no fixture counterpart — the
+  derivation is what keeps the replay isomorphic by construction.
+* The `origin_feature` assertion became **conditional in both directions**. The
+  nineteen re-parented tasks must still carry `117-F`; `118.006-T` and
+  `118.007-T` were created natively under `118-F` and must assert **no**
+  provenance. Asserting it unconditionally would have demanded a *false*
+  provenance record; deleting it would have stopped detecting provenance loss on
+  the nineteen.
 
 ## Harness hardening (post-cycle-3)
 
@@ -296,7 +338,7 @@ all of the above; no total in this document predates it.
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (cycles 1-3 PASS; verdict now **BLOCKED** — **14 open P1s F16–F29** raised post-budget by fifteen PR #325 Copilot reviews; **F17+F27 gate `127-S`**, F18+F19+F22+F23+F24+F28+F29 gate `128-S` with F22 possibly touching `127-S`, F16+F20+F21+F25 gate `129-S`, and **F26 gates all three**. **F27 is a second finding on the eligible cursor**: `118.005-T`, a `127-S` member, never requires ATOMIC lock acquisition, so the single-active invariant these harnesses assume at the topology level is not guaranteed at the runtime level. That does not affect any assertion here — these harnesses verify shipment/feature structure and close behaviour, not lock runtime — but it does mean **passing evidence in this directory must not be read as clearance to claim `127-S`**) —
+* Review (cycles 1-3 PASS for F1–F15; the fourteen post-budget P1s **F16–F29** raised by fifteen PR #325 Copilot reviews were dispositioned by **eleven accepted operator rulings** on 2026-08-11 and validated in Cycle 16 — current verdict **PASS, 0 P0 / 0 P1**, narrow by construction and **not** a convergence claim; all three shipments GATE-CLEAR with F22 possibly touching `127-S`, F16+F20+F21+F25 gate `129-S`, and **F26 gates all three**. **F27 is a second finding on the eligible cursor**: `118.005-T`, a `127-S` member, never requires ATOMIC lock acquisition, so the single-active invariant these harnesses assume at the topology level is not guaranteed at the runtime level. That does not affect any assertion here — these harnesses verify shipment/feature structure and close behaviour, not lock runtime — but it does mean **passing evidence in this directory must not be read as clearance to claim `127-S`**) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`
 * Close-path contract — `docs/compound/097-S-shipment-task-only-safe-close.md`,
