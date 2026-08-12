@@ -1649,3 +1649,85 @@ build that will actually perform the close, and this cycle is a live
 demonstration that the installed build can change underneath a long-running
 session.
 
+
+---
+
+## Cycle 22 — HALT: three P1s remain after the current-HEAD review (returned without remediation)
+
+The P-018 current-HEAD review landed on `405e930f` and surfaced three further
+consistency defects. Per the operator's standing instruction — *"If any P0/P1
+remains, return it immediately without remediation"* — they are recorded here and
+returned, not fixed.
+
+All three came from the review's **suppressed** section, and all three verify
+against the artifacts. That is now the **second consecutive cycle** in which the
+suppressed comments carried the material findings while the single surfaced
+comment was a known P2. The operating rule is confirmed: filter on *"does this
+falsify something the PR claims?"*, never on *"was it surfaced?"*.
+
+### P1-1 — the superseded engine pin survives in three live Ship-facing guards
+
+Cycle 21 recorded the engine change from `v1.8.0-dirty`/`fd8d2c9d` to
+`v1.9.0`/`39528a4` and withdrew the pin — but only in the review document and the
+checkpoint hints. Three **live gating instructions** still demand the old commit
+exactly: `127-S:48` (asserts both surfaces report `fd8d2c9d` — now false),
+`docs/compound/097-S-shipment-task-only-safe-close.md:249-251` ("if it reports
+anything else… do not rely on this document's result"), and the spike
+`README.md:440-442` ("confirm `ENGINE UNDER TEST` still reports `fd8d2c9d`").
+
+**This defect is self-inflicted by Cycle 21.** Recording an engine change is only
+half the work; the other half is sweeping every surface that *predicates* on the
+old identity. As written, these guards instruct Ship to reject the very engine
+that produced this PR's authoritative 66/66 evidence.
+
+### P1-2 — "exactly one migration delta" is false for POSIX
+
+`118.002-T` asserts, as pinned observable absences of `start.sh`, *both* "no
+`ENGRAM_DATA_DIR` default" *and* "no `GITHUB_PERSONAL_ACCESS_TOKEN`". `120.001-T`
+adds both via the shared bootstrap. So POSIX gains two behaviours whose absence is
+currently asserted, and with `gh` **present** the PAT is simply set — which is not
+the `PAT-without-gh` carve-out that was approved.
+
+**Ownership: this is my error.** I noticed the PAT half while scoping P1-B, judged
+it out of scope, and recorded it as a deliberate non-expansion. Declining to
+*raise* it was defensible; what was not defensible is that I simultaneously let
+`120.007-T` assert "exactly one approved delta" and "every other assertion remains
+byte-identical" — a claim the very observation I had just written down falsifies.
+I also missed the `ENGRAM_DATA_DIR` half entirely. The lesson is narrow and
+practical: **choosing not to raise an observation does not license asserting its
+negation.** If an out-of-scope fact contradicts a claim being made, either the
+fact is in scope or the claim must be weakened.
+
+### P1-3 — the gated-action catalog has a consumer but no producer
+
+`120.004-T` criterion (b) requires the enumerated gated-action catalog to be
+declared "ONCE… in `118.003-T` `contracts.py`", explicitly adding no second list.
+`118.003-T` defines only the event catalog and the approval request/response
+types and **never requires that catalog**. The DAG can therefore mark `118.003-T`
+fully satisfied while the artifact `120.004-T` depends on does not exist.
+
+This is **structurally the same class of defect as F21** — a guarantee that is
+stated but is nobody's obligation — which is precisely why it is worth the halt
+rather than a silent patch. The hardening plan's component table does mention the
+catalog, which is likely how it escaped: the *plan* documents it, but the *task
+that gets implemented* does not require it.
+
+### Not a new finding
+
+The single surfaced comment (`119.006-T` ending cancellation in `EXITED` while the
+plan requires `CANCELLING -> DRAINING -> CANCELLED`) is valid but is the
+pre-existing P2 already stashed as `9863A6D6`. Its thread was answered and
+deliberately left **open**, because resolving it would falsely imply the contract
+inconsistency had been fixed.
+
+### State at halt
+
+Four rulings applied and verified; verifier 221/221 and simulation 66/66 on
+`v1.9.0`/`39528a4`; 30 edges, memberships 8/7/10, chain intact, V14 green;
+checkpoints 29 with 0 malformed / 0 quarantined / 0 active; CI pass; P-018
+satisfied at `405e930f`. No shipment claimed or closed, nothing merged, no product
+code touched.
+
+`127-S` remains structurally eligible and F34-clear. Eligibility is not clearance,
+and this PR is not merge-ready while P1-1/2/3 stand.
+

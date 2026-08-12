@@ -1,0 +1,40 @@
+{
+  "created_at": "2026-08-12T09:12:15Z",
+  "phase": "blocked-awaiting-operator-rulings",
+  "context": {
+    "head": "405e930fab0164363ceacf2be38043ad4c9e761f",
+    "shipment_id": "127-S",
+    "pr": 325,
+    "rulings_applied": "P1-A/B/C/D all applied and verified",
+    "lesson": "Choosing not to raise an observation does not license asserting its negation. P1-2 is the direct consequence of noting the PAT/start.sh conflict as a deliberate non-expansion while simultaneously letting 120.007-T claim exactly one delta. Second consecutive cycle where SUPPRESSED review comments carried the material findings - filter on does-this-falsify-a-claim, never on was-it-surfaced.",
+    "findings": {
+      "P1-2": "120.007-T claims exactly one migration delta and byte-identical otherwise, but 118.002-T pins BOTH no-ENGRAM_DATA_DIR-default AND no-PAT as observable absences of start.sh, and 120.001-T adds both. With gh PRESENT the PAT is simply set, which is not the PAT-without-gh carve-out. Needs an operator product decision.",
+      "P1-1": "superseded fd8d2c9d engine pin survives in three LIVE Ship-facing guards: 127-S:48, docs/compound/097-S-shipment-task-only-safe-close.md:249-251, docs/spikes/2026-08-09-plan1-shipment-topology-proof/README.md:440-442. Self-inflicted by Cycle 21: engine change recorded but not swept. Guards now instruct Ship to reject the engine that produced the authoritative evidence.",
+      "P1-3": "120.004-T criterion (b) requires the enumerated gated-action catalog to live in 118.003-T contracts.py, but 118.003-T never requires producing it. Consumer without producer - structurally the same class as F21."
+    },
+    "verdict": "BLOCKED",
+    "branch": "chore/spike-unified-surfaces-20260809",
+    "p1": 3,
+    "p0": 0,
+    "p2_open": "9863A6D6 CANCELLED-vs-EXITED (119.006-T ends in EXITED; plan requires CANCELLING->DRAINING->CANCELLED; 119.003-T omits CANCELLED). Thread answered and deliberately left OPEN.",
+    "feature_id": "117-F",
+    "evidence": {
+      "checkpoints": "29 files, 0 malformed, 0 quarantined",
+      "simulation": "66/66 PASS",
+      "approval_edge": "120.004-T -> 120.005-T present; inverted absent; V14 green",
+      "memberships": "127-S=8, 128-S=7, 129-S=10",
+      "plan1_edges": 30,
+      "engine": "v1.9.0 commit 39528a4 (clean release; -dirty residual DISCHARGED). MCP process still reports v1.8.0-dirty/fd8d2c9d - holds pre-upgrade binary in memory, session artifact only.",
+      "verifier": "221/221 PASS",
+      "chain": "129-S -> 128-S -> 127-S",
+      "p018": "SATISFIED at 405e930f",
+      "ci": "PASS at 405e930f"
+    }
+  },
+  "session_id": "stage-2026-08-12-cycle22-halt",
+  "updated_at": "2026-08-12T09:12:15Z",
+  "agent": "stage",
+  "resume_hint": "HALTED at HEAD 405e930f with 3 P1s returned WITHOUT remediation per operator instruction. P1-1 is mechanical (replace the fd8d2c9d equality guard with re-run-and-record-current-identity on the three named surfaces). P1-2 needs an OPERATOR PRODUCT DECISION: either approve and positively test the POSIX ENGRAM_DATA_DIR and PAT deltas as additional named carve-outs, or require 120.001-T to preserve platform-specific behaviour. P1-3 is mechanical (add the enumerated gated-action catalog plus non-emptiness/exhaustiveness tests to 118.003-T). Do NOT reopen F16-F34; rulings P1-A/B/C/D are applied and verified. Stage claimed and closed nothing; claim/close of 127-S remain Ship.",
+  "schema_version": 1,
+  "status": "active"
+}
