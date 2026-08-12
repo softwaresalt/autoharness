@@ -122,7 +122,31 @@ controls proving the predicate actually rejects partial coverage, foreign
 members, and non-root feature members
 (`verify-plan1-shipment-topology.ps1`, V13).
 
-> ### ⏳ RESOLVED IN PRINCIPLE, NOT YET OPERATIVE — F26 (P1, resolved 2026-08-11); gated on `118.007-T`
+> ### ✅ RESOLVED AND OPERATIVE (2026-08-13) — F26 (P1, resolved 2026-08-11); `118.007-T` has landed
+>
+> **This gate is now DISCHARGED.** `118.007-T` (a member of `127-S`) has landed and
+> amended all four operative surfaces coherently: `templates/policies/workflow-policies.md.tmpl`
+> (the P-015 "VERIFIED FULLY-COVERED-ROOT EXCEPTION" subsection), `templates/agents/_ship.agent.md.tmpl`
+> and `.github/agents/_ship.agent.md` (the closure-tasks step now instructs Ship to select
+> the close path from the verified precondition check, never from prose alone), and this
+> compound document. The machine-checkable classification is implemented as
+> `classify_shipment_close_path(manifest_items, workspace_backlog_dir)` in
+> `src/autoharness/gates/shipment_closure.py`, with unit coverage in
+> `tests/test_shipment_closure_classification.py` (fully-covered-root positive,
+> verified-childless-terminal-root positive, missing-child negative, non-root-member
+> negative, extra-orphan-task negative, childlessness-query-failure negative, and a
+> regression proving the classification flips when a previously-childless-and-qualifying
+> feature gains a child — i.e. it observes live state, not a cached/hardcoded allowance).
+> Ship may now act on the exception below for any manifest the classifier verifies as
+> qualifying; the historical narrative below (the original F26 defect, the ruling, and why
+> this document alone could not authorise the close before the amendment landed) is
+> preserved unchanged as the record of how this gate was discharged.
+>
+> ---
+>
+> The remainder of this banner is the **historical** F26 record, retained for the audit
+> trail described above. It predates `118.007-T` landing and no longer describes Ship's
+> current operative state.
 >
 > **Ship MUST NOT act on the exception below until `118.007-T` has landed.** The
 > operator ruled (ruling 8, accepted 2026-08-11) that **P-015 is to be amended**
@@ -170,13 +194,14 @@ members, and non-root feature members
 | Manifest shape | Contract |
 |---|---|
 | Covering feature has children **outside** the manifest (partial) | Durable Rule above: task-only `items`; close the feature separately with `move` + `archive`; do **not** use `shipment ship`. |
-| Covering feature is **fully covered** and **root** | This exception: list the feature FIRST in `items`, then all its children; close with a single `shipment ship`. **⏳ NOT YET OPERATIVE — gated on `118.007-T` — see the F26 banner above; the close command is not operative pending an operator ruling.** |
+| Covering feature is **fully covered** and **root** | This exception: list the feature FIRST in `items`, then all its children; close with a single `shipment ship`. **✅ OPERATIVE (2026-08-13) — `118.007-T` has landed; see the discharge note in the F26 banner above. Ship selects this path via the verified `classify_shipment_close_path` check, never from prose alone.** |
 
 `127-S` / `128-S` / `129-S` (Plan-1 supervisor program) are the fully-covered-root
 case and intentionally list their covering features — a manifest shape that is
-valid under **either** close path. **However, Ship must NOT treat this
-reconciliation as overriding the unconditional cascade prohibition in its own
-agent file** until `118.007-T` amends that file and P-015 (F26, ruling 8).
+valid under **either** close path. **Now that `118.007-T` has amended
+`.github/agents/_ship.agent.md`, `templates/agents/_ship.agent.md.tmpl`, and P-015,
+Ship may treat this reconciliation as qualifying for the cascade close path when
+the verified classification confirms it** (F26, ruling 8, discharged 2026-08-13).
 As of 2026-08-11 those three shipments are **gate-clear again**: the
 confirmatory current-HEAD review had raised **F34** (P1) against the
 force-unlock protocol in `118.005-T`/`118.006-T`, which are members of `127-S`,
@@ -189,11 +214,12 @@ previously recorded a gate-clear claim that was withdrawn by F34, then this
 GATED status; the current state is **gate-clear**, and the audit trail of both
 reversals is retained deliberately. `127-S` remains the only *structurally*
 eligible cursor. **Gate-clear is still not an instruction to claim** — claiming
-remains Ship's decision under Ship's own Role Boundary. The close command to use is therefore:
-**safe-close** until `118.007-T` lands, and the verified fully-covered-root
-cascade thereafter. Because `118.007-T` is itself a member of `127-S`, the
-amendment lands *within* the first shipment and before that shipment's own
-close.
+remains Ship's decision under Ship's own Role Boundary. The close command to use is
+now: the verified fully-covered-root cascade, selected via
+`classify_shipment_close_path`, for any manifest the classifier confirms qualifies
+(`118.007-T` has landed), and safe-close otherwise. Because `118.007-T` was itself a
+member of `127-S`, the amendment landed *within* the first shipment and before that
+shipment's own close.
 
 ## Version binding of this evidence (recorded 2026-08-11)
 
