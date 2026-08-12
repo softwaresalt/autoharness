@@ -1819,3 +1819,61 @@ removed, or reversed (the verifier's closed set of exactly 30 Plan-1 task-level
 `blocks` edges would reject a 31st in any case). Propagated to the plan document
 (T3 bullet and the T15 gated-action paragraph), which previously carried the same
 producer gap.
+
+---
+
+## Cycle 24 — HALT: three genuine P1s at `98714877`, returned WITHOUT remediation
+
+The P-018 current-HEAD review surfaced **no new comments** but carried **14
+suppressed** ones. Three falsify claims this PR makes. Verified directly against
+the artifacts before acceptance; returned unremediated per operator instruction.
+
+### P1-A — `120.007-T` misclassifies DELTA 1's platform
+
+`120.007-T` states the two approved deltas are "**BOTH LANDING ON POSIX**". False.
+DELTA 1's baseline is pinned in `118.001-T`, which characterizes **`start.ps1`** —
+Windows: PAT is assigned unconditionally at `start.ps1:65`, so an absent `gh`
+**errors**. DELTA 1 changes that Windows baseline from fatal to non-fatal. Only
+DELTA 2 is a POSIX addition. My own Cycle 23 wording introduced this; the carve-out
+is meant to be exhaustive, and an exhaustive carve-out that misclassifies which
+platform a delta lands on cannot be checked.
+
+### P1-B — the gated-action catalog's exhaustiveness test is vacuous
+
+`118.003-T` requires only that the catalog be **non-empty**, and `120.004-T`
+requires dispatch to cover it **exhaustively**. Both are satisfied by a **one-entry
+catalog**. Exhaustiveness is defined relative to the registry rather than to the
+actual set of gated side effects, so real gated behaviour — e.g. the confirmed
+restart path in `119.006-T` — can be omitted while every test passes.
+
+**This is the F21/F25 defect class again**: a criterion satisfiable while the
+capability is absent. I fixed the *ownership* gap (producer/consumer) and left the
+*content* gap open. A telling asymmetry: in the same clause I enumerated the
+**event** catalog concretely by name (`SessionPhaseChanged` … `JournalCheckpoint`)
+while leaving the **gated-action** catalog purely structural.
+
+### P1-C — required safe default contradicts `120.005-T`
+
+`118.003-T` requires every catalog entry to carry complete required metadata
+**including a safe default**. `120.005-T` explicitly resolves "**to `REFUSED` where
+no safe default exists**" and carries a dedicated no-safe-default test. As written
+that test cannot be expressed without inventing a bogus default. The metadata
+contract must make the default optional or model `REFUSED` explicitly.
+
+### Also noted (not blocking)
+
+The Cycle 23 checkpoint was committed `resolved` while its own `resume_hint` still
+said the verifier was "IN PROGRESS" — accurate when written, stale when resolved.
+Ten further suppressed comments ask for **superseding resolution events** on task
+JSONL logs (F17/F19/F20/F23/F24/F25/F28/F29) whose final events still read
+"BLOCKING … DO NOT EXECUTE" although the live tasks now carry the accepted rulings.
+Same class as the F21/F32/F33 log events already superseded in `de8b431d`, and a
+real hazard for log-based consumers — but remediation is deferred with the P1s.
+
+### State at halt
+
+Verifier **221/221**, simulation **66/66** on engine `v1.9.0`/`39528a4`, 30 edges,
+memberships 8/7/10, checkpoints 0 malformed / 0 active, CI green. Those gates pass;
+they simply do not test the three contradictions above. `127-S` remains structurally
+eligible and F34-clear — **eligibility is not clearance**, and this PR is not
+merge-ready while P1-A/B/C stand. No shipment claimed or closed, nothing merged.
