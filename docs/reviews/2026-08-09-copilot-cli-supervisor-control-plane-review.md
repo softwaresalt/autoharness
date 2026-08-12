@@ -1586,8 +1586,8 @@ active, **0 malformed and 0 quarantined**, versus 1 malformed before this pass.
 
 | Check | Result |
 |---|---|
-| Topology verifier (unmodified) | see run record below |
-| Shipment-closure simulation (unmodified) | see run record below |
+| Topology verifier (unmodified) | **221/221 PASS** (engine `v1.9.0` / `39528a4`) |
+| Shipment-closure simulation (unmodified) | **66/66 PASS** (ENGINE UNDER TEST `v1.9.0` / `39528a4`) |
 | Plan-1 `blocks` edges | 30 (unchanged) |
 | Shipment memberships | `127-S`=8, `128-S`=7, `129-S`=10 (unchanged) |
 | Shipment chain | `129-S -> 128-S -> 127-S` (unchanged) |
@@ -1609,4 +1609,43 @@ introduces PAT behaviour there as well — and it was deliberately **not** raise
 as a new finding: the operator scoped this pass to applying four rulings, and
 `120.007-T` is already named as the sole authority on the carve-out, so the
 question has a defined home without expanding this cycle.
+
+
+### Engine identity — changed mid-session, evidence re-attributed
+
+The installed engine changed **during** this pass and the evidence attribution
+must change with it. `C:\Tools\backlogit.exe` was replaced at `2026-08-11
+23:25:04` local, moving from `v1.8.0-dirty` (commit `fd8d2c9d`) to a clean
+release **`v1.9.0`, commit `39528a4`**.
+
+Consequences, stated precisely rather than glossed:
+
+* The **authoritative harness evidence for this cycle is attributable to
+  `v1.9.0` / `39528a4`**. The final verifier run (`221/221`) executed entirely
+  after the upgrade, as did the simulation (`66/66`, which prints and asserts its
+  ENGINE UNDER TEST banner: `version 1.9.0`, `commit 39528a4`).
+* The **first** verifier run of this cycle (`220/221`, whose only failure was the
+  deliberately-active resumption checkpoint) *spanned* the upgrade window and is
+  therefore not cleanly attributable to a single build. It is superseded by the
+  post-upgrade run and is not cited as evidence.
+* The long-standing residual **"installed backlogit build is `-dirty`" is now
+  DISCHARGED** — the proof runs on a clean, released build, which is strictly
+  stronger evidence than before.
+* The **MCP server process in this session still reports `v1.8.0-dirty` /
+  `fd8d2c9d`**, because it is a long-lived process holding the pre-upgrade
+  binary in memory. This is a session artifact, not a workspace defect: the
+  backlog artifacts are plain Markdown and both builds read the same files, and
+  every structural assertion in this cycle was produced by the CLI-driven
+  harnesses on `39528a4`. It does mean the earlier claim "CLI and MCP agree on
+  `fd8d2c9d`" is **no longer true** and is withdrawn.
+
+**Instruction to Ship, superseding the engine pin recorded in
+`checkpoint-20260812-012702.json`:** that checkpoint's hint names `fd8d2c9d`
+because that was the engine of *its* pass. Do not treat `fd8d2c9d` as the
+required build. Re-run `sim-shipment-closure.ps1` immediately before any close
+and record whatever ENGINE UNDER TEST identity it reports at that moment — the
+point of the instruction is that closure evidence must be attributable to the
+build that will actually perform the close, and this cycle is a live
+demonstration that the installed build can change underneath a long-running
+session.
 

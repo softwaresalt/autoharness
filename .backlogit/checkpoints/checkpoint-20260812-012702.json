@@ -43,5 +43,5 @@
     ],
     "repair_note": "P1-D repair (2026-08-12, operator ruling): this record was written by an interrupted session and normalized on resolve into schema_version 0 with a year-1 created_at, which made it uninterpretable to freshness/ordering consumers. Repaired to valid CheckpointV1 using the filename timestamp 2026-08-12T01:27:02Z as the creation instant, matching the convention used by the other repaired checkpoints. All original state and evidence are preserved verbatim under context; nothing was dropped or restated."
   },
-  "resume_hint": "COMPLETE - F34 discharged. Stage did not claim/close any shipment (P-010). Ship owns claim/close of 127-S; re-run sim-shipment-closure.ps1 and reconfirm ENGINE UNDER TEST commit fd8d2c9d immediately before any close."
+  "resume_hint": "COMPLETE - F34 discharged. Stage did not claim/close any shipment (P-010). Ship owns claim/close of 127-S; re-run sim-shipment-closure.ps1 and record whatever ENGINE UNDER TEST identity it reports immediately before any close. NOTE (2026-08-12): the commit fd8d2c9d named in this record is the engine of THIS pass only and is NOT a required build - the installed engine was upgraded to v1.9.0 / 39528a4 later the same day, so do not pin closure evidence to fd8d2c9d."
 }
