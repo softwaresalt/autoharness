@@ -149,6 +149,8 @@ guard/record split breaks the conjunction at its root:
 | `118.006-T` | Retitled in substance to **stale-record** lifecycle; compare-and-**repair** under the guard replaces compare-and-delete; guard may never be deleted; live holder prevents cleanup; three real race assertions plus **three** positive controls (compare-free delete, unguarded mutation, delete-and-recreate the guard). |
 | `120.006-T` | `--force-unlock` recorded as genuinely reachable under the new contract; new criterion that a REFUSED force-unlock propagates verbatim and is never converted to success/failure/retry. |
 | `118-F`, `127-S`, `117-F` | F27/F31/F34 narrative corrected; stale `GATED`/`BLOCKED` statements replaced with the discharged gate state. |
+| `119.005-T` | Ignore seam recorded as CONSUMED (not owned): the reusable helper moves to `118.005-T`/`127-S` so the dependency runs backwards in shipment order; F24 behaviour unchanged. |
+| Spike proof README | Stale `F27 is open` / "not clearance to claim `127-S`" statement withdrawn (clearance now proven); edge count corrected 27 → 30; two-builds MCP caveat marked retired. |
 | Plan §3.4/§7, Hardening H2 | `O_CREAT\|O_EXCL` removed from both fail-closed tables and the task summary; a dedicated stale-record-cleanup H2 row added. |
 
 **Residual caveat, stated rather than buried:** this is a *planning* contract.
@@ -156,6 +158,91 @@ It is now internally consistent and implementable, but it has not been executed 
 no `locking.py` exists yet. The proof obligation transfers to `118.005-T` /
 `118.006-T` at implementation time, where the mandated race tests and their
 positive controls are what will actually demonstrate the property.
+
+**Addendum (same pass) — a gap the F34 ruling itself created, and the ordering
+defect in the first fix for it.** The ruling makes the guard file *permanent*.
+Permanent workspace-local runtime state has to be ignored by git, but the F24
+ignore contract covers only `.autoharness/sessions/` — so as first written, F34
+would have caused a never-deleted `session.guard` to be committed into every
+target workspace. The fix adds an enforced `git check-ignore` criterion covering
+`supervise/session.guard` and `supervise/session.record`.
+
+The *first* draft of that fix pointed `118.005-T` at the ensure-ignore helper
+owned by `119.005-T`. That was wrong in a way worth recording: `118.005-T` is a
+`127-S` member and `119.005-T` is a `128-S` member, so the dependency ran
+**forward** in shipment order — the consumer would ship before its provider.
+Corrected by moving the *helper* into the supervise package (`127-S`, owned by
+`118.005-T`) and having `119.005-T` consume it. F24's behavioural ruling is
+untouched: the core still ensures ignore behaviour at runtime, idempotently and
+additively, enforced by test rather than by a template.
+
+Deliberately **no** task-level `blocks` edge was added for this. The
+`127-S → 128-S` shipment serialization already guarantees the ordering, and the
+topology verifier asserts a closed set of **exactly 30** edges — adding a
+thirty-first would fail a harness the operator instructed Stage not to edit.
+Shipment-level ordering is the correct and sufficient mechanism here.
+
+### Cycle 19 (part 4) — terminal validation of F34/F27/F31 against the task contracts
+
+This is the closing validation pass, run directly against the resulting task
+contracts rather than as another broad review cycle. Each clause of the accepted
+F34 ruling was checked against the artifact that owns it:
+
+| Ruling clause | Owning contract | State |
+|---|---|---|
+| Stable, never-deleted OS-locked guard file is the **sole** exclusion primitive | `118.005-T` §(1) | PRESENT — permanence enumerated against every path (acquire, release, force-unlock, cleanup, error handling, test teardown) |
+| Holder/diagnostic metadata in a **separate removable** record file | `118.005-T` §(2) | PRESENT — record explicitly denied exclusion semantics |
+| Acquisition **and** force-unlock/stale cleanup acquire the **same** guard lock before touching metadata | `118.005-T` (F31 seam) + `118.006-T` ("BOTH PATHS TAKE THE SAME GUARD LOCK") | PRESENT on both sides of the seam |
+| `O_CREAT\|O_EXCL` removed as a backend | `118.005-T`, plan §3.4/§7, hardening H2 | REMOVED — no normative surface still offers it as an alternative |
+| A live holder prevents cleanup | `118.006-T` ("A LIVE HOLDER PREVENTS CLEANUP"), hardening H2 stale-record row | PRESENT — refusal is mandatory, with no direct-record fallback and no guard deletion |
+| Windows/POSIX platform adapters **and** real contender/race tests proving live metadata cannot be removed/replaced and stale metadata is repaired only under the guard | `118.005-T` (cross-platform (a)–(d), parallel-contender suite, guard-permanence / no-inode-race / OS-release-on-death) + `118.006-T` (race assertions 1–3 asserted "on BOTH Windows and POSIX", three positive controls) | PRESENT in full |
+
+F27 (atomic OS-backed acquisition, parallel-contender evidence) and F31 (cleanup
+must be able to take the same primitive, and must not delete a live holder's
+state) are both preserved verbatim in the amended contracts rather than being
+traded away by the F34 narrowing.
+
+**One correction made in this pass, and one non-finding recorded honestly.** The
+correction: `118.006-T`'s *title* still read "stale-**lock** lifecycle" while its
+body, the plan and the hardening table had all moved to "stale-**record**". Under
+F34 the guard lock is never stale — the OS releases it on holder death — so the
+residue the operator remedy addresses is the *record*. The title was the last
+surviving instance of the superseded framing and is now corrected.
+
+The non-finding: this pass initially flagged `118.006-T` as missing its race
+tests and positive controls. That was **wrong**, and the cause is worth
+recording because it is a recurring failure mode — the contract was read through
+a truncated view that stopped at the `TESTS:` line, and the mandatory
+contender/race block sits immediately *below* it. The requirement was already
+fully present. Nothing was added; the momentary size change made while acting on
+the false reading was reverted, leaving `118.006-T` at its original `S`/`medium`.
+*A gap must be confirmed against the whole artifact before it is treated as a
+gap — a truncated read is not evidence of absence.*
+
+**Terminal evidence (harnesses unmodified, re-run against current workspace):**
+
+| Check | Result |
+|---|---|
+| `verify-plan1-shipment-topology.ps1` | **221/221 PASS** |
+| `sim-shipment-closure.ps1` | **66/66 PASS**, ENGINE UNDER TEST commit `fd8d2c9d` |
+| Engine identity, both surfaces | CLI **and** MCP `v1.8.0-dirty`, commit `fd8d2c9d`, build `2026-08-11T01:25:43Z` |
+| Plan-1 task-level `blocks` edges | **30**, matching the verifier's closed expected set |
+| Memberships / chain | `127-S`=8, `128-S`=7, `129-S`=10; `129-S → 128-S → 127-S`; all queued |
+| Approval edge | `120.004-T → 120.005-T` present; inverted edge absent |
+| Checkpoints | 28 total (26 `stage`, 2 `ship`), **0 active, 0 quarantined** |
+| `backlogit doctor`, Plan-1 scope | **0 findings**; all 62 workspace findings are pre-existing classes also present on `main` |
+
+**Verdict: PASS — 0 unresolved P0, 0 unresolved P1.** All three shipments remain
+GATE-CLEAR. Gate-clear is **not** an instruction to claim: claim and close remain
+Ship's decision under Ship's own Role Boundary.
+
+**Residual, stated rather than buried:** this is still a *planning* contract.
+No `locking.py` exists yet, so the mandated race tests and their positive
+controls are the obligation that actually demonstrates the property, and it
+transfers to `118.005-T`/`118.006-T` at implementation time. The installed engine
+is a `-dirty` build, so its exact behaviour is not reproducible from `fd8d2c9d`;
+Ship must re-run the simulation and reconfirm the ENGINE UNDER TEST block
+immediately before any close.
 
 ---
 

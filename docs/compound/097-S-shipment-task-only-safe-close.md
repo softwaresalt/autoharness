@@ -202,7 +202,7 @@ against, **not** to the string "1.8.0":
 | CLI version | `v1.8.0-dirty` |
 | Commit | `fd8d2c9d` |
 | CLI build date | `2026-08-11T01:25:43Z` |
-| MCP daemon build date | `2026-08-02T07:27:31Z` (same commit `fd8d2c9d`) |
+| MCP daemon build date | `2026-08-11T01:25:43Z` (same commit `fd8d2c9d`; **was** `2026-08-02T07:27:31Z` — the daemon was restarted onto the same build during the 2026-08-11 F34 pass, retiring the "two builds of one commit" caveat) |
 | Binary | `C:\Tools\backlogit.exe` |
 
 Three caveats a future reader must not skip:

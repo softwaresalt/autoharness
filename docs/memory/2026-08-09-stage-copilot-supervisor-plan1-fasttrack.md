@@ -1446,3 +1446,104 @@ and implementable, which is exactly the property F34 showed it lacked — but
 "implementable" is not "implemented", and the real proof obligation transfers to
 the mandated race tests and their positive controls at `118.005-T`/`118.006-T`
 implementation time.
+
+### Cycle 19 (part 3) — dispositioning a review that "generated no new comments"
+
+The current-HEAD Copilot review on `b832b3db` returned **0 active comments** and
+11 *suppressed* ones. The easy reading is "clean, proceed". That reading would
+have shipped two defects, both of which I had introduced myself.
+
+**Lesson: a suppressed comment is a de-prioritised comment, not a wrong one.**
+Suppression reflects the reviewer's confidence/priority heuristics, not whether
+the observation is true. The right filter is not "was it surfaced?" but "does it
+falsify something this PR now claims?" Two of the eleven did:
+
+1. **The F34 ruling created a gap it did not close.** Making the guard file
+   *permanent* silently created permanent workspace-local state, and the F24
+   ignore contract covers only `.autoharness/sessions/`. A never-deleted
+   `session.guard` would have been committed into every target workspace. The
+   ruling was self-consistent and still incomplete — *a fix that changes an
+   object's lifetime has to be re-checked against every contract keyed on that
+   lifetime.*
+
+2. **The first fix for that gap ran the dependency the wrong way in shipment
+   order.** I pointed `118.005-T` (a `127-S` member) at a helper owned by
+   `119.005-T` (a `128-S` member) — consumer shipping before provider. Caught
+   only because I checked membership before considering it done. *When adding a
+   cross-task dependency, check the shipment each task belongs to, not just that
+   both tasks exist.* Fixed by moving the helper earlier rather than by adding
+   an edge — and deliberately **no** `blocks` edge was added, because the
+   `127-S → 128-S` serialization already orders it and the verifier asserts a
+   closed set of exactly 30 edges.
+
+**Also: staleness lives in the documents you did not edit.** The spike proof
+README still said "F27 is open" and "not clearance to claim `127-S`" — the exact
+stale-blocking-instruction class this PR claims to remove — plus a retired MCP
+build caveat and a 27-vs-30 edge count. It was not in my edited set, so no
+diff-scoped check would have caught it. Sweeping *by statement* across the whole
+repo (not by finding name, not by changed files) found a third instance in the
+compound doc that two prior sweeps had missed.
+
+**Bounded-pass discipline.** The operator authorised one remediation and one
+validation. Fixing these was not a second round: correcting a contradiction I
+introduced, and completing propagation that was already in scope, is finishing
+the authorised pass. The genuinely out-of-scope findings (CANCELLED-vs-EXITED,
+`--session-id` semantics, PipeChildProcess default, the weak verifier negative
+control) were recorded as stash follow-ups instead — including the one asking to
+change the verifier, which Stage must not touch without an explicit ruling
+because it is cited evidence.
+
+### Cycle 19 (part 4) — terminal closure, and a false finding I raised myself
+
+A prior Stage process was lost mid-pass. Its work was **not** discarded: HEAD had
+already advanced to `b832b3db` (the F34 ruling applied and pushed), and a further
+coherent uncommitted set existed — the F34 ignore-coverage criterion on
+`118.005-T`, the consumer-side note on `119.005-T`, four out-of-scope stash
+follow-ups, and the stale-statement sweep of the spike README and compound doc.
+Inspecting before assuming was the right call; assuming a crashed process left
+garbage would have thrown away finished, correct work.
+
+**The lesson worth keeping from this pass is a self-inflicted one.** I flagged
+`118.006-T` as missing the F34 race tests and positive controls, and started
+"fixing" it — I appended a duplicate specification and bumped the task from `S`
+to `M` to pay for work that was already specified. The requirement had been
+there the whole time. I had read the contract through a view window that stopped
+at the `TESTS:` line, and the mandatory contender/race block begins on the very
+next line. The `update_item` response echoed the full body back and the
+duplication was obvious.
+
+Three things follow, and only the first is about tooling:
+
+1. **A truncated read is not evidence of absence.** Before declaring a gap in an
+   artifact, confirm it against the *whole* artifact. A range-limited view is a
+   convenience for reading, never a basis for a completeness claim.
+2. **Revert the whole blast radius, not the visible part.** Restoring the body
+   was not sufficient. The size bump had gone through backlogit, so it had also
+   written the SQL index *and* appended an `estimate_history` event to
+   `.backlogit/logs/118.006-T.jsonl`. Left alone, that log would have recorded a
+   size change to `M` that the artifact does not reflect — a false audit trail
+   produced entirely by a mistake. Reverted the file, re-synced the index, and
+   dropped the spurious log entry.
+3. **Record the non-finding.** The tempting move is to quietly revert and say
+   nothing, since the end state is byte-identical. But the review doc is the
+   place where "was this checked?" gets answered, and "I checked `118.006-T` and
+   it was already complete" is a genuinely useful answer. It is also the honest
+   one.
+
+**Net change in this pass: one word.** `118.006-T`'s title still said
+"stale-**lock** lifecycle" while its body, the plan and the hardening table had
+all moved to "stale-**record**". Under F34 the guard lock is never stale — the OS
+drops it when the holder dies — so the operator remedy addresses the *record*.
+That title was the last surviving instance of the superseded framing.
+
+That is the correct shape for a terminal closure pass. The F34 propagation was
+already complete and internally consistent; validation confirmed it rather than
+extending it. Evidence: verifier 221/221, simulation 66/66 against engine
+`fd8d2c9d`, 30 Plan-1 edges matching the verifier's closed set, memberships
+8/7/10, chain `129-S → 128-S → 127-S`, approval edge present and its inversion
+absent, 28 checkpoints with 0 active and 0 quarantined, and 0 Plan-1 doctor
+findings. Verdict PASS, 0 P0 / 0 P1.
+
+Stage claimed and closed nothing (P-010). `127-S` is gate-clear and structurally
+eligible; the decision to claim it is Ship's, and gate-clear has never been an
+instruction to claim.

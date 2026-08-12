@@ -71,13 +71,14 @@ first close. ARM B closes all three shipments with `returned_ids: []`, zero
 Part 1 verifies the **live** workspace (V1–V11): covering-feature validity,
 size/complexity enum validity and the 2-hour rule, `origin_feature` provenance,
 root placement, full coverage, parent-first manifest ordering, umbrella
-childlessness, cross-shipment reachability, DAG acyclicity, the 27 retained
-task-level `blocks` edges, serial-chain eligibility, archival-not-deletion of the
+childlessness, cross-shipment reachability, DAG acyclicity, the 30 current
+task-level `blocks` edges (27 survived re-parenting; the 2026-08-11 rulings then
+removed one and added four), serial-chain eligibility, archival-not-deletion of the
 superseded `124-S`/`125-S`/`126-S`, doctor cleanliness scoped to Plan-1
 artifacts, and checkpoint integrity.
 
 Part 2 rebuilds an **isomorphic copy of the exact live topology** — including the
-real 27-edge dependency DAG — in the system temp directory
+real 30-edge dependency DAG — in the system temp directory
 (`[System.IO.Path]::GetTempPath()`, which is portable; `$env:TEMP` is not
 guaranteed on POSIX) and closes all three shipments for real.
 
@@ -388,7 +389,7 @@ or removed to make a total go up.
 
 * Plan — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-plan.md`
 * Hardening — `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md`
-* Review (cycles 1-3 PASS for F1–F15; the fourteen post-budget P1s **F16–F29** raised by fifteen PR #325 Copilot reviews were dispositioned by **eleven accepted operator rulings** on 2026-08-11 and validated in Cycle 16 — current verdict **PASS, 0 P0 / 0 P1**, narrow by construction and **not** a convergence claim; all three shipments GATE-CLEAR with F22 possibly touching `127-S`, F16+F20+F21+F25 gate `129-S`, and **F26 gates all three**. **F27 is a second finding on the eligible cursor**: `118.005-T`, a `127-S` member, never requires ATOMIC lock acquisition, so the single-active invariant these harnesses assume at the topology level is not guaranteed at the runtime level. That does not affect any assertion here — these harnesses verify shipment/feature structure and close behaviour, not lock runtime — but it does mean **passing evidence in this directory must not be read as clearance to claim `127-S`**) —
+* Review (cycles 1-3 PASS for F1–F15; the fourteen post-budget P1s **F16–F29** raised by fifteen PR #325 Copilot reviews were dispositioned by **eleven accepted operator rulings** on 2026-08-11 and validated in Cycle 16. **CURRENT STATE 2026-08-11 (Cycle 19): verdict PASS, 0 P0 / 0 P1, and all three shipments GATE-CLEAR.** F30/F31/F32/F33 were dispositioned by three further rulings in Cycle 18, and **F34 — a defect in the F31 remediation itself — was dispositioned by a fourth ruling (guard/record separation: a stable never-deleted OS-locked guard file as the sole exclusion primitive, holder metadata in a separate removable record, `O_CREAT|O_EXCL` removed as a backend, a live holder preventing cleanup)** and applied to `118.005-T`/`118.006-T`/`120.006-T`. **SUPERSEDED STATEMENT, retained for audit:** an earlier revision of this bullet said "F27 is a second finding on the eligible cursor — `118.005-T` never requires ATOMIC lock acquisition — therefore passing evidence in this directory must not be read as clearance to claim `127-S`." F27 **is** now dispositioned (atomic, OS-backed acquisition is required, as narrowed by F34), so that blocking statement is **withdrawn**. The scope caveat that motivated it still stands on its own terms and is worth keeping: **these harnesses verify shipment/feature structure and close behaviour, not lock runtime**, so they neither prove nor disprove the locking contract. Gate-clear is also **not** an instruction to claim — claiming remains Ship's decision under Ship's own Role Boundary) —
   `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md`
 * Session memory — `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md`
 * Close-path contract — `docs/compound/097-S-shipment-task-only-safe-close.md`,
@@ -405,8 +406,13 @@ inferred from the version number.
 
 **backlogit was NOT upgraded.** The MCP surface and the CLI both report commit
 `fd8d2c9d`. The CLI reports `v1.8.0-dirty` built `2026-08-11T01:25:43Z`; the MCP
-daemon reports the same commit built `2026-08-02T07:27:31Z` — two builds of one
-commit, not two versions. Every result in this document was produced **today,
+daemon reported the same commit built `2026-08-02T07:27:31Z` — two builds of one
+commit, not two versions. **UPDATED 2026-08-11 (F34 pass): the daemon has since
+been restarted onto the SAME build; both surfaces now report
+`2026-08-11T01:25:43Z`. The two-builds caveat is RETIRED for work from that point
+forward. It is retained here because it applied to the earlier mutations, which
+remain trustworthy — the CLI independently read back and validated every edge the
+MCP surface wrote.** Every result in this document was produced **today,
 against that installed CLI**, so none of it is stale relative to what is
 installed.
 
