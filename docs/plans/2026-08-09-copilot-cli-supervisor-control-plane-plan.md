@@ -528,7 +528,9 @@ characterization tests before UI/convenience.**
 * **T3** — `supervise/result.py` + `supervise/errors.py` **+ `supervise/contracts.py`**:
   typed envelope, error taxonomy, machine-readable exit-code contract table, and
   the shared **event type catalog + approval request/response contracts** that T8,
-  T9 and T16 all bind to (F19/F21, ruling 2). Pure, no I/O.
+  T9 and T16 all bind to (F19, ruling 2 — the F21 co-attribution is **withdrawn**;
+  placement fixed definition ordering only and created no caller, so F21 is
+  discharged by the F32/F33 runtime-wiring ruling at T15 instead). Pure, no I/O.
 * **T4** — `supervise/redact.py`: pattern set, whole-match redaction,
   no-partial-leak property tests.
 * **T5** — `supervise/locking.py`: single-active workspace/session lock with

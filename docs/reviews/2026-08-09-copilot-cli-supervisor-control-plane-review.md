@@ -555,7 +555,7 @@ the Stage role boundary (P-010), and the 2-hour task rule.
 | **F4** | **P1** | The session journal (checkpoints + resume cursor) risked becoming a second checkpoint/backlog authority competing with backlogit. | **RESOLVED** — H6.1 and Plan §3.7 declare the journal gitignored local operational state, explicitly not readable by any agent-recovery protocol and not a checkpoint. backlogit remains sole authority. |
 | **F5** | **P1** | The typed event bus is exactly the hook candidate (c) needs; incremental "just one subscriber" additions would silently implement candidate (c) and could drift Engram toward authority. | **RESOLVED** — H7.1 permits only the journal and console renderer as subscribers; no background verification/summarization/compaction thread. H6.2 forbids any supervisor decision from reading Engram. Plan §8 and §11.6 restate it. `34D50F2D` stays ACTIVE as candidate (c)'s tracker. |
 | **F6** | **P1** | Exit-code masking is a *known, already-realized* defect class in this repository's shell scripts (compound learning, trailing `|| true`). A new shim layer reintroduces the exact surface. | **RESOLVED** — H3 makes verbatim exit-status propagation a hard invariant with a dedicated round-trip test over `{0,1,2,42,130}` across both process backends and both shims, and explicitly prohibits `|| true` / `-ErrorAction SilentlyContinue` around the child launch. |
-| **F7** | **P1** | **Four** tasks carry `complexity: high` (T7, T11, T15, T18); without de-risking controls they would likely exceed the 2-hour box. | **RESOLVED** — H8 assigns a specific control to each: T7 is off the default path with a documented pipe-only degradation escape; T11's restart budget defaults to 0 so the complex path is opt-in; T15 is pure composition over already-tested dependencies and *must be split* if it grows an algorithm. T18 is gated by T1/T2 plus an escape hatch. |
+| **F7** | **P1** | **Four** tasks carry `complexity: high` (T7, T11, T15, T18); without de-risking controls they would likely exceed the 2-hour box. | **RESOLVED** — H8 assigns a specific control to each: T7 is off the default path with a documented degradation escape; T11's restart budget defaults to 0 so the complex path is opt-in; T15 is pure composition over already-tested dependencies and *must be split* if it grows an algorithm. T18 is gated by T1/T2 plus an escape hatch. **[SUPERSEDED IN PART 2026-08-12 BY THE P1-A RULING]** — the T7 escape recorded here was originally a *pipe-only* degradation. That escape is **withdrawn and prohibited**: it predated the F29 TTY/PTY ruling and contradicted it. T7's degradation escape is now "defer the PTY backend, keep inherited stdio as the interactive default", never "ship pipe-only". This row is retained unedited in substance as the historical record of the F7 resolution; the corrected control is authoritative wherever the two differ. |
 | **F8** | **P2** | "Control plane" invites daemon/database/framework overreach (scheduler, SQLite session store, asyncio rewrite, TUI library). | **RESOLVED** — Plan §6 lists these as explicitly rejected; §11.4 makes daemon/scheduler/database/web-framework/plugin-registry non-goals; §7 confines any Go re-evaluation to a hypothetical future persistent multi-workspace daemon with no work item now. |
 | **F9** | **P2** | Secret redaction implemented per-writer would eventually be forgotten by one writer. | **RESOLVED** — H5 makes redaction a single choke point with no raw-write API, registers resolved secret *values* (not just regex patterns), and adds a ≥8-character no-substring-survival property test. |
 | **F10** | **P2** | Sidecar degradation (e.g. Engram unavailable) could be mapped onto the supervisor call's own `status`, repeating a documented telemetry defect. | **RESOLVED** — Plan §8 cites compound learning `2026-08-08-state-vs-call-outcome-conflation-in-telemetry-mapping` and requires a sidecar's reported state to stay a per-sidecar typed outcome, never the supervisor's `status`. Telemetry, if emitted, is emitted by the service with `tool_surface` supplied by the adapter. |
@@ -1456,3 +1456,157 @@ shipment topology or the close path; they are contract-consistency defects insid
 
 `127-S` remains structurally eligible and F34-clear. Eligibility is not clearance,
 and this PR is **not merge-ready** while P1-A/B/C stand.
+
+---
+
+## Cycle 21 — operator rulings P1-A/B/C/D applied (deterministic remediation, 2026-08-12)
+
+The operator returned authoritative rulings on all four Cycle 20 findings and
+directed deterministic remediation: apply the rulings, do not re-open the
+settled findings F16-F34, and do not run another adversarial review cycle. The
+prior review had already localised these exact defects, so this pass is
+*application*, not re-discovery. No new findings were sought and none were
+raised.
+
+### P1-A — F29 preserved exactly; the pipe-only fallback is withdrawn
+
+**Ruling.** Interactive Copilot execution MUST retain TTY/PTY semantics. Use the
+platform PTY adapter when capture/control is needed; where a supported PTY is
+unavailable, fail closed before launch, or use inherited stdio only where the
+defined contract permits it. Never substitute piped stdio. Journaling captures
+supervisor lifecycle and structured events separately and must not require
+replacing terminal attachment with pipes.
+
+**Applied.** The `H8` de-risking escape on `119.002-T` and the matching `T7` row
+in the hardening plan both offered "ship pipe-only and re-file PTY as a
+follow-up". That escape predated F29 and contradicted the very same sentence
+that mandates "DEGRADE TO INHERITED STDIO — never to pipes". It is removed and
+replaced with an explicit prohibition: the de-risking fallback is now *defer the
+PTY backend*, keeping inherited stdio — which preserves terminal attachment — as
+the interactive default. Pipes are the CI/test path only. A schedule overrun is
+recorded as never being a licence to relax the F29 contract, which was the
+actual mechanism by which this stale wording could have shipped a non-TTY
+interactive session. The historical `F7` row in this document is annotated
+rather than rewritten, so the record of what was originally decided survives
+alongside the correction.
+
+### P1-B — the PAT migration delta is intentional and now declared
+
+**Ruling.** `118.001-T` characterises the current PAT-without-`gh` failure as
+baseline evidence only, not a permanent product mandate. `120.001-T` defines the
+intentional target: PAT setup is non-fatal when `gh` is absent, with an explicit
+warning/event and no secret exposure. `120.007-T` byte-equivalence applies only
+to unchanged scenarios, plus an explicit approved-delta assertion for
+PAT-without-`gh`.
+
+**Applied.** This was the sharpest of the four defects, because the three tasks
+were *jointly unsatisfiable* as written: one pinned an error, one required
+non-fatality, and the third forbade editing the assertion that separated them.
+The ruling resolves it by naming the delta instead of hiding it. `118.001-T` now
+states that the pinned failure is evidence of what the legacy script does today,
+exists so the migration delta is *provable* rather than asserted, and is
+expected to be replaced — not preserved — at `120.007-T`. `120.001-T` now states
+the target behaviour concretely: complete non-fatally, emit an explicit warning
+plus a structured event naming the missing tool and the unset variable, leave
+the variable unset rather than set-empty, and leak no secret value or fragment.
+`120.007-T` scopes byte-equivalence to every unchanged scenario and carves out
+exactly one approved delta with a positive assertion proving the new behaviour.
+The carve-out is deliberately scenario-scoped: it licenses no other assertion
+edit, and the F29 TTY assertions explicitly remain byte-identical. The same
+scoping was propagated to the four surfaces that stated the byte-identical
+requirement in general terms (`117-F`, `118.002-T`, `120-F`, `129-S`), so the
+rule reads the same everywhere it appears rather than being correct in one place
+and absolute in four others.
+
+### P1-C — runtime direction is authoritative; the F21 disposition is withdrawn
+
+**Ruling.** `120.004-T` (single orchestrator) depends on and invokes `120.005-T`
+(approval service) for every gated action, failing closed if the service is
+unavailable or denies approval. Keep the existing `120.004-T -> 120.005-T` edge;
+do not add the inverse. Remove the withdrawn F21 disposition and every
+stale/false dependency-direction statement. Acceptance criteria must verify a
+real caller obligation, not shared type placement.
+
+**Applied.** The withdrawn disposition — that moving the approval contract up
+into `118.003-T` made the approval path "no longer orderable out of the runtime"
+— survived on `118.003-T`, `120-F` and the `129-S` summary even after F32/F33
+had corrected it at `120.004-T` and `120.005-T`. That is the characteristic
+failure mode of a superseding ruling: the correction lands where the argument
+was had, and the summaries keep repeating the original claim. All three now
+state that contract placement discharged the definition-ordering half (F19)
+only, created no caller, and therefore could not discharge F21, which was always
+a runtime-wiring defect. Each carries the authoritative direction and an
+explicit instruction that the inverse edge must not be added. `118.003-T`
+additionally records that its own acceptance criteria are satisfied by correct
+shared-type placement alone and must not be read as evidence of wiring — the
+caller obligation is verified at `120.004-T`.
+
+Two further stale attributions were corrected for consistency: the plan's
+`contracts.py` component list and `119.004-T` both co-credited F21 to the
+placement ruling.
+
+The stale direction statement on the `117-F` finding row ("`120.005-T` DEPENDS ON
+`120.004-T`") is corrected in place. It described the topology at the moment F21
+was raised, but it was left reading as current, and it asserts precisely the
+edge that verifier check V14 proves absent — so a reader reconciling the finding
+log against the graph would have found the document contradicting the tool.
+
+**No dependency edges were added, removed, or reversed by this pass.** The
+correction is to the *prose that describes* the graph, not the graph. This
+matters mechanically as well as semantically: the verifier asserts a closed set
+of exactly 30 Plan-1 task-level `blocks` edges, so "fixing" the record by adding
+the inverse edge would have broken the proof it was meant to agree with.
+
+### P1-D — malformed checkpoint repaired
+
+`checkpoint-20260812-012702.json` was written by the interrupted session and
+normalised on resolve into `schema_version: 0` with a year-1 `created_at`, while
+all siblings use `schema_version: 1` and real timestamps. Repaired to valid
+CheckpointV1 using the filename timestamp `2026-08-12T01:27:02Z`, with all
+original state and evidence preserved verbatim under `context` and a
+`repair_note` recording why the record changed shape.
+
+The active resumption checkpoint `checkpoint-20260812-054257.json` had the same
+defect class — the MCP `create_checkpoint` operation writes the raw state dump
+with no envelope — so it was normalised to the same valid shape. It **remains
+`status: active`** and was deliberately not resolved: protocol resolves a
+resumption checkpoint only after successful resume and closure, never as part of
+the work it is checkpointing.
+
+### Post-remediation validation
+
+Contradiction sweeps confirm the exact defects are absent: no `pipe-only`
+occurrence survives except as an explicit prohibition or a withdrawal
+annotation; no unscoped byte-equivalence claim remains; no surviving assertion
+of the withdrawn F21 conclusion or the false dependency direction; no checkpoint
+outside `schema_version: 1`.
+
+Checkpoint enumeration is clean: 27 stage-owned records, 26 resolved and 1
+active, **0 malformed and 0 quarantined**, versus 1 malformed before this pass.
+
+| Check | Result |
+|---|---|
+| Topology verifier (unmodified) | see run record below |
+| Shipment-closure simulation (unmodified) | see run record below |
+| Plan-1 `blocks` edges | 30 (unchanged) |
+| Shipment memberships | `127-S`=8, `128-S`=7, `129-S`=10 (unchanged) |
+| Shipment chain | `129-S -> 128-S -> 127-S` (unchanged) |
+| Approval edge | `120.004-T -> 120.005-T` present; inverse absent (unchanged) |
+| Checkpoints | 27 stage-owned, 0 malformed, 0 quarantined |
+
+Both harnesses were re-run **unmodified** — they are cited evidence, and editing
+a harness to agree with the artifacts it audits would destroy its value as
+evidence.
+
+### Scope discipline
+
+This pass changed Stage-owned planning, backlog, review, checkpoint and PR
+artifacts only. No product code, no test, no harness, and no schema was touched;
+no shipment was claimed or closed; nothing was merged. F16 through F34 were not
+reopened. One adjacent observation surfaced while scoping P1-B — `118.002-T`
+pins the *absence* of any PAT handling in `start.sh`, so the unified bootstrap
+introduces PAT behaviour there as well — and it was deliberately **not** raised
+as a new finding: the operator scoped this pass to applying four rulings, and
+`120.007-T` is already named as the sole authority on the carve-out, so the
+question has a defined home without expanding this cycle.
+

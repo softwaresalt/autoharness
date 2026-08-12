@@ -1547,3 +1547,60 @@ findings. Verdict PASS, 0 P0 / 0 P1.
 Stage claimed and closed nothing (P-010). `127-S` is gate-clear and structurally
 eligible; the decision to claim it is Ship's, and gate-clear has never been an
 instruction to claim.
+
+---
+
+## Cycle 21 — operator rulings applied, terminal remediation (2026-08-12)
+
+The operator returned authoritative rulings for all four Cycle 20 P1s and
+directed deterministic application: no operator questions, no further adversarial
+review, no reopening of F16-F34.
+
+**P1-A (F29 preserved).** Removed the pre-F29 "ship pipe-only" de-risking escape
+from `119.002-T` H8 and the hardening plan's T7 row, replacing it with an explicit
+prohibition. The fallback is now "defer the PTY backend, keep inherited stdio",
+which preserves terminal attachment. Recorded that schedule pressure is never a
+licence to relax F29 — that was the actual mechanism by which stale wording could
+have shipped a non-TTY interactive session.
+
+**P1-B (approved migration delta).** The three PAT tasks were *jointly
+unsatisfiable*: `118.001-T` pinned an error, `120.001-T` required non-fatality,
+`120.007-T` forbade editing the assertion between them. Resolved by naming the
+delta: `118.001-T` reframed as baseline evidence expected to be replaced;
+`120.001-T` states the concrete target (non-fatal, explicit warning + structured
+event, variable left unset not set-empty, no secret leak); `120.007-T` scopes
+byte-equivalence to unchanged scenarios plus one positively-asserted approved
+delta. Propagated the same scoping to the four surfaces stating the rule in
+general terms, so it reads identically everywhere rather than being correct once
+and absolute four times.
+
+**P1-C (runtime direction authoritative).** The withdrawn F21 disposition survived
+on `118.003-T`, `120-F` and the `129-S` summary after F32/F33 corrected it at
+`120.004-T`/`120.005-T` — the classic superseding-ruling failure, where the
+correction lands where the argument happened and the summaries keep repeating the
+original claim. All now state that placement discharged F19 only and created no
+caller. Corrected the stale direction claim on the `117-F` finding row, which
+asserted exactly the edge verifier check V14 proves absent. **No edge was added,
+removed or reversed** — the fix is to prose describing the graph. Adding the
+inverse edge would also have broken the verifier's closed 30-edge set.
+
+**P1-D (checkpoint repair).** Repaired `checkpoint-20260812-012702.json` to valid
+CheckpointV1 with the filename timestamp, preserving state/evidence verbatim and
+adding a repair note. Normalised the active resumption checkpoint (same defect
+class — MCP `create_checkpoint` writes the raw dump with no envelope) but
+deliberately left it `status: active`; protocol resolves a resumption checkpoint
+only after successful resume and closure.
+
+**Deliberate non-expansion.** While scoping P1-B I noticed `118.002-T` pins the
+*absence* of PAT handling in `start.sh`, so unified bootstrap introduces PAT
+behaviour there too. Not raised as a new finding: the pass was scoped to applying
+four rulings, and `120.007-T` is already the named authority on the carve-out, so
+the question has a home without expanding this cycle. Recorded rather than
+silently dropped.
+
+**Carried forward for Ship:** Stage claimed and closed nothing. `127-S` remains
+structurally eligible and F34-clear; eligibility is not clearance. Re-run
+`sim-shipment-closure.ps1` and reconfirm the ENGINE UNDER TEST commit immediately
+before any close — the installed engine is a `-dirty` build, which Stage cannot
+remediate.
+
