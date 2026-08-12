@@ -1686,3 +1686,47 @@ code touched.
 `127-S` remains structurally eligible and F34-clear. Eligibility is not clearance,
 and this PR is not merge-ready while P1-1/2/3 stand.
 
+
+---
+
+## Cycle 23 — P1-1 / P1-2 / P1-3 deterministic remediation (2026-08-12)
+
+Three consistency defects from the Cycle 22 P-018 review, corrected deterministically
+under standing dark-factory approval. No new review loop; no product code touched.
+
+| P1 | Defect | Correction |
+|---|---|---|
+| **P1-1** | Live Ship guards pinned engine commit `fd8d2c9d` exactly | Replaced with **dynamic attestation**: identify installed CLI+MCP engine, record version/commit/build, require coherent identity for exercised surfaces, re-run closure simulation against *that* engine. No pin to `39528a4` either. |
+| **P1-2** | `120.007-T` claimed "exactly ONE approved delta" | **TWO** named POSIX deltas: (1) non-fatal PAT-without-`gh`, (2) POSIX gains deterministic `ENGRAM_DATA_DIR` + PAT. Byte-equivalence retained for all unchanged scenarios. |
+| **P1-3** | Gated-action catalog had a consumer (`120.004-T`) and **no producer** | `118.003-T` is now its **sole producer** (typed, exhaustive, stable IDs + approval metadata, unregistered lookup raises); `120.004-T` imports it, asserts *same registry object*, exhaustive dispatch, and fails closed on unknown action **and** unavailable service. |
+
+### Lesson carried forward (third of a set)
+
+Each of these three was the *same shape of error at a different level*:
+
+1. **Cycle 21→P1-1:** recording a change (engine identity) is only half the work —
+   the other half is sweeping every surface that **predicates on the old value**.
+2. **Cycle 22→P1-2:** *choosing not to raise an observation does not license
+   asserting its negation.* I saw the second delta and let "exactly one" stand.
+3. **Cycle 23→P1-3:** an acceptance criterion that **consumes** an artifact is not
+   self-satisfying — something must be **obliged to produce it**. "Declared once in
+   `contracts.py`" named a location, not an owner.
+
+The general form: **a claim is only as good as the surface that is obliged to make
+it true.** Location ≠ ownership; observation ≠ assertion; a recorded fact ≠ its
+dependents.
+
+### Structural invariants held
+
+Dependency direction `120.004-T -> 120.005-T` preserved; **no edge added, removed,
+or reversed** (the verifier enforces a closed set of exactly 30 Plan-1 task-level
+`blocks` edges, so a 31st "fix" edge could never have passed). Memberships 8/7/10
+and the `127-S -> 128-S -> 129-S` chain unchanged.
+
+### Checkpoint hygiene (P1-D root cause, re-confirmed)
+
+The Cycle 22 resumption checkpoint was created **with a valid CheckpointV1 envelope**
+and **survived `resolve` intact** — 30 files, 0 malformed, 0 active afterwards. This
+re-confirms the P1-D diagnosis: corruption came from `resolve` applied to a raw state
+dump with **no envelope**, whose missing fields normalise to `schema_version: 0` and
+`0001-01-01T00:00:00Z`. **Write the envelope at create time.**

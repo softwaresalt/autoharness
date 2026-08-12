@@ -336,10 +336,14 @@ The fix is structural, in two halves:
   T15 → T17 → T18 → T19 can no longer be satisfied with approvals unstarted.
 * **Test half.** T15 takes the approval service as a **required parameter with no
   default** (no `None`-accepting overload, no module-level fallback); the set of
-  **gated actions** is declared once in `contracts.py` and T15's dispatch must
-  cover it exhaustively; and a spy service asserts every gated action raised an
-  `ApprovalRequested` and consumed a decision **before** the side effect is
-  observable.
+  **gated actions** is declared once in `contracts.py` — **and T3/`118.003-T` is
+  explicitly obliged to produce and export that typed registry** (P1-3 ruling,
+  2026-08-12; the obligation previously existed only in T15's prose, leaving the
+  catalog with a consumer and no producer) — T15 **imports** it rather than
+  keeping a second copy, and its dispatch must cover it exhaustively; an
+  **unknown/unregistered** gated action **fails closed**; and a spy service
+  asserts every gated action raised an `ApprovalRequested` and consumed a
+  decision **before** the side effect is observable.
 
 **Negative controls are mandatory**, because the failure mode here is a check
 that passes without exercising anything: a `DENY` must suppress the side effect
@@ -526,11 +530,17 @@ characterization tests before UI/convenience.**
   with its four absences (no `ENGRAM_DATA_DIR`, no PAT, no `--remote`, no sidecars)
   asserted **as absences**. Not a parity suite — see §5 (F17, ruling 4). Test-only.
 * **T3** — `supervise/result.py` + `supervise/errors.py` **+ `supervise/contracts.py`**:
-  typed envelope, error taxonomy, machine-readable exit-code contract table, and
-  the shared **event type catalog + approval request/response contracts** that T8,
+  typed envelope, error taxonomy, machine-readable exit-code contract table, the
+  shared **event type catalog + approval request/response contracts** that T8,
   T9 and T16 all bind to (F19, ruling 2 — the F21 co-attribution is **withdrawn**;
   placement fixed definition ordering only and created no caller, so F21 is
-  discharged by the F32/F33 runtime-wiring ruling at T15 instead). Pure, no I/O.
+  discharged by the F32/F33 runtime-wiring ruling at T15 instead), **and the
+  typed, exhaustive gated-action catalog/registry that T15 consumes** — stable
+  action identifiers plus the metadata the approval service needs (summary,
+  options, safe default, timeout). **T3 is the catalog's sole producer** (P1-3
+  ruling, 2026-08-12): lookup of an unregistered identifier raises rather than
+  returning a permissive default, so unknown actions fail closed at the contract
+  boundary. Pure, no I/O.
 * **T4** — `supervise/redact.py`: pattern set, whole-match redaction,
   no-partial-leak property tests.
 * **T5** — `supervise/locking.py`: single-active workspace/session lock with

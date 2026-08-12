@@ -1731,3 +1731,91 @@ code touched.
 `127-S` remains structurally eligible and F34-clear. Eligibility is not clearance,
 and this PR is not merge-ready while P1-1/2/3 stand.
 
+
+---
+
+## Cycle 23 — deterministic remediation of P1-1 / P1-2 / P1-3 (2026-08-12)
+
+Operator ruling: dark-factory approval covers all three dispositions; apply
+deterministically, no further product question, **no second adversarial review**.
+The prior review already localised these defects, so this is remediation, not
+re-discovery.
+
+### P1-1 — dynamic engine attestation replaces the stale exact pin
+
+**Defect.** Every live Ship-facing guard demanded commit `fd8d2c9d` exactly. By
+2026-08-12 that guard would have **rejected the very engine (`v1.9.0` / `39528a4`)
+that reproduced the evidence** — a guard that fails on a *newer, cleaner* build is
+not a safety property, it is a stale pin.
+
+**Correction.** All exact-pin guards removed and **not** replaced by a pin to
+`39528a4`. Ship must now, immediately before close:
+
+1. identify the actual installed backlogit CLI **and** MCP engine(s);
+2. record version / commit / build identity for each;
+3. require identity to be **determinable and coherent for the exercised surfaces**;
+4. re-run the self-attributing closure simulation against that installed engine.
+
+Close proceeds only when the current-engine simulation passes and all structural
+assertions hold. Unknown identity, CLI/MCP mismatch **on a relied-upon behaviour**,
+or simulation failure blocks close. Historical commits are **evidence labels only,
+never future allowlists**.
+
+Propagated to `127-S:36,48`, `docs/compound/097-S-…md` (version-binding table,
+caveat 1 discharged, Ship-facing guard block, and the `fd8d2c9d` attribution at
+§"A second, opposite hazard"), and the spike `README.md` (~50, ~91, ~412, ~440).
+
+### P1-2 — two approved POSIX migration deltas, not one
+
+**Defect.** `120.007-T` asserted "exactly ONE approved delta". The shared
+supervisor intentionally introduces **two**, and I had already observed the second
+while choosing not to raise it — *declining to raise an observation does not
+license asserting its negation.*
+
+**Correction.** Exactly **TWO** named approved deltas, both landing on POSIX:
+
+* **DELTA 1 — non-fatal PAT-without-`gh`**: structured warning + event, no secret
+  value or fragment in warning, event, journal, `SupervisorResult.data` or telemetry.
+* **DELTA 2 — POSIX gains the shared bootstrap policy**: deterministic
+  workspace-local/default `ENGRAM_DATA_DIR` (honouring any pre-set value) plus PAT
+  resolution, matching Windows.
+
+Byte-equivalence still binds **every unchanged scenario**. The two POSIX absence
+assertions in `118.002-T` are explicitly **replaced, not preserved**; re-asserting
+them as still-absent fails the suite. `118.002-T` is retained as baseline
+characterization (the delta is only provable against a recorded baseline).
+`120.001-T` is the single source of truth owning both deltas, with **no platform
+branch permitted** — Windows/POSIX target semantics are stated explicitly rather
+than hidden. Every "exactly one delta" assertion removed. Propagated to
+`117-F`, `118.001-T`, `118.002-T`, `120-F`, `120.001-T`, `120.007-T`, `129-S`.
+
+### P1-3 — the gated-action catalog had a consumer and no producer
+
+**Defect.** `120.004-T` consumed "the enumerated gated-action catalog in
+`contracts.py`", but **no task was obliged to create it**. The obligation existed
+only in the consumer's prose, so the producer side was unowned — the acceptance
+criteria were literally unsatisfiable.
+
+**Correction.**
+
+* `118.003-T` (T3) is now the catalog's **sole producer**: it defines and exports
+  the typed, exhaustive gated-action catalog/registry from shared `contracts.py`
+  with stable action identifiers and the metadata the approval service needs
+  (summary, options, safe default, timeout). Lookup of an unregistered identifier
+  **raises** rather than returning a permissive default, so unknown actions fail
+  closed **at the contract boundary**. The task is explicitly not done until the
+  catalog is defined and exported.
+* `120.004-T` (T15) **imports** it and adds **no second list**: a test asserts the
+  enumeration it dispatches over *is the same registry object*, so a divergent
+  duplicate fails the suite; a further test asserts the catalog is non-empty and
+  that `run_session`'s dispatch covers it **exhaustively**, so adding a gated action
+  without an approval path fails the suite rather than shipping unguarded.
+* **Fail-closed, twice, each with a negative control**: an unknown/unregistered
+  action must raise or refuse rather than fall through to an unguarded side effect;
+  an **unavailable approval service** must also fail closed.
+
+Dependency direction `120.004-T -> 120.005-T` **preserved** — no edge added,
+removed, or reversed (the verifier's closed set of exactly 30 Plan-1 task-level
+`blocks` edges would reject a 31st in any case). Propagated to the plan document
+(T3 bullet and the T15 gated-action paragraph), which previously carried the same
+producer gap.

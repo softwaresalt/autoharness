@@ -46,11 +46,14 @@ them changes no product behavior.
   to be set on POSIX).
 * `verify-plan1-shipment-topology.ps1` Part 1 issues **read-only** `SELECT`
   queries and `backlogit get` reads against the real `.backlogit` workspace.
-* The real `ClaimShipment` / `ShipShipment` engine (backlogit **`v1.8.0-dirty`,
-  commit `fd8d2c9d`**) is exercised — these are not mocks or re-implementations.
-  The simulation now prints an `ENGINE UNDER TEST` block and **fails closed** if
-  the version or commit cannot be resolved, so the result is attributable to a
-  specific build rather than to a version string.
+* The real `ClaimShipment` / `ShipShipment` engine is exercised — these are not
+  mocks or re-implementations. The simulation prints an `ENGINE UNDER TEST`
+  block and **fails closed** if the version or commit cannot be resolved, so
+  every result is **self-attributing**: it names the build that produced it
+  rather than relying on a version string. Published runs were produced on
+  `v1.8.0-dirty` / `fd8d2c9d` (2026-08-11) and reproduced on the clean release
+  `v1.9.0` / `39528a4` (2026-08-12). Those are evidence labels, not required
+  builds.
 
 ## The harnesses
 
@@ -87,9 +90,11 @@ non-archived residue in the terminal state.
 
 ## Reproducing
 
-Requires `backlogit` on `PATH`. The evidence published here was produced
-against **`v1.8.0-dirty`, commit `fd8d2c9d`**; see *Version binding* below
-before quoting any result against a different build.
+Requires `backlogit` on `PATH`. The evidence published here was produced against
+**`v1.8.0-dirty` / `fd8d2c9d`** and reproduced against the clean release
+**`v1.9.0` / `39528a4`**; see *Version binding* below. Neither is a required
+build — the harnesses self-attribute, so run them against whatever is installed
+and read the identity they report.
 
 ```powershell
 pwsh docs/spikes/2026-08-09-plan1-shipment-topology-proof/sim-shipment-closure.ps1
@@ -404,17 +409,34 @@ The operator asked whether backlogit had been upgraded, and whether any newer
 close semantics invalidate this evidence. Both were checked directly rather than
 inferred from the version number.
 
-**backlogit was NOT upgraded.** The MCP surface and the CLI both report commit
-`fd8d2c9d`. The CLI reports `v1.8.0-dirty` built `2026-08-11T01:25:43Z`; the MCP
-daemon reported the same commit built `2026-08-02T07:27:31Z` — two builds of one
-commit, not two versions. **UPDATED 2026-08-11 (F34 pass): the daemon has since
-been restarted onto the SAME build; both surfaces now report
-`2026-08-11T01:25:43Z`. The two-builds caveat is RETIRED for work from that point
-forward. It is retained here because it applied to the earlier mutations, which
-remain trustworthy — the CLI independently read back and validated every edge the
-MCP surface wrote.** Every result in this document was produced **today,
-against that installed CLI**, so none of it is stale relative to what is
-installed.
+**backlogit was NOT upgraded at the time of the original run.** The MCP surface
+and the CLI both reported commit `fd8d2c9d`. The CLI reported `v1.8.0-dirty`
+built `2026-08-11T01:25:43Z`; the MCP daemon reported the same commit built
+`2026-08-02T07:27:31Z` — two builds of one commit, not two versions. **UPDATED
+2026-08-11 (F34 pass): the daemon was restarted onto the SAME build; both
+surfaces reported `2026-08-11T01:25:43Z`. The two-builds caveat is RETIRED for
+work from that point forward. It is retained here because it applied to the
+earlier mutations, which remain trustworthy — the CLI independently read back
+and validated every edge the MCP surface wrote.**
+
+**UPDATED 2026-08-12 — the engine DID subsequently change, and this is exactly
+why the guard is now dynamic.** The installed CLI was upgraded to the clean
+release **`v1.9.0` / `39528a4`**, and both harnesses were re-run unmodified:
+verifier **221/221**, simulation **66/66**. Two consequences:
+
+* The `-dirty` caveat is **discharged** — the proof now also holds on a build
+  whose exact behaviour is reproducible from a commit.
+* During that session the long-lived MCP process still reported the pre-upgrade
+  `v1.8.0-dirty` / `fd8d2c9d`, because it held that binary in memory. So "both
+  surfaces report the same build" is a **historical** statement, not a standing
+  one. This is a session artifact rather than a workspace defect — the artifacts
+  are plain Markdown read identically by both builds, and every structural
+  assertion cited was produced by the CLI-driven harnesses.
+
+This episode is the concrete argument against exact-commit pinning: a guard
+demanding `fd8d2c9d` would, by 2026-08-12, have **rejected the very engine that
+reproduced these results**. Identities recorded here are evidence labels; the
+close guard attests whatever is actually installed.
 
 Three things are nevertheless recorded, because "not upgraded" is not the same
 as "safe to assume forever":
@@ -436,7 +458,15 @@ as "safe to assume forever":
   fail-closed only on lookup errors and is reachable solely from the opt-in
   formal-gate digest, which is disabled here.
 
-Because the refactored engine was **not executed**, these totals certify
-`fd8d2c9d` and nothing else. The Ship-facing guard is in
-`docs/compound/097-S-shipment-task-only-safe-close.md`: re-run this simulation
-before closing and confirm `ENGINE UNDER TEST` still reports `fd8d2c9d`.
+Because the refactored engine was **not executed**, these totals were originally
+attributed to `fd8d2c9d`; the 2026-08-12 re-run reproduced them on the clean
+release `v1.9.0` / `39528a4`. Both identities are **evidence labels**, not
+required builds. The Ship-facing guard is in
+`docs/compound/097-S-shipment-task-only-safe-close.md`, and it is a **dynamic
+engine attestation**, not an exact-commit pin: before closing, identify and
+record the version/commit/build of every backlogit surface the close relies on,
+require that identity to be determinable and coherent, re-run this simulation
+unmodified against the installed engine, and proceed only on a passing run with
+all structural assertions holding. Unknown identity, a CLI/MCP mismatch on a
+relied-upon behaviour, or a simulation failure blocks close; a merely newer or
+older build does not.
