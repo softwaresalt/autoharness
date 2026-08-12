@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "agent": "stage",
+  "session_id": "stage-2026-08-11-f34-closure-halt",
+  "phase": "complete",
+  "status": "resolved",
+  "created_at": "2026-08-12T05:42:57Z",
+  "updated_at": "2026-08-12T07:13:54Z",
+  "context": {
+    "shipment_id": "127-S",
+    "feature_id": "117-F",
+    "branch": "chore/spike-unified-surfaces-20260809"
+  },
+  "resume_hint": "COMPLETE - resumed successfully and closed. Operator rulings P1-A/B/C/D were applied deterministically in cycle 21: A=pipe-only fallback removed everywhere and prohibited, F29 TTY/PTY preserved exactly; B=PAT-without-gh reframed as baseline evidence with an approved-delta assertion at 120.007-T and byte-equivalence scoped to unchanged scenarios; C=withdrawn F21 disposition and stale dependency-direction statements removed, 120.004-T -> 120.005-T retained and the inverse NOT added; D=checkpoint-20260812-012702.json repaired to CheckpointV1. This checkpoint was held ACTIVE until resume/closure per protocol and resolved only afterwards. NOTE for future sessions: the P1-D malformed-checkpoint defect is caused by resolving a checkpoint whose stored body is a RAW state dump with no CheckpointV1 envelope - resolve then normalises it to schema_version 0 with a year-1 created_at. Resolving an already-valid CheckpointV1 record preserves it correctly, as verified here. Write the envelope at create time. Do NOT reopen F16-F34. Stage claimed and closed nothing; claim/close of 127-S remain Ship's."
+}

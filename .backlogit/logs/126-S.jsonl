@@ -1,0 +1,10 @@
+{"timestamp":"2026-08-10T00:17:27.5010017-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_created","delta":{"items":[],"title":"S3 Copilot supervisor: application services, adapters, start.ps1/start.sh migration (P1)"}}
+{"timestamp":"2026-08-10T00:18:24.3547431-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_item_added","delta":{"item_id":"117.012-T"}}
+{"timestamp":"2026-08-10T00:18:29.1953782-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_item_added","delta":{"item_id":"117.013-T"}}
+{"timestamp":"2026-08-10T00:18:35.1443257-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_item_added","delta":{"item_id":"117.014-T"}}
+{"timestamp":"2026-08-10T00:18:39.5488372-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_item_added","delta":{"item_id":"117.015-T"}}
+{"timestamp":"2026-08-10T00:18:45.754158-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_item_added","delta":{"item_id":"117.016-T"}}
+{"timestamp":"2026-08-10T00:18:50.1579267-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_item_added","delta":{"item_id":"117.017-T"}}
+{"timestamp":"2026-08-10T00:18:57.8314139-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_item_added","delta":{"item_id":"117.018-T"}}
+{"timestamp":"2026-08-10T00:19:03.7000176-07:00","actor":"backlogit","item_id":"126-S","event_type":"shipment_item_added","delta":{"item_id":"117.019-T"}}
+{"timestamp":"2026-08-10T01:15:35.770196-07:00","actor":"backlogit","item_id":"126-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/126-S.md"}}

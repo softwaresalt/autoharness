@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "agent": "stage",
+  "session_id": "stage-2026-08-11-f34-remediation",
+  "phase": "complete",
+  "status": "resolved",
+  "created_at": "2026-08-12T01:27:02Z",
+  "updated_at": "2026-08-12T02:30:44Z",
+  "context": {
+    "branch": "chore/spike-unified-surfaces-20260809",
+    "pr": 325,
+    "feature_id": "117-F",
+    "shipment_id": "127-S",
+    "task_ids": [
+      "117-F",
+      "118-F",
+      "118.005-T",
+      "118.006-T",
+      "120.006-T",
+      "127-S",
+      "128-S",
+      "129-S"
+    ],
+    "finding": "F34",
+    "verdict": "PASS",
+    "p0": 0,
+    "p1": 0,
+    "disposition": "guard/record separation ruling accepted by operator and applied to 118.005-T, 118.006-T, 120.006-T; O_CREAT|O_EXCL removed as a backend; live holder prevents cleanup; F27/F31 preserved; criteria executable on Windows and POSIX",
+    "evidence": {
+      "verifier": "221/221",
+      "simulation": "66/66",
+      "engine": "v1.8.0-dirty commit fd8d2c9d build 2026-08-11T01:25:43Z",
+      "targeted_doctor": "8/8 PASS",
+      "checkpoints": "27 total, 0 active, 0 quarantined",
+      "memberships": "127-S=8, 128-S=7, 129-S=10",
+      "chain": "129-S -> 128-S -> 127-S",
+      "approval_edge": "120.004-T -> 120.005-T present; inverted edge absent"
+    },
+    "residual": [
+      "installed backlogit build is -dirty (not Stage-remediable)",
+      "pre-existing orphan doctor findings 048.001-T/048.002-T/048.003-T, identical to main, out of scope",
+      "planning contract is not yet implemented; proof obligation transfers to 118.005-T/118.006-T race tests"
+    ],
+    "repair_note": "P1-D repair (2026-08-12, operator ruling): this record was written by an interrupted session and normalized on resolve into schema_version 0 with a year-1 created_at, which made it uninterpretable to freshness/ordering consumers. Repaired to valid CheckpointV1 using the filename timestamp 2026-08-12T01:27:02Z as the creation instant, matching the convention used by the other repaired checkpoints. All original state and evidence are preserved verbatim under context; nothing was dropped or restated."
+  },
+  "resume_hint": "COMPLETE - F34 discharged. Stage did not claim/close any shipment (P-010). Ship owns claim/close of 127-S; re-run sim-shipment-closure.ps1 and record whatever ENGINE UNDER TEST identity it reports immediately before any close. NOTE (2026-08-12): the commit fd8d2c9d named in this record is the engine of THIS pass only and is NOT a required build - the installed engine was upgraded to v1.9.0 / 39528a4 later the same day, so do not pin closure evidence to fd8d2c9d."
+}
