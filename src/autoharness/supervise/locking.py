@@ -34,6 +34,7 @@ Platform notes and limitations (documented per shipment constraints):
 from __future__ import annotations
 
 import contextlib
+import enum
 import json
 import os
 import sys
@@ -401,4 +402,176 @@ def acquire(workspace_root: PathLike, *, session_id: Optional[str] = None) -> Se
     lock = SessionLock(workspace_root, session_id=session_id)
     lock.acquire()
     return lock
+
+
+# ---------------------------------------------------------------------------
+# 118.006-T: liveness, stale-record lifecycle, and force_unlock
+# ---------------------------------------------------------------------------
+
+
+def _pid_exists(pid: int) -> Optional[bool]:
+    """Best-effort liveness check. Returns ``None`` when indeterminate."""
+
+    if sys.platform == "win32":
+        return _windows_pid_exists(pid)
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # process exists; we simply cannot signal it
+    except OSError:
+        return None
+
+
+def _windows_pid_exists(pid: int) -> Optional[bool]:
+    try:
+        import ctypes
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        ERROR_INVALID_PARAMETER = 87
+        # ``use_last_error=True`` is required for ``ctypes.get_last_error()``
+        # to reflect this call's actual ``GetLastError()`` value -- the
+        # shared ``ctypes.windll.kernel32`` handle does not track it.
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            last_error = ctypes.get_last_error()
+            if last_error == ERROR_INVALID_PARAMETER:
+                return False
+            return None  # indeterminate (e.g. access denied on a live process)
+        kernel32.CloseHandle(handle)
+        return True
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
+class Liveness(enum.Enum):
+    """Tri-state liveness verdict for a diagnosed session record."""
+
+    LIVE = "live"
+    STALE = "stale"
+    INDETERMINATE = "indeterminate"
+
+
+def diagnose_liveness(record: SessionRecord) -> Liveness:
+    """Diagnose whether ``record`` refers to a still-live session.
+
+    FAIL CLOSED: any indeterminate signal (liveness or start-time cannot be
+    read) resolves to :attr:`Liveness.INDETERMINATE`, which callers must
+    treat as LIVE (never eligible for force-unlock).
+    """
+
+    alive = _pid_exists(record.pid)
+    if alive is None:
+        return Liveness.INDETERMINATE
+    if not alive:
+        return Liveness.STALE  # dead PID
+
+    current_start = _process_start_time(record.pid)
+    if current_start is None:
+        return Liveness.INDETERMINATE
+
+    # A start-time mismatch means the PID was recycled by an unrelated
+    # process after the recorded session ended -- treat as stale.
+    if abs(current_start - record.start_time) > 1e-6:
+        return Liveness.STALE
+
+    return Liveness.LIVE
+
+
+def is_stale_eligible_for_force_unlock(liveness: Liveness) -> bool:
+    """Whether a diagnosed :class:`Liveness` verdict is eligible for cleanup.
+
+    Only :attr:`Liveness.STALE` is eligible. Both :attr:`Liveness.LIVE` and
+    :attr:`Liveness.INDETERMINATE` are NOT eligible -- this is the
+    fail-closed rule "when liveness cannot be determined, treat as LIVE and
+    REFUSE" made directly testable as a single decision point, rather than
+    left implicit in caller prose.
+    """
+
+    return liveness is Liveness.STALE
+
+
+class ForceUnlockOutcome(enum.Enum):
+    """Outcome of a :func:`force_unlock` attempt."""
+
+    REMOVED = "removed"
+    REFUSED_LIVE = "refused_live"
+    RECORD_CHANGED = "record_changed"
+    NOTHING_TO_REMOVE = "nothing_to_remove"
+
+
+def read_record(record_path: Path) -> Optional[SessionRecord]:
+    """Read and parse the RECORD FILE, or ``None`` if absent/unparsable."""
+
+    if not record_path.exists():
+        return None
+    try:
+        payload = json.loads(record_path.read_text(encoding="utf-8"))
+        return SessionRecord.from_dict(payload)
+    except (json.JSONDecodeError, KeyError, ValueError, OSError):
+        return None
+
+
+def force_unlock(
+    workspace_root: PathLike,
+    expected_record: SessionRecord,
+    *,
+    guard_relative: PathLike = GUARD_RELATIVE_PATH,
+    record_relative: PathLike = RECORD_RELATIVE_PATH,
+) -> ForceUnlockOutcome:
+    """Remove a diagnosed-stale RECORD file. NEVER touches the GUARD file.
+
+    Both normal session acquisition and ``force_unlock`` take the SAME
+    underlying guard-lock primitive before touching record metadata:
+
+    1. Attempt a non-blocking guard-lock acquisition. If it FAILS (a live
+       session holds it), REFUSE immediately -- the record is never read or
+       touched.
+    2. If it SUCCEEDS, re-read the record INSIDE this critical section and
+       re-validate it still matches ``expected_record`` (the record
+       previously diagnosed as stale by the caller via
+       :func:`diagnose_liveness`). Only on an exact match is the RECORD FILE
+       removed. The guard lock -- taken here as a short-lived cleanup
+       acquisition, distinct from a long-lived session acquisition -- is
+       always released before returning.
+
+    The caller is responsible for having called :func:`diagnose_liveness`
+    on ``expected_record`` and confirmed it is not :attr:`Liveness.LIVE` (or
+    :attr:`Liveness.INDETERMINATE`) before calling this function; this
+    function re-validates identity, not liveness, inside the critical
+    section (liveness cannot change retroactively for a *matching* record
+    once a lock is held, because holding the guard lock means no session
+    with a different PID/start-time could have just re-acquired it).
+    """
+
+    root = Path(workspace_root)
+    guard_path = _resolve_contained_path(root, guard_relative)
+    record_path = _resolve_contained_path(root, record_relative)
+
+    _ensure_guard_file(guard_path)
+
+    handle = open(guard_path, "r+b")
+    try:
+        try:
+            _lock_file_handle(handle)
+        except SessionLockRefused:
+            return ForceUnlockOutcome.REFUSED_LIVE
+
+        # --- critical section: this process exclusively holds the guard ---
+        current = read_record(record_path)
+        if current is None:
+            return ForceUnlockOutcome.NOTHING_TO_REMOVE
+        if current != expected_record:
+            return ForceUnlockOutcome.RECORD_CHANGED
+
+        record_path.unlink()
+        return ForceUnlockOutcome.REMOVED
+        # --- end critical section ---
+    finally:
+        _unlock_file_handle(handle)
+        with contextlib.suppress(OSError):
+            handle.close()
 
