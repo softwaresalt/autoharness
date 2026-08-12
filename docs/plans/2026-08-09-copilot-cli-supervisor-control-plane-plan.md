@@ -230,6 +230,19 @@ Rules:
    terminal state is reachable except through `DRAINING`. The defect this prevents
    is precisely an edge nobody thought to enumerate, so enumeration cannot be the
    control.
+5. **`CANCELLED` is a DISTINCT FOURTH TERMINAL STATE** (operator ruling,
+   2026-08-12). The terminal set is exactly `{EXITED, FAILED, REFUSED,
+   CANCELLED}`. Operator/requested cancellation runs
+   `<post-LOCKING phase> → CANCELLING → DRAINING → CANCELLED`, entering `CANCELLED`
+   only after child termination, journal flush and lock release have **completed**
+   in `DRAINING`; normal child completion runs `… → DRAINING → EXITED`, and the
+   failure and refusal paths are unchanged. A cancelled session is therefore never
+   reported as `EXITED` — the distinction lives in the terminal state itself, not
+   in an exit code or journal field, for the same reason `REFUSED` is distinct from
+   `FAILED`. There is **no `CANCELLING → CANCELLED` edge**: like `CANCELLING →
+   EXITED`, it is absent from the table and raises `ILLEGAL_TRANSITION`, and Rule 4's
+   graph-property test covers `CANCELLED` on the same footing as every other
+   terminal, so the no-bypass guarantee is proven structurally.
 5. Every transition emits exactly one `SessionPhaseChanged` event, journaled.
    The event **type** is defined in the shared core (`supervise/contracts.py`,
    T3), not in the event bus — see F19, ruling 2.

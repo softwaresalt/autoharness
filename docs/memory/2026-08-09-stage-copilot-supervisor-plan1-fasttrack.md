@@ -1807,3 +1807,77 @@ swept in the same pass — **F16** (`120.007-T`, `120.008-T`).
 deletions`** on every one of the ten logs, and the original blocking events remain
 present and readable as history. Each log's final event now carries
 `SUPERSEDING RESOLUTION EVENT` and `STATUS: NOT BLOCKED`, verified programmatically.
+
+---
+
+## Cycle 26 — operator ruling: `CANCELLED` is a distinct fourth terminal state (2026-08-12)
+
+**Trigger.** The single unresolved posted Copilot thread on PR #325
+(`PRRT_kwDORzpWpM6YguUb`, on `119.006-T`) reported that the cancellation terminal
+state was defined three different ways across the plan and the task contracts.
+Stage verified the contradiction directly but adopted no resolution, because
+choosing the terminal state is a product decision. The operator ruled:
+**`CANCELLED` is a distinct fourth terminal state.**
+
+**The contradiction, as it stood.**
+
+| Surface | Cancellation terminal | Evidence |
+|---|---|---|
+| Plan diagram | `CANCELLED` [terminal] | plan §3.2 |
+| Plan outcome table | `CANCELLING → DRAINING → CANCELLED` | plan §3.2 |
+| `119.003-T` terminal set | `{EXITED \| FAILED \| REFUSED}` — zero `CANCELLED` | task body |
+| `119.006-T` contract + tests | `… → CANCELLING → DRAINING → EXITED` | task body |
+| `117-F` state-machine summary | `{EXITED \| FAILED \| REFUSED}` | feature body |
+| `119.006-T` log final event | restated `→ EXITED` as CURRENT CONTRACT | JSONL |
+
+**Ruling applied (one atomic commit, five files).**
+
+- Terminal set is exactly `{EXITED, FAILED, REFUSED, CANCELLED}`.
+- `DRAINING` remains the **sole gateway**; `REFUSED` stays the one documented
+  pre-lock exception, unchanged.
+- Cancellation: `<post-LOCKING phase> → CANCELLING → DRAINING → CANCELLED`,
+  entering `CANCELLED` only after child termination, journal flush and lock
+  release have **completed**.
+- Normal completion: `… → DRAINING → EXITED`. Failure and refusal paths unchanged.
+- **No `CANCELLING → CANCELLED` edge** — absent from the table, raises
+  `ILLEGAL_TRANSITION` exactly as `CANCELLING → EXITED` does.
+
+**Why `CANCELLED` is distinct rather than an alias of `EXITED`.** The ruling
+follows the reasoning already accepted for `REFUSED` vs `FAILED`: a deliberate
+policy outcome is neither an error nor a normal completion. Collapsing
+cancellation into `EXITED` would make an operator-cancelled session
+indistinguishable from a normally-completed one in the state itself, pushing the
+distinction into an exit code or journal field that no state-machine test asserts.
+
+**Acceptance tests strengthened (the point of the change).** Wording alone would
+not have prevented regression, so the tasks now require:
+
+1. a cancellation run and a normal-completion run whose terminal values are
+   asserted to **differ** — conflating them fails rather than passes silently;
+2. a **negative control** asserting the direct `CANCELLING → CANCELLED`
+   transition is absent and raises `ILLEGAL_TRANSITION`;
+3. the existing plan Rule 4 graph-property test covering `CANCELLED` on the same
+   footing as every other terminal, so no-bypass is proven structurally rather
+   than by enumerating the paths someone happened to remember;
+4. the drain side effects asserted to have **already occurred** at the moment
+   `CANCELLED` is observed.
+
+**Surfaces changed.** `docs/plans/…-plan.md` (new **Rule 5**; diagram and outcome
+table were already correct), `.backlogit/queue/119.003-T.md`,
+`.backlogit/queue/119.006-T.md`, `.backlogit/queue/117-F.md`, and one **appended**
+superseding event on `.backlogit/logs/119.006-T.jsonl` (`1 insertion / 0
+deletions`; prior events preserved). No unrelated contract was touched.
+
+**Deliberately NOT changed.** Occurrences of "there is no `CANCELLING → EXITED`
+edge" are the *correct* gateway rule and remain. Historical review/hardening
+records describing the superseded state are history and were not rewritten.
+`128-S` and the hardening doc state only the gateway rule and enumerate no
+terminal set, so they required no edit.
+
+**Lesson (cycle 26).** *A contradiction can hide behind three surfaces that are
+each internally coherent.* The plan diagram, the transition-table task and the
+recovery task each read as self-consistent; only reading them **against each
+other** exposed that no two agreed on where cancellation ends. The durable fix is
+not the corrected wording but the paired assert that the two terminal values
+**differ** — the contradiction becomes a failing test rather than a reading
+exercise.
