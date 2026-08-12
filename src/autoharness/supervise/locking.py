@@ -84,10 +84,24 @@ def _resolve_contained_path(workspace_root: PathLike, relative: PathLike) -> Pat
     Raises :class:`LockError` (rather than silently clamping the path) if
     the resolved path is not contained within ``workspace_root``. This check
     runs before any write to guard/record paths.
+
+    The candidate is normalized with a purely lexical ``os.path.normpath``
+    rather than a second filesystem-touching ``Path.resolve()`` call. A
+    second ``resolve()`` on the joined (root / relative) path re-invokes
+    ``GetFinalPathNameByHandleW`` on Windows, whose returned form (with or
+    without the extended-length ``\\\\?\\`` prefix) can depend on how much of
+    the path currently exists on disk -- under the real parallel-contender
+    lock test, one contender creating ``.autoharness/supervise`` mid-race can
+    flip that prefix for a second contender's candidate resolution while
+    ``root`` (resolved once, independent of any child directory's existence)
+    stays unprefixed, making an otherwise-identical, non-escaping path spuriously
+    fail the containment check. Lexical normalization avoids re-touching the
+    filesystem for the candidate while still collapsing ``..``/``.`` segments,
+    so a genuine escape is still caught.
     """
 
     root = Path(workspace_root).resolve()
-    candidate = (root / Path(relative)).resolve()
+    candidate = Path(os.path.normpath(str(root / Path(relative))))
     try:
         candidate.relative_to(root)
     except ValueError as exc:
