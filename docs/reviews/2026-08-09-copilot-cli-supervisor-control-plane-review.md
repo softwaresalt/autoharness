@@ -1368,3 +1368,91 @@ out-of-scope work exists).
   **F25 is not merely analogous to
   F22, it compounds it**: `--force-unlock` is F22's own documented remedy, so
   resolving F22 without F25 leaves the lockout with no reachable exit.
+
+## Cycle 20 (2026-08-11) — HALT: F34 discharged, three new P1s on other surfaces
+
+**Verdict: BLOCKED — 0 unresolved P0, 3 unresolved P1 (+1 artifact-integrity P1), 3 P2.**
+
+F34 is **discharged and is not reopened**. The Cycle-19 validation above stands:
+every clause of the accepted ruling is present at its owning surface, and F27/F31
+are preserved. The findings below are **separate defects on other surfaces**,
+found by the current-HEAD Copilot review of `e717719c` and then **verified
+directly against each artifact** before being recorded.
+
+**Seven of the eight observations behind these were _suppressed_ by the reviewer,
+not surfaced.** The review's headline was one comment. Taking that headline at
+face value would have shipped four defects. Suppression encodes the reviewer's
+priority heuristic, not correctness; the filter that matters is *does this
+falsify something the PR now claims?*
+
+### P1-A — the F29 de-risking fallback still says "ship pipe-only"
+
+`119.002-T` contradicts itself **within a single line**: it mandates "DEGRADE TO
+INHERITED STDIO - never to pipes", then closes with "H8 DE-RISKING: ... the
+documented fallback is to ship pipe-only and re-file PTY as a follow-up."
+Hardening H8/T7 (line 158) repeats it verbatim. Because `119.001-T` supplies
+inherited stdio as the interactive default, "ship pipe-only" is exactly the
+non-TTY downgrade F29 forbids. This is **unpropagated pre-F29 wording**, not a
+reopening of F29 — the same class of defect as F34 was for F31.
+
+### P1-B — the PAT fatality contract is jointly unsatisfiable
+
+* `118.001-T` pins the real `start.ps1` behaviour: `GITHUB_PERSONAL_ACCESS_TOKEN`
+  is assigned unguarded at line 65, so **`gh` absent => the statement ERRORS**.
+* `120.001-T` requires `bootstrap.py` to treat gh-absent and gh-failing as
+  **NON-FATAL**.
+* `120.007-T` requires the characterization suites to re-run **BYTE-IDENTICAL**,
+  and states that a required assertion change **must be escalated as an operator
+  product decision**.
+
+All three cannot hold. S3 silently converts a characterized fatal path into a
+non-fatal one while forbidding the assertion edit that would let it pass. The
+contract itself says this needs an operator decision, and none was made.
+
+### P1-C — the withdrawn F21 disposition survives on two owning surfaces
+
+`118.003-T` still concludes the approval path "is no longer orderable out of the
+runtime (F21)", and `120-F` still credits F21 to "moving the approval
+request/response contract UP into 118.003-T". **F32/F33 disproved precisely
+this** — contract placement fixed only F19; what made approvals non-omissible was
+the reversed `120.004-T -> 120.005-T` edge. Worse, `120-F` asserts `120.005-T`
+depends on `120.004-T`, which is **the direction V14 now proves absent**. A live
+feature summary contradicts the verified topology.
+
+### P1-D — a malformed checkpoint falsifies this PR's integrity claim
+
+`checkpoint-20260812-012702.json` has `schema_version: 0` and
+`created_at: 0001-01-01T00:00:00Z`; all 27 siblings use `schema_version: 1` with
+real timestamps. It is the record the interrupted session left, normalized on
+resolve. It is also **an artifact this pass committed**, and it undercuts the
+"valid, non-quarantined checkpoints" evidence line. Mechanically fixable.
+
+### P2 (recorded, not blocking)
+
+`CANCELLED` vs `EXITED` across plan §201 / `119.003-T` / `119.006-T` (stash
+`9863A6D6`); CLI crash-resume unreachable and `--session-id` undefined in
+`120.006-T` (stash `024FDA20`); `119-F` vs the F29 default backend (stash
+`F72AFF70`); weak V13 negative control (stash `A5628E7E`, touches cited evidence
+the operator instructed Stage not to edit).
+
+### Why this is a halt and not another remediation round
+
+The operator authorised one bounded pass with no remediation-after-review loop
+and instructed Stage to halt with exact evidence if a P0/P1 exists. Three do.
+Remediating them here would be the fifth consecutive instance of the pattern this
+PR keeps demonstrating: a fix lands, a confirmatory review falsifies part of it,
+and the fix-then-refalsify cycle continues. Fifteen-plus review passes never
+reached a fixed point. What ends that loop is operator authority over the product
+questions — and P1-A, P1-B and P1-C are each, at bottom, a product decision
+(which fallback ships; whether S3 may change PAT fatality; how F21's record
+should read now it is known to have been misattributed).
+
+**Structural evidence remains green and is unaffected by all four findings:**
+verifier 221/221, simulation 66/66 against engine `fd8d2c9d`, 30 Plan-1 edges,
+memberships 8/7/10, chain `129-S -> 128-S -> 127-S`, approval edge present and its
+inversion absent, 0 Plan-1 doctor findings, CI pass. None of the P1s touches the
+shipment topology or the close path; they are contract-consistency defects inside
+`128-S` and `129-S` task specs plus one artifact-integrity defect.
+
+`127-S` remains structurally eligible and F34-clear. Eligibility is not clearance,
+and this PR is **not merge-ready** while P1-A/B/C stand.
