@@ -174,12 +174,19 @@ case and intentionally list their covering features — a manifest shape that is
 valid under **either** close path. **However, Ship must NOT treat this
 reconciliation as overriding the unconditional cascade prohibition in its own
 agent file** until `118.007-T` amends that file and P-015 (F26, ruling 8).
-As of 2026-08-11 those three shipments are **GATED, not gate-clear**: the
-confirmatory current-HEAD review raised **F34** (P1, unresolved) against the
-force-unlock protocol in `118.005-T`/`118.006-T`, which are members of `127-S`.
-An earlier revision of this document claimed gate-clear status; that claim was
-made before F34 and is **withdrawn**. `127-S` remains the only *structurally*
-eligible cursor, but it is not releasable while F34 is open. The close command to use is therefore:
+As of 2026-08-11 those three shipments are **gate-clear again**: the
+confirmatory current-HEAD review had raised **F34** (P1) against the
+force-unlock protocol in `118.005-T`/`118.006-T`, which are members of `127-S`,
+and F34 has since been **dispositioned by an accepted operator ruling and
+applied** (guard/record separation — a stable never-deleted OS-locked guard file
+as the sole exclusion primitive, holder metadata in a separate removable record,
+both acquisition and cleanup taking the same guard lock, `O_CREAT|O_EXCL`
+removed as a backend, and a live holder preventing cleanup). This document
+previously recorded a gate-clear claim that was withdrawn by F34, then this
+GATED status; the current state is **gate-clear**, and the audit trail of both
+reversals is retained deliberately. `127-S` remains the only *structurally*
+eligible cursor. **Gate-clear is still not an instruction to claim** — claiming
+remains Ship's decision under Ship's own Role Boundary. The close command to use is therefore:
 **safe-close** until `118.007-T` lands, and the verified fully-covered-root
 cascade thereafter. Because `118.007-T` is itself a member of `127-S`, the
 amendment lands *within* the first shipment and before that shipment's own

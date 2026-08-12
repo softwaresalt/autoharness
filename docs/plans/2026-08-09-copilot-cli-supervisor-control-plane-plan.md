@@ -285,7 +285,7 @@ Rules:
 | Supervisor internal fault | `DRAINING → FAILED`; child is terminated, lock released, journal flushed. |
 | Restart budget | Default 0 (opt-in `--max-restarts N`), hard ceiling, exponential backoff, every restart journaled with its reason. |
 | Lock contention | `REFUSED` (never auto-break). Stale lock (dead PID / mismatched start-time) requires an explicit operator `--force-unlock`, which §10/T17 obliges the CLI to actually expose (F25) and T6/118.006-T to implement, including rejection of a **recycled PID** whose start-time does not match. |
-| Lock acquisition | **Atomic** — `O_CREAT\|O_EXCL` or an OS advisory lock (F27). Check-then-write is **prohibited**: two supervisors starting simultaneously could both observe no live lock and both write it, producing exactly the concurrent sessions the module exists to prevent. The PID + start-time record is **diagnosis of staleness only**, never the acquisition mechanism, and contention is proven by a **parallel-contender** test, not a sequential one. |
+| Lock acquisition | **A single OS-backed file lock on a stable, never-deleted guard file (F27 + F34).** Check-then-write is **prohibited**: two supervisors starting simultaneously could both observe no live lock and both write it, producing exactly the concurrent sessions the module exists to prevent. The **guard file is the sole exclusion primitive** and is never deleted by any path; the PID + start-time **record lives in a separate removable file** and is **diagnosis of staleness only**, never the acquisition mechanism. `O_CREAT\|O_EXCL` is **removed** as a permitted backend (F34) — it made the cleanup protocol unsatisfiable and left `--force-unlock` unreachable. Contention is proven by a **parallel-contender** test, not a sequential one. |
 
 ### 3.5 Security and secret handling
 
@@ -532,19 +532,32 @@ characterization tests before UI/convenience.**
 * **T4** — `supervise/redact.py`: pattern set, whole-match redaction,
   no-partial-leak property tests.
 * **T5** — `supervise/locking.py`: single-active workspace/session lock with
-  **atomic acquisition** (`O_CREAT|O_EXCL` or OS advisory lock; check-then-write
-  prohibited), **idempotent release**, and a **parallel-contender** test suite
-  (F27, ruling 9). PID + start-time is staleness *diagnosis* only.
-* **T6a (118.006-T)** — stale-lock lifecycle, `--force-unlock` semantics, and
-  **cleanup mutual exclusion (F31, ruling 3): force-unlock must ACQUIRE the same
-  OS-backed primitive as acquisition and hold it across BOTH inspection and
-  removal as one critical section, re-reading the holder record inside it and
-  REFUSING on any mismatch. Ruling 9 made *acquisition* atomic; it did not make
-  *cleanup* safe — a diagnosed-stale holder can be replaced by a live acquirer
-  before the delete lands, so an unchecked delete removes a LIVE holder through
-  the very remedy meant to restore the invariant. A real concurrent
-  contender-vs-cleanup race test is required, with a positive control proving it
-  fails against a compare-free delete.**
+  **atomic acquisition via a single OS-backed file lock held on a stable,
+  never-deleted guard file** (check-then-write prohibited), **idempotent
+  release**, and a **parallel-contender** test suite (F27, ruling 9; backend
+  narrowed by the F34 ruling, 2026-08-11). **The guard file is the sole
+  exclusion primitive and is never deleted by any code path; PID + start-time
+  live in a SEPARATE removable record file and are staleness *diagnosis* only.**
+  `O_CREAT|O_EXCL` is **removed** as a permitted backend — it left no way for
+  cleanup to acquire the same primitive.
+* **T6a (118.006-T)** — stale-record lifecycle, `--force-unlock` semantics, and
+  **cleanup mutual exclusion (F31, ruling 3, as amended by F34): force-unlock
+  must ACQUIRE THE SAME GUARD LOCK as acquisition and hold it across BOTH
+  inspection and mutation as one critical section, re-reading the holder record
+  inside it and REFUSING on any mismatch. Ruling 9 made *acquisition* atomic; it
+  did not make *cleanup* safe — a diagnosed-stale holder can be replaced by a
+  live acquirer before the delete lands, so an unchecked delete removes a LIVE
+  holder through the very remedy meant to restore the invariant. F34 then showed
+  the fix as first written was unimplementable: under exclusive-create, cleanup
+  could never acquire, so `--force-unlock` would refuse unconditionally and the
+  workspace would be strandable. The guard/record split resolves both — cleanup
+  can always take the invariant guard lock, and it removes only the RECORD,
+  never the guard. A LIVE HOLDER PREVENTS CLEANUP. Real concurrent
+  contender-vs-cleanup race tests are required (a live holder's metadata is
+  never removed or replaced; stale metadata is repairable only under the guard;
+  the guard's file identity survives every outcome), each with a positive
+  control proving the harness fails against a compare-free delete, an
+  unguarded mutation, and a delete-and-recreate of the guard.**
   Also covers **recycled-PID rejection**; split from T5 to stay inside the 2-hour box.
 * **T7a (118.007-T)** — amend **P-015** (policy template, Ship agent template,
   shipment-reconcile skill, compound close-path doc) so the permitted close

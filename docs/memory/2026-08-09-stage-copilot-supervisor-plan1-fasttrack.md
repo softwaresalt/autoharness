@@ -1393,3 +1393,56 @@ is the second time a stale PASS survived in a secondary document.
 **Verdict unchanged: BLOCKED, F34 the sole unresolved P1.** This pass was
 documentation and evidence-binding only — no disposition was reopened, no
 remediation attempted.
+
+## Cycle 19 (part 2) — F34 dispositioned: the ruling that made the tightening implementable
+
+The operator accepted the recommended F34 ruling and authorised **one** bounded
+remediation plus **one** focused confirmatory validation. F34 is now RESOLVED and
+the verdict is **PASS (0 unresolved P0, 0 unresolved P1)**.
+
+**The ruling, in one line:** separate the *guard* from the *record* — a stable,
+never-deleted, OS-locked guard file is the sole exclusion primitive; holder
+metadata lives in a separate removable record file; both normal acquisition and
+force-unlock take the same guard lock before touching metadata; `O_CREAT|O_EXCL`
+is removed as a backend; a live holder prevents cleanup, proven by real
+contender/race tests; F27/F31 survive intact and criteria are executable on
+Windows and POSIX.
+
+**Why this is a fix and not a restatement.** F34 was a *conjunction* failure, so
+the fix had to break the conjunction rather than argue with either half. It does,
+at both horns: cleanup no longer has to exclusive-create a path that by
+definition already exists (so `--force-unlock` is reachable exactly when it is
+needed), and the lock target is never unlinked (so no second inode can exist and
+the inode race has no room to occur). The F31 safety property is untouched —
+exclusion is still held across inspection *and* mutation, the record is still
+re-read inside the critical section, mismatch still refuses. What changed is
+*what gets removed*: the record, never the guard.
+
+**The lesson I want to keep, distinct from the Cycle-19 part-1 lesson.** Part 1's
+lesson was that I never checked my tightening against the permitted backend set.
+The complementary lesson here is about *shape of fix*: when a defect is "A and B
+cannot both hold", weakening A or B is nearly always the wrong instinct, because
+each was there for a reason. The durable fix is usually to find the hidden
+conflation — here, one file doing two jobs (exclusion *and* identity) — and split
+it, after which both requirements hold unmodified. **A jointly-unsatisfiable pair
+is evidence of a conflated object far more often than it is evidence of an
+overspecified requirement.**
+
+**Propagation discipline, applied deliberately this time.** Part 1 recorded that
+withdrawn clearances have to be chased across *every* artifact that repeats them,
+and that a stale PASS had twice survived in a secondary document. So this pass
+swept for the contradictory formulations rather than the finding name: every
+`O_CREAT|O_EXCL`, every "same OS-backed primitive", every "compare-and-delete",
+and every stale `GATED`/`BLOCKED` statement. That found live contradictions in
+places a finding-name search would have missed — the H2 hardening table row, the
+F27 resolution row in the ruling ledger, the F27 disposition sentence inside
+`118-F`, and the compound close-path doc — and it caught a ruling-number
+collision I had introduced myself while editing (`12` in a table numbered 1–3).
+**Search for the wrong statement, not for the finding that named it.**
+
+**Residual, stated rather than buried:** this is a planning contract that has not
+been executed. No `locking.py` exists. The contract is now internally consistent
+and implementable, which is exactly the property F34 showed it lacked — but
+"implementable" is not "implemented", and the real proof obligation transfers to
+the mandated race tests and their positive controls at `118.005-T`/`118.006-T`
+implementation time.

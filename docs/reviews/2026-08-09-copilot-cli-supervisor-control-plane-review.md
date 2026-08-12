@@ -5,7 +5,7 @@ description: "Adversarial plan review of the Plan 1 local Copilot CLI supervisor
 doc_type: review
 source: docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md
 review_id: "PLAN-1-R"
-verdict: "BLOCKED"
+verdict: "PASS"
 stash_ids: ["34D50F2D"]
 model_route:
   model_family: claude-opus-5
@@ -21,7 +21,19 @@ tags: ["plan-review", "34D50F2D", "candidate-a", "supervisor", "P-006"]
 
 # Plan Review (PLAN-1-R)
 
-## Verdict: BLOCKED — 0 unresolved P0, **1 unresolved P1 (F34)**
+## Verdict: PASS (Cycle 19 focused F34 remediation validation) — 0 unresolved P0, 0 unresolved P1
+
+**Scope of this verdict, stated narrowly on purpose.** F34 — the sole surviving
+P1, and a defect in Stage's own F31 remediation — has an accepted operator
+ruling, that ruling is applied at every owning surface, and the application was
+validated in ONE bounded confirmatory pass scoped to F34 plus regressions of
+F27/F31. F30 and F32/F33 were not re-opened; their Cycle-18 dispositions stand.
+
+This verdict does **not** assert that finding discovery has converged. That
+claim has been false five times in this document and is not made again. What it
+asserts is narrower and checkable: the locking contract is now *internally
+consistent and implementable*, which is precisely what F34 proved it previously
+was not.
 
 ### Engine version verification (2026-08-11) — no change to the verdict
 
@@ -32,7 +44,7 @@ number. Result: **backlogit was not upgraded.**
 | Surface | Version | Commit | Built |
 |---|---|---|---|
 | CLI (`C:\Tools\backlogit.exe`) | `v1.8.0-dirty` | `fd8d2c9d` | `2026-08-11T01:25:43Z` |
-| MCP daemon | `1.8.0` | `fd8d2c9d` | `2026-08-02T07:27:31Z` |
+| MCP daemon | `1.8.0` | `fd8d2c9d` | `2026-08-11T01:25:43Z` (re-read 2026-08-11 during the F34 pass; **was** `2026-08-02T07:27:31Z`) |
 
 All Cycle-18 evidence was produced against that installed CLI, so it is current
 for what is installed — the simulation was re-run and now reports **66/66**
@@ -64,6 +76,13 @@ Stage and both weaken how this evidence should be quoted later:
    went through the CLI build (08-11). Same commit, two builds. They are
    cross-checked in practice: the CLI independently read back and validated
    every dependency edge the MCP surface wrote.
+   **RETIRED 2026-08-11 (F34 pass).** The MCP daemon was re-probed at the start
+   of this session and now reports build `2026-08-11T01:25:43Z` — the *same*
+   build, not merely the same commit, as the CLI that produced the evidence. The
+   daemon has been restarted onto the evidence build, so the two-builds caveat no
+   longer applies to work performed from this point. It is retained here because
+   it *did* apply to the earlier mutations, and the cross-check described above
+   remains the reason those earlier mutations are trustworthy.
 
 Because the refactored engine was never executed, the close proofs certify
 `fd8d2c9d` only. A Ship-facing guard is recorded in
@@ -71,9 +90,76 @@ Because the refactored engine was never executed, the close proofs certify
 to be re-run and the `ENGINE UNDER TEST` commit reconfirmed immediately before
 any shipment close.
 
-**This check neither clears nor adds a blocker. F34 remains the sole unresolved
-P1 and the verdict stays BLOCKED.**
+**This check neither clears nor adds a blocker.** F34 was the sole unresolved P1
+when this section was written; it has since been dispositioned by an accepted
+operator ruling (see the F34 section immediately below) and the verdict is now
+PASS. The engine-version check itself was, and remains, verdict-neutral.
 
+## F34 — DISPOSITIONED by accepted operator ruling and applied (2026-08-11)
+
+**Status: RESOLVED. The operator expressly accepted the recommended F34 ruling
+and authorised one bounded remediation plus one focused confirmatory
+validation.** The finding as raised is retained verbatim below, because the
+reasoning is the justification for the ruling and must not be lost.
+
+### The ruling, as accepted
+
+1. **A stable, never-deleted, OS-locked guard file is the SOLE exclusion
+   primitive.** No code path may delete, unlink, rename, replace or recreate it.
+2. **Holder/diagnostic metadata lives in a SEPARATE, removable record file** —
+   PID, process start-time, session id. It is diagnosis, never exclusion.
+3. **Normal acquisition AND force-unlock/stale cleanup must both acquire the
+   SAME guard lock** before reading, validating, replacing or removing metadata.
+   Inspection and mutation are one critical section.
+4. **`O_CREAT|O_EXCL` is REMOVED as a locking backend.** Exactly one primitive
+   remains and **no backend ambiguity survives anywhere in the specs.**
+5. **A live holder prevents cleanup.** Required: real contender/race tests
+   proving cleanup can neither remove nor replace a live holder's metadata, and
+   that stale metadata is repairable only while holding the guard.
+6. **F27/F31 requirements are preserved**, and acceptance criteria are made
+   **executable on Windows and POSIX** via a standard-library OS-lock mechanism
+   (`msvcrt.locking` / `fcntl.flock`) or an explicitly scoped platform-adapter
+   contract. **This is planning, not implementation.**
+
+### Why this actually closes F34 rather than restating it
+
+The defect was that the two requirements were *jointly* unsatisfiable. The
+guard/record split breaks the conjunction at its root:
+
+* **The unreachable-remedy horn is gone.** Cleanup no longer needs to
+  exclusive-create a path that by definition already exists. The guard is
+  invariant and always present, so cleanup can *always attempt the identical
+  lock acquisition normal acquisition performs* — `--force-unlock` is reachable
+  in exactly the situation it exists for.
+* **The inode-race horn is gone.** The race required the lock target to be
+  unlinked while held. The guard is never deleted, so a second inode for the
+  lock path can never exist, and every contender demonstrably locks the same
+  file identity.
+* **The F31 safety property is retained, not traded away.** Cleanup still holds
+  exclusion across inspection *and* mutation, still re-reads the holder record
+  inside the critical section, and still refuses on mismatch — the change is
+  *what* gets removed (the record, never the guard), not *whether* exclusion is
+  held.
+
+### Propagation (the ruling is enforced at every owning surface, not summarised in one place)
+
+| Surface | What changed |
+|---|---|
+| `118.005-T` | Guard/record split defined; single OS-lock backend; `O_CREAT\|O_EXCL` removed; platform semantics (non-blocking, exclusive, OS-released on death, "already held" ≠ "error") made acceptance criteria; guard-permanence, no-inode-race and OS-release-on-death tests added; F27 parallel-contender suite preserved verbatim. |
+| `118.006-T` | Retitled in substance to **stale-record** lifecycle; compare-and-**repair** under the guard replaces compare-and-delete; guard may never be deleted; live holder prevents cleanup; three real race assertions plus **three** positive controls (compare-free delete, unguarded mutation, delete-and-recreate the guard). |
+| `120.006-T` | `--force-unlock` recorded as genuinely reachable under the new contract; new criterion that a REFUSED force-unlock propagates verbatim and is never converted to success/failure/retry. |
+| `118-F`, `127-S`, `117-F` | F27/F31/F34 narrative corrected; stale `GATED`/`BLOCKED` statements replaced with the discharged gate state. |
+| Plan §3.4/§7, Hardening H2 | `O_CREAT\|O_EXCL` removed from both fail-closed tables and the task summary; a dedicated stale-record-cleanup H2 row added. |
+
+**Residual caveat, stated rather than buried:** this is a *planning* contract.
+It is now internally consistent and implementable, but it has not been executed —
+no `locking.py` exists yet. The proof obligation transfers to `118.005-T` /
+`118.006-T` at implementation time, where the mandated race tests and their
+positive controls are what will actually demonstrate the property.
+
+---
+
+**The finding as originally raised is retained below, unaltered, for audit.**
 
 > **THE CYCLE-18 PASS BELOW IS WITHDRAWN.** The confirmatory current-HEAD review
 > of `df9cee4e` returned one new P1, and it is a defect **in the F31 remediation
@@ -284,13 +370,17 @@ structurally. No cycles remain; this verdict is final.
 
 The operator authorised **one** additional bounded remediation and **one** focused
 validation pass, limited to the three findings that survived Cycle 17, with three
-final rulings. No broad review loop.
+final rulings. No broad review loop. **A fourth ruling (4 / F34) was added on
+2026-08-11** after the confirmatory pass found a defect in ruling 3's own
+remediation; it was likewise authorised as one bounded remediation plus one
+focused validation.
 
 | Ruling | Finding | Disposition |
 |---|---|---|
 | **1** | **F32/F33** | `120.004-T` (T15, the single orchestrator) MUST depend on and invoke the `120.005-T` approval service for every gated action, proving **runtime wiring**, not type placement. |
 | **2** | **F30** | The P-015 safe-close predicate MUST admit a fully-covered root feature *and* an explicitly **verified-childless terminal umbrella** (`117-F` in `129-S`), kept narrow and structural, without weakening partial-feature safety. |
-| **3** | **F31** | `--force-unlock` MUST acquire the same OS-backed exclusion primitive **before inspecting or removing** stale metadata, MUST refuse while any live holder exists, and MUST be proven by a contender/race test against stale-cleanup TOCTOU. |
+| **3** | **F31** | `--force-unlock` MUST acquire the same OS-backed exclusion primitive **before inspecting or removing** stale metadata, MUST refuse while any live holder exists, and MUST be proven by a contender/race test against stale-cleanup TOCTOU. **Amended by ruling 4 (F34): that primitive is the stable, never-deleted GUARD FILE lock, and cleanup removes only the SEPARATE record file.** |
+| **4** | **F34** | **Guard/record separation.** A stable, never-deleted, OS-locked **guard file** is the sole exclusion primitive; holder/diagnostic metadata lives in a **separate removable record file**. Normal acquisition **and** force-unlock/stale cleanup must acquire the **same guard lock** before reading, validating, replacing or removing metadata. `O_CREAT\|O_EXCL` is **removed** as a backend, leaving no backend ambiguity. **A live holder prevents cleanup**, proven by real contender/race tests (a live holder's metadata is never removed or replaced; stale metadata is repairable only under the guard) with positive controls. F27/F31 requirements are preserved and acceptance criteria are **executable on Windows and POSIX**. Applied to `118.005-T`, `118.006-T`, `120.006-T`. |
 
 #### Ruling 1 — the fix is a reversed edge, and it had to be
 
@@ -903,6 +993,14 @@ for the session lifetime — and add a **simultaneous-contender** acceptance tes
 that launches contenders in parallel and asserts exactly one wins. The liveness
 check remains necessary for stale-lock recovery; it is simply not sufficient.
 
+> **SUPERSEDED 2026-08-11 by the F34 ruling.** The two-option primitive named
+> above is no longer permitted. `O_CREAT|O_EXCL` is **removed**; the sole
+> exclusion primitive is an OS advisory lock (`fcntl.flock` / `msvcrt.locking`)
+> held on a **stable, never-deleted guard file**, with holder metadata in a
+> **separate removable record file**. F34 showed the dual-backend wording could
+> not be satisfied jointly with the F31 cleanup protocol. The
+> simultaneous-contender acceptance test above is **retained unchanged**.
+
 #### F28 (P1, OPEN, NEW): the anti-drift listener guard is lexical, and it is the control discharging a cycle-1 P0
 
 `119.004-T`'s H7 guard asserts that `supervise/` contains no `bind`/`listen` token
@@ -980,7 +1078,7 @@ halt rather than a verdict.
 | 6 | Core owns ignore-rule behaviour | F24 | `119.005-T` | The nonexistent "gitignore template" dependency is removed. `journal.py` **itself** idempotently ensures `.autoharness/sessions/` is ignored at journal-root creation, with a test asserting a fresh session directory is *actually* `git check-ignore`d. This converts a criterion that was **satisfiable by vacuity and failed silently** into an enforced one, and restores the H6 containment property. Scope stays in S2 — no shipment-boundary move was needed. |
 | 7 | Stable CLI option contract | F25 | `120.006-T` | `120.006-T` now defines the **complete, stable** `autoharness run` option contract and is declared its only surface — including `--force-unlock` (the sole reachable remedy for the F22 lockout) and `--max-restarts N` (default 0). Every option is tested for **parse *and* forward**, since parsing alone was never evidence of reachability. Edge `120.006-T → 118.006-T` added. |
 | 8 | Amend P-015 so the permitted close op and the evidence agree | F26 | **`118.007-T` (new)** | A new task amends **four** surfaces coherently: the P-015 policy template, the Ship agent template, the `shipment-reconcile` skill, and the compound close-path doc — adding a **machine-checkable verified fully-covered-root exception**. It requires **no P-010-forbidden operation of Ship**. It is a member of **`127-S`**, the *first* shipment, so the amendment lands before **any** close in the chain. |
-| 9 | Atomic OS-backed lock + real contender test | F27 | `118.005-T`, **`118.006-T` (new)** | `118.005-T` now **requires** atomic acquisition (`O_CREAT|O_EXCL` or OS advisory lock), **prohibits** check-then-write, demotes PID+start-time to staleness *diagnosis*, and mandates **≥8 simultaneous contenders × ≥50 iterations**; a sequential contention test is declared insufficient evidence. Stale-lock lifecycle, `--force-unlock` semantics and **recycled-PID rejection** split into `118.006-T` to stay inside the 2-hour box. |
+| 9 | Atomic OS-backed lock + real contender test | F27 | `118.005-T`, **`118.006-T` (new)** | `118.005-T` now **requires** atomic acquisition via a **single OS advisory lock on a stable, never-deleted guard file** (backend narrowed by the **F34** ruling, 2026-08-11: `O_CREAT\|O_EXCL` **removed**, holder metadata moved to a **separate removable record file**), **prohibits** check-then-write, demotes PID+start-time to staleness *diagnosis*, and mandates **≥8 simultaneous contenders × ≥50 iterations**; a sequential contention test is declared insufficient evidence. Stale-record lifecycle, `--force-unlock` semantics and **recycled-PID rejection** split into `118.006-T` to stay inside the 2-hour box. |
 | 10 | Behavioural listener enforcement | F28 | `119.004-T` | The lexical denylist is demoted to a fast pre-filter and replaced by a `sys.addaudithook` socket interception with **mandatory positive controls** proving it catches `socket.create_server`, `socketserver.TCPServer`, `asyncio.start_server` and `http.server.HTTPServer`. This restores the strength of the control that discharges **cycle-1 P0 F2**. |
 | 11 | Preserve inherited TTY/PTY; journal capture separately | F29 | `119.001-T`, `119.002-T`, `119.005-T` | `InheritStdioChildProcess` becomes the **default**; `PipeChildProcess` is retained for tests and non-interactive runs only. PTY is opt-in **capture** that degrades to **inherited stdio, never to pipes** — a missing extra costs capture, never terminal attachment. `journal.py` writes an explicit `ChildOutputUnavailable(reason="inherited-stdio")` marker instead of an empty stream. T1/T2 gain a TTY-attachment characterization case. |
 
