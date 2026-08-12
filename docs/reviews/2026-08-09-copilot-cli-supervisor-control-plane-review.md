@@ -1877,3 +1877,80 @@ memberships 8/7/10, checkpoints 0 malformed / 0 active, CI green. Those gates pa
 they simply do not test the three contradictions above. `127-S` remains structurally
 eligible and F34-clear — **eligibility is not clearance**, and this PR is not
 merge-ready while P1-A/B/C stand. No shipment claimed or closed, nothing merged.
+
+---
+
+## Cycle 25 — final consistency repair: rulings A/B/C/D (2026-08-12)
+
+Deterministic remediation of the three P1s returned at the Cycle 24 halt, plus the
+stale append-only logs. No new review cycle, and no mining of suppressed advisory
+material — P-018 is governed by the actual current-HEAD review and unresolved posted
+threads.
+
+### A — platform-correct approved deltas (replaces the two-delta framing)
+
+The previous wording said the deltas were "both landing on POSIX". That
+**misclassified** the PAT delta, whose baseline is `start.ps1:65` — **Windows**.
+Replaced with an explicit **platform/scenario matrix of THREE named deltas**:
+
+| Delta | Platform | Baseline | Target |
+|---|---|---|---|
+| `WINDOWS_PAT_NO_GH` | Windows | `118.001-T` (`start.ps1:65` assigns PAT unguarded → absent `gh` **errors**) | Non-fatal, explicit warning + structured event, variable left **unset** (not set-empty), success exit, no secret value or fragment anywhere |
+| `POSIX_ENGRAM_DATA_DIR` | POSIX | `118.002-T` (no default; line commented out) | Shared deterministic workspace-local default `<root>/.engram`, honouring any pre-set value |
+| `POSIX_PAT_BOOTSTRAP` | POSIX | `118.002-T` (no PAT handling at all) | Shared PAT handling; with `gh` absent it uses **the same non-fatal warning contract as delta 1** |
+
+`118.001-T` and `118.002-T` remain **baseline characterization**; `120.001-T` owns
+target behaviour; `120.007-T` asserts the three named deltas per platform/scenario
+plus byte-equivalence for **every** unchanged scenario. An explicit rule now forbids
+any aggregate or summary wording from restating the deltas in a way that
+misclassifies platform scope — that rule is what the previous wording violated.
+
+### B — non-vacuous gated-action catalog
+
+"Non-empty" was **vacuous**: a one-entry registry satisfied both the producer and
+the orchestrator's exhaustive-dispatch criterion while real gated behaviour went
+unrouted. Replaced with a **frozen, enumerated set** derived by a bounded inventory
+across the `118.*`, `119.*` and `120.*` task contracts, restricted to actions those
+contracts explicitly mark destructive, approval-required or operator-confirmed:
+
+* **`session_restart`** — `119.006-T`: *"a restart requires BOTH remaining budget AND
+  explicit operator confirmation"*.
+* **`force_unlock`** — `118.006-T`: a stale record *"is NEVER silently reclaimed: it
+  requires an explicit operator `--force-unlock`"*, exposed by the `120.006-T` CLI
+  option contract.
+
+The inventory found **no other** action so marked, and speculative future actions
+were deliberately **not** invented. Tests now assert **exact set equality** in both
+directions — frozen expected set ↔ exported catalog, and catalog ↔ orchestrator
+dispatch coverage — so **omission is a failing test rather than a silent pass**, and
+an unannounced addition fails too. No duplicate catalog in consumers; unknown
+identifiers still fail closed.
+
+### C — safe fallback is a tagged policy, not a mandatory value
+
+Requiring every entry to carry a safe-default **value** contradicted `120.005-T`,
+which resolves *"to `REFUSED` where no safe default exists"* — that test could only
+have been written by **inventing a bogus default**. Metadata now carries a tagged
+union with exactly two variants: `USE_SAFE_DEFAULT(reference/value)` and `REFUSE`.
+Every entry chooses exactly one; a policy-less entry is rejected at construction.
+
+Applied to the frozen set: `session_restart` → `USE_SAFE_DEFAULT(DECLINE_RESTART)`
+(the restart budget already defaults to 0, so declining is the documented posture,
+not an invented value); `force_unlock` → `REFUSE` (no safe automatic value exists for
+destroying another holder's lock record, matching `118.006-T`'s refusal on a live
+holder and on indeterminate liveness). `120.005-T` tests **both** variants.
+
+### D — stale append-only logs superseded
+
+Ten task logs ended in *"BLOCKING … DO NOT EXECUTE"* while the live contracts carried
+the accepted rulings — a real hazard for log-based consumers reading the event
+stream rather than the task body. Appended explicit superseding events tied to the
+accepted ruling and current contract for **F17** (`118.001-T`, `118.002-T`), **F19 +
+F28** (`119.004-T`), **F20** (`120.002-T`), **F23** (`119.006-T`), **F24**
+(`119.005-T`), **F25** (`120.006-T`), **F29** (`119.001-T`), and — same defect class,
+swept in the same pass — **F16** (`120.007-T`, `120.008-T`).
+
+**Prior events were never rewritten.** `git diff --numstat` shows **`1 insertion, 0
+deletions`** on every one of the ten logs, and the original blocking events remain
+present and readable as history. Each log's final event now carries
+`SUPERSEDING RESOLUTION EVENT` and `STATUS: NOT BLOCKED`, verified programmatically.
