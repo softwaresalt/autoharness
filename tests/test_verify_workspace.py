@@ -136,6 +136,15 @@ class VerifyWorkspaceTests(unittest.TestCase):
             root_mcp_text = root_mcp.read_text(encoding="utf-8")
             self.assertIn('"command": "engram"', root_mcp_text)
             self.assertIn('"graphtor-docs"', root_mcp_text)
+            # 120-F runtime-defect remediation regression guard: the
+            # standalone `copilot` CLI never substitutes `${workspaceFolder}`
+            # (or `${workspace_folder}`) in MCP server `env` values -- it
+            # passes them through literally, which crashed Engram and
+            # graphtor-docs at launch every time this placeholder was
+            # present. Never reintroduce it into the committed root
+            # `.mcp.json`.
+            self.assertNotIn("${workspaceFolder}", root_mcp_text)
+            self.assertNotIn("${workspace_folder}", root_mcp_text)
 
         self.assertIn("workspace-root `.mcp.json`", copilot_instructions)
 

@@ -897,5 +897,165 @@ class ApprovedRestartTerminatesOldChildTests(unittest.TestCase):
         self.assertEqual(result_phase, Phase.LAUNCHING)
 
 
+class EmitRoutingBypassesDirectJournalWriteTests(unittest.TestCase):
+    """P-018 Copilot review finding (PR #331, comment 3778121169):
+    ``cancel_session`` and ``RestartController.attempt`` previously always
+    wrote events directly to ``journal.append_event(...)``, bypassing
+    ``run_session``'s own synchronized ``_emit`` closure entirely -- so
+    ``EventBus`` subscribers never observed cancellation/restart events at
+    all, and the direct, unsynchronized journal write could race with the
+    PTY output-pump thread's own ``_emit``-routed ``ChildOutput`` writes.
+    Proves that supplying ``emit`` routes every event through it instead of
+    a direct journal write, and that omitting ``emit`` (existing callers)
+    preserves the exact original direct-journal-only behavior.
+    """
+
+    def test_cancel_session_routes_every_event_through_emit_when_supplied(self) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+        )
+        lock = _CountingLock()
+        emitted: list = []
+
+        class _RaisingJournal:
+            def append_event(self, event) -> None:  # noqa: ANN001
+                raise AssertionError(
+                    "journal.append_event must NOT be called directly when emit is supplied"
+                )
+
+        cancel_session(
+            machine,
+            journal=_RaisingJournal(),
+            emit=emitted.append,
+            lock=lock,
+            reason="operator cancel via emit",
+        )
+
+        self.assertEqual(machine.phase, Phase.CANCELLED)
+        event_types = [type(event).__name__ for event in emitted]
+        self.assertIn("CancelRequested", event_types)
+        self.assertIn("SessionPhaseChanged", event_types)
+
+    def test_cancel_session_falls_back_to_direct_journal_when_emit_omitted(self) -> None:
+        # Existing-caller parity: no `emit` supplied -> identical original
+        # direct-journal-only behavior, unaffected by this change.
+        with tempfile.TemporaryDirectory() as workspace:
+            journal = SessionJournal(workspace, session_id="emit-fallback-cancel")
+            machine = SessionStateMachine()
+            _drive_to(machine, Phase.LOCKING, Phase.BOOTSTRAPPING)
+            lock = _CountingLock()
+
+            cancel_session(machine, journal=journal, lock=lock, reason="no emit supplied")
+
+            content = journal.journal_path.read_text(encoding="utf-8")
+            self.assertIn("CancelRequested", content)
+
+    def test_restart_attempt_routes_every_event_through_emit_when_supplied(self) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+        emitted: list = []
+
+        class _RaisingJournal:
+            def append_event(self, event) -> None:  # noqa: ANN001
+                raise AssertionError(
+                    "journal.append_event must NOT be called directly when emit is supplied"
+                )
+
+        controller = RestartController(
+            max_restarts=2,
+            confirm_restart=lambda: True,
+            sleep_fn=lambda _delay: None,
+        )
+
+        result_phase = controller.attempt(
+            machine, journal=_RaisingJournal(), emit=emitted.append, reason="crash-loop via emit"
+        )
+
+        self.assertEqual(result_phase, Phase.LAUNCHING)
+        # Only RestartScheduled is recorded on the approved-restart path (the
+        # RUNNING->RESTARTING and RESTARTING->LAUNCHING phase transitions
+        # are not journaled/emitted here -- pre-existing behavior, unrelated
+        # to this finding). What matters for finding 3778121169 is that the
+        # one event this path DOES record is routed through `emit`, not a
+        # direct (bypassing) `journal.append_event` call -- proven by the
+        # `_RaisingJournal` above never being called.
+        event_types = [type(event).__name__ for event in emitted]
+        self.assertIn("RestartScheduled", event_types)
+
+    def test_restart_attempt_falls_back_to_direct_journal_when_emit_omitted(self) -> None:
+        # Existing-caller parity: no `emit` supplied -> identical original
+        # direct-journal-only behavior, unaffected by this change.
+        with tempfile.TemporaryDirectory() as workspace:
+            journal = SessionJournal(workspace, session_id="emit-fallback-restart")
+            machine = SessionStateMachine()
+            _drive_to(
+                machine,
+                Phase.LOCKING,
+                Phase.BOOTSTRAPPING,
+                Phase.PREFLIGHT,
+                Phase.RESOLVING,
+                Phase.LAUNCHING,
+                Phase.RUNNING,
+            )
+            controller = RestartController(
+                max_restarts=2,
+                confirm_restart=lambda: True,
+                sleep_fn=lambda _delay: None,
+            )
+
+            result_phase = controller.attempt(machine, journal=journal, reason="no emit supplied")
+
+            self.assertEqual(result_phase, Phase.LAUNCHING)
+            content = journal.journal_path.read_text(encoding="utf-8")
+            self.assertIn("RestartScheduled", content)
+
+    def test_restart_exhaustion_routes_events_through_emit_when_supplied(self) -> None:
+        emitted: list = []
+
+        class _RaisingJournal:
+            def append_event(self, event) -> None:  # noqa: ANN001
+                raise AssertionError(
+                    "journal.append_event must NOT be called directly when emit is supplied"
+                )
+
+        controller = RestartController(
+            max_restarts=0,
+            confirm_restart=lambda: True,
+            sleep_fn=lambda _delay: None,
+        )
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+
+        result_phase = controller.attempt(
+            machine, journal=_RaisingJournal(), emit=emitted.append, reason="exhausted via emit"
+        )
+
+        self.assertEqual(result_phase, Phase.FAILED)
+        event_types = [type(event).__name__ for event in emitted]
+        self.assertIn("RestartExhausted", event_types)
+
+
 if __name__ == "__main__":
     unittest.main()

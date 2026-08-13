@@ -29,6 +29,15 @@ Hard invariants enforced across every backend in this module:
   ``tests/test_supervise_process.py`` via a ``subprocess.Popen`` spy).
 * :meth:`wait` returns the child's real exit code UNMODIFIED: no masking,
   no remapping, no inferring success/failure from captured output.
+* Every real-process backend accepts an OPTIONAL ``cwd`` keyword argument,
+  forwarded verbatim to ``subprocess.Popen`` (``None`` -- the default --
+  means "inherit the parent's own cwd", identical to omitting it). Callers
+  that anchor a workspace root (e.g. :mod:`autoharness.supervise.app`) pass
+  it explicitly so the spawned child -- and, by inheritance, any local
+  stdio MCP server IT in turn spawns -- resolves CWD-relative behavior
+  against the real workspace rather than whatever directory the invoking
+  shell happened to have as its own cwd (120-F runtime-defect
+  remediation).
 
 This module performs real subprocess I/O (unlike most of this package) but
 remains otherwise pure: no filesystem writes, no journal/event-bus
@@ -114,8 +123,9 @@ class InheritStdioChildProcess:
 
     supports_output_capture: bool = False
 
-    def __init__(self, argv: Sequence[str]) -> None:
+    def __init__(self, argv: Sequence[str], *, cwd: Optional[str] = None) -> None:
         self._argv: tuple[str, ...] = tuple(argv)
+        self._cwd: Optional[str] = cwd
         self._process: Optional[subprocess.Popen] = None
 
     @property
@@ -129,8 +139,14 @@ class InheritStdioChildProcess:
     def spawn(self) -> None:
         # stdin/stdout/stderr are left at their default (None), which means
         # "inherit the parent's own file descriptor/handle" -- NOT redirected
-        # to a pipe. shell is never passed (defaults to False).
-        self._process = subprocess.Popen(list(self._argv))
+        # to a pipe. shell is never passed (defaults to False). ``cwd``
+        # defaults to ``None`` (subprocess.Popen's own "inherit the parent's
+        # cwd" semantics) unless a workspace root was explicitly supplied by
+        # the caller (120-F runtime-defect remediation: anchors the spawned
+        # child -- and, by inheritance, any local stdio MCP server it in
+        # turn spawns -- to the resolved workspace regardless of the
+        # invoking shell's own cwd).
+        self._process = subprocess.Popen(list(self._argv), cwd=self._cwd)
 
     def read(self) -> Optional[str]:
         raise OutputCaptureUnavailable(
@@ -177,8 +193,9 @@ class PipeChildProcess:
 
     supports_output_capture: bool = True
 
-    def __init__(self, argv: Sequence[str]) -> None:
+    def __init__(self, argv: Sequence[str], *, cwd: Optional[str] = None) -> None:
         self._argv: tuple[str, ...] = tuple(argv)
+        self._cwd: Optional[str] = cwd
         self._process: Optional[subprocess.Popen] = None
 
     @property
@@ -203,6 +220,7 @@ class PipeChildProcess:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            cwd=self._cwd,
         )
 
     def read(self) -> Optional[str]:

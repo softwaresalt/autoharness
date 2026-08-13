@@ -99,6 +99,7 @@ def cancel_session(
     *,
     child: Optional[ChildProcess] = None,
     journal: Optional[SessionJournal] = None,
+    emit: Optional[Callable[[Any], None]] = None,
     lock: Optional[ReleasableLock] = None,
     reason: str = "",
     signal_num: int = signal.SIGTERM,
@@ -106,8 +107,8 @@ def cancel_session(
     """Drive ``machine`` from its current (post-LOCKING) phase to CANCELLED.
 
     Terminates ``child`` (if given) via ``signal()`` then ``close()``,
-    journals the cancellation request and the terminal phase transition (if
-    ``journal`` is given), and releases ``lock`` EXACTLY ONCE (if given) --
+    records the cancellation request and the terminal phase transition,
+    and releases ``lock`` EXACTLY ONCE (if given) --
     after the state machine has reached ``CANCELLED`` on the happy path,
     and on ANY OTHER exception raised anywhere in this function (P0 fix,
     128-S code review): ``lock.release()`` is guaranteed via ``finally`` so
@@ -121,6 +122,21 @@ def cancel_session(
     terminal are still reached normally rather than leaving the machine
     stuck in CANCELLING with the lock never released.
 
+    **Event recording (``emit`` vs ``journal``, P-018 Copilot review
+    finding, PR #331, comment 3778121169)**: when ``emit`` is supplied
+    (e.g. ``run_session``'s own synchronized ``_emit`` closure, which
+    both publishes to the ``EventBus`` AND journals under a shared lock),
+    every event this function would otherwise journal directly is instead
+    routed through ``emit``. Without this, ``EventBus`` subscribers never
+    observed cancellation events at all (only the journal did, via a
+    direct, unsynchronized ``journal.append_event`` call), and that direct
+    call could race with a concurrent PTY output-pump thread's own
+    ``emit``-routed ``ChildOutput`` journal writes, risking duplicate/
+    out-of-order journal sequence numbers. ``journal`` (when given without
+    ``emit``) is kept as the ORIGINAL direct-journal-only fallback for
+    backward compatibility with callers that have no bus/lock to route
+    through (e.g. this module's own unit tests).
+
     **Lock-release-before-observable-CANCELLED (128-S review remediation)**:
     the task's own acceptance criteria require that "CANCELLED is entered
     ONLY AFTER child termination, journal flush and lock release have
@@ -133,23 +149,28 @@ def cancel_session(
     **Best-effort child cleanup before an exceptional lock release (P0
     fix, 128-S closure-PR review)**: if an unexpected exception is raised
     BEFORE the child has been signalled/closed on the happy path above (for
-    example, ``journal.append_event(CancelRequested(...))`` or the
-    ``CANCELLING`` transition itself raises), the ``finally`` block below
-    now ALSO attempts ``child.signal()``/``child.close()`` -- best-effort,
-    every exception swallowed -- before releasing ``lock``. Releasing the
-    lock without ever attempting to terminate a still-live child would let
-    a second supervised session start concurrently against the same
-    workspace while the orphaned child keeps running; a best-effort
-    cleanup attempt closes that gap without risking masking the original
-    exception (this cleanup is entirely exception-swallowing) or double
-    work (skipped when the happy-path cleanup already ran).
+    example, recording ``CancelRequested`` or the ``CANCELLING`` transition
+    itself raises), the ``finally`` block below now ALSO attempts
+    ``child.signal()``/``child.close()`` -- best-effort, every exception
+    swallowed -- before releasing ``lock``. Releasing the lock without ever
+    attempting to terminate a still-live child would let a second
+    supervised session start concurrently against the same workspace while
+    the orphaned child keeps running; a best-effort cleanup attempt closes
+    that gap without risking masking the original exception (this cleanup
+    is entirely exception-swallowing) or double work (skipped when the
+    happy-path cleanup already ran).
     """
+
+    def _record(event: Any) -> None:
+        if emit is not None:
+            emit(event)
+        elif journal is not None:
+            journal.append_event(event)
 
     lock_released = False
     child_cleanup_done = False
     try:
-        if journal is not None:
-            journal.append_event(CancelRequested(reason=reason))
+        _record(CancelRequested(reason=reason))
 
         if machine.phase is not Phase.CANCELLING:
             machine.transition(Phase.CANCELLING)
@@ -166,8 +187,7 @@ def cancel_session(
             child_cleanup_done = True
 
         draining_event = machine.transition(Phase.DRAINING)
-        if journal is not None:
-            journal.append_event(draining_event)
+        _record(draining_event)
 
         # Release the guard lock BEFORE the CANCELLED transition below makes
         # the terminal phase externally observable (see docstring).
@@ -176,9 +196,7 @@ def cancel_session(
             lock_released = True
 
         event: SessionPhaseChanged = machine.transition(Phase.CANCELLED)
-
-        if journal is not None:
-            journal.append_event(event)
+        _record(event)
     finally:
         if not child_cleanup_done:
             _best_effort_child_cleanup(child, signal_num)
@@ -225,6 +243,7 @@ class RestartController:
         machine: SessionStateMachine,
         *,
         journal: Optional[SessionJournal] = None,
+        emit: Optional[Callable[[Any], None]] = None,
         child: Optional[ChildProcess] = None,
         lock: Optional[ReleasableLock] = None,
         reason: str = "",
@@ -233,12 +252,12 @@ class RestartController:
         """One restart attempt from RUNNING.
 
         On success: ``RUNNING -> RESTARTING -> LAUNCHING``, budget
-        decremented, journaled via ``RestartScheduled`` (with ``reason``,
+        decremented, recorded via ``RestartScheduled`` (with ``reason``,
         128-S review remediation -- operational journals must be able to
         explain WHY a restart occurred, not just count attempts).
 
         On declined confirmation or exhausted budget:
-        ``RUNNING -> RESTARTING -> DRAINING -> FAILED``, journaled via
+        ``RUNNING -> RESTARTING -> DRAINING -> FAILED``, recorded via
         ``RestartExhausted``. This is a terminal, absorbing outcome -- a
         further :meth:`attempt` call after reaching ``FAILED`` raises
         :class:`~autoharness.supervise.errors.IllegalTransitionError`
@@ -252,7 +271,22 @@ class RestartController:
         closure-PR review) before the lock is released, in case an
         exception was raised before the happy-path child cleanup above ran
         -- mirroring :func:`cancel_session`'s equivalent fix.
+
+        **Event recording (``emit`` vs ``journal``, P-018 Copilot review
+        finding, PR #331, comment 3778121169)**: identical rationale to
+        :func:`cancel_session`'s own docstring -- when ``emit`` is
+        supplied, every event this method would otherwise journal directly
+        is instead routed through it (published to the ``EventBus`` AND
+        journaled under its shared lock); ``journal`` alone remains the
+        original direct-journal-only fallback for callers with no
+        bus/lock to route through.
         """
+
+        def _record(event: Any) -> None:
+            if emit is not None:
+                emit(event)
+            elif journal is not None:
+                journal.append_event(event)
 
         machine.transition(Phase.RESTARTING)
 
@@ -272,11 +306,9 @@ class RestartController:
             lock_released = False
             child_cleanup_done = False
             try:
-                if journal is not None:
-                    journal.append_event(RestartExhausted(attempts=self.attempts_used))
+                _record(RestartExhausted(attempts=self.attempts_used))
                 draining_event = machine.transition(Phase.DRAINING)
-                if journal is not None:
-                    journal.append_event(draining_event)
+                _record(draining_event)
 
                 if child is not None:
                     try:
@@ -294,8 +326,7 @@ class RestartController:
                     lock_released = True
 
                 event = machine.transition(Phase.FAILED)
-                if journal is not None:
-                    journal.append_event(event)
+                _record(event)
             finally:
                 # Best-effort child cleanup before an exceptional lock
                 # release (P0 fix, 128-S closure-PR review) -- mirrors
@@ -332,12 +363,11 @@ class RestartController:
         self.sleep_fn(delay)
         self.attempts_used += 1
 
-        if journal is not None:
-            journal.append_event(
-                RestartScheduled(
-                    attempt=self.attempts_used, max_attempts=self.max_restarts, reason=reason
-                )
+        _record(
+            RestartScheduled(
+                attempt=self.attempts_used, max_attempts=self.max_restarts, reason=reason
             )
+        )
 
         machine.transition(Phase.LAUNCHING)
         return machine.phase

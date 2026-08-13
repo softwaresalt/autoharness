@@ -77,8 +77,9 @@ class PtyChildProcess:
 
     supports_output_capture: bool = True
 
-    def __init__(self, argv: Sequence[str]) -> None:
+    def __init__(self, argv: Sequence[str], *, cwd: Optional[str] = None) -> None:
         self._argv: tuple[str, ...] = tuple(argv)
+        self._cwd: Optional[str] = cwd
         self._pid: Optional[int] = None
         self._master_fd: Optional[int] = None
         self._exit_code: Optional[int] = None
@@ -96,8 +97,13 @@ class PtyChildProcess:
             raise RuntimeError("stdlib pty module is unavailable on this platform")
         pid, master_fd = _pty.fork()
         if pid == 0:
-            # Child branch: exec argv verbatim, never through a shell.
+            # Child branch: anchor cwd (when supplied) BEFORE exec, then
+            # exec argv verbatim, never through a shell. A chdir failure is
+            # treated identically to an exec failure -- exit 127 rather
+            # than continuing in the wrong directory.
             try:
+                if self._cwd is not None:
+                    os.chdir(self._cwd)
                 os.execvp(self._argv[0], list(self._argv))
             except OSError:
                 os._exit(127)
@@ -197,8 +203,9 @@ class WinPtyChildProcess:
 
     supports_output_capture: bool = True
 
-    def __init__(self, argv: Sequence[str]) -> None:
+    def __init__(self, argv: Sequence[str], *, cwd: Optional[str] = None) -> None:
         self._argv: tuple[str, ...] = tuple(argv)
+        self._cwd: Optional[str] = cwd
         self._pty = None
         self._exit_code: Optional[int] = None
 
@@ -219,8 +226,11 @@ class WinPtyChildProcess:
         # separate arguments -- this is NOT shell re-interpolation, it is the
         # documented, argv-preserving way to hand a token list to a Win32
         # CreateProcess-style API that only accepts one command-line string.
+        # ``cwd`` (when supplied) is forwarded so the child -- and any local
+        # stdio MCP server it in turn spawns -- is anchored to the resolved
+        # workspace root rather than the invoking shell's own cwd.
         cmdline = subprocess.list2cmdline(list(self._argv))
-        self._pty = _winpty.PtyProcess.spawn(cmdline)
+        self._pty = _winpty.PtyProcess.spawn(cmdline, cwd=self._cwd)
 
     def read(self) -> Optional[str]:
         if self._pty is None:
@@ -304,7 +314,9 @@ class WinPtyChildProcess:
             self._pty = None
 
 
-def _try_construct_pty_backend(argv: Sequence[str]) -> Optional[ChildProcess]:
+def _try_construct_pty_backend(
+    argv: Sequence[str], *, cwd: Optional[str] = None
+) -> Optional[ChildProcess]:
     """Attempt to construct a real PTY backend; return ``None`` if unavailable.
 
     Never raises for mere unavailability -- both availability checks are
@@ -316,14 +328,14 @@ def _try_construct_pty_backend(argv: Sequence[str]) -> Optional[ChildProcess]:
     if sys.platform == "win32":
         if not _winpty_available():
             return None
-        return WinPtyChildProcess(argv)
+        return WinPtyChildProcess(argv, cwd=cwd)
     if not _posix_pty_available():
         return None
-    return PtyChildProcess(argv)
+    return PtyChildProcess(argv, cwd=cwd)
 
 
 def create_pty_or_inherited_child_process(
-    argv: Sequence[str],
+    argv: Sequence[str], *, cwd: Optional[str] = None
 ) -> Tuple[ChildProcess, Optional[str]]:
     """Construct a PTY backend, degrading to inherited stdio on any failure.
 
@@ -332,12 +344,17 @@ def create_pty_or_inherited_child_process(
     string whenever construction was unavailable or failed for any reason
     -- this factory NEVER hard-fails merely because PTY support is absent,
     and NEVER degrades to :class:`~autoharness.supervise.process.PipeChildProcess`.
+
+    ``cwd`` (when supplied) is forwarded to whichever backend is
+    ultimately constructed -- real PTY or degraded inherited-stdio alike
+    -- so the anchored-workspace-cwd contract holds regardless of which
+    path is taken (120-F runtime-defect remediation).
     """
 
     backend: Optional[ChildProcess]
     warning: Optional[str]
     try:
-        backend = _try_construct_pty_backend(argv)
+        backend = _try_construct_pty_backend(argv, cwd=cwd)
         warning = None
     except Exception as exc:  # fail-safe: any construction error degrades
         backend = None
@@ -348,4 +365,4 @@ def create_pty_or_inherited_child_process(
 
     if warning is None:
         warning = "PTY backend unavailable on this platform; degraded to inherited stdio"
-    return InheritStdioChildProcess(argv), warning
+    return InheritStdioChildProcess(argv, cwd=cwd), warning

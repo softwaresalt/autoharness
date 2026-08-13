@@ -248,5 +248,79 @@ class WinPtyCloseTerminatesLiveChildTests(unittest.TestCase):
         fake_pty.close.assert_called_once()
 
 
+class CwdForwardingTests(unittest.TestCase):
+    """120-F runtime-defect remediation: PTY backends must forward an
+    optional ``cwd`` through to the real spawn call, mirroring the plain
+    process.py backends, so Copilot (and any local stdio MCP server it
+    spawns) is anchored to the resolved workspace root regardless of the
+    caller's own shell cwd.
+    """
+
+    def test_winpty_backend_forwards_cwd_to_spawn(self) -> None:
+        from autoharness.supervise.process_pty import WinPtyChildProcess
+
+        fake_winpty_module = unittest.mock.MagicMock()
+        fake_pty = unittest.mock.MagicMock()
+        fake_winpty_module.PtyProcess.spawn.return_value = fake_pty
+
+        proc = WinPtyChildProcess([_PY, "-c", "pass"], cwd="C:\\some\\workspace")
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._winpty", fake_winpty_module
+        ):
+            proc.spawn()
+
+        _args, kwargs = fake_winpty_module.PtyProcess.spawn.call_args
+        self.assertEqual(kwargs.get("cwd"), "C:\\some\\workspace")
+
+    def test_create_pty_or_inherited_forwards_cwd_on_degrade(self) -> None:
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._try_construct_pty_backend",
+            return_value=None,
+        ):
+            child, _warning = create_pty_or_inherited_child_process(
+                [_PY, "-c", "pass"], cwd="/some/workspace"
+            )
+
+        self.assertIsInstance(child, InheritStdioChildProcess)
+        self.assertEqual(child._cwd, "/some/workspace")  # noqa: SLF001 - test introspection only
+
+    def test_create_pty_or_inherited_forwards_cwd_to_real_backend_construction(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_try_construct(argv, cwd=None):  # noqa: ANN001
+            captured["cwd"] = cwd
+            return None
+
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._try_construct_pty_backend",
+            side_effect=fake_try_construct,
+        ):
+            create_pty_or_inherited_child_process([_PY, "-c", "pass"], cwd="/anchored/root")
+
+        self.assertEqual(captured["cwd"], "/anchored/root")
+
+
+@unittest.skipUnless(_IS_POSIX, "real PTY construction exercised via stdlib pty on POSIX only")
+class RealPtyCwdForwardingTests(unittest.TestCase):
+    def test_child_process_starts_in_requested_cwd(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as workspace:
+            real_workspace = __import__("os").path.realpath(workspace)
+            proc = PtyChildProcess(
+                [_PY, "-c", "import os; print(os.getcwd())"], cwd=real_workspace
+            )
+            proc.spawn()
+            output = ""
+            while True:
+                chunk = proc.read()
+                if chunk is None:
+                    break
+                output += chunk
+            proc.wait()
+            proc.close()
+            self.assertIn(real_workspace, output)
+
+
 if __name__ == "__main__":
     unittest.main()
