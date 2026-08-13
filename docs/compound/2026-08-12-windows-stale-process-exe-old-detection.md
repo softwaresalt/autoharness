@@ -1,5 +1,5 @@
 ---
-title: "Windows renames a running process's image to *.exe.old when the on-disk binary is replaced under an open handle"
+title: "An updater-renamed *.exe.old image is a useful, corroborating signal for a stale process holding a replaced Windows binary — not a platform guarantee"
 tags: [windows, mcp, backlogit, engine-attestation, operations]
 provenance: "127-S / 118-F post-merge closure, dynamic engine attestation"
 ---
@@ -8,13 +8,19 @@ provenance: "127-S / 118-F post-merge closure, dynamic engine attestation"
 
 When a Windows executable file is replaced on disk (e.g. by an in-place CLI
 upgrade) while a process still holds an open handle to the original file,
-`Get-Process`/`ProcessName` on that still-running process will show its image
-name suffixed with `.exe.old` (or more generally `<original-name>.old`).
-This is Windows silently renaming the on-disk reference the running process
-still points to, distinct from the fresh binary now occupying the original
-path. It is a reliable, zero-guesswork signal for detecting a stale
-long-lived process (e.g. an MCP daemon) that is still serving a pre-upgrade
-binary after a CLI tool has been upgraded in place.
+some updaters/installers rename the still-open original file to
+`<original-name>.old` (e.g. `backlogit.exe.old`) as part of their
+replace-in-place strategy, so that a fresh binary can occupy the original
+path immediately. **This is updater/installer-specific behavior, not a
+Windows platform guarantee** — the exact renaming convention (if any) is
+chosen by whatever tool performs the replacement, and whether an in-use
+image can be renamed at all depends on the file-sharing mode the original
+process opened it with. Where it does apply, it is a useful, low-cost
+corroborating signal — combined with process start time and executable
+identity/version — for detecting a stale long-lived process (e.g. an MCP
+daemon) that is still serving a pre-upgrade binary after a CLI tool has
+been upgraded in place. It must not be treated as a guaranteed or
+universal Windows behavior.
 
 ## Concrete case
 
@@ -34,11 +40,18 @@ against the current on-disk binary.
 
 Before relying on a long-lived daemon/MCP process for identity-sensitive
 operations (e.g. a "confirm CLI/MCP engine identity" attestation gate),
-check `Get-Process <name>*` for an `.old`-suffixed image name as a Windows-
-specific tell that the process predates the currently-installed binary.
-Restart only the specific stale PID (never a name-based kill, which could
-terminate an unrelated same-named process) and re-verify no stale process
-remains before trusting engine-identity coherence across CLI and MCP
-surfaces. This technique generalizes to any Windows host tool that supports
-in-place upgrade while a long-lived process may still be holding the old
-binary open (build servers, watchers, language servers, etc.).
+check `Get-Process <name>*` for an `.old`-suffixed image name as a possible,
+tool-specific tell that the process predates the currently-installed
+binary — but corroborate it with independent evidence (process start time
+relative to the known upgrade time, and executable/version identity where
+obtainable) rather than treating the naming convention alone as proof, since
+it depends on the specific updater/installer's behavior and on file-sharing
+semantics, not a Windows platform guarantee. Restart only the specific stale
+PID (never a name-based kill, which could terminate an unrelated
+same-named process) and re-verify no stale process remains before trusting
+engine-identity coherence across CLI and MCP surfaces. This corroborating
+signal generalizes to any Windows host tool whose updater/installer uses a
+similar replace-in-place convention while a long-lived process may still be
+holding the old binary open (build servers, watchers, language servers,
+etc.) — always verify against start time and identity, never the naming
+convention in isolation.

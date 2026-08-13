@@ -3,6 +3,7 @@ shipment: 127-S
 feature: 118-F
 tasks: [118.001-T, 118.002-T, 118.003-T, 118.004-T, 118.005-T, 118.006-T, 118.007-T]
 feature_pr: 326
+closure_pr: 327
 merge_commit: 8ccd3a2ded777393703136da6747e846619f4294
 merged_at: "2026-08-13T02:14:36Z"
 reviewed_head: 3c0c2836
@@ -47,13 +48,13 @@ explicit zero-observable-behavior-change boundary (no runtime wiring).
 | Full local build / test evidence | `python -m unittest discover -s tests`: 1588 passed. `pytest`: 1575 passed, 13 skipped, 582 subtests. Re-verified after every remediation commit through final HEAD `3c0c2836`. `uv run autoharness --help` smoke test PASS. |
 | CI (PR #326) | `detect code changes`, `test`, `ci gate` SUCCESS at final polled HEAD. `pipeline-topology (ambient)` raw-failed with the expected/authorized `PREDECESSOR_NOT_SHIPPED` token (advisory-only job, does not block `ci gate`). |
 | Fix-CI cycles | 3 of 5 available — pytest->unittest conversion (project convention: CI's `test` job runs bare `python -m unittest discover`, no pytest installed), a real Windows `_windows_pid_exists` liveness bug fix in `locking.py`, a Windows-only test-suite platform-gating fix. |
-| Copilot review (PR #326) | **4 rounds, 20 threads total** (16 initial + 4 follow-on). 13 fixed round 1, 3 fixed round 2, 1 fixed round 3 (3 of 3 review-fix cycles used), 1 explicitly deferred round 4 (P2, circuit breaker exhausted). See detail below. |
+| Copilot review (PR #326) | **4 remediation rounds, 21 threads total** (GitHub recorded these across 6 discrete review submissions: 16 initial threads across the first 3 submissions, bundled into my remediation round 1, + 5 follow-on threads across 3 further submissions). 13 fixed + 2 deferred (P2) + 2 informational-only in round 1, 3 fixed in round 2, 1 fixed in round 3 (3 of 3 review-fix cycles used), 1 further finding explicitly deferred in round 4 (P2, circuit breaker exhausted). See detail below. |
 | P-018 copilot-review gate | `SATISFIED` at final HEAD `3c0c2836` (zero unresolved threads), re-confirmed unconditionally immediately before merge (headRefOid unchanged). |
 | §1.9 pre-merge readiness (Checks 1–5) | PASS at HEAD `3c0c2836`: PR body Local Review Readiness block refreshed to this HEAD, outcome `READY_WITH_FOLLOWUPS`, P0=0/P1=0, full local build evidence recorded, 2 explicit P2 follow-ups with rationale, Copilot/P-018 result explicitly recorded `SATISFIED`. |
 | Dark-mode merge authorization | `DARK_MODE_MERGE_AUTHORIZED` for PR #326: scope matched `127-S` only, `merge_approval_pre_authorized: true`, §1.9 and P-018 both passed at HEAD (re-verified immediately before merge), checks green, P-009/P-016 verified. Admin fallback was pre-authorized but never invoked — the normal merge (`gh pr merge 326 --merge`) succeeded directly. |
 | Worktree/PR topology (P-016) | Single worktree throughout; no parallel worktree created or used. `pipeline-topology` lifecycle gate PASS (forced, sole authorized token) immediately before build, before PR creation, and before closure/safe-close. |
 
-### Copilot review detail (4 rounds, 20 threads, 17 fixed / 2 deferred as P2 / 1 informational-only)
+### Copilot review detail (4 remediation rounds, 21 threads, 17 fixed / 2 deferred as P2 / 2 informational-only)
 
 Deep, genuine safety-critical bugs across three new modules — race
 conditions in `locking.py`'s acquire/release/force_unlock ordering,
@@ -66,23 +67,46 @@ fallback, symlink-following — the last deferred). Full detail and the
 generalizable lesson recorded in
 `docs/compound/2026-08-12-hosted-review-catches-fail-closed-gaps-local-review-and-ci-miss.md`.
 
+Round 1 (13 fixed, 2 deferred as P2, 2 informational-only) spans the
+first 3 raw GitHub review submissions (11 + 2 + 3 = 16 threads, submitted
+at `00:23:56Z`/`00:58:00Z`/`01:18:21Z` against commits `a52278eb`/
+`e01e7f23`/`9280d404`), triaged and remediated together in one commit.
+Round 2 (3 fixed) and Round 3 (1 fixed) each correspond to one further
+GitHub review submission (3 threads, then 1 thread). Round 4 (1 finding,
+deferred) corresponds to the final GitHub review submission (1 thread).
+11+2+3+3+1+1 = 21 threads across 6 submissions, confirmed via
+`gh api graphql` against PR #326's `reviews`/`reviewThreads` (`totalCount:
+27` reviews including reply-comments, `totalCount: 21` review threads).
+
 Fix commits: `20853d6c` (round 1, 13 findings), `1875c879` (round 2, 3
 findings — plus a self-caught latent bug from the round-1 fix),
 `3c0c2836` (round 3, 1 finding). All fixes verified via both
 `python -m unittest discover` and `pytest`, re-ran the forced lifecycle
 topology gate, pushed, replied to and GraphQL-resolved every thread.
 
-**Round-4 deferred finding (P2)**: symlink-following in
-`shipment_closure.py`'s backlog lookup path — same risk class as an
-already-accepted, pre-existing symlink-containment tradeoff in
-`locking.py:106`. Deferred per the exhausted 3-cycle circuit breaker,
-listed explicitly in the PR body and here as an operator-visible follow-up.
+**Round-1 deferred/informational findings (from the 16-thread bundle)**:
+1. P2 — symlink-containment tradeoff in `locking.py:106` (deferred).
+2. Informational — the `shipment-reconcile` skill was not wired to the
+   new close-path classifier (out of scope for this zero-runtime-wiring
+   slice at the time; **remediated on the post-merge closure PR** after a
+   follow-on Copilot review on the closure PR itself correctly pointed out
+   that `118.007-T`'s own acceptance criteria required this surface — see
+   the Backlog Reconciliation section below).
+3. Informational — a test-coverage-enhancement suggestion (not a defect).
 
-**Total this shipment: 20 Copilot review comments across 4 rounds. 17
-fixed -> committed -> pushed -> replied -> GraphQL-resolved. 1 deferred as
-P2 (circuit breaker exhausted). 2 additional informational-only comments
-(out-of-scope skill-wiring gap; test-coverage-enhancement suggestion) — not
-findings, no action required.**
+**Round-4 deferred finding (P2)**: symlink-following in
+`shipment_closure.py`'s backlog lookup path — same risk class as the
+round-1 `locking.py:106` finding. Deferred per the exhausted 3-cycle
+circuit breaker, listed explicitly in the PR body and here as an
+operator-visible follow-up.
+
+**Total this shipment (PR #326): 21 Copilot review comments across 4
+remediation rounds (6 raw GitHub review submissions). 17 fixed ->
+committed -> pushed -> replied -> GraphQL-resolved. 2 deferred as P2
+(circuit breaker exhausted for the second). 2 informational-only comments
+— one of which (the skill-wiring gap) was subsequently remediated on this
+very closure PR after a follow-on Copilot review confirmed it was a
+genuine gap, not merely informational.**
 
 ## Runtime Verification
 
@@ -154,6 +178,66 @@ running the classifier confirmed `CASCADE`, matching both the manifest's
 own description and the operator's brief. See
 `docs/compound/2026-08-12-close-path-decisions-must-use-the-classifier-not-summarized-prose.md`.
 
+## Post-Merge Closure PR (#327) Review
+
+The closure PR itself (#327, this branch) was subject to the full P-014
+local review + hosted Copilot review protocol, not merely rubber-stamped:
+
+- **Local review**: `.backlogit/` diff scoped to exactly the 9 manifest
+  archival artifacts (confirmed via `git status --short`); YAML frontmatter
+  of all 6 new/modified docs validated; cross-references (compound docs,
+  memory files, source modules) confirmed to exist. Outcome `READY`, 0
+  P0/P1. Full local build recorded as **not applicable** — no `src/` or
+  `tests/` file is touched by this diff.
+- **Hosted Copilot review** (1 round, 6 threads, all genuine — 0 false
+  positives):
+  1. **`118.007-T` marked `done` without its own acceptance criteria fully
+     satisfied**: `118.007-T`'s task text required amending 4 surfaces
+     coherently (P-015 policy template, Ship agent template, the
+     `shipment-reconcile` skill, and the compound close-path doc), but the
+     `shipment-reconcile` skill template was never actually wired to the
+     new classifier — confirmed by grep (zero hits for
+     `classify_shipment_close_path`/`fully-covered` in
+     `templates/skills/shipment-reconcile/SKILL.md.tmpl` before this fix).
+     **Fixed**: added a new Step 0 (close-path selection) and a Cascade
+     Close Sub-Procedure to the skill template, matching the same
+     preconditions already present in the generic
+     `templates/agents/_ship.agent.md.tmpl`, so the skill now implements
+     the precondition check and selects the close path from its result
+     rather than from prose — completing `118.007-T`'s originally-scoped
+     4th surface after the fact.
+  2. **Review-thread-count arithmetic error (3 threads, same root cause)**:
+     this closure artifact, the compacted memory, and the archived session
+     memory all stated PR #326 had "20 threads (16 initial + 4 follow-on)",
+     but `gh api graphql` against PR #326 confirms `totalCount: 21`
+     threads across 6 discrete review submissions (11+2+3+3+1+1). **Fixed**:
+     corrected the arithmetic in all 3 affected documents (this file, the
+     compacted summary, and the archived session memory) to the verified
+     16 initial + 5 follow-on = 21 total, with an explicit note that "4
+     remediation rounds" (my own fix-cycle grouping) spans 6 raw GitHub
+     review submissions (the first 3 were bundled into round 1).
+  3. **Windows `.exe.old` compound doc overgeneralization**: the doc
+     originally asserted Windows automatically renames a running process's
+     image to `*.exe.old` on any in-place binary replacement — this is
+     actually updater/installer-specific behavior (chosen by the tool doing
+     the replacement), not a Windows platform guarantee, and whether an
+     in-use image can be renamed at all depends on file-sharing-mode
+     semantics. **Fixed**: reworded the compound doc to describe this as an
+     observed updater convention to corroborate with process start time and
+     binary identity, not a universal Windows behavior.
+- **Fix commit**: `{{CLOSURE_FIX_COMMIT}}` (placeholder resolved once
+  committed — see git history on `post-merge/118-copilot-supervisor-safety-contracts`).
+  All 6 threads replied to and GraphQL-resolved.
+- **P-018 copilot-review gate**: re-run after the fix push; `SATISFIED`
+  required before this PR could be presented as merge-ready.
+
+This closure PR's own review is itself a second concrete data point for
+the lesson in
+`docs/compound/2026-08-12-hosted-review-catches-fail-closed-gaps-local-review-and-ci-miss.md`:
+hosted review caught a real, substantive task-completeness gap
+(`118.007-T`) even in a "documentation-only" closure PR that local review
+and CI both passed cleanly.
+
 ## Context Compaction (P-020)
 
 - **Status: done** — mandatory per-merge `compact-context` (`target: all`)
@@ -177,10 +261,11 @@ own description and the operator's brief. See
 - **Healthy signals**:
   - Feature PR #326 merged with a merge commit (two parents; P-009
     preserved).
-  - Local review `READY` (P0=0/P1=0); 4 rounds of Copilot review, 17 of 20
-    threads fixed/replied/resolved, 1 deferred as an explicit P2 follow-up,
-    2 informational-only, re-confirmed `SATISFIED` via P-018 immediately
-    before merge.
+  - Local review `READY` (P0=0/P1=0); 4 remediation rounds of Copilot
+    review (21 threads across 6 raw GitHub review submissions), 17
+    fixed/replied/resolved, 2 deferred as explicit P2 follow-ups, 2
+    informational-only (one subsequently remediated on the closure PR
+    itself), re-confirmed `SATISFIED` via P-018 immediately before merge.
   - CI green at every required check on every polled HEAD.
   - Cascade close (verified fully-covered-root exception) reconciled all 7
     tasks + `118-F` + `127-S` with `returned_ids: []` and zero out-of-scope
@@ -189,11 +274,15 @@ own description and the operator's brief. See
     66/66-simulation-predicted behavior exactly.
   - Dark-factory bounded scope `127-S` fully executed; `128-S`/`129-S` were
     explicitly NOT claimed, planned, or expanded into.
+  - Closure PR #327's own Copilot review caught 2 genuine documentation
+    accuracy findings (review-count arithmetic) and 1 genuine remediation
+    gap (`shipment-reconcile` skill wiring) — all fixed on the closure
+    branch itself; see the Post-Merge Closure PR Review section below.
 - **Failure signals to watch**: none specific to this shipment's own
   closure. The Copilot review-fix circuit breaker (3 cycles) was fully
-  exhausted — a genuine signal that this PR required unusually deep
-  remediation, though every fix was verified and every deferred item is a
-  documented, non-blocking P2.
+  exhausted on PR #326 — a genuine signal that this PR required unusually
+  deep remediation, though every fix was verified and every deferred item
+  is a documented, non-blocking P2.
 - **Follow-ups** (non-blocking; `closure_status: READY`):
   1. P2: symlink-following in `shipment_closure.py`'s backlog lookup path
      (Copilot round-4 finding, deferred per exhausted circuit breaker).

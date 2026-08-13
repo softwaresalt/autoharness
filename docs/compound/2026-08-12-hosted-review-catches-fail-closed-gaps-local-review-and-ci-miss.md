@@ -6,8 +6,9 @@ provenance: "127-S / 118-F, PR #326"
 
 ## Summary
 
-Across 4 rounds of hosted Copilot review on PR #326 (20 distinct threads
-total: 16 initial + 4 follow-on), Copilot surfaced genuine race conditions and
+Across 4 remediation rounds of hosted Copilot review on PR #326 (21
+distinct threads total across 6 raw GitHub review submissions: 16 initial +
+5 follow-on), Copilot surfaced genuine race conditions and
 fail-closed gaps in three new safety-critical modules
 (`src/autoharness/supervise/locking.py`, `src/autoharness/supervise/redact.py`,
 `src/autoharness/gates/shipment_closure.py`) that had already passed local
