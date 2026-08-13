@@ -13,5 +13,16 @@
 # stale local copy would shadow the global agent during an upgrade. Upgrade
 # them globally with `copilot plugin install autoharness@autoharness`.
 
+# Resolve `autoharness` explicitly before invoking it: PowerShell's own
+# CommandNotFoundException does NOT set $LASTEXITCODE, so an absent/missing
+# `autoharness` install would otherwise fall through to `exit $LASTEXITCODE`
+# below carrying either $null or a stale exit code from an unrelated prior
+# native command -- silently reporting success even though no supervisor
+# session ever launched (P-018 Copilot review finding, PR #331).
+if (-not (Get-Command autoharness -ErrorAction SilentlyContinue)) {
+    Write-Error "autoharness CLI not found on PATH. Install it (see README.md) before running this shim."
+    exit 1
+}
+
 autoharness run --workspace $PSScriptRoot -- @args
 exit $LASTEXITCODE

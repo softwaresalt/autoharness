@@ -24,6 +24,7 @@ from typing import Optional
 from autoharness.supervise.app import run_session
 from autoharness.supervise.contracts import (
     GATED_ACTION_CATALOG,
+    ApprovalRequested,
     ApprovalResolved,
     SessionPhaseChanged,
 )
@@ -533,6 +534,106 @@ class MandatoryDispatchTests(_DeterministicCopilotResolutionMixin, unittest.Test
             self.assertEqual(sorted(approval_service.requested), sorted(GATED_ACTION_CATALOG.keys()))
 
 
+class ApprovalRequestedEventEmissionTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
+    """P-018 Copilot review finding, PR #331: run_session previously
+    dispatched straight from catalog lookup to
+    ``approval_service.request_approval(...)`` and journaled only the
+    ``ApprovalResolved`` response, leaving the EventBus/journal without the
+    request metadata (``summary``, ``options``, ``default``, ``timeout``)
+    documented in the event catalog. Both gated-action call sites must now
+    emit an ``ApprovalRequested`` event (on both the bus AND the journal)
+    immediately before blocking for input."""
+
+    def test_force_unlock_emits_approval_requested_before_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+            record_path = workspace_root / RECORD_RELATIVE_PATH
+            _write_stale_record(record_path)
+            bus = EventBus()
+            kinds: list[type] = []
+            bus.subscribe(ApprovalRequested, lambda e: kinds.append(type(e)))
+            bus.subscribe(ApprovalResolved, lambda e: kinds.append(type(e)))
+
+            result = run_session(
+                workspace_root=workspace_root,
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                force_unlock=True,
+                non_interactive=True,
+                event_bus=bus,
+                lock_factory=_make_lock_factory(record_path),
+                child_process_factory=lambda argv: FakeChildProcess(argv=tuple(argv), exit_code=0),
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "ok")
+            self.assertEqual(kinds, [ApprovalRequested, ApprovalResolved])
+
+    def test_session_restart_emits_approval_requested_before_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+            children = [
+                FakeChildProcess(argv=(), exit_code=3),
+                FakeChildProcess(argv=(), exit_code=0),
+            ]
+            bus = EventBus()
+            kinds: list[type] = []
+            bus.subscribe(ApprovalRequested, lambda e: kinds.append(type(e)))
+            bus.subscribe(ApprovalResolved, lambda e: kinds.append(type(e)))
+
+            def factory(argv):
+                return children.pop(0)
+
+            result = run_session(
+                workspace_root=workspace_root,
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                max_restarts=1,
+                non_interactive=True,
+                event_bus=bus,
+                child_process_factory=factory,
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "ok")
+            self.assertEqual(kinds, [ApprovalRequested, ApprovalResolved])
+
+
+class BootstrapEnvironRestorationTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
+    """P-018 Copilot review finding, PR #331: applying bootstrap-resolved
+    additions (which may include a real GitHub token) to this process's own
+    ``os.environ`` must never outlive a single ``run_session()`` call -- the
+    prior implementation mutated ``os.environ`` permanently with no
+    restoration, leaking one workspace's secrets/bootstrap paths into later
+    sessions or unrelated library callers sharing the same process."""
+
+    def test_bootstrap_env_addition_is_restored_after_run_session_returns(self) -> None:
+        import os as os_mod
+
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+            sentinel_var = "AUTOHARNESS_TEST_BOOTSTRAP_ENV_LEAK_SENTINEL"
+            self.assertNotIn(sentinel_var, os_mod.environ)
+            (workspace_root / ".env.local").write_text(
+                f"{sentinel_var}=leaked-value\n", encoding="utf-8"
+            )
+
+            result = run_session(
+                workspace_root=workspace_root,
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                child_process_factory=lambda argv: FakeChildProcess(argv=tuple(argv), exit_code=0),
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "ok")
+            self.assertNotIn(
+                sentinel_var,
+                os_mod.environ,
+                "a .env.local-resolved addition must not outlive run_session()",
+            )
+
+
 class H2FailClosedNonInteractiveTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_session_restart_falls_back_to_declared_fallback_when_non_interactive(self) -> None:
         """Integration-level (not approvals.py-unit-level) H2 check: a REAL
@@ -674,6 +775,7 @@ class SidecarPreflightBeforeCopilotLaunchSmokeTests(unittest.TestCase):
                     gh_executable=_NONEXISTENT_TOOL,
                     backlogit_executable="backlogit",
                     engram_executable="engram",
+                    graphtor_docs_executable="graphtor-docs",
                 )
 
             self.assertEqual(result.status, "ok")
@@ -690,6 +792,22 @@ class SidecarPreflightBeforeCopilotLaunchSmokeTests(unittest.TestCase):
                 lines.index("engram"),
                 lines.index("copilot"),
                 "Engram preflight must complete before the Copilot child spawns",
+            )
+            # P-018 Copilot review finding, PR #331: the prior version of
+            # this smoke test never actually asserted graphtor-docs was
+            # invoked at all -- only backlogit/Engram were checked, so a
+            # regression that stopped graphtor-docs from resolving/running
+            # (sidecar failures are always non-fatal, so `result.status`
+            # alone would never catch this) would still pass silently.
+            self.assertIn(
+                "graphtor-docs",
+                lines,
+                "graphtor-docs preflight must actually run (not silently skipped)",
+            )
+            self.assertLess(
+                lines.index("graphtor-docs"),
+                lines.index("copilot"),
+                "graphtor-docs preflight must complete before the Copilot child spawns",
             )
 
 

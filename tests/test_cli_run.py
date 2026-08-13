@@ -99,6 +99,31 @@ class RunHelpTokenAfterSeparatorForwardingTests(unittest.TestCase):
         self.assertEqual(len(spy.calls), 0)
         self.assertIn("Usage:", out)
 
+    def test_help_as_workspace_value_is_not_intercepted(self) -> None:
+        """P-018 Copilot review finding, PR #331: `--workspace help` must
+        treat `help` as the option's VALUE, never as a help-flag position,
+        so a session with a workspace literally named `help` still starts."""
+
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            out, _, code = _run("run", "--workspace", "help")
+        self.assertEqual(len(spy.calls), 1)
+        self.assertNotIn("Usage:", out)
+
+    def test_help_as_session_id_value_is_not_intercepted(self) -> None:
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            out, _, code = _run("run", "--session-id", "help")
+        self.assertEqual(len(spy.calls), 1)
+        self.assertNotIn("Usage:", out)
+
+    def test_bare_help_as_first_own_token_still_short_circuits(self) -> None:
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            out, _, code = _run("run", "help")
+        self.assertEqual(len(spy.calls), 0)
+        self.assertIn("Usage:", out)
+
 
 class RunArgErrorTests(unittest.TestCase):
     def test_unknown_flag_exits_2(self) -> None:
@@ -180,7 +205,7 @@ class RunForwardingTests(unittest.TestCase):
             _run("run")
         self.assertEqual(len(spy.calls), 1)
         kwargs = spy.calls[0]
-        self.assertEqual(kwargs["workspace_root"], Path("."))
+        self.assertEqual(kwargs["workspace_root"], Path(".").expanduser().resolve())
         self.assertEqual(tuple(kwargs["argv"]), ())
         self.assertFalse(kwargs["force_unlock"])
         self.assertEqual(kwargs["max_restarts"], 0)
@@ -235,7 +260,23 @@ class RunForwardingTests(unittest.TestCase):
         spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
         with mock.patch("autoharness.supervise.app.run_session", spy):
             _run("run", "--workspace", r"C:\some\workspace")
-        self.assertEqual(spy.calls[0]["workspace_root"], Path(r"C:\some\workspace"))
+        self.assertEqual(
+            spy.calls[0]["workspace_root"], Path(r"C:\some\workspace").expanduser().resolve()
+        )
+
+    def test_relative_workspace_normalized_to_absolute(self) -> None:
+        """P-018 Copilot review finding, PR #331: a relative --workspace must
+        be normalized to an absolute path at the adapter boundary BEFORE
+        run_session ever sees it, so bootstrap/sidecar/child cwd anchoring
+        never double-applies the same relative segment (e.g. `subdir/subdir/
+        .copilot`)."""
+
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            _run("run", "--workspace", "some-relative-subdir")
+        forwarded = spy.calls[0]["workspace_root"]
+        self.assertTrue(Path(forwarded).is_absolute())
+        self.assertEqual(forwarded, (Path.cwd() / "some-relative-subdir").resolve())
 
     def test_trailing_argv_forwarded_verbatim(self) -> None:
         spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))

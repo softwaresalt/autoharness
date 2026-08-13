@@ -221,9 +221,9 @@ class Sandbox:
     def install_stub(self, name: str, content: str) -> None:
         (self.stub_dir / f"{name}.cmd").write_text(content, encoding="utf-8")
 
-    def _env(self, extra_env: Optional[dict]) -> dict:
+    def _env(self, extra_env: Optional[dict], include_autoharness: bool = True) -> dict:
         path_parts = [str(self.stub_dir)]
-        if AUTOHARNESS_BIN_DIR:
+        if AUTOHARNESS_BIN_DIR and include_autoharness:
             path_parts.append(AUTOHARNESS_BIN_DIR)
         path_parts.append(_minimal_system_path())
         env = {
@@ -249,6 +249,7 @@ class Sandbox:
         argv: Optional[list] = None,
         extra_env: Optional[dict] = None,
         timeout: float = 60.0,
+        include_autoharness: bool = True,
     ) -> subprocess.CompletedProcess:
         cmd = [PWSH, "-NoProfile", "-NonInteractive", "-File", str(self.workspace / "start.ps1")]
         if argv:
@@ -256,7 +257,7 @@ class Sandbox:
         return subprocess.run(
             cmd,
             cwd=str(self.workspace),
-            env=self._env(extra_env),
+            env=self._env(extra_env, include_autoharness=include_autoharness),
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -321,6 +322,20 @@ class ShimIsGenuinelyThinTests(unittest.TestCase):
     def test_start_ps1_propagates_exit_code(self):
         text = START_PS1.read_text(encoding="utf-8")
         self.assertIn("exit $LASTEXITCODE", text)
+
+    def test_start_ps1_checks_autoharness_command_exists(self):
+        """P-018 Copilot review finding, PR #331: PowerShell's own
+        CommandNotFoundException does not set $LASTEXITCODE, so an
+        absent/missing `autoharness` install must be resolved and failed
+        closed BEFORE invocation, never left to fall through to
+        `exit $LASTEXITCODE` carrying a stale/null code."""
+
+        text = START_PS1.read_text(encoding="utf-8")
+        self.assertIn("Get-Command autoharness", text)
+
+    def test_start_ps1_tmpl_checks_autoharness_command_exists(self):
+        text = START_PS1_TMPL.read_text(encoding="utf-8")
+        self.assertIn("Get-Command autoharness", text)
 
     def test_start_ps1_tmpl_preserves_project_name_placeholder(self):
         text = START_PS1_TMPL.read_text(encoding="utf-8")
@@ -584,6 +599,24 @@ class StartPs1EndToEndTests(unittest.TestCase):
                     f"expected host exit code {child_exit_code} (verbatim propagation, "
                     f"H3 fix), got {result.returncode}"
                 )
+
+    def test_missing_autoharness_command_fails_closed_nonzero(self):
+        """P-018 Copilot review finding, PR #331: with `autoharness` absent
+        from PATH, the shim must fail with a deterministic nonzero exit
+        code and an actionable stderr message -- never silently report
+        success (e.g. via a stale/null $LASTEXITCODE from
+        CommandNotFoundException falling through unchecked)."""
+
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"},
+            include_autoharness=False,
+        )
+        assert result.returncode != 0, (
+            f"expected a nonzero exit when autoharness is missing, got {result.returncode}"
+        )
+        assert "autoharness" in result.stderr.lower()
+        # Copilot must never have been spawned.
+        assert not (self.sandbox.result_dir / "copilot_args.txt").exists()
 
     # -- Sidecar side effects: backlogit sync + Engram pre-warm ----------
 

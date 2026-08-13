@@ -96,11 +96,14 @@ from autoharness.supervise import bootstrap as bootstrap_mod
 from autoharness.supervise import resolve as resolve_mod
 from autoharness.supervise import sidecar as sidecar_mod
 from autoharness.supervise.contracts import (
+    ApprovalRequested,
     ApprovalResolved,
     ChildExited,
     ChildSpawned,
     CopilotResolved,
     SidecarProbed,
+    UseSafeDefault,
+    get_gated_action,
 )
 from autoharness.supervise.errors import EXIT_CODE_BY_KIND, AutoharnessError, ErrorKind
 from autoharness.supervise.events import EventBus
@@ -155,6 +158,34 @@ def _default_child_process_factory(
     return factory
 
 
+def _build_approval_requested_event(identifier: str) -> ApprovalRequested:
+    """Build the ``ApprovalRequested`` event for gated action ``identifier``.
+
+    Reviewer-flagged gap (P-018 Copilot review, PR #331): this orchestrator
+    previously dispatched straight from catalog lookup to
+    ``approval_service.request_approval(...)`` and journaled only the
+    ``ApprovalResolved`` response, leaving the EventBus/journal without the
+    request metadata (``summary``, ``options``, ``default``, ``timeout``)
+    documented in the event catalog. Both gated-action call sites in
+    :func:`run_session` now emit this event immediately before blocking for
+    input.
+    """
+
+    spec = get_gated_action(identifier)
+    default = (
+        spec.fallback_policy.reference_or_value
+        if isinstance(spec.fallback_policy, UseSafeDefault)
+        else None
+    )
+    return ApprovalRequested(
+        kind=identifier,
+        summary=spec.summary,
+        options=spec.options,
+        default=default,
+        timeout=spec.timeout,
+    )
+
+
 def run_session(
     *,
     workspace_root: Path,
@@ -192,6 +223,15 @@ def run_session(
     messages: list[str] = []
     lock_held_by_us = False
     child: Optional[ChildProcess] = None
+    # Snapshot the caller's own environment BEFORE any bootstrap-resolved
+    # secret/config additions are applied to this process's os.environ
+    # below, so the top-level `finally` can restore it -- otherwise a
+    # resolved GitHub token (and any other bootstrap addition) would leak
+    # process-wide into later run_session() calls / unrelated library
+    # callers sharing this same Python process (P-018 Copilot review
+    # finding, PR #331).
+    _environ_snapshot: dict[str, str] = dict(os.environ)
+    _environ_mutated = False
 
     def _emit(event: Any) -> None:
         bus.emit(event)
@@ -210,10 +250,11 @@ def run_session(
         )
 
     def _confirm_restart() -> bool:
+        _emit(_build_approval_requested_event("session_restart"))
         resolved = approval_service.request_approval(
             "session_restart", interactive=not non_interactive
         )
-        journal.append_event(resolved)
+        _emit(resolved)
         return resolved.resolution == "restart"
 
     try:
@@ -230,6 +271,7 @@ def run_session(
                     diagnose_liveness(current_record)
                 ):
                     try:
+                        _emit(_build_approval_requested_event("force_unlock"))
                         resolved: ApprovalResolved = approval_service.request_approval(
                             "force_unlock", interactive=not non_interactive
                         )
@@ -237,7 +279,7 @@ def run_session(
                         warnings.append(f"force_unlock approval raised: {exc}")
                         resolved = None
                     if resolved is not None:
-                        journal.append_event(resolved)
+                        _emit(resolved)
                         if resolved.resolution == "force_unlock":
                             outcome = locking_force_unlock(workspace_root, current_record)
                             if outcome is ForceUnlockOutcome.REMOVED:
@@ -262,8 +304,13 @@ def run_session(
         # caller: the ChildProcess backends in process.py/process_pty.py
         # inherit the parent's environment verbatim with no per-call env
         # override, so this is the only way those additions reach the
-        # supervised child.
-        os.environ.update(bootstrap_result.env)
+        # supervised child. This mutation is RESTORED in the top-level
+        # `finally` below so any resolved secret never outlives this single
+        # run_session() call in this process's environment (P-018 Copilot
+        # review finding, PR #331).
+        if bootstrap_result.env:
+            os.environ.update(bootstrap_result.env)
+            _environ_mutated = True
 
         _transition(Phase.PREFLIGHT)
         sidecar_report = sidecar_mod.run_sidecars(
@@ -371,6 +418,14 @@ def run_session(
                 child.close()
             except Exception:  # noqa: BLE001 - best-effort resource cleanup only
                 pass
+        if _environ_mutated:
+            # Restore the caller's pre-call environment verbatim so any
+            # bootstrap-resolved secret (e.g. a GitHub token) never outlives
+            # this single run_session() call in this process's own
+            # environment -- never leaked process-wide to later sessions or
+            # unrelated library callers sharing the same Python process.
+            os.environ.clear()
+            os.environ.update(_environ_snapshot)
 
 
 def _fail_closed_drain(machine: SessionStateMachine, emit: Callable[[Any], None]) -> None:

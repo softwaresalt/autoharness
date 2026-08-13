@@ -217,7 +217,46 @@ def _parse_run_args(args: list[str]) -> dict:
     if saw_pty and saw_no_pty:
         raise ValueError("--pty and --no-pty are mutually exclusive")
 
+    # Normalize to an absolute path BEFORE run_session ever sees it (P-018
+    # Copilot review finding, PR #331): bootstrap/sidecar/child cwd
+    # anchoring is all relative to workspace_root, so a relative
+    # `--workspace subdir` previously produced double-relative values (e.g.
+    # `subdir/subdir/.copilot`) once the supervisor changed its own process
+    # cwd context. Resolving here, once, at the adapter boundary, is the
+    # single source of truth for every downstream cwd-relative default.
+    parsed["workspace"] = Path(parsed["workspace"]).expanduser().resolve()
+
     return parsed
+
+
+def _is_help_invocation(own_args: list[str]) -> bool:
+    """Detect a genuine help request among the adapter's OWN pre-``--`` args.
+
+    Only tokens in an actual OPTION POSITION are treated as a help request:
+    a value consumed by a preceding value-taking option (e.g. `--workspace
+    help`, `--session-id help`) is skipped, never mistaken for a help flag
+    (P-018 Copilot review finding, PR #331: the prior implementation
+    scanned every pre-`--` token indiscriminately, so
+    `autoharness run --workspace help` printed usage and never started a
+    session). The bare `help` keyword is recognized only as the FIRST
+    token, mirroring this module's own `<command> help` subcommand
+    convention elsewhere; `--help`/`-h` are recognized in any option
+    position.
+    """
+
+    value_consuming_flags = {"--max-restarts", "--session-id", "--workspace", "-w"}
+    index = 0
+    while index < len(own_args):
+        token = own_args[index]
+        if index == 0 and token == "help":
+            return True
+        if token in ("--help", "-h"):
+            return True
+        if token in value_consuming_flags:
+            index += 2  # skip this flag AND the value it consumes
+            continue
+        index += 1
+    return False
 
 
 def _run_command(args: list[str]) -> None:
@@ -240,7 +279,7 @@ def _run_command(args: list[str]) -> None:
     # here previously swallowed that forwarded flag and silently
     # short-circuited before `run_session`/Copilot ever launched.
     own_args = args[: args.index("--")] if "--" in args else args
-    if any(flag in ("help", "--help", "-h") for flag in own_args):
+    if _is_help_invocation(own_args):
         print(RUN_USAGE)
         return
 
