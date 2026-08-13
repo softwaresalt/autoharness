@@ -123,5 +123,41 @@ class GuardedImportAvailabilityTests(unittest.TestCase):
         self.assertIsNotNone(warning)
 
 
+class WinPtyExitStatusFidelityTests(unittest.TestCase):
+    """128-S review remediation: pywinpty reporting ``exitstatus=None`` after
+    the child is no longer alive must NEVER be silently mapped to ``0``
+    (fabricating a successful exit) -- H3 exit-status fidelity is a hard
+    invariant. Uses a mocked ``pywinpty`` module so this is testable without
+    the optional dependency installed.
+    """
+
+    def test_wait_raises_rather_than_fabricating_zero_when_exitstatus_unavailable(
+        self,
+    ) -> None:
+        from autoharness.supervise.process_pty import WinPtyChildProcess
+
+        fake_pty = unittest.mock.MagicMock()
+        fake_pty.isalive.return_value = False
+        fake_pty.exitstatus = None
+
+        proc = WinPtyChildProcess([_PY, "-c", "pass"])
+        proc._pty = fake_pty  # noqa: SLF001 - test introspection only
+
+        with self.assertRaises(RuntimeError):
+            proc.wait()
+
+    def test_wait_returns_real_exit_code_when_available(self) -> None:
+        from autoharness.supervise.process_pty import WinPtyChildProcess
+
+        fake_pty = unittest.mock.MagicMock()
+        fake_pty.isalive.return_value = False
+        fake_pty.exitstatus = 42
+
+        proc = WinPtyChildProcess([_PY, "-c", "pass"])
+        proc._pty = fake_pty  # noqa: SLF001 - test introspection only
+
+        self.assertEqual(proc.wait(), 42)
+
+
 if __name__ == "__main__":
     unittest.main()

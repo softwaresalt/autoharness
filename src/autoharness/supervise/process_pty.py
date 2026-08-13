@@ -235,6 +235,16 @@ class WinPtyChildProcess:
         self._pty.terminate(force=True)
 
     def wait(self, timeout: Optional[float] = None) -> int:
+        """Block until the child exits; return its REAL exit code, unmodified.
+
+        H3 exit-status fidelity is a hard invariant (119.001-T): if
+        ``pywinpty`` cannot report a real ``exitstatus`` after the process
+        is no longer alive, that is reported as an error -- NEVER silently
+        mapped to ``0``/success, which would fabricate a successful exit
+        for what may be a crashed or killed child (128-S review
+        remediation).
+        """
+
         if self._pty is None:
             raise RuntimeError("cannot wait before spawn()")
         deadline = None if timeout is None else time.monotonic() + timeout
@@ -243,7 +253,14 @@ class WinPtyChildProcess:
                 raise TimeoutError(f"pywinpty child did not exit within {timeout}s")
             time.sleep(0.01)
         self._exit_code = self._pty.exitstatus
-        return self._exit_code if self._exit_code is not None else 0
+        if self._exit_code is None:
+            raise RuntimeError(
+                "pywinpty reported exitstatus=None after the child was no longer "
+                "alive; the real exit code is unknown, so it cannot be reported "
+                "-- fabricating a successful (0) exit code is prohibited by the "
+                "exit-status fidelity invariant (H3)"
+            )
+        return self._exit_code
 
     def close(self) -> None:
         if self._pty is not None:

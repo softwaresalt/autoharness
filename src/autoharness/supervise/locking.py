@@ -116,11 +116,32 @@ def _resolve_contained_path(workspace_root: PathLike, relative: PathLike) -> Pat
     normalized_relative = str(relative).replace("\\", "/")
     candidate = Path(os.path.normpath(str(root / Path(normalized_relative))))
     try:
-        candidate.relative_to(root)
+        rel = candidate.relative_to(root)
     except ValueError as exc:
         raise LockError(
             f"path {relative!s} resolves outside workspace root {root}: {candidate}"
         ) from exc
+
+    # Reject any ALREADY-EXISTING intermediate path component between
+    # ``root`` and ``candidate`` that is a symlink (128-S review
+    # remediation): a lexically-contained candidate string can still
+    # resolve outside the workspace at open()-time if some ancestor
+    # directory is (or has been replaced by) a symlink pointing elsewhere
+    # -- the purely lexical/string-based check above cannot see this.
+    # Checked via a plain ``is_symlink()`` (an ``lstat``, never a second
+    # ``resolve()``) so this does NOT reintroduce the
+    # ``GetFinalPathNameByHandleW`` parallel-contender race documented
+    # above; only components that ALREADY exist on disk at call time are
+    # inspected, so a directory legitimately created moments later by a
+    # concurrent contender is never spuriously flagged.
+    probe = root
+    for part in rel.parts:
+        probe = probe / part
+        if probe.exists() and probe.is_symlink():
+            raise LockError(
+                f"path {relative!s} traverses an existing symlink at {probe}; "
+                f"refusing to follow it outside workspace root {root}"
+            )
     return candidate
 
 
