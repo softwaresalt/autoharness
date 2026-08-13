@@ -7,6 +7,7 @@ Core acquire/release/guard-permanence tests (118.005-T) live in
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -73,6 +74,52 @@ class DeadPidDetectionTests(unittest.TestCase):
 
         self.assertEqual(liveness, Liveness.STALE)
         self.assertTrue(is_stale_eligible_for_force_unlock(liveness))
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows-specific OpenProcess/GetExitCodeProcess contract")
+class WindowsKilledPidStillActiveRegressionTests(unittest.TestCase):
+    """Regression for a real Windows liveness bug found while validating
+    118.006-T against the stale-record characterization suite: a
+    ``TerminateProcess``-killed child's PID can remain a VALID
+    ``OpenProcess`` target for a time after it has already exited (the
+    process object is not necessarily torn down the instant the process
+    dies -- e.g. while any handle, including our own diagnostic
+    ``OpenProcess`` call, or the parent's own ``subprocess.Popen`` handle,
+    is still outstanding). Checking only "did ``OpenProcess`` succeed" is
+    therefore NOT sufficient to determine liveness -- it must be paired
+    with ``GetExitCodeProcess`` returning ``STILL_ACTIVE`` (259); any other
+    exit code means the process has already exited and must be treated as
+    dead."""
+
+    def test_killed_process_is_diagnosed_dead_immediately_after_wait(self) -> None:
+        from autoharness.supervise.locking import _pid_exists
+
+        proc = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"]
+        )
+        try:
+            # Give the child a moment to actually start running before we
+            # kill it, so this exercises a genuinely-running-then-killed
+            # process rather than racing process creation itself.
+            time.sleep(0.2)
+            proc.kill()
+            proc.wait(timeout=10)
+
+            # No polling/retry loop here: this must be correct on the FIRST
+            # observation immediately after wait() returns, not merely
+            # eventually-consistent after some unspecified delay -- that
+            # is exactly the defect this regression guards against.
+            alive = _pid_exists(proc.pid)
+        finally:
+            if proc.poll() is None:  # pragma: no cover - defensive
+                proc.kill()
+                proc.wait(timeout=10)
+
+        self.assertFalse(
+            alive,
+            "a killed-and-waited process must be diagnosed dead (not True/"
+            "alive) immediately, not merely after an unbounded grace period",
+        )
 
 
 class StartTimeMismatchTests(unittest.TestCase):
@@ -430,10 +477,23 @@ class PositiveControlTests(unittest.TestCase):
 
     @staticmethod
     def _unsafe_replace_guard_file(guard_path: Path) -> None:
-        """BAD: deletes and recreates the guard file (changes its identity)."""
+        """BAD: deletes and recreates the guard file (changes its identity).
 
-        guard_path.unlink()
-        guard_path.write_bytes(b"\0")
+        The replacement file is written under a distinct temporary name and
+        then atomically moved onto ``guard_path`` via ``os.replace`` rather
+        than unlinking ``guard_path`` and recreating it under the SAME name.
+        This guarantees the replacement inode is allocated from a fresh,
+        never-before-used directory entry before the original is removed,
+        so the assertion below cannot flake on filesystems (observed on
+        Linux ext4/tmpfs CI runners) that immediately reuse a just-freed
+        inode number for a new file created under the same name in the
+        same directory -- a filesystem-dependent allocation-reuse race that
+        has nothing to do with the identity guarantee under test.
+        """
+
+        replacement = guard_path.with_name(guard_path.name + ".unsafe-replacement.tmp")
+        replacement.write_bytes(b"\0")
+        os.replace(replacement, guard_path)
 
     def test_unsafe_delete_corrupts_a_live_holders_record(self) -> None:
         """Demonstrates that WITHOUT the guard-lock discipline, a

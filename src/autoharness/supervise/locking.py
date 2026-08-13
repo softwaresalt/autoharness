@@ -445,6 +445,7 @@ def _windows_pid_exists(pid: int) -> Optional[bool]:
 
         PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
         ERROR_INVALID_PARAMETER = 87
+        STILL_ACTIVE = 259
         # ``use_last_error=True`` is required for ``ctypes.get_last_error()``
         # to reflect this call's actual ``GetLastError()`` value -- the
         # shared ``ctypes.windll.kernel32`` handle does not track it.
@@ -455,8 +456,24 @@ def _windows_pid_exists(pid: int) -> Optional[bool]:
             if last_error == ERROR_INVALID_PARAMETER:
                 return False
             return None  # indeterminate (e.g. access denied on a live process)
-        kernel32.CloseHandle(handle)
-        return True
+        try:
+            # A successful `OpenProcess` alone does NOT mean the process is
+            # still running: on Windows, a process object (and therefore its
+            # PID) can remain a valid `OpenProcess` target for a time after
+            # the process has already exited, as long as any handle to it
+            # is still outstanding anywhere in the system (this is routinely
+            # observed immediately after a parent's own `TerminateProcess`/
+            # `Popen.kill()` + `wait()`, before the OS fully tears down the
+            # process object). `GetExitCodeProcess` is the authoritative
+            # check: `STILL_ACTIVE` (259) means genuinely running; any other
+            # value means the process has already exited and this PID must
+            # be treated as dead, never LIVE.
+            exit_code = ctypes.c_ulong(0)
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return None  # indeterminate -- could not query exit status
+            return exit_code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
     except Exception:  # pragma: no cover - defensive
         return None
 
