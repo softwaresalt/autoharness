@@ -549,3 +549,37 @@ session; new-process-only against isolated sandboxes)
    `EnvPropagationTests`/`RealPtyEnvPropagationTests` (the latter
    POSIX-real-subprocess, skipped on Windows) in
    `test_supervise_process.py`/`test_supervise_process_pty.py`.
+
+### Correction delivery record
+
+- **Correction PR**: [#334](https://github.com/softwaresalt/autoharness/pull/334).
+- **Reviewed HEAD**: `146546db482c4df542ebc5cd04f4883a8fd67311` (round-1
+  Copilot/P-018 review: 5 findings, all fixed and resolved — untrusted
+  override-warning echo, unescaped PowerShell single-quote interpolation
+  in the smoke-test cleanup helper, missing graphtor-docs cleanup in two
+  smoke-test probes, drive-letter-only `.mcp.json` absolute-path regression
+  guard, and an unset `correction_pr` frontmatter field).
+- **Merge commit**: `43b531b0e63c10be2e0870faca38484bb9366b1b` (2 parents,
+  confirmed ancestor of `origin/main` via `git merge-base --is-ancestor`).
+  Merged via `--merge` (merge commit strategy; repo settings confirm
+  `allow_squash_merge`/`allow_rebase_merge` both `false`, P-009 preserved).
+- **CI**: green at every polled HEAD (both the initial and the review-fix
+  commit).
+- **P-018 gate**: `SATISFIED` at merge time — 0 unresolved threads.
+- **Full local suite**: 1887 tests, OK (skipped=23), re-verified at both
+  commits.
+- **P-020 compact-context**: invoked (`target: all`) during post-merge
+  closure on branch `post-merge/129-s-post-closure-runtime-binding-correction`.
+  Candidate: this correction's own session memory (completed-work rule).
+  Bounded Tier-1 consolidation performed: 1 memory file compacted, 0
+  active checkpoints touched, 0 plans consolidated (none pending), 0
+  additional closure records compacted (none exceeded `threshold_days`).
+  Session memory written to
+  `docs/memory/2026-08-13-ship-129-s-post-closure-runtime-binding-correction.md`,
+  then moved verbatim to
+  `docs/archive/memory/2026-08-13-ship-129-s-post-closure-runtime-binding-correction.md`
+  as part of this compaction pass. Compacted memory:
+  `docs/memory/compacted/2026-08-13-129S-120F-postclosure-correction-compacted.md`.
+- **No backlogit shipment or task was created, claimed, or touched for
+  this correction.** `129-S`/`120-F`/`117-F` remain archived exactly as
+  they were before this correction began.
