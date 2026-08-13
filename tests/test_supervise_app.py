@@ -25,9 +25,10 @@ from pathlib import Path
 from typing import Optional
 
 from autoharness.supervise.app import (
+    _ActiveChildRef,
     _pump_child_output,
     _pump_operator_input,
-    _start_pty_pumps,
+    _start_output_pump,
     run_session,
 )
 from autoharness.supervise.contracts import (
@@ -444,6 +445,84 @@ class RestartTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
             self.assertEqual(result.exit_code, EXIT_CODE_BY_KIND[ErrorKind.RESTART])
 
 
+class RestartAndCancelEventsVisibleOnBusTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
+    """P-018 Copilot review finding (PR #331, comment 3778121169):
+    ``cancel_session``/``RestartController.attempt`` previously wrote
+    cancellation/restart events directly to the journal, bypassing
+    ``run_session``'s own ``_emit`` closure entirely -- so ``EventBus``
+    subscribers never observed a ``RestartScheduled``/``RestartExhausted``/
+    ``CancelRequested`` event during a real end-to-end session, even though
+    the journal file itself did contain them. These integration tests
+    subscribe to a REAL ``EventBus`` (not a spy in place of recovery.py's
+    internals) and drive a real ``run_session`` restart/cancellation flow,
+    proving the fix end-to-end rather than only at the recovery.py-unit
+    level.
+    """
+
+    def test_approved_restart_scheduled_event_is_observed_on_the_bus(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+            bus = EventBus()
+            observed: list = []
+            bus.subscribe(lambda _event: True, observed.append)
+            children = [
+                FakeChildProcess(argv=(), exit_code=3),
+                FakeChildProcess(argv=(), exit_code=0),
+            ]
+
+            def factory(argv):
+                return children.pop(0)
+
+            result = run_session(
+                workspace_root=workspace_root,
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                event_bus=bus,
+                max_restarts=1,
+                non_interactive=True,
+                child_process_factory=factory,
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "ok")
+            event_types = [type(event).__name__ for event in observed]
+            self.assertIn(
+                "RestartScheduled",
+                event_types,
+                "RestartController.attempt() must route RestartScheduled through "
+                "run_session's _emit so EventBus subscribers observe it",
+            )
+
+    def test_restart_exhaustion_event_is_observed_on_the_bus(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+            bus = EventBus()
+            observed: list = []
+            bus.subscribe(lambda _event: True, observed.append)
+            fake_child = FakeChildProcess(argv=(), exit_code=9)
+
+            result = run_session(
+                workspace_root=workspace_root,
+                argv=[],
+                approval_service=AlwaysDenyApprovalService(),
+                event_bus=bus,
+                max_restarts=1,
+                non_interactive=True,
+                child_process_factory=lambda argv: fake_child,
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "failed")
+            event_types = [type(event).__name__ for event in observed]
+            self.assertIn(
+                "RestartExhausted",
+                event_types,
+                "RestartController.attempt()'s exhaustion branch must route "
+                "RestartExhausted through run_session's _emit so EventBus "
+                "subscribers observe it",
+            )
+
+
 class NegativeControlTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_raising_approval_service_never_performs_force_unlock_side_effect(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
@@ -828,7 +907,7 @@ class PtyPumpDirectUnitTests(unittest.TestCase):
     operator input via ``child.write()``, so a PTY-backed interactive
     Copilot session's output was invisible and its prompts could never
     receive input. Calling the pump functions directly (not through the
-    daemon-thread wiring in :func:`_start_pty_pumps`) keeps these
+    daemon-thread wiring in :func:`_start_output_pump`) keeps these
     assertions deterministic and free of timing races.
     """
 
@@ -862,30 +941,70 @@ class PtyPumpDirectUnitTests(unittest.TestCase):
 
         self.assertEqual(captured, [])
 
-    def test_pump_operator_input_forwards_every_line_until_eof(self) -> None:
+    def test_pump_operator_input_forwards_every_line_to_the_active_child(self) -> None:
         child = FakeChildProcess(argv=())
         child.spawn()
+        active_ref = _ActiveChildRef(child)
         fake_stdin = io.StringIO("hello\nworld\n")
 
         with mock.patch.object(sys, "stdin", fake_stdin):
-            _pump_operator_input(child)
+            _pump_operator_input(active_ref)
 
         self.assertEqual(child.written, [b"hello\n", b"world\n"])
 
-    def test_pump_operator_input_returns_on_write_exception_without_propagating(self) -> None:
+    def test_pump_operator_input_survives_a_write_exception_and_keeps_reading(self) -> None:
+        # P-018 Copilot review finding (PR #331, comment 3778121130): a
+        # transient write failure against the CURRENT active child (e.g.
+        # exactly the moment it is being replaced by a restart) must not
+        # kill this session-wide persistent pump thread -- a later line
+        # must still reach whatever child is active by then.
         class _RaisingWriteChild:
             def write(self, data: bytes) -> None:
                 raise OSError("pty closed")
 
-        fake_stdin = io.StringIO("hello\n")
+        raising_child = _RaisingWriteChild()
+        active_ref = _ActiveChildRef(raising_child)
+        fake_stdin = io.StringIO("dropped-line\n")
 
         with mock.patch.object(sys, "stdin", fake_stdin):
-            # Must not raise.
-            _pump_operator_input(_RaisingWriteChild())
+            # Must not raise, and must not return early -- reaches EOF and
+            # returns only because the StringIO is exhausted, not because
+            # the write failed.
+            _pump_operator_input(active_ref)
+
+    def test_pump_operator_input_forwards_to_repointed_child_after_restart_handoff(self) -> None:
+        # P-018 Copilot review finding (PR #331, comment 3778121130): after
+        # `active_ref.set(new_child)` (what a restart handoff does), the
+        # SAME persistent pump thread/call must forward subsequent input to
+        # the NEW child, not the old one -- proving there is exactly one
+        # input reader routed to whichever child is currently active.
+        old_child = FakeChildProcess(argv=())
+        old_child.spawn()
+        new_child = FakeChildProcess(argv=())
+        new_child.spawn()
+        active_ref = _ActiveChildRef(old_child)
+
+        class _RepointingStdin:
+            """Repoints active_ref to new_child after the first line, then EOFs."""
+
+            def __init__(self) -> None:
+                self._lines = iter(["first-to-old\n", "second-to-new\n", ""])
+
+            def readline(self) -> str:
+                line = next(self._lines)
+                if line == "second-to-new\n":
+                    active_ref.set(new_child)
+                return line
+
+        with mock.patch.object(sys, "stdin", _RepointingStdin()):
+            _pump_operator_input(active_ref)
+
+        self.assertEqual(old_child.written, [b"first-to-old\n"])
+        self.assertEqual(new_child.written, [b"second-to-new\n"])
 
 
-class StartPtyPumpsTests(unittest.TestCase):
-    """Integration-level tests for :func:`_start_pty_pumps`'s daemon-thread
+class StartOutputPumpTests(unittest.TestCase):
+    """Integration-level tests for :func:`_start_output_pump`'s daemon-thread
     wiring, exercised through real (but short-lived, deterministic)
     background threads rather than direct synchronous calls.
     """
@@ -895,26 +1014,26 @@ class StartPtyPumpsTests(unittest.TestCase):
         child.spawn()
         before = threading.active_count()
 
-        _start_pty_pumps(child, lambda event: None)
+        thread = _start_output_pump(child, lambda event: None)
         time.sleep(0.05)
 
+        self.assertIsNone(thread)
         self.assertEqual(
             threading.active_count(),
             before,
             "no pump thread should be started for a backend that cannot capture output",
         )
 
-    def test_starts_daemon_threads_and_pumps_scripted_output_end_to_end(self) -> None:
+    def test_starts_daemon_thread_and_pumps_scripted_output_end_to_end(self) -> None:
         child = FakeChildProcess(argv=(), scripted_stdout=["hi\n"])
         child.spawn()
         captured_events: list[ChildOutput] = []
         out = io.StringIO()
 
         with mock.patch.object(sys, "stdout", out):
-            _start_pty_pumps(child, captured_events.append)
-            deadline = time.monotonic() + 2.0
-            while not captured_events and time.monotonic() < deadline:
-                time.sleep(0.02)
+            thread = _start_output_pump(child, captured_events.append)
+            self.assertIsNotNone(thread)
+            thread.join(timeout=2.0)
 
         self.assertEqual([e.line for e in captured_events], ["hi\n"])
         self.assertEqual(out.getvalue(), "hi\n")

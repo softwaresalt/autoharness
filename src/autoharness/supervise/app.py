@@ -171,11 +171,14 @@ def _pump_child_output(child: ChildProcess, emit: Callable[[Any], None]) -> None
     master side of the pseudo-terminal: Copilot's own output was invisible
     to the operator, and once the PTY's kernel buffer filled a chatty
     child could block forever on its own writes. This helper runs as a
-    daemon thread for the lifetime of a single child, forwarding every
-    drained chunk straight through to the real ``sys.stdout`` and also
-    emitting/journaling it as a :class:`ChildOutput` event so the session
-    journal captures what the operator actually saw. Returns (thread
-    exits) once :meth:`ChildProcess.read` reports EOF (``None``) or raises.
+    daemon thread SCOPED TO A SINGLE CHILD (a new one is started per spawn,
+    including each restart's replacement), forwarding every drained chunk
+    straight through to the real ``sys.stdout`` and also emitting/
+    journaling it as a :class:`ChildOutput` event so the session journal
+    captures what the operator actually saw. Returns (thread exits) once
+    :meth:`ChildProcess.read` reports EOF (``None``) or raises -- which
+    happens promptly once ``child`` itself exits/closes, since the PTY's
+    slave side closes with it.
     """
 
     while True:
@@ -193,19 +196,60 @@ def _pump_child_output(child: ChildProcess, emit: Callable[[Any], None]) -> None
         emit(ChildOutput(stream="stdout", line=data))
 
 
-def _pump_operator_input(child: ChildProcess) -> None:
-    """Continuously forward operator keyboard input into a PTY-backed child.
+class _ActiveChildRef:
+    """Thread-safe mutable holder for the operator-input pump's current
+    write target.
 
     Reviewer-flagged gap (P-018 Copilot review, PR #331, comment
-    3777840441): without this pump, a PTY-backed interactive session could
-    never receive operator input at all -- prompts would appear to hang
-    indefinitely. This forwards line-buffered input (``sys.stdin.readline``)
-    to :meth:`ChildProcess.write`; it intentionally does not attempt raw,
-    single-keystroke terminal forwarding (arrow-key history navigation,
-    live tab-completion redraws), which would require putting the real
-    terminal into raw/cbreak mode and is out of scope for this fix. Runs
-    as a daemon thread so an unread line (or a stdin that never closes)
-    never blocks process/interpreter shutdown once the child has exited.
+    3778121130): the original design started a brand-new input-forwarding
+    thread per child spawn (initial AND every restart), each blocked
+    reading ``sys.stdin`` with no stop/join handle. On an approved
+    restart, the OLD input thread could remain blocked in
+    ``sys.stdin.readline()`` at the exact moment the NEW one started,
+    leaving two threads racing to consume the next operator line and
+    forward it to two DIFFERENT children (one already closed). This
+    holder lets ``run_session`` start exactly ONE persistent input-pump
+    thread for the entire session and simply repoint it at whichever
+    child is currently active across restarts -- "one input reader routed
+    to the active child", per the reviewer's own suggested fix.
+    """
+
+    def __init__(self, child: ChildProcess) -> None:
+        self._lock = threading.Lock()
+        self._child = child
+
+    def set(self, child: ChildProcess) -> None:
+        with self._lock:
+            self._child = child
+
+    def get(self) -> ChildProcess:
+        with self._lock:
+            return self._child
+
+
+def _pump_operator_input(active_ref: _ActiveChildRef) -> None:
+    """Continuously forward operator keyboard input into whichever child
+    ``active_ref`` currently references.
+
+    Reviewer-flagged gap (P-018 Copilot review, PR #331, comments
+    3777840441 and 3778121130): without this pump, a PTY-backed
+    interactive session could never receive operator input at all --
+    prompts would appear to hang indefinitely. This forwards line-buffered
+    input (``sys.stdin.readline``) to :meth:`ChildProcess.write`; it
+    intentionally does not attempt raw, single-keystroke terminal
+    forwarding (arrow-key history navigation, live tab-completion
+    redraws), which would require putting the real terminal into raw/
+    cbreak mode and is out of scope for this fix.
+
+    Exactly ONE instance of this pump runs for the whole life of a
+    ``run_session`` call (see ``_ActiveChildRef``'s own docstring): a
+    transient write failure (e.g. the active child has just exited and is
+    mid-restart-handoff) does NOT terminate this thread -- that line's
+    forwarding is simply dropped and the loop keeps reading, so a
+    subsequent restart's replacement child still receives later operator
+    input. The thread exits only when ``sys.stdin`` itself reports EOF/
+    raises, and runs as a daemon so it never blocks process/interpreter
+    shutdown.
     """
 
     while True:
@@ -216,23 +260,30 @@ def _pump_operator_input(child: ChildProcess) -> None:
         if not line:
             return
         try:
-            child.write(line.encode("utf-8", errors="replace"))
-        except Exception:  # noqa: BLE001 - write failure means the child is gone; wait() will notice
-            return
+            active_ref.get().write(line.encode("utf-8", errors="replace"))
+        except Exception:  # noqa: BLE001 - forwarding to THIS child failed; keep reading for the next one
+            continue
 
 
-def _start_pty_pumps(child: ChildProcess, emit: Callable[[Any], None]) -> None:
-    """Start the bidirectional I/O pump threads for a capture-capable child.
+def _start_output_pump(child: ChildProcess, emit: Callable[[Any], None]) -> Optional[threading.Thread]:
+    """Start (and return) the output-drain daemon thread for ``child``.
 
-    No-op when ``child.supports_output_capture`` is ``False`` (the
-    inherited-stdio backend already shares the real console's file
-    descriptors directly with the child -- there is nothing to pump).
+    Returns ``None`` (no-op, no thread started) when
+    ``child.supports_output_capture`` is ``False`` (the inherited-stdio
+    backend already shares the real console's file descriptors directly
+    with the child -- there is nothing to pump). Callers should ``join()``
+    the previously-returned thread (bounded timeout) before starting a new
+    one for a replacement child, so trailing output from the OLD child is
+    drained deterministically rather than left to timing luck (P-018
+    Copilot review finding, PR #331, comment 3778121130 -- "quiesce it
+    before restart/return").
     """
 
     if not child.supports_output_capture:
-        return
-    threading.Thread(target=_pump_child_output, args=(child, emit), daemon=True).start()
-    threading.Thread(target=_pump_operator_input, args=(child,), daemon=True).start()
+        return None
+    thread = threading.Thread(target=_pump_child_output, args=(child, emit), daemon=True)
+    thread.start()
+    return thread
 
 
 def _close_child_before_lock_release(child: Optional[ChildProcess]) -> None:
@@ -329,6 +380,18 @@ def run_session(
     messages: list[str] = []
     lock_held_by_us = False
     child: Optional[ChildProcess] = None
+    # Output-drain pump thread for the CURRENT child (re-assigned to a new
+    # thread on every spawn, including restarts); joined with a bounded
+    # timeout before starting a new one and again in the top-level
+    # `finally`, so trailing output is drained deterministically rather
+    # than left to timing luck (P-018 Copilot review finding, PR #331,
+    # comment 3778121130).
+    output_pump_thread: Optional[threading.Thread] = None
+    # Exactly ONE persistent input-forwarding thread is started for the
+    # whole session (see `_ActiveChildRef`'s own docstring) -- this holder
+    # is what lets it be re-pointed at each restart's replacement child
+    # instead of a second competing thread ever being started.
+    active_child_ref: Optional[_ActiveChildRef] = None
     # Snapshot the caller's own environment BEFORE any bootstrap-resolved
     # secret/config additions are applied to this process's os.environ
     # below, so the top-level `finally` can restore it -- otherwise a
@@ -450,7 +513,11 @@ def run_session(
                 "child process backend does not support output capture"
             )
         else:
-            _start_pty_pumps(child, _emit)
+            active_child_ref = _ActiveChildRef(child)
+            threading.Thread(
+                target=_pump_operator_input, args=(active_child_ref,), daemon=True
+            ).start()
+            output_pump_thread = _start_output_pump(child, _emit)
 
         _transition(Phase.RUNNING)
 
@@ -469,7 +536,7 @@ def run_session(
                 cancel_session(
                     machine,
                     child=child,
-                    journal=journal,
+                    emit=_emit,
                     lock=lock,
                     reason="operator cancellation (KeyboardInterrupt)",
                     signal_num=signal_num,
@@ -483,7 +550,7 @@ def run_session(
 
             phase_after_attempt = restart_controller.attempt(
                 machine,
-                journal=journal,
+                emit=_emit,
                 child=child,
                 lock=lock,
                 reason=f"child exited with code {exit_code}",
@@ -498,12 +565,31 @@ def run_session(
 
             # Approved restart: RestartController.attempt() already drove
             # RUNNING -> RESTARTING -> LAUNCHING (journaled internally) and
-            # terminated the previous child. Spawn the replacement here and
-            # return the machine to RUNNING via our own emitted transition.
+            # terminated the previous child. Quiesce the OLD output pump
+            # (bounded join -- the old child has already exited/been closed,
+            # so its read() should EOF promptly) before starting the
+            # replacement, then spawn it and repoint (never duplicate) the
+            # single persistent input pump at it (P-018 Copilot review
+            # finding, PR #331, comment 3778121130).
+            if output_pump_thread is not None:
+                output_pump_thread.join(timeout=2.0)
             child = factory(resolve_result.argv)
             child.spawn()
             _emit(ChildSpawned(argv=resolve_result.argv, pid=child.pid))
-            _start_pty_pumps(child, _emit)
+            if child.supports_output_capture:
+                if active_child_ref is not None:
+                    active_child_ref.set(child)
+                else:
+                    # The very first child didn't support output capture,
+                    # but this replacement does -- start the persistent
+                    # input pump now, for the first time.
+                    active_child_ref = _ActiveChildRef(child)
+                    threading.Thread(
+                        target=_pump_operator_input, args=(active_child_ref,), daemon=True
+                    ).start()
+                output_pump_thread = _start_output_pump(child, _emit)
+            else:
+                output_pump_thread = None
             _transition(Phase.RUNNING)
 
         _transition(Phase.DRAINING)
@@ -534,6 +620,15 @@ def run_session(
         # 3777958619): both failure paths above already close the child
         # BEFORE releasing the workspace lock.
         _close_child_before_lock_release(child)
+        # Quiesce the final output pump (bounded join) before returning, so
+        # trailing output is drained deterministically rather than left
+        # running past this function's own return (P-018 Copilot review
+        # finding, PR #331, comment 3778121130). The child is already
+        # closed by this point (immediately above), so its read() should
+        # EOF promptly; the persistent input pump is intentionally left
+        # running (daemon thread, harmless once the process itself exits).
+        if output_pump_thread is not None:
+            output_pump_thread.join(timeout=2.0)
         if _environ_mutated:
             # Restore the caller's pre-call environment verbatim so any
             # bootstrap-resolved secret (e.g. a GitHub token) never outlives
