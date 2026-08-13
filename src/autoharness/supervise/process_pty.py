@@ -164,11 +164,23 @@ class PtyChildProcess:
                 os.kill(self._pid, signal.SIGTERM)
             try:
                 self.wait(timeout=5)
-            except (TimeoutError, ChildProcessError):
+            except TimeoutError:
+                # Genuinely still running after the bounded wait: escalate.
                 with contextlib.suppress(ProcessLookupError):
                     os.kill(self._pid, signal.SIGKILL)
                 with contextlib.suppress(TimeoutError, ChildProcessError):
                     self.wait(timeout=5)
+            except ChildProcessError:
+                # 128-S review remediation: ChildProcessError from
+                # os.waitpid means THIS PID IS NO LONGER OUR WAITABLE
+                # CHILD (e.g. already reaped by a SIGCHLD handler or some
+                # other independent race) -- it is NOT evidence the child
+                # is still running. Conflating it with TimeoutError and
+                # escalating to SIGKILL sends a kill signal to a bare PID
+                # number that the OS may have already reused for an
+                # entirely unrelated process. There is nothing left for
+                # THIS backend to reap, so no further action is taken.
+                pass
         if self._master_fd is not None:
             with contextlib.suppress(OSError):
                 os.close(self._master_fd)
@@ -263,9 +275,32 @@ class WinPtyChildProcess:
         return self._exit_code
 
     def close(self) -> None:
-        if self._pty is not None:
+        """Terminate (if still alive), bounded-wait, and release the handle.
+
+        128-S review remediation: the previous implementation closed the
+        pywinpty handle unconditionally, without first terminating/waiting
+        for a still-running child (unlike every other backend's ``close()``
+        in this package) and dropped the handle even when ``self._pty.close()``
+        itself raised. A still-live child is now signalled via ``terminate``
+        (mirroring :meth:`signal`) and given a bounded wait before the
+        handle is released, and the handle reference is cleared only in a
+        ``finally`` so it is never leaked even if the underlying close call
+        raises.
+        """
+
+        if self._pty is None:
+            return
+        try:
+            with contextlib.suppress(Exception):
+                if self._pty.isalive():
+                    with contextlib.suppress(Exception):
+                        self._pty.terminate(force=True)
+                    deadline = time.monotonic() + 5
+                    while self._pty.isalive() and time.monotonic() < deadline:
+                        time.sleep(0.01)
             with contextlib.suppress(Exception):
                 self._pty.close()
+        finally:
             self._pty = None
 
 

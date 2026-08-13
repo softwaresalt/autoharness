@@ -134,10 +134,20 @@ class SessionJournal:
         ensure_ignored(self.workspace_root, _SESSIONS_RELATIVE.as_posix())
 
         if self.journal_path.exists() and self.journal_path.stat().st_size > 0:
-            self._next_seq = read_cursor(self.journal_path) + 1
             self._terminate_truncated_trailing_line()
-            self._initialized = True
-            return
+            last_seq = read_cursor(self.journal_path)
+            if last_seq >= 0:
+                self._next_seq = last_seq + 1
+                self._initialized = True
+                return
+            # 128-S review remediation: the file is non-empty but contains
+            # NO valid seq-bearing record at all -- e.g. a crash during the
+            # very first header write left only a corrupt fragment (already
+            # isolated onto its own line above). Treat this identically to
+            # a brand-new journal and fall through to write a proper
+            # schema-versioned header at seq 0, rather than silently
+            # skipping the header and letting the first real event claim
+            # seq 0 without one ever having been written.
 
         header = {
             "schema_version": SCHEMA_VERSION,

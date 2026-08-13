@@ -11,6 +11,7 @@ CANCELLING -> CANCELLED transition remains illegal (negative control reusing
 
 from __future__ import annotations
 
+import signal as signal_module
 import tempfile
 import unittest
 from pathlib import Path
@@ -508,6 +509,124 @@ class CancelSessionLockReleaseOnExceptionRegressionTests(unittest.TestCase):
             cancel_session(machine, child=_BoomChild(), lock=lock, reason="boom")
 
         self.assertEqual(lock.release_calls, 1)
+
+
+class RestartConfirmCallbackRaisesFailsClosedTests(unittest.TestCase):
+    """128-S review remediation (round 3): a ``confirm_restart`` callback
+    that RAISES (e.g. an unavailable approval channel) must be treated
+    identically to an explicit decline -- never left to propagate and
+    strand the session in RESTARTING with the lock un-released. The plan's
+    non-interactive-approval contract requires "never auto-approve", and an
+    ambiguous (exception) outcome must fail closed toward NOT approving.
+    """
+
+    def test_confirm_restart_exception_drains_to_failed_and_releases_lock(self) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+        lock = _CountingLock()
+
+        def _raising_confirm() -> bool:
+            raise RuntimeError("approval channel unavailable")
+
+        controller = RestartController(max_restarts=3, confirm_restart=_raising_confirm)
+
+        result_phase = controller.attempt(machine, lock=lock)
+
+        self.assertEqual(result_phase, Phase.FAILED)
+        self.assertNotEqual(result_phase, Phase.RESTARTING)
+        self.assertEqual(lock.release_calls, 1)
+
+    def test_confirm_restart_exception_does_not_consume_budget(self) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+
+        def _raising_confirm() -> bool:
+            raise RuntimeError("approval channel unavailable")
+
+        controller = RestartController(max_restarts=3, confirm_restart=_raising_confirm)
+        controller.attempt(machine)
+
+        self.assertEqual(controller.attempts_used, 0)
+
+
+class ApprovedRestartTerminatesOldChildTests(unittest.TestCase):
+    """128-S review remediation (round 3): an APPROVED restart must
+    terminate the old (still-live) child BEFORE the machine returns to
+    LAUNCHING -- otherwise a still-running previous child can continue
+    alongside whatever the caller launches next, mirroring the exhaustion
+    branch's cleanup contract but proceeding to LAUNCHING instead of
+    draining to FAILED.
+    """
+
+    def test_approved_restart_signals_and_closes_old_child(self) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+        old_child = FakeChildProcess(argv=("old",))
+        old_child.spawn()
+        controller = RestartController(
+            max_restarts=3,
+            confirm_restart=lambda: True,
+            sleep_fn=lambda _delay: None,
+        )
+
+        result_phase = controller.attempt(machine, child=old_child, reason="crash-loop")
+
+        self.assertEqual(result_phase, Phase.LAUNCHING)
+        self.assertIn(signal_module.SIGTERM, old_child.signals_received)
+        self.assertTrue(old_child.closed)
+
+    def test_approved_restart_tolerates_already_exited_old_child(self) -> None:
+        class _AlreadyExitedChild:
+            def signal(self, sig: int) -> None:
+                raise ProcessLookupError("already exited")
+
+            def close(self) -> None:
+                raise ProcessLookupError("already exited")
+
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+        controller = RestartController(
+            max_restarts=3,
+            confirm_restart=lambda: True,
+            sleep_fn=lambda _delay: None,
+        )
+
+        # Must NOT raise: an already-exited old child is an expected race.
+        result_phase = controller.attempt(machine, child=_AlreadyExitedChild())
+
+        self.assertEqual(result_phase, Phase.LAUNCHING)
 
 
 if __name__ == "__main__":

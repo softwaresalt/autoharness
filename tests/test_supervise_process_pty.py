@@ -112,6 +112,43 @@ class RealPtyExitCodeFidelityTests(unittest.TestCase):
         with self.assertRaises(ChildProcessError):
             _os.waitpid(pid, _os.WNOHANG)
 
+    def test_close_does_not_sigkill_after_childprocesserror_from_wait(self) -> None:
+        """128-S review remediation (round 3): ChildProcessError from
+        ``wait()`` means this PID is no longer OUR waitable child (already
+        reaped by something else) -- NOT that it is still running. close()
+        must not conflate this with TimeoutError and send SIGKILL to a bare
+        PID number that the OS may have already reused for an unrelated
+        process.
+        """
+
+        proc = PtyChildProcess([_PY, "-c", "pass"])
+        proc.spawn()
+        proc._pid = 999999  # noqa: SLF001 - simulate an already-reaped PID
+        proc._exit_code = None
+
+        kill_calls: list[tuple[int, int]] = []
+        real_kill = __import__("os").kill
+
+        def _fake_kill(pid: int, sig: int) -> None:
+            kill_calls.append((pid, sig))
+            if pid == 999999:
+                raise ProcessLookupError("no such process")
+            real_kill(pid, sig)
+
+        def _fake_wait(timeout=None):  # noqa: ANN001
+            raise ChildProcessError("no such waitable child")
+
+        with unittest.mock.patch("os.kill", side_effect=_fake_kill):
+            with unittest.mock.patch.object(proc, "wait", side_effect=_fake_wait):
+                proc.close()
+
+        # SIGTERM was attempted once; SIGKILL must NEVER have been sent,
+        # since ChildProcessError is not evidence the child is still alive.
+        import signal as _signal
+
+        sigkill_calls = [c for c in kill_calls if c[1] == _signal.SIGKILL]
+        self.assertEqual(sigkill_calls, [])
+
 
 class GuardedImportAvailabilityTests(unittest.TestCase):
     def test_pty_module_unavailable_signals_unavailable_not_raise(self) -> None:
@@ -157,6 +194,58 @@ class WinPtyExitStatusFidelityTests(unittest.TestCase):
         proc._pty = fake_pty  # noqa: SLF001 - test introspection only
 
         self.assertEqual(proc.wait(), 42)
+
+
+class WinPtyCloseTerminatesLiveChildTests(unittest.TestCase):
+    """128-S review remediation (round 3): close() must terminate/wait for
+    a still-alive child before releasing the handle, mirroring every other
+    backend's close() in this package, and must never leak the handle
+    reference even if the underlying close() call raises.
+    """
+
+    def test_close_terminates_and_waits_for_live_child_before_closing(self) -> None:
+        from autoharness.supervise.process_pty import WinPtyChildProcess
+
+        alive_sequence = [True, True, False]
+        fake_pty = unittest.mock.MagicMock()
+        fake_pty.isalive.side_effect = lambda: alive_sequence.pop(0) if alive_sequence else False
+
+        proc = WinPtyChildProcess([_PY, "-c", "pass"])
+        proc._pty = fake_pty  # noqa: SLF001 - test introspection only
+
+        proc.close()
+
+        fake_pty.terminate.assert_called_once_with(force=True)
+        fake_pty.close.assert_called_once()
+        self.assertIsNone(proc._pty)  # noqa: SLF001 - test introspection only
+
+    def test_close_clears_handle_even_when_underlying_close_raises(self) -> None:
+        from autoharness.supervise.process_pty import WinPtyChildProcess
+
+        fake_pty = unittest.mock.MagicMock()
+        fake_pty.isalive.return_value = False
+        fake_pty.close.side_effect = RuntimeError("boom")
+
+        proc = WinPtyChildProcess([_PY, "-c", "pass"])
+        proc._pty = fake_pty  # noqa: SLF001 - test introspection only
+
+        proc.close()  # must not raise
+
+        self.assertIsNone(proc._pty)  # noqa: SLF001 - test introspection only
+
+    def test_close_on_already_dead_child_never_calls_terminate(self) -> None:
+        from autoharness.supervise.process_pty import WinPtyChildProcess
+
+        fake_pty = unittest.mock.MagicMock()
+        fake_pty.isalive.return_value = False
+
+        proc = WinPtyChildProcess([_PY, "-c", "pass"])
+        proc._pty = fake_pty  # noqa: SLF001 - test introspection only
+
+        proc.close()
+
+        fake_pty.terminate.assert_not_called()
+        fake_pty.close.assert_called_once()
 
 
 if __name__ == "__main__":

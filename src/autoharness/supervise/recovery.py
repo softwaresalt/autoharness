@@ -202,7 +202,19 @@ class RestartController:
 
         machine.transition(Phase.RESTARTING)
 
-        if self.remaining_budget <= 0 or not self.confirm_restart():
+        # Fail-closed confirmation (128-S review remediation): the plan's
+        # non-interactive-approval contract requires this callback to
+        # "never auto-approve" -- a callback that RAISES (e.g. an
+        # unavailable approval channel) must be treated identically to an
+        # explicit decline, not left to propagate and strand the session in
+        # RESTARTING with the lock never released. Any exception here is
+        # therefore equivalent to ``confirm_restart() -> False``.
+        try:
+            confirmed = self.confirm_restart()
+        except Exception:
+            confirmed = False
+
+        if self.remaining_budget <= 0 or not confirmed:
             lock_released = False
             try:
                 if journal is not None:
@@ -232,6 +244,25 @@ class RestartController:
                 if lock is not None and not lock_released:
                     lock.release()
             return machine.phase
+
+        # Approved restart (128-S review remediation): the OLD child (if
+        # still live) must be terminated BEFORE the machine returns to
+        # LAUNCHING, mirroring the exhaustion branch's cleanup above.
+        # Without this, a still-running previous child can continue
+        # alongside whatever the caller launches next, in direct
+        # contradiction of "budget exhaustion drains ... and NEVER loops" --
+        # the approved path is not exempt from the same every-restart
+        # cleanup contract, it simply proceeds to LAUNCHING afterward
+        # instead of draining to FAILED.
+        if child is not None:
+            try:
+                child.signal(signal_num)
+            except ProcessLookupError:
+                pass  # child already exited/reaped -- nothing left to signal
+            try:
+                child.close()
+            except ProcessLookupError:
+                pass  # child already exited/reaped -- nothing left to close
 
         delay = self.backoff_delay(self.attempts_used)
         self.sleep_fn(delay)

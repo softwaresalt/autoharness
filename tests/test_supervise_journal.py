@@ -112,6 +112,44 @@ class CrashMidWriteRecoveryTests(unittest.TestCase):
             self.assertEqual(last_record["seq"], new_seq)
             self.assertEqual(json.loads(lines[-1])["reason"], "b")
 
+    def test_crash_during_initial_header_write_still_gets_a_valid_header(self) -> None:
+        """128-S review remediation (round 3): a crash during the VERY
+        FIRST write (the schema header itself) leaves a non-empty file with
+        NO valid seq-bearing record at all. ``read_cursor`` correctly
+        returns -1 for this, but the resume path must not treat "file
+        exists and is non-empty" as "already initialized, header already
+        written" -- a proper schema header must still be written at seq 0,
+        exactly as a brand-new journal would get, rather than letting the
+        next real event silently claim seq 0 without a header ever having
+        existed.
+        """
+
+        with tempfile.TemporaryDirectory() as workspace:
+            journal = SessionJournal(workspace, session_id="s1")
+            # Simulate a crash mid-write of the header itself: a corrupt,
+            # non-newline-terminated fragment with no valid "seq" at all.
+            journal.session_dir.mkdir(parents=True, exist_ok=True)
+            journal.journal_path.write_text('{"schema_versio', encoding="utf-8")
+
+            self.assertEqual(read_cursor(journal.journal_path), -1)
+
+            new_seq = journal.append_event(ChildOutputUnavailable(reason="after-crash"))
+
+            lines = journal.journal_path.read_text(encoding="utf-8").splitlines()
+            # The corrupt fragment is preserved (isolated onto its own
+            # line), but a proper header now exists at seq 0.
+            self.assertIn('{"schema_versio', lines)
+            header_lines = [
+                json.loads(line)
+                for line in lines
+                if line != '{"schema_versio' and json.loads(line).get("kind") == "header"
+            ]
+            self.assertEqual(len(header_lines), 1)
+            self.assertEqual(header_lines[0]["seq"], 0)
+            # The real event was appended after the (newly written) header,
+            # not claiming seq 0 itself.
+            self.assertEqual(new_seq, 1)
+
 
 class CursorResumeTests(unittest.TestCase):
     def test_fresh_instance_continues_seq_after_simulated_crash(self) -> None:
