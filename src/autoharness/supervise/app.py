@@ -235,6 +235,35 @@ def _start_pty_pumps(child: ChildProcess, emit: Callable[[Any], None]) -> None:
     threading.Thread(target=_pump_operator_input, args=(child,), daemon=True).start()
 
 
+def _close_child_before_lock_release(child: Optional[ChildProcess]) -> None:
+    """Best-effort, idempotent child termination.
+
+    Reviewer-flagged gap (P-018 Copilot review, PR #331, comment
+    3777958619): both top-level failure handlers in :func:`run_session`
+    previously released the workspace lock directly in the ``except``
+    block, deferring child termination to a module-level ``finally`` that
+    always runs strictly AFTER that release. A supervisor failure
+    occurring any time after ``child.spawn()`` (for example, while
+    journaling ``ChildSpawned``, or inside sidecar/resolve bookkeeping)
+    could therefore free the lock while the just-spawned Copilot child was
+    still alive -- letting a second supervisor invocation acquire the lock
+    and launch a concurrent session against the same workspace. Both
+    failure handlers now call this directly, BEFORE releasing the lock;
+    the trailing ``finally`` retains its own call purely as an idempotent
+    fallback for any return path added later without the same discipline.
+    Every backend's own ``close()`` is already idempotent and
+    terminate-then-reap (SIGTERM, bounded wait, SIGKILL fallback for the
+    real backends), so calling it twice is safe.
+    """
+
+    if child is None:
+        return
+    try:
+        child.close()
+    except Exception:  # noqa: BLE001 - best-effort resource cleanup only
+        pass
+
+
 def _build_approval_requested_event(identifier: str) -> ApprovalRequested:
     """Build the ``ApprovalRequested`` event for gated action ``identifier``.
 
@@ -486,6 +515,7 @@ def run_session(
     except AutoharnessError as exc:
         if machine.phase not in (Phase.EXITED, Phase.FAILED, Phase.REFUSED, Phase.CANCELLED):
             _fail_closed_drain(machine, _emit)
+        _close_child_before_lock_release(child)
         if lock_held_by_us:
             lock.release()
             lock_held_by_us = False
@@ -493,16 +523,17 @@ def run_session(
     except Exception as exc:  # noqa: BLE001 - top-level fail-closed boundary (H2)
         if machine.phase not in (Phase.EXITED, Phase.FAILED, Phase.REFUSED, Phase.CANCELLED):
             _fail_closed_drain(machine, _emit)
+        _close_child_before_lock_release(child)
         if lock_held_by_us:
             lock.release()
             lock_held_by_us = False
         return _result("failed", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN], (str(exc),))
     finally:
-        if child is not None:
-            try:
-                child.close()
-            except Exception:  # noqa: BLE001 - best-effort resource cleanup only
-                pass
+        # Idempotent fallback only -- see _close_child_before_lock_release's
+        # own docstring (P-018 Copilot review finding, PR #331, comment
+        # 3777958619): both failure paths above already close the child
+        # BEFORE releasing the workspace lock.
+        _close_child_before_lock_release(child)
         if _environ_mutated:
             # Restore the caller's pre-call environment verbatim so any
             # bootstrap-resolved secret (e.g. a GitHub token) never outlives

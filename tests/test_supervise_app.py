@@ -920,5 +920,73 @@ class StartPtyPumpsTests(unittest.TestCase):
         self.assertEqual(out.getvalue(), "hi\n")
 
 
+class ChildTerminationOrderingTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
+    """P-018 Copilot review finding (PR #331, comment 3777958619): a
+    supervisor failure occurring after ``child.spawn()`` previously
+    released the workspace lock in the ``except`` block BEFORE the
+    module-level ``finally`` terminated the child -- letting another
+    supervisor invocation acquire the lock while the old Copilot child was
+    still alive. Proves the child is now closed BEFORE the lock is
+    released on a post-spawn failure path.
+    """
+
+    def test_child_is_closed_before_lock_is_released_on_post_spawn_failure(self) -> None:
+        order: list[str] = []
+
+        class _OrderRecordingChild:
+            supports_output_capture = False
+            pid = 4321
+
+            def spawn(self) -> None:
+                pass
+
+            def read(self) -> Optional[str]:
+                return None
+
+            def write(self, data: bytes) -> None:
+                pass
+
+            def signal(self, sig: int) -> None:
+                pass
+
+            def wait(self, timeout: Optional[float] = None) -> int:
+                # Simulates a failure occurring after the child has spawned
+                # (e.g. journaling/bookkeeping raising), which the
+                # module-level `except Exception` boundary must catch.
+                raise RuntimeError("simulated post-spawn failure")
+
+            def close(self) -> None:
+                order.append("child_close")
+
+        class _OrderRecordingLock:
+            def __init__(self) -> None:
+                self.session_id = "order-test-session"
+
+            def acquire(self) -> "_OrderRecordingLock":
+                return self
+
+            def release(self) -> None:
+                order.append("lock_release")
+
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+
+            result = run_session(
+                workspace_root=workspace_root,
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                lock_factory=lambda root, session_id: _OrderRecordingLock(),
+                child_process_factory=lambda argv: _OrderRecordingChild(),
+                **_sidecar_kwargs(),
+            )
+
+        self.assertEqual(result.status, "failed")
+        # The child must be closed (terminated) strictly BEFORE the lock is
+        # released -- never the reverse -- on every failure path.
+        self.assertGreaterEqual(len(order), 2)
+        self.assertEqual(order[0], "child_close")
+        self.assertEqual(order[1], "lock_release")
+
+
 if __name__ == "__main__":
     unittest.main()
