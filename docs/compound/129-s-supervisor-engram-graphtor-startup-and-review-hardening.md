@@ -6,7 +6,7 @@ tags: [supervise, engram, graphtor-docs, mcp, redaction, concurrency, pid-reuse,
 shipment: 129-S
 feature: 120-F
 pr: 331
-correction_pr: null
+correction_pr: 334
 ---
 
 # 129-S: Supervisor Engram/graphtor-docs Startup Defect + 8-Round Review Hardening

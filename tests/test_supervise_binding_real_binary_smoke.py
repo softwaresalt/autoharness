@@ -82,20 +82,36 @@ def _kill_processes_matching(executable_name: str, path_marker: str) -> None:
     operator's own real workspace path. Failures are logged, never raised.
     """
 
+    def _escape_single_quoted(value: str) -> str:
+        # PowerShell single-quoted string literal escaping: a literal `'`
+        # is escaped by doubling it (`''`). `path_marker` derives from an
+        # OS temp-directory path, which is environment-controlled (e.g. a
+        # `TEMP`/`TMP` override or a username containing an apostrophe)
+        # and must never be interpolated into a single-quoted PowerShell
+        # literal unescaped -- an unescaped apostrophe would break the
+        # literal and could allow injection of additional PowerShell
+        # statements.
+        return value.replace("'", "''")
+
     script = (
         "Get-CimInstance Win32_Process -Filter \"Name='"
-        f"{executable_name}'\" | Where-Object {{ $_.CommandLine -and "
-        f"$_.CommandLine.Contains('{path_marker}') }} | ForEach-Object {{ "
+        f"{_escape_single_quoted(executable_name)}'\" | Where-Object {{ $_.CommandLine -and "
+        f"$_.CommandLine.Contains('{_escape_single_quoted(path_marker)}') }} | ForEach-Object {{ "
         "Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
     )
     try:
-        subprocess.run(
+        result = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
             capture_output=True,
             text=True,
             timeout=30,
             shell=False,
         )
+        if result.returncode != 0:
+            warnings.warn(
+                f"real-binary smoke cleanup for {executable_name!r} exited "
+                f"{result.returncode}: {result.stderr!r}"
+            )
     except (OSError, subprocess.SubprocessError) as exc:  # pragma: no cover - best-effort cleanup
         warnings.warn(f"real-binary smoke cleanup for {executable_name!r} failed: {exc!r}")
 
@@ -234,19 +250,22 @@ class RealGraphtorDocsWorkspaceBindingTests(unittest.TestCase):
             env["GRAPHTOR_DB_PATH"] = str(db_path)
             env["GRAPHTOR_SOURCES"] = str(sources_path)
 
-            _returncode, stdout_text, _stderr_text = _run_bounded(
-                ["graphtor-docs", "--json", "status"],
-                env=env,
-                cwd=str(workspace_root),
-                timeout=30,
-            )
-            payload = json.loads(stdout_text)
-            self.assertNotIn(
-                "error",
-                payload,
-                "graphtor-docs must accept GRAPHTOR_DB_PATH/GRAPHTOR_SOURCES "
-                "that resolve inside the cwd-derived workspace root",
-            )
+            try:
+                _returncode, stdout_text, _stderr_text = _run_bounded(
+                    ["graphtor-docs", "--json", "status"],
+                    env=env,
+                    cwd=str(workspace_root),
+                    timeout=30,
+                )
+                payload = json.loads(stdout_text)
+                self.assertNotIn(
+                    "error",
+                    payload,
+                    "graphtor-docs must accept GRAPHTOR_DB_PATH/GRAPHTOR_SOURCES "
+                    "that resolve inside the cwd-derived workspace root",
+                )
+            finally:
+                _kill_processes_matching("graphtor-docs.exe", str(workspace_root))
 
     def test_status_rejects_env_paths_outside_cwd_workspace_root(self) -> None:
         # Documents/proves the constraint that motivates deriving both
@@ -271,15 +290,18 @@ class RealGraphtorDocsWorkspaceBindingTests(unittest.TestCase):
             env["GRAPHTOR_DB_PATH"] = str(outside_db_path)
             env.pop("GRAPHTOR_SOURCES", None)
 
-            _returncode, stdout_text, _stderr_text = _run_bounded(
-                ["graphtor-docs", "--json", "status"],
-                env=env,
-                cwd=str(cwd_root),
-                timeout=30,
-            )
-            payload = json.loads(stdout_text)
-            self.assertIn("error", payload)
-            self.assertEqual(payload["error"].get("data", {}).get("category"), "path_violation")
+            try:
+                _returncode, stdout_text, _stderr_text = _run_bounded(
+                    ["graphtor-docs", "--json", "status"],
+                    env=env,
+                    cwd=str(cwd_root),
+                    timeout=30,
+                )
+                payload = json.loads(stdout_text)
+                self.assertIn("error", payload)
+                self.assertEqual(payload["error"].get("data", {}).get("category"), "path_violation")
+            finally:
+                _kill_processes_matching("graphtor-docs.exe", str(cwd_root))
 
 
 if __name__ == "__main__":

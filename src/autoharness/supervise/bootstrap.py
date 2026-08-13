@@ -128,8 +128,11 @@ class BootstrapResult:
             :func:`_apply_binding_env`.
         warnings: Human-readable non-fatal warnings (variable NAMES and
             status only -- never a raw secret value; a binding-variable
-            override warning includes filesystem-path values only, which
-            are ordinary workspace diagnostics, never secrets).
+            override warning names the variable and the new authoritative
+            (trusted, workspace-derived) value only -- the untrusted preset
+            value being overridden is never echoed, since it is arbitrary
+            ambient/`.env.local` input, not guaranteed to be a filesystem
+            path).
         messages: Human-readable informational messages.
     """
 
@@ -417,17 +420,23 @@ def _apply_binding_env(
     independent of `.mcp.json` or ``cwd``.
 
     A preset value that differs from the authoritative one is recorded as
-    a warning naming the variable and both values (ordinary workspace
-    diagnostics -- these are always filesystem paths, never secrets) so an
-    operator can see precisely when and why an ambient/`.env.local` value
-    was overridden, rather than the override happening silently.
+    a warning naming the variable and the action taken. The PRESET value
+    is deliberately NEVER echoed: unlike the authoritative value (always
+    derived from the trusted, supervisor-resolved ``workspace_root``), a
+    preset value is untrusted input sourced from the ambient process
+    environment or an arbitrary `.env.local` file and is not guaranteed to
+    be a filesystem path -- emitting it verbatim would bypass the
+    supervisor's redaction choke point and could disclose a secret-shaped
+    or otherwise sensitive value through CLI/JSON warning output. Only the
+    variable NAME and the new authoritative value (always a trusted,
+    workspace-derived path) are logged.
     """
 
     for name, authoritative_value in _resolve_binding_env(workspace_root).items():
         preset_value = working_env.get(name)
         if preset_value is not None and preset_value != authoritative_value:
             warnings.append(
-                f"{name}: overriding ambient/.env.local value {preset_value!r} with "
+                f"{name}: overriding a preset value (untrusted input, not logged) with "
                 f"authoritative workspace binding {authoritative_value!r} "
                 "(explicit --workspace target always wins for binding variables)"
             )

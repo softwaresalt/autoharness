@@ -491,9 +491,13 @@ class RuntimeBindingEnvTests(unittest.TestCase):
             self.assertNotIn("BACKLOGIT_WORKSPACE", result.env)
 
     def test_binding_vars_do_not_leak_a_secret_shaped_warning(self) -> None:
-        # These three variables are always plain filesystem paths, never
-        # secrets -- overriding-value warnings must remain safe to log
-        # verbatim (ordinary workspace diagnostics, H5-safe).
+        # These three variables' AUTHORITATIVE values are always plain
+        # filesystem paths derived from the trusted workspace_root, never
+        # secrets -- but the PRESET value being overridden is untrusted
+        # input (arbitrary ambient env or `.env.local` content) and must
+        # NEVER be echoed verbatim in a warning: doing so would bypass the
+        # supervisor's redaction choke point for a value that might not
+        # even be a filesystem path (H5-safe).
         with tempfile.TemporaryDirectory() as workspace, tempfile.TemporaryDirectory() as other_workspace:
             root = Path(workspace)
             stale_value = str(Path(other_workspace).resolve())
@@ -505,7 +509,8 @@ class RuntimeBindingEnvTests(unittest.TestCase):
             binding_warnings = [w for w in result.warnings if "ENGRAM_WORKSPACE" in w]
             self.assertTrue(binding_warnings)
             for warning in binding_warnings:
-                self.assertIn(repr(stale_value), warning)
+                self.assertNotIn(stale_value, warning)
+                self.assertIn(repr(result.env["ENGRAM_WORKSPACE"]), warning)
                 self.assertNotIn("TOKEN", warning.upper())
                 self.assertNotIn("SECRET", warning.upper())
 
