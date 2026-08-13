@@ -3,7 +3,7 @@ shipment: 128-S
 feature: 119-F
 tasks: [119.001-T, 119.002-T, 119.003-T, 119.004-T, 119.005-T, 119.006-T]
 feature_pr: 328
-closure_pr: null
+closure_pr: 329
 merge_commit: 915923c25453739b6da955fe247bd4b38a11e830
 merged_at: "2026-08-13T05:17:14Z"
 reviewed_head: 06c280bd645332112b4608826c920219fbe23e11
