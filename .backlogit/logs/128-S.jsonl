@@ -1,2 +1,6 @@
 {"timestamp":"2026-08-10T01:13:30.0643668-07:00","actor":"backlogit","item_id":"128-S","event_type":"shipment_created","delta":{"items":["119-F","119.001-T","119.002-T","119.003-T","119.004-T","119.005-T","119.006-T"],"title":"S2 Copilot supervisor: supervision core library, unwired (P0)"}}
 {"timestamp":"2026-08-12T20:10:57.472963-07:00","actor":"backlogit","item_id":"128-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-12T22:26:03.7639265-07:00","actor":"backlogit","item_id":"128-S","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-08-12T22:26:09.0980155-07:00","actor":"backlogit","item_id":"128-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-08-12T22:26:14.3239635-07:00","actor":"backlogit","item_id":"128-S","event_type":"commit_tracked","delta":{"author":"","commit_sha":"915923c25453739b6da955fe247bd4b38a11e830","message":""}}
+{"timestamp":"2026-08-12T22:27:10.321664-07:00","actor":"backlogit","item_id":"128-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/128-S.md"}}
