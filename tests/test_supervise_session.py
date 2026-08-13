@@ -72,12 +72,16 @@ class LegalEdgeTests(unittest.TestCase):
         (Phase.LOCKING, Phase.REFUSED),
         (Phase.BOOTSTRAPPING, Phase.PREFLIGHT),
         (Phase.BOOTSTRAPPING, Phase.CANCELLING),
+        (Phase.BOOTSTRAPPING, Phase.DRAINING),
         (Phase.PREFLIGHT, Phase.RESOLVING),
         (Phase.PREFLIGHT, Phase.CANCELLING),
+        (Phase.PREFLIGHT, Phase.DRAINING),
         (Phase.RESOLVING, Phase.LAUNCHING),
         (Phase.RESOLVING, Phase.CANCELLING),
+        (Phase.RESOLVING, Phase.DRAINING),
         (Phase.LAUNCHING, Phase.RUNNING),
         (Phase.LAUNCHING, Phase.CANCELLING),
+        (Phase.LAUNCHING, Phase.DRAINING),
         (Phase.RUNNING, Phase.DRAINING),
         (Phase.RUNNING, Phase.CANCELLING),
         (Phase.RUNNING, Phase.RESTARTING),
@@ -219,6 +223,74 @@ class TerminalDivergenceTests(unittest.TestCase):
             complete_machine.transition(step)
 
         self.assertNotEqual(cancel_machine.phase, complete_machine.phase)
+
+
+class PreRunningDirectFailureEdgeTests(unittest.TestCase):
+    """Regression tests for the P0 fix (128-S closure-PR review): each
+    pre-RUNNING, failure-capable phase must be able to reach FAILED via a
+    DIRECT edge to DRAINING, without being misrouted through CANCELLING
+    (which represents an operator-initiated cancellation, not a failure).
+    """
+
+    PRE_RUNNING_PHASES = (
+        Phase.BOOTSTRAPPING,
+        Phase.PREFLIGHT,
+        Phase.RESOLVING,
+        Phase.LAUNCHING,
+    )
+
+    def _path_to(self, target_source: Phase) -> list[Phase]:
+        queue = deque([(Phase.INIT, [Phase.INIT])])
+        seen = {Phase.INIT}
+        while queue:
+            current, path = queue.popleft()
+            if current == target_source:
+                return path
+            for nxt in LEGAL_TRANSITIONS.get(current, frozenset()):
+                if nxt not in seen:
+                    seen.add(nxt)
+                    queue.append((nxt, path + [nxt]))
+        raise AssertionError(f"no path from INIT to {target_source}")
+
+    def test_each_pre_running_phase_reaches_failed_without_cancelling(self) -> None:
+        for phase in self.PRE_RUNNING_PHASES:
+            with self.subTest(phase=phase):
+                path = self._path_to(phase)
+                machine = SessionStateMachine()
+                for step in path[1:]:
+                    machine.transition(step)
+                self.assertEqual(machine.phase, phase)
+                # Direct failure edge: <phase> -> DRAINING -> FAILED, with
+                # CANCELLING never entered.
+                machine.transition(Phase.DRAINING)
+                machine.transition(Phase.FAILED)
+                self.assertEqual(machine.phase, Phase.FAILED)
+
+    def test_pre_running_direct_draining_edge_is_distinct_from_cancellation_path(
+        self,
+    ) -> None:
+        # The cancellation path (<phase> -> CANCELLING -> DRAINING ->
+        # CANCELLED) and the direct-failure path (<phase> -> DRAINING ->
+        # FAILED) both remain legal and reach DIFFERENT terminal states,
+        # proving the fix does not conflate a failure with a cancellation.
+        for phase in self.PRE_RUNNING_PHASES:
+            with self.subTest(phase=phase):
+                path = self._path_to(phase)
+
+                cancel_machine = SessionStateMachine()
+                for step in path[1:]:
+                    cancel_machine.transition(step)
+                cancel_machine.transition(Phase.CANCELLING)
+                cancel_machine.transition(Phase.DRAINING)
+                cancel_machine.transition(Phase.CANCELLED)
+
+                fail_machine = SessionStateMachine()
+                for step in path[1:]:
+                    fail_machine.transition(step)
+                fail_machine.transition(Phase.DRAINING)
+                fail_machine.transition(Phase.FAILED)
+
+                self.assertNotEqual(cancel_machine.phase, fail_machine.phase)
 
 
 class GraphPropertyTests(unittest.TestCase):

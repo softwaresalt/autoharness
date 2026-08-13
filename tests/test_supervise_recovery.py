@@ -491,7 +491,10 @@ class CancelSessionLockReleaseOnExceptionRegressionTests(unittest.TestCase):
             def signal(self, sig: int) -> None:
                 raise RuntimeError("boom")
 
-            def close(self) -> None:  # pragma: no cover - not reached
+            def close(self) -> None:
+                # Reached by the P0 best-effort finally-cleanup fix
+                # (128-S closure-PR review): exception-swallowing, so this
+                # raising close() must not mask the original RuntimeError.
                 raise NotImplementedError
 
         machine = SessionStateMachine()
@@ -508,6 +511,156 @@ class CancelSessionLockReleaseOnExceptionRegressionTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             cancel_session(machine, child=_BoomChild(), lock=lock, reason="boom")
 
+        self.assertEqual(lock.release_calls, 1)
+
+
+class CancelSessionBestEffortCleanupBeforeExceptionalReleaseTests(unittest.TestCase):
+    """Regression tests for the P0 fix (128-S closure-PR review, correcting
+    a prior mis-triaged-as-false-positive finding): if an exception is
+    raised BEFORE the happy-path child cleanup runs (e.g. ``journal``'s
+    ``CancelRequested`` append, or the ``CANCELLING`` transition itself),
+    ``cancel_session``'s ``finally`` block must make a best-effort attempt
+    at ``child.signal()``/``child.close()`` BEFORE releasing the lock --
+    releasing an unattempted lock while a still-live child goes untouched
+    would let a second supervised session start concurrently against the
+    same workspace.
+    """
+
+    class _RaisingJournal:
+        def append_event(self, event) -> None:
+            raise RuntimeError("journal append boom")
+
+    class _TrackingChild:
+        def __init__(self) -> None:
+            self.signal_calls = 0
+            self.close_calls = 0
+
+        def signal(self, sig: int) -> None:
+            self.signal_calls += 1
+
+        def close(self) -> None:
+            self.close_calls += 1
+
+    def test_child_cleanup_attempted_before_lock_release_when_journal_raises(
+        self,
+    ) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+        )
+        lock = _CountingLock()
+        child = self._TrackingChild()
+
+        with self.assertRaises(RuntimeError):
+            cancel_session(
+                machine,
+                child=child,
+                journal=self._RaisingJournal(),
+                lock=lock,
+                reason="journal-raises-before-cleanup",
+            )
+
+        # The happy-path cleanup never ran (journal append raised first),
+        # but the finally-block best-effort cleanup must still have
+        # attempted to signal/close the child before the lock was released.
+        self.assertEqual(child.signal_calls, 1)
+        self.assertEqual(child.close_calls, 1)
+        self.assertEqual(lock.release_calls, 1)
+
+    def test_best_effort_cleanup_exceptions_do_not_mask_original_exception(
+        self,
+    ) -> None:
+        class _AlwaysRaisingChild:
+            def signal(self, sig: int) -> None:
+                raise OSError("signal also fails")
+
+            def close(self) -> None:
+                raise OSError("close also fails")
+
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+        )
+        lock = _CountingLock()
+
+        with self.assertRaises(RuntimeError) as ctx:
+            cancel_session(
+                machine,
+                child=_AlwaysRaisingChild(),
+                journal=self._RaisingJournal(),
+                lock=lock,
+                reason="both-raise",
+            )
+
+        # The ORIGINAL journal-append exception must propagate, not one of
+        # the best-effort cleanup's swallowed OSErrors.
+        self.assertEqual(str(ctx.exception), "journal append boom")
+        self.assertEqual(lock.release_calls, 1)
+
+
+class RestartExhaustionBestEffortCleanupBeforeExceptionalReleaseTests(unittest.TestCase):
+    """Same P0 fix, applied to :meth:`RestartController.attempt`'s
+    exhaustion/decline branch (the same finally-block pattern, per the
+    finding that also cited this branch)."""
+
+    class _RaisingJournal:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def append_event(self, event) -> None:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("restart-exhausted journal boom")
+
+    class _TrackingChild:
+        def __init__(self) -> None:
+            self.signal_calls = 0
+            self.close_calls = 0
+
+        def signal(self, sig: int) -> None:
+            self.signal_calls += 1
+
+        def close(self) -> None:
+            self.close_calls += 1
+
+    def test_child_cleanup_attempted_before_lock_release_on_exhaustion_journal_raise(
+        self,
+    ) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+        lock = _CountingLock()
+        child = self._TrackingChild()
+        controller = RestartController(max_restarts=0)
+
+        with self.assertRaises(RuntimeError):
+            controller.attempt(
+                machine,
+                child=child,
+                journal=self._RaisingJournal(),
+                lock=lock,
+                reason="exhausted",
+            )
+
+        self.assertEqual(child.signal_calls, 1)
+        self.assertEqual(child.close_calls, 1)
         self.assertEqual(lock.release_calls, 1)
 
 
