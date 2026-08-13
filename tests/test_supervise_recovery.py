@@ -335,5 +335,96 @@ class ResumeAfterCrashTests(unittest.TestCase):
             self.assertNotIn("backlogit", name.lower())
 
 
+class CancelSessionLockReleaseOnExceptionRegressionTests(unittest.TestCase):
+    """Regression test for the 128-S code-review P0 finding: ``cancel_session``
+    must release the lock EXACTLY ONCE even when ``child.signal()``/
+    ``child.close()`` raises (a realistic race: the child already exited
+    before cancellation runs). Before the fix, any exception raised before
+    the function's final statement left the lock permanently un-released.
+    """
+
+    class _AlreadyExitedChild:
+        """A child that raises ``ProcessLookupError`` from signal()/close(),
+        simulating a process that exited/was reaped before cancellation ran.
+        """
+
+        def spawn(self) -> None:  # pragma: no cover - not exercised here
+            raise NotImplementedError
+
+        def read(self):  # pragma: no cover - not exercised here
+            return None
+
+        def write(self, data: bytes) -> None:  # pragma: no cover
+            raise NotImplementedError
+
+        def signal(self, sig: int) -> None:
+            raise ProcessLookupError("already exited")
+
+        def wait(self) -> int:  # pragma: no cover - not exercised here
+            return 0
+
+        def close(self) -> None:
+            raise ProcessLookupError("already exited")
+
+        @property
+        def supports_output_capture(self) -> bool:  # pragma: no cover
+            return False
+
+    def test_lock_released_exactly_once_when_child_signal_raises(self) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+        )
+        lock = _CountingLock()
+
+        # Must NOT raise: an already-exited child is an expected race, not a
+        # failure, and cancellation must still reach CANCELLED with the lock
+        # released exactly once.
+        result_phase = cancel_session(
+            machine,
+            child=self._AlreadyExitedChild(),
+            lock=lock,
+            reason="already-exited-race",
+        )
+
+        self.assertEqual(result_phase, Phase.CANCELLED)
+        self.assertEqual(machine.phase, Phase.CANCELLED)
+        self.assertEqual(lock.release_calls, 1)
+
+    def test_lock_released_exactly_once_on_unexpected_exception(self) -> None:
+        """Even a genuinely unexpected exception (not the expected
+        ProcessLookupError race) must not strand the lock: `finally`
+        guarantees release-exactly-once regardless of what raised.
+        """
+
+        class _BoomChild:
+            def signal(self, sig: int) -> None:
+                raise RuntimeError("boom")
+
+            def close(self) -> None:  # pragma: no cover - not reached
+                raise NotImplementedError
+
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+        )
+        lock = _CountingLock()
+
+        with self.assertRaises(RuntimeError):
+            cancel_session(machine, child=_BoomChild(), lock=lock, reason="boom")
+
+        self.assertEqual(lock.release_calls, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

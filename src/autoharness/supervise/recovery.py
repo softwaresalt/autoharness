@@ -76,28 +76,45 @@ def cancel_session(
     Terminates ``child`` (if given) via ``signal()`` then ``close()``,
     journals the cancellation request and the terminal phase transition (if
     ``journal`` is given), and releases ``lock`` EXACTLY ONCE (if given) --
-    after the state machine has reached ``CANCELLED``, never before and
-    never more than once.
+    after the state machine has reached ``CANCELLED`` on the happy path,
+    and on ANY OTHER exception raised anywhere in this function (P0 fix,
+    128-S code review): ``lock.release()`` is guaranteed via ``finally`` so
+    a lock can never be stranded by a raised exception, which would
+    otherwise permanently block every future session from acquiring the
+    guard lock -- worse than a double release. A child that has already
+    exited by the time cancellation runs (a realistic, foreseeable race,
+    e.g. it crashed or was reaped independently) is an EXPECTED outcome,
+    not a failure: ``ProcessLookupError`` from ``child.signal()``/
+    ``child.close()`` is swallowed so the DRAINING gateway and CANCELLED
+    terminal are still reached normally rather than leaving the machine
+    stuck in CANCELLING with the lock never released.
     """
 
-    if journal is not None:
-        journal.append_event(CancelRequested(reason=reason))
+    try:
+        if journal is not None:
+            journal.append_event(CancelRequested(reason=reason))
 
-    if machine.phase is not Phase.CANCELLING:
-        machine.transition(Phase.CANCELLING)
+        if machine.phase is not Phase.CANCELLING:
+            machine.transition(Phase.CANCELLING)
 
-    if child is not None:
-        child.signal(signal_num)
-        child.close()
+        if child is not None:
+            try:
+                child.signal(signal_num)
+            except ProcessLookupError:
+                pass  # child already exited/reaped -- nothing left to signal
+            try:
+                child.close()
+            except ProcessLookupError:
+                pass  # child already exited/reaped -- nothing left to close
 
-    machine.transition(Phase.DRAINING)
-    event: SessionPhaseChanged = machine.transition(Phase.CANCELLED)
+        machine.transition(Phase.DRAINING)
+        event: SessionPhaseChanged = machine.transition(Phase.CANCELLED)
 
-    if journal is not None:
-        journal.append_event(event)
-
-    if lock is not None:
-        lock.release()
+        if journal is not None:
+            journal.append_event(event)
+    finally:
+        if lock is not None:
+            lock.release()
 
     return machine.phase
 
