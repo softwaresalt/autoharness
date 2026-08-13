@@ -8,7 +8,7 @@ merge_commit: 915923c25453739b6da955fe247bd4b38a11e830
 merged_at: "2026-08-13T05:17:14Z"
 reviewed_head: 06c280bd645332112b4608826c920219fbe23e11
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 feature_terminal_status: done
 feature_archived_status: done
 shipment_close_path: cascade
@@ -176,12 +176,21 @@ for `start.ps1`/`start.sh`/existing CLI commands/runtime adapters.
 
 ## Context Compaction (P-020)
 
-- **Status: pending as of this artifact's initial commit** — the
-  mandatory per-merge `compact-context` (`target: all`) invocation is
-  performed later in this same closure branch before the closure PR is
-  presented; this section and the frontmatter `compaction_status` field
-  are updated to `done` in a follow-up commit on this branch once that run
-  completes. See the Closure Tasks section below for the exact sequencing.
+- **Status: done** — mandatory per-merge `compact-context` (`target: all`)
+  invocation performed this session. Candidate identified: this release
+  unit's own just-written session memory (completed-work rule). Bounded
+  Tier-1 consolidation performed: 1 memory file compacted, 0 active
+  checkpoints touched, 0 plans consolidated (none pending for this release
+  unit), 0 additional closure records compacted (none exceeded
+  `threshold_days`).
+- Session memory: written to
+  `docs/memory/2026-08-12-ship-128-S-119-F-session.md`, then moved verbatim
+  to `docs/archive/memory/2026-08-12-ship-128-S-119-F-session.md` as part of
+  this compaction pass.
+- Compacted memory:
+  `docs/memory/compacted/2026-08-12-128S-119F-compacted.md` (decisions,
+  files modified, key learnings/cross-references to the new compound doc,
+  outcomes) — written during this compaction pass.
 
 ## Operational Closure
 
@@ -239,14 +248,16 @@ for `start.ps1`/`start.sh`/existing CLI commands/runtime adapters.
 1. Compound-learning doc:
    `docs/compound/2026-08-12-verify-hosted-review-findings-against-frozen-task-spec.md`
    — **done** (this branch).
-2. This canonical closure artifact (this file) — **done**, updated in a
-   follow-up commit on this branch once compaction completes.
-3. Session memory write + compaction — **done** (this branch), see
-   `docs/memory/2026-08-12-ship-128-S-119-F-session.md` and its compacted
-   form written during the mandatory compaction pass below.
-4. Mandatory P-020 `compact-context` (`target: all`) invocation — run on
-   this branch before the closure PR is presented; outcome recorded here
-   and in the frontmatter once complete.
-5. Closure index resync (`backlogit sync`) — **done**, immediately after
-   the cascade close mutation, and re-run after this branch's closure
+2. This canonical closure artifact (this file) — **done**.
+3. Session memory write + compaction to
+   `docs/memory/compacted/2026-08-12-128S-119F-compacted.md` (verbose
+   original archived to
+   `docs/archive/memory/2026-08-12-ship-128-S-119-F-session.md`) — **done**
+   (this branch).
+4. Mandatory P-020 `compact-context` (`target: all`) invocation — **done**
+   (this branch): 1 memory file compacted (this release unit's own
+   session memory, completed-work rule), 0 active checkpoints touched, 0
+   plans consolidated, 0 additional closure records compacted.
+5. Closure index resync (`backlogit sync`) — **done**, both immediately
+   after the cascade close mutation and again after this branch's closure
    commits.
