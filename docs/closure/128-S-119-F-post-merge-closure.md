@@ -232,12 +232,16 @@ for `start.ps1`/`start.sh`/existing CLI commands/runtime adapters.
 - **Post-close verification**: every task's `parent_id: 119-F` preserved
   unchanged in the archived record (spot-checked `119.001-T`). `119-F`
   archived (status `archived`/`archived_status: done`). `128-S` archived
-  (`status: shipped`). `129-S` confirmed **untouched**, still `status:
-  queued`. `backlogit doctor` run against the real workspace post-close:
-  62 pre-existing `archived_from_self_ref` warnings on unrelated,
-  much-older archived artifacts (`007`-`046` range, predating this
-  shipment) — **zero** findings referencing `119-F`, any `119.00N-T` task,
-  or `128-S`; no new corruption introduced by this closure.
+  (`status: archived`/`archived_status: shipped` — `shipped` is the
+  pre-archive shipment status recorded in the event log, distinct from
+  the post-archive `status: archived` field; both are correct and
+  non-conflicting per the schema, and are kept explicitly distinct here
+  per Copilot review, PR #329). `129-S` confirmed **untouched**, still
+  `status: queued`. `backlogit doctor` run against the real workspace
+  post-close: 62 pre-existing `archived_from_self_ref` warnings on
+  unrelated, much-older archived artifacts (`007`-`046` range, predating
+  this shipment) — **zero** findings referencing `119-F`, any `119.00N-T`
+  task, or `128-S`; no new corruption introduced by this closure.
 
 ## Context Compaction (P-020)
 
