@@ -1,0 +1,109 @@
+"""Tests for autoharness.supervise.process_pty -- the PTY backend (119.002-T).
+
+Covers guarded-import behavior (degrade to InheritStdio, never to Pipe),
+exit-code fidelity where a real PTY can be constructed, and the
+factory-warning contract (populated exactly when degraded).
+"""
+
+from __future__ import annotations
+
+import sys
+import unittest
+import unittest.mock
+
+from autoharness.supervise.process import InheritStdioChildProcess, PipeChildProcess
+from autoharness.supervise.process_pty import (
+    PtyChildProcess,
+    create_pty_or_inherited_child_process,
+)
+
+_PY = sys.executable
+_IS_POSIX = sys.platform != "win32"
+
+
+class DegradeToInheritedStdioTests(unittest.TestCase):
+    def test_degrades_to_inherit_stdio_when_pty_construction_fails(self) -> None:
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._try_construct_pty_backend",
+            return_value=None,
+        ):
+            child, warning = create_pty_or_inherited_child_process([_PY, "-c", "pass"])
+
+        self.assertIsInstance(child, InheritStdioChildProcess)
+        self.assertNotIsInstance(child, PipeChildProcess)
+        self.assertIsNotNone(warning)
+        self.assertIsInstance(warning, str)
+
+    def test_never_degrades_to_pipe_backend(self) -> None:
+        # Simulate total unavailability (no pty module, no pywinpty) and
+        # assert the degrade target is specifically InheritStdio, not Pipe.
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._try_construct_pty_backend",
+            side_effect=OSError("pty unavailable"),
+        ):
+            child, warning = create_pty_or_inherited_child_process([_PY, "-c", "pass"])
+
+        self.assertIsInstance(child, InheritStdioChildProcess)
+        self.assertIsNotNone(warning)
+
+    def test_supports_output_capture_false_when_degraded(self) -> None:
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._try_construct_pty_backend",
+            return_value=None,
+        ):
+            child, _warning = create_pty_or_inherited_child_process([_PY, "-c", "pass"])
+
+        self.assertFalse(child.supports_output_capture)
+
+
+class WarningPopulationContractTests(unittest.TestCase):
+    def test_warning_is_none_when_real_backend_constructed(self) -> None:
+        fake_backend = unittest.mock.MagicMock(spec=PtyChildProcess)
+        fake_backend.supports_output_capture = True
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._try_construct_pty_backend",
+            return_value=fake_backend,
+        ):
+            child, warning = create_pty_or_inherited_child_process([_PY, "-c", "pass"])
+
+        self.assertIs(child, fake_backend)
+        self.assertIsNone(warning)
+
+    def test_warning_is_a_non_empty_string_when_degraded(self) -> None:
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._try_construct_pty_backend",
+            return_value=None,
+        ):
+            _child, warning = create_pty_or_inherited_child_process([_PY, "-c", "pass"])
+
+        self.assertTrue(warning)
+
+
+@unittest.skipUnless(_IS_POSIX, "real PTY construction exercised via stdlib pty on POSIX only")
+class RealPtyExitCodeFidelityTests(unittest.TestCase):
+    def test_exit_code_round_trip_over_table(self) -> None:
+        for code in (0, 1, 2, 42, 130):
+            with self.subTest(code=code):
+                proc = PtyChildProcess([_PY, "-c", f"import sys; sys.exit({code})"])
+                proc.spawn()
+                result = proc.wait()
+                proc.close()
+                self.assertEqual(result, code)
+
+    def test_supports_output_capture_true_on_real_pty(self) -> None:
+        proc = PtyChildProcess([_PY, "-c", "pass"])
+        self.assertTrue(proc.supports_output_capture)
+
+
+class GuardedImportAvailabilityTests(unittest.TestCase):
+    def test_pty_module_unavailable_signals_unavailable_not_raise(self) -> None:
+        with unittest.mock.patch("autoharness.supervise.process_pty._posix_pty_available", return_value=False):
+            with unittest.mock.patch("autoharness.supervise.process_pty._winpty_available", return_value=False):
+                # Must not raise merely because PTY is unavailable.
+                child, warning = create_pty_or_inherited_child_process([_PY, "-c", "pass"])
+        self.assertIsInstance(child, InheritStdioChildProcess)
+        self.assertIsNotNone(warning)
+
+
+if __name__ == "__main__":
+    unittest.main()
