@@ -130,10 +130,10 @@ from autoharness.supervise.session import Phase, SessionStateMachine
 ChildProcessFactory = Callable[[Sequence[str]], ChildProcess]
 LockFactory = Callable[[Path, Optional[str]], Any]
 
-# Serializes the bootstrap-resolved-environment-application-through-restore
-# critical section (see the `_environ_snapshot`/`os.environ.update`/
-# `os.environ.clear`+`update` sequence inside `run_session`) across ALL
-# `run_session` calls sharing this Python process, regardless of workspace.
+# Serializes the bootstrap-environment-READ-through-restore critical
+# section (see the `_environ_snapshot`/`os.environ.update`/`os.environ.clear`
+# + `update` sequence inside `run_session`) across ALL `run_session` calls
+# sharing this Python process, regardless of workspace.
 #
 # P-018 Copilot review finding (PR #331, comment 3778273440): snapshotting
 # and restoring `os.environ` around a single `run_session` call does NOT by
@@ -148,10 +148,17 @@ LockFactory = Callable[[Path, Optional[str]], Any]
 # sidecar/child spawn call instead of mutating `os.environ` at all (a much
 # larger refactor touching bootstrap.py, sidecar.py, process.py, and
 # process_pty.py), or serialize this process-wide critical section. This
-# module-level lock implements the latter, narrower, lower-risk fix: two
-# concurrent `run_session` calls now serialize around their (mutually
-# exclusive) environment-mutation windows instead of racing to corrupt one
-# another's environment.
+# module-level lock implements the latter, narrower, lower-risk fix.
+#
+# P-018 Copilot review finding (PR #331, comment 3778730372): the lock was
+# initially acquired only around the environ APPLY step, not around
+# `bootstrap_workspace()`'s own internal `os.environ` READ -- so the read
+# itself was still unsynchronized, and a concurrent call could read another
+# call's still-applied mutation and misinterpret it as its own NO-CLOBBER
+# preset. The lock is now acquired BEFORE `bootstrap_workspace()` is
+# called, making the whole read-apply-restore sequence one atomic critical
+# section: two concurrent `run_session` calls now fully serialize around
+# it instead of racing to observe or corrupt one another's environment.
 _ENVIRON_MUTATION_LOCK = threading.Lock()
 
 
@@ -559,6 +566,24 @@ def run_session(
                 return _result("blocked", EXIT_CODE_BY_KIND[ErrorKind.LOCK])
 
         _transition(Phase.BOOTSTRAPPING)
+        # P-018 Copilot review finding, PR #331, comment 3778730372: the
+        # lock was previously acquired only around the environ APPLY step
+        # below, but `bootstrap_workspace()` (called with no explicit
+        # `env=`) reads its own baseline via an internal `dict(os.environ)`
+        # snapshot -- an UNSYNCHRONIZED read. A concurrent `run_session`
+        # call for a different workspace, still holding this lock with its
+        # own mutation applied, could have that mutated state read here and
+        # misinterpreted as a NO-CLOBBER preset for a same-named variable
+        # (e.g. COPILOT_HOME/ENGRAM_DATA_DIR, or even a token variable),
+        # silently adopting the OTHER session's values once it eventually
+        # proceeds. The lock is now acquired BEFORE this read, making the
+        # read-apply-restore sequence a single atomic critical section, as
+        # the reviewer's own suggested remedy describes. It is released
+        # immediately below when there turns out to be nothing to mutate
+        # (`bootstrap_result.env` is empty) so a bootstrap-only session
+        # never holds it for its own child's entire lifetime for no reason.
+        _ENVIRON_MUTATION_LOCK.acquire()
+        _environ_lock_held = True
         bootstrap_result = bootstrap_mod.bootstrap_workspace(
             workspace_root, gh_executable=gh_executable
         )
@@ -572,21 +597,25 @@ def run_session(
         # supervised child. This mutation is RESTORED in the top-level
         # `finally` below so any resolved secret never outlives this single
         # run_session() call in this process's environment (P-018 Copilot
-        # review finding, PR #331). The whole apply-through-restore window
+        # review finding, PR #331). The whole read-through-restore window
         # is serialized process-wide via `_ENVIRON_MUTATION_LOCK` (P-018
-        # Copilot review finding, PR #331, comment 3778273440) -- see that
-        # lock's own module-level docstring -- so a concurrent `run_session`
-        # call for a different workspace cannot observe or clobber this
-        # call's mutation, and vice versa. The snapshot is taken only now,
-        # AFTER acquiring the lock, so it reflects exactly the environment
-        # this call must restore, not whatever another call's still-applied
-        # mutation happened to look like a moment earlier.
+        # Copilot review finding, PR #331, comments 3778273440 and
+        # 3778730372) -- see that lock's own module-level docstring -- so a
+        # concurrent `run_session` call for a different workspace cannot
+        # observe or clobber this call's read or mutation, and vice versa.
+        # The snapshot is taken only now, still under the lock acquired
+        # above, so it reflects exactly the environment this call must
+        # restore, not whatever another call's still-applied mutation
+        # happened to look like a moment earlier.
         if bootstrap_result.env:
-            _ENVIRON_MUTATION_LOCK.acquire()
-            _environ_lock_held = True
             _environ_snapshot = dict(os.environ)
             os.environ.update(bootstrap_result.env)
             _environ_mutated = True
+        else:
+            # Nothing to mutate/restore: release right away rather than
+            # holding the lock for this call's entire remaining lifetime.
+            _ENVIRON_MUTATION_LOCK.release()
+            _environ_lock_held = False
 
         _transition(Phase.PREFLIGHT)
         sidecar_report = sidecar_mod.run_sidecars(
@@ -653,7 +682,23 @@ def run_session(
             phase_after_attempt = restart_controller.attempt(
                 machine,
                 emit=_emit,
-                child=child,
+                # `child` is intentionally NOT passed here (P-018 Copilot
+                # review finding, PR #331, comment 3778730421): by this
+                # point `child.wait()` immediately above has ALREADY
+                # returned normally, meaning the OS has ALREADY reaped this
+                # PID. `RestartController.attempt()`'s exhaustion/decline
+                # path calls `child.signal(signal_num)` unconditionally
+                # (the PTY backend's own `signal()` has no
+                # already-exited guard, unlike its `close()`), which would
+                # send a raw `os.kill(pid, ...)` to a PID the kernel may
+                # have already reused for an entirely unrelated process.
+                # There is nothing left for `attempt()` to terminate; the
+                # top-level `finally` below still safely closes this same
+                # `child` object via `_close_child_before_lock_release`
+                # (its `close()` correctly no-ops the signal/wait sequence
+                # once `_exit_code` is already recorded, only releasing the
+                # file descriptor).
+                child=None,
                 lock=lock,
                 reason=f"child exited with code {exit_code}",
                 signal_num=signal_num,
@@ -665,16 +710,28 @@ def run_session(
                 lock_held_by_us = False
                 return _result("failed", EXIT_CODE_BY_KIND[ErrorKind.RESTART])
 
-            # Approved restart: RestartController.attempt() already drove
-            # RUNNING -> RESTARTING -> LAUNCHING (journaled internally) and
-            # terminated the previous child. Quiesce the OLD output pump
-            # (bounded join -- the old child has already exited/been closed,
-            # so its read() should EOF promptly) before starting the
-            # replacement, then spawn it and repoint (never duplicate) the
-            # single persistent input pump at it (P-018 Copilot review
-            # finding, PR #331, comment 3778121130).
+            # Approved restart: RestartController.attempt() drove
+            # RUNNING -> RESTARTING -> LAUNCHING (journaled internally) but
+            # -- since `child=None` was passed above (comment
+            # 3778730421) -- did NOT itself touch the OLD child (already
+            # exited/reaped by `child.wait()` above; nothing left to
+            # signal). This call site now closes the OLD child's PTY
+            # handle directly instead, before the `child` local is
+            # reassigned to the replacement below, so its file descriptor
+            # is still released promptly here rather than only reached via
+            # the top-level `finally` (which would otherwise be the only
+            # remaining reference once `child` is overwritten). Quiesce the
+            # OLD output pump (bounded join -- the old child has already
+            # exited/been closed, so its read() should EOF promptly)
+            # before starting the replacement, then spawn it and repoint
+            # (never duplicate) the single persistent input pump at it
+            # (P-018 Copilot review finding, PR #331, comment 3778121130).
             if output_pump_thread is not None:
                 output_pump_thread.join(timeout=2.0)
+            try:
+                child.close()
+            except ProcessLookupError:
+                pass  # already exited/reaped -- nothing left to close
             child = factory(resolve_result.argv)
             child.spawn()
             _emit(ChildSpawned(argv=resolve_result.argv, pid=child.pid))

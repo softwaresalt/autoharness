@@ -425,6 +425,45 @@ class RestartTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertIn("session_restart", approval_service.requested)
 
+    def test_approved_restart_does_not_signal_the_already_exited_old_child(self) -> None:
+        """P-018 Copilot review finding, PR #331, comment 3778730421.
+
+        By the time ``RestartController.attempt()`` is invoked, the OLD
+        child has ALREADY exited/been reaped (its ``exit_code`` was
+        obtained via ``child.wait()`` immediately above in the same loop
+        iteration). Signaling an already-reaped PID risks hitting a PID
+        the OS has since reused for an unrelated process. ``child=None``
+        is passed to ``attempt()`` for exactly this reason; the OLD
+        child's file descriptor is instead closed directly by this call
+        site, without ever calling ``signal()`` on it again.
+        """
+
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+            old_child = FakeChildProcess(argv=(), exit_code=3)
+            new_child = FakeChildProcess(argv=(), exit_code=0)
+            children = [old_child, new_child]
+            approval_service = AlwaysApproveApprovalService()
+
+            def factory(argv):
+                return children.pop(0)
+
+            result = run_session(
+                workspace_root=workspace_root,
+                argv=[],
+                approval_service=approval_service,
+                max_restarts=1,
+                non_interactive=True,
+                child_process_factory=factory,
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "ok")
+            # The OLD child was never signaled (no risk of hitting a
+            # reused PID) but its file descriptor was still closed.
+            self.assertEqual(old_child.signals_received, [])
+            self.assertTrue(old_child.closed)
+
     def test_declined_restart_drains_to_failed(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)
@@ -835,6 +874,50 @@ class EnvironMutationSerializationTests(_DeterministicCopilotResolutionMixin, un
             self.assertEqual(results["b"].status, "ok")
             self.assertNotIn(sentinel_a, os_mod.environ)
             self.assertNotIn(sentinel_b, os_mod.environ)
+
+
+class EnvironLockCoversBootstrapReadTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
+    """P-018 Copilot review finding, PR #331, comment 3778730372.
+
+    ``_ENVIRON_MUTATION_LOCK`` was previously acquired only around the
+    ``os.environ.update()`` APPLY step, but ``bootstrap_workspace()``
+    (called with no explicit ``env=``) reads its OWN baseline via an
+    internal ``dict(os.environ)`` snapshot -- an unsynchronized read that
+    could observe a concurrent call's still-applied mutation and
+    misinterpret it as this call's own NO-CLOBBER preset. Proves the lock
+    is now held for the ENTIRE ``bootstrap_workspace()`` call, not just the
+    later apply step.
+    """
+
+    def test_bootstrap_workspace_is_called_while_environ_lock_already_held(self) -> None:
+        from autoharness.supervise import app as app_mod
+
+        observed_locked: list[bool] = []
+        real_bootstrap_workspace = app_mod.bootstrap_mod.bootstrap_workspace
+
+        def _spy(*args, **kwargs):
+            observed_locked.append(app_mod._ENVIRON_MUTATION_LOCK.locked())
+            return real_bootstrap_workspace(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+            with mock.patch.object(
+                app_mod.bootstrap_mod, "bootstrap_workspace", side_effect=_spy
+            ):
+                result = run_session(
+                    workspace_root=workspace_root,
+                    argv=[],
+                    approval_service=AlwaysApproveApprovalService(),
+                    child_process_factory=lambda argv: FakeChildProcess(
+                        argv=tuple(argv), exit_code=0, supports_output_capture=False
+                    ),
+                    **_sidecar_kwargs(),
+                )
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(observed_locked, [True])
+        # The lock must not leak held past this run_session() call.
+        self.assertFalse(app_mod._ENVIRON_MUTATION_LOCK.locked())
 
 
 class H2FailClosedNonInteractiveTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
