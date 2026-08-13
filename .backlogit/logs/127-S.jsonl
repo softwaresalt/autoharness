@@ -2,3 +2,7 @@
 {"timestamp":"2026-08-10T19:09:22.7717216-07:00","actor":"backlogit","item_id":"127-S","event_type":"shipment_item_added","delta":{"item_id":"118.006-T"}}
 {"timestamp":"2026-08-10T19:09:27.0371672-07:00","actor":"backlogit","item_id":"127-S","event_type":"shipment_item_added","delta":{"item_id":"118.007-T"}}
 {"timestamp":"2026-08-12T15:11:13.8711686-07:00","actor":"backlogit","item_id":"127-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-12T19:20:57.3726641-07:00","actor":"backlogit","item_id":"127-S","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-08-12T19:21:00.0706172-07:00","actor":"backlogit","item_id":"127-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-08-12T19:21:05.2961076-07:00","actor":"backlogit","item_id":"127-S","event_type":"commit_tracked","delta":{"author":"dewilliams","commit_sha":"8ccd3a2ded777393703136da6747e846619f4294","message":"feat: shipment 127-S safety contracts and characterization baseline (#326)"}}
+{"timestamp":"2026-08-12T19:22:07.5068359-07:00","actor":"backlogit","item_id":"127-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/127-S.md"}}
