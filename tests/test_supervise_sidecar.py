@@ -171,6 +171,137 @@ class SidecarReportShapeTests(unittest.TestCase):
             self.assertEqual(report.outcomes["engram"], "unavailable")
 
 
+class GraphtorDocsSidecarTests(unittest.TestCase):
+    """120-F runtime-defect remediation: graphtor-docs is a documentation
+    index sidecar exactly analogous to Engram/backlogit for preflight
+    purposes (derived-index maintenance only, H6/F20 authority scope): a
+    one-shot `graphtor-docs sync` before Copilot launches. This is
+    DISTINCT from -- and does not start or supervise -- the persistent
+    `graphtor-docs serve` MCP stdio process that Copilot itself spawns per
+    `.mcp.json`; this preflight step only pre-warms the derived on-disk
+    index so that later MCP-served searches are fresh.
+    """
+
+    def test_absent_is_unavailable_and_non_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            with mock.patch("shutil.which", return_value=None):
+                report = run_sidecars(Path(workspace))
+            self.assertEqual(report.outcomes["graphtor-docs"], "unavailable")
+            self.assertTrue(any("graphtor-docs" in w.lower() for w in report.warnings))
+
+    def test_present_and_succeeding_is_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            def which(name, *a, **k):
+                return f"/resolved/{name}" if name == "graphtor-docs" else None
+
+            with mock.patch("shutil.which", side_effect=which):
+                with mock.patch("subprocess.run") as run_mock:
+                    run_mock.return_value = _completed(["graphtor-docs", "sync"], 0)
+                    report = run_sidecars(Path(workspace))
+            self.assertEqual(report.outcomes["graphtor-docs"], "ok")
+
+    def test_present_and_failing_is_degraded_non_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            def which(name, *a, **k):
+                return f"/resolved/{name}" if name == "graphtor-docs" else None
+
+            with mock.patch("shutil.which", side_effect=which):
+                with mock.patch("subprocess.run") as run_mock:
+                    run_mock.return_value = _completed(["graphtor-docs", "sync"], 1, stderr="boom")
+                    report = run_sidecars(Path(workspace))
+            self.assertEqual(report.outcomes["graphtor-docs"], "degraded")
+            self.assertTrue(any("graphtor-docs" in w.lower() for w in report.warnings))
+
+    def test_never_raises_even_on_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            def which(name, *a, **k):
+                return f"/resolved/{name}" if name == "graphtor-docs" else None
+
+            with mock.patch("shutil.which", side_effect=which):
+                with mock.patch("subprocess.run", side_effect=OSError("boom")):
+                    report = run_sidecars(Path(workspace))  # must not raise
+            self.assertEqual(report.outcomes["graphtor-docs"], "degraded")
+
+    def test_falls_back_to_workspace_local_graphtor_bin_when_not_on_path(self) -> None:
+        """Mirrors scripts/deploy-harness.ps1's Get-PackDetectionStatus
+        workspace-local fallback: graphtor-docs may be installed at
+        `.graphtor/bin/graphtor-docs(.exe)` without being on PATH.
+        """
+
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+            bin_dir = workspace_root / ".graphtor" / "bin"
+            bin_dir.mkdir(parents=True)
+            local_exe = bin_dir / "graphtor-docs.exe"
+            local_exe.write_text("", encoding="utf-8")
+
+            calls = []
+
+            def run(argv, **kwargs):
+                calls.append(list(argv))
+                return _completed(argv, 0)
+
+            with mock.patch("shutil.which", return_value=None):
+                with mock.patch("subprocess.run", side_effect=run):
+                    report = run_sidecars(workspace_root)
+
+            self.assertEqual(report.outcomes["graphtor-docs"], "ok")
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][0], str(local_exe))
+
+
+class CwdForwardingTests(unittest.TestCase):
+    """120-F runtime-defect remediation: every preflight subprocess
+    invocation (`backlogit sync`, Engram sync/bind, `graphtor-docs sync`)
+    must run anchored at ``workspace_root`` -- previously
+    ``workspace_root`` was accepted only "for interface symmetry/future
+    use" and never actually applied as ``cwd``, meaning preflight ran
+    relative to whatever directory the supervisor's own Python process
+    happened to have as its cwd rather than the resolved workspace.
+    """
+
+    def test_backlogit_sync_runs_with_cwd_anchored_to_workspace_root(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+
+            def which(name, *a, **k):
+                return f"/resolved/{name}" if name == "backlogit" else None
+
+            with mock.patch("shutil.which", side_effect=which):
+                with mock.patch("subprocess.run") as run_mock:
+                    run_mock.return_value = _completed(["backlogit", "sync"], 0)
+                    run_sidecars(workspace_root)
+            self.assertEqual(run_mock.call_args.kwargs.get("cwd"), str(workspace_root))
+
+    def test_engram_sync_runs_with_cwd_anchored_to_workspace_root(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+
+            def which(name, *a, **k):
+                return f"/resolved/{name}" if name == "engram" else None
+
+            with mock.patch("shutil.which", side_effect=which):
+                with mock.patch("subprocess.run") as run_mock:
+                    run_mock.return_value = _completed(["engram"], 0)
+                    run_sidecars(workspace_root)
+            self.assertTrue(run_mock.call_args_list)
+            for call in run_mock.call_args_list:
+                self.assertEqual(call.kwargs.get("cwd"), str(workspace_root))
+
+    def test_graphtor_docs_sync_runs_with_cwd_anchored_to_workspace_root(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            workspace_root = Path(workspace)
+
+            def which(name, *a, **k):
+                return f"/resolved/{name}" if name == "graphtor-docs" else None
+
+            with mock.patch("shutil.which", side_effect=which):
+                with mock.patch("subprocess.run") as run_mock:
+                    run_mock.return_value = _completed(["graphtor-docs", "sync"], 0)
+                    run_sidecars(workspace_root)
+            self.assertEqual(run_mock.call_args.kwargs.get("cwd"), str(workspace_root))
+
+
 class NoShellTrueTests(unittest.TestCase):
     def test_never_passes_shell_true(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:

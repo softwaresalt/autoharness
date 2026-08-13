@@ -164,6 +164,73 @@ class TtyAttachmentFidelityTests(unittest.TestCase):
             )
 
 
+class CwdForwardingTests(unittest.TestCase):
+    """120-F runtime-defect remediation: Copilot (and, by inheritance, any
+    local stdio MCP server IT spawns, e.g. Engram/graphtor-docs) must run
+    with cwd anchored to the resolved workspace root, independent of
+    whatever directory the operator's shell happened to be in when
+    `start.ps1`/`start.sh`/`autoharness run` was invoked. Both real-process
+    backends must accept an optional ``cwd`` constructor argument and
+    forward it verbatim to ``subprocess.Popen`` (``None`` means "inherit
+    the parent's own cwd", exactly today's default behavior, so this is
+    purely additive).
+    """
+
+    def test_inherit_backend_forwards_cwd_to_popen(self) -> None:
+        import tempfile
+
+        captured: dict[str, object] = {}
+        original_popen = subprocess.Popen
+
+        def spy(*args, **kwargs):  # noqa: ANN002, ANN003
+            captured["kwargs"] = kwargs
+            return original_popen(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as workspace:
+            proc = InheritStdioChildProcess([_PY, "-c", "pass"], cwd=workspace)
+            with unittest.mock.patch("subprocess.Popen", side_effect=spy):
+                proc.spawn()
+            proc.wait()
+            proc.close()
+
+        self.assertEqual(captured["kwargs"].get("cwd"), workspace)
+
+    def test_inherit_backend_defaults_cwd_to_none_when_omitted(self) -> None:
+        captured: dict[str, object] = {}
+        original_popen = subprocess.Popen
+
+        def spy(*args, **kwargs):  # noqa: ANN002, ANN003
+            captured["kwargs"] = kwargs
+            return original_popen(*args, **kwargs)
+
+        proc = InheritStdioChildProcess([_PY, "-c", "pass"])
+        with unittest.mock.patch("subprocess.Popen", side_effect=spy):
+            proc.spawn()
+        proc.wait()
+        proc.close()
+
+        self.assertIsNone(captured["kwargs"].get("cwd"))
+
+    def test_pipe_backend_forwards_cwd_to_popen(self) -> None:
+        import tempfile
+
+        captured: dict[str, object] = {}
+        original_popen = subprocess.Popen
+
+        def spy(*args, **kwargs):  # noqa: ANN002, ANN003
+            captured["kwargs"] = kwargs
+            return original_popen(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as workspace:
+            proc = PipeChildProcess([_PY, "-c", "pass"], cwd=workspace)
+            with unittest.mock.patch("subprocess.Popen", side_effect=spy):
+                proc.spawn()
+            proc.wait()
+            proc.close()
+
+        self.assertEqual(captured["kwargs"].get("cwd"), workspace)
+
+
 class SignalTerminateTests(unittest.TestCase):
     def test_fake_child_process_records_signals(self) -> None:
         fake = FakeChildProcess(argv=(_PY, "-c", "pass"), exit_code=0)

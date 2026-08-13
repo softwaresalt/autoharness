@@ -159,10 +159,33 @@ requires an authenticated GitHub CLI (`gh auth status` succeeds) because it read
 `gh auth token` at launch instead of committing a literal token. The Tavily entry
 still requires `TAVILY_API_KEY` in the environment before the server starts.
 
-The native workspace-root entries use `${workspaceFolder}`, matching the
-workspace-local `.env.local` key loaded by the generated startup scripts. Keep
-that key populated when launching AI CLIs outside an environment that injects the
-workspace root automatically.
+**Correction (2026-08-13, 120-F runtime-defect remediation):** the native
+workspace-root entries (`backlogit`, `engram`, `graphtor-docs`) do **not**
+use `${workspaceFolder}`-style templating in their `.mcp.json` `env` blocks.
+An earlier revision of this document (and of `.mcp.json` itself) incorrectly
+assumed the standalone `copilot` CLI would substitute `${workspaceFolder}`
+against the workspace-local `.env.local` key of the same name, the way a
+VS Code-hosted MCP client resolves that editor variable. It does not:
+`copilot` passes MCP server `env` values through completely literally, so a
+committed `${workspaceFolder}` placeholder crashed Engram and graphtor-docs
+at launch every time (each exits immediately on the unresolved literal
+path) while Copilot and backlogit — whose own `BACKLOGIT_WORKSPACE` value
+happens to go unread — kept running, exactly matching the "Copilot is up
+but Engram/graphtor-docs never appear" symptom.
+
+The fix removes those `env` overrides from `.mcp.json` entirely. Each
+native tool already falls back correctly to its own CWD-relative default
+(`backlogit`'s `--cwd`, Engram's workspace binding, graphtor-docs's
+`.graphtor/config/sources.yaml` / `.graphtor/graph.db` defaults) when the
+variable is unset, **provided** the parent `copilot` process's own working
+directory is the workspace root. `autoharness run` (and therefore
+`start.ps1`/`start.sh`) now anchors that cwd explicitly for the spawned
+Copilot child, so no operator action is required beyond invoking the
+startup script from (or with `--workspace` pointed at) the intended
+workspace. The workspace-local `.env.local` key `workspaceFolder` remains
+useful for other, explicitly-consuming tooling, but it is **not** a
+`${...}` substitution source for `.mcp.json` and must never be reintroduced
+as one.
 
 Install Bun using the upstream installer for your platform:
 
