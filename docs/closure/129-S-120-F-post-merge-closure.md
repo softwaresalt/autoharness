@@ -43,15 +43,20 @@ anomalies — the valid zero-candidate startup path — so the active cursor
 was continued directly from branch/worktree evidence per the operator's
 explicit recovery instructions, with no checkpoint invented or restored.
 
-### Post-hoc forensic reconstruction (crash-not-clean-shutdown confirmation)
+### Post-hoc forensic reconstruction (reboot-boundary evidence)
 
-After this shipment fully shipped and closed, the operator raised a
-concern that the interruption was a **hard devbox reboot**, not a graceful
+After this shipment fully shipped and closed, the operator reported that
+the interruption was caused by a **hard devbox reboot**, not a graceful
 session end, and asked for a bounded, evidence-based reconstruction of the
 exact shutdown point rather than an inference from dirty-file presence
-alone. The following was gathered and cross-checked against live system
-and repository state (all read-only, performed after closure; no repeat
-mutation):
+alone. The hard-reboot characterization itself (forced/abrupt vs. an
+otherwise-graceful restart) is the operator's own report; the artifacts
+below independently confirm only that a reboot occurred at a specific
+time and that the surrounding commit/log timing is *consistent with* an
+abrupt interruption at that boundary, not an independent proof of the
+forced-shutdown mechanism. The following was gathered and cross-checked
+against live system and repository state (all read-only, performed after
+closure; no repeat mutation):
 
 - **System boot time**: `Get-CimInstance Win32_OperatingSystem` reports
   `LastBootUpTime = 2026-08-13 01:31:31 -07:00`.
@@ -95,16 +100,19 @@ mutation):
   alone.
 - **Conclusion**: the reconstructed shutdown point is commit `0ff7bd8e`
   (120.002-T, sidecar preflight service) at `2026-08-13T01:30:01-07:00`,
-  approximately 90 seconds before the devbox's recorded hard reboot at
-  `01:31:31-07:00`. Every task and artifact from `120.003-T` onward, the
+  approximately 90 seconds before the devbox's recorded reboot at
+  `01:31:31-07:00` (reported by the operator as a hard/forced shutdown;
+  the timing evidence above is consistent with that report but does not
+  independently distinguish a forced kill from another abrupt-restart
+  cause). Every task and artifact from `120.003-T` onward, the
   Engram/graphtor-docs root-cause fix, all 8 rounds of P-018 review
   remediation, the merge, and the cascade close were performed and
   verified in the single continuous recovery session that followed,
   using live-executed gates (tests, CI, independent hosted review,
   the P-015 classifier, and a live `sim-shipment-closure.ps1` re-run) at
   every acceptance decision — not inferred from file mtimes or dirty-state
-  presence alone. `recovered_after_hard_reboot: true` for this shipment's
-  execution history.
+  presence alone. `recovered_after_hard_reboot: true` (per operator
+  report) for this shipment's execution history.
 
 ## Release-Blocking Runtime Defect: Diagnosed and Fixed Before Any Further PR Work
 
