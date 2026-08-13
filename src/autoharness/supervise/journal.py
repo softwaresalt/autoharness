@@ -135,6 +135,7 @@ class SessionJournal:
 
         if self.journal_path.exists() and self.journal_path.stat().st_size > 0:
             self._next_seq = read_cursor(self.journal_path) + 1
+            self._terminate_truncated_trailing_line()
             self._initialized = True
             return
 
@@ -148,6 +149,32 @@ class SessionJournal:
         self._write_line(self._redact_or_fallback(header))
         self._next_seq = 1
         self._initialized = True
+
+    def _terminate_truncated_trailing_line(self) -> None:
+        """Isolate a crash-truncated trailing line onto its own line.
+
+        ``read_cursor`` correctly SKIPS a truncated/corrupt trailing line
+        left by a crash mid-write, but the file on disk may not end in a
+        newline in that case. Without this fix, the next ``_write_line``
+        call (opened in append mode) would write its JSON object directly
+        after the corrupt bytes with no separating newline, merging the new
+        (well-formed) record onto the same physical line as the corrupt one
+        -- making the newly-appended, otherwise-valid event ALSO unreadable
+        by any future ``read_cursor``/line-based reader (128-S review
+        remediation). Called once, at resume time, before any new line is
+        appended.
+        """
+
+        with self.journal_path.open("rb") as handle:
+            handle.seek(0, 2)
+            size = handle.tell()
+            if size == 0:
+                return
+            handle.seek(-1, 2)
+            last_byte = handle.read(1)
+        if last_byte != b"\n":
+            with self.journal_path.open("a", encoding="utf-8") as handle:
+                handle.write("\n")
 
     def _redact_or_fallback(self, record: Mapping[str, Any]) -> Mapping[str, Any]:
         redacted, warning = redact_record(dict(record), self._redactor)

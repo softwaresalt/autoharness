@@ -137,6 +137,7 @@ class RestartScheduled:
 
     attempt: int
     max_attempts: int
+    reason: str = ""
 
 
 @dataclass(frozen=True)

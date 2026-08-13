@@ -88,8 +88,18 @@ def cancel_session(
     ``child.close()`` is swallowed so the DRAINING gateway and CANCELLED
     terminal are still reached normally rather than leaving the machine
     stuck in CANCELLING with the lock never released.
+
+    **Lock-release-before-observable-CANCELLED (128-S review remediation)**:
+    the task's own acceptance criteria require that "CANCELLED is entered
+    ONLY AFTER child termination, journal flush and lock release have
+    COMPLETED inside DRAINING" -- i.e. no caller/observer holding a
+    reference to ``machine`` may ever see ``phase == CANCELLED`` while the
+    guard lock is still held. ``lock.release()`` is therefore called BEFORE
+    the final ``machine.transition(Phase.CANCELLED)`` call (which is the
+    exact statement that makes CANCELLED externally observable), not after.
     """
 
+    lock_released = False
     try:
         if journal is not None:
             journal.append_event(CancelRequested(reason=reason))
@@ -107,13 +117,22 @@ def cancel_session(
             except ProcessLookupError:
                 pass  # child already exited/reaped -- nothing left to close
 
-        machine.transition(Phase.DRAINING)
+        draining_event = machine.transition(Phase.DRAINING)
+        if journal is not None:
+            journal.append_event(draining_event)
+
+        # Release the guard lock BEFORE the CANCELLED transition below makes
+        # the terminal phase externally observable (see docstring).
+        if lock is not None:
+            lock.release()
+            lock_released = True
+
         event: SessionPhaseChanged = machine.transition(Phase.CANCELLED)
 
         if journal is not None:
             journal.append_event(event)
     finally:
-        if lock is not None:
+        if lock is not None and not lock_released:
             lock.release()
 
     return machine.phase
@@ -152,28 +171,66 @@ class RestartController:
         return self.backoff_base_seconds * (self.backoff_multiplier**attempt_index)
 
     def attempt(
-        self, machine: SessionStateMachine, *, journal: Optional[SessionJournal] = None
+        self,
+        machine: SessionStateMachine,
+        *,
+        journal: Optional[SessionJournal] = None,
+        child: Optional[ChildProcess] = None,
+        lock: Optional[ReleasableLock] = None,
+        reason: str = "",
+        signal_num: int = signal.SIGTERM,
     ) -> Phase:
         """One restart attempt from RUNNING.
 
         On success: ``RUNNING -> RESTARTING -> LAUNCHING``, budget
-        decremented, journaled via ``RestartScheduled``.
+        decremented, journaled via ``RestartScheduled`` (with ``reason``,
+        128-S review remediation -- operational journals must be able to
+        explain WHY a restart occurred, not just count attempts).
 
         On declined confirmation or exhausted budget:
         ``RUNNING -> RESTARTING -> DRAINING -> FAILED``, journaled via
         ``RestartExhausted``. This is a terminal, absorbing outcome -- a
         further :meth:`attempt` call after reaching ``FAILED`` raises
         :class:`~autoharness.supervise.errors.IllegalTransitionError`
-        rather than looping.
+        rather than looping. Per F22/the every-failure-path lock contract
+        (128-S review remediation), this exhaustion/decline path ALSO
+        terminates ``child`` (if given) and releases ``lock`` EXACTLY ONCE
+        (guaranteed via ``finally``, mirroring :func:`cancel_session`) --
+        every failure path must complete DRAINING cleanup and release the
+        lock, not only the explicit cancellation path.
         """
 
         machine.transition(Phase.RESTARTING)
 
         if self.remaining_budget <= 0 or not self.confirm_restart():
-            if journal is not None:
-                journal.append_event(RestartExhausted(attempts=self.attempts_used))
-            machine.transition(Phase.DRAINING)
-            machine.transition(Phase.FAILED)
+            lock_released = False
+            try:
+                if journal is not None:
+                    journal.append_event(RestartExhausted(attempts=self.attempts_used))
+                draining_event = machine.transition(Phase.DRAINING)
+                if journal is not None:
+                    journal.append_event(draining_event)
+
+                if child is not None:
+                    try:
+                        child.signal(signal_num)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        child.close()
+                    except ProcessLookupError:
+                        pass
+
+                if lock is not None:
+                    lock.release()
+                    lock_released = True
+
+                event = machine.transition(Phase.FAILED)
+                if journal is not None:
+                    journal.append_event(event)
+            finally:
+                if lock is not None and not lock_released:
+                    lock.release()
             return machine.phase
 
         delay = self.backoff_delay(self.attempts_used)
@@ -182,7 +239,9 @@ class RestartController:
 
         if journal is not None:
             journal.append_event(
-                RestartScheduled(attempt=self.attempts_used, max_attempts=self.max_restarts)
+                RestartScheduled(
+                    attempt=self.attempts_used, max_attempts=self.max_restarts, reason=reason
+                )
             )
 
         machine.transition(Phase.LAUNCHING)

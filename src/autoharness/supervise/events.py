@@ -39,9 +39,9 @@ SECONDARY check -- explicitly NOT the primary enforcement mechanism.
 
 from __future__ import annotations
 
-import contextvars
 import dataclasses
 import sys
+import threading
 import uuid
 from typing import Any, Callable, Iterable, Optional, Union
 
@@ -162,9 +162,20 @@ class EventBus:
 # once, and gate its actual raising behavior on a re-entrant depth counter
 # so install_no_listen_guard() can be used as a per-test context manager
 # without leaking a hard-installed hook's effect outside its own scope.
-_guard_depth: contextvars.ContextVar[int] = contextvars.ContextVar(
-    "autoharness_supervise_no_listen_guard_depth", default=0
-)
+#
+# 128-S review remediation: this depth counter is PROCESS-WIDE, guarded by
+# a plain ``threading.Lock`` -- NOT a ``contextvars.ContextVar``. A
+# ContextVar is NOT automatically inherited by a newly created OS thread
+# (each new ``threading.Thread`` starts with a fresh, empty context), so
+# code executed inside the guard's ``with`` block that spawns a thread
+# performing a socket bind would see the audit hook read a depth of zero in
+# THAT thread and fail to raise -- silently defeating the H7 anti-drift
+# guard for exactly the kind of background-thread listener this guard
+# exists to catch (F28: the guard is behavioral, not lexical, and must hold
+# regardless of which thread performs the bind). A plain global integer
+# read/written under a lock is visible to every thread identically.
+_guard_depth_lock = threading.Lock()
+_guard_depth: int = 0
 _hook_installed = False
 
 # Audit events that indicate a listening-socket-style bind. socket.bind is
@@ -177,7 +188,9 @@ _GUARDED_AUDIT_EVENTS = frozenset({"socket.bind"})
 def _audit_hook(event_name: str, args: tuple[Any, ...]) -> None:
     if event_name not in _GUARDED_AUDIT_EVENTS:
         return
-    if _guard_depth.get() <= 0:
+    with _guard_depth_lock:
+        active = _guard_depth > 0
+    if not active:
         return
     raise ListeningSocketDetected(
         f"listening socket operation detected while the no-listen guard was active: "
@@ -189,11 +202,15 @@ class _NoListenGuardContext:
     """Re-entrant context manager gating the permanent audit hook's raising."""
 
     def __enter__(self) -> "_NoListenGuardContext":
-        self._token = _guard_depth.set(_guard_depth.get() + 1)
+        global _guard_depth
+        with _guard_depth_lock:
+            _guard_depth += 1
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-        _guard_depth.reset(self._token)
+        global _guard_depth
+        with _guard_depth_lock:
+            _guard_depth -= 1
 
 
 def install_no_listen_guard() -> _NoListenGuardContext:

@@ -200,13 +200,14 @@ class RestartWithBudgetTests(unittest.TestCase):
                 sleep_fn=recorded_delays.append,
             )
 
-            result_phase = controller.attempt(machine, journal=journal)
+            result_phase = controller.attempt(machine, journal=journal, reason="crash-loop")
 
             self.assertEqual(result_phase, Phase.LAUNCHING)
             self.assertEqual(controller.attempts_used, 1)
             self.assertEqual(controller.remaining_budget, 1)
             content = journal.journal_path.read_text(encoding="utf-8")
             self.assertIn("RestartScheduled", content)
+            self.assertIn("crash-loop", content)
 
     def test_restart_declined_by_operator_drains_to_failed_not_looping(self) -> None:
         machine = SessionStateMachine()
@@ -299,6 +300,89 @@ class RestartWithBudgetTests(unittest.TestCase):
 
         self.assertEqual(recorded_delays, [1.0, 2.0, 4.0])
         self.assertEqual(recorded_delays, sorted(recorded_delays))
+
+
+class RestartExhaustionLockAndChildReleaseTests(unittest.TestCase):
+    """128-S review remediation: the declined/exhausted restart path must
+    release the session lock EXACTLY ONCE and terminate the child (when
+    given), mirroring cancel_session's every-failure-path contract (F22).
+    """
+
+    def test_declined_restart_releases_lock_and_closes_child(self) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+        child = FakeChildProcess(argv=("sleep", "30"))
+        child.spawn()
+        lock = _CountingLock()
+        controller = RestartController(
+            max_restarts=3,
+            confirm_restart=lambda: False,
+            sleep_fn=lambda _delay: None,
+        )
+
+        result_phase = controller.attempt(machine, child=child, lock=lock)
+
+        self.assertEqual(result_phase, Phase.FAILED)
+        self.assertEqual(lock.release_calls, 1)
+        self.assertTrue(child.closed)
+
+    def test_exhausted_restart_releases_lock_exactly_once(self) -> None:
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+        lock = _CountingLock()
+        controller = RestartController(max_restarts=0, confirm_restart=lambda: True)
+
+        result_phase = controller.attempt(machine, lock=lock)
+
+        self.assertEqual(result_phase, Phase.FAILED)
+        self.assertEqual(lock.release_calls, 1)
+
+    def test_declined_restart_child_already_exited_race_still_releases_lock(self) -> None:
+        """Mirrors cancel_session's ProcessLookupError race tolerance:
+        a child that already exited must not strand the lock."""
+
+        class _AlreadyExitedChild:
+            def signal(self, sig: int) -> None:
+                raise ProcessLookupError("already exited")
+
+            def close(self) -> None:
+                raise ProcessLookupError("already exited")
+
+        machine = SessionStateMachine()
+        _drive_to(
+            machine,
+            Phase.LOCKING,
+            Phase.BOOTSTRAPPING,
+            Phase.PREFLIGHT,
+            Phase.RESOLVING,
+            Phase.LAUNCHING,
+            Phase.RUNNING,
+        )
+        lock = _CountingLock()
+        controller = RestartController(max_restarts=1, confirm_restart=lambda: False)
+
+        result_phase = controller.attempt(
+            machine, child=_AlreadyExitedChild(), lock=lock
+        )
+
+        self.assertEqual(result_phase, Phase.FAILED)
+        self.assertEqual(lock.release_calls, 1)
 
 
 class ResumeAfterCrashTests(unittest.TestCase):

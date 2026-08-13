@@ -157,6 +157,11 @@ class InheritStdioChildProcess:
     def close(self) -> None:
         if self._process is not None and self._process.poll() is None:
             self._process.terminate()
+            try:
+                self._process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._process.kill()
+                self._process.wait(timeout=5)
         self._process = None
 
 
@@ -220,6 +225,21 @@ class PipeChildProcess:
         self._process.send_signal(sig)
 
     def wait(self, timeout: Optional[float] = None) -> int:
+        """Block until the child exits; return its REAL exit code, unmodified.
+
+        Caller-drains-stdout contract: this backend's stdout is a plain OS
+        pipe with a bounded kernel buffer. If the child writes enough output
+        without this pipe being drained (via :meth:`read`) concurrently, the
+        child can block on its own write() call once the buffer fills,
+        meaning it never exits and this method blocks indefinitely (a
+        classic ``subprocess`` pitfall). Callers that expect a chatty child
+        MUST drain :meth:`read` in a loop rather than calling ``wait()``
+        cold; :meth:`close` (used by cancellation/termination paths) does
+        not depend on the caller having drained anything -- it uses
+        ``communicate()`` internally, which drains concurrently while
+        waiting, specifically to avoid this deadlock during termination.
+        """
+
         if self._process is None:
             raise RuntimeError("cannot wait before spawn()")
         return self._process.wait(timeout=timeout)
@@ -230,12 +250,17 @@ class PipeChildProcess:
         if self._process.poll() is None:
             self._process.terminate()
             try:
-                self._process.wait(timeout=5)
+                # communicate() drains stdout/stderr concurrently while
+                # waiting for exit, unlike a bare wait() -- avoiding a
+                # deadlock if the child emits enough final output to fill
+                # the OS pipe buffer before actually exiting (128-S review
+                # remediation).
+                self._process.communicate(timeout=5)
             except subprocess.TimeoutExpired:
                 self._process.kill()
-                self._process.wait(timeout=5)
+                self._process.communicate(timeout=5)
         for stream in (self._process.stdin, self._process.stdout, self._process.stderr):
-            if stream is not None:
+            if stream is not None and not stream.closed:
                 stream.close()
         self._process = None
 

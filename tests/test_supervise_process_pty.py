@@ -94,6 +94,24 @@ class RealPtyExitCodeFidelityTests(unittest.TestCase):
         proc = PtyChildProcess([_PY, "-c", "pass"])
         self.assertTrue(proc.supports_output_capture)
 
+    def test_close_reaps_still_running_child_without_zombie(self) -> None:
+        """128-S review remediation: close() called on a still-running child
+        (no prior wait()) must terminate AND reap it, avoiding a zombie --
+        previously close() only closed the master fd.
+        """
+
+        import os as _os
+
+        proc = PtyChildProcess([_PY, "-c", "import time; time.sleep(30)"])
+        proc.spawn()
+        pid = proc.pid
+        proc.close()
+        # Poll (non-blocking) for the child: if it were an unreaped zombie
+        # or still running, waitpid(WNOHANG) would return (0, 0) (still
+        # there) rather than raising ChildProcessError (already reaped).
+        with self.assertRaises(ChildProcessError):
+            _os.waitpid(pid, _os.WNOHANG)
+
 
 class GuardedImportAvailabilityTests(unittest.TestCase):
     def test_pty_module_unavailable_signals_unavailable_not_raise(self) -> None:

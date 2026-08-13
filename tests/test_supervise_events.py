@@ -230,5 +230,46 @@ class NoListenGuardPositiveControlTests(unittest.TestCase):
         gc.collect()
 
 
+class NoListenGuardCrossThreadTests(unittest.TestCase):
+    """128-S review remediation: the guard's depth counter must be visible
+    to EVERY thread, not just the one that entered the ``with`` block --
+    otherwise a background thread started while the guard is active could
+    bind a listening socket undetected (a genuine H7/F28 bypass, since a
+    ``contextvars.ContextVar`` is NOT inherited by a newly created OS
+    thread).
+    """
+
+    def test_guard_fires_for_bind_performed_on_a_background_thread(self) -> None:
+        import threading
+
+        detected: list[BaseException] = []
+        srv_holder: list[socket.socket] = []
+
+        def _bind_on_thread() -> None:
+            try:
+                srv_holder.append(socket.create_server(("127.0.0.1", 0)))
+            except ListeningSocketDetected as exc:
+                detected.append(exc)
+
+        with install_no_listen_guard():
+            thread = threading.Thread(target=_bind_on_thread)
+            thread.start()
+            thread.join(timeout=10)
+
+        try:
+            self.assertEqual(
+                len(detected),
+                1,
+                "the no-listen guard must fire for a socket bind performed by a "
+                "background thread while the guard's context is active on the "
+                "thread that entered it",
+            )
+        finally:
+            for srv in srv_holder:
+                with contextlib.suppress(Exception):
+                    srv.close()
+            gc.collect()
+
+
 if __name__ == "__main__":
     unittest.main()

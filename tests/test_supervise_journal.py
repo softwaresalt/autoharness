@@ -81,6 +81,37 @@ class CrashMidWriteRecoveryTests(unittest.TestCase):
             missing_path = Path(workspace) / "does-not-exist.jsonl"
             self.assertEqual(read_cursor(missing_path), -1)
 
+    def test_resume_after_truncated_line_does_not_corrupt_next_append(self) -> None:
+        """128-S review remediation: a crash-truncated trailing line (no
+        newline terminator) must not swallow the NEXT appended record onto
+        the same physical line. Both the corrupt line and the new,
+        well-formed record must independently round-trip through
+        ``read_cursor``/line-based JSON parsing.
+        """
+
+        with tempfile.TemporaryDirectory() as workspace:
+            first = SessionJournal(workspace, session_id="s1")
+            good_cursor = first.append_event(ChildOutputUnavailable(reason="a"))
+
+            # Simulate a crash mid-write: append a truncated line with NO
+            # trailing newline (the exact signature this fix targets).
+            with first.journal_path.open("a", encoding="utf-8") as handle:
+                handle.write('{"seq": 99, "kind": "event", "incompl')
+
+            # A fresh instance resumes from the same on-disk journal.
+            second = SessionJournal(workspace, session_id="s1")
+            new_seq = second.append_event(ChildOutputUnavailable(reason="b"))
+
+            self.assertEqual(new_seq, good_cursor + 1)
+
+            lines = first.journal_path.read_text(encoding="utf-8").splitlines()
+            # The truncated line and the newly appended record must be on
+            # SEPARATE lines, not merged into one unparseable blob.
+            self.assertIn('{"seq": 99, "kind": "event", "incompl', lines)
+            last_record = json.loads(lines[-1])
+            self.assertEqual(last_record["seq"], new_seq)
+            self.assertEqual(json.loads(lines[-1])["reason"], "b")
+
 
 class CursorResumeTests(unittest.TestCase):
     def test_fresh_instance_continues_seq_after_simulated_crash(self) -> None:

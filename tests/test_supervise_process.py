@@ -196,6 +196,39 @@ class ReapWithoutZombiesTests(unittest.TestCase):
         self.assertIsNotNone(proc.raw_popen.poll())
         proc.close()
 
+    def test_inherit_backend_close_reaps_without_prior_wait(self) -> None:
+        """128-S review remediation: close() called WITHOUT a prior wait()
+        on a still-running child must actually reap it (not merely signal
+        termination and abandon the handle), avoiding an unreaped zombie.
+        """
+
+        proc = InheritStdioChildProcess([_PY, "-c", "import time; time.sleep(30)"])
+        proc.spawn()
+        raw = proc._process  # noqa: SLF001 - test introspection only
+        proc.close()
+        # After close(), the underlying Popen must have been waited on: its
+        # returncode is set (reaped), not left None (zombie/still-running).
+        self.assertIsNotNone(raw.poll())
+
+    def test_pipe_backend_close_drains_and_reaps_chatty_child(self) -> None:
+        """128-S review remediation: close() must not deadlock (and must
+        reap) a child that keeps writing substantial output right up until
+        termination -- a bare wait() without draining stdout risks the
+        child blocking on a full OS pipe buffer.
+        """
+
+        script = (
+            "import sys, time\n"
+            "for _ in range(5000):\n"
+            "    sys.stdout.write('x' * 200 + '\\n')\n"
+            "time.sleep(30)\n"
+        )
+        proc = PipeChildProcess([_PY, "-c", script])
+        proc.spawn()
+        raw = proc.raw_popen
+        proc.close()
+        self.assertIsNotNone(raw.poll())
+
 
 class FakeChildProcessScriptedOutputTests(unittest.TestCase):
     def test_scripted_stdout_lines_are_read_in_order_then_none(self) -> None:

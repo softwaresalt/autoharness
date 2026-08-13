@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -147,6 +148,27 @@ class PtyChildProcess:
             time.sleep(0.01)
 
     def close(self) -> None:
+        """Release resources and reap the child, avoiding a zombie.
+
+        128-S review remediation: the previous implementation only closed
+        the master file descriptor without terminating/waiting for the
+        child. When cancellation calls :meth:`signal` followed by
+        :meth:`close`, a child that has not yet exited could remain
+        running or become an unreaped zombie -- this now mirrors the
+        pipe/inherited-stdio backends' terminate/wait/kill sequence before
+        releasing the file descriptor.
+        """
+
+        if self._pid is not None and self._exit_code is None:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(self._pid, signal.SIGTERM)
+            try:
+                self.wait(timeout=5)
+            except (TimeoutError, ChildProcessError):
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(self._pid, signal.SIGKILL)
+                with contextlib.suppress(TimeoutError, ChildProcessError):
+                    self.wait(timeout=5)
         if self._master_fd is not None:
             with contextlib.suppress(OSError):
                 os.close(self._master_fd)
