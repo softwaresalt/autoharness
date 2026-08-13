@@ -108,7 +108,12 @@ class Redactor:
 
         result: dict[str, Any] = {}
         for key, value in data.items():
-            if isinstance(value, str) and _SECRET_KEY_PATTERN.search(str(key)):
+            if _SECRET_KEY_PATTERN.search(str(key)):
+                # A sensitive-named key is fully replaced regardless of value
+                # shape (str, int, float, list, nested dict, ...). Gating this
+                # on isinstance(value, str) would silently leak a non-string
+                # secret (e.g. a numeric token, or a list/dict payload) nested
+                # under a TOKEN/SECRET/KEY/PASSWORD-named key.
                 result[key] = PLACEHOLDER
             else:
                 result[key] = self.redact_value(value)

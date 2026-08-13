@@ -144,6 +144,22 @@ class KeyNameMatchingTests(unittest.TestCase):
                 redacted = redactor.redact_mapping(payload)
                 self.assertEqual(redacted[key], PLACEHOLDER)
 
+    def test_sensitive_key_names_replace_non_string_value_shapes(self) -> None:
+        # Regression: a sensitive-named key's value must be fully replaced
+        # even when it is not a plain string -- a numeric token, or a
+        # list/nested-dict payload, must never leak through unredacted just
+        # because the key-name rule was gated on isinstance(value, str).
+        redactor = Redactor()
+        for key in ("API_KEY", "TOKEN", "secret", "Password"):
+            self.assertEqual(redactor.redact_mapping({key: 123456789})[key], PLACEHOLDER)
+            self.assertEqual(
+                redactor.redact_mapping({key: ["opaque-secret-value"]})[key], PLACEHOLDER
+            )
+            self.assertEqual(
+                redactor.redact_mapping({key: {"nested": "value"}})[key], PLACEHOLDER
+            )
+            self.assertEqual(redactor.redact_mapping({key: None})[key], PLACEHOLDER)
+
 
 class WholeMatchOnlyTests(unittest.TestCase):
     def test_placeholder_never_reveals_partial_secret_characters(self) -> None:

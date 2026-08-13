@@ -171,3 +171,19 @@ def test_empty_manifest_falls_back_to_safe_close(backlog_dir: Path) -> None:
     decision = classify_shipment_close_path([], backlog_dir)
 
     assert decision.close_path is ClosePath.SAFE_CLOSE
+
+
+def test_manifest_item_with_glob_metacharacters_does_not_match_unrelated_file(
+    backlog_dir: Path,
+) -> None:
+    # Regression: a manifest item id containing glob metacharacters must
+    # never be treated as a glob pattern that resolves to an unrelated,
+    # arbitrary backlog file. It must be matched LITERALLY (and therefore
+    # not found, falling back to safe-close), never silently resolve to
+    # whatever happens to sort first on disk.
+    _write_artifact(backlog_dir, "queue", "210-F", "feature")
+
+    decision = classify_shipment_close_path(["*"], backlog_dir)
+
+    assert decision.close_path is ClosePath.SAFE_CLOSE
+    assert "*" in decision.reason

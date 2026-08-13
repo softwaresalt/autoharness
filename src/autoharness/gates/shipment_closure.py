@@ -45,6 +45,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from glob import escape as _glob_escape
 from pathlib import Path
 from typing import Sequence
 
@@ -99,7 +100,11 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
         base = backlog_dir / folder
         if not base.exists():
             continue
-        for candidate in sorted(base.glob(f"{artifact_id}.*")):
+        # glob.escape the artifact id before pattern-matching so a manifest
+        # item containing glob metacharacters (*, ?, [...]) can never resolve
+        # to an unrelated, arbitrary backlog file -- it must match the
+        # artifact id LITERALLY or not be found at all.
+        for candidate in sorted(base.glob(f"{_glob_escape(artifact_id)}.*")):
             if not candidate.is_file():
                 continue
             fm = _frontmatter(candidate)
