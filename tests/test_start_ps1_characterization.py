@@ -48,6 +48,22 @@ START_PS1 = REPO_ROOT / "start.ps1"
 
 PWSH = shutil.which("pwsh") or shutil.which("powershell")
 
+# This sandbox's stub mechanism is Windows-only BY DESIGN (see module
+# docstring): stub commands are plain ``.cmd``/batch scripts resolved via
+# Windows' PATHEXT bare-name lookup, and the minimal PATH is built from
+# ``SystemRoot``/``System32``/``ComSpec``. GitHub-hosted ``ubuntu-latest``
+# runners ship ``pwsh`` preinstalled, so gating this suite on "is pwsh on
+# PATH" alone is NOT sufficient to keep it from running on Linux CI -- it
+# must also require ``sys.platform == "win32"``, since a ``.cmd`` stub
+# cannot execute at all under Linux (no ``cmd.exe``), which would make
+# every test in this suite fail for infrastructure reasons unrelated to
+# the characterization assertions themselves. This repo's regular PR/push
+# CI (``.github/workflows/ci.yml``) runs Linux-only, and no Windows runner
+# currently exists in this repo's workflows; this suite is exercised on a
+# native Windows machine (manual/dev-loop verification), not by CI, until
+# a Windows CI job is introduced (out of scope for this shipment).
+IS_WINDOWS = sys.platform == "win32"
+
 
 def _minimal_system_path() -> str:
     """A PATH containing only base Windows system directories.
@@ -235,7 +251,11 @@ class Sandbox:
 
 
 
-@unittest.skipIf(PWSH is None, "no pwsh/powershell executable found on PATH")
+@unittest.skipIf(
+    not IS_WINDOWS or PWSH is None,
+    "Windows-only sandbox (Windows-specific .cmd stub mechanism); requires "
+    "a pwsh/powershell executable found on PATH",
+)
 class StartPs1CharacterizationTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmpdir = tempfile.TemporaryDirectory()
