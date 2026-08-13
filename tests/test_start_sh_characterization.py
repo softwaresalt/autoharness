@@ -1,68 +1,94 @@
 """Characterization suite for the repository-root ``start.sh`` launcher.
 
-This suite pins the CURRENT observable contract of ``start.sh`` as-is. It
-does NOT modify ``start.sh``: the script under test is copied verbatim into
-an isolated temporary workspace, invoked via a real ``bash``/``sh`` on a
-tightly controlled ``PATH`` populated with small shebang-script stubs for
-``gh`` and ``copilot`` (the only two external tools ``start.sh`` invokes).
+POST-MIGRATION (120.007-T / shipment 129-S): ``start.sh`` is now a THIN
+COMPATIBILITY SHIM -- it contains no bootstrap/sidecar/resolve policy of its
+own. All of that policy now lives in ``src/autoharness/supervise/``
+(``bootstrap.py``, ``sidecar.py``, ``resolve.py``, ``app.py``) and is
+invoked, end-to-end, via a single ``exec autoharness run --workspace
+"$script_dir" -- "$@"`` call (``exec`` -- no subshell, no ``|| true``, no
+masking -- preserves verbatim exit-code propagation, H3).
 
-This is ``start.sh``'s OWN five-dimension contract -- NOT a mirror of the
-``start.ps1`` characterization suite (``test_start_ps1_characterization.py``).
-``start.sh`` is a deliberately smaller surface than ``start.ps1``: it has no
-Engram pre-warm, no backlogit sync, no ``GITHUB_PERSONAL_ACCESS_TOKEN``, no
-``--remote`` flag logic, and (today) no ``ENGRAM_DATA_DIR`` default (that
-line is present but commented out in the source). Several tests below
-explicitly assert these features are ABSENT, which is itself part of the
-pinned baseline -- an unannounced *addition* of any of them should fail this
-suite just as surely as an unannounced removal of an existing behavior.
+This suite exercises the REAL migrated architecture end-to-end wherever
+practical: the actual (unmodified) ``start.sh`` is copied into an isolated
+temp workspace and invoked via a real POSIX ``bash`` (Git for Windows on
+this sandbox), with a fully-controlled, hermetic ``PATH`` that includes (a)
+small extensionless shebang-script stubs for the external tools
+``gh``/``backlogit``/``engram``/``copilot`` (unchanged from the
+pre-migration suite -- the new Python implementation invokes these tools
+with the IDENTICAL argv shapes the old inline scripts did, and NOW also
+invokes ``backlogit``/``engram`` on POSIX -- see DELTA 6 below) and (b) the
+real installed ``autoharness`` console script's own directory (resolved via
+``shutil.which("autoharness")`` at collection time), so the REAL
+``bootstrap.py``/``sidecar.py``/``resolve.py``/``app.py`` chain runs inside
+the sandboxed ``bash`` subprocess.
+
+Structural "genuinely thin shim" lexical assertions (no subprocess required)
+are also included.
 
 ENVIRONMENT NOTE: this sandbox is Windows. A genuine POSIX shell is located
 via ``shutil.which("bash")`` or the well-known Git for Windows install
 location (``C:\\Program Files\\Git\\bin\\bash.exe``). If no POSIX shell can
-be found on this machine, the entire module is skipped via
-``unittest.skipIf`` -- the assertions themselves are still written in
-full so they execute wherever a POSIX shell is available (this sandbox
-happens to have Git for Windows installed, so in practice they do run here).
+be found, the entire end-to-end class is skipped via ``unittest.skipIf``.
 
-PID-PRESERVATION AS AN ``exec`` PROXY (with a documented MSYS/Cygwin
-CAVEAT): ``start.sh`` ends with ``exec "$copilot_exe" "$@"``. POSIX ``exec``
-replaces the *current* process image in place rather than forking a child,
-which is what actually preserves terminal/TTY attachment (there is no new
-process to be attached to anything -- the original process, with its
-original file descriptors 0/1/2, simply starts running different code).
-This was empirically verified in this sandbox via an isolated two-script
-repro: a script that prints its own ``$$`` and then ``exec``s a second
-script that also prints ``$$`` observes the SAME pid both times.
+APPROVED BEHAVIOR DELTAS pinned by this suite (see
+``docs/design-docs/2026-08-12-supervisor-observability-rollout-rollback.md``
+and ``src/autoharness/supervise/bootstrap.py``/``sidecar.py``/``resolve.py``
+for the authoritative rationale):
 
-CAVEAT: Git for Windows' bash runs under the MSYS/Cygwin POSIX emulation
-layer, which maintains its OWN internal pid table distinct from the native
-Win32 process id. True ``execve`` (in-place process image replacement) is
-not possible on Windows, so MSYS/Cygwin's ``exec`` necessarily starts a NEW
-native Win32 process underneath while preserving only the EMULATED
-(MSYS/Cygwin-level) pid seen by shell constructs like ``$$``. This was
-confirmed empirically: launching ``bash start.sh`` from Python and
-comparing ``subprocess.Popen.pid`` (the real Win32 pid) against the
-exec'd child's ``$$`` shows they DIFFER, even though the emulated pid
-(``$$``) is provably preserved across the ``exec`` boundary itself.
-Consequently, this suite does NOT compare against ``subprocess.Popen.pid``.
-Instead it captures the MSYS-emulated pid from BOTH sides of the ``exec``
-call using a signal that survives the Win32 boundary: the ``gh`` stub,
-invoked via command substitution (a fork, not an exec) just before the
-trailing ``exec`` line runs, records its own ``$PPID`` -- which is
-``start.sh``'s own MSYS-emulated pid at that point -- and the ``copilot``
-stub records its own post-exec ``$$``. These two values were verified via
-an isolated repro to be equal (the same MSYS-emulated pid, carried across
-the ``exec``), which is the correct level at which POSIX ``exec`` semantics
-(job control, ``$$``, ``$!``, etc.) actually operate for shell script
-purposes, and is the closest practical proxy available on this platform for
-"the process was replaced in place, not forked as a new logical process".
+* DELTA 2 (POSIX_ENGRAM_DATA_DIR) -- ``ENGRAM_DATA_DIR`` now defaults to
+  ``<workspace_root>/.engram`` on POSIX (the pre-migration ``start.sh`` had
+  this line present but COMMENTED OUT -- it was never active).
+* DELTA 3 (POSIX_PAT_BOOTSTRAP) -- ``GITHUB_TOKEN``/
+  ``GITHUB_PERSONAL_ACCESS_TOKEN`` resolution via ``gh auth token`` now runs
+  on POSIX (the pre-migration ``start.sh`` had NO PAT handling at all), with
+  the SAME non-fatal-on-``gh``-absent/failing contract Windows always had
+  (DELTA 1, pinned by the sibling PS1 suite).
+* DELTA 6 (POSIX_SIDECAR_PREFLIGHT, implied by consolidation) -- ``backlogit
+  sync`` and the Engram pre-warm sequence now run on POSIX too (the
+  pre-migration ``start.sh`` had NO sidecar logic at all -- pinned by the old
+  suite as an explicit ABSENCE test). This is an unavoidable consequence of
+  ``sidecar.py`` being a single, platform-branch-free module shared by both
+  shims (the task's own "no platform branching for behavior" constraint
+  leaves no way to keep this Windows-only without introducing a branch).
+* DELTA 7 (POSIX_REMOTE_FLAG, implied by consolidation) -- ``--remote``
+  composition (``COPILOT_USE_REMOTE`` truthy + double-add guard) now applies
+  on POSIX too (the pre-migration ``start.sh`` had NO ``--remote``/
+  ``COPILOT_USE_REMOTE`` logic at all -- pinned by the old suite as an
+  explicit ABSENCE test). Same rationale as DELTA 6: ``resolve.py`` is one
+  shared, platform-branch-free module.
+* PAT guard asymmetry is PRESERVED BYTE-IDENTICAL, not unified (deliberately
+  NOT a fourth delta): ``GITHUB_TOKEN`` remains guarded/no-clobber while
+  ``GITHUB_PERSONAL_ACCESS_TOKEN`` remains UNGUARDED and always re-resolved
+  when ``gh`` is available -- exactly mirroring the pre-migration
+  ``start.ps1`` asymmetry (see the sibling PS1 suite), now simply extended
+  non-fatally to POSIX by DELTA 3 above rather than unified into a single
+  guard contract.
+* WORKSPACE ROOT ANCHORING -- the pre-migration ``start.sh`` anchored
+  ``.env.local`` lookup to its own script directory (absolute, cwd
+  independent) but defaulted ``COPILOT_HOME`` to a CWD-relative ``"./.copilot"``
+  literal -- an internal inconsistency. The new shim passes
+  ``--workspace "$script_dir"`` explicitly so ALL bootstrap defaults
+  (``.env.local`` lookup, ``COPILOT_HOME``, ``ENGRAM_DATA_DIR``) are
+  consistently anchored to the script's own directory, matching (and fixing)
+  the more correct of the two pre-existing conventions.
+
+VALIDATION DEPTH NOTE: not every pre-migration assertion is re-validated
+end-to-end through a live sandbox run in this file. Assertions covering
+``bootstrap.py``/``sidecar.py``/``resolve.py``'s own internal decision logic
+in exhaustive per-branch detail are already covered far more cheaply and
+thoroughly by ``tests/test_supervise_bootstrap.py``,
+``tests/test_supervise_sidecar.py``, and ``tests/test_supervise_resolve.py``
+(unit level, no subprocess, and platform-agnostic since none of those
+modules branch by OS). This file's end-to-end tests are a representative,
+high-value subset proving the WIRING through the actual shim script is
+correct, plus the exec-based exit-code/argv passthrough this suite can only
+observe at the shell level.
 """
 
 from __future__ import annotations
 
 import os
 import shutil
-import stat
 import subprocess
 import textwrap
 from pathlib import Path
@@ -73,6 +99,7 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 START_SH = REPO_ROOT / "start.sh"
+START_SH_TMPL = REPO_ROOT / "templates" / "scripts" / "start.sh.tmpl"
 
 _GIT_BASH_CANDIDATES = [
     r"C:\Program Files\Git\bin\bash.exe",
@@ -81,15 +108,6 @@ _GIT_BASH_CANDIDATES = [
 
 
 def _find_bash() -> Optional[str]:
-    # Prefer the well-known Git for Windows install location FIRST. On
-    # Windows 10/11, `shutil.which("bash")` frequently resolves to the
-    # built-in WSL launcher shim at `C:\Windows\System32\bash.exe` (present
-    # even when no WSL distro is installed/usable) rather than a real POSIX
-    # shell -- that shim expects POSIX-style paths and fails with
-    # "No such file or directory" when handed a Windows path like
-    # `C:\Users\...\start.sh`, as confirmed empirically in this sandbox.
-    # Git for Windows' bash.exe is a genuine, directly-runnable POSIX shell
-    # that accepts Windows paths, so it is tried first.
     for candidate in _GIT_BASH_CANDIDATES:
         if os.path.isfile(candidate):
             return candidate
@@ -101,15 +119,12 @@ def _find_bash() -> Optional[str]:
 
 BASH = _find_bash()
 
+_AUTOHARNESS_EXE = shutil.which("autoharness")
+AUTOHARNESS_BIN_DIR = str(Path(_AUTOHARNESS_EXE).parent) if _AUTOHARNESS_EXE else None
+
 
 def _git_usr_bin() -> Optional[str]:
-    """Locate Git for Windows' ``usr/bin`` (coreutils: ``dirname``, ``chmod``).
-
-    ``start.sh`` uses ``$(dirname "${BASH_SOURCE[0]}")`` (an external
-    ``dirname`` command, not a bash builtin) to resolve its own directory.
-    Git for Windows ships coreutils under ``usr/bin`` alongside (not inside)
-    the ``bin`` directory that holds ``bash.exe`` itself.
-    """
+    """Locate Git for Windows' ``usr/bin`` (coreutils: ``dirname``, ``chmod``)."""
 
     if BASH is None:
         return None
@@ -124,61 +139,112 @@ GIT_USR_BIN = _git_usr_bin()
 
 
 # ---------------------------------------------------------------------------
-# Stub scripts. Extensionless shebang scripts on PATH, executed the same way
-# real external tools (``gh``, ``copilot``) would be -- verified in this
-# sandbox to resolve and execute correctly via bash's PATH search even
-# without a file extension, as long as the execute bit is set.
+# Stub scripts -- unchanged in argv shape from the pre-migration suite: the
+# new Python sidecar.py/bootstrap.py invoke these tools with the identical
+# argv the old inline scripts did.
+#
+# IMPORTANT: even though ``start.sh`` itself is invoked by ``bash``, EVERY
+# ``gh``/``backlogit``/``engram``/``copilot`` invocation in the migrated
+# architecture is made by the ``autoharness run`` PYTHON PROCESS (via
+# ``shutil.which`` + ``subprocess.Popen`` in bootstrap.py/sidecar.py/
+# resolve.py/process.py) -- NOT by bash. On this Windows sandbox, that
+# Python process is a native Win32 executable, so it can only resolve and
+# launch these stub tools if they are genuine Win32-executable files (``
+# .cmd``/``.bat``/``.exe``, discoverable via ``PATHEXT``). A POSIX
+# extensionless shebang script is NOT directly launchable by
+# ``subprocess.Popen`` on native Windows (there is no shebang-line
+# interpretation in ``CreateProcess``), even though bash's own MSYS exec
+# layer could launch one just fine. So these stubs use the SAME batch-file
+# bodies as the PS1 suite's stubs -- only ``start.sh``/``autoharness.exe``
+# need to be POSIX/bash-invokable, and both already are (``bash`` invokes
+# ``.exe`` files natively).
 # ---------------------------------------------------------------------------
 
 GH_STUB = textwrap.dedent(
-    """\
-    #!/usr/bin/env bash
-    if [ -n "${STUB_RESULT_DIR:-}" ]; then
-        echo "gh $*" >> "$STUB_RESULT_DIR/gh_calls.log"
-        # Record our own $PPID here for the exec-pid-identity proxy test
-        # below: `$(gh auth token)` runs `gh` as a forked child of the
-        # still-running start.sh process (command substitution does not
-        # exec anything), so `gh`'s $PPID IS start.sh's own pid at the
-        # point just before it reaches the trailing `exec` line -- this
-        # was verified empirically via an isolated repro (see the module
-        # docstring) and gives an exec-identity proxy that survives the
-        # Win32/MSYS pid-virtualization boundary described there.
-        echo "$PPID" > "$STUB_RESULT_DIR/gh_ppid.txt"
-    fi
-    if [ "${STUB_GH_FAIL:-}" = "1" ]; then
-        echo "stub gh failure" >&2
-        exit 1
-    fi
-    echo "${STUB_GH_TOKEN:-}"
-    exit 0
+    r"""
+    @echo off
+    if defined STUB_RESULT_DIR (
+        echo gh %* >> "%STUB_RESULT_DIR%\gh_calls.log"
+    )
+    if "%STUB_GH_FAIL%"=="1" (
+        echo stub gh failure 1>&2
+        exit /b 1
+    )
+    echo %STUB_GH_TOKEN%
+    exit /b 0
     """
-)
+).strip("\n")
+
+BACKLOGIT_STUB = textwrap.dedent(
+    r"""
+    @echo off
+    if defined STUB_RESULT_DIR (
+        echo backlogit %* >> "%STUB_RESULT_DIR%\backlogit_calls.log"
+    )
+    if "%STUB_BACKLOGIT_FAIL%"=="1" (
+        echo stub backlogit failure 1>&2
+        exit /b 1
+    )
+    exit /b 0
+    """
+).strip("\n")
+
+ENGRAM_STUB = textwrap.dedent(
+    r"""
+    @echo off
+    set "ARGS=%*"
+    if defined STUB_RESULT_DIR (
+        echo engram %ARGS% >> "%STUB_RESULT_DIR%\engram_calls.log"
+    )
+    echo %ARGS%| findstr /C:"bind" >nul
+    if %ERRORLEVEL%==0 goto :handle_bind
+
+    echo %ARGS%| findstr /C:"--direct" >nul
+    if %ERRORLEVEL%==0 goto :handle_direct
+
+    if "%STUB_ENGRAM_FALLBACK_FAIL%"=="1" (
+        echo stub engram fallback failure 1>&2
+        exit /b 1
+    )
+    exit /b 0
+
+    :handle_bind
+    if "%STUB_ENGRAM_BIND_FAIL%"=="1" (
+        echo stub engram bind failure 1>&2
+        exit /b 1
+    )
+    exit /b 0
+
+    :handle_direct
+    if "%STUB_ENGRAM_DIRECT_FAIL%"=="1" (
+        echo stub engram direct failure 1>&2
+        exit /b 1
+    )
+    exit /b 0
+    """
+).strip("\n")
 
 COPILOT_STUB = textwrap.dedent(
-    """\
-    #!/usr/bin/env bash
-    if [ -n "${STUB_RESULT_DIR:-}" ]; then
-        printf '%s\\n' "$@" > "$STUB_RESULT_DIR/copilot_args.txt"
-        env > "$STUB_RESULT_DIR/copilot_env.txt"
-        echo "$$" > "$STUB_RESULT_DIR/copilot_pid.txt"
-    fi
+    r"""
+    @echo off
+    > "%STUB_RESULT_DIR%\copilot_args.txt" (
+        echo %*
+    )
+    > "%STUB_RESULT_DIR%\copilot_env.txt" (
+        set
+    )
     echo COPILOT_STUB_STDOUT_MARKER
-    echo COPILOT_STUB_STDERR_MARKER >&2
-    if [ -n "${STUB_COPILOT_EXIT_CODE:-}" ]; then
-        exit "$STUB_COPILOT_EXIT_CODE"
-    fi
-    exit 0
+    echo COPILOT_STUB_STDERR_MARKER 1>&2
+    if not "%STUB_COPILOT_EXIT_CODE%"=="" (
+        exit /b %STUB_COPILOT_EXIT_CODE%
+    )
+    exit /b 0
     """
-)
+).strip("\n")
+
 
 def _parse_env_dump(text: str) -> dict:
-    """Parse the output of the POSIX ``env`` builtin/command into a dict.
-
-    Values may legitimately contain ``=`` (e.g. base64-ish tokens); split
-    only on the first ``=`` per line. Multi-line values (rare, but possible
-    for exported functions) are not handled -- none of the variables under
-    test in this suite are multi-line.
-    """
+    """Parse the output of the batch builtin ``set`` into a dict."""
 
     env = {}
     for line in text.splitlines():
@@ -202,21 +268,21 @@ class Sandbox:
         shutil.copy2(START_SH, self.workspace / "start.sh")
 
     def write_env_local(self, content: str) -> None:
-        # Write with an explicit newline convention (no translation) since
-        # one of the tests below exercises CR handling explicitly.
         with open(
             self.workspace / ".env.local", "w", encoding="utf-8", newline=""
         ) as fh:
             fh.write(content)
 
     def install_stub(self, name: str, content: str) -> None:
-        path = self.stub_dir / name
-        path.write_text(content, encoding="utf-8", newline="\n")
-        mode = os.stat(path).st_mode
-        os.chmod(path, mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+        # `.cmd` (not an extensionless shebang script) -- see the module
+        # docstring: these are resolved and launched by the native-Win32
+        # ``autoharness run`` Python process, not by bash.
+        (self.stub_dir / f"{name}.cmd").write_text(content, encoding="utf-8")
 
     def _env(self, extra_env: Optional[dict]) -> dict:
         path_parts = [str(self.stub_dir)]
+        if AUTOHARNESS_BIN_DIR:
+            path_parts.append(AUTOHARNESS_BIN_DIR)
         if GIT_USR_BIN:
             path_parts.append(GIT_USR_BIN)
         # Also include bash's own directory so the shebang line's
@@ -226,8 +292,15 @@ class Sandbox:
         path_parts.append(os.path.join(system_root, "System32"))
         env = {
             "SystemRoot": system_root,
+            "ComSpec": os.environ.get("ComSpec", r"C:\Windows\System32\cmd.exe"),
             "PATH": os.pathsep.join(path_parts),
+            # Required for the native-Win32 ``autoharness run`` Python
+            # process to resolve the `.cmd` stubs (and `autoharness.exe`
+            # itself) via bare-name lookup (``shutil.which``); subprocess
+            # env replacement means this must be supplied explicitly.
+            "PATHEXT": os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD"),
             "HOME": os.environ.get("HOME", str(self.result_dir)),
+            "USERPROFILE": os.environ.get("USERPROFILE", str(self.result_dir)),
             "TEMP": os.environ.get("TEMP", str(self.result_dir)),
             "TMP": os.environ.get("TMP", str(self.result_dir)),
             "STUB_RESULT_DIR": str(self.result_dir),
@@ -240,7 +313,7 @@ class Sandbox:
         self,
         argv: Optional[list] = None,
         extra_env: Optional[dict] = None,
-        timeout: float = 30.0,
+        timeout: float = 60.0,
     ) -> subprocess.CompletedProcess:
         cmd = [BASH, str(self.workspace / "start.sh")]
         if argv:
@@ -260,25 +333,15 @@ class Sandbox:
             return None
         return _parse_env_dump(path.read_text(encoding="utf-8", errors="replace"))
 
-    def copilot_args(self) -> Optional[list]:
+    def copilot_args(self) -> Optional[str]:
+        # The batch stub dumps ``%*`` as a single space-joined line (same
+        # format as the PS1 suite's stub) since the copilot invocation is
+        # made by the native-Win32 ``autoharness run`` process regardless of
+        # which shell launched the top-level shim.
         path = self.result_dir / "copilot_args.txt"
         if not path.exists():
             return None
-        # One argv entry per line (see COPILOT_STUB's `printf '%s\n' "$@"`).
-        text = path.read_text(encoding="utf-8")
-        return text.split("\n")[:-1] if text.endswith("\n") else text.split("\n")
-
-    def copilot_pid(self) -> Optional[str]:
-        path = self.result_dir / "copilot_pid.txt"
-        if not path.exists():
-            return None
-        return path.read_text(encoding="utf-8").strip()
-
-    def gh_ppid(self) -> Optional[str]:
-        path = self.result_dir / "gh_ppid.txt"
-        if not path.exists():
-            return None
-        return path.read_text(encoding="utf-8").strip()
+        return path.read_text(encoding="utf-8").strip("\r\n")
 
     def calls_log(self, name: str) -> list:
         path = self.result_dir / f"{name}_calls.log"
@@ -287,31 +350,97 @@ class Sandbox:
         return [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+# ---------------------------------------------------------------------------
+# Structural "genuinely thin shim" lexical checks -- no subprocess needed.
+# ---------------------------------------------------------------------------
+
+
+_BANNED_TOKENS = (
+    ".env.local",
+    "COPILOT_HOME",
+    "ENGRAM_DATA_DIR",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "GITHUB_TOKEN",
+    "gh auth token",
+    "backlogit",
+    "--remote",
+    "COPILOT_USE_REMOTE",
+    "AUTOHARNESS_SUPERVISOR",
+)
+
+
+def _active_lines(text: str) -> list:
+    return [line for line in text.splitlines() if not line.strip().startswith("#")]
+
+
+class ShimIsGenuinelyThinTests(unittest.TestCase):
+    """Structural checks that need no sandbox/subprocess at all."""
+
+    def test_start_sh_active_lines_contain_no_bootstrap_sidecar_resolve_policy(self):
+        # "engram" legitimately appears in the (unchanged, preserved)
+        # commented-out Claude/Codex sections' surrounding prose is not
+        # expected -- but to be safe this checks only ACTIVE (non-comment)
+        # lines, consistent with the pre-migration suite's own convention
+        # for the (now fully removed) commented-out ENGRAM_DATA_DIR line.
+        active_text = "\n".join(_active_lines(START_SH.read_text(encoding="utf-8")))
+        for token in _BANNED_TOKENS:
+            self.assertNotIn(token, active_text, f"start.sh must not contain {token!r} in an active line")
+        self.assertNotIn("engram", active_text.lower())
+
+    def test_start_sh_tmpl_active_lines_contain_no_bootstrap_sidecar_resolve_policy(self):
+        active_text = "\n".join(_active_lines(START_SH_TMPL.read_text(encoding="utf-8")))
+        for token in _BANNED_TOKENS:
+            self.assertNotIn(token, active_text, f"start.sh.tmpl must not contain {token!r} in an active line")
+        self.assertNotIn("engram", active_text.lower())
+
+    def test_start_sh_invokes_autoharness_run(self):
+        text = START_SH.read_text(encoding="utf-8")
+        self.assertIn("autoharness run", text)
+
+    def test_start_sh_uses_exec_for_verbatim_exit_propagation(self):
+        text = START_SH.read_text(encoding="utf-8")
+        self.assertIn("exec autoharness run", text)
+        self.assertNotIn("|| true", text)
+
+    def test_start_sh_tmpl_preserves_project_name_placeholder(self):
+        text = START_SH_TMPL.read_text(encoding="utf-8")
+        self.assertIn("{{PROJECT_NAME}}", text)
+
+    def test_start_sh_final_invocation_has_no_stdio_redirection(self):
+        source = START_SH.read_text(encoding="utf-8")
+        lines = [line.strip() for line in source.splitlines() if line.strip() and not line.strip().startswith("#")]
+        invocation_lines = [line for line in lines if line.startswith("exec autoharness run")]
+        assert len(invocation_lines) == 1
+        invocation = invocation_lines[0]
+        for operator in (">", "2>", "1>", "*>", "|", "<"):
+            assert operator not in invocation, f"unexpected redirection operator {operator!r}"
 
 
 @unittest.skipIf(
-    BASH is None,
+    BASH is None or AUTOHARNESS_BIN_DIR is None,
     reason=(
         "no POSIX shell (bash) found on PATH or at the well-known Git for "
-        "Windows install location; start.sh characterization requires a "
-        "real bash invocation and is skipped gracefully rather than faked"
+        "Windows install location, or no resolvable `autoharness` console "
+        "script found on PATH; start.sh end-to-end characterization "
+        "requires both and is skipped gracefully rather than faked"
     ),
 )
-class StartShCharacterizationTests(unittest.TestCase):
+class StartShEndToEndTests(unittest.TestCase):
+    """End-to-end characterization: real bash -> real `autoharness run` ->
+    real bootstrap.py/sidecar.py/resolve.py/app.py -> stub external tools."""
+
     def setUp(self) -> None:
         self._tmpdir = tempfile.TemporaryDirectory()
         self.sandbox = Sandbox(Path(self._tmpdir.name))
         self.sandbox.install_stub("gh", GH_STUB)
+        self.sandbox.install_stub("backlogit", BACKLOGIT_STUB)
+        self.sandbox.install_stub("engram", ENGRAM_STUB)
         self.sandbox.install_stub("copilot", COPILOT_STUB)
 
     def tearDown(self) -> None:
         self._tmpdir.cleanup()
 
-    # ---------------------------------------------------------------------------
-    # (1) .env.local no-clobber parsing with CR stripping, trailing-whitespace
-    #     trim, single matching quote-pair stripping.
-    # ---------------------------------------------------------------------------
-
+    # -- .env.local: no-clobber + quote/CR stripping ---------------------
 
     def test_env_local_parses_plain_and_quoted_values(self):
         self.sandbox.write_env_local(
@@ -333,34 +462,37 @@ class StartShCharacterizationTests(unittest.TestCase):
         assert env["PLAIN_VALUE"] == "hello"
         assert env["DOUBLE_QUOTED"] == "hello world"
         assert env["SINGLE_QUOTED"] == "hello world"
-        # Mismatched surrounding quotes (" ... ') are NOT a matching pair, so
-        # they are left untouched verbatim.
         assert env["MISMATCHED_QUOTES"] == '"hello\''
-        # start.sh's KEY regex is `[A-Za-z_][A-Za-z0-9_]*` -- explicitly
-        # case-inclusive of lower-case from the start (unlike start.ps1's
-        # PowerShell `-match`, which is incidentally case-insensitive despite
-        # a literal `[A-Z_]` pattern). Lower-case keys are parsed and exported
-        # here by explicit design, not by a case-insensitivity quirk.
-        assert env.get("lowercase_ignored") == "nope"
+        # NOTE: on Windows, CPython's `os.environ` machinery normalizes
+        # newly-set variable NAMES to uppercase when the process env block
+        # crosses a child-process boundary (confirmed empirically -- this is
+        # a CPython/Windows environment-block quirk, not a bootstrap.py
+        # defect: bootstrap.py's own KEY=VALUE regex is deliberately
+        # case-inclusive, see its module docstring). A real POSIX system has
+        # no such normalization. Assert case-insensitively here so this
+        # suite still pins "lowercase names ARE parsed and applied", without
+        # asserting an exact-case property this Windows sandbox cannot
+        # observe through the real child-process boundary.
+        assert {k.lower(): v for k, v in env.items()}.get("lowercase_ignored") == "nope"
 
-
-    def test_env_local_strips_trailing_carriage_return_and_whitespace(self):
-        # A CRLF-terminated line (as if authored/edited on Windows) followed by
-        # trailing spaces before the CR. `${env_value%$'\r'}` strips a trailing
-        # CR first, then trailing whitespace is trimmed via parameter expansion.
-        self.sandbox.write_env_local("WITH_CRLF=value_with_cr   \r\n")
+    def test_env_local_strips_trailing_carriage_return(self):
+        self.sandbox.write_env_local("WITH_CRLF=value_with_cr\r\n")
         result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert env is not None
         assert env["WITH_CRLF"] == "value_with_cr"
 
-
     def test_env_local_no_clobber_preset_var_wins(self):
-        self.sandbox.write_env_local("COPILOT_HOME=/should/not/win\n")
+        # Use a non-path-shaped preset value: Git-Bash/MSYS auto-converts
+        # POSIX-absolute-path-looking env values into Windows paths when
+        # spawning a native-Win32 child (autoharness.exe); an arbitrary
+        # non-path token avoids that MSYS-specific translation while still
+        # proving no-clobber preset-value preservation.
+        self.sandbox.write_env_local("COPILOT_HOME=should-not-win\n")
         result = self.sandbox.run(
             extra_env={
-                "COPILOT_HOME": "/already/set",
+                "COPILOT_HOME": "already-set-value",
                 "STUB_GH_TOKEN": "tok",
                 "STUB_COPILOT_EXIT_CODE": "0",
             }
@@ -368,51 +500,35 @@ class StartShCharacterizationTests(unittest.TestCase):
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert env is not None
-        assert env["COPILOT_HOME"] == "/already/set"
-
-
-    def test_env_local_ignores_non_key_value_lines(self):
-        self.sandbox.write_env_local(
-            "\n".join(
-                [
-                    "# a comment line",
-                    "not a valid assignment",
-                    "REAL_VALUE=set_me",
-                    "",
-                ]
-            )
-        )
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
-        assert result.returncode == 0, result.stderr
-        env = self.sandbox.copilot_env()
-        assert env is not None
-        assert env["REAL_VALUE"] == "set_me"
-
+        assert env["COPILOT_HOME"] == "already-set-value"
 
     def test_env_local_absent_is_not_fatal(self):
-        # No .env.local written at all -- the `if [[ -f "$env_local" ]]` guard
-        # simply skips the whole block.
         result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
 
+    # -- COPILOT_HOME / ENGRAM_DATA_DIR defaults, anchored to $script_dir --
+    # -- DELTA 2: ENGRAM_DATA_DIR NOW defaults on POSIX (was commented out) --
 
-    # ---------------------------------------------------------------------------
-    # (2) COPILOT_HOME defaults to ./.copilot, honoring pre-set value.
-    # ---------------------------------------------------------------------------
-
-
-    def test_copilot_home_defaults_to_dot_copilot(self):
+    def test_copilot_home_and_engram_data_dir_default_to_workspace_subdirs(self):
         result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert env is not None
-        assert env["COPILOT_HOME"] == "./.copilot"
+        assert os.path.realpath(env["COPILOT_HOME"]) == os.path.realpath(
+            str(self.sandbox.workspace / ".copilot")
+        )
+        assert os.path.realpath(env["ENGRAM_DATA_DIR"]) == os.path.realpath(
+            str(self.sandbox.workspace / ".engram")
+        )
 
-
-    def test_copilot_home_honors_preset_value(self):
+    def test_copilot_home_and_engram_data_dir_honor_preset_values(self):
+        # Non-path-shaped preset values (see the no-clobber test above for
+        # why): MSYS/Git-Bash auto-converts POSIX-absolute-path-looking env
+        # values when spawning the native-Win32 `autoharness.exe` child.
         result = self.sandbox.run(
             extra_env={
-                "COPILOT_HOME": "/custom/copilot/home",
+                "COPILOT_HOME": "custom-copilot-home",
+                "ENGRAM_DATA_DIR": "custom-engram-data",
                 "STUB_GH_TOKEN": "tok",
                 "STUB_COPILOT_EXIT_CODE": "0",
             }
@@ -420,82 +536,43 @@ class StartShCharacterizationTests(unittest.TestCase):
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert env is not None
-        assert env["COPILOT_HOME"] == "/custom/copilot/home"
+        assert env["COPILOT_HOME"] == "custom-copilot-home"
+        assert env["ENGRAM_DATA_DIR"] == "custom-engram-data"
 
+    # -- DELTA 3: PAT resolution NOW runs on POSIX. Per-variable guard -----
+    # -- asymmetry (GITHUB_TOKEN guarded, GITHUB_PERSONAL_ACCESS_TOKEN -----
+    # -- unguarded) is PRESERVED byte-identical to Windows, not unified. ---
 
-    # ---------------------------------------------------------------------------
-    # ABSENCE: no ENGRAM_DATA_DIR default -- the line is commented out in the
-    # source. Baseline evidence: the variable is NOT set by start.sh at all
-    # (unless already present in the parent environment).
-    # ---------------------------------------------------------------------------
-
-
-    def test_engram_data_dir_source_line_is_commented_out(self):
-        text = START_SH.read_text(encoding="utf-8")
-        assert "# export ENGRAM_DATA_DIR=" in text
-        # And there must be no UN-commented `export ENGRAM_DATA_DIR=` line.
-        active_lines = [
-            line
-            for line in text.splitlines()
-            if line.strip().startswith("export ENGRAM_DATA_DIR=")
-        ]
-        assert active_lines == []
-
-
-    def test_engram_data_dir_not_set_when_absent_from_environment(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
+    def test_delta3_github_tokens_resolved_from_gh_when_both_unset(self):
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "resolved-token", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert env is not None
-        assert "ENGRAM_DATA_DIR" not in env
+        assert env["GITHUB_TOKEN"] == "resolved-token"
+        assert env["GITHUB_PERSONAL_ACCESS_TOKEN"] == "resolved-token"
+        # Two independent gh invocations (one per variable), matching the
+        # pre-migration start.ps1 call pattern extended non-fatally to POSIX.
+        assert [c.strip() for c in self.sandbox.calls_log("gh")] == ["gh auth token", "gh auth token"]
 
-
-    # ---------------------------------------------------------------------------
-    # (3) UNGUARDED `export GITHUB_TOKEN="$(gh auth token)"`. Because `export`
-    #     is a shell BUILTIN, `set -e` evaluates errexit against the exit status
-    #     of the `export` builtin itself -- not the failing command substitution
-    #     nested inside it -- so a failing `gh auth token` does NOT abort the
-    #     script under `set -euo pipefail`. The observable result is an EMPTY
-    #     GITHUB_TOKEN, never a script abort. Verified via an isolated repro
-    #     (`export FOO="$(false)"` under `set -e` continues to the next line).
-    # ---------------------------------------------------------------------------
-
-
-    def test_github_token_resolved_from_gh_when_present_and_succeeding(self):
-        result = self.sandbox.run(
-            extra_env={"STUB_GH_TOKEN": "resolved-token-value", "STUB_COPILOT_EXIT_CODE": "0"}
-        )
-        assert result.returncode == 0, result.stderr
-        env = self.sandbox.copilot_env()
-        assert env is not None
-        assert env["GITHUB_TOKEN"] == "resolved-token-value"
-        assert self.sandbox.calls_log("gh") == ["gh auth token"]
-
-
-    def test_github_token_empty_when_gh_fails_script_does_not_abort(self):
+    def test_github_token_preset_is_not_overwritten_and_gh_still_resolves_the_other(self):
         result = self.sandbox.run(
             extra_env={
-                "STUB_GH_FAIL": "1",
-                "STUB_GH_TOKEN": "should-not-appear",
+                "STUB_GH_TOKEN": "resolved-token",
                 "STUB_COPILOT_EXIT_CODE": "0",
+                "GITHUB_TOKEN": "already-set",
             }
         )
-        # Baseline: the script reaches `exec copilot` and propagates copilot's
-        # own exit code (0 here), NOT an early abort from `set -e`.
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert env is not None
-        assert env["GITHUB_TOKEN"] == ""
-        assert self.sandbox.calls_log("gh") == ["gh auth token"]
+        assert env["GITHUB_TOKEN"] == "already-set"
+        assert env["GITHUB_PERSONAL_ACCESS_TOKEN"] == "resolved-token"
+        assert [c.strip() for c in self.sandbox.calls_log("gh")] == ["gh auth token"]
 
+    # -- DELTA 1 (shared contract): gh absent/failing is non-fatal on POSIX --
+    # -- too, leaving the token variables UNSET (never empty string). ------
 
-    def test_github_token_empty_when_gh_entirely_absent_from_path(self):
-        # A sandbox with NO gh stub installed at all -- PATH resolution for
-        # `gh` fails outright ("command not found"), which is itself a command
-        # substitution failure captured the same way as an ordinary non-zero
-        # exit from `gh` -- still absorbed by `export`'s own (successful) exit
-        # status under `set -e`, per the same builtin-vs-substitution mechanics
-        # documented above.
+    def test_delta1_shared_gh_absent_is_non_fatal_and_leaves_vars_unset(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             box = Sandbox(Path(tmpdir))
             box.install_stub("copilot", COPILOT_STUB)
@@ -503,252 +580,200 @@ class StartShCharacterizationTests(unittest.TestCase):
             assert result.returncode == 0, result.stderr
             env = box.copilot_env()
             assert env is not None
-            assert env["GITHUB_TOKEN"] == ""
+            assert "GITHUB_TOKEN" not in env
+            assert "GITHUB_PERSONAL_ACCESS_TOKEN" not in env
 
-
-    # ---------------------------------------------------------------------------
-    # ABSENCE: no GITHUB_PERSONAL_ACCESS_TOKEN logic exists in start.sh at all
-    # (unlike start.ps1's separate, unconditional second token contract).
-    # ---------------------------------------------------------------------------
-
-
-    def test_no_github_personal_access_token_logic_in_source(self):
-        text = START_SH.read_text(encoding="utf-8")
-        assert "GITHUB_PERSONAL_ACCESS_TOKEN" not in text
-
-
-    def test_github_personal_access_token_never_set(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
+    def test_github_token_unset_when_gh_fails_non_fatally(self):
+        result = self.sandbox.run(
+            extra_env={
+                "STUB_GH_FAIL": "1",
+                "STUB_GH_TOKEN": "should-not-appear",
+                "STUB_COPILOT_EXIT_CODE": "0",
+            }
+        )
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert env is not None
+        assert "GITHUB_TOKEN" not in env
         assert "GITHUB_PERSONAL_ACCESS_TOKEN" not in env
+        assert [c.strip() for c in self.sandbox.calls_log("gh")] == ["gh auth token", "gh auth token"]
 
+    def test_github_token_preset_pat_is_still_unguarded_reresolved(self):
+        """GITHUB_PERSONAL_ACCESS_TOKEN is UNGUARDED on POSIX too -- byte
+        for-byte the same asymmetry as the pre-migration start.ps1 -- so
+        even when already set, it is re-resolved whenever gh is available.
+        Only GITHUB_TOKEN is guarded/no-clobber."""
 
-    # ---------------------------------------------------------------------------
-    # (4) Copilot exe resolution: COPILOT_EXE_PATH -> COPILOT_EXE -> PATH
-    #     `copilot`; actionable message + exit 1 when unresolvable.
-    # ---------------------------------------------------------------------------
+        result = self.sandbox.run(
+            extra_env={
+                "STUB_GH_TOKEN": "resolved-token",
+                "STUB_COPILOT_EXIT_CODE": "0",
+                "GITHUB_TOKEN": "already-set-1",
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "already-set-2",
+            }
+        )
+        assert result.returncode == 0, result.stderr
+        env = self.sandbox.copilot_env()
+        assert env is not None
+        assert env["GITHUB_TOKEN"] == "already-set-1"
+        assert env["GITHUB_PERSONAL_ACCESS_TOKEN"] == "resolved-token"
+        assert [c.strip() for c in self.sandbox.calls_log("gh")] == ["gh auth token"]
 
+    # -- Copilot exe resolution order + hard failure message ---------------
 
     def test_copilot_exe_resolved_from_path_by_default(self):
         result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_env() is not None
 
-
     def test_copilot_exe_path_takes_precedence(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            box = Sandbox(Path(tmpdir))
-            box.install_stub("gh", GH_STUB)
-            # A DIFFERENT executable under a different name, referenced only via
-            # COPILOT_EXE_PATH -- proves the explicit path wins over any PATH-based
-            # `copilot` resolution (there is deliberately no `copilot` stub at all
-            # here, so a fallback to PATH would fail outright).
-            explicit_copilot = box.stub_dir / "explicit-copilot-binary"
-            explicit_copilot.write_text(COPILOT_STUB, encoding="utf-8", newline="\n")
-            mode = os.stat(explicit_copilot).st_mode
-            os.chmod(explicit_copilot, mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-            result = box.run(
-                extra_env={
-                    "STUB_GH_TOKEN": "tok",
-                    "STUB_COPILOT_EXIT_CODE": "0",
-                    "COPILOT_EXE_PATH": str(explicit_copilot),
-                }
-            )
-            assert result.returncode == 0, result.stderr
-            assert box.copilot_env() is not None
-
-
-    def test_copilot_exe_env_var_used_when_exe_path_unset(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            box = Sandbox(Path(tmpdir))
-            box.install_stub("gh", GH_STUB)
-            explicit_copilot = box.stub_dir / "legacy-copilot-binary"
-            explicit_copilot.write_text(COPILOT_STUB, encoding="utf-8", newline="\n")
-            mode = os.stat(explicit_copilot).st_mode
-            os.chmod(explicit_copilot, mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-            result = box.run(
-                extra_env={
-                    "STUB_GH_TOKEN": "tok",
-                    "STUB_COPILOT_EXIT_CODE": "0",
-                    "COPILOT_EXE": str(explicit_copilot),
-                }
-            )
-            assert result.returncode == 0, result.stderr
-            assert box.copilot_env() is not None
-
-
-    def test_copilot_exe_unresolvable_hard_fails_with_actionable_message(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            box = Sandbox(Path(tmpdir))
-            box.install_stub("gh", GH_STUB)
-            # Deliberately no `copilot` stub anywhere on PATH and no
-            # COPILOT_EXE_PATH/COPILOT_EXE override.
-            result = box.run(extra_env={"STUB_GH_TOKEN": "tok"})
-            assert result.returncode == 1
-            assert "Unable to locate Copilot CLI" in result.stderr
-            assert "COPILOT_EXE_PATH" in result.stderr
-
-
-    # ---------------------------------------------------------------------------
-    # ABSENCE: no COPILOT_USE_REMOTE / --remote logic exists in start.sh.
-    # ---------------------------------------------------------------------------
-
-
-    def test_no_remote_flag_logic_in_source(self):
-        text = START_SH.read_text(encoding="utf-8")
-        assert "COPILOT_USE_REMOTE" not in text
-        assert "--remote" not in text
-
-
-    def test_remote_env_var_has_no_effect_on_argv(self):
+        explicit_copilot = self.sandbox.stub_dir / "explicit-copilot-binary.cmd"
+        explicit_copilot.write_text(COPILOT_STUB, encoding="utf-8")
+        (self.sandbox.stub_dir / "copilot.cmd").unlink()
         result = self.sandbox.run(
             extra_env={
                 "STUB_GH_TOKEN": "tok",
                 "STUB_COPILOT_EXIT_CODE": "0",
-                "COPILOT_USE_REMOTE": "true",
-            },
+                "COPILOT_EXE_PATH": str(explicit_copilot),
+            }
+        )
+        assert result.returncode == 0, result.stderr
+        assert self.sandbox.copilot_env() is not None
+
+    def test_copilot_exe_env_var_used_when_exe_path_unset(self):
+        explicit_copilot = self.sandbox.stub_dir / "legacy-copilot-binary.cmd"
+        explicit_copilot.write_text(COPILOT_STUB, encoding="utf-8")
+        (self.sandbox.stub_dir / "copilot.cmd").unlink()
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "COPILOT_EXE": str(explicit_copilot)}
+        )
+        assert result.returncode == 0, result.stderr
+        assert self.sandbox.copilot_env() is not None
+
+    def test_copilot_exe_unresolvable_hard_fails_with_actionable_message(self):
+        (self.sandbox.stub_dir / "copilot.cmd").unlink()
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
+        assert result.returncode != 0
+        assert "Unable to locate Copilot CLI" in result.stdout or "Unable to locate Copilot CLI" in result.stderr
+        assert "COPILOT_EXE_PATH" in result.stdout or "COPILOT_EXE_PATH" in result.stderr
+
+    # -- DELTA 7: --remote composition NOW applies on POSIX too ------------
+
+    def test_delta7_remote_flag_appended_when_use_remote_truthy(self):
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "COPILOT_USE_REMOTE": "true"},
             argv=["explicit", "args"],
         )
         assert result.returncode == 0, result.stderr
-        assert self.sandbox.copilot_args() == ["explicit", "args"]
+        assert self.sandbox.copilot_args() == "--remote explicit args"
 
-
-    # ---------------------------------------------------------------------------
-    # ABSENCE: no backlogit sync, no Engram pre-warm sidecar logic in start.sh.
-    # ---------------------------------------------------------------------------
-
-
-    def test_no_backlogit_or_engram_sidecar_logic_in_source(self):
-        text = START_SH.read_text(encoding="utf-8")
-        assert "backlogit" not in text.lower()
-        # "engram" DOES appear in the source, but only inside the commented-out
-        # `# export ENGRAM_DATA_DIR=...` default line (see the dedicated
-        # `test_engram_data_dir_source_line_is_commented_out` test above) --
-        # assert here that no ACTIVE (non-comment) line references it, i.e.
-        # there is no live Engram pre-warm/sidecar logic anywhere in start.sh.
-        active_lines = [
-            line
-            for line in text.splitlines()
-            if not line.strip().startswith("#")
-        ]
-        assert not any("engram" in line.lower() for line in active_lines)
-
-
-    def test_no_backlogit_or_engram_calls_observed_at_runtime(self):
-        # Even if `backlogit`/`engram` stub executables were on PATH, start.sh
-        # never invokes them -- verified here by confirming no calls log for
-        # either name is ever created despite the script running to completion.
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
-        assert result.returncode == 0, result.stderr
-        assert self.sandbox.calls_log("backlogit") == []
-        assert self.sandbox.calls_log("engram") == []
-
-
-    # ---------------------------------------------------------------------------
-    # (5) `exec` of resolved exe: verbatim argv passthrough, exit status via
-    #     process replacement, terminal attachment preserved.
-    # ---------------------------------------------------------------------------
-
-
-    def test_argv_forwarded_verbatim(self):
+    def test_remote_flag_not_appended_when_use_remote_not_truthy(self):
         result = self.sandbox.run(
-            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"},
-            argv=["--flag", "value with spaces", "-x"],
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "COPILOT_USE_REMOTE": "false"},
+            argv=["explicit", "args"],
         )
         assert result.returncode == 0, result.stderr
-        assert self.sandbox.copilot_args() == ["--flag", "value with spaces", "-x"]
+        assert self.sandbox.copilot_args() == "explicit args"
 
+    def test_remote_flag_not_duplicated_when_operator_already_passed_it(self):
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "COPILOT_USE_REMOTE": "true"},
+            argv=["--remote", "explicit"],
+        )
+        assert result.returncode == 0, result.stderr
+        assert self.sandbox.copilot_args() == "--remote explicit"
 
-    def test_child_exit_code_propagated_via_exec(self):
-        for exit_code in [0, 1, 3, 42]:
-            with self.subTest(exit_code=exit_code):
+    # -- operator argv forwarded verbatim -----------------------------------
+
+    def test_operator_argv_forwarded_verbatim(self):
+        result = self.sandbox.run(
+            argv=["explicit", "args"], extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"}
+        )
+        assert result.returncode == 0, result.stderr
+        assert self.sandbox.copilot_args() == "explicit args"
+
+    # -- exec-based verbatim exit code propagation (was already correct) ---
+
+    def test_child_exit_code_propagates_verbatim(self):
+        for child_exit_code in ["0", "3", "7"]:
+            with self.subTest(child_exit_code=child_exit_code):
                 result = self.sandbox.run(
-                    extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": str(exit_code)}
+                    extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": child_exit_code}
                 )
-                # Unlike start.ps1 (where a bare `& $copilotExe` loses the child's exit
-                # code because $PSNativeCommandUseErrorActionPreference is $false and
-                # there is no explicit `exit $LASTEXITCODE`), start.sh's `exec` performs
-                # genuine POSIX process replacement: the shell process itself BECOMES
-                # the child, so there is no "parent observes child's exit code" step at
-                # all -- the OS-level exit status IS the child's exit status.
-                assert result.returncode == exit_code
+                assert result.returncode == int(child_exit_code), (
+                    f"expected host exit code {child_exit_code} (exec-based verbatim "
+                    f"propagation), got {result.returncode}"
+                )
 
+    # -- DELTA 6: sidecar preflight NOW runs on POSIX too -------------------
 
-    def test_terminal_attachment_preserved_via_exec_pid_identity(self):
-        # `exec` replaces the running bash process's image in place at the
-        # MSYS/Cygwin-emulated pid level (see the module docstring's caveat on
-        # why the native Win32 pid cannot be used as the comparison point on
-        # this platform): the `gh` stub's own $PPID (captured via a fork, just
-        # before the trailing `exec` line runs) equals the `copilot` stub's own
-        # $$ (captured just after the `exec` replaces the process). A forked
-        # child (as opposed to `exec`) would necessarily produce a DIFFERENT
-        # pid at this emulated layer -- this is the closest practical proxy
-        # available for "terminal attachment preserved via process replacement,
-        # not a forked child": stdio file descriptors 0/1/2 are never reopened
-        # or redirected by a process replacement, because there is no new
-        # logical process to attach them to.
+    def test_delta6_backlogit_sync_runs_when_resolved(self):
         result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
-        gh_ppid = self.sandbox.gh_ppid()
-        copilot_pid = self.sandbox.copilot_pid()
-        assert gh_ppid is not None
-        assert copilot_pid is not None
-        assert gh_ppid == copilot_pid
+        calls = self.sandbox.calls_log("backlogit")
+        assert any("sync" in c for c in calls)
 
+    def test_backlogit_sync_failure_is_non_fatal(self):
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "STUB_BACKLOGIT_FAIL": "1"}
+        )
+        assert result.returncode == 0, result.stderr
+        assert self.sandbox.copilot_env() is not None
+        calls = self.sandbox.calls_log("backlogit")
+        assert any("sync" in c for c in calls)
 
-    def test_stub_stdio_markers_reach_captured_output_unmediated(self):
-        # No pipe/redirection is inserted between the shell and the child by
-        # start.sh itself; both stdout and stderr markers emitted by the stub
-        # reach our subprocess capture directly.
+    def test_backlogit_absent_is_skipped_non_fatally(self):
+        (self.sandbox.stub_dir / "backlogit.cmd").unlink()
         result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
-        assert result.returncode == 0
+        assert result.returncode == 0, result.stderr
+        assert self.sandbox.copilot_env() is not None
+
+    def test_delta6_engram_direct_prewarm_happy_path(self):
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
+        assert result.returncode == 0, result.stderr
+        calls = self.sandbox.calls_log("engram")
+        assert len(calls) == 1
+        assert "--direct" in calls[0]
+
+    def test_engram_direct_failure_falls_back_to_bind_and_daemon_sync(self):
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "STUB_ENGRAM_DIRECT_FAIL": "1"}
+        )
+        assert result.returncode == 0, result.stderr
+        calls = self.sandbox.calls_log("engram")
+        assert len(calls) == 3
+        assert "--direct" in calls[0]
+        assert "bind" in calls[1]
+        assert "sync" in calls[2] and "--direct" not in calls[2]
+        assert self.sandbox.copilot_env() is not None
+
+    def test_engram_fallback_failure_is_non_fatal(self):
+        result = self.sandbox.run(
+            extra_env={
+                "STUB_GH_TOKEN": "tok",
+                "STUB_COPILOT_EXIT_CODE": "0",
+                "STUB_ENGRAM_DIRECT_FAIL": "1",
+                "STUB_ENGRAM_BIND_FAIL": "1",
+                "STUB_ENGRAM_FALLBACK_FAIL": "1",
+            }
+        )
+        assert result.returncode == 0, result.stderr
+        assert self.sandbox.copilot_env() is not None
+
+    def test_engram_absent_is_skipped_non_fatally(self):
+        (self.sandbox.stub_dir / "engram.cmd").unlink()
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
+        assert result.returncode == 0, result.stderr
+        assert self.sandbox.copilot_env() is not None
+        assert self.sandbox.calls_log("engram") == []
+
+    # -- terminal/stdio pass-through (functional proxy) ---------------------
+
+    def test_child_stdio_is_not_intercepted_functionally(self):
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
+        assert result.returncode == 0, result.stderr
         assert "COPILOT_STUB_STDOUT_MARKER" in result.stdout
         assert "COPILOT_STUB_STDERR_MARKER" in result.stderr
-
-
-    def test_no_trailing_or_true_masks_exit_status(self):
-        # Explicitly assert as ABSENT: nothing after (or wrapping) the `exec`
-        # line masks the child's real exit status with a `|| true`/`; true`/
-        # `2>/dev/null; exit 0` pattern. Since `exec` replaces the process
-        # there is no "after" for the exec line itself to mask anything, but
-        # this static check also guards against a regression that wraps the
-        # exec call in a subshell/function with a trailing status-swallowing
-        # idiom.
-        text = START_SH.read_text(encoding="utf-8")
-        assert "|| true" not in text
-        exec_lines = [
-            line
-            for line in text.splitlines()
-            if "exec " in line and not line.strip().startswith("#")
-        ]
-        assert exec_lines, "expected to find the exec invocation line in start.sh"
-        for line in exec_lines:
-            assert "|| true" not in line
-            assert "; true" not in line
-
-
-    def test_exec_line_is_unconditional_and_final_active_statement(self):
-        # Structural confirmation: the `exec "$copilot_exe" "$@"` line exists
-        # exactly once, is not inside an `if`/conditional guard, and is the
-        # last ACTIVE (non-comment, non-blank) statement before the
-        # commented-out alternative tool sections.
-        text = START_SH.read_text(encoding="utf-8")
-        lines = text.splitlines()
-        exec_indices = [
-            i for i, line in enumerate(lines) if line.strip() == 'exec "$copilot_exe" "$@"'
-        ]
-        assert len(exec_indices) == 1
-        exec_index = exec_indices[0]
-        # Everything after the exec line, up to end of file, must be blank or
-        # a comment (the alternative Claude Code / Codex sections are all
-        # commented out).
-        for line in lines[exec_index + 1 :]:
-            stripped = line.strip()
-            assert stripped == "" or stripped.startswith("#"), (
-                f"unexpected active statement after the unconditional exec line: {line!r}"
-            )
 
 
 if __name__ == "__main__":

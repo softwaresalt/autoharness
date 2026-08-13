@@ -1,33 +1,74 @@
 """Characterization suite for the repository-root ``start.ps1`` launcher.
 
-This suite pins the CURRENT observable contract of ``start.ps1`` as-is. It
-does NOT modify ``start.ps1``: the script under test is copied verbatim into
-an isolated temporary workspace so its ``$PSScriptRoot``-relative behavior
-(``.env.local`` lookup, ``COPILOT_HOME``/``ENGRAM_DATA_DIR`` defaults) can be
-exercised without touching the real repository root.
+POST-MIGRATION (120.007-T / shipment 129-S): ``start.ps1`` is now a THIN
+COMPATIBILITY SHIM -- it contains no bootstrap/sidecar/resolve policy of its
+own. All of that policy now lives in ``src/autoharness/supervise/``
+(``bootstrap.py``, ``sidecar.py``, ``resolve.py``, ``app.py``) and is
+invoked, end-to-end, via a single ``autoharness run --workspace
+$PSScriptRoot @args`` call followed by ``exit $LASTEXITCODE``.
 
-External tools (``gh``, ``backlogit``, ``engram``, ``copilot``) are replaced
-with small ``.cmd`` stub scripts on a fully controlled, minimal ``PATH`` so
-no real network/CLI calls ever occur. Stubs are plain batch files -- NOT
-PowerShell (``.ps1``) scripts -- because ``.cmd``/``.bat`` files run as
-genuinely separate OS processes with independent exit codes, matching how
-the real external tools behave; a ``.ps1`` stub invoked via PowerShell's
-call operator would share process/runspace semantics with the parent script
-in ways that do not faithfully reproduce a real external command failure.
+This suite exercises the REAL migrated architecture end-to-end wherever
+practical: the actual (unmodified) ``start.ps1`` is copied into an isolated
+temp workspace and invoked via a real ``pwsh``, with a fully-controlled,
+hermetic ``PATH`` that includes (a) small ``.cmd`` stubs for the external
+tools ``gh``/``backlogit``/``engram``/``copilot`` (unchanged from the
+pre-migration suite -- the new Python implementation invokes these tools
+with the IDENTICAL argv shapes the old inline PowerShell did) and (b) the
+real installed ``autoharness`` console script's own directory (resolved via
+``shutil.which("autoharness")`` at collection time), so the REAL
+``bootstrap.py``/``sidecar.py``/``resolve.py``/``app.py`` chain runs inside
+the sandboxed ``pwsh`` subprocess.
 
-TERMINAL ATTACHMENT LIMITATION (documented per task spec, item (i)): a full
-TTY/console-inheritance assertion is not practically testable from within a
-test-runner-driven subprocess harness, because the runner itself pipes
-stdout/stderr of the ``pwsh`` process we spawn. What IS tested here is the closest
-practical proxy: (1) a static/structural check that the final invocation
-line in the actual source text contains no redirection operators
-(``>``, ``2>``, ``|``, ``*>``, ``<``) and does not use ``Start-Process``
-(which would detach the child from the console), and (2) a functional check
-that stub-emitted stdout/stderr markers propagate all the way through to
-our subprocess's captured output, proving nothing in ``start.ps1`` itself
-intercepts or redirects the child's stdio streams. This does not prove
-genuine interactive TTY attachment in a real terminal, only the absence of
-explicit redirection in the script.
+Structural "genuinely thin shim" lexical assertions (no subprocess required)
+are also included: they assert the shim's OWN source text contains none of
+the bootstrap/sidecar/resolve/``--remote`` policy tokens that used to live
+inline, so an accidental re-introduction of duplicated policy fails fast
+without needing a live sandbox run.
+
+APPROVED BEHAVIOR DELTAS pinned by this suite (see
+``docs/design-docs/2026-08-12-supervisor-observability-rollout-rollback.md``
+and ``src/autoharness/supervise/bootstrap.py`` for the authoritative
+rationale):
+
+* DELTA 1 (WINDOWS_PAT_NO_GH) -- ``gh`` absent/failing is non-fatal, leaves
+  the affected variable(s) UNSET (never empty-string), same as it always was
+  on POSIX.
+* DELTA 2 (POSIX_ENGRAM_DATA_DIR) -- covered by the POSIX suite
+  (``test_start_sh_characterization.py``); this file only pins the
+  Windows-side ``ENGRAM_DATA_DIR`` default, which is unchanged in shape but
+  now resolved via ``bootstrap.py`` rather than inline PowerShell.
+* DELTA 3 (POSIX_PAT_BOOTSTRAP) -- covered by the POSIX suite.
+* PAT guard asymmetry is PRESERVED BYTE-IDENTICAL, not unified (this is
+  deliberately NOT a fourth delta): the pre-migration script resolved
+  ``GITHUB_TOKEN`` (guarded/no-clobber) and ``GITHUB_PERSONAL_ACCESS_TOKEN``
+  (UNGUARDED, always re-resolved when ``gh`` is available) as two SEPARATE
+  per-variable contracts. ``bootstrap.py`` preserves this exact asymmetry
+  rather than unifying it -- unifying the two variables' guard behavior
+  with each other would be an unnamed additional delta outside the approved
+  three-entry matrix (ruling A, 2026-08-12), which only names DELTA 1
+  (WINDOWS_PAT_NO_GH), DELTA 2 (POSIX_ENGRAM_DATA_DIR), and DELTA 3
+  (POSIX_PAT_BOOTSTRAP).
+* DELTA 5 (H3 EXIT CODE FIX) -- the pre-migration ``start.ps1`` had NO
+  ``exit $LASTEXITCODE`` after its final invocation, so the host process's
+  own exit code was ALWAYS 0 regardless of the supervised child's real exit
+  code (pinned by the old suite as
+  ``test_pwsh_host_exit_code_does_not_mirror_child_exit_code``, itself
+  documented as a latent bug). The new shim's ``exit $LASTEXITCODE`` is a
+  deliberate, task-mandated (H3) fix: this suite now pins VERBATIM exit-code
+  propagation as the new, correct, intended behavior.
+
+VALIDATION DEPTH NOTE: not every pre-migration assertion is re-validated
+end-to-end through a live sandbox run in this file. Assertions covering
+``bootstrap.py``/``sidecar.py``/``resolve.py``'s own internal decision
+logic in exhaustive per-branch detail are already covered far more cheaply
+and thoroughly by ``tests/test_supervise_bootstrap.py``,
+``tests/test_supervise_sidecar.py``, and ``tests/test_supervise_resolve.py``
+(unit level, no subprocess). This file's end-to-end tests are a
+representative, high-value subset proving the WIRING through the actual
+shim script is correct (workspace anchoring, argv/exit-code passthrough,
+tool resolution order, sidecar invocation, terminal env var names actually
+reaching the child) -- not a second exhaustive copy of every unit-level
+branch.
 """
 
 from __future__ import annotations
@@ -45,35 +86,18 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 START_PS1 = REPO_ROOT / "start.ps1"
+START_PS1_TMPL = REPO_ROOT / "templates" / "scripts" / "start.ps1.tmpl"
 
 PWSH = shutil.which("pwsh") or shutil.which("powershell")
+_AUTOHARNESS_EXE = shutil.which("autoharness")
+AUTOHARNESS_BIN_DIR = str(Path(_AUTOHARNESS_EXE).parent) if _AUTOHARNESS_EXE else None
 
-# This sandbox's stub mechanism is Windows-only BY DESIGN (see module
-# docstring): stub commands are plain ``.cmd``/batch scripts resolved via
-# Windows' PATHEXT bare-name lookup, and the minimal PATH is built from
-# ``SystemRoot``/``System32``/``ComSpec``. GitHub-hosted ``ubuntu-latest``
-# runners ship ``pwsh`` preinstalled, so gating this suite on "is pwsh on
-# PATH" alone is NOT sufficient to keep it from running on Linux CI -- it
-# must also require ``sys.platform == "win32"``, since a ``.cmd`` stub
-# cannot execute at all under Linux (no ``cmd.exe``), which would make
-# every test in this suite fail for infrastructure reasons unrelated to
-# the characterization assertions themselves. This repo's regular PR/push
-# CI (``.github/workflows/ci.yml``) runs Linux-only, and no Windows runner
-# currently exists in this repo's workflows; this suite is exercised on a
-# native Windows machine (manual/dev-loop verification), not by CI, until
-# a Windows CI job is introduced (out of scope for this shipment).
+# This sandbox's stub mechanism is Windows-only BY DESIGN: stub commands are
+# plain .cmd/batch scripts resolved via Windows' PATHEXT bare-name lookup.
 IS_WINDOWS = sys.platform == "win32"
 
 
 def _minimal_system_path() -> str:
-    """A PATH containing only base Windows system directories.
-
-    Deliberately excludes any real developer-installed ``gh``, ``backlogit``,
-    ``engram``, or ``copilot`` so that "absent" scenarios are genuinely
-    absent, and "present" scenarios are unambiguously satisfied only by our
-    stubs (which are always placed earlier in PATH).
-    """
-
     system_root = os.environ.get("SystemRoot", r"C:\Windows")
     parts = [
         os.path.join(system_root, "System32"),
@@ -197,34 +221,42 @@ class Sandbox:
     def install_stub(self, name: str, content: str) -> None:
         (self.stub_dir / f"{name}.cmd").write_text(content, encoding="utf-8")
 
-    def run(
-        self,
-        argv: Optional[list] = None,
-        extra_env: Optional[dict] = None,
-        timeout: float = 30.0,
-    ) -> subprocess.CompletedProcess:
+    def _env(self, extra_env: Optional[dict]) -> dict:
+        path_parts = [str(self.stub_dir)]
+        if AUTOHARNESS_BIN_DIR:
+            path_parts.append(AUTOHARNESS_BIN_DIR)
+        path_parts.append(_minimal_system_path())
         env = {
             "SystemRoot": os.environ.get("SystemRoot", r"C:\Windows"),
             "ComSpec": os.environ.get("ComSpec", r"C:\Windows\System32\cmd.exe"),
-            "PATH": str(self.stub_dir) + os.pathsep + _minimal_system_path(),
-            # PATHEXT is required for PowerShell's bare-name command
-            # resolution (e.g. `gh auth token`) to recognize `.cmd` stub
-            # scripts as executables; subprocess.run's `env=` fully replaces
-            # the child environment, so this must be supplied explicitly.
+            "PATH": os.pathsep.join(path_parts),
+            # PATHEXT is required for bare-name command resolution (both the
+            # `.cmd` stubs AND `autoharness.exe` via PATHEXT's `.EXE` entry)
+            # to work; subprocess.run's `env=` fully replaces the child
+            # environment, so this must be supplied explicitly.
             "PATHEXT": os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD"),
             "TEMP": os.environ.get("TEMP", str(self.result_dir)),
             "TMP": os.environ.get("TMP", str(self.result_dir)),
+            "USERPROFILE": os.environ.get("USERPROFILE", str(self.result_dir)),
             "STUB_RESULT_DIR": str(self.result_dir),
         }
         if extra_env:
             env.update(extra_env)
+        return env
+
+    def run(
+        self,
+        argv: Optional[list] = None,
+        extra_env: Optional[dict] = None,
+        timeout: float = 60.0,
+    ) -> subprocess.CompletedProcess:
         cmd = [PWSH, "-NoProfile", "-NonInteractive", "-File", str(self.workspace / "start.ps1")]
         if argv:
             cmd.extend(argv)
         return subprocess.run(
             cmd,
             cwd=str(self.workspace),
-            env=env,
+            env=self._env(extra_env),
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -249,14 +281,75 @@ class Sandbox:
         return [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+# ---------------------------------------------------------------------------
+# Structural "genuinely thin shim" lexical checks -- no subprocess needed.
+# ---------------------------------------------------------------------------
+
+
+_BANNED_TOKENS = (
+    ".env.local",
+    "COPILOT_HOME",
+    "ENGRAM_DATA_DIR",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "GITHUB_TOKEN",
+    "gh auth token",
+    "backlogit",
+    "engram",
+    "--remote",
+    "COPILOT_USE_REMOTE",
+    "AUTOHARNESS_SUPERVISOR",
+)
+
+
+class ShimIsGenuinelyThinTests(unittest.TestCase):
+    """Structural checks that need no sandbox/subprocess at all."""
+
+    def test_start_ps1_contains_no_bootstrap_sidecar_resolve_policy(self):
+        text = START_PS1.read_text(encoding="utf-8")
+        for token in _BANNED_TOKENS:
+            self.assertNotIn(token, text, f"start.ps1 must not contain {token!r}")
+
+    def test_start_ps1_tmpl_contains_no_bootstrap_sidecar_resolve_policy(self):
+        text = START_PS1_TMPL.read_text(encoding="utf-8")
+        for token in _BANNED_TOKENS:
+            self.assertNotIn(token, text, f"start.ps1.tmpl must not contain {token!r}")
+
+    def test_start_ps1_invokes_autoharness_run(self):
+        text = START_PS1.read_text(encoding="utf-8")
+        self.assertIn("autoharness run", text)
+
+    def test_start_ps1_propagates_exit_code(self):
+        text = START_PS1.read_text(encoding="utf-8")
+        self.assertIn("exit $LASTEXITCODE", text)
+
+    def test_start_ps1_tmpl_preserves_project_name_placeholder(self):
+        text = START_PS1_TMPL.read_text(encoding="utf-8")
+        self.assertIn("{{PROJECT_NAME}}", text)
+
+    def test_start_ps1_final_invocation_has_no_stdio_redirection(self):
+        """Structural proxy: no redirection operator, no Start-Process (which
+        would detach the child from the console)."""
+
+        source = START_PS1.read_text(encoding="utf-8")
+        lines = [line.strip() for line in source.splitlines() if line.strip() and not line.strip().startswith("#")]
+        invocation_lines = [line for line in lines if line.startswith("autoharness run")]
+        assert len(invocation_lines) == 1
+        invocation = invocation_lines[0]
+        for operator in (">", "2>", "1>", "*>", "|", "<"):
+            assert operator not in invocation, f"unexpected redirection operator {operator!r}"
+        assert "Start-Process" not in source
 
 
 @unittest.skipIf(
-    not IS_WINDOWS or PWSH is None,
+    not IS_WINDOWS or PWSH is None or AUTOHARNESS_BIN_DIR is None,
     "Windows-only sandbox (Windows-specific .cmd stub mechanism); requires "
-    "a pwsh/powershell executable found on PATH",
+    "a pwsh/powershell executable AND a resolvable `autoharness` console "
+    "script found on PATH",
 )
-class StartPs1CharacterizationTests(unittest.TestCase):
+class StartPs1EndToEndTests(unittest.TestCase):
+    """End-to-end characterization: real pwsh -> real `autoharness run` ->
+    real bootstrap.py/sidecar.py/resolve.py/app.py -> stub external tools."""
+
     def setUp(self) -> None:
         self._tmpdir = tempfile.TemporaryDirectory()
         self.sandbox = Sandbox(Path(self._tmpdir.name))
@@ -268,11 +361,7 @@ class StartPs1CharacterizationTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmpdir.cleanup()
 
-    # ---------------------------------------------------------------------------
-    # (a) .env.local parsing: KEY=VALUE only, single matching quote pair
-    #     stripped, NO-CLOBBER (pre-set process var wins).
-    # ---------------------------------------------------------------------------
-
+    # -- .env.local: no-clobber + quote stripping -----------------------
 
     def test_env_local_parses_plain_and_quoted_values(self):
         self.sandbox.write_env_local(
@@ -282,7 +371,6 @@ class StartPs1CharacterizationTests(unittest.TestCase):
                     'DOUBLE_QUOTED="hello world"',
                     "SINGLE_QUOTED='hello world'",
                     "MISMATCHED_QUOTES=\"hello'",
-                    "lowercase_ignored=nope",
                     "",
                 ]
             )
@@ -294,20 +382,14 @@ class StartPs1CharacterizationTests(unittest.TestCase):
         assert env["PLAIN_VALUE"] == "hello"
         assert env["DOUBLE_QUOTED"] == "hello world"
         assert env["SINGLE_QUOTED"] == "hello world"
-        # Mismatched surrounding quotes (" ... ') are NOT a matching pair, so
-        # they are left untouched verbatim.
         assert env["MISMATCHED_QUOTES"] == '"hello\''
-        # The regex uses PowerShell's default CASE-INSENSITIVE `-match` operator,
-        # so `[A-Z_][A-Z0-9_]*` also matches lower-case names -- baseline
-        # evidence: lower-case keys ARE parsed and set (not ignored).
-        assert env["lowercase_ignored"] == "nope"
-
 
     def test_env_local_no_clobber_pre_set_process_var_wins(self):
         self.sandbox.write_env_local("MY_CUSTOM_VAR=from_file\n")
         result = self.sandbox.run(
             extra_env={
                 "STUB_GH_TOKEN": "tok",
+                "STUB_COPILOT_EXIT_CODE": "0",
                 "MY_CUSTOM_VAR": "from_process",
             }
         )
@@ -315,14 +397,10 @@ class StartPs1CharacterizationTests(unittest.TestCase):
         env = self.sandbox.copilot_env()
         assert env["MY_CUSTOM_VAR"] == "from_process"
 
-
-    # ---------------------------------------------------------------------------
-    # (b) COPILOT_HOME / ENGRAM_DATA_DIR defaults, honoring a pre-set value.
-    # ---------------------------------------------------------------------------
-
+    # -- COPILOT_HOME / ENGRAM_DATA_DIR defaults, anchored to $PSScriptRoot --
 
     def test_copilot_home_and_engram_data_dir_default_to_workspace_subdirs(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert os.path.realpath(env["COPILOT_HOME"]) == os.path.realpath(
@@ -332,11 +410,11 @@ class StartPs1CharacterizationTests(unittest.TestCase):
             str(self.sandbox.workspace / ".engram")
         )
 
-
     def test_copilot_home_and_engram_data_dir_honor_preset_values(self):
         result = self.sandbox.run(
             extra_env={
                 "STUB_GH_TOKEN": "tok",
+                "STUB_COPILOT_EXIT_CODE": "0",
                 "COPILOT_HOME": r"C:\custom\copilot-home",
                 "ENGRAM_DATA_DIR": r"C:\custom\engram-data",
             }
@@ -346,87 +424,77 @@ class StartPs1CharacterizationTests(unittest.TestCase):
         assert env["COPILOT_HOME"] == r"C:\custom\copilot-home"
         assert env["ENGRAM_DATA_DIR"] == r"C:\custom\engram-data"
 
+    # -- GitHub token resolution: per-variable guard asymmetry preserved --
+    # -- byte-identical to the pre-migration script (GITHUB_TOKEN guarded, --
+    # -- GITHUB_PERSONAL_ACCESS_TOKEN unguarded/always re-resolved).       --
 
-    # ---------------------------------------------------------------------------
-    # (c) Two separate token-resolution contracts.
-    # ---------------------------------------------------------------------------
-
-
-    def test_github_token_resolved_only_when_unset_via_guarded_gh(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "guarded-token"})
+    def test_github_tokens_resolved_from_gh_when_both_unset(self):
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "resolved-token", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
-        assert env["GITHUB_TOKEN"] == "guarded-token"
+        assert env["GITHUB_TOKEN"] == "resolved-token"
+        assert env["GITHUB_PERSONAL_ACCESS_TOKEN"] == "resolved-token"
+        # Two independent gh invocations (one per variable), matching the
+        # pre-migration script's own call pattern (PAT unconditionally,
+        # GITHUB_TOKEN separately when unset).
+        assert len(self.sandbox.calls_log("gh")) == 2
 
-
-    def test_github_token_preset_is_not_overwritten_and_gh_called_once(self):
+    def test_github_token_preset_is_not_overwritten_and_gh_still_called_for_the_other(self):
         result = self.sandbox.run(
-            extra_env={"STUB_GH_TOKEN": "guarded-token", "GITHUB_TOKEN": "already-set"}
+            extra_env={
+                "STUB_GH_TOKEN": "resolved-token",
+                "STUB_COPILOT_EXIT_CODE": "0",
+                "GITHUB_TOKEN": "already-set",
+            }
         )
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
         assert env["GITHUB_TOKEN"] == "already-set"
-        # Exactly one gh invocation: the unconditional GITHUB_PERSONAL_ACCESS_TOKEN
-        # assignment. The guarded GITHUB_TOKEN branch is skipped entirely because
-        # GITHUB_TOKEN was already set -- it must NOT call `gh` a second time.
+        assert env["GITHUB_PERSONAL_ACCESS_TOKEN"] == "resolved-token"
         assert len(self.sandbox.calls_log("gh")) == 1
 
+    def test_github_token_preset_pat_is_still_unguarded_reresolved(self):
+        """GITHUB_PERSONAL_ACCESS_TOKEN is UNGUARDED -- byte-identical to the
+        pre-migration script's unconditional `$env:GITHUB_PERSONAL_ACCESS_TOKEN
+        = (gh auth token)` assignment -- so even when already set, it is
+        re-resolved whenever gh is available. Only GITHUB_TOKEN is guarded."""
 
-    def test_github_personal_access_token_assigned_unconditionally_and_unguarded(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "pat-token"})
+        result = self.sandbox.run(
+            extra_env={
+                "STUB_GH_TOKEN": "resolved-token",
+                "STUB_COPILOT_EXIT_CODE": "0",
+                "GITHUB_TOKEN": "already-set-1",
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "already-set-2",
+            }
+        )
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
-        assert env["GITHUB_PERSONAL_ACCESS_TOKEN"] == "pat-token"
+        assert env["GITHUB_TOKEN"] == "already-set-1"
+        assert env["GITHUB_PERSONAL_ACCESS_TOKEN"] == "resolved-token"
+        assert len(self.sandbox.calls_log("gh")) == 1
 
+    # -- DELTA 1 (WINDOWS_PAT_NO_GH): gh absent/failing is non-fatal, leaves --
+    # -- the token variables UNSET (never empty string).                    --
 
-    def test_github_token_guard_is_non_fatal_when_gh_auth_token_fails(self):
-        """When `gh` is present but `gh auth token` fails, the GUARDED
-        GITHUB_TOKEN branch is non-fatal (try/catch): the script proceeds to
-        invoke copilot. The UNGUARDED GITHUB_PERSONAL_ACCESS_TOKEN assignment is
-        baseline-pinned as producing an EMPTY value on failure (Write-Error is a
-        non-terminating error; the captured stdout of the failed command is
-        empty), not a script abort -- this is baseline evidence only, not a
-        mandate. Note: PowerShell's Write-Warning writes to the Warning stream,
-        which is rendered into STDOUT (not STDERR) for this non-interactive
-        `pwsh -File` invocation -- empirically verified separately -- so the
-        warning text is looked for in stdout.
-        """
-
-        result = self.sandbox.run(extra_env={"STUB_GH_FAIL": "1"})
+    def test_delta1_windows_pat_no_gh_absent_is_non_fatal_and_leaves_vars_unset(self):
+        self.sandbox.stub_dir.joinpath("gh.cmd").unlink()
+        result = self.sandbox.run(extra_env={"STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         env = self.sandbox.copilot_env()
-        assert env is not None, "copilot must still be invoked (non-fatal failure)"
-        assert env["GITHUB_PERSONAL_ACCESS_TOKEN"] == ""
-        assert "GITHUB_TOKEN" not in env or env["GITHUB_TOKEN"] == ""
-        assert "gh auth token failed" in result.stdout
+        assert env is not None, "script must still reach and invoke copilot (non-fatal)"
+        assert "GITHUB_TOKEN" not in env
+        assert "GITHUB_PERSONAL_ACCESS_TOKEN" not in env
+        assert "not found on PATH" in result.stdout or "not found on PATH" in result.stderr
 
-
-    def test_gh_entirely_absent_is_a_non_terminating_error_script_continues(self):
-        """BASELINE EVIDENCE ONLY (surprising, empirically verified): with `gh`
-        entirely absent from PATH, PowerShell's "command not found" is a
-        NON-TERMINATING error at the default $ErrorActionPreference ('Continue').
-        The UNGUARDED `(gh auth token)` expression therefore does NOT abort the
-        script -- it emits an error record (visible on stderr) and the
-        expression evaluates to nothing, so the assignment effectively clears
-        GITHUB_PERSONAL_ACCESS_TOKEN. Execution continues normally all the way
-        to invoking copilot. This directly contradicts a naive reading of "gh
-        absent aborts the script" and is pinned here as the real baseline,
-        verified via a minimal isolated repro before writing this assertion.
-        """
-
-        (self.sandbox.stub_dir / "gh.cmd").unlink()
-        result = self.sandbox.run()
+    def test_delta1_windows_pat_no_gh_failing_is_non_fatal_and_leaves_vars_unset(self):
+        result = self.sandbox.run(extra_env={"STUB_GH_FAIL": "1", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
-        assert "is not recognized" in result.stderr
         env = self.sandbox.copilot_env()
-        assert env is not None, "script continues past the failed gh call to invoke copilot"
-        assert env.get("GITHUB_PERSONAL_ACCESS_TOKEN", "") == ""
+        assert env is not None
+        assert "GITHUB_TOKEN" not in env
+        assert "GITHUB_PERSONAL_ACCESS_TOKEN" not in env
 
-
-    # ---------------------------------------------------------------------------
-    # (d) Copilot exe resolution order + hard failure message.
-    # ---------------------------------------------------------------------------
-
+    # -- Copilot exe resolution order + hard failure message ------------
 
     def test_copilot_exe_path_takes_precedence(self):
         fake_exe = self.sandbox.stub_dir / "custom_copilot.cmd"
@@ -434,6 +502,7 @@ class StartPs1CharacterizationTests(unittest.TestCase):
         result = self.sandbox.run(
             extra_env={
                 "STUB_GH_TOKEN": "tok",
+                "STUB_COPILOT_EXIT_CODE": "0",
                 "COPILOT_EXE_PATH": str(fake_exe),
                 "COPILOT_EXE": str(self.sandbox.stub_dir / "other_copilot.cmd"),
             }
@@ -441,152 +510,115 @@ class StartPs1CharacterizationTests(unittest.TestCase):
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_env() is not None
 
-
     def test_copilot_exe_env_var_used_when_exe_path_unset(self):
         fake_exe = self.sandbox.stub_dir / "custom_copilot2.cmd"
         fake_exe.write_text(COPILOT_STUB, encoding="utf-8")
         (self.sandbox.stub_dir / "copilot.cmd").unlink()  # remove PATH resolution candidate
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "COPILOT_EXE": str(fake_exe)})
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "COPILOT_EXE": str(fake_exe)}
+        )
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_env() is not None
-
 
     def test_copilot_resolved_from_path_when_no_explicit_vars_set(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_env() is not None
 
-
-    def test_copilot_unresolvable_raises_actionable_error(self):
+    def test_copilot_unresolvable_raises_actionable_error_and_exits_nonzero(self):
         (self.sandbox.stub_dir / "copilot.cmd").unlink()
         result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
         assert result.returncode != 0
-        assert "Unable to locate Copilot CLI" in result.stderr
+        assert "Unable to locate Copilot CLI" in result.stdout or "Unable to locate Copilot CLI" in result.stderr
+        assert "COPILOT_EXE_PATH" in result.stdout or "COPILOT_EXE_PATH" in result.stderr
 
-
-    # ---------------------------------------------------------------------------
-    # (e) --remote appended only when COPILOT_USE_REMOTE is true/1 (case
-    #     insensitive) AND the operator didn't already pass --remote.
-    # ---------------------------------------------------------------------------
-
+    # -- --remote composition (now unified/shared with POSIX; still gated) --
 
     def test_remote_flag_appended_when_use_remote_truthy(self):
         for value in ["true", "True", "TRUE", "1"]:
             with self.subTest(value=value):
-                result = self.sandbox.run(argv=["foo"], extra_env={"STUB_GH_TOKEN": "tok", "COPILOT_USE_REMOTE": value})
+                result = self.sandbox.run(
+                    argv=["foo"],
+                    extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "COPILOT_USE_REMOTE": value},
+                )
                 assert result.returncode == 0, result.stderr
                 assert self.sandbox.copilot_args() == "--remote foo"
-
 
     def test_remote_flag_not_appended_when_use_remote_not_truthy(self):
         for value in ["false", "0", "yes", ""]:
             with self.subTest(value=value):
-                result = self.sandbox.run(argv=["foo"], extra_env={"STUB_GH_TOKEN": "tok", "COPILOT_USE_REMOTE": value})
+                result = self.sandbox.run(
+                    argv=["foo"],
+                    extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "COPILOT_USE_REMOTE": value},
+                )
                 assert result.returncode == 0, result.stderr
                 assert self.sandbox.copilot_args() == "foo"
 
-
     def test_remote_flag_not_duplicated_when_operator_already_passed_it(self):
         result = self.sandbox.run(
-            argv=["--remote", "foo"], extra_env={"STUB_GH_TOKEN": "tok", "COPILOT_USE_REMOTE": "true"}
+            argv=["--remote", "foo"],
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "COPILOT_USE_REMOTE": "true"},
         )
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_args() == "--remote foo"
 
-
-    # ---------------------------------------------------------------------------
-    # (f) operator argv forwarded verbatim.
-    # ---------------------------------------------------------------------------
-
+    # -- operator argv forwarded verbatim --------------------------------
 
     def test_operator_argv_forwarded_verbatim(self):
-        result = self.sandbox.run(argv=["alpha", "--flag", "value123"], extra_env={"STUB_GH_TOKEN": "tok"})
+        result = self.sandbox.run(
+            argv=["alpha", "--flag", "value123"],
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"},
+        )
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_args() == "alpha --flag value123"
 
+    # -- DELTA 5 (H3): exit code now propagates VERBATIM (bug fix) -------
 
-    # ---------------------------------------------------------------------------
-    # (g) child exit code propagation -- BASELINE EVIDENCE ONLY.
-    #
-    # EMPIRICAL FINDING: start.ps1's final statement is a bare
-    # `& $copilotExe @copilotArguments` with no trailing `exit $LASTEXITCODE`.
-    # In this environment $PSNativeCommandUseErrorActionPreference is $false
-    # (verified via `pwsh -Command '$PSNativeCommandUseErrorActionPreference'`),
-    # and pwsh's default top-level script exit code is 0 when the script runs to
-    # completion without an unhandled terminating error -- regardless of
-    # $LASTEXITCODE from the final native command. This means the CURRENT
-    # observable behavior is that the child's exit code is NOT propagated to the
-    # pwsh host process's own exit code; the host always exits 0 on a normal
-    # (non-throwing) run. This directly contradicts a naive reading of "exit
-    # code propagated unchanged" and is pinned here as the actual baseline.
-    # ---------------------------------------------------------------------------
-
-
-    def test_pwsh_host_exit_code_does_not_mirror_child_exit_code(self):
+    def test_child_exit_code_propagates_verbatim(self):
         for child_exit_code in ["0", "3", "7"]:
             with self.subTest(child_exit_code=child_exit_code):
-                result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": child_exit_code})
-                # Baseline: the wrapper's own exit code is always 0 here, never the
-                # child's code, because start.ps1 never reads/propagates $LASTEXITCODE.
-                assert result.returncode == 0, (
-                    f"expected host exit code 0 regardless of child exit {child_exit_code}, "
-                    f"got {result.returncode}"
+                result = self.sandbox.run(
+                    extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": child_exit_code}
+                )
+                assert result.returncode == int(child_exit_code), (
+                    f"expected host exit code {child_exit_code} (verbatim propagation, "
+                    f"H3 fix), got {result.returncode}"
                 )
 
-
-    # ---------------------------------------------------------------------------
-    # (h) Sidecar side effects: backlogit sync + Engram pre-warm, each optional
-    #     and non-fatal.
-    # ---------------------------------------------------------------------------
-
+    # -- Sidecar side effects: backlogit sync + Engram pre-warm ----------
 
     def test_backlogit_sync_runs_when_resolved(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         calls = self.sandbox.calls_log("backlogit")
         assert any("sync" in c for c in calls)
 
-
     def test_backlogit_sync_failure_is_non_fatal(self):
-        """BASELINE EVIDENCE ONLY (surprising, empirically verified): the
-        `backlogit sync` try/catch has NO explicit `$LASTEXITCODE` check --
-        unlike the Engram helper's explicit `throw` on nonzero exit code. In
-        this pwsh environment $PSNativeCommandUseErrorActionPreference is
-        $false, so a NONZERO exit from a native command like our failing
-        `backlogit.cmd` stub does NOT raise a terminating exception by default,
-        meaning the `catch` block is effectively unreachable via an ordinary
-        failing exit code alone: no "backlogit sync failed" warning is ever
-        printed, and execution proceeds exactly as if the call had succeeded.
-        Verified via a minimal isolated repro (`try { & failing.cmd } catch {
-        ... }` prints nothing, $LASTEXITCODE=1) before writing this assertion.
-        """
-
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_BACKLOGIT_FAIL": "1"})
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "STUB_BACKLOGIT_FAIL": "1"}
+        )
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_env() is not None
         calls = self.sandbox.calls_log("backlogit")
         assert any("sync" in c for c in calls), "backlogit sync must still be attempted"
-        assert "backlogit sync failed" not in result.stdout
-        assert "backlogit sync failed" not in result.stderr
 
-
-    def test_backlogit_absent_is_skipped_silently(self):
+    def test_backlogit_absent_is_skipped_non_fatally(self):
         (self.sandbox.stub_dir / "backlogit.cmd").unlink()
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_env() is not None
 
-
     def test_engram_direct_prewarm_happy_path(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         calls = self.sandbox.calls_log("engram")
         assert len(calls) == 1
         assert "--direct" in calls[0]
 
-
     def test_engram_direct_failure_falls_back_to_bind_and_daemon_sync(self):
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_ENGRAM_DIRECT_FAIL": "1"})
+        result = self.sandbox.run(
+            extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0", "STUB_ENGRAM_DIRECT_FAIL": "1"}
+        )
         assert result.returncode == 0, result.stderr
         calls = self.sandbox.calls_log("engram")
         assert len(calls) == 3
@@ -595,17 +627,11 @@ class StartPs1CharacterizationTests(unittest.TestCase):
         assert "sync" in calls[2] and "--direct" not in calls[2]
         assert self.sandbox.copilot_env() is not None
 
-
     def test_engram_fallback_failure_is_non_fatal(self):
-        """Unlike the backlogit path, the Engram helper explicitly checks
-        $LASTEXITCODE and `throw`s -- an explicit `throw` is always a
-        terminating exception regardless of $PSNativeCommandUseErrorActionPreference,
-        so the enclosing try/catch reliably fires and the warning IS printed
-        (to stdout, per Write-Warning's stream routing in this environment)."""
-
         result = self.sandbox.run(
             extra_env={
                 "STUB_GH_TOKEN": "tok",
+                "STUB_COPILOT_EXIT_CODE": "0",
                 "STUB_ENGRAM_DIRECT_FAIL": "1",
                 "STUB_ENGRAM_BIND_FAIL": "1",
                 "STUB_ENGRAM_FALLBACK_FAIL": "1",
@@ -613,46 +639,18 @@ class StartPs1CharacterizationTests(unittest.TestCase):
         )
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_env() is not None
-        assert "engram sync failed" in result.stdout
 
-
-    def test_engram_absent_is_skipped_silently(self):
+    def test_engram_absent_is_skipped_non_fatally(self):
         (self.sandbox.stub_dir / "engram.cmd").unlink()
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         assert self.sandbox.copilot_env() is not None
         assert self.sandbox.calls_log("engram") == []
 
-
-    # ---------------------------------------------------------------------------
-    # (i) Terminal attachment (structural proxy + functional stdio pass-through).
-    # ---------------------------------------------------------------------------
-
-
-    def test_final_invocation_line_has_no_stdio_redirection(self):
-        """Structural proxy: the source text of the actual (unmodified)
-        start.ps1's final invocation contains no redirection operators and does
-        not use Start-Process (which would detach the child)."""
-
-        source = START_PS1.read_text(encoding="utf-8")
-        lines = [line.strip() for line in source.splitlines() if line.strip()]
-        final_invocation = lines[-1]
-        assert final_invocation.startswith("& $copilotExe")
-        for operator in (">", "2>", "1>", "*>", "|", "<"):
-            assert operator not in final_invocation, (
-                f"unexpected redirection operator {operator!r} in final invocation line"
-            )
-        assert "Start-Process" not in source
-
+    # -- Terminal/stdio pass-through (functional proxy) ------------------
 
     def test_child_stdio_is_not_intercepted_functionally(self):
-        """Functional proxy: stub-emitted stdout/stderr markers surface all the
-        way through to our subprocess's captured output, showing start.ps1 does
-        not redirect or swallow the child's stdio. This does NOT prove genuine
-        interactive TTY/console attachment (our own harness pipes pwsh's stdio to
-        capture it) -- see module docstring for the documented limitation."""
-
-        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok"})
+        result = self.sandbox.run(extra_env={"STUB_GH_TOKEN": "tok", "STUB_COPILOT_EXIT_CODE": "0"})
         assert result.returncode == 0, result.stderr
         assert "COPILOT_STUB_STDOUT_MARKER" in result.stdout
         assert "COPILOT_STUB_STDERR_MARKER" in result.stderr
