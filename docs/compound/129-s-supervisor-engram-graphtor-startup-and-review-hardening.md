@@ -140,5 +140,16 @@ carry lessons worth generalizing:
 
 ## Follow-ups
 
-None identified. All P0/P1 findings across the shipment's review history are
-resolved; no deferred scope was carved out.
+One non-blocking follow-up identified (also recorded in the shipment's
+`docs/closure/129-S-120-F-post-merge-closure.md` closure artifact): a
+Windows-local-only intermittent failure in
+`tests.test_supervise_locking.RealParallelContenderTests.test_exactly_one_contender_acquires_per_iteration`
+(a real 8-subprocess race test, pre-existing from `127-S`/`118.005-T`,
+untouched by this shipment's diff). It produces a genuine double-acquisition
+outcome at a different iteration each local run (17, 32, 37 observed), but
+CI (`ubuntu-latest`, the authoritative gate) was green at every round
+including the final merged HEAD — this Linux-only CI never exercises the
+Windows-specific timing path. Recommend a tracked investigation task
+(Stage/operator) if hardening the guard/record lock against this specific
+local-timing race is desired. No P0/P1 findings remain open against this
+shipment's own delivered scope.

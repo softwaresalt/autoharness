@@ -1,3 +1,11 @@
+---
+date: 2026-08-13
+shipment: 129-S
+feature: 120-F
+agent: ship
+session_type: dark-factory-execution
+---
+
 # 2026-08-13 — Ship: 129-S Recovery, Runtime Defect Fix, Review Hardening, and Closure
 
 ## Session Summary
