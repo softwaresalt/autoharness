@@ -351,3 +351,201 @@ of truth across CLI and shims.
    plans consolidated, 0 additional closure records compacted.
 5. Closure index resync (`backlogit sync`) — **done**, immediately after
    the cascade close mutation (indexed 784 artifacts).
+
+## Post-Closure Correction Addendum (2026-08, Ship post-merge correction authority)
+
+**This section corrects, and does not retract, the "Release-Blocking
+Runtime Defect" section above.** `129-S` is archived/closed and was not
+reopened, reclaimed, or re-triaged for this correction; the fix below was
+delivered as an independent correction PR under Ship's post-merge
+correction authority, on its own branch, through the full Ship pipeline
+(local review, CI, P-018 Copilot review, P-014 readiness, merge-commit-only
+merge).
+
+### Corrected root cause
+
+The original fix's premise — "remove `.mcp.json`'s broken
+`${workspaceFolder}` literal and rely on the Copilot child's `cwd` being
+anchored to `workspace_root`" — is **necessary but not sufficient**. A live,
+real-process verification of a running operator Copilot session (read-only;
+no operator process touched) showed the Copilot-spawned Engram daemon bound
+to a **different sibling workspace** (`C:\Source\GitHub\engram`) rather
+than the intended target (`C:\Source\GitHub\autoharness`), even with the
+corrected, placeholder-free `.mcp.json` in place and the child's `cwd`
+correctly anchored.
+
+Root cause of the residual defect: both `engram` and `graphtor-docs`
+resolve their target workspace from an **environment variable** first
+(`ENGRAM_WORKSPACE`, `GRAPHTOR_DB_PATH`/`GRAPHTOR_SOURCES` respectively —
+confirmed directly against each real installed binary's own `--help`
+output), and an environment variable **always wins over a CWD-relative
+default** in both tools' own precedence. Because the supervisor never set
+these variables itself, the Copilot child (and its MCP descendants)
+inherited whatever value happened to already be present in the ambient
+process environment (e.g. a stale value set in an operator's shell profile,
+a previous session, or `.env.local`) — silently overriding the correct
+`cwd` anchoring. Removing `${workspaceFolder}` fixed the "crashes on an
+unresolved literal" symptom; it did nothing to prevent a *validly resolved
+but wrong* stale environment binding.
+
+### Corrected fix
+
+`bootstrap_workspace()` (`src/autoharness/supervise/bootstrap.py`) now
+resolves the target `workspace_root` and **force-applies** three
+authoritative, child-only environment variables, always overriding any
+ambient/`.env.local`-supplied value for these three names specifically:
+
+- `ENGRAM_WORKSPACE=<resolved workspace_root>`
+- `GRAPHTOR_DB_PATH=<resolved workspace_root>/.graphtor/graph.db`
+- `GRAPHTOR_SOURCES=<resolved workspace_root>/.graphtor/config/sources.yaml`
+
+`BACKLOGIT_WORKSPACE` was deliberately **not** invented: `backlogit --help`
+confirms no such environment variable exists in the installed binary;
+backlogit resolves its target solely via process `cwd` (already correctly
+anchored by `129-S`'s original fix), so no new binding variable is needed
+or introduced for it.
+
+### Environment precedence (now explicit and deterministic)
+
+1. The explicit `--workspace`/resolved target `workspace_root` always
+   wins for the three binding variables above — this is the **only**
+   exception to `bootstrap_workspace()`'s otherwise-universal
+   additions-only (NO-CLOBBER) environment contract, and is applied
+   **last**, after `.env.local` loading, directory defaults, and token
+   resolution.
+2. `.env.local` may still configure non-binding details (e.g. embedding
+   model choice, unrelated data directories) but can never redirect the
+   supervisor's binding of Engram/graphtor-docs to a different workspace.
+3. A stale/ambient value for any of the three binding variables, present
+   in the process environment before `bootstrap_workspace()` runs, is
+   force-overridden; a diagnostic warning (path-only, never secret-shaped)
+   is emitted whenever an override actually changes a previously-set
+   value.
+4. `.mcp.json` remains environment-agnostic: no committed absolute path,
+   no `${workspaceFolder}`/`${workspace_folder}`, and (newly asserted by a
+   regression test) no `"env"` key at all — the dynamic binding values
+   flow from the supervisor process environment that Copilot/MCP children
+   inherit, never from the MCP config file itself.
+5. The existing `_ENVIRON_MUTATION_LOCK` bootstrap-read/apply/spawn/restore
+   serialization mechanism in `app.py` (already proven, pre-correction, to
+   span the full child lifetime across concurrent `run_session()` calls)
+   is reused unchanged as the delivery mechanism for these three
+   variables; no new per-child explicit environment-threading mechanism
+   was introduced. This was a deliberate scope decision (see Residual
+   Risks below).
+
+### Real, isolated evidence gathered (read-only against the live operator
+session; new-process-only against isolated sandboxes)
+
+- **Live defect confirmation (read-only)**: `Get-CimInstance Win32_Process`
+  against the operator's actual running Copilot session (PID 21048) showed
+  its owned `engram.exe shim` (PID 17156 at capture time) owning a daemon
+  (PID 26888) with command line `engram.exe daemon --workspace
+  \\?\C:\Source\GitHub\engram` — the wrong workspace. No operator process
+  was signaled, killed, restarted, or adopted at any point in this
+  correction.
+- **Real-binary capability confirmation**: `engram --help`, `graphtor-docs
+  --help`, and `backlogit --help` run directly against
+  `C:\Tools\engram.exe`, `C:\Tools\graphtor-docs.exe`, and
+  `C:\Tools\backlogit.exe` respectively, confirming `[env:
+  ENGRAM_WORKSPACE=]`, `[env: GRAPHTOR_DB_PATH=]`/`[env:
+  GRAPHTOR_SOURCES=]`, and the absence of any analogous backlogit
+  variable.
+- **Isolated real-binary fix verification** (new git-initialized temp
+  workspaces only; every spawned PID individually diffed and reaped by
+  exact PID/command-line marker match, never by name; zero operator PIDs
+  touched at any point):
+  - `engram --format json bind` with only `ENGRAM_WORKSPACE=<temp
+    workspace>` set (no `--workspace` flag, replicating `.mcp.json`'s bare
+    `engram shim` invocation) binds to the **env-supplied** workspace, not
+    any other/stale one.
+  - `graphtor-docs --json status` with `GRAPHTOR_DB_PATH`/
+    `GRAPHTOR_SOURCES` resolving **inside** the cwd-derived workspace root
+    succeeds; the same call with `GRAPHTOR_DB_PATH` resolving **outside**
+    it, once a `.graphtor/config/sources.yaml` marker establishes a
+    workspace root at `cwd`, is rejected with a `path_violation` error —
+    confirming both paths must always be derived together from the same
+    `workspace_root` used to anchor `cwd`, exactly as
+    `_resolve_binding_env()` now does.
+  - Encoded as opt-in (`AUTOHARNESS_REAL_BINARY_SMOKE=1`, Windows-only,
+    both binaries required on `PATH`) tests in
+    `tests/test_supervise_binding_real_binary_smoke.py`, skipped by
+    default (including on the Linux-only CI runner, which installs
+    neither binary) — matching this suite's existing hermetic-by-default
+    convention.
+  - A critical, non-obvious subprocess gotcha was discovered and worked
+    around during this verification: both `engram` and `graphtor-docs` CLI
+    invocations can leave a detached daemon process alive after the
+    immediate CLI process exits, and that daemon can inherit the
+    immediate process's stdout/stderr pipe write-ends — causing
+    `subprocess.run(capture_output=True, timeout=N)` to hang indefinitely
+    even with a timeout set (CPython's timeout handling performs one final
+    *blocking* `communicate()` after killing the process). The fix:
+    redirect stdout/stderr to real temp files (never pipes), use
+    `proc.wait(timeout=...)` (never `communicate()`), and clean up temp
+    directories with `shutil.rmtree(ignore_errors=True)` in a `finally`
+    block rather than a context manager whose `__exit__` raises on
+    cleanup failure.
+- **Graphtor lazy-activation clarification**: this correction does not
+  claim to prove Copilot's own MCP stdio-server activation timing; the
+  real-binary tests above verify the underlying binary/env contract
+  (`graphtor-docs serve`'s preflight configuration is honorable given the
+  injected env and workspace `cwd`), which is the actually-testable,
+  binary-owned half of that contract. See Residual Risks.
+
+### Files changed in this correction
+
+- `src/autoharness/supervise/bootstrap.py` (core fix: `_BINDING_ENV_VAR_NAMES`,
+  `_resolve_binding_env()`, `_apply_binding_env()`, wired into
+  `bootstrap_workspace()`).
+- `tests/test_supervise_bootstrap.py` (`RuntimeBindingEnvTests`, 6 tests).
+- `tests/test_supervise_app.py` (`RuntimeBindingEnvReachesChildTests`, 1
+  test proving the binding env reaches `os.environ` at the exact moment
+  `child.spawn()` is called, and is restored afterward).
+- `tests/test_supervise_process.py` (`EnvPropagationTests`, 3 tests proving
+  `PipeChildProcess`/`InheritStdioChildProcess` never pass an explicit
+  `env=` override).
+- `tests/test_supervise_process_pty.py` (`EnvPropagationTests` +
+  `RealPtyEnvPropagationTests`, proving neither PTY backend passes an
+  explicit env override; POSIX-real-subprocess variant skipped on
+  Windows).
+- `tests/test_verify_workspace.py` (two new regression assertions: no
+  absolute/drive-letter path and no `"env"` key anywhere in `.mcp.json`).
+- `tests/test_supervise_binding_real_binary_smoke.py` (new, opt-in,
+  real-binary smoke coverage described above).
+- `docs/compound/129-s-supervisor-engram-graphtor-startup-and-review-hardening.md`
+  (root-cause narrative corrected).
+- This file.
+
+### Residual risks
+
+1. **No explicit per-child environment-threading refactor.** This
+   correction reused the existing process-global,
+   lock-serialized-mutate/restore mechanism (`_ENVIRON_MUTATION_LOCK` in
+   `app.py`) rather than refactoring `process.py`/`process_pty.py` to
+   thread an explicit, isolated `env=` dict per spawned child. This was a
+   deliberate scope decision: the existing mechanism was proven (by test
+   and by the pre-existing design it already implements) to serialize the
+   full bootstrap-read-through-restore window across the entire child
+   lifetime, so no window exists in which a concurrent `run_session()` call
+   for a different workspace could observe the wrong binding values. A
+   future hardening could still migrate to explicit per-child env
+   threading for defense-in-depth against a future refactor accidentally
+   narrowing the lock's scope.
+2. **Copilot's own MCP stdio-server lazy-activation contract is
+   Copilot-owned, not autoharness-owned.** This correction proves the
+   underlying binary/env contract (the real `graphtor-docs`/`engram`
+   binaries honor the injected values), but does not — and cannot, from
+   within this repository — prove or change *when* Copilot itself chooses
+   to launch a registered stdio MCP server. If Copilot's own activation
+   contract changes in a future version, the functional-availability
+   concern (as opposed to the process-name/binding concern this correction
+   closes) would need separate, Copilot-side verification.
+3. **Windows-only real-binary smoke coverage.** The opt-in real-binary
+   smoke tests are gated to `win32` because the verified live defect and
+   the available `engram.exe`/`graphtor-docs.exe` binaries in this
+   environment are Windows-only; the underlying env-var-precedence
+   contract itself is covered platform-independently by the hermetic
+   `EnvPropagationTests`/`RealPtyEnvPropagationTests` (the latter
+   POSIX-real-subprocess, skipped on Windows) in
+   `test_supervise_process.py`/`test_supervise_process_pty.py`.

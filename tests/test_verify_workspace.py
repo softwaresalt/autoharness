@@ -145,6 +145,44 @@ class VerifyWorkspaceTests(unittest.TestCase):
             # `.mcp.json`.
             self.assertNotIn("${workspaceFolder}", root_mcp_text)
             self.assertNotIn("${workspace_folder}", root_mcp_text)
+            # 120-F post-closure correction regression guard (2026-08-13):
+            # the committed root `.mcp.json` must stay environment-agnostic
+            # -- no committed absolute filesystem path for any drive letter
+            # (Windows) or POSIX absolute root, and no `env` block at all
+            # for backlogit/engram/graphtor-docs. The dynamic
+            # ENGRAM_WORKSPACE/GRAPHTOR_DB_PATH/GRAPHTOR_SOURCES values now
+            # come from the supervisor process environment
+            # (`autoharness.supervise.bootstrap`) inherited by
+            # Copilot/MCP children, never from a literal path checked into
+            # this file. Checked against DECODED JSON string values (not
+            # raw text) so both a Windows drive-letter path and a POSIX
+            # absolute path (leading `/`) are caught -- a raw-text regex
+            # for the drive-letter pattern alone would miss e.g. a
+            # committed `/home/user/engram`-style absolute path.
+            self.assertNotRegex(root_mcp_text, r"[A-Za-z]:[\\/]")
+
+            def _absolute_path_like_string_values(node: object) -> list:
+                found: list = []
+                if isinstance(node, dict):
+                    for value in node.values():
+                        found.extend(_absolute_path_like_string_values(value))
+                elif isinstance(node, list):
+                    for item in node:
+                        found.extend(_absolute_path_like_string_values(item))
+                elif isinstance(node, str):
+                    if re.match(r"^[A-Za-z]:[\\/]", node) or node.startswith("/"):
+                        found.append(node)
+                return found
+
+            root_mcp_json = json.loads(root_mcp_text)
+            self.assertEqual(
+                _absolute_path_like_string_values(root_mcp_json),
+                [],
+                "committed .mcp.json must not contain any absolute filesystem "
+                "path (Windows drive-letter or POSIX-rooted) in any JSON "
+                "string value",
+            )
+            self.assertNotIn('"env"', root_mcp_text)
 
         self.assertIn("workspace-root `.mcp.json`", copilot_instructions)
 

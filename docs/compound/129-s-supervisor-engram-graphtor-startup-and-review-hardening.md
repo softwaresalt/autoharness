@@ -1,14 +1,27 @@
 ---
 problem_type: runtime-defect-and-review-hardening
 category: supervise
-root_cause: mcp-json-editor-variable-not-substituted-by-standalone-cli
-tags: [supervise, engram, graphtor-docs, mcp, redaction, concurrency, pid-reuse, p-018, copilot-review]
+root_cause: mcp-json-editor-variable-not-substituted-by-standalone-cli-AND-missing-explicit-runtime-env-binding
+tags: [supervise, engram, graphtor-docs, mcp, redaction, concurrency, pid-reuse, p-018, copilot-review, env-precedence, post-closure-correction]
 shipment: 129-S
 feature: 120-F
 pr: 331
+correction_pr: 334
 ---
 
 # 129-S: Supervisor Engram/graphtor-docs Startup Defect + 8-Round Review Hardening
+
+> **CORRECTED 2026-08 (post-closure)**: the root cause and fix described
+> below were **necessary but not sufficient**. A live, real-process
+> verification after this shipment closed showed the fix's "remove
+> `${workspaceFolder}`, rely on CWD anchoring" premise disproven: a real
+> Copilot child still bound Engram to the *wrong* workspace via a stale,
+> inherited `ENGRAM_WORKSPACE` environment variable, which always wins over
+> a CWD-relative default. See the **"Post-Closure Correction"** section at
+> the end of this document for the corrected root cause, the additional
+> fix, and the durable lesson. The narrative below is preserved unmodified
+> as the historical record of what `129-S` itself actually diagnosed and
+> shipped.
 
 Shipment `129-S` (S3, final of the Plan-1 serial chain) shipped the Copilot CLI
 supervisor's application services, adapters, and the `start.ps1`/`start.sh`
@@ -153,3 +166,51 @@ Windows-specific timing path. Recommend a tracked investigation task
 (Stage/operator) if hardening the guard/record lock against this specific
 local-timing race is desired. No P0/P1 findings remain open against this
 shipment's own delivered scope.
+
+## Post-Closure Correction (2026-08)
+
+**Corrected root cause**: removing `.mcp.json`'s `${workspaceFolder}`
+literal and anchoring the Copilot child's `cwd` to `workspace_root` (the
+fix described above) is **necessary but not sufficient**. Both `engram` and
+`graphtor-docs` resolve their target workspace from an **environment
+variable first** (`ENGRAM_WORKSPACE`; `GRAPHTOR_DB_PATH`/
+`GRAPHTOR_SOURCES` respectively — confirmed via each real installed
+binary's own `--help` output), and an environment variable always wins
+over a CWD-relative default in both tools' own documented precedence.
+Because the supervisor never set these variables itself, a Copilot child
+launched from a workspace whose ambient process environment already
+carried one of these variables (e.g. a stale value from a previous
+session's shell, or a sibling-repo value never unset) silently bound to
+that **other** workspace instead of the one `--workspace`/`cwd` correctly
+anchored to. This was directly observed live: the operator's real running
+Copilot session's Engram daemon was bound to `C:\Source\GitHub\engram`
+while the actual target workspace was `C:\Source\GitHub\autoharness`.
+
+**Durable lesson (generalizes beyond this shipment)**: "the child's CWD is
+correct" and "the child's environment binds to the correct target" are
+**two independent claims**. A tool that supports both a CWD-relative
+default *and* an environment-variable override can still bind to the
+wrong target even when CWD is provably correct, if any ambient/stale
+value for that override variable is present at spawn time — and process
+environments persist and get inherited far more often than developers
+expect (shell profiles, `.env.local` files, previous session state).
+Whenever a supervisor/launcher owns "which workspace a child tool should
+operate on" as an authoritative decision, it must **explicitly and
+authoritatively set** every environment variable that tool's own
+precedence rules would otherwise honor over CWD — never assume CWD alone
+is sufficient just because the tool has a working CWD-relative fallback
+path.
+
+**Fix**: `bootstrap_workspace()` now force-applies
+`ENGRAM_WORKSPACE`/`GRAPHTOR_DB_PATH`/`GRAPHTOR_SOURCES`, derived from the
+same resolved `workspace_root` used to anchor `cwd`, always overriding any
+ambient/`.env.local`-supplied value for these three names — the sole
+exception to the module's otherwise-universal NO-CLOBBER contract.
+`BACKLOGIT_WORKSPACE` was deliberately not invented (no such variable
+exists in the real binary; backlogit relies solely on `cwd`, already
+correctly anchored).
+
+Full corrected root-cause narrative, environment-precedence rules, real
+isolated-binary evidence, file/test list, and residual risks are recorded
+in the **Post-Closure Correction Addendum** section of
+`docs/closure/129-S-120-F-post-merge-closure.md`.
