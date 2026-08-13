@@ -194,10 +194,74 @@ class GitHubTokenResolutionTests(unittest.TestCase):
                         args=["gh", "auth", "token"], returncode=0, stdout="fresh-token\n", stderr=""
                     )
                     result = bootstrap_workspace(
-                        root, env={"GITHUB_TOKEN": "already-set"}, gh_executable="gh"
+                        root,
+                        env={"GITHUB_TOKEN": "already-set"},
+                        gh_executable="gh",
+                        # Isolated redactor -- see the rationale in
+                        # test_both_preset_still_reresolves_unguarded_pat_only:
+                        # avoid registering test placeholder values with the
+                        # process-global default redactor.
+                        redactor=Redactor(),
                     )
             self.assertNotIn("GITHUB_TOKEN", result.env)
             self.assertEqual(result.env["GITHUB_PERSONAL_ACCESS_TOKEN"], "fresh-token")
+
+    def test_preset_github_token_is_registered_with_redactor_despite_no_clobber_early_return(
+        self,
+    ) -> None:
+        # P-018 Copilot review finding (PR #331, comment 3778408843): a
+        # nonstandard GITHUB_TOKEN preset via .env.local (or the process
+        # environment) previously took the NO-CLOBBER early return in
+        # _resolve_one_github_token WITHOUT ever being registered with the
+        # redactor -- so captured child output containing that preset value
+        # would bypass both the built-in token regexes and registered-value
+        # redaction. Proves the preset value IS now registered even though
+        # `gh` is never invoked for this guarded variable and the value is
+        # never written into `result.env` (NO-CLOBBER: it was never an
+        # "addition").
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace)
+            redactor = Redactor()
+            with mock.patch("shutil.which", return_value=None):
+                result = bootstrap_workspace(
+                    root,
+                    env={"GITHUB_TOKEN": "preset-secret-from-env-local"},
+                    gh_executable="nonexistent-gh-binary",
+                    redactor=redactor,
+                )
+
+            # NO-CLOBBER semantics unchanged: gh is never invoked, and the
+            # preset value is not surfaced as a bootstrap "addition".
+            self.assertNotIn("GITHUB_TOKEN", result.env)
+            # But the redactor must now catch it regardless.
+            redacted = redactor.redact_text("token=preset-secret-from-env-local end")
+            self.assertNotIn("preset-secret-from-env-local", redacted)
+
+    def test_preset_github_personal_access_token_is_registered_before_gh_overwrites_it(
+        self,
+    ) -> None:
+        # GITHUB_PERSONAL_ACCESS_TOKEN is the UNGUARDED variable (gh is
+        # always invoked, even when a value is already preset) -- proves
+        # the preset value is registered with the redactor BEFORE gh's
+        # resolution logic potentially overwrites it, not only the final
+        # gh-resolved value.
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace)
+            redactor = Redactor()
+            with mock.patch("shutil.which", return_value="/fake/path/gh"):
+                with mock.patch("subprocess.run") as run_mock:
+                    run_mock.return_value = subprocess.CompletedProcess(
+                        args=["gh", "auth", "token"], returncode=0, stdout="fresh-token\n", stderr=""
+                    )
+                    bootstrap_workspace(
+                        root,
+                        env={"GITHUB_PERSONAL_ACCESS_TOKEN": "preset-pat-value"},
+                        gh_executable="gh",
+                        redactor=redactor,
+                    )
+
+            redacted = redactor.redact_text("token=preset-pat-value end")
+            self.assertNotIn("preset-pat-value", redacted)
 
     def test_both_preset_still_reresolves_unguarded_pat_only(self) -> None:
         """Preserves the pre-migration per-variable asymmetry exactly:
@@ -219,6 +283,16 @@ class GitHubTokenResolutionTests(unittest.TestCase):
                         root,
                         env={"GITHUB_TOKEN": "a", "GITHUB_PERSONAL_ACCESS_TOKEN": "b"},
                         gh_executable="gh",
+                        # Explicit isolated redactor: preset values here are
+                        # deliberately trivial single characters ("a"/"b").
+                        # Since the 3778408843 fix now registers ANY preset
+                        # value with the redactor (even on the NO-CLOBBER
+                        # early-return path), letting this fall through to
+                        # the process-global default redactor would register
+                        # "a" and "b" as "secrets" for the rest of this test
+                        # process, corrupting every other test's plain-text
+                        # assertions containing those letters.
+                        redactor=Redactor(),
                     )
             self.assertEqual(run_mock.call_count, 1)
             self.assertNotIn("GITHUB_TOKEN", result.env)  # guarded: untouched
@@ -231,6 +305,9 @@ class GitHubTokenResolutionTests(unittest.TestCase):
                 root,
                 env={"GITHUB_TOKEN": "a", "GITHUB_PERSONAL_ACCESS_TOKEN": "b"},
                 gh_executable="definitely-not-a-real-executable-xyz",
+                # See the isolated-redactor rationale in
+                # test_both_preset_still_reresolves_unguarded_pat_only above.
+                redactor=Redactor(),
             )
             self.assertNotIn("GITHUB_TOKEN", result.env)
             self.assertNotIn("GITHUB_PERSONAL_ACCESS_TOKEN", result.env)

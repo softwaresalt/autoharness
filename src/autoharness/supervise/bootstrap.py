@@ -193,9 +193,28 @@ def _resolve_one_github_token(
     string. The resolved secret VALUE, when found, is registered with the
     redactor (H5) and is the only place it appears outside the returned
     ``env`` mapping.
+
+    **Preset-value redaction (P-018 Copilot review finding, PR #331,
+    comment 3778408843)**: a value ALREADY present in ``working_env``
+    (e.g. a nonstandard ``GITHUB_TOKEN`` loaded from ``.env.local``) is now
+    registered with the redactor unconditionally, BEFORE the no-clobber/gh
+    resolution logic below runs. Previously, the NO-CLOBBER early return
+    skipped registration entirely for a preset ``GITHUB_TOKEN``, so
+    captured child output containing that value would bypass both the
+    built-in token regexes and registered-value redaction. Registration is
+    idempotent (registering the same secret value twice is harmless) and
+    happens regardless of which branch (no-clobber early return, gh
+    success, gh failure) this call ultimately takes.
     """
 
-    if _TOKEN_VAR_NO_CLOBBER[var_name] and working_env.get(var_name):
+    preset_value = working_env.get(var_name)
+    if preset_value:
+        if redactor is not None:
+            redactor.register_secret(preset_value)
+        else:
+            register_secret(preset_value)
+
+    if _TOKEN_VAR_NO_CLOBBER[var_name] and preset_value:
         return  # NO-CLOBBER: already set, gh is never invoked for this var.
 
     resolved_path = shutil.which(gh_executable)
