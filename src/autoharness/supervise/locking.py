@@ -98,10 +98,23 @@ def _resolve_contained_path(workspace_root: PathLike, relative: PathLike) -> Pat
     fail the containment check. Lexical normalization avoids re-touching the
     filesystem for the candidate while still collapsing ``..``/``.`` segments,
     so a genuine escape is still caught.
+
+    ``relative``'s separators are normalized to ``/`` BEFORE joining,
+    regardless of the platform this code is currently running on. Without
+    this, a traversal sequence expressed with the OTHER platform's separator
+    convention (e.g. a Windows-style ``"..\\..\\evil"`` string evaluated on a
+    POSIX host, where backslash is an ordinary filename character rather than
+    a separator) would silently stay "contained" -- not because it is safe,
+    but only because the current platform happens not to interpret that
+    character as a path separator. The exact same input string must be
+    rejected identically on every platform for a security-relevant
+    containment check to mean anything (surfaced by CI running this
+    module's callers' tests on Linux; 128-S).
     """
 
     root = Path(workspace_root).resolve()
-    candidate = Path(os.path.normpath(str(root / Path(relative))))
+    normalized_relative = str(relative).replace("\\", "/")
+    candidate = Path(os.path.normpath(str(root / Path(normalized_relative))))
     try:
         candidate.relative_to(root)
     except ValueError as exc:
