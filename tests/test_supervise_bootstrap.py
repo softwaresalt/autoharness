@@ -403,5 +403,112 @@ class BootstrapResultShapeTests(unittest.TestCase):
                 result.env = {}  # type: ignore[misc]
 
 
+class RuntimeBindingEnvTests(unittest.TestCase):
+    """120-F post-closure correction (2026-08-13): ENGRAM_WORKSPACE /
+    GRAPHTOR_DB_PATH / GRAPHTOR_SOURCES must ALWAYS be force-applied to the
+    resolved workspace root, overriding any stale ambient or `.env.local`
+    value for the same name -- 129-S's own fix (removing `.mcp.json`'s
+    broken `${workspaceFolder}` literal and anchoring the spawned child's
+    cwd) was verified live to be NECESSARY BUT NOT SUFFICIENT: a real
+    launch's Copilot-spawned Engram daemon bound to an entirely different
+    sibling workspace because the child process inherited an ALREADY-SET
+    `ENGRAM_WORKSPACE` value, which always wins over a CWD-relative default
+    in Engram's own documented precedence (verified directly against the
+    installed `engram.exe`/`graphtor-docs.exe` binaries' `--help` output and
+    real, isolated subprocess probes -- neither `${workspaceFolder}` nor
+    CWD-reliance alone can fix an already-set environment variable).
+    """
+
+    def test_binding_vars_are_always_set_to_the_resolved_workspace_root(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace)
+            result = bootstrap_workspace(root, env={}, gh_executable="nonexistent-gh-binary")
+            resolved_root = root.resolve()
+            self.assertEqual(result.env["ENGRAM_WORKSPACE"], str(resolved_root))
+            self.assertEqual(
+                result.env["GRAPHTOR_DB_PATH"], str(resolved_root / ".graphtor" / "graph.db")
+            )
+            self.assertEqual(
+                result.env["GRAPHTOR_SOURCES"],
+                str(resolved_root / ".graphtor" / "config" / "sources.yaml"),
+            )
+
+    def test_binding_vars_override_a_stale_ambient_preset_value(self) -> None:
+        # Reproduces the verified live defect: a Copilot child inherits an
+        # ALREADY-SET ENGRAM_WORKSPACE pointing at a completely different
+        # sibling workspace. The resolved value for THIS workspace_root
+        # must win unconditionally.
+        with tempfile.TemporaryDirectory() as workspace, tempfile.TemporaryDirectory() as other_workspace:
+            root = Path(workspace)
+            stale_value = str(Path(other_workspace).resolve())
+            result = bootstrap_workspace(
+                root,
+                env={"ENGRAM_WORKSPACE": stale_value},
+                gh_executable="nonexistent-gh-binary",
+            )
+            self.assertEqual(result.env["ENGRAM_WORKSPACE"], str(root.resolve()))
+            self.assertNotEqual(result.env["ENGRAM_WORKSPACE"], stale_value)
+            self.assertTrue(
+                any("ENGRAM_WORKSPACE" in warning and "overriding" in warning for warning in result.warnings)
+            )
+
+    def test_binding_vars_override_an_env_local_supplied_value(self) -> None:
+        # `.env.local` may configure non-binding details but must NOT be
+        # able to redirect the supervisor's Engram/graphtor-docs children
+        # to a different workspace.
+        with tempfile.TemporaryDirectory() as workspace, tempfile.TemporaryDirectory() as other_workspace:
+            root = Path(workspace)
+            wrong_db_path = str(Path(other_workspace) / "elsewhere.db")
+            (root / ".env.local").write_text(
+                f"GRAPHTOR_DB_PATH={wrong_db_path}\n", encoding="utf-8"
+            )
+            result = bootstrap_workspace(root, env={}, gh_executable="nonexistent-gh-binary")
+            self.assertEqual(
+                result.env["GRAPHTOR_DB_PATH"],
+                str(root.resolve() / ".graphtor" / "graph.db"),
+            )
+            self.assertNotEqual(result.env["GRAPHTOR_DB_PATH"], wrong_db_path)
+
+    def test_binding_var_paths_stay_inside_the_workspace_root(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace).resolve()
+            result = bootstrap_workspace(root, env={}, gh_executable="nonexistent-gh-binary")
+            for name in ("GRAPHTOR_DB_PATH", "GRAPHTOR_SOURCES"):
+                self.assertTrue(
+                    Path(result.env[name]).is_relative_to(root),
+                    f"{name}={result.env[name]!r} must resolve inside workspace root {root!r}",
+                )
+
+    def test_backlogit_workspace_variable_is_never_invented(self) -> None:
+        # Verified against the installed `backlogit.exe --help`: no
+        # BACKLOGIT_WORKSPACE (or similar) environment variable is
+        # documented -- only a `--cwd` flag defaulting to the process's own
+        # current working directory. Binding must not invent unsupported
+        # env for a tool that does not read it.
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace)
+            result = bootstrap_workspace(root, env={}, gh_executable="nonexistent-gh-binary")
+            self.assertNotIn("BACKLOGIT_WORKSPACE", result.env)
+
+    def test_binding_vars_do_not_leak_a_secret_shaped_warning(self) -> None:
+        # These three variables are always plain filesystem paths, never
+        # secrets -- overriding-value warnings must remain safe to log
+        # verbatim (ordinary workspace diagnostics, H5-safe).
+        with tempfile.TemporaryDirectory() as workspace, tempfile.TemporaryDirectory() as other_workspace:
+            root = Path(workspace)
+            stale_value = str(Path(other_workspace).resolve())
+            result = bootstrap_workspace(
+                root,
+                env={"ENGRAM_WORKSPACE": stale_value},
+                gh_executable="nonexistent-gh-binary",
+            )
+            binding_warnings = [w for w in result.warnings if "ENGRAM_WORKSPACE" in w]
+            self.assertTrue(binding_warnings)
+            for warning in binding_warnings:
+                self.assertIn(repr(stale_value), warning)
+                self.assertNotIn("TOKEN", warning.upper())
+                self.assertNotIn("SECRET", warning.upper())
+
+
 if __name__ == "__main__":
     unittest.main()

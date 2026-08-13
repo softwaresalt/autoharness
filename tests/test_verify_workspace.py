@@ -145,6 +145,18 @@ class VerifyWorkspaceTests(unittest.TestCase):
             # `.mcp.json`.
             self.assertNotIn("${workspaceFolder}", root_mcp_text)
             self.assertNotIn("${workspace_folder}", root_mcp_text)
+            # 120-F post-closure correction regression guard (2026-08-13):
+            # the committed root `.mcp.json` must stay environment-agnostic
+            # -- no committed absolute filesystem path for any drive letter
+            # (Windows) or POSIX absolute root, and no `env` block at all
+            # for backlogit/engram/graphtor-docs. The dynamic
+            # ENGRAM_WORKSPACE/GRAPHTOR_DB_PATH/GRAPHTOR_SOURCES values now
+            # come from the supervisor process environment
+            # (`autoharness.supervise.bootstrap`) inherited by
+            # Copilot/MCP children, never from a literal path checked into
+            # this file.
+            self.assertNotRegex(root_mcp_text, r"[A-Za-z]:[\\/]")
+            self.assertNotIn('"env"', root_mcp_text)
 
         self.assertIn("workspace-root `.mcp.json`", copilot_instructions)
 

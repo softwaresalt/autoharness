@@ -322,5 +322,62 @@ class RealPtyCwdForwardingTests(unittest.TestCase):
             self.assertIn(real_workspace, output)
 
 
+class EnvPropagationTests(unittest.TestCase):
+    """120-F post-closure correction (2026-08-13): neither PTY backend may
+    pass an explicit ``env`` override that would prevent the resolved
+    ENGRAM_WORKSPACE/GRAPHTOR_DB_PATH/GRAPHTOR_SOURCES bootstrap.py
+    additions (applied to this process's own ``os.environ`` by
+    ``app.run_session`` immediately before ``child.spawn()``) from reaching
+    the spawned child.
+    """
+
+    def test_winpty_backend_never_passes_an_explicit_env_override(self) -> None:
+        from autoharness.supervise.process_pty import WinPtyChildProcess
+
+        fake_winpty_module = unittest.mock.MagicMock()
+        fake_pty = unittest.mock.MagicMock()
+        fake_winpty_module.PtyProcess.spawn.return_value = fake_pty
+
+        proc = WinPtyChildProcess([_PY, "-c", "pass"], cwd="C:\\some\\workspace")
+        with unittest.mock.patch(
+            "autoharness.supervise.process_pty._winpty", fake_winpty_module
+        ):
+            proc.spawn()
+
+        _args, kwargs = fake_winpty_module.PtyProcess.spawn.call_args
+        self.assertNotIn("env", kwargs)
+
+
+@unittest.skipUnless(_IS_POSIX, "real PTY construction exercised via stdlib pty on POSIX only")
+class RealPtyEnvPropagationTests(unittest.TestCase):
+    """POSIX PtyChildProcess.spawn() forks then calls ``os.execvp`` with no
+    explicit ``envp`` argument -- by construction this always inherits the
+    forked child's own environment (a copy-on-write duplicate of the
+    parent's ``os.environ`` at fork time), never an isolated/cleared one.
+    """
+
+    def test_child_observes_a_parent_env_addition_added_before_spawn(self) -> None:
+        import os as _os
+
+        sentinel_name = "AUTOHARNESS_TEST_PTY_ENV_PROPAGATION_SENTINEL"
+        sentinel_value = "pty-propagated-ok"
+        with unittest.mock.patch.dict(_os.environ, {sentinel_name: sentinel_value}):
+            proc = PtyChildProcess(
+                [_PY, "-c", f"import os, sys; sys.stdout.write(os.environ.get({sentinel_name!r}, ''))"]
+            )
+            proc.spawn()
+            output = ""
+            while True:
+                chunk = proc.read()
+                if chunk is None:
+                    break
+                output += chunk
+            exit_code = proc.wait()
+            proc.close()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(output, sentinel_value)
+
+
 if __name__ == "__main__":
     unittest.main()

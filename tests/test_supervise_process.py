@@ -8,6 +8,7 @@ for the inherit-stdio backend.
 
 from __future__ import annotations
 
+import os
 import signal
 import subprocess
 import sys
@@ -81,7 +82,77 @@ class NoShellAssertionTests(unittest.TestCase):
         self.assertFalse(captured["kwargs"].get("shell", False))
 
 
-class ExitCodeRoundTripTests(unittest.TestCase):
+class EnvPropagationTests(unittest.TestCase):
+    """120-F post-closure correction (2026-08-13): neither backend may pass
+    its own explicit ``env=`` override to ``subprocess.Popen`` -- doing so
+    would silently stop the resolved ENGRAM_WORKSPACE/GRAPHTOR_DB_PATH/
+    GRAPHTOR_SOURCES bootstrap.py additions (applied to this process's own
+    ``os.environ`` by ``app.run_session``) from ever reaching the spawned
+    child. ``subprocess.Popen``'s own default (``env=None``) means "inherit
+    the calling process's current environment verbatim" -- the invariant
+    this test asserts holds for both real-process backends.
+    """
+
+    def test_pipe_backend_never_passes_an_explicit_env_override(self) -> None:
+        captured: dict[str, object] = {}
+        original_popen = subprocess.Popen
+
+        def spy(*args, **kwargs):  # noqa: ANN002, ANN003
+            captured["kwargs"] = kwargs
+            return original_popen(*args, **kwargs)
+
+        proc = PipeChildProcess([_PY, "-c", "pass"])
+        with unittest.mock.patch("subprocess.Popen", side_effect=spy):
+            proc.spawn()
+        proc.wait()
+        proc.close()
+
+        self.assertNotIn("env", captured["kwargs"])
+
+    def test_inherit_backend_never_passes_an_explicit_env_override(self) -> None:
+        captured: dict[str, object] = {}
+        original_popen = subprocess.Popen
+
+        def spy(*args, **kwargs):  # noqa: ANN002, ANN003
+            captured["kwargs"] = kwargs
+            return original_popen(*args, **kwargs)
+
+        proc = InheritStdioChildProcess([_PY, "-c", "pass"])
+        with unittest.mock.patch("subprocess.Popen", side_effect=spy):
+            proc.spawn()
+        proc.wait()
+        proc.close()
+
+        self.assertNotIn("env", captured["kwargs"])
+
+    def test_pipe_backend_child_actually_observes_a_parent_env_addition(self) -> None:
+        # End-to-end (real subprocess, no mock): a variable added to this
+        # test process's own os.environ right before spawn() must be
+        # observable inside the real child -- proving inheritance is not
+        # merely "no override kwarg" but an actual, working propagation
+        # path, exactly mirroring how bootstrap.py's binding additions
+        # reach the real Copilot child.
+        sentinel_name = "AUTOHARNESS_TEST_ENV_PROPAGATION_SENTINEL"
+        sentinel_value = "propagated-ok"
+        with unittest.mock.patch.dict(os.environ, {sentinel_name: sentinel_value}):
+            proc = PipeChildProcess(
+                [_PY, "-c", f"import os, sys; sys.stdout.write(os.environ.get({sentinel_name!r}, ''))"]
+            )
+            proc.spawn()
+            output_lines = []
+            while True:
+                line = proc.read()
+                if line is None:
+                    break
+                output_lines.append(line)
+            exit_code = proc.wait()
+            proc.close()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual("".join(output_lines), sentinel_value)
+
+
+
     def test_pipe_backend_exit_code_round_trip(self) -> None:
         for code in (0, 1, 2, 42, 130):
             with self.subTest(code=code):

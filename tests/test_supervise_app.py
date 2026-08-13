@@ -1385,5 +1385,93 @@ class ChildTerminationOrderingTests(_DeterministicCopilotResolutionMixin, unitte
         self.assertEqual(order[1], "lock_release")
 
 
+class RuntimeBindingEnvReachesChildTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
+    """120-F post-closure correction (2026-08-13): the ENGRAM_WORKSPACE /
+    GRAPHTOR_DB_PATH / GRAPHTOR_SOURCES additions bootstrap.py now always
+    resolves must actually reach ``os.environ`` for the FULL lifetime of
+    the spawned child (not just momentarily around
+    ``bootstrap_workspace()``'s own call), and must be restored afterward --
+    reusing the SAME serialized read-apply-restore critical section 129-S's
+    own P-018 remediation already proved for every other bootstrap-resolved
+    addition. This is the reinforcing half of 129-S's original fix
+    (`.mcp.json` cleanup + child ``cwd`` anchoring): a real launch verified
+    live (2026-08-13) that CWD-anchoring alone is insufficient when the
+    Copilot child inherits an ALREADY-SET ``ENGRAM_WORKSPACE`` from its own
+    ambient process environment, because an explicit env var always wins
+    over a CWD-relative default in Engram's/graphtor-docs's own documented
+    precedence.
+    """
+
+    def test_binding_env_is_present_in_os_environ_at_child_spawn_time_and_restored_after(
+        self,
+    ) -> None:
+        import os as os_mod
+
+        stale_var = "ENGRAM_WORKSPACE"
+        stale_value = r"C:\Source\GitHub\engram"
+        observed_at_spawn: dict[str, Optional[str]] = {}
+
+        class _ObservingChild:
+            supports_output_capture = False
+            pid = 9001
+
+            def spawn(self) -> None:
+                # Captures os.environ exactly as the real Popen-based
+                # backends would see it at spawn time (they inherit
+                # os.environ verbatim with no per-call override).
+                observed_at_spawn["ENGRAM_WORKSPACE"] = os_mod.environ.get("ENGRAM_WORKSPACE")
+                observed_at_spawn["GRAPHTOR_DB_PATH"] = os_mod.environ.get("GRAPHTOR_DB_PATH")
+                observed_at_spawn["GRAPHTOR_SOURCES"] = os_mod.environ.get("GRAPHTOR_SOURCES")
+
+            def read(self) -> Optional[str]:
+                return None
+
+            def write(self, data: bytes) -> None:
+                pass
+
+            def signal(self, sig: int) -> None:
+                pass
+
+            def wait(self, timeout: Optional[float] = None) -> int:
+                return 0
+
+            def close(self) -> None:
+                pass
+
+        with tempfile.TemporaryDirectory() as workspace, mock.patch.dict(
+            "os.environ", {stale_var: stale_value}
+        ):
+            workspace_root = Path(workspace)
+            self.assertEqual(os_mod.environ.get(stale_var), stale_value)
+
+            result = run_session(
+                workspace_root=workspace_root,
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                child_process_factory=lambda argv: _ObservingChild(),
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "ok")
+            resolved_root = str(workspace_root.resolve())
+            self.assertEqual(observed_at_spawn["ENGRAM_WORKSPACE"], resolved_root)
+            self.assertNotEqual(observed_at_spawn["ENGRAM_WORKSPACE"], stale_value)
+            self.assertEqual(
+                observed_at_spawn["GRAPHTOR_DB_PATH"],
+                str(workspace_root.resolve() / ".graphtor" / "graph.db"),
+            )
+            self.assertEqual(
+                observed_at_spawn["GRAPHTOR_SOURCES"],
+                str(workspace_root.resolve() / ".graphtor" / "config" / "sources.yaml"),
+            )
+
+            # Restored to the stale/ambient value the mock.patch.dict
+            # context manager set up, exactly as every other
+            # bootstrap-resolved addition is restored (P-018 remediation) --
+            # this call must never permanently overwrite the caller's own
+            # process environment.
+            self.assertEqual(os_mod.environ.get(stale_var), stale_value)
+
+
 if __name__ == "__main__":
     unittest.main()
