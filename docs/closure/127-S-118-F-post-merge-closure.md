@@ -225,8 +225,7 @@ local review + hosted Copilot review protocol, not merely rubber-stamped:
      semantics. **Fixed**: reworded the compound doc to describe this as an
      observed updater convention to corroborate with process start time and
      binary identity, not a universal Windows behavior.
-- **Fix commit**: `{{CLOSURE_FIX_COMMIT}}` (placeholder resolved once
-  committed — see git history on `post-merge/118-copilot-supervisor-safety-contracts`).
+- **Fix commit**: `7f8852a5` on `post-merge/118-copilot-supervisor-safety-contracts`.
   All 6 threads replied to and GraphQL-resolved.
 - **P-018 copilot-review gate**: re-run after the fix push; `SATISFIED`
   required before this PR could be presented as merge-ready.
