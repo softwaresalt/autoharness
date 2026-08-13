@@ -186,5 +186,22 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
         assert "*" in decision.reason
 
 
+    def test_file_with_no_declared_id_is_never_trusted_via_filename_match(self) -> None:
+        # Regression: a candidate backlog file whose FILENAME happens to
+        # match the manifest id but whose frontmatter declares no `id` field
+        # at all must never be accepted on filename shape alone -- it must
+        # be treated the same as "not found", falling back to safe-close.
+        target_dir = self.backlog_dir / "queue"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "211-F.md").write_text(
+            "---\nartifact_type: feature\n---\n# 211-F\n", encoding="utf-8"
+        )
+
+        decision = classify_shipment_close_path(["211-F"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+        assert "211-F" in decision.reason
+
+
 if __name__ == "__main__":
     unittest.main()

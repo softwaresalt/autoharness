@@ -137,11 +137,14 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
             if not candidate.is_file():
                 continue
             fm = _frontmatter(candidate)
-            fm_id = _normalize_id(fm.get("id")) or candidate.stem
+            fm_id = _normalize_id(fm.get("id"))
             if fm_id != artifact_id:
-                # Filename prefix matched, but the record's own declared id
-                # does not -- never trust filename shape alone for a
-                # destructive-gate lookup.
+                # The record must DECLARE a normalized frontmatter id that
+                # equals artifact_id. Never fall back to the filename stem
+                # when the id field is missing/blank -- doing so would let a
+                # malformed record with no declared id authorize the
+                # destructive cascade path purely because its filename
+                # happens to match.
                 continue
             artifact_type = str(fm.get("artifact_type") or "").strip().lower()
             raw_parent_id = fm.get("parent_id")
