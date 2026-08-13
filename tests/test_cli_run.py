@@ -63,6 +63,43 @@ class RunHelpTests(unittest.TestCase):
         self.assertIn("autoharness run", out)
 
 
+class RunHelpTokenAfterSeparatorForwardingTests(unittest.TestCase):
+    """Regression guard (129-S review gate P1 finding): a forwarded child
+    argv token of ``help``/``--help``/``-h`` placed AFTER the ``--``
+    separator belongs to the operator's own command (e.g. an operator
+    running ``./start.sh --help`` intending to see Copilot CLI's own
+    help) and MUST be forwarded to ``run_session`` verbatim -- never
+    intercepted by this adapter's own help-usage short-circuit, which is
+    scoped exclusively to the adapter's OWN pre-``--`` args."""
+
+    def test_help_token_after_separator_is_forwarded_not_intercepted(self) -> None:
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            out, _, code = _run("run", "--", "--help")
+        self.assertEqual(len(spy.calls), 1)
+        self.assertEqual(tuple(spy.calls[0]["argv"]), ("--help",))
+        self.assertNotIn("Usage:", out)
+
+    def test_bare_help_token_after_separator_is_forwarded(self) -> None:
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            _run("run", "--", "help")
+        self.assertEqual(tuple(spy.calls[0]["argv"]), ("help",))
+
+    def test_short_h_token_after_separator_is_forwarded(self) -> None:
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            _run("run", "--", "-h")
+        self.assertEqual(tuple(spy.calls[0]["argv"]), ("-h",))
+
+    def test_own_help_flag_before_separator_still_short_circuits(self) -> None:
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            out, _, code = _run("run", "--help", "--", "some-child-arg")
+        self.assertEqual(len(spy.calls), 0)
+        self.assertIn("Usage:", out)
+
+
 class RunArgErrorTests(unittest.TestCase):
     def test_unknown_flag_exits_2(self) -> None:
         _, _, code = _run("run", "--bogus")

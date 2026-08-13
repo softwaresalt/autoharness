@@ -231,7 +231,16 @@ def _run_command(args: list[str]) -> None:
     ``exit_code`` verbatim. No policy decisions are made here.
     """
 
-    if any(flag in ("help", "--help", "-h") for flag in args):
+    # Only the adapter's OWN pre-`--` args are eligible for help
+    # interception. Everything after `--` is the operator's forwarded
+    # child argv and MUST be forwarded verbatim (never re-parsed,
+    # re-quoted, reordered, or filtered) -- including a literal
+    # "--help"/"-h"/"help" token intended for the Copilot CLI itself
+    # (e.g. `./start.sh --help`). Scanning the full, unsplit args list
+    # here previously swallowed that forwarded flag and silently
+    # short-circuited before `run_session`/Copilot ever launched.
+    own_args = args[: args.index("--")] if "--" in args else args
+    if any(flag in ("help", "--help", "-h") for flag in own_args):
         print(RUN_USAGE)
         return
 
