@@ -1,1 +1,3 @@
 {"timestamp":"2026-08-12T15:11:16.4244779-07:00","actor":"backlogit","item_id":"118-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-12T19:21:10.128557-07:00","actor":"backlogit","item_id":"118-F","event_type":"commit_tracked","delta":{"author":"dewilliams","commit_sha":"8ccd3a2ded777393703136da6747e846619f4294","message":"feat: shipment 127-S safety contracts and characterization baseline (#326)"}}
+{"timestamp":"2026-08-12T19:22:04.7495477-07:00","actor":"backlogit","item_id":"118-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/118-F.md"}}

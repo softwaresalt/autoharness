@@ -1,6 +1,6 @@
 ---
 name: shipment-reconcile
-description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs and closes the shipment record via live `shipped` -> verify -> explicit archive -> verify `archived_status: shipped`, instead of the destructive cascade {{OP_SHIP_SHIPMENT_MCP}}."
+description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs and closes the shipment record via live `shipped` -> verify -> explicit archive -> verify `archived_status: shipped`, instead of the destructive cascade {{OP_SHIP_SHIPMENT_MCP}} — except for the narrow, machine-verified P-015 fully-covered-root case, where the cascade op is the permitted and independently-verified close path."
 ---
 
 # Shipment Reconcile
@@ -10,7 +10,9 @@ Provides a double-entry (GI/GR) integrity check for shipment manifests. Run
 restore steps complete. Run `mode: safe-close` **in place of** the destructive
 cascade `{{OP_SHIP_SHIPMENT_MCP}}` call to archive only the shipment manifest's
 explicit item IDs one artifact at a time, verifying after each that the parent
-feature and any unshipped sibling tasks survive.
+feature and any unshipped sibling tasks survive — safe-close's own Step 0 first
+runs the P-015 verified fully-covered-root classification and, only when every
+precondition holds, delegates to the Cascade Close Sub-Procedure instead.
 
 > **Why safe-close exists.** `{{OP_SHIP_SHIPMENT_MCP}}` treats a shipment as a
 > proxy for its covering feature and cascade-archives the whole feature subtree.
@@ -24,8 +26,11 @@ feature and any unshipped sibling tasks survive.
 
 * **Ship Step 6 closure** (mandatory): run `mode: pre`, then `mode: safe-close`
   **instead of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call, then `mode: post`.
-  Safe-close archives only the manifest item IDs individually; it never calls the
-  cascade op.
+  Safe-close's own Step 0 selects the close path from the machine-checkable
+  P-015 classification; it archives manifest item IDs individually and never
+  calls the cascade op directly **unless** that classification confirms the
+  narrow verified fully-covered-root exception, in which case the Cascade
+  Close Sub-Procedure runs (and is itself independently verified) instead.
 * **Ship Step 0.5** (sanity check): pre-mode at intake with `expected_status: {{STATUS_QUEUED}}`
   (or `{{STATUS_ACTIVE}}` if the shipment was already claimed in a prior session)
   to catch Stage-side over-inclusion before any build work begins.
@@ -348,12 +353,61 @@ mutated or repaired by this mode.
 
 ### Safe-Close Mode
 
-Runs **in place of** the destructive cascade `{{OP_SHIP_SHIPMENT_MCP}}` call.
-Archives only the shipment manifest's explicit item IDs, one artifact at a time,
-verifying after each archival that the parent feature and any unshipped sibling
-tasks survive. Invoked between pre-mode (`PROCEED`) and post-mode, under the lock
-pre-mode already holds. If invoked standalone, acquire the lock per pre-mode
-step 1 first and release it on completion.
+Runs **in place of** the destructive cascade `{{OP_SHIP_SHIPMENT_MCP}}` call —
+**except** in the narrow P-015 verified fully-covered-root case selected by
+Step 0 below, where the cascade op is the *permitted* close path and safe-close
+steps 1–10 are skipped entirely. Archives only the shipment manifest's explicit
+item IDs, one artifact at a time, verifying after each archival that the parent
+feature and any unshipped sibling tasks survive. Invoked between pre-mode
+(`PROCEED`) and post-mode, under the lock pre-mode already holds. If invoked
+standalone, acquire the lock per pre-mode step 1 first and release it on
+completion.
+
+0. **Load manifest, snapshot pre-close state, then select close path (P-015
+   verified fully-covered-root exception — select from the verified check,
+   never from prose alone)**: safe-close is the default.
+   a. **Load the manifest first**, regardless of which path is ultimately
+      selected: invoke `{{OP_GET_SHIPMENT_MCP}}(shipment_id)` and extract the
+      `items` list. This load happens here in Step 0 — not deferred to step 1
+      below — because the classification in (c) and the cascade
+      pre/post-comparison in the Cascade Close Sub-Procedure both require it,
+      and the cascade path skips steps 1–10 entirely.
+   b. **Snapshot pre-close `parent_id` for every task item** in the manifest
+      by reading each task's current frontmatter from
+      `{{BACKLOG_DIRECTORY}}/queue/`. Retain this snapshot in memory for the
+      duration of this close operation; it is the baseline the Cascade Close
+      Sub-Procedure's step 4 parent-preservation check compares against, and
+      it must be captured **before** any mutating call (cascade or otherwise)
+      runs, never reconstructed after the fact.
+   c. **Classify the close path**: run the machine-checkable classification
+      described in P-015 over the manifest `items` loaded in (a). Workspaces
+      with a Python implementation installed reuse a
+      `classify_shipment_close_path(manifest_items, workspace_backlog_dir)`-shaped
+      function (this self-hosting repository's own implementation lives at
+      `src/autoharness/gates/shipment_closure.py`); other workspaces implement
+      the equivalent check directly against `{{BACKLOG_DIRECTORY}}/queue/` +
+      `{{BACKLOG_DIRECTORY}}/archive/`. The cascade close path is permitted
+      **only** when, for **every** feature member of the manifest: it is a
+      root (no `parent_id`); it is fully covered (every one of its children,
+      enumerated live from `{{BACKLOG_DIRECTORY}}/queue/` +
+      `{{BACKLOG_DIRECTORY}}/archive/`, is also a manifest member); and, if it
+      enumerates to zero children, that childlessness is **positively
+      verified** against the live workspace (never inferred from an
+      incomplete or failed enumeration) and the feature is additionally
+      terminal (no manifest member declares it as parent). The manifest must
+      contain nothing beyond the qualifying root feature(s) and their
+      children. If **any** feature member fails **any** precondition, the
+      **whole manifest** falls back to safe-close (steps 1–10 below) —
+      qualification is never per-member, and no feature ID is ever
+      special-cased.
+   * **CASCADE selected** → skip directly to the **Cascade Close
+     Sub-Procedure** below (reusing the manifest and snapshot from (a)/(b)
+     above — do not reload) in place of steps 1–10, then proceed to
+     post-mode.
+   * **SAFE_CLOSE selected** (default, including any classifier error,
+     ambiguity, or unresolved precondition) → continue to step 1 below
+     (step 1's own manifest load is idempotent with (a) above — reuse the
+     already-loaded manifest rather than issuing a second call).
 
 1. **Load manifest** via `{{OP_GET_SHIPMENT_MCP}}(shipment_id)`. Extract the
    `items` list. These IDs are the **only** artifacts safe-close may move or
@@ -458,6 +512,50 @@ step 1 first and release it on completion.
       and the protected set intact → `recommendation: CLOSED`. Proceed to post-mode.
     * Any cascade detected → `recommendation: HALT — cascade detected, revert required`
       (see step 6). Do not proceed to the commit step.
+
+### Cascade Close Sub-Procedure (P-015 verified fully-covered-root exception ONLY)
+
+Runs **only** when Step 0 of Safe-Close Mode above selects `CASCADE`, and
+reuses the manifest and pre-close `parent_id` snapshot Step 0 already
+captured in (a)/(b) — this sub-procedure never reloads the manifest or
+attempts to reconstruct pre-close state after the fact. Replaces
+steps 1–10 above entirely for this shipment's closure; there is no partial
+mixing of the two paths.
+
+1. Invoke `{{OP_SHIP_SHIPMENT_MCP}}(shipment_id, merge_commit_sha)` directly
+   (CLI: `backlogit shipment ship <shipment_id> --sha <merge_commit_sha>
+   --message <merge_commit_message> --author <merge_commit_author>`).
+2. **Verify the result matches the classifier's own precondition**:
+   `returned_ids` MUST be empty (`[]`). A non-empty `returned_ids` means the
+   live engine found an unreleased descendant the classifier's live-workspace
+   enumeration did not — this is a TOCTOU/engine-behavior mismatch, not a
+   recoverable state. Halt immediately with
+   `HALT — cascade returned non-empty returned_ids, classifier/engine
+   mismatch` and emit a **P-005** violation; do NOT retry, do NOT fall back to
+   safe-close after a cascade has already executed.
+3. **Verify `archived_ids`** contains exactly the manifest's task items, every
+   qualifying feature member, and the shipment record itself — nothing more,
+   nothing less. Any extra ID is an out-of-scope mutation: halt with
+   `HALT — cascade archived unexpected artifact {id}` and emit a **P-005**
+   violation.
+4. **Verify no `parent_id` was cleared**: re-read every archived task's
+   frontmatter and confirm `parent_id` is unchanged from the pre-close
+   snapshot captured in Step 0(b) — never a freshly-read or assumed value,
+   since the field being verified is the very one a cascade could have just
+   cleared. Any cleared or altered `parent_id` is a
+   cascade-detection failure equivalent to step 6 of safe-close: halt with
+   `HALT — cascade cleared parent_id on {id}, revert required` and emit a
+   **P-005** violation; do NOT commit the mutated backlog state.
+5. **Produce cascade-close report** recording the classifier's verdict and
+   qualifying feature IDs (Step 0(c)), the `{{OP_SHIP_SHIPMENT_MCP}}` result
+   (`shipment_status`, `archived_ids`, `returned_ids`, `commit_sha`), and the
+   parent_id-preservation verification outcome (against the Step 0(b)
+   snapshot).
+6. **Gate decision**: `returned_ids` empty, `archived_ids` matches exactly,
+   and every `parent_id` preserved (against the Step 0(b) snapshot) →
+   `recommendation: CLOSED`. Proceed to
+   post-mode. Any verification failure above → the corresponding `HALT`; do
+   not proceed to post-mode or any commit step.
 
 ### Mixed-Role Detection Mode (`mode: detect-mixed-role`, operator-invoked, READ-ONLY)
 
@@ -635,7 +733,9 @@ If pre-mode cannot acquire the lock because another process holds it:
 
 * `mode: pre` runs before closing a shipment in Ship Step 6
 * `mode: pre` with `expected_status: {{STATUS_QUEUED}}` (or `{{STATUS_ACTIVE}}` for already-claimed shipments) runs at Ship Step 0.5 intake
-* `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself
+* `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself — **except** when Step 0's P-015 verified fully-covered-root classification selects `CASCADE`, in which case the Cascade Close Sub-Procedure runs instead and safe-close steps 1–10 are skipped entirely
+* Close-path selection is made **only** from the machine-checkable classification result (Step 0), never inferred from prose or manifest shape alone; any classifier error, ambiguity, or unresolved precondition falls back to safe-close
+* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` matches the manifest exactly, and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
 * Safe-close computes the protected set (parent feature + unshipped siblings) from expected IDs and proves it is fully present in queue at a baseline gate before archiving anything
 * Safe-close verifies the protected set survives after every single-item archival (verify-after-each invariant), with no pre-archived exemption for protected-set members
 * Safe-close moves the shipment record to live `shipped`, verifies it, explicitly archives only that record, and verifies `archived_status: shipped` before closure completes
@@ -691,7 +791,8 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `.github/skills/file-lock/SKILL.md` — lock acquisition/release primitives
 * `.github/agents/_ship.agent.md` — integration points (Step 0.5, Step 6 safe-close)
 * `.github/agents/_stage.agent.md` — scope guard (Step 5.5)
-* `.github/policies/workflow-policies.md` — P-007 archive integrity policy; P-015 single-artifact closure (cascade prohibition)
+* `.github/policies/workflow-policies.md` — P-007 archive integrity policy; P-015 single-artifact closure (cascade prohibition) plus the verified fully-covered-root exception
+* `src/autoharness/gates/shipment_closure.py` — this self-hosting repository's own `classify_shipment_close_path` implementation, reused by Step 0 of Safe-Close Mode
 
 ## Model Routing
 
