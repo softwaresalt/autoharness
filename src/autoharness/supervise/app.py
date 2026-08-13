@@ -129,6 +129,30 @@ from autoharness.supervise.session import Phase, SessionStateMachine
 ChildProcessFactory = Callable[[Sequence[str]], ChildProcess]
 LockFactory = Callable[[Path, Optional[str]], Any]
 
+# Serializes the bootstrap-resolved-environment-application-through-restore
+# critical section (see the `_environ_snapshot`/`os.environ.update`/
+# `os.environ.clear`+`update` sequence inside `run_session`) across ALL
+# `run_session` calls sharing this Python process, regardless of workspace.
+#
+# P-018 Copilot review finding (PR #331, comment 3778273440): snapshotting
+# and restoring `os.environ` around a single `run_session` call does NOT by
+# itself make that mutation concurrency-safe -- workspace locks are
+# per-workspace, so two `run_session` calls for TWO DIFFERENT workspaces can
+# legitimately overlap in the same process (e.g. concurrent CLI-embedding
+# test suites, or a future multi-workspace supervisor). Without
+# serialization, the second call's snapshot could capture the first call's
+# already-mutated environment, and/or the first call's restore could
+# clobber additions the second call is still relying on. The reviewer
+# offered two remedies: thread an explicit merged environment through every
+# sidecar/child spawn call instead of mutating `os.environ` at all (a much
+# larger refactor touching bootstrap.py, sidecar.py, process.py, and
+# process_pty.py), or serialize this process-wide critical section. This
+# module-level lock implements the latter, narrower, lower-risk fix: two
+# concurrent `run_session` calls now serialize around their (mutually
+# exclusive) environment-mutation windows instead of racing to corrupt one
+# another's environment.
+_ENVIRON_MUTATION_LOCK = threading.Lock()
+
 
 def _default_lock_factory(workspace_root: Path, session_id: Optional[str]) -> SessionLock:
     return SessionLock(workspace_root, session_id=session_id)
@@ -161,7 +185,11 @@ def _default_child_process_factory(
     return factory
 
 
-def _pump_child_output(child: ChildProcess, emit: Callable[[Any], None]) -> None:
+def _pump_child_output(
+    child: ChildProcess,
+    emit: Callable[[Any], None],
+    report_emit_failure: Optional[Callable[[str], None]] = None,
+) -> None:
     """Continuously drain capture-capable child output to the real console.
 
     Reviewer-flagged gap (P-018 Copilot review, PR #331, comment
@@ -179,6 +207,17 @@ def _pump_child_output(child: ChildProcess, emit: Callable[[Any], None]) -> None
     :meth:`ChildProcess.read` reports EOF (``None``) or raises -- which
     happens promptly once ``child`` itself exits/closes, since the PTY's
     slave side closes with it.
+
+    ``report_emit_failure`` (P-018 Copilot review, PR #331, comment
+    3778273465): a raising ``emit`` (journal I/O error, e.g. a full disk,
+    or a raising ``EventBus`` subscriber) previously terminated this whole
+    pump thread -- the exact PTY-buffer-fills-and-the-child-deadlocks
+    failure mode this pump exists to prevent, just moved one layer down.
+    An emit failure is now caught and reported through this thread-safe
+    callback (never raised into the interpreter), and draining CONTINUES
+    for the rest of the child's lifetime -- the operator still sees live
+    output on the real console even if journaling/bus delivery of that one
+    chunk failed.
     """
 
     while True:
@@ -193,7 +232,14 @@ def _pump_child_output(child: ChildProcess, emit: Callable[[Any], None]) -> None
             sys.stdout.flush()
         except Exception:  # noqa: BLE001 - a console write failure does not stop draining the child
             pass
-        emit(ChildOutput(stream="stdout", line=data))
+        try:
+            emit(ChildOutput(stream="stdout", line=data))
+        except Exception as exc:  # noqa: BLE001 - emit failure must not kill this pump (3778273465)
+            if report_emit_failure is not None:
+                try:
+                    report_emit_failure(f"ChildOutput emit failed: {exc}")
+                except Exception:  # noqa: BLE001 - the failure channel itself must never propagate
+                    pass
 
 
 class _ActiveChildRef:
@@ -265,7 +311,11 @@ def _pump_operator_input(active_ref: _ActiveChildRef) -> None:
             continue
 
 
-def _start_output_pump(child: ChildProcess, emit: Callable[[Any], None]) -> Optional[threading.Thread]:
+def _start_output_pump(
+    child: ChildProcess,
+    emit: Callable[[Any], None],
+    report_emit_failure: Optional[Callable[[str], None]] = None,
+) -> Optional[threading.Thread]:
     """Start (and return) the output-drain daemon thread for ``child``.
 
     Returns ``None`` (no-op, no thread started) when
@@ -276,12 +326,16 @@ def _start_output_pump(child: ChildProcess, emit: Callable[[Any], None]) -> Opti
     one for a replacement child, so trailing output from the OLD child is
     drained deterministically rather than left to timing luck (P-018
     Copilot review finding, PR #331, comment 3778121130 -- "quiesce it
-    before restart/return").
+    before restart/return"). ``report_emit_failure`` is forwarded to
+    :func:`_pump_child_output` -- see its own docstring (P-018 Copilot
+    review finding, PR #331, comment 3778273465).
     """
 
     if not child.supports_output_capture:
         return None
-    thread = threading.Thread(target=_pump_child_output, args=(child, emit), daemon=True)
+    thread = threading.Thread(
+        target=_pump_child_output, args=(child, emit, report_emit_failure), daemon=True
+    )
     thread.start()
     return thread
 
@@ -392,15 +446,18 @@ def run_session(
     # is what lets it be re-pointed at each restart's replacement child
     # instead of a second competing thread ever being started.
     active_child_ref: Optional[_ActiveChildRef] = None
-    # Snapshot the caller's own environment BEFORE any bootstrap-resolved
-    # secret/config additions are applied to this process's os.environ
-    # below, so the top-level `finally` can restore it -- otherwise a
-    # resolved GitHub token (and any other bootstrap addition) would leak
-    # process-wide into later run_session() calls / unrelated library
-    # callers sharing this same Python process (P-018 Copilot review
-    # finding, PR #331).
-    _environ_snapshot: dict[str, str] = dict(os.environ)
+    # Snapshot is taken lazily, immediately before the bootstrap-resolved
+    # env is actually applied below, under `_ENVIRON_MUTATION_LOCK` (P-018
+    # Copilot review finding, PR #331, comment 3778273440) -- not here at
+    # the top, so nothing observes/holds the lock during phases (LOCKING,
+    # etc.) that never touch `os.environ` at all.
+    _environ_snapshot: dict[str, str] = {}
     _environ_mutated = False
+    # True for exactly the span between acquiring `_ENVIRON_MUTATION_LOCK`
+    # below and this function's own `finally` releasing it -- guards
+    # against releasing a lock this call never acquired (e.g. when
+    # `bootstrap_result.env` is empty, no mutation/lock is needed at all).
+    _environ_lock_held = False
     # Guards `_emit` against interleaved bus/journal writes once the PTY
     # output-pump daemon thread (started below) begins emitting `ChildOutput`
     # events concurrently with this function's own main-thread transitions.
@@ -410,6 +467,16 @@ def run_session(
         with _emit_lock:
             bus.emit(event)
             journal.append_event(event)
+
+    def _report_pump_emit_failure(message: str) -> None:
+        # P-018 Copilot review finding, PR #331, comment 3778273465: a
+        # raising `_emit` inside the output-drain pump thread must not be
+        # silently swallowed into nothing -- record it as an
+        # operator-visible warning (thread-safe: list.append is atomic
+        # under CPython's GIL, and this is the same `warnings` list the
+        # main thread only ever reads from after the pump thread has been
+        # joined, never concurrently mutates).
+        warnings.append(message)
 
     def _transition(to_phase: Phase) -> None:
         event = machine.transition(to_phase)
@@ -481,8 +548,19 @@ def run_session(
         # supervised child. This mutation is RESTORED in the top-level
         # `finally` below so any resolved secret never outlives this single
         # run_session() call in this process's environment (P-018 Copilot
-        # review finding, PR #331).
+        # review finding, PR #331). The whole apply-through-restore window
+        # is serialized process-wide via `_ENVIRON_MUTATION_LOCK` (P-018
+        # Copilot review finding, PR #331, comment 3778273440) -- see that
+        # lock's own module-level docstring -- so a concurrent `run_session`
+        # call for a different workspace cannot observe or clobber this
+        # call's mutation, and vice versa. The snapshot is taken only now,
+        # AFTER acquiring the lock, so it reflects exactly the environment
+        # this call must restore, not whatever another call's still-applied
+        # mutation happened to look like a moment earlier.
         if bootstrap_result.env:
+            _ENVIRON_MUTATION_LOCK.acquire()
+            _environ_lock_held = True
+            _environ_snapshot = dict(os.environ)
             os.environ.update(bootstrap_result.env)
             _environ_mutated = True
 
@@ -517,7 +595,7 @@ def run_session(
             threading.Thread(
                 target=_pump_operator_input, args=(active_child_ref,), daemon=True
             ).start()
-            output_pump_thread = _start_output_pump(child, _emit)
+            output_pump_thread = _start_output_pump(child, _emit, _report_pump_emit_failure)
 
         _transition(Phase.RUNNING)
 
@@ -587,7 +665,7 @@ def run_session(
                     threading.Thread(
                         target=_pump_operator_input, args=(active_child_ref,), daemon=True
                     ).start()
-                output_pump_thread = _start_output_pump(child, _emit)
+                output_pump_thread = _start_output_pump(child, _emit, _report_pump_emit_failure)
             else:
                 output_pump_thread = None
             _transition(Phase.RUNNING)
@@ -637,6 +715,15 @@ def run_session(
             # unrelated library callers sharing the same Python process.
             os.environ.clear()
             os.environ.update(_environ_snapshot)
+        if _environ_lock_held:
+            # Release LAST, only after the restore immediately above has
+            # fully completed -- this is what actually serializes the
+            # critical section (P-018 Copilot review finding, PR #331,
+            # comment 3778273440): a concurrent `run_session` call blocked
+            # on `_ENVIRON_MUTATION_LOCK.acquire()` above must never resume
+            # (and take its own snapshot) until THIS call's mutation has
+            # been fully undone.
+            _ENVIRON_MUTATION_LOCK.release()
 
 
 def _fail_closed_drain(machine: SessionStateMachine, emit: Callable[[Any], None]) -> None:

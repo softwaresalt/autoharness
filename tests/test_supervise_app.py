@@ -722,6 +722,121 @@ class BootstrapEnvironRestorationTests(_DeterministicCopilotResolutionMixin, uni
             )
 
 
+class EnvironMutationSerializationTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
+    """P-018 Copilot review finding (PR #331, comment 3778273440):
+    snapshotting and restoring ``os.environ`` around a single
+    ``run_session`` call does not by itself make that mutation
+    concurrency-safe -- workspace locks are per-workspace, so TWO
+    ``run_session`` calls for TWO DIFFERENT workspaces can legitimately run
+    concurrently in the same process. Proves ``_ENVIRON_MUTATION_LOCK``
+    actually serializes their environment-mutation windows: while one call
+    is still "running" (its child hasn't exited yet), a concurrent call for
+    a different workspace must not have applied its own bootstrap-resolved
+    environment yet, and once both complete neither leaves a trace in
+    ``os.environ``.
+    """
+
+    def test_two_concurrent_run_session_calls_never_interleave_environ_mutation(
+        self,
+    ) -> None:
+        import os as os_mod
+
+        spawned_event = threading.Event()
+        proceed_event = threading.Event()
+
+        class _BlockingChildProcess:
+            """Stays 'running' until the test explicitly releases it,
+            simulating a long-lived Copilot child so the test can observe
+            _ENVIRON_MUTATION_LOCK actually being held for the mutation's
+            full lifetime, not just around the brief `os.environ.update`
+            call itself."""
+
+            supports_output_capture = False
+            pid = 4242
+
+            def spawn(self) -> None:
+                spawned_event.set()
+
+            def wait(self, timeout: Optional[float] = None) -> int:
+                proceed_event.wait(timeout=10.0)
+                return 0
+
+            def close(self) -> None:
+                pass
+
+            def signal(self, sig: int) -> None:
+                pass
+
+        sentinel_a = "AUTOHARNESS_TEST_ENV_LOCK_SENTINEL_A"
+        sentinel_b = "AUTOHARNESS_TEST_ENV_LOCK_SENTINEL_B"
+        self.assertNotIn(sentinel_a, os_mod.environ)
+        self.assertNotIn(sentinel_b, os_mod.environ)
+
+        with tempfile.TemporaryDirectory() as workspace_a, tempfile.TemporaryDirectory() as workspace_b:
+            root_a = Path(workspace_a)
+            root_b = Path(workspace_b)
+            (root_a / ".env.local").write_text(f"{sentinel_a}=a-value\n", encoding="utf-8")
+            (root_b / ".env.local").write_text(f"{sentinel_b}=b-value\n", encoding="utf-8")
+
+            results: dict[str, Any] = {}
+
+            def _run_a() -> None:
+                results["a"] = run_session(
+                    workspace_root=root_a,
+                    argv=[],
+                    approval_service=AlwaysApproveApprovalService(),
+                    child_process_factory=lambda argv: _BlockingChildProcess(),
+                    **_sidecar_kwargs(),
+                )
+
+            def _run_b() -> None:
+                results["b"] = run_session(
+                    workspace_root=root_b,
+                    argv=[],
+                    approval_service=AlwaysApproveApprovalService(),
+                    child_process_factory=lambda argv: FakeChildProcess(
+                        argv=tuple(argv), exit_code=0, supports_output_capture=False
+                    ),
+                    **_sidecar_kwargs(),
+                )
+
+            thread_a = threading.Thread(target=_run_a, daemon=True)
+            thread_a.start()
+
+            # Wait until A has definitely applied its own environ mutation
+            # and spawned its (indefinitely-blocking) child.
+            self.assertTrue(spawned_event.wait(timeout=5.0), "thread A never reached spawn()")
+            self.assertIn(sentinel_a, os_mod.environ)
+
+            thread_b = threading.Thread(target=_run_b, daemon=True)
+            thread_b.start()
+
+            # Give B ample opportunity to race ahead if the lock did NOT
+            # serialize these two calls -- B's own bootstrap/env-mutation
+            # phase has nothing else to block on for a different workspace.
+            time.sleep(0.3)
+            self.assertNotIn(
+                sentinel_b,
+                os_mod.environ,
+                "B must not have applied its own environ mutation while A "
+                "still holds _ENVIRON_MUTATION_LOCK -- the two calls raced "
+                "instead of serializing",
+            )
+
+            # Release A -- its child now exits, A restores its snapshot and
+            # releases the lock, letting B proceed and complete quickly.
+            proceed_event.set()
+            thread_a.join(timeout=5.0)
+            thread_b.join(timeout=5.0)
+
+            self.assertFalse(thread_a.is_alive())
+            self.assertFalse(thread_b.is_alive())
+            self.assertEqual(results["a"].status, "ok")
+            self.assertEqual(results["b"].status, "ok")
+            self.assertNotIn(sentinel_a, os_mod.environ)
+            self.assertNotIn(sentinel_b, os_mod.environ)
+
+
 class H2FailClosedNonInteractiveTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_session_restart_falls_back_to_declared_fallback_when_non_interactive(self) -> None:
         """Integration-level (not approvals.py-unit-level) H2 check: a REAL
@@ -940,6 +1055,53 @@ class PtyPumpDirectUnitTests(unittest.TestCase):
         _pump_child_output(_RaisingReadChild(), captured.append)
 
         self.assertEqual(captured, [])
+
+    def test_pump_child_output_survives_emit_failure_and_keeps_draining(self) -> None:
+        # P-018 Copilot review finding (PR #331, comment 3778273465): a
+        # raising `emit` (journal I/O error, raising EventBus subscriber)
+        # previously terminated the WHOLE pump thread -- the exact
+        # PTY-buffer-fills-and-the-child-deadlocks failure mode this pump
+        # exists to prevent, just moved one layer down. Proves draining
+        # continues across an emit failure, and the failure is reported
+        # through `report_emit_failure` rather than silently discarded.
+        child = FakeChildProcess(argv=(), scripted_stdout=["first\n", "second\n", "third\n"])
+        child.spawn()
+        out = io.StringIO()
+        reported: list[str] = []
+
+        def _raising_emit(event: ChildOutput) -> None:
+            if event.line == "second\n":
+                raise OSError("disk full")
+
+        with mock.patch.object(sys, "stdout", out):
+            _pump_child_output(child, _raising_emit, reported.append)
+
+        # All three chunks still reached the real console -- the emit
+        # failure on the middle chunk did not stop draining the child.
+        self.assertEqual(out.getvalue(), "first\nsecond\nthird\n")
+        self.assertEqual(len(reported), 1)
+        self.assertIn("disk full", reported[0])
+
+    def test_pump_child_output_swallows_a_raising_report_emit_failure_callback(self) -> None:
+        # The failure-reporting channel itself must never propagate either
+        # -- a buggy/raising `report_emit_failure` must not resurrect the
+        # exact "pump thread dies silently" failure mode this fix exists to
+        # close.
+        child = FakeChildProcess(argv=(), scripted_stdout=["only\n"])
+        child.spawn()
+        out = io.StringIO()
+
+        def _raising_emit(event: ChildOutput) -> None:
+            raise OSError("emit boom")
+
+        def _raising_report(message: str) -> None:
+            raise RuntimeError("reporting channel boom")
+
+        with mock.patch.object(sys, "stdout", out):
+            # Must not raise.
+            _pump_child_output(child, _raising_emit, _raising_report)
+
+        self.assertEqual(out.getvalue(), "only\n")
 
     def test_pump_operator_input_forwards_every_line_to_the_active_child(self) -> None:
         child = FakeChildProcess(argv=())
