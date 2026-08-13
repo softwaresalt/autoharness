@@ -363,32 +363,51 @@ feature and any unshipped sibling tasks survive. Invoked between pre-mode
 standalone, acquire the lock per pre-mode step 1 first and release it on
 completion.
 
-0. **Close-path selection (P-015 verified fully-covered-root exception —
-   select from the verified check, never from prose alone)**: safe-close is
-   the default; before doing anything else, run the machine-checkable
-   classification described in P-015 over the manifest's `items`. Workspaces
-   with a Python implementation installed reuse a
-   `classify_shipment_close_path(manifest_items, workspace_backlog_dir)`-shaped
-   function (this self-hosting repository's own implementation lives at
-   `src/autoharness/gates/shipment_closure.py`); other workspaces implement the
-   equivalent check directly against `{{BACKLOG_DIRECTORY}}/queue/` +
-   `{{BACKLOG_DIRECTORY}}/archive/`. The cascade close path is permitted
-   **only** when, for **every** feature member of the manifest: it is a root
-   (no `parent_id`); it is fully covered (every one of its children, enumerated
-   live from `{{BACKLOG_DIRECTORY}}/queue/` + `{{BACKLOG_DIRECTORY}}/archive/`,
-   is also a manifest member); and, if it enumerates to zero children, that
-   childlessness is **positively verified** against the live workspace (never
-   inferred from an incomplete or failed enumeration) and the feature is
-   additionally terminal (no manifest member declares it as parent). The
-   manifest must contain nothing beyond the qualifying root feature(s) and
-   their children. If **any** feature member fails **any** precondition, the
-   **whole manifest** falls back to safe-close (steps 1–10 below) —
-   qualification is never per-member, and no feature ID is ever
-   special-cased.
+0. **Load manifest, snapshot pre-close state, then select close path (P-015
+   verified fully-covered-root exception — select from the verified check,
+   never from prose alone)**: safe-close is the default.
+   a. **Load the manifest first**, regardless of which path is ultimately
+      selected: invoke `{{OP_GET_SHIPMENT_MCP}}(shipment_id)` and extract the
+      `items` list. This load happens here in Step 0 — not deferred to step 1
+      below — because the classification in (c) and the cascade
+      pre/post-comparison in the Cascade Close Sub-Procedure both require it,
+      and the cascade path skips steps 1–10 entirely.
+   b. **Snapshot pre-close `parent_id` for every task item** in the manifest
+      by reading each task's current frontmatter from
+      `{{BACKLOG_DIRECTORY}}/queue/`. Retain this snapshot in memory for the
+      duration of this close operation; it is the baseline the Cascade Close
+      Sub-Procedure's step 4 parent-preservation check compares against, and
+      it must be captured **before** any mutating call (cascade or otherwise)
+      runs, never reconstructed after the fact.
+   c. **Classify the close path**: run the machine-checkable classification
+      described in P-015 over the manifest `items` loaded in (a). Workspaces
+      with a Python implementation installed reuse a
+      `classify_shipment_close_path(manifest_items, workspace_backlog_dir)`-shaped
+      function (this self-hosting repository's own implementation lives at
+      `src/autoharness/gates/shipment_closure.py`); other workspaces implement
+      the equivalent check directly against `{{BACKLOG_DIRECTORY}}/queue/` +
+      `{{BACKLOG_DIRECTORY}}/archive/`. The cascade close path is permitted
+      **only** when, for **every** feature member of the manifest: it is a
+      root (no `parent_id`); it is fully covered (every one of its children,
+      enumerated live from `{{BACKLOG_DIRECTORY}}/queue/` +
+      `{{BACKLOG_DIRECTORY}}/archive/`, is also a manifest member); and, if it
+      enumerates to zero children, that childlessness is **positively
+      verified** against the live workspace (never inferred from an
+      incomplete or failed enumeration) and the feature is additionally
+      terminal (no manifest member declares it as parent). The manifest must
+      contain nothing beyond the qualifying root feature(s) and their
+      children. If **any** feature member fails **any** precondition, the
+      **whole manifest** falls back to safe-close (steps 1–10 below) —
+      qualification is never per-member, and no feature ID is ever
+      special-cased.
    * **CASCADE selected** → skip directly to the **Cascade Close
-     Sub-Procedure** below in place of steps 1–10, then proceed to post-mode.
+     Sub-Procedure** below (reusing the manifest and snapshot from (a)/(b)
+     above — do not reload) in place of steps 1–10, then proceed to
+     post-mode.
    * **SAFE_CLOSE selected** (default, including any classifier error,
-     ambiguity, or unresolved precondition) → continue to step 1 below.
+     ambiguity, or unresolved precondition) → continue to step 1 below
+     (step 1's own manifest load is idempotent with (a) above — reuse the
+     already-loaded manifest rather than issuing a second call).
 
 1. **Load manifest** via `{{OP_GET_SHIPMENT_MCP}}(shipment_id)`. Extract the
    `items` list. These IDs are the **only** artifacts safe-close may move or
@@ -496,7 +515,10 @@ completion.
 
 ### Cascade Close Sub-Procedure (P-015 verified fully-covered-root exception ONLY)
 
-Runs **only** when Step 0 of Safe-Close Mode above selects `CASCADE`. Replaces
+Runs **only** when Step 0 of Safe-Close Mode above selects `CASCADE`, and
+reuses the manifest and pre-close `parent_id` snapshot Step 0 already
+captured in (a)/(b) — this sub-procedure never reloads the manifest or
+attempts to reconstruct pre-close state after the fact. Replaces
 steps 1–10 above entirely for this shipment's closure; there is no partial
 mixing of the two paths.
 
@@ -517,17 +539,21 @@ mixing of the two paths.
    `HALT — cascade archived unexpected artifact {id}` and emit a **P-005**
    violation.
 4. **Verify no `parent_id` was cleared**: re-read every archived task's
-   frontmatter and confirm `parent_id` is unchanged from its pre-close value
-   for every task in the manifest. Any cleared or altered `parent_id` is a
+   frontmatter and confirm `parent_id` is unchanged from the pre-close
+   snapshot captured in Step 0(b) — never a freshly-read or assumed value,
+   since the field being verified is the very one a cascade could have just
+   cleared. Any cleared or altered `parent_id` is a
    cascade-detection failure equivalent to step 6 of safe-close: halt with
    `HALT — cascade cleared parent_id on {id}, revert required` and emit a
    **P-005** violation; do NOT commit the mutated backlog state.
 5. **Produce cascade-close report** recording the classifier's verdict and
-   qualifying feature IDs (Step 0), the `{{OP_SHIP_SHIPMENT_MCP}}` result
+   qualifying feature IDs (Step 0(c)), the `{{OP_SHIP_SHIPMENT_MCP}}` result
    (`shipment_status`, `archived_ids`, `returned_ids`, `commit_sha`), and the
-   parent_id-preservation verification outcome.
+   parent_id-preservation verification outcome (against the Step 0(b)
+   snapshot).
 6. **Gate decision**: `returned_ids` empty, `archived_ids` matches exactly,
-   and every `parent_id` preserved → `recommendation: CLOSED`. Proceed to
+   and every `parent_id` preserved (against the Step 0(b) snapshot) →
+   `recommendation: CLOSED`. Proceed to
    post-mode. Any verification failure above → the corresponding `HALT`; do
    not proceed to post-mode or any commit step.
 
