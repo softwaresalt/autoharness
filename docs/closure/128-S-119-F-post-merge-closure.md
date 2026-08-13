@@ -12,6 +12,9 @@ compaction_status: done
 feature_terminal_status: done
 feature_archived_status: done
 shipment_close_path: cascade
+correction_pr: 330
+correction_merge_commit: f47c1b65bdc28aad5594856db7a592f0092f929f
+correction_merged_at: "2026-08-13T06:21:06Z"
 ---
 
 # 128-S / 119-F Post-Merge Closure — S2 Copilot Supervisor Supervision Core Library (Unwired)
@@ -29,6 +32,22 @@ zero-observable-behavior-change boundary: nothing in `start.ps1`,
 `start.sh`, existing CLI commands, or runtime adapters reaches this new
 core in this shipment (UNWIRED, reverified pre-merge and post-merge via
 grep with zero hits).
+
+> **Correction (recorded during this closure PR's own hosted review)**:
+> the "Copilot review detail" section below originally classified two
+> PR #328 findings (`session.py:75`, `recovery.py:136`) as false
+> positives. That classification was **wrong** — both were genuine
+> defects, caught only because *this closure PR's own* hosted Copilot
+> review flagged the inaccurate closure record. Both were fixed and
+> merged via follow-up PR **#330** (merge commit
+> `f47c1b65bdc28aad5594856db7a592f0092f929f`, merged
+> `2026-08-13T06:21:06Z`, two-parent merge-commit strategy verified). See
+> the corrected "Copilot review detail" section and the new
+> `docs/compound/2026-08-12-verify-hosted-review-findings-against-frozen-task-spec.md`
+> for the full account. This is itself the noteworthy finding this
+> closure surfaces: a hosted-review triage record is only as reliable as
+> the fidelity of what was actually checked, and closure documentation is
+> a review-checkable artifact, not exempt narrative.
 
 ## Merge Confirmation
 
@@ -80,20 +99,49 @@ Genuine correctness fixes spanned three modules:
   during the very first (header) write and would silently skip writing a
   header — now detects this case and writes a proper header at seq 0.
 
-Two findings were confirmed **false positives** against the frozen task
-specs rather than fixed — `session.py:75` (a suggested direct
-pre-terminal-to-`FAILED` transition edge that `119.003-T`'s spec
-explicitly forbids) and `recovery.py:136` (the unconditional lock release
-Copilot flagged as a potential double-release is exactly what
-`119.006-T`'s F22 "no path can strand it" requirement mandates). Full
-detail and the generalizable verification technique in
+Two findings (`session.py:75`, `recovery.py:136`) were **originally
+mis-triaged as false positives** against the frozen task specs, but were
+subsequently confirmed genuine and fixed in follow-up PR **#330** (see the
+Correction note above). At the time of PR #328's own review-fix cycle, the
+triage record read (verbatim, now known incorrect):
+
+> "`session.py:75` (a suggested direct pre-terminal-to-`FAILED` transition
+> edge that `119.003-T`'s spec explicitly forbids) and `recovery.py:136`
+> (the unconditional lock release Copilot flagged as a potential
+> double-release is exactly what `119.006-T`'s F22 'no path can strand
+> it' requirement mandates)."
+
+Re-investigation using the *exact* original comment text (comments
+`3772476016` and `3772515911`, re-fetched via `gh api .../pulls/328/comments`
+rather than trusting the paraphrase above) showed both dismissals attacked
+a straw-man version of the actual suggestion:
+
+- `3772476016` actually asked to add `DRAINING` (not `FAILED`) as a legal
+  destination for the pre-`RUNNING` phases — legal under the frozen spec,
+  and a genuine fix for a real gap (those phases had no direct failure
+  path to `DRAINING`, unlike `RUNNING`/`RESTARTING`).
+- `3772515911` was actually about premature lock release **before** child
+  cleanup on an exception pre-empting the happy path — not "double
+  release." F22 is silent on release *timing* relative to cleanup.
+
+Both are now fixed: `session.py`'s pre-`RUNNING` phases gained a direct
+`DRAINING` edge, and `recovery.py`'s `cancel_session`/
+`RestartController.attempt()` finally blocks now attempt best-effort child
+cleanup before releasing the lock on any exceptional path. Full detail,
+the corrected root-cause account, and the generalizable lesson (quote the
+exact comment text, not a paraphrase, when triaging) are in
 `docs/compound/2026-08-12-verify-hosted-review-findings-against-frozen-task-spec.md`.
+PR #330 itself went through 1 review-fix cycle (2 Copilot P1 findings on
+its own new code — a counts-only test-ordering gap and a too-narrow
+`except Exception` — both fixed, both threads resolved, 2 subsequent
+Copilot re-reviews found nothing new) before merging.
 
 Fix commits: `1eba6762` (CI fix, pre-dates the review-fix cycle count),
 `abc389c8` (review-fix cycle 1), `11888fba` (review-fix cycle 2),
 `06c280bd` (review-fix cycle 3 — 5 genuine fixes: the recovery.py pair,
 the process_pty.py pair, and the journal.py header fix — plus the 2
-false-positive rationale replies). All fixes covered by new regression
+now-corrected false-positive rationale replies, later shown to be
+incorrect and fixed via PR #330). All fixes covered by new regression
 tests in `tests/test_supervise_recovery.py`,
 `tests/test_supervise_process_pty.py`, `tests/test_supervise_journal.py`.
 Every commit re-ran the full suite (final: 1681/17/0), re-ran the
@@ -124,7 +172,24 @@ round 5) with threads still resolved. 4 additional suppressed-only
 findings from round 5 documented in the PR body only, no thread to
 resolve.**
 
-## Runtime Verification
+## Correction PR #330 (mis-triage fix)
+
+| Field | Evidence |
+| --- | --- |
+| PR | **#330** ("fix(119-F): correct mis-triaged P0 findings — pre-RUNNING DRAINING edge and recovery cleanup-before-release ordering") |
+| Branch | `fix/119-f-session-draining-edges-and-recovery-lock-ordering`, from `main` at `915923c2` |
+| Commits | `dc7e8531` (initial fix + tests), `4fa3a733` (review-fix: `BaseException` catch + ordering-assertion tests) |
+| Local review | Self-review at `dc7e8531`: 0 P0/P1. Outcome `READY`. |
+| Full local build/test | `uv run python -m unittest discover -s tests` — 1706 passed, 17 skipped, 0 failed (final, at `4fa3a733`) |
+| Copilot review | 2 rounds. Round 1 (HEAD `dc7e8531`): 2 P1 findings (test assertions verified counts, not signal/close-before-release ordering; `_best_effort_child_cleanup` caught `Exception` not `BaseException`) — both fixed in `4fa3a733`, both threads replied-to and GraphQL-resolved. Round 2 (HEAD `4fa3a733`, 2 re-review passes): no new comments. |
+| P-018 copilot-review gate | `SATISFIED` at HEAD `4fa3a733a3fdac54cbba7fd2a2c98de9e6f1ae0e` (`unresolved_thread_ids: []`) |
+| CI | `ci gate`/`test`/`detect code changes` SUCCESS at final HEAD. `pipeline-topology (ambient)` reported `BRANCH_MISMATCH` (advisory-only; `continue-on-error: true`, no branch protection, `PIPELINE_TOPOLOGY_GATE_REQUIRED` unset) — expected for an ad hoc post-shipment-closure fix branch that does not match the `128-S` branch-alias pattern; did not affect `ci gate` or mergeability. |
+| Merge | `gh pr merge 330 --merge` — merge commit `f47c1b65bdc28aad5594856db7a592f0092f929f`, merged `2026-08-13T06:21:06Z`. Two parents confirmed (`915923c2` prior `main` tip + `4fa3a733` fix-branch HEAD). Ancestor-of-`origin/main` confirmed via `git merge-base --is-ancestor`. |
+| Scope | Treated as remediation within `128-S`'s own delivered scope (fixing genuine defects in code this shipment produced, surfaced by this shipment's own closure-review process) — not an expansion into `129-S`. No new backlog task/shipment was created for this fix (Ship's role boundary); if a formal record is desired, Stage may retroactively author one. |
+
+## Correction — corrected Copilot review detail (this section supersedes the "false positive" classification above; superseded text is left in place, marked, for the historical record — see the Correction note at the top). The corrected account, quoting the exact original comment text, is in `docs/compound/2026-08-12-verify-hosted-review-findings-against-frozen-task-spec.md`; the "Copilot review detail" subsection above has also been updated in place to reflect the correction and reference PR #330.
+
+## Runtime Verification (unaffected — PR #330 touches only already-in-scope, still-fully-unwired `src/autoharness/supervise/` modules; the verdict and evidence below are unchanged by the correction)
 
 **Surface**: pure additions (new `src/autoharness/supervise/` Python
 modules — protocol/adapters, session state machine, typed events, journal,
@@ -210,13 +275,23 @@ for `start.ps1`/`start.sh`/existing CLI commands/runtime adapters.
     post-merge.
   - Dark-factory bounded scope `128-S` fully executed; `129-S` was
     explicitly NOT claimed, planned, or expanded into.
+  - **Self-correction**: this closure PR's own hosted Copilot review
+    caught a mis-triage in this artifact's first draft (2 findings
+    wrongly classified as false positives); both were fixed and merged
+    via PR #330 (merge commit `f47c1b65bdc28aad5594856db7a592f0092f929f`)
+    before this artifact was finalized — the correction loop worked as
+    intended, and is itself documented as a compound learning.
 - **Failure signals to watch**: none specific to this shipment's own
   closure. The Copilot review-fix circuit breaker (3 cycles) was fully
   exhausted on PR #328 for the second shipment in a row in this Plan 1
   sequence — a recurring signal that this supervisor core work draws
   unusually deep and repeated hosted-review scrutiny; every fix was
   verified against frozen task specs and every deferred item is a
-  documented, non-blocking follow-up.
+  documented, non-blocking follow-up. Separately, this shipment's own
+  closure documentation was found to contain a mis-triage of 2 genuine
+  findings as false positives — corrected and fixed via PR #330 before
+  this artifact was finalized (see the Correction note above and
+  `docs/compound/2026-08-12-verify-hosted-review-findings-against-frozen-task-spec.md`).
 - **Follow-ups** (non-blocking; `closure_status: READY`):
   1. 5th-round Copilot finding (with a posted thread) on `06c280bd`,
      deferred per exhausted circuit breaker — documented rationale posted
@@ -234,14 +309,19 @@ for `start.ps1`/`start.sh`/existing CLI commands/runtime adapters.
   - Ship's role boundary does not permit creating backlog items directly
     for follow-ups 1–6; routed to Stage/operator for backlog authoring if
     any warrant a tracked item.
+  - The `session.py:75`/`recovery.py:136` mis-triage is **not** listed as
+    a follow-up here — it was fully resolved (fixed, reviewed, merged via
+    PR #330) before this artifact reached its final form, not deferred.
 - **Releasability** (`runtime_validation.releasability.required: false`,
   `status_when_satisfied: READY`): the shipped capability is pure additive
   Python modules (process/PTY adapters, session state machine, typed
   events, redacted journal, recovery/restart) plus tests — no runtime
   wiring, no new distribution/packaging change, no scheduler/auto-claim
   capability introduced, zero observable behavior change to any existing
-  path. Rollback = revert merge commit `915923c2` (additive modules +
-  tests only). **Verdict: READY.**
+  path. Rollback = revert merge commit `915923c2` and merge commit
+  `f47c1b65bdc28aad5594856db7a592f0092f929f` (both additive
+  modules/tests only). **Verdict: READY.**
+
 
 ## Closure Tasks (this branch)
 
@@ -261,3 +341,17 @@ for `start.ps1`/`start.sh`/existing CLI commands/runtime adapters.
 5. Closure index resync (`backlogit sync`) — **done**, both immediately
    after the cascade close mutation and again after this branch's closure
    commits.
+6. Mid-flight correction (discovered via this closure PR's own hosted
+   Copilot review): the compound doc (item 1), this closure artifact,
+   the archived session memory, and the compacted memory were all
+   originally drafted with an incorrect classification of 2 PR #328
+   findings as false positives. Corrected via:
+   - Follow-up fix PR #330 (branch
+     `fix/119-f-session-draining-edges-and-recovery-lock-ordering`,
+     merge commit `f47c1b65bdc28aad5594856db7a592f0092f929f`) — **done**,
+     merged before this artifact's final form.
+   - This artifact (compound doc + closure doc) rewritten in place to
+     reflect the correction — **done** (this branch, this commit).
+   - `docs/archive/memory/2026-08-12-ship-128-S-119-F-session.md` and
+     `docs/memory/compacted/2026-08-12-128S-119F-compacted.md` corrected
+     in place — **done** (this branch, this commit).
