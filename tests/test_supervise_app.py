@@ -36,6 +36,17 @@ from autoharness.supervise.session import Phase
 
 _NONEXISTENT_TOOL = "autoharness-test-nonexistent-tool-xyz"
 
+#: A deterministic, never-actually-executed Copilot CLI "path" used to make
+#: resolve_copilot() succeed hermetically regardless of whether a real
+#: `copilot` CLI happens to be installed/on PATH in the executing
+#: environment. This repo's own CI runner (.github/workflows/ci.yml `test`
+#: job) installs NO `copilot` binary, so any test that calls run_session()
+#: without either (a) injecting its own child_process_factory AND patching
+#: resolution, or (b) exercising the resolution-failure path on purpose,
+#: must not depend on ambient PATH/COPILOT_EXE_PATH state to determine
+#: whether resolve_copilot() succeeds.
+_FAKE_COPILOT_EXE_PATH = "/nonexistent/autoharness-test-copilot-double"
+
 
 def _sidecar_kwargs() -> dict:
     return {
@@ -43,6 +54,23 @@ def _sidecar_kwargs() -> dict:
         "backlogit_executable": _NONEXISTENT_TOOL,
         "engram_executable": _NONEXISTENT_TOOL,
     }
+
+
+class _DeterministicCopilotResolutionMixin:
+    """Mix in to make ``resolve_copilot()`` succeed deterministically.
+
+    Every test using this mixin also injects its own
+    ``child_process_factory`` (a :class:`FakeChildProcess`), so the fake
+    exe path this mixin sets is composed into ``argv`` but never actually
+    executed -- this is purely a resolution-hermeticity fix, not a change
+    to what is spawned.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()  # type: ignore[misc]
+        patcher = mock.patch.dict("os.environ", {"COPILOT_EXE_PATH": _FAKE_COPILOT_EXE_PATH})
+        patcher.start()
+        self.addCleanup(patcher.stop)  # type: ignore[attr-defined]
 
 
 class AlwaysApproveApprovalService:
@@ -134,7 +162,7 @@ class SignatureContractTests(unittest.TestCase):
             run_session(workspace_root=Path("."), argv=[])  # type: ignore[call-arg]
 
 
-class HappyPathTests(unittest.TestCase):
+class HappyPathTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_clean_exit_propagates_verbatim_and_drains_to_exited(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)
@@ -199,7 +227,7 @@ class HappyPathTests(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
 
 
-class DefaultChildProcessFactoryCwdTests(unittest.TestCase):
+class DefaultChildProcessFactoryCwdTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     """120-F runtime-defect remediation (real symptom: Engram/graphtor-docs
     MCP servers, both spawned BY Copilot as local stdio children, never
     became live during a real launch). Root cause was `.mcp.json`'s use of
@@ -292,7 +320,7 @@ class ResolutionFailureTests(unittest.TestCase):
             self.assertFalse(spawned["called"], "child must never be spawned when resolution fails")
 
 
-class LockContentionTests(unittest.TestCase):
+class LockContentionTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_contention_without_force_unlock_resolves_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)
@@ -359,7 +387,7 @@ class LockContentionTests(unittest.TestCase):
             self.assertTrue(record_path.exists())
 
 
-class RestartTests(unittest.TestCase):
+class RestartTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_approved_restart_spawns_replacement_child_and_completes(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)
@@ -406,7 +434,7 @@ class RestartTests(unittest.TestCase):
             self.assertEqual(result.exit_code, EXIT_CODE_BY_KIND[ErrorKind.RESTART])
 
 
-class NegativeControlTests(unittest.TestCase):
+class NegativeControlTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_raising_approval_service_never_performs_force_unlock_side_effect(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)
@@ -468,7 +496,7 @@ class NegativeControlTests(unittest.TestCase):
             self.assertEqual(set(dispatched), set(GATED_ACTION_CATALOG.keys()))
 
 
-class MandatoryDispatchTests(unittest.TestCase):
+class MandatoryDispatchTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_both_catalog_actions_dispatched_in_one_scenario(self) -> None:
         """Exercises BOTH gated actions in a single run_session call and
         asserts exact-set equality against GATED_ACTION_CATALOG's keys, in
@@ -505,7 +533,7 @@ class MandatoryDispatchTests(unittest.TestCase):
             self.assertEqual(sorted(approval_service.requested), sorted(GATED_ACTION_CATALOG.keys()))
 
 
-class H2FailClosedNonInteractiveTests(unittest.TestCase):
+class H2FailClosedNonInteractiveTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
     def test_session_restart_falls_back_to_declared_fallback_when_non_interactive(self) -> None:
         """Integration-level (not approvals.py-unit-level) H2 check: a REAL
         ConsoleApprovalService, run non-interactively end-to-end, must
@@ -617,6 +645,13 @@ class SidecarPreflightBeforeCopilotLaunchSmokeTests(unittest.TestCase):
             _install_fake("backlogit")
             _install_fake("engram")
             _install_fake("graphtor-docs")
+            # A fake `copilot` on PATH too: this repo's own CI runner
+            # installs no real `copilot` CLI, so resolve_copilot()'s
+            # shutil.which("copilot") must not depend on one being
+            # ambiently present. The actual spawn below is still faked via
+            # `copilot_factory`, so this script is composed into argv but
+            # never executed.
+            _install_fake("copilot")
 
             original_path = os.environ.get("PATH", "")
             spawn_marker: dict[str, object] = {}
