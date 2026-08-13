@@ -98,16 +98,50 @@ def _resolve_contained_path(workspace_root: PathLike, relative: PathLike) -> Pat
     fail the containment check. Lexical normalization avoids re-touching the
     filesystem for the candidate while still collapsing ``..``/``.`` segments,
     so a genuine escape is still caught.
+
+    ``relative``'s separators are normalized to ``/`` BEFORE joining,
+    regardless of the platform this code is currently running on. Without
+    this, a traversal sequence expressed with the OTHER platform's separator
+    convention (e.g. a Windows-style ``"..\\..\\evil"`` string evaluated on a
+    POSIX host, where backslash is an ordinary filename character rather than
+    a separator) would silently stay "contained" -- not because it is safe,
+    but only because the current platform happens not to interpret that
+    character as a path separator. The exact same input string must be
+    rejected identically on every platform for a security-relevant
+    containment check to mean anything (surfaced by CI running this
+    module's callers' tests on Linux; 128-S).
     """
 
     root = Path(workspace_root).resolve()
-    candidate = Path(os.path.normpath(str(root / Path(relative))))
+    normalized_relative = str(relative).replace("\\", "/")
+    candidate = Path(os.path.normpath(str(root / Path(normalized_relative))))
     try:
-        candidate.relative_to(root)
+        rel = candidate.relative_to(root)
     except ValueError as exc:
         raise LockError(
             f"path {relative!s} resolves outside workspace root {root}: {candidate}"
         ) from exc
+
+    # Reject any ALREADY-EXISTING intermediate path component between
+    # ``root`` and ``candidate`` that is a symlink (128-S review
+    # remediation): a lexically-contained candidate string can still
+    # resolve outside the workspace at open()-time if some ancestor
+    # directory is (or has been replaced by) a symlink pointing elsewhere
+    # -- the purely lexical/string-based check above cannot see this.
+    # Checked via a plain ``is_symlink()`` (an ``lstat``, never a second
+    # ``resolve()``) so this does NOT reintroduce the
+    # ``GetFinalPathNameByHandleW`` parallel-contender race documented
+    # above; only components that ALREADY exist on disk at call time are
+    # inspected, so a directory legitimately created moments later by a
+    # concurrent contender is never spuriously flagged.
+    probe = root
+    for part in rel.parts:
+        probe = probe / part
+        if probe.exists() and probe.is_symlink():
+            raise LockError(
+                f"path {relative!s} traverses an existing symlink at {probe}; "
+                f"refusing to follow it outside workspace root {root}"
+            )
     return candidate
 
 

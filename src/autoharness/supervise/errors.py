@@ -26,6 +26,7 @@ class ErrorKind(enum.Enum):
     RESOLUTION = "resolution_error"
     APPROVAL = "approval_error"
     RESTART = "restart_error"
+    ILLEGAL_TRANSITION = "illegal_transition_error"
     UNKNOWN = "unknown_error"
 
 
@@ -39,6 +40,7 @@ EXIT_CODE_BY_KIND: dict[ErrorKind, int] = {
     ErrorKind.RESOLUTION: 4,
     ErrorKind.APPROVAL: 5,
     ErrorKind.RESTART: 6,
+    ErrorKind.ILLEGAL_TRANSITION: 7,
 }
 
 _missing_kinds = set(ErrorKind) - set(EXIT_CODE_BY_KIND)
@@ -98,3 +100,10 @@ class RestartError(AutoharnessError):
     """Session restart scheduling or budget-exhaustion failure."""
 
     kind = ErrorKind.RESTART
+
+
+class IllegalTransitionError(AutoharnessError):
+    """A session state machine transition was attempted that is not in the
+    legal-transition table (see :mod:`autoharness.supervise.session`)."""
+
+    kind = ErrorKind.ILLEGAL_TRANSITION

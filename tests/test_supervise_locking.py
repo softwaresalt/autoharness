@@ -120,6 +120,44 @@ class PathContainmentTests(unittest.TestCase):
             escape_target = Path(parent) / "escape.record"
             self.assertFalse(escape_target.exists())
 
+    def test_existing_symlinked_ancestor_component_raises(self) -> None:
+        """128-S review remediation: a lexically-contained relative path
+        must still be rejected if an ALREADY-EXISTING ancestor directory
+        component is a symlink pointing outside the workspace -- otherwise
+        the "all writes stay inside the workspace" guarantee is bypassable
+        via a planted symlink.
+        """
+
+        with tempfile.TemporaryDirectory() as parent:
+            workspace = Path(parent) / "workspace"
+            workspace.mkdir()
+            outside = Path(parent) / "outside"
+            outside.mkdir()
+
+            symlinked_dir = workspace / "linked"
+            try:
+                os.symlink(outside, symlinked_dir, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink creation is not permitted in this environment")
+
+            from autoharness.supervise.locking import _resolve_contained_path
+
+            with self.assertRaises(LockError):
+                _resolve_contained_path(workspace, Path("linked") / "evil.guard")
+
+    def test_non_symlinked_existing_ancestor_is_unaffected(self) -> None:
+        """The new symlink check must not spuriously reject an ordinary,
+        already-existing, non-symlinked ancestor directory."""
+
+        with tempfile.TemporaryDirectory() as parent:
+            workspace = Path(parent) / "workspace"
+            (workspace / "real").mkdir(parents=True)
+
+            from autoharness.supervise.locking import _resolve_contained_path
+
+            resolved = _resolve_contained_path(workspace, Path("real") / "fine.guard")
+            self.assertTrue(str(resolved).startswith(str(Path(workspace).resolve())))
+
 
 class GuardPermanenceTests(unittest.TestCase):
     def test_guard_identity_unchanged_across_acquire_release(self) -> None:
