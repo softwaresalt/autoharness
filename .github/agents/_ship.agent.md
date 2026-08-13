@@ -596,13 +596,35 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
       -> `backlogit archive <shipment_id>` -> verify `archived_status: shipped`;
    c. proves the protected set and halts fail-closed on any cascade or provenance
       ambiguity.
-   d. **Do NOT call `backlogit shipment ship` / `backlogit_ship_shipment`.** That
-      cascade operation requeues + detaches unshipped descendant tasks back to the
-      backlog with `parent_id` cleared, archives release-scope members outside the
-      manifest-scoped ordering, and preserves/restores a non-member covering feature
-      via snapshot. It is P-015-forbidden for partial-feature shipments because it can
-      requeue/detach downstream siblings and close outside the safe-close ordering.
-   e. If the skill returns `HALT — cascade detected, revert required`, restore
+   d. **Do NOT call `backlogit shipment ship` / `backlogit_ship_shipment`** unless the
+      P-015 **VERIFIED FULLY-COVERED-ROOT EXCEPTION** below applies. Outside that narrow
+      exception, this cascade operation requeues + detaches unshipped descendant tasks
+      back to the backlog with `parent_id` cleared, archives release-scope members
+      outside the manifest-scoped ordering, and preserves/restores a non-member covering
+      feature via snapshot. It is P-015-forbidden for partial-feature shipments because
+      it can requeue/detach downstream siblings and close outside the safe-close
+      ordering.
+   e. **P-015 verified fully-covered-root exception (select the close path from the
+      verified check, never from prose alone)**: safe-close remains the default. Before
+      closing, run the machine-checkable classification described in P-015 (see
+      `src/autoharness/gates/shipment_closure.py`'s
+      `classify_shipment_close_path(manifest_items, workspace_backlog_dir)` for this
+      self-hosting repository's own implementation) over the shipment manifest's items.
+      The cascade close path is permitted **only** when, for **every** feature member of
+      the manifest: it is a root (no `parent_id`); it is fully covered (every one of its
+      children, enumerated live from `.backlogit/queue/` + `.backlogit/archive/`, is
+      also a manifest member); and, if it enumerates to zero children, that
+      childlessness is **positively verified** against the live workspace (never
+      inferred from an incomplete or failed enumeration) and the feature is additionally
+      terminal (no manifest member declares it as parent). The manifest must contain
+      nothing beyond the qualifying root feature(s) and their children. If **any**
+      feature member fails **any** precondition, the **whole manifest** falls back to
+      safe-close — qualification is never per-member, and no feature ID is ever
+      special-cased. When (and only when) the classification confirms every
+      precondition holds, invoke the cascade `backlogit shipment ship` /
+      `backlogit_ship_shipment` operation in place of steps a-d above for this
+      shipment's closure.
+   f. If the skill returns `HALT — cascade detected, revert required`, restore
       `.backlogit/queue/` + `.backlogit/archive/`, surface the protected-set
       violation, and halt. Do NOT commit a corrupt backlog.
 3. Write compound learnings for hard-won solutions.
