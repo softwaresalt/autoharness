@@ -43,6 +43,77 @@ anomalies — the valid zero-candidate startup path — so the active cursor
 was continued directly from branch/worktree evidence per the operator's
 explicit recovery instructions, with no checkpoint invented or restored.
 
+### Post-hoc forensic reconstruction (reboot-boundary evidence)
+
+After this shipment fully shipped and closed, the operator reported that
+the interruption was caused by a **hard devbox reboot**, not a graceful
+session end, and asked for a bounded, evidence-based reconstruction of the
+exact shutdown point rather than an inference from dirty-file presence
+alone. The hard-reboot characterization itself (forced/abrupt vs. an
+otherwise-graceful restart) is the operator's own report; the artifacts
+below independently confirm only that a reboot occurred at a specific
+time and that the surrounding commit/log timing is *consistent with* an
+abrupt interruption at that boundary, not an independent proof of the
+forced-shutdown mechanism. The following was gathered and cross-checked
+against live system and repository state (all read-only, performed after
+closure; no repeat mutation):
+
+- **System boot time**: `Get-CimInstance Win32_OperatingSystem` reports
+  `LastBootUpTime = 2026-08-13 01:31:31 -07:00`.
+- **Last pre-reboot commit**: `git log` (author/committer dates, not mtimes)
+  shows commit `0ff7bd8e81d4ac509e7d2eba47504bd336df6a8b`
+  ("feat(supervise): add sidecar preflight service (120.002-T)") at
+  `2026-08-13T01:30:01-07:00` — **90 seconds before** the recorded boot
+  time, with the *previous* commit (`21a081a8`, 120.001-T) at
+  `2026-08-13T01:29:54-07:00`, only 7 seconds earlier. This tight
+  back-to-back commit cadence terminating abruptly 90 seconds before a
+  recorded reboot, with a **~8.75 hour gap** to the next commit
+  (`28377c6f`, 120.003-T, at `2026-08-13T10:17:33-07:00`), is consistent
+  with an abrupt termination rather than a graceful session close (a
+  clean shutdown would not typically leave a commit made 90 seconds
+  before the OS records a boot with zero activity for nearly 9 hours).
+  This also matches the operator's own preserved recovery instructions at
+  the start of this session, which named this exact commit
+  (`0ff7bd8e`) as the HEAD to preserve.
+- **No recoverable checkpoint existed**: no `.autoharness` lock or
+  checkpoint file predating the reboot was found; `backlogit checkpoint
+  list --agent ship --status active --shipment-id 129-S` returned zero
+  candidates at session start — consistent with a hard kill that gave no
+  opportunity to persist a checkpoint, not with a session that completed
+  and cleaned up normally.
+- **Task-level event log cross-check** (`.backlogit/logs/120.00{1-8}-T.jsonl`):
+  every one of the eight tasks shows the SAME two-phase pattern —
+  `status_changed` (claim to active) clustered at `2026-08-12 23:52:07-23`
+  (the night *before* the reboot), followed by `pre_task_completion_gate_passed`
+  and `commit_tracked` events clustered at `2026-08-13 10:19-10:29 AM`
+  (**after** the reboot, in the recovery session). This confirms
+  completion gates and commit-tracking evidence for every task were
+  generated fresh, post-recovery — task "active" status alone, inherited
+  from before the crash, was never treated as evidence of completion.
+  Torn/dirty implementation artifacts described in the operator's
+  recovery instructions (untracked `supervise/app.py`, `approvals.py`,
+  `resolve.py` plus tests, dirty `cli.py`, migrated `start.ps1`/`start.sh`)
+  were carried forward and completed through normal task execution — full
+  suite runs, CI, and (for the shipped PR) 8 independent rounds of hosted
+  Copilot review that found and required fixing 16 additional genuine
+  defects — never accepted on the strength of their pre-crash dirty state
+  alone.
+- **Conclusion**: the reconstructed shutdown point is commit `0ff7bd8e`
+  (120.002-T, sidecar preflight service) at `2026-08-13T01:30:01-07:00`,
+  approximately 90 seconds before the devbox's recorded reboot at
+  `01:31:31-07:00` (reported by the operator as a hard/forced shutdown;
+  the timing evidence above is consistent with that report but does not
+  independently distinguish a forced kill from another abrupt-restart
+  cause). Every task and artifact from `120.003-T` onward, the
+  Engram/graphtor-docs root-cause fix, all 8 rounds of P-018 review
+  remediation, the merge, and the cascade close were performed and
+  verified in the single continuous recovery session that followed,
+  using live-executed gates (tests, CI, independent hosted review,
+  the P-015 classifier, and a live `sim-shipment-closure.ps1` re-run) at
+  every acceptance decision — not inferred from file mtimes or dirty-state
+  presence alone. `recovered_after_hard_reboot: true` (per operator
+  report) for this shipment's execution history.
+
 ## Release-Blocking Runtime Defect: Diagnosed and Fixed Before Any Further PR Work
 
 The operator reported a concrete runtime defect from a real launch: Engram
