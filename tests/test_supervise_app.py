@@ -13,19 +13,28 @@ module's own integration tests.
 from __future__ import annotations
 
 import inspect
+import io
 import json
 import sys
 import tempfile
+import threading
+import time
 import unittest
 import unittest.mock as mock
 from pathlib import Path
 from typing import Optional
 
-from autoharness.supervise.app import run_session
+from autoharness.supervise.app import (
+    _pump_child_output,
+    _pump_operator_input,
+    _start_pty_pumps,
+    run_session,
+)
 from autoharness.supervise.contracts import (
     GATED_ACTION_CATALOG,
     ApprovalRequested,
     ApprovalResolved,
+    ChildOutput,
     SessionPhaseChanged,
 )
 from autoharness.supervise.errors import EXIT_CODE_BY_KIND, ErrorKind
@@ -809,6 +818,106 @@ class SidecarPreflightBeforeCopilotLaunchSmokeTests(unittest.TestCase):
                 lines.index("copilot"),
                 "graphtor-docs preflight must complete before the Copilot child spawns",
             )
+
+
+class PtyPumpDirectUnitTests(unittest.TestCase):
+    """Direct, synchronous (non-threaded) unit tests for the bidirectional
+    PTY I/O pump helpers introduced to fix a P-018 Copilot review finding
+    (PR #331, comment 3777840441): the supervisor previously blocked in
+    ``child.wait()`` without ever draining ``child.read()`` or forwarding
+    operator input via ``child.write()``, so a PTY-backed interactive
+    Copilot session's output was invisible and its prompts could never
+    receive input. Calling the pump functions directly (not through the
+    daemon-thread wiring in :func:`_start_pty_pumps`) keeps these
+    assertions deterministic and free of timing races.
+    """
+
+    def test_pump_child_output_drains_every_chunk_writes_to_stream_and_emits_events(
+        self,
+    ) -> None:
+        child = FakeChildProcess(argv=(), scripted_stdout=["first\n", "second\n"])
+        child.spawn()
+        captured_events: list[ChildOutput] = []
+        out = io.StringIO()
+
+        with mock.patch.object(sys, "stdout", out):
+            _pump_child_output(child, captured_events.append)
+
+        self.assertEqual(out.getvalue(), "first\nsecond\n")
+        self.assertEqual([e.line for e in captured_events], ["first\n", "second\n"])
+        self.assertTrue(all(e.stream == "stdout" for e in captured_events))
+
+    def test_pump_child_output_returns_on_read_exception_without_propagating(self) -> None:
+        class _RaisingReadChild:
+            supports_output_capture = True
+
+            def read(self) -> Optional[str]:
+                raise OSError("pty gone")
+
+        captured: list = []
+
+        # Must return quietly rather than raising into the caller (a
+        # background daemon thread has no caller to propagate into).
+        _pump_child_output(_RaisingReadChild(), captured.append)
+
+        self.assertEqual(captured, [])
+
+    def test_pump_operator_input_forwards_every_line_until_eof(self) -> None:
+        child = FakeChildProcess(argv=())
+        child.spawn()
+        fake_stdin = io.StringIO("hello\nworld\n")
+
+        with mock.patch.object(sys, "stdin", fake_stdin):
+            _pump_operator_input(child)
+
+        self.assertEqual(child.written, [b"hello\n", b"world\n"])
+
+    def test_pump_operator_input_returns_on_write_exception_without_propagating(self) -> None:
+        class _RaisingWriteChild:
+            def write(self, data: bytes) -> None:
+                raise OSError("pty closed")
+
+        fake_stdin = io.StringIO("hello\n")
+
+        with mock.patch.object(sys, "stdin", fake_stdin):
+            # Must not raise.
+            _pump_operator_input(_RaisingWriteChild())
+
+
+class StartPtyPumpsTests(unittest.TestCase):
+    """Integration-level tests for :func:`_start_pty_pumps`'s daemon-thread
+    wiring, exercised through real (but short-lived, deterministic)
+    background threads rather than direct synchronous calls.
+    """
+
+    def test_no_op_when_output_capture_unsupported(self) -> None:
+        child = FakeChildProcess(argv=(), supports_output_capture=False)
+        child.spawn()
+        before = threading.active_count()
+
+        _start_pty_pumps(child, lambda event: None)
+        time.sleep(0.05)
+
+        self.assertEqual(
+            threading.active_count(),
+            before,
+            "no pump thread should be started for a backend that cannot capture output",
+        )
+
+    def test_starts_daemon_threads_and_pumps_scripted_output_end_to_end(self) -> None:
+        child = FakeChildProcess(argv=(), scripted_stdout=["hi\n"])
+        child.spawn()
+        captured_events: list[ChildOutput] = []
+        out = io.StringIO()
+
+        with mock.patch.object(sys, "stdout", out):
+            _start_pty_pumps(child, captured_events.append)
+            deadline = time.monotonic() + 2.0
+            while not captured_events and time.monotonic() < deadline:
+                time.sleep(0.02)
+
+        self.assertEqual([e.line for e in captured_events], ["hi\n"])
+        self.assertEqual(out.getvalue(), "hi\n")
 
 
 if __name__ == "__main__":

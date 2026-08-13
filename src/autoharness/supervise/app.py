@@ -89,6 +89,8 @@ from __future__ import annotations
 
 import os
 import signal as signal_module
+import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
@@ -99,6 +101,7 @@ from autoharness.supervise.contracts import (
     ApprovalRequested,
     ApprovalResolved,
     ChildExited,
+    ChildOutput,
     ChildSpawned,
     CopilotResolved,
     SidecarProbed,
@@ -156,6 +159,80 @@ def _default_child_process_factory(
         return InheritStdioChildProcess(argv, cwd=cwd)
 
     return factory
+
+
+def _pump_child_output(child: ChildProcess, emit: Callable[[Any], None]) -> None:
+    """Continuously drain capture-capable child output to the real console.
+
+    Reviewer-flagged gap (P-018 Copilot review, PR #331, comment
+    3777840441): the previous implementation blocked in ``child.wait()``
+    without ever calling :meth:`ChildProcess.read`. For a PTY-backed child
+    (``supports_output_capture`` is ``True``), nothing ever drained the
+    master side of the pseudo-terminal: Copilot's own output was invisible
+    to the operator, and once the PTY's kernel buffer filled a chatty
+    child could block forever on its own writes. This helper runs as a
+    daemon thread for the lifetime of a single child, forwarding every
+    drained chunk straight through to the real ``sys.stdout`` and also
+    emitting/journaling it as a :class:`ChildOutput` event so the session
+    journal captures what the operator actually saw. Returns (thread
+    exits) once :meth:`ChildProcess.read` reports EOF (``None``) or raises.
+    """
+
+    while True:
+        try:
+            data = child.read()
+        except Exception:  # noqa: BLE001 - a pump thread must never raise into the interpreter
+            return
+        if data is None:
+            return
+        try:
+            sys.stdout.write(data)
+            sys.stdout.flush()
+        except Exception:  # noqa: BLE001 - a console write failure does not stop draining the child
+            pass
+        emit(ChildOutput(stream="stdout", line=data))
+
+
+def _pump_operator_input(child: ChildProcess) -> None:
+    """Continuously forward operator keyboard input into a PTY-backed child.
+
+    Reviewer-flagged gap (P-018 Copilot review, PR #331, comment
+    3777840441): without this pump, a PTY-backed interactive session could
+    never receive operator input at all -- prompts would appear to hang
+    indefinitely. This forwards line-buffered input (``sys.stdin.readline``)
+    to :meth:`ChildProcess.write`; it intentionally does not attempt raw,
+    single-keystroke terminal forwarding (arrow-key history navigation,
+    live tab-completion redraws), which would require putting the real
+    terminal into raw/cbreak mode and is out of scope for this fix. Runs
+    as a daemon thread so an unread line (or a stdin that never closes)
+    never blocks process/interpreter shutdown once the child has exited.
+    """
+
+    while True:
+        try:
+            line = sys.stdin.readline()
+        except Exception:  # noqa: BLE001 - a pump thread must never raise into the interpreter
+            return
+        if not line:
+            return
+        try:
+            child.write(line.encode("utf-8", errors="replace"))
+        except Exception:  # noqa: BLE001 - write failure means the child is gone; wait() will notice
+            return
+
+
+def _start_pty_pumps(child: ChildProcess, emit: Callable[[Any], None]) -> None:
+    """Start the bidirectional I/O pump threads for a capture-capable child.
+
+    No-op when ``child.supports_output_capture`` is ``False`` (the
+    inherited-stdio backend already shares the real console's file
+    descriptors directly with the child -- there is nothing to pump).
+    """
+
+    if not child.supports_output_capture:
+        return
+    threading.Thread(target=_pump_child_output, args=(child, emit), daemon=True).start()
+    threading.Thread(target=_pump_operator_input, args=(child,), daemon=True).start()
 
 
 def _build_approval_requested_event(identifier: str) -> ApprovalRequested:
@@ -232,10 +309,15 @@ def run_session(
     # finding, PR #331).
     _environ_snapshot: dict[str, str] = dict(os.environ)
     _environ_mutated = False
+    # Guards `_emit` against interleaved bus/journal writes once the PTY
+    # output-pump daemon thread (started below) begins emitting `ChildOutput`
+    # events concurrently with this function's own main-thread transitions.
+    _emit_lock = threading.Lock()
 
     def _emit(event: Any) -> None:
-        bus.emit(event)
-        journal.append_event(event)
+        with _emit_lock:
+            bus.emit(event)
+            journal.append_event(event)
 
     def _transition(to_phase: Phase) -> None:
         event = machine.transition(to_phase)
@@ -338,6 +420,8 @@ def run_session(
             journal.append_child_output_unavailable(
                 "child process backend does not support output capture"
             )
+        else:
+            _start_pty_pumps(child, _emit)
 
         _transition(Phase.RUNNING)
 
@@ -390,6 +474,7 @@ def run_session(
             child = factory(resolve_result.argv)
             child.spawn()
             _emit(ChildSpawned(argv=resolve_result.argv, pid=child.pid))
+            _start_pty_pumps(child, _emit)
             _transition(Phase.RUNNING)
 
         _transition(Phase.DRAINING)
