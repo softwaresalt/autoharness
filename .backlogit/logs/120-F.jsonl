@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-12T23:52:04.8518849-07:00","actor":"backlogit","item_id":"120-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-13T13:35:40.592568-07:00","actor":"backlogit","item_id":"120-F","event_type":"status_changed","delta":{"from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-13T13:35:54.6947695-07:00","actor":"backlogit","item_id":"120-F","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"fa0eb14bad50d0b4ec028685a15f7472a6984e39","message":"feat(129-S): S3 Copilot supervisor -- application services, adapters, start.ps1/start.sh migration (#331)"}}
+{"timestamp":"2026-08-13T13:37:10.65233-07:00","actor":"backlogit","item_id":"120-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/120-F.md"}}
