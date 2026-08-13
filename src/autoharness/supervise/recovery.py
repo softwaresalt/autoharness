@@ -70,17 +70,27 @@ def _best_effort_child_cleanup(
     ``finally`` block as a safety net -- it must never mask or replace
     whatever exception is already propagating, and a child that cannot be
     cleaned up here is no worse off than one this function was never
-    called for)."""
+    called for).
+
+    Catches ``BaseException``, not ``Exception``: ``Exception`` does not
+    cover ``KeyboardInterrupt``/``SystemExit``/other ``BaseException``
+    subclasses, so a ``finally``-block safety net that only caught
+    ``Exception`` could let one of those escape this helper -- masking the
+    exception already propagating from the caller's ``try`` block and
+    skipping the caller's subsequent ``lock.release()``, recreating the
+    exact stranded-lock failure this helper exists to prevent (Copilot
+    review, PR #330).
+    """
 
     if child is None:
         return
     try:
         child.signal(signal_num)
-    except Exception:
+    except BaseException:
         pass
     try:
         child.close()
-    except Exception:
+    except BaseException:
         pass
 
 
