@@ -144,7 +144,22 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
                 # destructive-gate lookup.
                 continue
             artifact_type = str(fm.get("artifact_type") or "").strip().lower()
-            parent_id = _normalize_id(fm.get("parent_id"))
+            raw_parent_id = fm.get("parent_id")
+            parent_id = _normalize_id(raw_parent_id)
+            if raw_parent_id is not None and parent_id is None:
+                # The frontmatter DECLARES a parent_id field, but it does not
+                # normalize to a valid non-empty string (e.g. a bare YAML
+                # integer, or a blank string). `_normalize_id` maps that to
+                # the SAME `None` sentinel used for "no parent declared at
+                # all" -- silently treating a malformed declared parent_id as
+                # "this is a root" would let a non-root feature with a
+                # corrupted field wrongly qualify for cascade close. Fail
+                # closed instead of guessing.
+                raise BacklogUnavailableError(
+                    backlog_dir,
+                    f"artifact {artifact_id!r} has a malformed parent_id field "
+                    f"({raw_parent_id!r}) that cannot be safely normalized",
+                )
             matches.append(
                 _ArtifactRecord(
                     artifact_id=artifact_id, artifact_type=artifact_type, parent_id=parent_id
@@ -155,9 +170,10 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
         return None
     if len(matches) > 1:
         raise BacklogUnavailableError(
+            backlog_dir,
             f"manifest item {artifact_id!r} resolved to {len(matches)} distinct backlog "
             "records across queue/archive; this ambiguous/torn state cannot safely be "
-            "classified"
+            "classified",
         )
     return matches[0]
 
@@ -189,7 +205,18 @@ def _enumerate_children(backlog_dir: Path, feature_id: str) -> tuple[str, ...] |
                 fm = _frontmatter(candidate)
             except BacklogUnavailableError:
                 return None
-            parent_id = _normalize_id(fm.get("parent_id"))
+            raw_parent_id = fm.get("parent_id")
+            parent_id = _normalize_id(raw_parent_id)
+            if raw_parent_id is not None and parent_id is None:
+                # A record declares a parent_id field that does not
+                # normalize to a valid non-empty string. Silently treating
+                # this the same as "no parent declared" could hide a
+                # malformed-but-real child of `feature_id` from this
+                # enumeration, letting a feature with actual children be
+                # wrongly verified childless. Childlessness must be
+                # POSITIVELY verified, so a record whose parentage cannot be
+                # trusted makes the whole enumeration untrustworthy.
+                return None
             if parent_id != feature_id:
                 continue
             child_id = _normalize_id(fm.get("id")) or candidate.stem

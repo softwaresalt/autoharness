@@ -122,12 +122,18 @@ class Redactor:
         secret used as a mapping key, not merely as a value, must not survive
         verbatim in the output) -- fail closed if redacting two distinct keys
         collapses them onto the same output key, since that would silently
-        drop one of the original entries."""
+        drop one of the original entries. A non-string key is unsupported
+        (it cannot be safely pattern/registry redacted) and fails closed
+        rather than being retained verbatim."""
 
         result: dict[str, Any] = {}
         for key, value in data.items():
-            key_text = str(key)
-            redacted_key = self.redact_text(key_text) if isinstance(key, str) else key
+            if not isinstance(key, str):
+                raise RedactionFailure(
+                    f"unsupported non-string mapping key in redaction payload: {type(key)!r}"
+                )
+            key_text = key
+            redacted_key = self.redact_text(key_text)
             if redacted_key in result:
                 raise RedactionFailure(
                     "redaction collapsed two distinct mapping keys onto the same "
@@ -183,10 +189,12 @@ def redact_record(
         if isinstance(record, Mapping):
             return active.redact_mapping(record), None  # type: ignore[return-value]
         raise RedactionFailure(f"unsupported record type: {type(record)!r}")
-    except Exception as exc:  # fail closed: drop, never pass through raw content
-        # Deliberately do NOT interpolate the exception text: a custom
-        # mapping/value can raise with the secret it was processing embedded
-        # in its message, which would turn this warning itself into an
-        # emission bypass of the choke point. Report only the exception's
-        # type name, which cannot carry secret content.
-        return None, f"redaction failed, record dropped: {type(exc).__name__}"
+    except Exception:  # fail closed: drop, never pass through raw content
+        # Deliberately return a FULLY CONSTANT warning with no
+        # attacker-controlled exception metadata whatsoever -- not the
+        # exception text, and not even the exception's type name. A custom
+        # mapping/value could raise using a dynamically constructed
+        # exception class whose own `__name__` embeds the secret being
+        # processed, so even `type(exc).__name__` is not safe to surface
+        # from this fail-closed choke point.
+        return None, "redaction failed, record dropped"
