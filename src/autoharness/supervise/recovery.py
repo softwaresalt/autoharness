@@ -62,6 +62,38 @@ class ReleasableLock(Protocol):
     def release(self) -> None: ...
 
 
+def _best_effort_child_cleanup(
+    child: Optional[ChildProcess], signal_num: int
+) -> None:
+    """Best-effort ``signal()`` + ``close()`` for a possibly-still-live
+    child, swallowing every exception (this is only ever called from a
+    ``finally`` block as a safety net -- it must never mask or replace
+    whatever exception is already propagating, and a child that cannot be
+    cleaned up here is no worse off than one this function was never
+    called for).
+
+    Catches ``BaseException``, not ``Exception``: ``Exception`` does not
+    cover ``KeyboardInterrupt``/``SystemExit``/other ``BaseException``
+    subclasses, so a ``finally``-block safety net that only caught
+    ``Exception`` could let one of those escape this helper -- masking the
+    exception already propagating from the caller's ``try`` block and
+    skipping the caller's subsequent ``lock.release()``, recreating the
+    exact stranded-lock failure this helper exists to prevent (Copilot
+    review, PR #330).
+    """
+
+    if child is None:
+        return
+    try:
+        child.signal(signal_num)
+    except BaseException:
+        pass
+    try:
+        child.close()
+    except BaseException:
+        pass
+
+
 def cancel_session(
     machine: SessionStateMachine,
     *,
@@ -97,9 +129,24 @@ def cancel_session(
     guard lock is still held. ``lock.release()`` is therefore called BEFORE
     the final ``machine.transition(Phase.CANCELLED)`` call (which is the
     exact statement that makes CANCELLED externally observable), not after.
+
+    **Best-effort child cleanup before an exceptional lock release (P0
+    fix, 128-S closure-PR review)**: if an unexpected exception is raised
+    BEFORE the child has been signalled/closed on the happy path above (for
+    example, ``journal.append_event(CancelRequested(...))`` or the
+    ``CANCELLING`` transition itself raises), the ``finally`` block below
+    now ALSO attempts ``child.signal()``/``child.close()`` -- best-effort,
+    every exception swallowed -- before releasing ``lock``. Releasing the
+    lock without ever attempting to terminate a still-live child would let
+    a second supervised session start concurrently against the same
+    workspace while the orphaned child keeps running; a best-effort
+    cleanup attempt closes that gap without risking masking the original
+    exception (this cleanup is entirely exception-swallowing) or double
+    work (skipped when the happy-path cleanup already ran).
     """
 
     lock_released = False
+    child_cleanup_done = False
     try:
         if journal is not None:
             journal.append_event(CancelRequested(reason=reason))
@@ -116,6 +163,7 @@ def cancel_session(
                 child.close()
             except ProcessLookupError:
                 pass  # child already exited/reaped -- nothing left to close
+            child_cleanup_done = True
 
         draining_event = machine.transition(Phase.DRAINING)
         if journal is not None:
@@ -132,6 +180,8 @@ def cancel_session(
         if journal is not None:
             journal.append_event(event)
     finally:
+        if not child_cleanup_done:
+            _best_effort_child_cleanup(child, signal_num)
         if lock is not None and not lock_released:
             lock.release()
 
@@ -197,7 +247,11 @@ class RestartController:
         terminates ``child`` (if given) and releases ``lock`` EXACTLY ONCE
         (guaranteed via ``finally``, mirroring :func:`cancel_session`) --
         every failure path must complete DRAINING cleanup and release the
-        lock, not only the explicit cancellation path.
+        lock, not only the explicit cancellation path. A best-effort
+        child-cleanup attempt also runs in ``finally`` (P0 fix, 128-S
+        closure-PR review) before the lock is released, in case an
+        exception was raised before the happy-path child cleanup above ran
+        -- mirroring :func:`cancel_session`'s equivalent fix.
         """
 
         machine.transition(Phase.RESTARTING)
@@ -216,6 +270,7 @@ class RestartController:
 
         if self.remaining_budget <= 0 or not confirmed:
             lock_released = False
+            child_cleanup_done = False
             try:
                 if journal is not None:
                     journal.append_event(RestartExhausted(attempts=self.attempts_used))
@@ -232,6 +287,7 @@ class RestartController:
                         child.close()
                     except ProcessLookupError:
                         pass
+                    child_cleanup_done = True
 
                 if lock is not None:
                     lock.release()
@@ -241,6 +297,14 @@ class RestartController:
                 if journal is not None:
                     journal.append_event(event)
             finally:
+                # Best-effort child cleanup before an exceptional lock
+                # release (P0 fix, 128-S closure-PR review) -- mirrors
+                # cancel_session's finally: if journal/DRAINING-transition
+                # raised before the happy-path cleanup above ran, attempt
+                # it here first so the lock is never released while a
+                # still-live child goes untouched.
+                if not child_cleanup_done:
+                    _best_effort_child_cleanup(child, signal_num)
                 if lock is not None and not lock_released:
                     lock.release()
             return machine.phase

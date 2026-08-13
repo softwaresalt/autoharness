@@ -23,6 +23,12 @@ rather than trusting a hand-written enumeration:
 * ``CANCELLING`` transitions ONLY to ``DRAINING`` -- there is no
   ``CANCELLING -> EXITED`` and no ``CANCELLING -> CANCELLED`` edge; both are
   illegal by omission from the table.
+* Every post-LOCKING phase capable of a genuine (non-cancellation) failure
+  -- ``BOOTSTRAPPING``, ``PREFLIGHT``, ``RESOLVING``, ``LAUNCHING``,
+  ``RUNNING`` and ``RESTARTING`` -- carries a DIRECT edge to ``DRAINING``
+  (P0 fix, 128-S closure-PR review), so a real failure never needs to be
+  misrouted through ``CANCELLING`` (which represents an operator-initiated
+  cancellation, a semantically different event) just to reach ``FAILED``.
 
 :class:`SessionStateMachine` raises
 :class:`~autoharness.supervise.errors.IllegalTransitionError` (kind
@@ -69,10 +75,31 @@ LEGAL_TRANSITIONS: Mapping[Phase, frozenset[Phase]] = MappingProxyType(
         # REFUSED is the ONE documented exception to the DRAINING gateway,
         # reachable ONLY from LOCKING (lock contention).
         Phase.LOCKING: frozenset({Phase.BOOTSTRAPPING, Phase.REFUSED}),
-        Phase.BOOTSTRAPPING: frozenset({Phase.PREFLIGHT, Phase.CANCELLING}),
-        Phase.PREFLIGHT: frozenset({Phase.RESOLVING, Phase.CANCELLING}),
-        Phase.RESOLVING: frozenset({Phase.LAUNCHING, Phase.CANCELLING}),
-        Phase.LAUNCHING: frozenset({Phase.RUNNING, Phase.CANCELLING}),
+        # Each pre-RUNNING phase also carries a DIRECT edge to DRAINING (P0
+        # fix, 128-S closure-PR review): a genuine failure during
+        # bootstrap/preflight/resolve/launch must be able to reach
+        # FAILED via DRAINING WITHOUT being mislabeled as an
+        # operator-initiated cancellation by routing through CANCELLING.
+        # This mirrors the RUNNING/RESTARTING pattern below, where DRAINING
+        # is already a direct destination for exactly this reason. The
+        # spec's "no direct failure edge ... to FAILED" and "failure paths
+        # terminate in FAILED via DRAINING" language is satisfied either
+        # way (FAILED is still only reachable through DRAINING), but only
+        # this direct edge lets a real failure be reported without a false
+        # CANCELLING phase-change event appearing in the journal/event
+        # stream.
+        Phase.BOOTSTRAPPING: frozenset(
+            {Phase.PREFLIGHT, Phase.CANCELLING, Phase.DRAINING}
+        ),
+        Phase.PREFLIGHT: frozenset(
+            {Phase.RESOLVING, Phase.CANCELLING, Phase.DRAINING}
+        ),
+        Phase.RESOLVING: frozenset(
+            {Phase.LAUNCHING, Phase.CANCELLING, Phase.DRAINING}
+        ),
+        Phase.LAUNCHING: frozenset(
+            {Phase.RUNNING, Phase.CANCELLING, Phase.DRAINING}
+        ),
         Phase.RUNNING: frozenset(
             {Phase.DRAINING, Phase.CANCELLING, Phase.RESTARTING}
         ),
