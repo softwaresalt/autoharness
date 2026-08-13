@@ -49,7 +49,11 @@ from glob import escape as _glob_escape
 from pathlib import Path
 from typing import Sequence
 
-from autoharness.gates.topology import BacklogUnavailableError, _frontmatter
+from autoharness.gates.topology import (
+    _ARTIFACT_ID_PATTERN,
+    BacklogUnavailableError,
+    _frontmatter,
+)
 
 
 class ClosePath(str, Enum):
@@ -91,29 +95,71 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
 
     Returns ``None`` when the artifact cannot be found at all. Raises
     :class:`~autoharness.gates.topology.BacklogUnavailableError` when a
-    candidate file is found but its frontmatter is malformed -- callers
-    convert that into a fail-closed safe-close decision rather than letting
-    it propagate as an unhandled exception.
+    candidate file is found but its frontmatter is malformed, or when the
+    lookup itself is ambiguous -- callers convert that into a fail-closed
+    safe-close decision rather than letting it propagate as an unhandled
+    exception.
+
+    Two hardening checks beyond a bare glob match:
+
+    * ``artifact_id`` MUST match the same safe backlog-artifact-id shape
+      enforced elsewhere (``gates.topology._ARTIFACT_ID_PATTERN``) before it
+      is ever interpolated into a filesystem glob pattern. ``glob.escape``
+      alone neutralizes ``*``/``?``/``[`` metacharacters but does NOT reject
+      path separators or ``..`` segments, so an id shaped like
+      ``"../../outside"`` could otherwise resolve a glob outside
+      ``queue``/``archive`` entirely.
+    * The broad ``id.*`` glob pattern matches by FILENAME PREFIX only, which
+      could silently select a differently-named file (or, if both a queue
+      and an archive copy exist for the same id, an arbitrary one of the
+      two) without ever confirming the file's own frontmatter ``id`` field
+      actually equals ``artifact_id``. Since a false match can authorize a
+      destructive cascade close, every candidate across BOTH ``queue`` and
+      ``archive`` is collected, each candidate's frontmatter ``id`` is
+      verified to match, and more than one verified match is treated as an
+      ambiguous/torn backlog state -- fail closed rather than silently
+      preferring whichever location happened to be scanned first.
     """
 
+    if not _ARTIFACT_ID_PATTERN.match(artifact_id):
+        raise BacklogUnavailableError(
+            backlog_dir,
+            f"manifest item id has an invalid or unsafe shape and cannot be resolved: "
+            f"{artifact_id!r}",
+        )
+
+    matches: list[_ArtifactRecord] = []
     for folder in ("queue", "archive"):
         base = backlog_dir / folder
         if not base.exists():
             continue
-        # glob.escape the artifact id before pattern-matching so a manifest
-        # item containing glob metacharacters (*, ?, [...]) can never resolve
-        # to an unrelated, arbitrary backlog file -- it must match the
-        # artifact id LITERALLY or not be found at all.
         for candidate in sorted(base.glob(f"{_glob_escape(artifact_id)}.*")):
             if not candidate.is_file():
                 continue
             fm = _frontmatter(candidate)
+            fm_id = _normalize_id(fm.get("id")) or candidate.stem
+            if fm_id != artifact_id:
+                # Filename prefix matched, but the record's own declared id
+                # does not -- never trust filename shape alone for a
+                # destructive-gate lookup.
+                continue
             artifact_type = str(fm.get("artifact_type") or "").strip().lower()
             parent_id = _normalize_id(fm.get("parent_id"))
-            return _ArtifactRecord(
-                artifact_id=artifact_id, artifact_type=artifact_type, parent_id=parent_id
+            matches.append(
+                _ArtifactRecord(
+                    artifact_id=artifact_id, artifact_type=artifact_type, parent_id=parent_id
+                )
             )
-    return None
+
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise BacklogUnavailableError(
+            f"manifest item {artifact_id!r} resolved to {len(matches)} distinct backlog "
+            "records across queue/archive; this ambiguous/torn state cannot safely be "
+            "classified"
+        )
+    return matches[0]
 
 
 def _enumerate_children(backlog_dir: Path, feature_id: str) -> tuple[str, ...] | None:
@@ -172,8 +218,22 @@ def classify_shipment_close_path(
     """
 
     backlog_dir = Path(workspace_backlog_dir)
-    manifest_ids = tuple(dict.fromkeys(_normalize_id(item) for item in manifest_items))
-    manifest_ids = tuple(item_id for item_id in manifest_ids if item_id is not None)
+    raw_items = list(manifest_items)
+    normalized = [_normalize_id(item) for item in raw_items]
+    invalid = [
+        raw for raw, norm in zip(raw_items, normalized) if norm is None
+    ]
+    if invalid:
+        # A manifest item that cannot be normalized (empty/blank, or not a
+        # string at all) must never be silently dropped from consideration --
+        # doing so could let an otherwise-disqualifying member vanish from
+        # the "extras" check below and let the manifest wrongly qualify for
+        # cascade. Reject the WHOLE manifest instead.
+        return ClosePathDecision(
+            close_path=ClosePath.SAFE_CLOSE,
+            reason=f"manifest contains unnormalizable item(s): {invalid!r}",
+        )
+    manifest_ids = tuple(dict.fromkeys(normalized))
     if not manifest_ids:
         return ClosePathDecision(
             close_path=ClosePath.SAFE_CLOSE,

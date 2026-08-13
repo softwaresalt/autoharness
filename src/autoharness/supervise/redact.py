@@ -92,7 +92,17 @@ class Redactor:
         return redacted
 
     def redact_value(self, value: Any) -> Any:
-        """Recursively redact a value of unknown shape (str/Mapping/list/other)."""
+        """Recursively redact a value of unknown shape (str/Mapping/list/other).
+
+        Only explicitly safe scalar/container shapes are ever passed through:
+        ``str``, ``Mapping``, ``list``/``tuple``, plus ``int``/``float``/
+        ``bool``/``None`` (which cannot carry secret text). Any OTHER value
+        shape (``bytes``, arbitrary objects, sets, etc.) is unsupported and
+        MUST raise :class:`RedactionFailure` rather than being returned
+        unchanged -- this is the advertised fail-closed choke point, so a
+        secret nested inside an otherwise-supported mapping/list can never
+        silently escape redaction just because its own shape is unrecognized.
+        """
 
         if isinstance(value, str):
             return self.redact_text(value)
@@ -100,23 +110,38 @@ class Redactor:
             return self.redact_mapping(value)
         if isinstance(value, (list, tuple)):
             return type(value)(self.redact_value(item) for item in value)
-        return value
+        if value is None or isinstance(value, (int, float, bool)):
+            return value
+        raise RedactionFailure(
+            f"unsupported nested value type in redaction payload: {type(value)!r}"
+        )
 
     def redact_mapping(self, data: Mapping[str, Any]) -> dict[str, Any]:
         """Redact a mapping: sensitive-named keys are fully replaced; every
-        other value is redacted recursively."""
+        other value is redacted recursively. Keys are ALSO redacted (a raw
+        secret used as a mapping key, not merely as a value, must not survive
+        verbatim in the output) -- fail closed if redacting two distinct keys
+        collapses them onto the same output key, since that would silently
+        drop one of the original entries."""
 
         result: dict[str, Any] = {}
         for key, value in data.items():
-            if _SECRET_KEY_PATTERN.search(str(key)):
+            key_text = str(key)
+            redacted_key = self.redact_text(key_text) if isinstance(key, str) else key
+            if redacted_key in result:
+                raise RedactionFailure(
+                    "redaction collapsed two distinct mapping keys onto the same "
+                    f"redacted key {redacted_key!r}; refusing to silently drop an entry"
+                )
+            if _SECRET_KEY_PATTERN.search(key_text):
                 # A sensitive-named key is fully replaced regardless of value
                 # shape (str, int, float, list, nested dict, ...). Gating this
                 # on isinstance(value, str) would silently leak a non-string
                 # secret (e.g. a numeric token, or a list/dict payload) nested
                 # under a TOKEN/SECRET/KEY/PASSWORD-named key.
-                result[key] = PLACEHOLDER
+                result[redacted_key] = PLACEHOLDER
             else:
-                result[key] = self.redact_value(value)
+                result[redacted_key] = self.redact_value(value)
         return result
 
 
@@ -159,4 +184,9 @@ def redact_record(
             return active.redact_mapping(record), None  # type: ignore[return-value]
         raise RedactionFailure(f"unsupported record type: {type(record)!r}")
     except Exception as exc:  # fail closed: drop, never pass through raw content
-        return None, f"redaction failed, record dropped: {exc}"
+        # Deliberately do NOT interpolate the exception text: a custom
+        # mapping/value can raise with the secret it was processing embedded
+        # in its message, which would turn this warning itself into an
+        # emission bypass of the choke point. Report only the exception's
+        # type name, which cannot carry secret content.
+        return None, f"redaction failed, record dropped: {type(exc).__name__}"

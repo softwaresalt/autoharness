@@ -385,7 +385,21 @@ class SessionLock:
             pid=os.getpid(), start_time=_process_start_time(os.getpid()) or 0.0,
             session_id=self.session_id,
         )
-        self.record_path.write_text(json.dumps(record.to_dict()), encoding="utf-8")
+        try:
+            self.record_path.write_text(json.dumps(record.to_dict()), encoding="utf-8")
+        except Exception:
+            # Record construction/write failed (permission error, full disk,
+            # interrupted write, ...) while the OS guard is already held.
+            # Never strand the guard locked with no matching record: release
+            # it and reset state before re-raising so the caller sees a clean
+            # failure, not a leaked lock.
+            with contextlib.suppress(OSError):
+                _unlock_file_handle(self._handle)
+            with contextlib.suppress(OSError):
+                self._handle.close()
+            self._handle = None
+            self._held = False
+            raise
         return self
 
     def release(self) -> None:
@@ -393,15 +407,22 @@ class SessionLock:
             return  # idempotent: release when not held is a safe no-op
 
         try:
-            _unlock_file_handle(self._handle)
+            # Delete the RECORD while this process still exclusively holds
+            # the guard. Unlocking the guard FIRST would open a window where
+            # a waiting contender acquires the guard and writes its own new
+            # record before this method deletes "the" record -- deleting
+            # after that point would destroy the new live holder's metadata,
+            # not this session's own (now-stale) one.
+            with contextlib.suppress(FileNotFoundError, OSError):
+                if self.record_path.exists():
+                    self.record_path.unlink()
         finally:
+            with contextlib.suppress(OSError):
+                _unlock_file_handle(self._handle)
             with contextlib.suppress(OSError):
                 self._handle.close()
             self._handle = None
             self._held = False
-            with contextlib.suppress(FileNotFoundError, OSError):
-                if self.record_path.exists():
-                    self.record_path.unlink()
 
     def __enter__(self) -> "SessionLock":
         return self.acquire()
@@ -564,18 +585,24 @@ def force_unlock(
     2. If it SUCCEEDS, re-read the record INSIDE this critical section and
        re-validate it still matches ``expected_record`` (the record
        previously diagnosed as stale by the caller via
-       :func:`diagnose_liveness`). Only on an exact match is the RECORD FILE
-       removed. The guard lock -- taken here as a short-lived cleanup
-       acquisition, distinct from a long-lived session acquisition -- is
-       always released before returning.
+       :func:`diagnose_liveness`), AND independently re-diagnose that same
+       on-disk record's liveness fresh, inside this same critical section.
+       Only when the record matches AND the fresh diagnosis is
+       :attr:`Liveness.STALE` is the RECORD FILE removed. The guard lock --
+       taken here as a short-lived cleanup acquisition, distinct from a
+       long-lived session acquisition -- is always released before
+       returning.
 
-    The caller is responsible for having called :func:`diagnose_liveness`
-    on ``expected_record`` and confirmed it is not :attr:`Liveness.LIVE` (or
-    :attr:`Liveness.INDETERMINATE`) before calling this function; this
-    function re-validates identity, not liveness, inside the critical
-    section (liveness cannot change retroactively for a *matching* record
-    once a lock is held, because holding the guard lock means no session
-    with a different PID/start-time could have just re-acquired it).
+    The caller is expected to have called :func:`diagnose_liveness` on
+    ``expected_record`` and confirmed it is not :attr:`Liveness.LIVE` (or
+    :attr:`Liveness.INDETERMINATE`) before calling this function, but this
+    function does NOT merely trust that earlier diagnosis: it re-validates
+    identity AND re-diagnoses liveness itself, inside the critical section,
+    as the single authoritative enforcement point. This is defense in depth
+    against a caller bug, a stale/skipped precondition check, or any
+    TOCTOU window between the caller's diagnosis and this call -- both
+    :attr:`Liveness.LIVE` and :attr:`Liveness.INDETERMINATE` are always
+    refused here regardless of what the caller already believed.
     """
 
     root = Path(workspace_root)
@@ -597,6 +624,18 @@ def force_unlock(
             return ForceUnlockOutcome.NOTHING_TO_REMOVE
         if current != expected_record:
             return ForceUnlockOutcome.RECORD_CHANGED
+
+        # Defense in depth: do not rely SOLELY on the caller having called
+        # diagnose_liveness() before invoking this function. Re-diagnose the
+        # matching on-disk record fresh, inside this same critical section,
+        # and refuse to remove a record that is LIVE or INDETERMINATE
+        # regardless of what the caller already believed. 118.006-T requires
+        # BOTH states to always be refused; this function is the single
+        # authoritative enforcement point for that, not merely a trusting
+        # executor of an earlier diagnosis.
+        verdict = diagnose_liveness(current)
+        if verdict is not Liveness.STALE:
+            return ForceUnlockOutcome.REFUSED_LIVE
 
         record_path.unlink()
         return ForceUnlockOutcome.REMOVED

@@ -17,6 +17,42 @@ from typing import Any, Mapping, Sequence
 # unrecoverable error from a fail-closed refusal (e.g. a lock contention).
 STATUSES = frozenset({"ok", "failed", "blocked", "cancelled"})
 
+#: The only value shapes ``to_dict()`` guarantees are JSON-serializable.
+_JSON_SAFE_SCALARS = (str, int, float, bool, type(None))
+
+
+def _assert_json_safe(value: Any, path: str) -> None:
+    """Recursively assert ``value`` is JSON-serializable, raising with a
+    precise path on the first violation.
+
+    ``SupervisorResult.to_dict()`` documents a JSON-safe serialization
+    contract for ``data``, but a caller can put a ``Path``, ``bytes``, a
+    ``set``, or an arbitrary object into that mapping. A shallow ``dict()``
+    copy would silently let such a value through until ``json.dumps`` fails
+    somewhere downstream with a much less specific error. Fail loudly, at
+    the source, with the offending key path.
+    """
+
+    if isinstance(value, _JSON_SAFE_SCALARS):
+        return
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(
+                    f"SupervisorResult.data{path} has a non-string mapping key {key!r}; "
+                    "to_dict() requires a JSON-safe payload"
+                )
+            _assert_json_safe(item, f"{path}[{key!r}]")
+        return
+    if isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            _assert_json_safe(item, f"{path}[{index}]")
+        return
+    raise TypeError(
+        f"SupervisorResult.data{path} contains a non-JSON-safe value of type "
+        f"{type(value)!r}; to_dict() requires a JSON-safe payload"
+    )
+
 
 @dataclass(frozen=True)
 class SupervisorResult:
@@ -48,8 +84,15 @@ class SupervisorResult:
             )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a plain, JSON-safe ``dict``."""
+        """Serialize to a plain, JSON-safe ``dict``.
 
+        Raises ``TypeError`` if ``data`` contains any value that is not
+        JSON-serializable (recursively) -- callers must be able to rely on
+        the documented serialization contract rather than discovering a
+        ``TypeError`` from ``json.dumps`` somewhere downstream instead.
+        """
+
+        _assert_json_safe(dict(self.data), "")
         return {
             "status": self.status,
             "exit_code": self.exit_code,
