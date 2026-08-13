@@ -56,7 +56,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, MutableMapping, Optional
 
-from autoharness.supervise.redact import Redactor, register_secret
+from autoharness.supervise.redact import (
+    Redactor,
+    register_secret,
+)
+from autoharness.supervise.redact import _SECRET_KEY_PATTERN as _REDACT_SECRET_KEY_PATTERN
 
 #: Matches a KEY=VALUE line. Deliberately permissive on case (a superset of
 #: both start.ps1's incidentally-case-insensitive `-match` and start.sh's
@@ -122,13 +126,37 @@ def _load_env_local(
     working_env: MutableMapping[str, str],
     resolved: MutableMapping[str, str],
     messages: list[str],
+    redactor: Optional[Redactor] = None,
 ) -> None:
+    """Load ``.env.local`` (NO-CLOBBER) and register secret-shaped values.
+
+    **Fix (P-018 Copilot review finding, PR #331, comment 3778627788)**:
+    previously only ``GITHUB_TOKEN``/``GITHUB_PERSONAL_ACCESS_TOKEN`` values
+    were ever registered with the redactor -- any OTHER secret-named
+    ``.env.local`` entry (e.g. the documented ``TAVILY_API_KEY=...``) was
+    copied into the child environment but never protected, so a value a
+    child happened to echo back on stdout/stderr could reach the journal or
+    bus completely unredacted (it matches no GitHub-token-shaped regex and
+    was never registered). Every loaded value whose KEY NAME matches the
+    same ``TOKEN|SECRET|KEY|PASSWORD`` pattern used for mapping-key
+    redaction (:data:`autoharness.supervise.redact._SECRET_KEY_PATTERN`,
+    reused here rather than duplicated to avoid the two patterns drifting
+    out of sync) is now registered with the redactor at load time,
+    regardless of whether this module's own token-resolution logic ever
+    looks at that variable again.
+    """
+
     env_local_path = workspace_root / ".env.local"
     if not env_local_path.is_file():
         return
 
     text = env_local_path.read_text(encoding="utf-8")
     for name, value in _parse_env_local(text):
+        if _REDACT_SECRET_KEY_PATTERN.search(name) and value:
+            if redactor is not None:
+                redactor.register_secret(value)
+            else:
+                register_secret(value)
         if name in working_env:
             continue  # NO-CLOBBER: an already-set variable always wins.
         working_env[name] = value
@@ -306,7 +334,7 @@ def bootstrap_workspace(
     warnings: list[str] = []
     messages: list[str] = []
 
-    _load_env_local(workspace_root, working_env, resolved, messages)
+    _load_env_local(workspace_root, working_env, resolved, messages, redactor)
 
     _apply_directory_default(
         "COPILOT_HOME", str(workspace_root / ".copilot"), working_env, resolved

@@ -1103,6 +1103,39 @@ class PtyPumpDirectUnitTests(unittest.TestCase):
 
         self.assertEqual(out.getvalue(), "only\n")
 
+    def test_pump_child_output_redacts_registered_secret_before_console_write(self) -> None:
+        # P-018 Copilot review finding (PR #331, comment 3778627856): the
+        # console write previously ran BEFORE either redaction choke point
+        # (EventBus/SessionJournal only redact the copy they deliver/
+        # persist, strictly AFTER the raw chunk had already reached the
+        # real console). A registered secret echoed by the child must now
+        # be redacted in what actually reaches stdout.
+        from autoharness.supervise.redact import register_secret
+
+        marker = "unique-console-redaction-marker-qqq789"
+        register_secret(marker)
+
+        child = FakeChildProcess(
+            argv=(), scripted_stdout=[f"before {marker} after\n", "plain line\n"]
+        )
+        child.spawn()
+        captured_events: list[ChildOutput] = []
+        out = io.StringIO()
+
+        with mock.patch.object(sys, "stdout", out):
+            _pump_child_output(child, captured_events.append)
+
+        console_output = out.getvalue()
+        self.assertNotIn(marker, console_output)
+        self.assertIn("before ***REDACTED*** after\n", console_output)
+        self.assertIn("plain line\n", console_output)
+        # The emitted event itself still carries the RAW value: EventBus/
+        # SessionJournal apply their own independent redaction to the
+        # delivered/persisted copy -- this fix only closes the direct,
+        # pre-redaction console-write gap, it does not change the existing
+        # emit-path contract.
+        self.assertEqual(captured_events[0].line, f"before {marker} after\n")
+
     def test_pump_operator_input_forwards_every_line_to_the_active_child(self) -> None:
         child = FakeChildProcess(argv=())
         child.spawn()

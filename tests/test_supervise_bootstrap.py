@@ -91,6 +91,63 @@ class EnvLocalParsingTests(unittest.TestCase):
             result = bootstrap_workspace(root, env={}, gh_executable="nonexistent-gh-binary")
             self.assertEqual(result.env["WITH_CRLF"], "value_with_cr")
 
+    def test_secret_named_env_local_value_is_registered_with_redactor(self) -> None:
+        """P-018 Copilot review finding, PR #331, comment 3778627788.
+
+        A generic secret-shaped ``.env.local`` entry (not one of the two
+        hardcoded GitHub token variable names) must ALSO be registered with
+        the redactor at load time, so a value like the documented
+        ``TAVILY_API_KEY=...`` is protected even though it matches no
+        GitHub-token-shaped regex and this module's own token-resolution
+        logic never looks at it again.
+        """
+
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace)
+            (root / ".env.local").write_text(
+                "TAVILY_API_KEY=super-secret-tavily-value\n", encoding="utf-8"
+            )
+            redactor = Redactor()
+            result = bootstrap_workspace(
+                root, env={}, gh_executable="nonexistent-gh-binary", redactor=redactor
+            )
+            self.assertEqual(result.env["TAVILY_API_KEY"], "super-secret-tavily-value")
+            self.assertEqual(
+                redactor.redact_text("prefix super-secret-tavily-value suffix"),
+                "prefix ***REDACTED*** suffix",
+            )
+
+    def test_non_secret_named_env_local_value_is_not_registered(self) -> None:
+        """A plainly non-secret-named variable must NOT be registered --
+        only KEY-NAME-matched (TOKEN|SECRET|KEY|PASSWORD) entries are."""
+
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace)
+            (root / ".env.local").write_text("PLAIN_VALUE=not-a-secret-at-all\n", encoding="utf-8")
+            redactor = Redactor()
+            bootstrap_workspace(
+                root, env={}, gh_executable="nonexistent-gh-binary", redactor=redactor
+            )
+            self.assertEqual(
+                redactor.redact_text("prefix not-a-secret-at-all suffix"),
+                "prefix not-a-secret-at-all suffix",
+            )
+
+    def test_secret_named_env_local_value_registered_with_default_redactor_when_none_given(
+        self,
+    ) -> None:
+        """No explicit ``redactor=`` still registers via the module-level
+        process-global default, matching the pre-existing token-var contract."""
+
+        from autoharness.supervise.redact import _DEFAULT_REDACTOR
+
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace)
+            marker = "unique-default-redactor-marker-zzz123"
+            (root / ".env.local").write_text(f"SOME_SECRET_TOKEN={marker}\n", encoding="utf-8")
+            bootstrap_workspace(root, env={}, gh_executable="nonexistent-gh-binary")
+            self.assertIn(marker, _DEFAULT_REDACTOR._registered_secrets)
+
 
 class CopilotHomeAndEngramDataDirTests(unittest.TestCase):
     def test_defaults_to_workspace_subdirs_on_both_platforms(self) -> None:

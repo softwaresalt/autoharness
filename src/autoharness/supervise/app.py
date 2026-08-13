@@ -123,6 +123,7 @@ from autoharness.supervise.locking import (
 from autoharness.supervise.process import ChildProcess, InheritStdioChildProcess
 from autoharness.supervise.process_pty import create_pty_or_inherited_child_process
 from autoharness.supervise.recovery import RestartController, cancel_session
+from autoharness.supervise.redact import redact_record
 from autoharness.supervise.result import SupervisorResult
 from autoharness.supervise.session import Phase, SessionStateMachine
 
@@ -218,6 +219,24 @@ def _pump_child_output(
     for the rest of the child's lifetime -- the operator still sees live
     output on the real console even if journaling/bus delivery of that one
     chunk failed.
+
+    **Console-write redaction (P-018 Copilot review, PR #331, comment
+    3778627856)**: the direct ``sys.stdout.write(data)`` below previously
+    ran BEFORE either redaction choke point -- :class:`EventBus` and
+    :class:`SessionJournal` both redact the *reconstructed event copy* they
+    each deliver/persist, but that happens strictly AFTER the raw chunk had
+    already been printed verbatim to the real console. A bootstrap-resolved
+    token (or any other registered secret) echoed by the child was already
+    exposed on stdout by the time ``emit`` ever ran. Each captured chunk is
+    now redacted with :func:`autoharness.supervise.redact.redact_record`
+    (the SAME process-global default redactor instance
+    ``bootstrap_workspace``/:class:`EventBus`/:class:`SessionJournal` all
+    implicitly share whenever no explicit ``Redactor`` is threaded through)
+    before it is ever written to the console, not merely before it is
+    journaled/broadcast. A chunk that fails to redact (fail-closed) is
+    dropped from the console entirely rather than ever printed raw, mirroring
+    the existing fail-closed contract used everywhere else redaction is
+    applied.
     """
 
     while True:
@@ -228,10 +247,15 @@ def _pump_child_output(
         if data is None:
             return
         try:
-            sys.stdout.write(data)
-            sys.stdout.flush()
-        except Exception:  # noqa: BLE001 - a console write failure does not stop draining the child
-            pass
+            redacted_data, _redact_warning = redact_record(data)
+        except Exception:  # noqa: BLE001 - redact_record already fails closed internally; defense in depth
+            redacted_data = None
+        if redacted_data is not None:
+            try:
+                sys.stdout.write(redacted_data)
+                sys.stdout.flush()
+            except Exception:  # noqa: BLE001 - a console write failure does not stop draining the child
+                pass
         try:
             emit(ChildOutput(stream="stdout", line=data))
         except Exception as exc:  # noqa: BLE001 - emit failure must not kill this pump (3778273465)
