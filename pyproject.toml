@@ -27,7 +27,7 @@ classifiers = [
 autoharness = "autoharness.cli:main"
 
 [project.optional-dependencies]
-remote = ["gradio>=4.0"]
+remote = ["gradio>=6.20.0"]
 
 [project.urls]
 Repository = "https://github.com/softwaresalt/autoharness"

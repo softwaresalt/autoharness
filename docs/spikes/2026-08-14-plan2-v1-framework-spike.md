@@ -90,7 +90,7 @@ surface.
 ### F4 — Gradio is an optional extra, never a base dependency
 
 `pyproject.toml` declares `[project.optional-dependencies] remote =
-["gradio>=4.0"]`. `autoharness.remote.ui` imports `gradio` lazily, only
+["gradio>=6.20.0"]`. `autoharness.remote.ui` imports `gradio` lazily, only
 inside `build_gradio_app()` (`GradioLazyImportTests` in
 `tests/test_remote_ui.py` pins this) — the base `autoharness` install
 never requires gradio, preserving the design doc's §10 deployment

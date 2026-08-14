@@ -198,7 +198,7 @@ a credential that has already left the machine.
 ## 10. Deployment and rollback
 
 * **Optional extra**: `pyproject.toml` declares
-  `[project.optional-dependencies] remote = ["gradio>=4.0"]`. The base
+  `  [project.optional-dependencies] remote = ["gradio>=6.20.0"]`. The base
   `autoharness` install never requires gradio or a devtunnel client;
   `autoharness.remote.ui` imports `gradio` lazily, only inside
   `build_gradio_app()`.
