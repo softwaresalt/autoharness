@@ -26,6 +26,7 @@ stall local execution.
 from __future__ import annotations
 
 from collections import deque
+import threading
 from typing import Mapping, Protocol, runtime_checkable
 
 from autoharness.remote.binding import WorkspaceSessionBinding
@@ -60,6 +61,7 @@ class BoundedOutputTail:
         self._lines: deque[str] = deque(maxlen=capacity)
         self._dropped_count = 0
         self._total_recorded = 0
+        self._lock = threading.Lock()
 
     def record(self, event: ChildOutput) -> None:
         """Record a single already-redacted output line.
@@ -70,19 +72,21 @@ class BoundedOutputTail:
         :attr:`dropped_count` is incremented for observability.
         """
 
-        if self._total_recorded >= self._capacity:
-            self._dropped_count += 1
-        self._lines.append(event.line)
-        self._total_recorded += 1
+        with self._lock:
+            if self._total_recorded >= self._capacity:
+                self._dropped_count += 1
+            self._lines.append(event.line)
+            self._total_recorded += 1
 
     def tail(self) -> dict[str, object]:
         """Return the current buffered lines plus backpressure signaling."""
 
-        return {
-            "lines": list(self._lines),
-            "truncated": self._dropped_count > 0,
-            "dropped_count": self._dropped_count,
-        }
+        with self._lock:
+            return {
+                "lines": list(self._lines),
+                "truncated": self._dropped_count > 0,
+                "dropped_count": self._dropped_count,
+            }
 
 
 class ObserveService:

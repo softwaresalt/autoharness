@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Optional, Union
@@ -260,7 +261,7 @@ class SessionJournal:
         if not self.journal_path.exists():
             raise FileNotFoundError(self.journal_path)
 
-        records: list[dict[str, Any]] = []
+        records: deque[dict[str, Any]] = deque(maxlen=limit)
         with self.journal_path.open("r", encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, start=1):
                 stripped = line.strip()
@@ -277,4 +278,4 @@ class SessionJournal:
                         f"journal line {line_number} is missing an integer seq"
                     )
                 records.append(record)
-        return records[-limit:]
+        return list(records)

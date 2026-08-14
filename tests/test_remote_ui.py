@@ -22,6 +22,7 @@ from autoharness.remote.ui import (
     ObservePanelSpec,
     SteerActionSpec,
     build_surface_spec,
+    _dispatch_confirmed_and_render,
     launch_gradio_app,
     render_callback_result,
     validate_gradio_bind,
@@ -109,6 +110,16 @@ class SurfaceSpecClosureTests(unittest.TestCase):
         self.assertEqual(app.calls, [{"server_name": "127.0.0.1", "share": False}])
         with self.assertRaises(ValueError):
             launch_gradio_app(app, server_name="0.0.0.0")
+        with self.assertRaises(ValueError):
+            launch_gradio_app(app, share=True)
+
+    def test_cancel_dispatch_requires_explicit_confirmation(self) -> None:
+        calls: list[object] = []
+        rendered = _dispatch_confirmed_and_render(calls.append, SteerCommand.CANCEL, False)
+        self.assertIn("confirmation_required", rendered)
+        self.assertEqual(calls, [])
+        _dispatch_confirmed_and_render(calls.append, SteerCommand.CANCEL, True)
+        self.assertEqual(calls, [SteerCommand.CANCEL])
 
 
 @unittest.skipUnless(_GRADIO_AVAILABLE, "gradio is an optional extra (autoharness[remote])")

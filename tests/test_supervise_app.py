@@ -221,6 +221,40 @@ class HappyPathTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
             self.assertEqual(result.status, "ok")
             self.assertEqual(result.exit_code, 17)
 
+    def test_remote_cancel_uses_recovery_and_returns_cancelled(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            fake_child = FakeChildProcess(argv=(), exit_code=0)
+            remote_instances: list[object] = []
+
+            class FakeRemoteControlPlane:
+                def __init__(self, **kwargs) -> None:
+                    self.kwargs = kwargs
+                    self.started = False
+                    self.stopped = False
+                    remote_instances.append(self)
+
+                def start(self) -> None:
+                    self.started = True
+                    self.kwargs["on_cancel"]()
+
+                def stop(self) -> None:
+                    self.stopped = True
+
+            result = run_session(
+                workspace_root=Path(workspace),
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                child_process_factory=lambda argv: fake_child,
+                remote_enabled=True,
+                remote_control_plane_factory=FakeRemoteControlPlane,
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "cancelled")
+            self.assertTrue(fake_child.closed)
+            self.assertTrue(remote_instances[0].started)
+            self.assertTrue(remote_instances[0].stopped)
+
     def test_sidecar_degradation_is_non_fatal_and_session_still_completes(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)

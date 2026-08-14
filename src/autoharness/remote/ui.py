@@ -157,10 +157,25 @@ def build_gradio_app(
         for action in STEER_ACTIONS:
             button = gr.Button(action.label)
             output = gr.Textbox(label=action.label, interactive=False)
-            button.click(
-                fn=lambda command=action.command: _dispatch_and_render(dispatch_steer, command),
-                outputs=output,
-            )
+            if action.confirm:
+                confirmation = gr.Checkbox(
+                    label=f"Confirm {action.label}",
+                    value=False,
+                )
+                button.click(
+                    fn=lambda confirmed, command=action.command: _dispatch_confirmed_and_render(
+                        dispatch_steer, command, confirmed
+                    ),
+                    inputs=confirmation,
+                    outputs=output,
+                )
+            else:
+                button.click(
+                    fn=lambda command=action.command: _dispatch_and_render(
+                        dispatch_steer, command
+                    ),
+                    outputs=output,
+                )
 
     return app
 
@@ -172,6 +187,23 @@ def _dispatch_and_render(dispatch: Callable[[object], object], command: object) 
         return render_callback_result(exc)
 
 
+def _dispatch_confirmed_and_render(
+    dispatch: Callable[[object], object], command: object, confirmed: object
+) -> str:
+    if confirmed is not True:
+        return json.dumps(
+            {
+                "ok": False,
+                "error": {
+                    "kind": "confirmation_required",
+                    "message": "explicit confirmation is required before this action",
+                },
+            },
+            sort_keys=True,
+        )
+    return _dispatch_and_render(dispatch, command)
+
+
 def launch_gradio_app(
     app: _Launchable, *, bind_host: str = "127.0.0.1", **kwargs: object
 ) -> object:
@@ -180,4 +212,7 @@ def launch_gradio_app(
     validate_gradio_bind(bind_host)
     if "server_name" in kwargs:
         raise ValueError("server_name is controlled by the loopback-only bind boundary")
+    if kwargs.get("share") is True:
+        raise ValueError("Gradio public sharing is forbidden; use authenticated devtunnel only")
+    kwargs["share"] = False
     return app.launch(server_name=bind_host, **kwargs)

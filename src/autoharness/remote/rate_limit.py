@@ -11,6 +11,7 @@ requirements).
 from __future__ import annotations
 
 import time
+import threading
 from typing import Callable
 
 from autoharness.remote.contracts import RATE_LIMIT_BURST, RATE_LIMIT_PER_MINUTE
@@ -36,6 +37,7 @@ class TokenBucketRateLimiter:
         self._tokens: float = float(capacity)
         self._refill_rate_per_second = refill_per_minute / 60.0
         self._last_refill = clock()
+        self._lock = threading.Lock()
 
     def _refill(self) -> None:
         now = self._clock()
@@ -53,10 +55,11 @@ class TokenBucketRateLimiter:
                 than stall.
         """
 
-        self._refill()
-        if self._tokens < 1.0:
-            raise RateLimitExceededError(
-                "Plan 2 remote rate limit exceeded "
-                f"({self.refill_per_minute} req/min, burst {self.capacity})"
-            )
-        self._tokens -= 1.0
+        with self._lock:
+            self._refill()
+            if self._tokens < 1.0:
+                raise RateLimitExceededError(
+                    "Plan 2 remote rate limit exceeded "
+                    f"({self.refill_per_minute} req/min, burst {self.capacity})"
+                )
+            self._tokens -= 1.0

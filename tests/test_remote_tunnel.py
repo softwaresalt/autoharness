@@ -15,7 +15,9 @@ from autoharness.remote.errors import DevtunnelUnavailableError
 from autoharness.remote.tunnel import (
     FakeTunnelProcess,
     NonLoopbackBindError,
+    SubprocessTunnelProcess,
     TunnelLifecycle,
+    build_devtunnel_argv,
     resolve_devtunnel_executable,
     validate_loopback_bind,
 )
@@ -57,6 +59,12 @@ class DevtunnelResolutionTests(unittest.TestCase):
     def test_present_devtunnel_returns_its_path(self) -> None:
         path = resolve_devtunnel_executable(which_fn=lambda name: r"C:\tools\devtunnel.exe")
         self.assertEqual(path, r"C:\tools\devtunnel.exe")
+
+    def test_host_command_never_enables_anonymous_access(self) -> None:
+        argv = build_devtunnel_argv(r"C:\tools\devtunnel.exe", 7860)
+        self.assertEqual(argv, (r"C:\tools\devtunnel.exe", "host", "--port", "7860"))
+        with self.assertRaises(ValueError):
+            SubprocessTunnelProcess(("devtunnel", "--allow-anonymous"))
 
 
 class TunnelLifecycleTests(unittest.TestCase):
@@ -115,6 +123,26 @@ class TunnelLifecycleTests(unittest.TestCase):
                 lifecycle.teardown()
         self.assertTrue(fake.terminated)
         self.assertFalse(lifecycle.active)
+
+    def test_process_loss_marks_lifecycle_inactive_and_notifies(self) -> None:
+        fake = FakeTunnelProcess(argv=("devtunnel",))
+        losses: list[str] = []
+        lifecycle = TunnelLifecycle(
+            bind_host="127.0.0.1",
+            process_factory=lambda: fake,
+            on_loss=lambda: losses.append("lost"),
+            watch_interval=0.001,
+        )
+        lifecycle.start()
+        fake.terminated = True
+        for _ in range(100):
+            if losses:
+                break
+            import time
+
+            time.sleep(0.002)
+        self.assertFalse(lifecycle.active)
+        self.assertEqual(losses, ["lost"])
 
 
 if __name__ == "__main__":

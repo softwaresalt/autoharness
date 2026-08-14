@@ -38,6 +38,8 @@ from autoharness.remote.errors import (
 )
 from autoharness.supervise.contracts import GATED_ACTION_CATALOG
 
+REMOTE_OPERATOR_ROLE = "remote_operator"
+
 
 class ObserveCommand(enum.Enum):
     """The closed set of read-only Observe commands (Plan 2 V1 scope)."""
@@ -216,9 +218,11 @@ def decode_request(payload: bytes) -> "RemoteRequest":
     ):
         raise MalformedRequestError("request field 'issued_at' must be a number")
 
-    role = decoded.get("role", "remote_operator")
-    if not isinstance(role, str) or not role:
-        raise MalformedRequestError("request field 'role' must be a non-empty string")
+    role = decoded.get("role", REMOTE_OPERATOR_ROLE)
+    if role != REMOTE_OPERATOR_ROLE:
+        raise MalformedRequestError(
+            f"request field 'role' must be {REMOTE_OPERATOR_ROLE!r}"
+        )
 
     request_payload = decoded.get("payload", {})
     if not isinstance(request_payload, dict):
@@ -252,6 +256,12 @@ class RemoteRequest:
     issued_at: float
     role: str = "remote_operator"
     payload: Mapping[str, object] = field(default_factory=lambda: MappingProxyType({}))
+
+    def __post_init__(self) -> None:
+        if self.role != REMOTE_OPERATOR_ROLE:
+            raise ValueError(
+                f"remote requests must use the {REMOTE_OPERATOR_ROLE!r} role"
+            )
 
 
 @dataclass(frozen=True)

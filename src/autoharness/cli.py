@@ -128,6 +128,7 @@ autoharness run — run a supervised local Copilot CLI session
 Usage:
   autoharness run [--json] [--force-unlock] [--max-restarts N]
                   [--pty | --no-pty] [--session-id ID] [--workspace PATH]
+                  [--remote] [--remote-port N] [--remote-bind-host HOST]
                   [-- <verbatim child argv>]
 
 Options:
@@ -147,6 +148,11 @@ Options:
                        so behavior stays independent of the caller's cwd,
                        matching the pre-migration scripts' documented
                        `.env.local`-lookup anchoring.
+  --remote             Expose the authenticated Observe + Steer UI through
+                       loopback Gradio and an authenticated devtunnel.
+  --remote-port N      Local Gradio port for --remote. Default: 7860.
+  --remote-bind-host HOST
+                       Loopback bind host for --remote. Default: 127.0.0.1.
   --                    Everything after this marker is forwarded VERBATIM
                         as the supervised child's argv -- never re-parsed,
                         re-quoted, reordered, or filtered.
@@ -171,6 +177,9 @@ def _parse_run_args(args: list[str]) -> dict:
         "max_restarts": 0,
         "use_pty": None,
         "session_id": None,
+        "remote_enabled": False,
+        "remote_port": 7860,
+        "remote_bind_host": "127.0.0.1",
         "child_argv": [],
     }
     saw_pty = False
@@ -205,6 +214,21 @@ def _parse_run_args(args: list[str]) -> dict:
             if index >= len(args):
                 raise ValueError("Missing value for --session-id")
             parsed["session_id"] = args[index]
+        elif arg == "--remote":
+            parsed["remote_enabled"] = True
+        elif arg == "--remote-port":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --remote-port")
+            try:
+                parsed["remote_port"] = int(args[index])
+            except ValueError:
+                raise ValueError(f"Invalid --remote-port value: {args[index]!r}") from None
+        elif arg == "--remote-bind-host":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --remote-bind-host")
+            parsed["remote_bind_host"] = args[index]
         elif arg in ("--workspace", "-w"):
             index += 1
             if index >= len(args):
@@ -244,7 +268,14 @@ def _is_help_invocation(own_args: list[str]) -> bool:
     position.
     """
 
-    value_consuming_flags = {"--max-restarts", "--session-id", "--workspace", "-w"}
+    value_consuming_flags = {
+        "--max-restarts",
+        "--session-id",
+        "--workspace",
+        "-w",
+        "--remote-port",
+        "--remote-bind-host",
+    }
     index = 0
     while index < len(own_args):
         token = own_args[index]
@@ -301,6 +332,9 @@ def _run_command(args: list[str]) -> None:
         max_restarts=parsed["max_restarts"],
         use_pty=parsed["use_pty"],
         force_unlock=parsed["force_unlock"],
+        remote_enabled=parsed["remote_enabled"],
+        remote_port=parsed["remote_port"],
+        remote_bind_host=parsed["remote_bind_host"],
     )
 
     if parsed["emit_json"]:

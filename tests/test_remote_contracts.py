@@ -196,6 +196,20 @@ class RequestSizeLimitTests(unittest.TestCase):
         with self.assertRaises(Exception):
             request.command = "cancel"  # type: ignore[misc]
 
+    def test_decode_request_rejects_caller_supplied_identity_role(self) -> None:
+        payload = json.dumps(
+            {
+                "command": "status",
+                "request_id": "req-1",
+                "workspace_id": "/workspace",
+                "session_id": "sess-1",
+                "issued_at": 1234.5,
+                "role": "workstation.example",
+            }
+        ).encode("utf-8")
+        with self.assertRaises(MalformedRequestError):
+            decode_request(payload)
+
 
 class RateLimitConstantsTests(unittest.TestCase):
     """Contract test explicitly required by the shipment harness: 30

@@ -30,7 +30,8 @@ has occurred -- this is asserted directly in the test suite.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
+import threading
 
 from autoharness.remote.binding import WorkspaceSessionBinding
 from autoharness.remote.contracts import (
@@ -88,6 +89,10 @@ class SteerDispatcher:
         journal: _AppendOnlyJournal,
         binding: WorkspaceSessionBinding,
         rate_limiter: TokenBucketRateLimiter,
+        on_pause: Callable[[], object] | None = None,
+        on_resume: Callable[[], object] | None = None,
+        on_cancel: Callable[[], object] | None = None,
+        emit: Callable[[object], int | None] | None = None,
     ) -> None:
         self.state_machine = state_machine
         self._local_channel = local_channel
@@ -97,6 +102,11 @@ class SteerDispatcher:
         self._paused = False
         self._seen_request_ids: set[str] = set()
         self._checkpoint_sequence = 0
+        self._dispatch_lock = threading.Lock()
+        self._on_pause = on_pause
+        self._on_resume = on_resume
+        self._on_cancel = on_cancel
+        self._emit = emit
 
     def dispatch(self, request: RemoteRequest, token: str, *, now: float) -> RemoteResponse:
         """Dispatch ``request`` after verifying vocabulary, binding, idempotency, and rate limit.
@@ -119,30 +129,37 @@ class SteerDispatcher:
         # 2. Binding verification -- fail closed before any state change.
         self._binding.verify(request, token, now=now)
 
-        # 3. Idempotency -- a duplicate request_id is rejected before any
-        #    state change, regardless of which command it names this time.
-        if request.request_id in self._seen_request_ids:
-            raise DuplicateRequestError(
-                f"request_id {request.request_id!r} has already been processed"
+        # Serialize duplicate detection, rate accounting, command execution,
+        # and insertion so concurrent callbacks cannot race through a
+        # state-changing request with the same request_id.
+        with self._dispatch_lock:
+            if request.request_id in self._seen_request_ids:
+                raise DuplicateRequestError(
+                    f"request_id {request.request_id!r} has already been processed"
+                )
+
+            # 4. Rate limit -- never blocks, fails closed immediately.
+            self._rate_limiter.acquire()
+
+            command = SteerCommand(request.command)
+            if command is SteerCommand.PAUSE:
+                payload = self._handle_pause()
+            elif command is SteerCommand.RESUME:
+                payload = self._handle_resume()
+            elif command is SteerCommand.CANCEL:
+                payload = self._handle_cancel()
+            else:
+                payload = self._handle_request_checkpoint()
+
+            # A request that failed a state-legality check was not processed
+            # and remains replayable after the local session changes phase.
+            self._seen_request_ids.add(request.request_id)
+            return RemoteResponse(
+                request_id=request.request_id,
+                command=request.command,
+                ok=True,
+                payload=payload,
             )
-
-        # 4. Rate limit -- never blocks, fails closed immediately.
-        self._rate_limiter.acquire()
-
-        command = SteerCommand(request.command)
-        if command is SteerCommand.PAUSE:
-            payload = self._handle_pause()
-        elif command is SteerCommand.RESUME:
-            payload = self._handle_resume()
-        elif command is SteerCommand.CANCEL:
-            payload = self._handle_cancel()
-        else:
-            payload = self._handle_request_checkpoint()
-
-        # A request that failed a state-legality check was not processed and
-        # remains replayable after the local session changes phase.
-        self._seen_request_ids.add(request.request_id)
-        return RemoteResponse(request_id=request.request_id, command=request.command, ok=True, payload=payload)
 
     def _handle_pause(self) -> dict[str, object]:
         if self.state_machine.phase is not Phase.RUNNING or self._paused:
@@ -150,7 +167,11 @@ class SteerDispatcher:
                 "pause is only legal while the session is RUNNING and not already paused "
                 f"(phase={self.state_machine.phase.value!r}, paused={self._paused!r})"
             )
-        acknowledgement = self._local_channel.handle_command("pause")
+        acknowledgement = (
+            self._on_pause()
+            if self._on_pause is not None
+            else self._local_channel.handle_command("pause")
+        )
         self._paused = True
         return {"acknowledgement": acknowledgement}
 
@@ -159,7 +180,11 @@ class SteerDispatcher:
             raise IllegalRemoteStateError(
                 "resume is only legal after a prior pause; no pause is currently in effect"
             )
-        acknowledgement = self._local_channel.handle_command("resume")
+        acknowledgement = (
+            self._on_resume()
+            if self._on_resume is not None
+            else self._local_channel.handle_command("resume")
+        )
         self._paused = False
         return {"acknowledgement": acknowledgement}
 
@@ -168,10 +193,14 @@ class SteerDispatcher:
             raise IllegalRemoteStateError(
                 f"cancel is not legal from phase {self.state_machine.phase.value!r}"
             )
-        self.state_machine.transition(Phase.CANCELLING)
-        self._journal.append_event(CancelRequested(reason="remote steer request"))
+        if self._on_cancel is not None:
+            phase = self._on_cancel()
+        else:
+            self.state_machine.transition(Phase.CANCELLING)
+            self._journal.append_event(CancelRequested(reason="remote steer request"))
+            phase = self.state_machine.phase.value
         acknowledgement = self._local_channel.handle_command("cancel")
-        return {"acknowledgement": acknowledgement, "phase": self.state_machine.phase.value}
+        return {"acknowledgement": acknowledgement, "phase": str(phase)}
 
     def _handle_request_checkpoint(self) -> dict[str, object]:
         if self.state_machine.phase in TERMINAL_PHASES:
@@ -180,7 +209,12 @@ class SteerDispatcher:
                 f"phase ({self.state_machine.phase.value!r})"
             )
         self._checkpoint_sequence += 1
-        seq = self._journal.append_event(
-            JournalCheckpoint(sequence=self._checkpoint_sequence, detail="remote steer request")
+        event = JournalCheckpoint(
+            sequence=self._checkpoint_sequence, detail="remote steer request"
+        )
+        seq = (
+            self._emit(event)
+            if self._emit is not None
+            else self._journal.append_event(event)
         )
         return {"sequence": self._checkpoint_sequence, "journal_seq": seq}

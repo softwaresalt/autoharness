@@ -83,6 +83,13 @@ raised out of the blocking ``child.wait()`` call and routing it straight to
 entire ``RUNNING -> CANCELLING -> DRAINING -> CANCELLED`` sequence, child
 termination, and lock release itself) -- no separate cancellation algorithm
 is introduced here.
+
+**Remote control composition**: ``remote_enabled=True`` creates the Plan 2
+control plane over this same machine, journal, event bus, and active child.
+Remote pause/resume invoke the child backend's platform capability directly;
+remote cancel reuses :func:`cancel_session`; and tunnel teardown is performed
+from the same ``finally`` boundary as child cleanup. The default remains local
+only, so no UI or devtunnel prerequisite is introduced for existing callers.
 """
 
 from __future__ import annotations
@@ -129,6 +136,7 @@ from autoharness.supervise.session import Phase, SessionStateMachine
 
 ChildProcessFactory = Callable[[Sequence[str]], ChildProcess]
 LockFactory = Callable[[Path, Optional[str]], Any]
+RemoteControlPlaneFactory = Callable[..., Any]
 
 # Serializes the bootstrap-environment-READ-through-restore critical
 # section (see the `_environ_snapshot`/`os.environ.update`/`os.environ.clear`
@@ -446,6 +454,10 @@ def run_session(
     engram_executable: str = "engram",
     graphtor_docs_executable: str = "graphtor-docs",
     signal_num: int = signal_module.SIGTERM,
+    remote_enabled: bool = False,
+    remote_bind_host: str = "127.0.0.1",
+    remote_port: int = 7860,
+    remote_control_plane_factory: Optional[RemoteControlPlaneFactory] = None,
 ) -> SupervisorResult:
     """Run a single supervised Copilot CLI session end-to-end.
 
@@ -477,6 +489,8 @@ def run_session(
     # is what lets it be re-pointed at each restart's replacement child
     # instead of a second competing thread ever being started.
     active_child_ref: Optional[_ActiveChildRef] = None
+    remote_control: Any = None
+    remote_cancelled = threading.Event()
     # Snapshot is taken lazily, immediately before the bootstrap-resolved
     # env is actually applied below, under `_ENVIRON_MUTATION_LOCK` (P-018
     # Copilot review finding, PR #331, comment 3778273440) -- not here at
@@ -528,6 +542,37 @@ def run_session(
         )
         _emit(resolved)
         return resolved.resolution == "restart"
+
+    def _remote_pause() -> object:
+        if child is None:
+            raise RuntimeError("remote pause requested before the child was started")
+        child.pause()
+        return "paused"
+
+    def _remote_resume() -> object:
+        if child is None:
+            raise RuntimeError("remote resume requested before the child was started")
+        child.resume()
+        return "resumed"
+
+    def _remote_cancel() -> object:
+        nonlocal lock_held_by_us
+        if child is None:
+            raise RuntimeError("remote cancel requested before the child was started")
+        phase = cancel_session(
+            machine,
+            child=child,
+            emit=_emit,
+            lock=lock,
+            reason="remote steer request",
+            signal_num=signal_num,
+        )
+        lock_held_by_us = False
+        remote_cancelled.set()
+        return phase.value
+
+    def _remote_tunnel_loss() -> None:
+        warnings.append("devtunnel exited; remote control-plane access is unavailable")
 
     try:
         _transition(Phase.LOCKING)
@@ -632,6 +677,26 @@ def run_session(
         resolve_result = resolve_mod.resolve_copilot(argv)
         _emit(CopilotResolved(exe_path=resolve_result.exe_path, source=resolve_result.source))
 
+        if remote_enabled:
+            from autoharness.remote.control_plane import RemoteControlPlane
+
+            factory = remote_control_plane_factory or RemoteControlPlane.create
+            remote_control = factory(
+                workspace_root=workspace_root,
+                session_id=lock.session_id,
+                state_machine=machine,
+                journal=journal,
+                event_bus=bus,
+                local_channel=approval_service,
+                on_pause=_remote_pause,
+                on_resume=_remote_resume,
+                on_cancel=_remote_cancel,
+                emit=_emit,
+                on_tunnel_loss=_remote_tunnel_loss,
+                bind_host=remote_bind_host,
+                port=remote_port,
+            )
+
         _transition(Phase.LAUNCHING)
         factory = child_process_factory or _default_child_process_factory(
             use_pty, str(workspace_root)
@@ -651,6 +716,8 @@ def run_session(
             output_pump_thread = _start_output_pump(child, _emit, _report_pump_emit_failure)
 
         _transition(Phase.RUNNING)
+        if remote_control is not None:
+            remote_control.start()
 
         restart_controller = RestartController(
             max_restarts=max_restarts, confirm_restart=_confirm_restart
@@ -673,6 +740,12 @@ def run_session(
                     signal_num=signal_num,
                 )
                 lock_held_by_us = False
+                return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
+            except (OSError, RuntimeError):
+                if remote_cancelled.is_set():
+                    return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
+                raise
+            if remote_cancelled.is_set():
                 return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
             _emit(ChildExited(exit_code=exit_code))
 
@@ -774,6 +847,8 @@ def run_session(
             lock_held_by_us = False
         return _result("failed", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN], (str(exc),))
     finally:
+        if remote_control is not None:
+            remote_control.stop()
         # Idempotent fallback only -- see _close_child_before_lock_release's
         # own docstring (P-018 Copilot review finding, PR #331, comment
         # 3777958619): both failure paths above already close the child
