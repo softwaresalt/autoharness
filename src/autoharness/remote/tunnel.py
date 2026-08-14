@@ -24,6 +24,7 @@ while tests use :class:`FakeTunnelProcess`.
 
 from __future__ import annotations
 
+import shutil
 from typing import Callable, Optional, Protocol, runtime_checkable
 
 from autoharness.remote.errors import DevtunnelUnavailableError, RemoteError, RemoteErrorKind
@@ -55,7 +56,9 @@ def validate_loopback_bind(host: str) -> None:
         )
 
 
-def resolve_devtunnel_executable(which_fn: Callable[[str], Optional[str]]) -> str:
+def resolve_devtunnel_executable(
+    which_fn: Callable[[str], Optional[str]] | None = None,
+) -> str:
     """Resolve the devtunnel client executable via an injectable ``which_fn``.
 
     Raises:
@@ -65,7 +68,7 @@ def resolve_devtunnel_executable(which_fn: Callable[[str], Optional[str]]) -> st
             never a generic error.
     """
 
-    path = which_fn("devtunnel")
+    path = (shutil.which if which_fn is None else which_fn)("devtunnel")
     if not path:
         raise DevtunnelUnavailableError(
             "the 'devtunnel' CLI was not found on PATH; install/configure devtunnel "

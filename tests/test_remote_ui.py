@@ -14,13 +14,17 @@ from __future__ import annotations
 
 import unittest
 
-from autoharness.remote.contracts import ObserveCommand, SteerCommand
+from autoharness.remote.contracts import ObserveCommand, RemoteResponse, SteerCommand
+from autoharness.remote.errors import RemoteError, RemoteErrorKind
 from autoharness.remote.ui import (
     OBSERVE_PANELS,
     STEER_ACTIONS,
     ObservePanelSpec,
     SteerActionSpec,
     build_surface_spec,
+    launch_gradio_app,
+    render_callback_result,
+    validate_gradio_bind,
 )
 
 try:
@@ -67,6 +71,44 @@ class SurfaceSpecClosureTests(unittest.TestCase):
         action = SteerActionSpec(SteerCommand.PAUSE, "Pause")
         with self.assertRaises(Exception):
             action.label = "Different"  # type: ignore[misc]
+
+    def test_non_loopback_gradio_bind_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_gradio_bind("0.0.0.0")
+
+    def test_remote_errors_render_as_structured_json(self) -> None:
+        rendered = render_callback_result(
+            RemoteError("bad request", kind=RemoteErrorKind.PROTOCOL)
+        )
+        self.assertIn('"ok": false', rendered)
+        self.assertIn('"kind": "protocol_error"', rendered)
+
+    def test_remote_response_with_immutable_payload_renders_as_structured_json(self) -> None:
+        rendered = render_callback_result(
+            RemoteResponse(
+                request_id="req-1",
+                command="status",
+                ok=True,
+                payload={"phase": "running"},
+            )
+        )
+        self.assertIn('"ok": true', rendered)
+        self.assertIn('"phase": "running"', rendered)
+
+    def test_launch_gradio_app_forces_loopback_and_rejects_override(self) -> None:
+        class FakeApp:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def launch(self, *, server_name: str, **kwargs: object) -> object:
+                self.calls.append({"server_name": server_name, **kwargs})
+                return "launched"
+
+        app = FakeApp()
+        self.assertEqual(launch_gradio_app(app, share=False), "launched")
+        self.assertEqual(app.calls, [{"server_name": "127.0.0.1", "share": False}])
+        with self.assertRaises(ValueError):
+            launch_gradio_app(app, server_name="0.0.0.0")
 
 
 @unittest.skipUnless(_GRADIO_AVAILABLE, "gradio is an optional extra (autoharness[remote])")

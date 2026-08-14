@@ -129,10 +129,6 @@ class SteerDispatcher:
         # 4. Rate limit -- never blocks, fails closed immediately.
         self._rate_limiter.acquire()
 
-        # Only mark the request_id seen once every earlier fail-closed
-        # check has passed -- a rejected request must remain replayable.
-        self._seen_request_ids.add(request.request_id)
-
         command = SteerCommand(request.command)
         if command is SteerCommand.PAUSE:
             payload = self._handle_pause()
@@ -143,6 +139,9 @@ class SteerDispatcher:
         else:
             payload = self._handle_request_checkpoint()
 
+        # A request that failed a state-legality check was not processed and
+        # remains replayable after the local session changes phase.
+        self._seen_request_ids.add(request.request_id)
         return RemoteResponse(request_id=request.request_id, command=request.command, ok=True, payload=payload)
 
     def _handle_pause(self) -> dict[str, object]:

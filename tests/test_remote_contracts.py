@@ -10,6 +10,7 @@ out by the shipment's harness requirements.
 from __future__ import annotations
 
 import unittest
+import json
 
 from autoharness.remote.contracts import (
     COMMAND_TIER,
@@ -23,12 +24,14 @@ from autoharness.remote.contracts import (
     RemoteRequest,
     RemoteResponse,
     SteerCommand,
+    decode_request,
     ensure_remotely_dispatchable,
     resolve_command_tier,
     validate_request_size,
 )
 from autoharness.remote.errors import (
     LocalOnlyCommandError,
+    MalformedRequestError,
     RequestTooLargeError,
     UnknownRemoteCommandError,
 )
@@ -151,6 +154,47 @@ class RequestSizeLimitTests(unittest.TestCase):
     def test_non_bytes_input_raises_type_error(self) -> None:
         with self.assertRaises(TypeError):
             validate_request_size("not-bytes")  # type: ignore[arg-type]
+
+    def test_decode_request_enforces_size_before_json_parsing(self) -> None:
+        with self.assertRaises(RequestTooLargeError):
+            decode_request(b"{" + b"a" * (MAX_REQUEST_BYTES + 1))
+
+    def test_decode_request_rejects_malformed_json(self) -> None:
+        with self.assertRaises(MalformedRequestError):
+            decode_request(b"{not-json")
+
+    def test_decode_request_rejects_non_finite_timestamp(self) -> None:
+        payload = json.dumps(
+            {
+                "command": "status",
+                "request_id": "req-1",
+                "workspace_id": "/workspace",
+                "session_id": "sess-1",
+                "issued_at": float("nan"),
+            }
+        ).encode("utf-8")
+
+        with self.assertRaises(MalformedRequestError):
+            decode_request(payload)
+
+    def test_decode_request_returns_a_frozen_typed_request(self) -> None:
+        payload = json.dumps(
+            {
+                "command": "status",
+                "request_id": "req-1",
+                "workspace_id": "/workspace",
+                "session_id": "sess-1",
+                "issued_at": 1234.5,
+                "payload": {"cursor": 3},
+            }
+        ).encode("utf-8")
+
+        request = decode_request(payload)
+
+        self.assertIsInstance(request, RemoteRequest)
+        self.assertEqual(request.payload["cursor"], 3)
+        with self.assertRaises(Exception):
+            request.command = "cancel"  # type: ignore[misc]
 
 
 class RateLimitConstantsTests(unittest.TestCase):

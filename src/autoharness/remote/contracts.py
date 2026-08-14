@@ -24,12 +24,15 @@ Design invariants (do not weaken):
 from __future__ import annotations
 
 import enum
+import json
+import math
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping
 
 from autoharness.remote.errors import (
     LocalOnlyCommandError,
+    MalformedRequestError,
     RequestTooLargeError,
     UnknownRemoteCommandError,
 )
@@ -173,6 +176,63 @@ def validate_request_size(payload: bytes) -> None:
             f"request payload of {len(payload)} bytes exceeds the "
             f"{MAX_REQUEST_BYTES}-byte V1 limit"
         )
+
+
+def decode_request(payload: bytes) -> "RemoteRequest":
+    """Decode one bounded JSON request into the frozen protocol envelope.
+
+    This is the transport boundary for the size contract. Dispatchers accept
+    only the typed result, so malformed bytes cannot reach binding, rate
+    limiting, or state mutation.
+    """
+
+    validate_request_size(payload)
+    try:
+        decoded = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise MalformedRequestError("request payload is not valid UTF-8 JSON") from exc
+
+    if not isinstance(decoded, dict):
+        raise MalformedRequestError("request payload must be a JSON object")
+
+    required_fields = ("command", "request_id", "workspace_id", "session_id", "issued_at")
+    missing = [name for name in required_fields if name not in decoded]
+    if missing:
+        raise MalformedRequestError(
+            f"request payload is missing required field(s): {', '.join(missing)}"
+        )
+
+    string_fields = ("command", "request_id", "workspace_id", "session_id")
+    for name in string_fields:
+        value = decoded[name]
+        if not isinstance(value, str) or not value:
+            raise MalformedRequestError(f"request field {name!r} must be a non-empty string")
+
+    issued_at = decoded["issued_at"]
+    if (
+        isinstance(issued_at, bool)
+        or not isinstance(issued_at, (int, float))
+        or not math.isfinite(issued_at)
+    ):
+        raise MalformedRequestError("request field 'issued_at' must be a number")
+
+    role = decoded.get("role", "remote_operator")
+    if not isinstance(role, str) or not role:
+        raise MalformedRequestError("request field 'role' must be a non-empty string")
+
+    request_payload = decoded.get("payload", {})
+    if not isinstance(request_payload, dict):
+        raise MalformedRequestError("request field 'payload' must be a JSON object")
+
+    return RemoteRequest(
+        command=decoded["command"],
+        request_id=decoded["request_id"],
+        workspace_id=decoded["workspace_id"],
+        session_id=decoded["session_id"],
+        issued_at=float(issued_at),
+        role=role,
+        payload=MappingProxyType(dict(request_payload)),
+    )
 
 
 @dataclass(frozen=True)

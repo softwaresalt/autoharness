@@ -16,7 +16,11 @@ from pathlib import Path
 
 from autoharness.remote.binding import WorkspaceSessionBinding
 from autoharness.remote.contracts import RemoteRequest
-from autoharness.remote.errors import RateLimitExceededError, UnknownRemoteCommandError
+from autoharness.remote.errors import (
+    ObservationUnavailableError,
+    RateLimitExceededError,
+    UnknownRemoteCommandError,
+)
 from autoharness.remote.observe import BoundedOutputTail, ObserveService
 from autoharness.remote.rate_limit import TokenBucketRateLimiter
 from autoharness.supervise.contracts import ChildOutput
@@ -146,6 +150,7 @@ class ObserveCommandTests(unittest.TestCase):
     def test_journal_tail_reports_a_cursor(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             journal = SessionJournal(workspace, session_id="session-a")
+            journal.append_child_output_unavailable(reason="test")
             service, binding = _make_service(workspace, journal)
             token = binding.issue_token()
 
@@ -153,6 +158,46 @@ class ObserveCommandTests(unittest.TestCase):
                 _request("journal_tail", workspace_id=workspace), token, now=1001.0
             )
             self.assertIn("cursor", response.payload)
+            self.assertEqual(len(response.payload["records"]), 2)
+
+    def test_missing_journal_fails_explicitly_for_journal_observation(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            journal = SessionJournal(workspace, session_id="session-a")
+            service, binding = _make_service(workspace, journal)
+
+            with self.assertRaises(ObservationUnavailableError):
+                service.handle(
+                    _request("journal_tail", workspace_id=workspace),
+                    binding.issue_token(),
+                    now=1001.0,
+                )
+
+    def test_unattached_event_stream_fails_explicitly(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            journal = SessionJournal(workspace, session_id="session-a")
+            service, binding = _make_service(workspace, journal)
+
+            with self.assertRaises(ObservationUnavailableError):
+                service.handle(
+                    _request("output_tail", workspace_id=workspace),
+                    binding.issue_token(),
+                    now=1001.0,
+                )
+
+    def test_malformed_journal_fails_explicitly(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            journal = SessionJournal(workspace, session_id="session-a")
+            journal.append_child_output_unavailable(reason="test")
+            with journal.journal_path.open("a", encoding="utf-8") as handle:
+                handle.write("{malformed\n")
+            service, binding = _make_service(workspace, journal)
+
+            with self.assertRaises(ObservationUnavailableError):
+                service.handle(
+                    _request("journal_tail", workspace_id=workspace),
+                    binding.issue_token(),
+                    now=1001.0,
+                )
 
 
 class ObserveGuardrailTests(unittest.TestCase):

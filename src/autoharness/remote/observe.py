@@ -26,7 +26,7 @@ stall local execution.
 from __future__ import annotations
 
 from collections import deque
-from typing import Protocol, runtime_checkable
+from typing import Mapping, Protocol, runtime_checkable
 
 from autoharness.remote.binding import WorkspaceSessionBinding
 from autoharness.remote.contracts import (
@@ -36,7 +36,7 @@ from autoharness.remote.contracts import (
     RemoteResponse,
     ensure_remotely_dispatchable,
 )
-from autoharness.remote.errors import UnknownRemoteCommandError
+from autoharness.remote.errors import ObservationUnavailableError, UnknownRemoteCommandError
 from autoharness.remote.rate_limit import TokenBucketRateLimiter
 from autoharness.supervise.contracts import ChildOutput
 from autoharness.supervise.events import EventBus
@@ -46,6 +46,8 @@ from autoharness.supervise.session import SessionStateMachine
 @runtime_checkable
 class _CursorReadableJournal(Protocol):
     def read_own_cursor(self) -> int: ...
+
+    def read_own_tail(self, limit: int = 50) -> list[Mapping[str, object]]: ...
 
 
 class BoundedOutputTail:
@@ -111,6 +113,14 @@ class ObserveService:
 
         self._bus_subscription_token = bus.subscribe(ChildOutput, self._output_tail.record)
 
+    def _read_journal_tail(self, *, limit: int = 50) -> list[Mapping[str, object]]:
+        try:
+            return self._journal.read_own_tail(limit=limit)
+        except (OSError, ValueError) as exc:
+            raise ObservationUnavailableError(
+                "local journal data is missing, malformed, or unavailable"
+            ) from exc
+
     def handle(self, request: RemoteRequest, token: str, *, now: float) -> RemoteResponse:
         """Handle ``request`` after verifying vocabulary, binding, and rate limit.
 
@@ -133,10 +143,22 @@ class ObserveService:
         if command in (ObserveCommand.STATUS, ObserveCommand.PHASE):
             payload: dict[str, object] = {"phase": self.state_machine.phase.value}
         elif command is ObserveCommand.PROGRESS:
-            payload = {"journal_cursor": self._journal.read_own_cursor()}
+            records = self._read_journal_tail()
+            payload = {
+                "journal_cursor": self._journal.read_own_cursor(),
+                "record_count": len(records),
+            }
         elif command is ObserveCommand.OUTPUT_TAIL:
+            if self._bus_subscription_token is None:
+                raise ObservationUnavailableError(
+                    "the Observe service is not attached to the local event bus"
+                )
             payload = self._output_tail.tail()
         else:
-            payload = {"cursor": self._journal.read_own_cursor()}
+            records = self._read_journal_tail()
+            payload = {
+                "cursor": self._journal.read_own_cursor(),
+                "records": records,
+            }
 
         return RemoteResponse(request_id=request.request_id, command=request.command, ok=True, payload=payload)

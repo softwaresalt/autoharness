@@ -52,7 +52,7 @@ open questions (§12) are resolved by those rulings, not superseded wholesale.
 | `phase` | Current supervisor `Phase` (alias surface for `status`) |
 | `progress` | Current journal cursor (`journal.read_own_cursor()`) |
 | `output_tail` | Bounded tail of already-redacted `ChildOutput` lines, with `truncated`/`dropped_count` backpressure signaling |
-| `journal_tail` | Current journal cursor, exposed under the `journal_tail` command name |
+| `journal_tail` | Bounded tail of strictly parsed, already-redacted local journal records plus the current cursor |
 
 **Steer (state-changing, `AuthorityTier.STEER`):**
 
@@ -108,8 +108,10 @@ is purely an anti-confusion/anti-replay control scoped to Observe/Steer.
 ## 5. Rate limiting and request size bounds
 
 * **16 KiB maximum request size** (`autoharness.remote.contracts.MAX_REQUEST_BYTES`,
-  `validate_request_size()`) — oversized payloads fail closed with
-  `RequestTooLargeError` before any further processing.
+  `validate_request_size()`/`decode_request()`) — oversized payloads fail
+  closed with `RequestTooLargeError` before JSON parsing, and malformed
+  structured payloads fail with `MalformedRequestError` before binding,
+  rate-limiting, or state mutation.
 * **30 requests/minute, burst of 5** (`autoharness.remote.rate_limit.TokenBucketRateLimiter`,
   `RATE_LIMIT_PER_MINUTE`/`RATE_LIMIT_BURST`) — the limiter never blocks or
   queues; it grants a token immediately or raises `RateLimitExceededError`

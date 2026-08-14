@@ -93,6 +93,12 @@ class RequestTooLargeError(RemoteError):
     kind = RemoteErrorKind.SIZE_LIMIT
 
 
+class MalformedRequestError(RemoteError):
+    """A request payload is not a valid V1 structured request."""
+
+    kind = RemoteErrorKind.PROTOCOL
+
+
 class RateLimitExceededError(RemoteError):
     """The 30 req/min, burst-5 token bucket had no tokens available."""
 
@@ -128,5 +134,11 @@ class StaleRequestError(RemoteError):
 class DevtunnelUnavailableError(RemoteError):
     """The devtunnel client executable -- V1's sole remote transport and
     authentication mechanism -- could not be resolved on PATH."""
+
+    kind = RemoteErrorKind.TRANSPORT
+
+
+class ObservationUnavailableError(RemoteError):
+    """Required local journal or event observation data is unavailable."""
 
     kind = RemoteErrorKind.TRANSPORT

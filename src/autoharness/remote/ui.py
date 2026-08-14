@@ -20,10 +20,14 @@ Two invariants matter more than anything else here:
 
 from __future__ import annotations
 
+import dataclasses
+import json
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Mapping, Protocol
 
 from autoharness.remote.contracts import ObserveCommand, SteerCommand
+from autoharness.remote.errors import RemoteError
+from autoharness.remote.tunnel import NonLoopbackBindError, validate_loopback_bind
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,51 @@ STEER_ACTIONS: tuple[SteerActionSpec, ...] = (
 )
 
 
+class _Launchable(Protocol):
+    def launch(self, *, server_name: str, **kwargs: object) -> object: ...
+
+
+def validate_gradio_bind(host: str) -> None:
+    """Enforce the same loopback-only rule at the UI launch boundary."""
+
+    try:
+        validate_loopback_bind(host)
+    except NonLoopbackBindError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def render_callback_result(result: object) -> str:
+    """Render protocol results/errors without flattening their structure."""
+
+    if isinstance(result, RemoteError):
+        value: object = {
+            "ok": False,
+            "error": {
+                "kind": result.kind.value,
+                "exit_code": result.exit_code,
+                "message": str(result),
+            },
+        }
+    else:
+        value = _json_ready(result)
+        if value is result:
+            return str(result)
+    return json.dumps(value, sort_keys=True, default=str)
+
+
+def _json_ready(value: object) -> object:
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return {
+            field.name: _json_ready(getattr(value, field.name))
+            for field in dataclasses.fields(value)
+        }
+    if isinstance(value, Mapping):
+        return {str(key): _json_ready(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_ready(item) for item in value]
+    return value
+
+
 def build_surface_spec() -> dict[str, tuple[object, ...]]:
     """Return the closed Observe/Steer surface spec as a plain mapping."""
 
@@ -102,15 +151,33 @@ def build_gradio_app(
             button = gr.Button(panel.label)
             output = gr.Textbox(label=panel.label, interactive=False)
             button.click(
-                fn=lambda command=panel.command: dispatch_observe(command),
+                fn=lambda command=panel.command: _dispatch_and_render(dispatch_observe, command),
                 outputs=output,
             )
         for action in STEER_ACTIONS:
             button = gr.Button(action.label)
             output = gr.Textbox(label=action.label, interactive=False)
             button.click(
-                fn=lambda command=action.command: dispatch_steer(command),
+                fn=lambda command=action.command: _dispatch_and_render(dispatch_steer, command),
                 outputs=output,
             )
 
     return app
+
+
+def _dispatch_and_render(dispatch: Callable[[object], object], command: object) -> str:
+    try:
+        return render_callback_result(dispatch(command))
+    except RemoteError as exc:
+        return render_callback_result(exc)
+
+
+def launch_gradio_app(
+    app: _Launchable, *, bind_host: str = "127.0.0.1", **kwargs: object
+) -> object:
+    """Launch a built app only after validating its loopback bind host."""
+
+    validate_gradio_bind(bind_host)
+    if "server_name" in kwargs:
+        raise ValueError("server_name is controlled by the loopback-only bind boundary")
+    return app.launch(server_name=bind_host, **kwargs)
