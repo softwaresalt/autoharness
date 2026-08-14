@@ -1,2 +1,6 @@
 {"timestamp":"2026-08-13T21:04:13.3202071-07:00","actor":"backlogit","item_id":"130-S","event_type":"shipment_created","delta":{"items":["121-F","121.003-T","121.008-T","121.004-T","121.005-T","121.006-T","121.002-T","121.007-T","121.001-T"],"title":"Plan 2 V1 remote control plane — Observe + Steer"}}
 {"timestamp":"2026-08-14T00:56:30.2916584-07:00","actor":"backlogit","item_id":"130-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-14T07:54:16.0396482-07:00","actor":"backlogit","item_id":"130-S","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-08-14T07:54:18.9505791-07:00","actor":"backlogit","item_id":"130-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-08-14T07:54:24.6218839-07:00","actor":"backlogit","item_id":"130-S","event_type":"commit_tracked","delta":{"author":"ship","commit_sha":"ed78afed97391984430de502230e53ae37b620ea","message":"ship: Plan 2 V1 remote control plane — Observe + Steer"}}
+{"timestamp":"2026-08-14T07:55:50.2400623-07:00","actor":"backlogit","item_id":"130-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/130-S.md"}}

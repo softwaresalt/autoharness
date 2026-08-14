@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-14T07:54:37.9021515-07:00","actor":"backlogit","item_id":"121.002-R","event_type":"commit_tracked","delta":{"author":"ship","commit_sha":"ed78afed97391984430de502230e53ae37b620ea","message":"ship: Plan 2 V1 remote control plane — Observe + Steer"}}
+{"timestamp":"2026-08-14T07:55:30.107602-07:00","actor":"backlogit","item_id":"121.002-R","event_type":"archived","delta":{"archive_path":".backlogit/archive/121.002-R-plan-2-v1-implementation-plan-review.md"}}
