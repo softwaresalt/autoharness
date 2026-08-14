@@ -46,6 +46,7 @@ integration, no policy logic beyond the invariants above.
 
 from __future__ import annotations
 
+import signal
 import subprocess
 from dataclasses import dataclass, field
 from typing import Optional, Protocol, Sequence, runtime_checkable
@@ -63,6 +64,20 @@ class OutputCaptureUnavailable(Exception):
     entirely; the exception exists as a hard backstop for callers that
     don't check first.
     """
+
+
+def _send_suspend_signal(process: "ChildProcess") -> None:
+    suspend_signal = getattr(signal, "SIGSTOP", None)
+    if suspend_signal is None:
+        raise RuntimeError("pause is not supported by this platform's child-process backend")
+    process.signal(suspend_signal)
+
+
+def _send_resume_signal(process: "ChildProcess") -> None:
+    resume_signal = getattr(signal, "SIGCONT", None)
+    if resume_signal is None:
+        raise RuntimeError("resume is not supported by this platform's child-process backend")
+    process.signal(resume_signal)
 
 
 @runtime_checkable
@@ -102,6 +117,12 @@ class ChildProcess(Protocol):
 
     def signal(self, sig: int) -> None:
         """Deliver signal ``sig`` to the child."""
+
+    def pause(self) -> None:
+        """Pause the child when the platform exposes a suspend primitive."""
+
+    def resume(self) -> None:
+        """Resume a child previously paused by :meth:`pause`."""
 
     def wait(self, timeout: Optional[float] = None) -> int:
         """Block until the child exits; return its REAL exit code, unmodified."""
@@ -164,6 +185,12 @@ class InheritStdioChildProcess:
         if self._process is None:
             raise RuntimeError("cannot signal before spawn()")
         self._process.send_signal(sig)
+
+    def pause(self) -> None:
+        _send_suspend_signal(self)
+
+    def resume(self) -> None:
+        _send_resume_signal(self)
 
     def wait(self, timeout: Optional[float] = None) -> int:
         if self._process is None:
@@ -242,6 +269,12 @@ class PipeChildProcess:
             raise RuntimeError("cannot signal before spawn()")
         self._process.send_signal(sig)
 
+    def pause(self) -> None:
+        _send_suspend_signal(self)
+
+    def resume(self) -> None:
+        _send_resume_signal(self)
+
     def wait(self, timeout: Optional[float] = None) -> int:
         """Block until the child exits; return its REAL exit code, unmodified.
 
@@ -306,6 +339,8 @@ class FakeChildProcess:
     spawned: bool = field(default=False, init=False)
     waited: bool = field(default=False, init=False)
     closed: bool = field(default=False, init=False)
+    paused: bool = field(default=False, init=False)
+    resumed: bool = field(default=False, init=False)
     _output_index: int = field(default=0, init=False)
 
     def spawn(self) -> None:
@@ -327,6 +362,12 @@ class FakeChildProcess:
 
     def signal(self, sig: int) -> None:
         self.signals_received.append(sig)
+
+    def pause(self) -> None:
+        self.paused = True
+
+    def resume(self) -> None:
+        self.resumed = True
 
     def wait(self, timeout: Optional[float] = None) -> int:
         self.waited = True

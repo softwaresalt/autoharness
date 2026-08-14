@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Optional, Union
@@ -93,7 +94,7 @@ def read_cursor(path: PathLike) -> int:
                 # ignore it rather than crashing the resume.
                 continue
             seq = record.get("seq") if isinstance(record, Mapping) else None
-            if isinstance(seq, int):
+            if isinstance(seq, int) and not isinstance(seq, bool):
                 last_valid_seq = seq
     return last_valid_seq
 
@@ -245,3 +246,40 @@ class SessionJournal:
         """Convenience: :func:`read_cursor` applied to this journal's own path."""
 
         return read_cursor(self.journal_path)
+
+    def read_own_tail(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Read a strict, bounded tail for remote Observe consumers.
+
+        ``read_cursor`` intentionally tolerates a crash-truncated final line
+        for resume logic. Remote observation has a different contract: it
+        must signal malformed or unavailable data explicitly rather than
+        presenting a partial journal as authoritative.
+        """
+
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+            raise ValueError("limit must be a positive integer")
+        if not self.journal_path.exists():
+            raise FileNotFoundError(self.journal_path)
+
+        records: deque[dict[str, Any]] = deque(maxlen=limit)
+        with self.journal_path.open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    record = json.loads(stripped)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"journal line {line_number} is malformed JSON"
+                    ) from exc
+                if (
+                    not isinstance(record, dict)
+                    or not isinstance(record.get("seq"), int)
+                    or isinstance(record.get("seq"), bool)
+                ):
+                    raise ValueError(
+                        f"journal line {line_number} is missing an integer seq"
+                    )
+                records.append(record)
+        return list(records)

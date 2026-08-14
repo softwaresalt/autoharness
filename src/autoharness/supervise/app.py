@@ -83,6 +83,13 @@ raised out of the blocking ``child.wait()`` call and routing it straight to
 entire ``RUNNING -> CANCELLING -> DRAINING -> CANCELLED`` sequence, child
 termination, and lock release itself) -- no separate cancellation algorithm
 is introduced here.
+
+**Remote control composition**: ``remote_enabled=True`` creates the Plan 2
+control plane over this same machine, journal, event bus, and active child.
+Remote pause/resume invoke the child backend's platform capability directly;
+remote cancel reuses :func:`cancel_session`; and tunnel teardown is performed
+from the same ``finally`` boundary as child cleanup. The default remains local
+only, so no UI or devtunnel prerequisite is introduced for existing callers.
 """
 
 from __future__ import annotations
@@ -129,6 +136,7 @@ from autoharness.supervise.session import Phase, SessionStateMachine
 
 ChildProcessFactory = Callable[[Sequence[str]], ChildProcess]
 LockFactory = Callable[[Path, Optional[str]], Any]
+RemoteControlPlaneFactory = Callable[..., Any]
 
 # Serializes the bootstrap-environment-READ-through-restore critical
 # section (see the `_environ_snapshot`/`os.environ.update`/`os.environ.clear`
@@ -446,6 +454,10 @@ def run_session(
     engram_executable: str = "engram",
     graphtor_docs_executable: str = "graphtor-docs",
     signal_num: int = signal_module.SIGTERM,
+    remote_enabled: bool = False,
+    remote_bind_host: str = "127.0.0.1",
+    remote_port: int = 7860,
+    remote_control_plane_factory: Optional[RemoteControlPlaneFactory] = None,
 ) -> SupervisorResult:
     """Run a single supervised Copilot CLI session end-to-end.
 
@@ -477,6 +489,9 @@ def run_session(
     # is what lets it be re-pointed at each restart's replacement child
     # instead of a second competing thread ever being started.
     active_child_ref: Optional[_ActiveChildRef] = None
+    remote_control: Any = None
+    remote_cancelled = threading.Event()
+    remote_cancel_lock = threading.Lock()
     # Snapshot is taken lazily, immediately before the bootstrap-resolved
     # env is actually applied below, under `_ENVIRON_MUTATION_LOCK` (P-018
     # Copilot review finding, PR #331, comment 3778273440) -- not here at
@@ -518,7 +533,9 @@ def run_session(
             status=status,
             exit_code=exit_code,
             messages=tuple(messages) + tuple(extra_messages),
-            warnings=tuple(warnings),
+            # Cleanup runs after the return expression is evaluated; retain
+            # the shared sequence so teardown warnings remain observable.
+            warnings=warnings,
         )
 
     def _confirm_restart() -> bool:
@@ -528,6 +545,45 @@ def run_session(
         )
         _emit(resolved)
         return resolved.resolution == "restart"
+
+    def _remote_pause() -> object:
+        if child is None:
+            raise RuntimeError("remote pause requested before the child was started")
+        child.pause()
+        return "paused"
+
+    def _remote_resume() -> object:
+        if child is None:
+            raise RuntimeError("remote resume requested before the child was started")
+        child.resume()
+        return "resumed"
+
+    def _remote_cancel() -> object:
+        nonlocal lock_held_by_us
+        with remote_cancel_lock:
+            if child is None:
+                raise RuntimeError("remote cancel requested before the child was started")
+            if machine.phase in (
+                Phase.EXITED,
+                Phase.FAILED,
+                Phase.REFUSED,
+                Phase.CANCELLED,
+            ):
+                raise RuntimeError("remote cancel requested after the session completed")
+            phase = cancel_session(
+                machine,
+                child=child,
+                emit=_emit,
+                lock=lock,
+                reason="remote steer request",
+                signal_num=signal_num,
+            )
+            lock_held_by_us = False
+            remote_cancelled.set()
+            return phase.value
+
+    def _remote_tunnel_loss() -> None:
+        warnings.append("devtunnel exited; remote control-plane access is unavailable")
 
     try:
         _transition(Phase.LOCKING)
@@ -632,6 +688,26 @@ def run_session(
         resolve_result = resolve_mod.resolve_copilot(argv)
         _emit(CopilotResolved(exe_path=resolve_result.exe_path, source=resolve_result.source))
 
+        if remote_enabled:
+            from autoharness.remote.control_plane import RemoteControlPlane
+
+            factory = remote_control_plane_factory or RemoteControlPlane.create
+            remote_control = factory(
+                workspace_root=workspace_root,
+                session_id=lock.session_id,
+                state_machine=machine,
+                journal=journal,
+                event_bus=bus,
+                local_channel=approval_service,
+                on_pause=_remote_pause,
+                on_resume=_remote_resume,
+                on_cancel=_remote_cancel,
+                emit=_emit,
+                on_tunnel_loss=_remote_tunnel_loss,
+                bind_host=remote_bind_host,
+                port=remote_port,
+            )
+
         _transition(Phase.LAUNCHING)
         factory = child_process_factory or _default_child_process_factory(
             use_pty, str(workspace_root)
@@ -651,10 +727,58 @@ def run_session(
             output_pump_thread = _start_output_pump(child, _emit, _report_pump_emit_failure)
 
         _transition(Phase.RUNNING)
+        if remote_control is not None:
+            remote_control.start()
 
         restart_controller = RestartController(
             max_restarts=max_restarts, confirm_restart=_confirm_restart
         )
+
+        def _restart_child_after_exit(exit_code: int) -> Phase:
+            """Attempt and complete one restart while cancellation is locked."""
+
+            nonlocal active_child_ref, child, output_pump_thread
+
+            phase_after_attempt = restart_controller.attempt(
+                machine,
+                emit=_emit,
+                # `child` is intentionally NOT passed here because
+                # `child.wait()` has already reaped the old process.
+                child=None,
+                lock=lock,
+                reason=f"child exited with code {exit_code}",
+                signal_num=signal_num,
+            )
+            if phase_after_attempt is Phase.FAILED:
+                return phase_after_attempt
+
+            # Close the reaped child's resources, then replace it while the
+            # caller holds `remote_cancel_lock` so remote cancellation can
+            # target only the current child and phase.
+            if output_pump_thread is not None:
+                output_pump_thread.join(timeout=2.0)
+            try:
+                child.close()
+            except ProcessLookupError:
+                pass
+            child = factory(resolve_result.argv)
+            child.spawn()
+            _emit(ChildSpawned(argv=resolve_result.argv, pid=child.pid))
+            if child.supports_output_capture:
+                if active_child_ref is not None:
+                    active_child_ref.set(child)
+                else:
+                    active_child_ref = _ActiveChildRef(child)
+                    threading.Thread(
+                        target=_pump_operator_input, args=(active_child_ref,), daemon=True
+                    ).start()
+                output_pump_thread = _start_output_pump(
+                    child, _emit, _report_pump_emit_failure
+                )
+            else:
+                output_pump_thread = None
+            _transition(Phase.RUNNING)
+            return phase_after_attempt
 
         while True:
             try:
@@ -664,98 +788,39 @@ def run_session(
                 # own cancel_session, which drives RUNNING -> CANCELLING ->
                 # DRAINING -> CANCELLED, terminates the child, and releases
                 # the lock exactly once (all internal to that function).
-                cancel_session(
-                    machine,
-                    child=child,
-                    emit=_emit,
-                    lock=lock,
-                    reason="operator cancellation (KeyboardInterrupt)",
-                    signal_num=signal_num,
-                )
-                lock_held_by_us = False
-                return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
-            _emit(ChildExited(exit_code=exit_code))
+                with remote_cancel_lock:
+                    cancel_session(
+                        machine,
+                        child=child,
+                        emit=_emit,
+                        lock=lock,
+                        reason="operator cancellation (KeyboardInterrupt)",
+                        signal_num=signal_num,
+                    )
+                    lock_held_by_us = False
+                    return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
+            except (OSError, RuntimeError):
+                with remote_cancel_lock:
+                    if remote_cancelled.is_set():
+                        return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
+                raise
+            with remote_cancel_lock:
+                if remote_cancelled.is_set():
+                    return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
+                _emit(ChildExited(exit_code=exit_code))
 
-            if exit_code == 0 or restart_controller.remaining_budget <= 0:
-                break
+                if exit_code == 0 or restart_controller.remaining_budget <= 0:
+                    _transition(Phase.DRAINING)
+                    _transition(Phase.EXITED)
+                    lock.release()
+                    lock_held_by_us = False
+                    return _result("ok", exit_code)
 
-            phase_after_attempt = restart_controller.attempt(
-                machine,
-                emit=_emit,
-                # `child` is intentionally NOT passed here (P-018 Copilot
-                # review finding, PR #331, comment 3778730421): by this
-                # point `child.wait()` immediately above has ALREADY
-                # returned normally, meaning the OS has ALREADY reaped this
-                # PID. `RestartController.attempt()`'s exhaustion/decline
-                # path calls `child.signal(signal_num)` unconditionally
-                # (the PTY backend's own `signal()` has no
-                # already-exited guard, unlike its `close()`), which would
-                # send a raw `os.kill(pid, ...)` to a PID the kernel may
-                # have already reused for an entirely unrelated process.
-                # There is nothing left for `attempt()` to terminate; the
-                # top-level `finally` below still safely closes this same
-                # `child` object via `_close_child_before_lock_release`
-                # (its `close()` correctly no-ops the signal/wait sequence
-                # once `_exit_code` is already recorded, only releasing the
-                # file descriptor).
-                child=None,
-                lock=lock,
-                reason=f"child exited with code {exit_code}",
-                signal_num=signal_num,
-            )
+            with remote_cancel_lock:
+                phase_after_attempt = _restart_child_after_exit(exit_code)
             if phase_after_attempt is Phase.FAILED:
-                # RestartController.attempt() already released the lock and
-                # drove DRAINING -> FAILED (journaled internally). Do not
-                # release the lock again below.
                 lock_held_by_us = False
                 return _result("failed", EXIT_CODE_BY_KIND[ErrorKind.RESTART])
-
-            # Approved restart: RestartController.attempt() drove
-            # RUNNING -> RESTARTING -> LAUNCHING (journaled internally) but
-            # -- since `child=None` was passed above (comment
-            # 3778730421) -- did NOT itself touch the OLD child (already
-            # exited/reaped by `child.wait()` above; nothing left to
-            # signal). This call site now closes the OLD child's PTY
-            # handle directly instead, before the `child` local is
-            # reassigned to the replacement below, so its file descriptor
-            # is still released promptly here rather than only reached via
-            # the top-level `finally` (which would otherwise be the only
-            # remaining reference once `child` is overwritten). Quiesce the
-            # OLD output pump (bounded join -- the old child has already
-            # exited/been closed, so its read() should EOF promptly)
-            # before starting the replacement, then spawn it and repoint
-            # (never duplicate) the single persistent input pump at it
-            # (P-018 Copilot review finding, PR #331, comment 3778121130).
-            if output_pump_thread is not None:
-                output_pump_thread.join(timeout=2.0)
-            try:
-                child.close()
-            except ProcessLookupError:
-                pass  # already exited/reaped -- nothing left to close
-            child = factory(resolve_result.argv)
-            child.spawn()
-            _emit(ChildSpawned(argv=resolve_result.argv, pid=child.pid))
-            if child.supports_output_capture:
-                if active_child_ref is not None:
-                    active_child_ref.set(child)
-                else:
-                    # The very first child didn't support output capture,
-                    # but this replacement does -- start the persistent
-                    # input pump now, for the first time.
-                    active_child_ref = _ActiveChildRef(child)
-                    threading.Thread(
-                        target=_pump_operator_input, args=(active_child_ref,), daemon=True
-                    ).start()
-                output_pump_thread = _start_output_pump(child, _emit, _report_pump_emit_failure)
-            else:
-                output_pump_thread = None
-            _transition(Phase.RUNNING)
-
-        _transition(Phase.DRAINING)
-        _transition(Phase.EXITED)
-        lock.release()
-        lock_held_by_us = False
-        return _result("ok", exit_code)
 
     except AutoharnessError as exc:
         if machine.phase not in (Phase.EXITED, Phase.FAILED, Phase.REFUSED, Phase.CANCELLED):
@@ -774,6 +839,11 @@ def run_session(
             lock_held_by_us = False
         return _result("failed", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN], (str(exc),))
     finally:
+        if remote_control is not None:
+            try:
+                remote_control.stop()
+            except Exception as exc:  # noqa: BLE001 - cleanup must not mask session teardown
+                warnings.append(f"remote control-plane shutdown failed: {exc}")
         # Idempotent fallback only -- see _close_child_before_lock_release's
         # own docstring (P-018 Copilot review finding, PR #331, comment
         # 3777958619): both failure paths above already close the child

@@ -133,6 +133,12 @@ class PtyChildProcess:
             raise RuntimeError("cannot signal before spawn()")
         os.kill(self._pid, sig)
 
+    def pause(self) -> None:
+        self.signal(signal.SIGSTOP)
+
+    def resume(self) -> None:
+        self.signal(signal.SIGCONT)
+
     def wait(self, timeout: Optional[float] = None) -> int:
         if self._pid is None:
             raise RuntimeError("cannot wait before spawn()")
@@ -255,6 +261,12 @@ class WinPtyChildProcess:
         if self._pty is None:
             raise RuntimeError("cannot signal before spawn()")
         self._pty.terminate(force=True)
+
+    def pause(self) -> None:
+        raise RuntimeError("pause is not supported by the Windows PTY backend")
+
+    def resume(self) -> None:
+        raise RuntimeError("resume is not supported by the Windows PTY backend")
 
     def wait(self, timeout: Optional[float] = None) -> int:
         """Block until the child exits; return its REAL exit code, unmodified.

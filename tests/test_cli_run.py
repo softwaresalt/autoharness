@@ -256,6 +256,21 @@ class RunForwardingTests(unittest.TestCase):
             _run("run", "--session-id", "abc-123")
         self.assertEqual(spy.calls[0]["session_id"], "abc-123")
 
+    def test_remote_options_forwarded(self) -> None:
+        spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
+        with mock.patch("autoharness.supervise.app.run_session", spy):
+            _run(
+                "run",
+                "--remote",
+                "--remote-port",
+                "9000",
+                "--remote-bind-host",
+                "localhost",
+            )
+        self.assertTrue(spy.calls[0]["remote_enabled"])
+        self.assertEqual(spy.calls[0]["remote_port"], 9000)
+        self.assertEqual(spy.calls[0]["remote_bind_host"], "localhost")
+
     def test_workspace_forwarded(self) -> None:
         spy = _SpyRunSession(SupervisorResult(status="ok", exit_code=0))
         with mock.patch("autoharness.supervise.app.run_session", spy):
