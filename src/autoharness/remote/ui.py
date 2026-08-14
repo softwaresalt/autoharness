@@ -25,7 +25,11 @@ import json
 from dataclasses import dataclass
 from typing import Callable, Mapping, Protocol
 
-from autoharness.remote.contracts import ObserveCommand, SteerCommand
+from autoharness.remote.contracts import (
+    ObserveCommand,
+    SteerCommand,
+    validate_request_size,
+)
 from autoharness.remote.errors import MalformedRequestError, RemoteError
 from autoharness.remote.tunnel import NonLoopbackBindError, validate_loopback_bind
 
@@ -155,7 +159,9 @@ def build_gradio_app(
             button = gr.Button(panel.label)
             output = gr.Textbox(label=panel.label, interactive=False)
             button.click(
-                fn=lambda payload: _dispatch_payload_and_render(dispatch_observe, payload),
+                fn=lambda payload, command=panel.command.value: _dispatch_payload_and_render(
+                    dispatch_observe, payload, expected_command=command
+                ),
                 inputs=request_envelope,
                 outputs=output,
             )
@@ -168,15 +174,20 @@ def build_gradio_app(
                     value=False,
                 )
                 button.click(
-                    fn=lambda confirmed, payload: _dispatch_confirmed_payload_and_render(
-                        dispatch_steer, payload, confirmed
+                    fn=lambda confirmed, payload, command=action.command.value: _dispatch_confirmed_payload_and_render(
+                        dispatch_steer,
+                        payload,
+                        confirmed,
+                        expected_command=command,
                     ),
                     inputs=[confirmation, request_envelope],
                     outputs=output,
                 )
             else:
                 button.click(
-                    fn=lambda payload: _dispatch_payload_and_render(dispatch_steer, payload),
+                    fn=lambda payload, command=action.command.value: _dispatch_payload_and_render(
+                        dispatch_steer, payload, expected_command=command
+                    ),
                     inputs=request_envelope,
                     outputs=output,
                 )
@@ -192,11 +203,18 @@ def _dispatch_and_render(dispatch: Callable[[object], object], command: object) 
 
 
 def _dispatch_payload_and_render(
-    dispatch: Callable[[bytes], object], payload: object
+    dispatch: Callable[[bytes], object],
+    payload: object,
+    *,
+    expected_command: str | None = None,
 ) -> str:
     try:
-        return _dispatch_and_render(dispatch, _encode_request_payload(payload))
-    except MalformedRequestError as exc:
+        encoded = _encode_request_payload(payload)
+        validate_request_size(encoded)
+        if expected_command is not None:
+            _validate_expected_command(encoded, expected_command)
+        return _dispatch_and_render(dispatch, encoded)
+    except RemoteError as exc:
         return render_callback_result(exc)
 
 
@@ -218,11 +236,34 @@ def _dispatch_confirmed_and_render(
 
 
 def _dispatch_confirmed_payload_and_render(
-    dispatch: Callable[[bytes], object], payload: object, confirmed: object
+    dispatch: Callable[[bytes], object],
+    payload: object,
+    confirmed: object,
+    *,
+    expected_command: str | None = None,
 ) -> str:
     if confirmed is not True:
         return _dispatch_confirmed_and_render(dispatch, payload, confirmed)
-    return _dispatch_payload_and_render(dispatch, payload)
+    return _dispatch_payload_and_render(
+        dispatch, payload, expected_command=expected_command
+    )
+
+
+def _validate_expected_command(payload: bytes, expected_command: str) -> None:
+    """Reject an envelope whose command does not match the clicked UI action."""
+
+    try:
+        decoded = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise MalformedRequestError(
+            "request payload is not valid UTF-8 JSON"
+        ) from exc
+    if not isinstance(decoded, dict):
+        raise MalformedRequestError("request payload must be a JSON object")
+    if decoded.get("command") != expected_command:
+        raise MalformedRequestError(
+            f"request command does not match the selected UI action {expected_command!r}"
+        )
 
 
 def _encode_request_payload(payload: object) -> bytes:

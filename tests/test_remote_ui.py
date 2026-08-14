@@ -21,6 +21,7 @@ from autoharness.remote.ui import (
     STEER_ACTIONS,
     ObservePanelSpec,
     SteerActionSpec,
+    _dispatch_confirmed_payload_and_render,
     build_surface_spec,
     _dispatch_confirmed_and_render,
     _dispatch_payload_and_render,
@@ -137,6 +138,30 @@ class SurfaceSpecClosureTests(unittest.TestCase):
         rendered = _dispatch_payload_and_render(calls.append, {"bad": object()})
         self.assertIn('"ok": false', rendered)
         self.assertIn("protocol_error", rendered)
+
+    def test_payload_dispatch_rejects_command_mismatch_before_dispatch(self) -> None:
+        calls: list[bytes] = []
+        rendered = _dispatch_payload_and_render(
+            calls.append,
+            {"command": "cancel"},
+            expected_command=SteerCommand.PAUSE.value,
+        )
+        self.assertIn('"ok": false', rendered)
+        self.assertIn("protocol_error", rendered)
+        self.assertIn("does not match", rendered)
+        self.assertEqual(calls, [])
+
+    def test_cancel_confirmation_cannot_be_bypassed_by_another_button(self) -> None:
+        calls: list[bytes] = []
+        rendered = _dispatch_confirmed_payload_and_render(
+            calls.append,
+            {"command": SteerCommand.CANCEL.value},
+            True,
+            expected_command=SteerCommand.PAUSE.value,
+        )
+        self.assertIn('"ok": false', rendered)
+        self.assertIn("protocol_error", rendered)
+        self.assertEqual(calls, [])
 
 
 @unittest.skipUnless(_GRADIO_AVAILABLE, "gradio is an optional extra (autoharness[remote])")

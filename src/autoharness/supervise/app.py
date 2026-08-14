@@ -734,6 +734,52 @@ def run_session(
             max_restarts=max_restarts, confirm_restart=_confirm_restart
         )
 
+        def _restart_child_after_exit(exit_code: int) -> Phase:
+            """Attempt and complete one restart while cancellation is locked."""
+
+            nonlocal active_child_ref, child, output_pump_thread
+
+            phase_after_attempt = restart_controller.attempt(
+                machine,
+                emit=_emit,
+                # `child` is intentionally NOT passed here because
+                # `child.wait()` has already reaped the old process.
+                child=None,
+                lock=lock,
+                reason=f"child exited with code {exit_code}",
+                signal_num=signal_num,
+            )
+            if phase_after_attempt is Phase.FAILED:
+                return phase_after_attempt
+
+            # Close the reaped child's resources, then replace it while the
+            # caller holds `remote_cancel_lock` so remote cancellation can
+            # target only the current child and phase.
+            if output_pump_thread is not None:
+                output_pump_thread.join(timeout=2.0)
+            try:
+                child.close()
+            except ProcessLookupError:
+                pass
+            child = factory(resolve_result.argv)
+            child.spawn()
+            _emit(ChildSpawned(argv=resolve_result.argv, pid=child.pid))
+            if child.supports_output_capture:
+                if active_child_ref is not None:
+                    active_child_ref.set(child)
+                else:
+                    active_child_ref = _ActiveChildRef(child)
+                    threading.Thread(
+                        target=_pump_operator_input, args=(active_child_ref,), daemon=True
+                    ).start()
+                output_pump_thread = _start_output_pump(
+                    child, _emit, _report_pump_emit_failure
+                )
+            else:
+                output_pump_thread = None
+            _transition(Phase.RUNNING)
+            return phase_after_attempt
+
         while True:
             try:
                 exit_code = child.wait()
@@ -770,77 +816,11 @@ def run_session(
                     lock_held_by_us = False
                     return _result("ok", exit_code)
 
-            phase_after_attempt = restart_controller.attempt(
-                machine,
-                emit=_emit,
-                # `child` is intentionally NOT passed here (P-018 Copilot
-                # review finding, PR #331, comment 3778730421): by this
-                # point `child.wait()` immediately above has ALREADY
-                # returned normally, meaning the OS has ALREADY reaped this
-                # PID. `RestartController.attempt()`'s exhaustion/decline
-                # path calls `child.signal(signal_num)` unconditionally
-                # (the PTY backend's own `signal()` has no
-                # already-exited guard, unlike its `close()`), which would
-                # send a raw `os.kill(pid, ...)` to a PID the kernel may
-                # have already reused for an entirely unrelated process.
-                # There is nothing left for `attempt()` to terminate; the
-                # top-level `finally` below still safely closes this same
-                # `child` object via `_close_child_before_lock_release`
-                # (its `close()` correctly no-ops the signal/wait sequence
-                # once `_exit_code` is already recorded, only releasing the
-                # file descriptor).
-                child=None,
-                lock=lock,
-                reason=f"child exited with code {exit_code}",
-                signal_num=signal_num,
-            )
+            with remote_cancel_lock:
+                phase_after_attempt = _restart_child_after_exit(exit_code)
             if phase_after_attempt is Phase.FAILED:
-                # RestartController.attempt() already released the lock and
-                # drove DRAINING -> FAILED (journaled internally). Do not
-                # release the lock again below.
                 lock_held_by_us = False
                 return _result("failed", EXIT_CODE_BY_KIND[ErrorKind.RESTART])
-
-            # Approved restart: RestartController.attempt() drove
-            # RUNNING -> RESTARTING -> LAUNCHING (journaled internally) but
-            # -- since `child=None` was passed above (comment
-            # 3778730421) -- did NOT itself touch the OLD child (already
-            # exited/reaped by `child.wait()` above; nothing left to
-            # signal). This call site now closes the OLD child's PTY
-            # handle directly instead, before the `child` local is
-            # reassigned to the replacement below, so its file descriptor
-            # is still released promptly here rather than only reached via
-            # the top-level `finally` (which would otherwise be the only
-            # remaining reference once `child` is overwritten). Quiesce the
-            # OLD output pump (bounded join -- the old child has already
-            # exited/been closed, so its read() should EOF promptly)
-            # before starting the replacement, then spawn it and repoint
-            # (never duplicate) the single persistent input pump at it
-            # (P-018 Copilot review finding, PR #331, comment 3778121130).
-            if output_pump_thread is not None:
-                output_pump_thread.join(timeout=2.0)
-            try:
-                child.close()
-            except ProcessLookupError:
-                pass  # already exited/reaped -- nothing left to close
-            child = factory(resolve_result.argv)
-            child.spawn()
-            _emit(ChildSpawned(argv=resolve_result.argv, pid=child.pid))
-            if child.supports_output_capture:
-                if active_child_ref is not None:
-                    active_child_ref.set(child)
-                else:
-                    # The very first child didn't support output capture,
-                    # but this replacement does -- start the persistent
-                    # input pump now, for the first time.
-                    active_child_ref = _ActiveChildRef(child)
-                    threading.Thread(
-                        target=_pump_operator_input, args=(active_child_ref,), daemon=True
-                    ).start()
-                output_pump_thread = _start_output_pump(child, _emit, _report_pump_emit_failure)
-            else:
-                output_pump_thread = None
-            _transition(Phase.RUNNING)
 
     except AutoharnessError as exc:
         if machine.phase not in (Phase.EXITED, Phase.FAILED, Phase.REFUSED, Phase.CANCELLED):

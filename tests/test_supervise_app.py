@@ -555,6 +555,74 @@ class RestartTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
             self.assertEqual(old_child.signals_received, [])
             self.assertTrue(old_child.closed)
 
+    def test_remote_cancel_is_serialized_through_restart_replacement(self) -> None:
+        """A cancel racing restart approval must target the replacement child."""
+
+        with tempfile.TemporaryDirectory() as workspace:
+            old_child = FakeChildProcess(argv=(), exit_code=3)
+            cancel_started = threading.Event()
+            cancel_threads: list[threading.Thread] = []
+            remote_instances: list[object] = []
+            test_case = self
+
+            class FakeRemoteControlPlane:
+                def __init__(self, **kwargs) -> None:
+                    self.kwargs = kwargs
+                    remote_instances.append(self)
+
+                def start(self) -> None:
+                    pass
+
+                def stop(self) -> None:
+                    pass
+
+            class RestartApproval(AlwaysApproveApprovalService):
+                def request_approval(self, identifier: str, **kwargs) -> ApprovalResolved:
+                    resolved = super().request_approval(identifier, **kwargs)
+                    if identifier == "session_restart":
+                        def invoke_cancel() -> None:
+                            cancel_started.set()
+                            remote_instances[0].kwargs["on_cancel"]()
+
+                        thread = threading.Thread(target=invoke_cancel)
+                        cancel_threads.append(thread)
+                        thread.start()
+                        test_case.assertTrue(cancel_started.wait(timeout=2.0))
+                    return resolved
+
+            class CancelAwareChild(FakeChildProcess):
+                def wait(self, timeout: Optional[float] = None) -> int:
+                    self.waited = True
+                    while not self.signals_received:
+                        time.sleep(0.001)
+                    return self.exit_code
+
+            cancel_aware_child = CancelAwareChild(argv=(), exit_code=0)
+            children = [old_child, cancel_aware_child]
+
+            def factory(argv):
+                return children.pop(0)
+
+            result = run_session(
+                workspace_root=Path(workspace),
+                argv=[],
+                approval_service=RestartApproval(),
+                max_restarts=1,
+                non_interactive=True,
+                child_process_factory=factory,
+                remote_enabled=True,
+                remote_control_plane_factory=FakeRemoteControlPlane,
+                **_sidecar_kwargs(),
+            )
+
+            for thread in cancel_threads:
+                thread.join(timeout=2.0)
+                self.assertFalse(thread.is_alive())
+            self.assertEqual(result.status, "cancelled")
+            self.assertEqual(old_child.signals_received, [])
+            self.assertTrue(old_child.closed)
+            self.assertTrue(cancel_aware_child.signals_received)
+
     def test_declined_restart_drains_to_failed(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)
