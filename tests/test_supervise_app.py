@@ -255,6 +255,33 @@ class HappyPathTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
             self.assertTrue(remote_instances[0].started)
             self.assertTrue(remote_instances[0].stopped)
 
+    def test_remote_shutdown_failure_does_not_skip_child_cleanup(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            fake_child = FakeChildProcess(argv=(), exit_code=0)
+
+            class FailingRemoteControlPlane:
+                def start(self) -> None:
+                    pass
+
+                def stop(self) -> None:
+                    raise RuntimeError("simulated tunnel teardown failure")
+
+            result = run_session(
+                workspace_root=Path(workspace),
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                child_process_factory=lambda argv: fake_child,
+                remote_enabled=True,
+                remote_control_plane_factory=lambda **_kwargs: FailingRemoteControlPlane(),
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "ok")
+            self.assertTrue(fake_child.closed)
+            self.assertTrue(
+                any("remote control-plane shutdown failed" in warning for warning in result.warnings)
+            )
+
     def test_sidecar_degradation_is_non_fatal_and_session_still_completes(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)

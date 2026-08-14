@@ -532,7 +532,9 @@ def run_session(
             status=status,
             exit_code=exit_code,
             messages=tuple(messages) + tuple(extra_messages),
-            warnings=tuple(warnings),
+            # Cleanup runs after the return expression is evaluated; retain
+            # the shared sequence so teardown warnings remain observable.
+            warnings=warnings,
         )
 
     def _confirm_restart() -> bool:
@@ -848,7 +850,10 @@ def run_session(
         return _result("failed", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN], (str(exc),))
     finally:
         if remote_control is not None:
-            remote_control.stop()
+            try:
+                remote_control.stop()
+            except Exception as exc:  # noqa: BLE001 - cleanup must not mask session teardown
+                warnings.append(f"remote control-plane shutdown failed: {exc}")
         # Idempotent fallback only -- see _close_child_before_lock_release's
         # own docstring (P-018 Copilot review finding, PR #331, comment
         # 3777958619): both failure paths above already close the child
