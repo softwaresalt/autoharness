@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-13T21:04:13.3202071-07:00","actor":"backlogit","item_id":"130-S","event_type":"shipment_created","delta":{"items":["121-F","121.003-T","121.008-T","121.004-T","121.005-T","121.006-T","121.002-T","121.007-T","121.001-T"],"title":"Plan 2 V1 remote control plane — Observe + Steer"}}
+{"timestamp":"2026-08-14T00:56:30.2916584-07:00","actor":"backlogit","item_id":"130-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
