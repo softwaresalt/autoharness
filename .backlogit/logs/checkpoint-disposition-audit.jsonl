@@ -1,0 +1,1 @@
+{"timestamp":"2026-08-13T20:57:29.9456567-07:00","actor":"REDMOND\\dewilliams","item_id":"checkpoint-disposition-audit","event_type":"checkpoint_disposition","delta":{"filename":"checkpoint-20260814-033112.json","operator":"REDMOND\\dewilliams","reason":"malformed checkpoint: missing required fields (status, created_at, updated_at, schema_version)","verb":"quarantine"}}
