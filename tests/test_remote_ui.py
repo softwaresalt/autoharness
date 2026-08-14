@@ -23,6 +23,7 @@ from autoharness.remote.ui import (
     SteerActionSpec,
     build_surface_spec,
     _dispatch_confirmed_and_render,
+    _dispatch_payload_and_render,
     launch_gradio_app,
     render_callback_result,
     validate_gradio_bind,
@@ -121,6 +122,22 @@ class SurfaceSpecClosureTests(unittest.TestCase):
         _dispatch_confirmed_and_render(calls.append, SteerCommand.CANCEL, True)
         self.assertEqual(calls, [SteerCommand.CANCEL])
 
+    def test_payload_dispatch_forwards_json_without_synthesizing_envelope(self) -> None:
+        calls: list[bytes] = []
+        def capture(payload: bytes) -> dict[str, object]:
+            calls.append(payload)
+            return {"request_id": "caller-1"}
+
+        rendered = _dispatch_payload_and_render(capture, {"request_id": "caller-1"})
+        self.assertEqual(calls, [b'{"request_id":"caller-1"}'])
+        self.assertIn('"request_id": "caller-1"', rendered)
+
+    def test_payload_dispatch_rejects_non_json_values(self) -> None:
+        calls: list[bytes] = []
+        rendered = _dispatch_payload_and_render(calls.append, {"bad": object()})
+        self.assertIn('"ok": false', rendered)
+        self.assertIn("protocol_error", rendered)
+
 
 @unittest.skipUnless(_GRADIO_AVAILABLE, "gradio is an optional extra (autoharness[remote])")
 class GradioAdapterTests(unittest.TestCase):
@@ -129,8 +146,8 @@ class GradioAdapterTests(unittest.TestCase):
 
         calls: list[str] = []
         app = build_gradio_app(
-            dispatch_observe=lambda command: calls.append(f"observe:{command}"),
-            dispatch_steer=lambda command: calls.append(f"steer:{command}"),
+            dispatch_observe=lambda payload: calls.append(f"observe:{payload}"),
+            dispatch_steer=lambda payload: calls.append(f"steer:{payload}"),
         )
         self.assertIsNotNone(app)
 

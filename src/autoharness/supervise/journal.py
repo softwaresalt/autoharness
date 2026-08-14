@@ -94,7 +94,7 @@ def read_cursor(path: PathLike) -> int:
                 # ignore it rather than crashing the resume.
                 continue
             seq = record.get("seq") if isinstance(record, Mapping) else None
-            if isinstance(seq, int):
+            if isinstance(seq, int) and not isinstance(seq, bool):
                 last_valid_seq = seq
     return last_valid_seq
 
@@ -273,7 +273,11 @@ class SessionJournal:
                     raise ValueError(
                         f"journal line {line_number} is malformed JSON"
                     ) from exc
-                if not isinstance(record, dict) or not isinstance(record.get("seq"), int):
+                if (
+                    not isinstance(record, dict)
+                    or not isinstance(record.get("seq"), int)
+                    or isinstance(record.get("seq"), bool)
+                ):
                     raise ValueError(
                         f"journal line {line_number} is missing an integer seq"
                     )

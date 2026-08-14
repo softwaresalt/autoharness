@@ -282,6 +282,36 @@ class HappyPathTests(_DeterministicCopilotResolutionMixin, unittest.TestCase):
                 any("remote control-plane shutdown failed" in warning for warning in result.warnings)
             )
 
+    def test_late_remote_cancel_after_natural_exit_does_not_transition_terminal_machine(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            fake_child = FakeChildProcess(argv=(), exit_code=0)
+            remote_instances: list[object] = []
+
+            class FakeRemoteControlPlane:
+                def __init__(self, **kwargs) -> None:
+                    self.kwargs = kwargs
+                    remote_instances.append(self)
+
+                def start(self) -> None:
+                    pass
+
+                def stop(self) -> None:
+                    pass
+
+            result = run_session(
+                workspace_root=Path(workspace),
+                argv=[],
+                approval_service=AlwaysApproveApprovalService(),
+                child_process_factory=lambda argv: fake_child,
+                remote_enabled=True,
+                remote_control_plane_factory=FakeRemoteControlPlane,
+                **_sidecar_kwargs(),
+            )
+
+            self.assertEqual(result.status, "ok")
+            with self.assertRaisesRegex(RuntimeError, "session completed"):
+                remote_instances[0].kwargs["on_cancel"]()
+
     def test_sidecar_degradation_is_non_fatal_and_session_still_completes(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)

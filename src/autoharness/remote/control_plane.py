@@ -2,27 +2,24 @@
 
 The control plane is an adapter around the existing supervisor objects. It
 does not own session state, journal retention, or a second execution loop.
-Gradio callbacks construct authenticated, workspace/session-bound requests and
-delegate them to the Observe and Steer services.
+Gradio callbacks forward caller-supplied, workspace/session-bound request
+envelopes to the Observe and Steer services.
 """
 
 from __future__ import annotations
 
+import json
 import time
-import uuid
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Mapping
 
 from autoharness.remote.binding import (
     WorkspaceSessionBinding,
     generate_binding_secret,
 )
 from autoharness.remote.contracts import (
-    REMOTE_OPERATOR_ROLE,
-    RemoteRequest,
     RemoteResponse,
-    ObserveCommand,
-    SteerCommand,
+    decode_request,
 )
 from autoharness.remote.observe import BoundedOutputTail, ObserveService
 from autoharness.remote.rate_limit import TokenBucketRateLimiter
@@ -140,12 +137,12 @@ class RemoteControlPlane:
 
         return self.binding.issue_token()
 
-    def dispatch_observe(self, command: ObserveCommand) -> RemoteResponse:
-        request = self._request(command.value)
+    def dispatch_observe(self, payload: bytes | str | Mapping[str, object]) -> RemoteResponse:
+        request = decode_request(_encode_request_payload(payload))
         return self.observe.handle(request, self.token, now=time.time())
 
-    def dispatch_steer(self, command: SteerCommand) -> RemoteResponse:
-        request = self._request(command.value)
+    def dispatch_steer(self, payload: bytes | str | Mapping[str, object]) -> RemoteResponse:
+        request = decode_request(_encode_request_payload(payload))
         return self.steer.dispatch(request, self.token, now=time.time())
 
     def start(self) -> None:
@@ -169,15 +166,16 @@ class RemoteControlPlane:
         self.tunnel.teardown()
         self.started = False
 
-    def _request(self, command: str) -> RemoteRequest:
-        return RemoteRequest(
-            command=command,
-            request_id=uuid.uuid4().hex,
-            workspace_id=self.binding.workspace_root,
-            session_id=self.binding.session_id,
-            issued_at=time.time(),
-            role=REMOTE_OPERATOR_ROLE,
-        )
-
-
 __all__ = ["RemoteControlPlane"]
+
+
+def _encode_request_payload(payload: bytes | str | Mapping[str, object]) -> bytes:
+    if isinstance(payload, bytes):
+        return payload
+    if isinstance(payload, str):
+        return payload.encode("utf-8")
+    if isinstance(payload, Mapping):
+        return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    raise TypeError(
+        "remote request payload must be bytes, JSON text, or a JSON object mapping"
+    )

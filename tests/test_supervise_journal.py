@@ -62,6 +62,26 @@ class AppendOnlyAndMonotonicityTests(unittest.TestCase):
 
 
 class CrashMidWriteRecoveryTests(unittest.TestCase):
+    def test_read_cursor_rejects_boolean_sequence_values(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            path = Path(workspace) / "journal.jsonl"
+            path.write_text(
+                '{"kind":"header","seq":true}\n{"kind":"event","seq":false}\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(read_cursor(path), -1)
+
+    def test_read_own_tail_rejects_boolean_sequence_values(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace:
+            journal = SessionJournal(workspace, session_id="s1")
+            journal.session_dir.mkdir(parents=True, exist_ok=True)
+            journal.journal_path.write_text(
+                '{"kind":"header","seq":true}\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "integer seq"):
+                journal.read_own_tail()
+
     def test_read_cursor_tolerates_truncated_final_line(self) -> None:
         with tempfile.TemporaryDirectory() as workspace:
             journal = SessionJournal(workspace, session_id="s1")

@@ -194,7 +194,12 @@ class SteerDispatcher:
                 f"cancel is not legal from phase {self.state_machine.phase.value!r}"
             )
         if self._on_cancel is not None:
-            phase = self._on_cancel()
+            try:
+                phase = self._on_cancel()
+            except IllegalRemoteStateError:
+                raise
+            except RuntimeError as exc:
+                raise IllegalRemoteStateError(str(exc)) from exc
         else:
             self.state_machine.transition(Phase.CANCELLING)
             self._journal.append_event(CancelRequested(reason="remote steer request"))

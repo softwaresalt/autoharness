@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from typing import Callable, Mapping, Protocol
 
 from autoharness.remote.contracts import ObserveCommand, SteerCommand
-from autoharness.remote.errors import RemoteError
+from autoharness.remote.errors import MalformedRequestError, RemoteError
 from autoharness.remote.tunnel import NonLoopbackBindError, validate_loopback_bind
 
 
@@ -125,8 +125,8 @@ def build_surface_spec() -> dict[str, tuple[object, ...]]:
 
 def build_gradio_app(
     *,
-    dispatch_observe: Callable[[ObserveCommand], object],
-    dispatch_steer: Callable[[SteerCommand], object],
+    dispatch_observe: Callable[[bytes], object],
+    dispatch_steer: Callable[[bytes], object],
 ):
     """Wire :data:`OBSERVE_PANELS`/:data:`STEER_ACTIONS` into a gradio app.
 
@@ -147,11 +147,16 @@ def build_gradio_app(
         ) from exc
 
     with gr.Blocks() as app:
+        request_envelope = gr.JSON(
+            label="Authenticated request envelope (JSON)",
+            value=None,
+        )
         for panel in OBSERVE_PANELS:
             button = gr.Button(panel.label)
             output = gr.Textbox(label=panel.label, interactive=False)
             button.click(
-                fn=lambda command=panel.command: _dispatch_and_render(dispatch_observe, command),
+                fn=lambda payload: _dispatch_payload_and_render(dispatch_observe, payload),
+                inputs=request_envelope,
                 outputs=output,
             )
         for action in STEER_ACTIONS:
@@ -163,17 +168,16 @@ def build_gradio_app(
                     value=False,
                 )
                 button.click(
-                    fn=lambda confirmed, command=action.command: _dispatch_confirmed_and_render(
-                        dispatch_steer, command, confirmed
+                    fn=lambda confirmed, payload: _dispatch_confirmed_payload_and_render(
+                        dispatch_steer, payload, confirmed
                     ),
-                    inputs=confirmation,
+                    inputs=[confirmation, request_envelope],
                     outputs=output,
                 )
             else:
                 button.click(
-                    fn=lambda command=action.command: _dispatch_and_render(
-                        dispatch_steer, command
-                    ),
+                    fn=lambda payload: _dispatch_payload_and_render(dispatch_steer, payload),
+                    inputs=request_envelope,
                     outputs=output,
                 )
 
@@ -184,6 +188,15 @@ def _dispatch_and_render(dispatch: Callable[[object], object], command: object) 
     try:
         return render_callback_result(dispatch(command))
     except RemoteError as exc:
+        return render_callback_result(exc)
+
+
+def _dispatch_payload_and_render(
+    dispatch: Callable[[bytes], object], payload: object
+) -> str:
+    try:
+        return _dispatch_and_render(dispatch, _encode_request_payload(payload))
+    except MalformedRequestError as exc:
         return render_callback_result(exc)
 
 
@@ -202,6 +215,31 @@ def _dispatch_confirmed_and_render(
             sort_keys=True,
         )
     return _dispatch_and_render(dispatch, command)
+
+
+def _dispatch_confirmed_payload_and_render(
+    dispatch: Callable[[bytes], object], payload: object, confirmed: object
+) -> str:
+    if confirmed is not True:
+        return _dispatch_confirmed_and_render(dispatch, payload, confirmed)
+    return _dispatch_payload_and_render(dispatch, payload)
+
+
+def _encode_request_payload(payload: object) -> bytes:
+    if isinstance(payload, bytes):
+        return payload
+    if isinstance(payload, str):
+        return payload.encode("utf-8")
+    if isinstance(payload, Mapping):
+        try:
+            return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise MalformedRequestError(
+                "request envelope must contain only JSON-compatible values"
+            ) from exc
+    raise MalformedRequestError(
+        "request envelope must be bytes, JSON text, or a JSON object"
+    )
 
 
 def launch_gradio_app(

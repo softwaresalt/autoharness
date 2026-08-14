@@ -491,6 +491,7 @@ def run_session(
     active_child_ref: Optional[_ActiveChildRef] = None
     remote_control: Any = None
     remote_cancelled = threading.Event()
+    remote_cancel_lock = threading.Lock()
     # Snapshot is taken lazily, immediately before the bootstrap-resolved
     # env is actually applied below, under `_ENVIRON_MUTATION_LOCK` (P-018
     # Copilot review finding, PR #331, comment 3778273440) -- not here at
@@ -559,19 +560,27 @@ def run_session(
 
     def _remote_cancel() -> object:
         nonlocal lock_held_by_us
-        if child is None:
-            raise RuntimeError("remote cancel requested before the child was started")
-        phase = cancel_session(
-            machine,
-            child=child,
-            emit=_emit,
-            lock=lock,
-            reason="remote steer request",
-            signal_num=signal_num,
-        )
-        lock_held_by_us = False
-        remote_cancelled.set()
-        return phase.value
+        with remote_cancel_lock:
+            if child is None:
+                raise RuntimeError("remote cancel requested before the child was started")
+            if machine.phase in (
+                Phase.EXITED,
+                Phase.FAILED,
+                Phase.REFUSED,
+                Phase.CANCELLED,
+            ):
+                raise RuntimeError("remote cancel requested after the session completed")
+            phase = cancel_session(
+                machine,
+                child=child,
+                emit=_emit,
+                lock=lock,
+                reason="remote steer request",
+                signal_num=signal_num,
+            )
+            lock_held_by_us = False
+            remote_cancelled.set()
+            return phase.value
 
     def _remote_tunnel_loss() -> None:
         warnings.append("devtunnel exited; remote control-plane access is unavailable")
@@ -733,26 +742,33 @@ def run_session(
                 # own cancel_session, which drives RUNNING -> CANCELLING ->
                 # DRAINING -> CANCELLED, terminates the child, and releases
                 # the lock exactly once (all internal to that function).
-                cancel_session(
-                    machine,
-                    child=child,
-                    emit=_emit,
-                    lock=lock,
-                    reason="operator cancellation (KeyboardInterrupt)",
-                    signal_num=signal_num,
-                )
-                lock_held_by_us = False
-                return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
+                with remote_cancel_lock:
+                    cancel_session(
+                        machine,
+                        child=child,
+                        emit=_emit,
+                        lock=lock,
+                        reason="operator cancellation (KeyboardInterrupt)",
+                        signal_num=signal_num,
+                    )
+                    lock_held_by_us = False
+                    return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
             except (OSError, RuntimeError):
+                with remote_cancel_lock:
+                    if remote_cancelled.is_set():
+                        return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
+                raise
+            with remote_cancel_lock:
                 if remote_cancelled.is_set():
                     return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
-                raise
-            if remote_cancelled.is_set():
-                return _result("cancelled", EXIT_CODE_BY_KIND[ErrorKind.UNKNOWN])
-            _emit(ChildExited(exit_code=exit_code))
+                _emit(ChildExited(exit_code=exit_code))
 
-            if exit_code == 0 or restart_controller.remaining_budget <= 0:
-                break
+                if exit_code == 0 or restart_controller.remaining_budget <= 0:
+                    _transition(Phase.DRAINING)
+                    _transition(Phase.EXITED)
+                    lock.release()
+                    lock_held_by_us = False
+                    return _result("ok", exit_code)
 
             phase_after_attempt = restart_controller.attempt(
                 machine,
@@ -825,12 +841,6 @@ def run_session(
             else:
                 output_pump_thread = None
             _transition(Phase.RUNNING)
-
-        _transition(Phase.DRAINING)
-        _transition(Phase.EXITED)
-        lock.release()
-        lock_held_by_us = False
-        return _result("ok", exit_code)
 
     except AutoharnessError as exc:
         if machine.phase not in (Phase.EXITED, Phase.FAILED, Phase.REFUSED, Phase.CANCELLED):

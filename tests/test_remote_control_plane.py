@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from autoharness.remote.control_plane import RemoteControlPlane
-from autoharness.remote.contracts import ObserveCommand, SteerCommand
+from autoharness.remote.contracts import MAX_REQUEST_BYTES
+from autoharness.remote.errors import RequestTooLargeError
 from autoharness.remote.tunnel import FakeTunnelProcess, TunnelLifecycle
 from autoharness.supervise.approvals import ConsoleApprovalService
 from autoharness.supervise.events import EventBus
@@ -63,14 +65,39 @@ class RemoteControlPlaneTests(unittest.TestCase):
         "autoharness.remote.control_plane.resolve_devtunnel_executable",
         return_value="devtunnel",
     )
-    def test_callbacks_construct_bound_authenticated_requests(self, _resolve: mock.Mock) -> None:
+    def test_callbacks_forward_bound_authenticated_request_envelopes(
+        self, _resolve: mock.Mock
+    ) -> None:
         plane = self._create()
-        response = plane.dispatch_observe(ObserveCommand.STATUS)
+        payload = {
+            "command": "status",
+            "request_id": "caller-request-1",
+            "workspace_id": str(Path("/workspace")),
+            "session_id": "session-1",
+            "issued_at": time.time(),
+        }
+        response = plane.dispatch_observe(payload)
         self.assertTrue(response.ok)
+        self.assertEqual(response.request_id, "caller-request-1")
         self.assertEqual(response.payload["phase"], Phase.RUNNING.value)
-        steer_response = plane.dispatch_steer(SteerCommand.PAUSE)
+        payload["command"] = "pause"
+        payload["request_id"] = "caller-request-2"
+        steer_response = plane.dispatch_steer(payload)
         self.assertTrue(steer_response.ok)
+        self.assertEqual(steer_response.request_id, "caller-request-2")
         self.assertEqual(steer_response.payload["acknowledgement"], "paused-by-child")
+
+    @mock.patch(
+        "autoharness.remote.control_plane.resolve_devtunnel_executable",
+        return_value="devtunnel",
+    )
+    def test_dispatch_rejects_oversized_inbound_payload_before_service(
+        self, _resolve: mock.Mock
+    ) -> None:
+        plane = self._create()
+        with self.assertRaises(RequestTooLargeError) as context:
+            plane.dispatch_observe(b"{" + b'"x":"' + b"a" * MAX_REQUEST_BYTES + b'"}')
+        self.assertEqual(context.exception.exit_code, 21)
 
     @mock.patch(
         "autoharness.remote.control_plane.resolve_devtunnel_executable",
