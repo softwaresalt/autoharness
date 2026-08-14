@@ -2,6 +2,6 @@
   "filename": "checkpoint-20260814-033112.json",
   "disposition": "quarantined",
   "reason": "malformed checkpoint: missing required fields (status, created_at, updated_at, schema_version)",
-  "operator": "REDMOND\\dewilliams",
+  "operator": "operator",
   "disposition_at": "2026-08-14T03:57:29.9467593Z"
 }
