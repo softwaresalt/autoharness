@@ -17,8 +17,26 @@ It was generated from a real `git grep -n "\.backlogit" -- .github templates sch
 - **literal-required** — prose, examples, docstrings, help text, comments, or static config/examples that mention `.backlogit` but are not themselves a functional storage-root read.
 
 - **Total `.backlogit` references inventoried:** 465
-- **Resolver-routable references:** 1
-- **Literal-required references:** 464
+- **Resolver-routable references:** 4
+- **Literal-required references:** 461
+
+**Post-review correction (PR #344 Copilot review, thread PRRT_kwDORzpWpM6ZiZHC)**: the
+`.github/skills/workspace-discovery/SKILL.md` backlog-tool detection table (line 369) and
+its recorded `backlog_tool.directory` field (line 397) were originally misclassified as
+`literal-required` prose. They are agent-executed functional detection logic -- the same
+category of live routing the resolver-routable contract describes, expressed as
+agent-instruction control flow rather than Python -- and workspace discovery originally
+recognized only `.backlogit/config.yaml` as backlogit while classifying `.backlog/` as
+manual/custom, which would have silently dropped backlogit shipment features on an
+existing backlogit 1.9+ default-root workspace during installation. Fixed in
+`.github/skills/workspace-discovery/SKILL.md` (added an explicit `.backlog/config.yaml`
+detection row and a both-roots-present ambiguity row, both reclassified below as
+`resolver-routable`). `templates/backlog/registries/backlogit.registry.yaml` (line 4) is
+reclassified for the same reason: its static `directory: ".backlogit"` default is copied
+verbatim into `.autoharness/backlog-registry.yaml` by `install-harness` Step 2.3, which
+would have silently pointed a `.backlog`-root install's registry at the wrong directory;
+`install-harness` Step 2.3 now overrides the copied registry's `directory` field with the
+workspace's actually-detected `backlog_tool.directory` before install.
 
 ## Critical resolver context
 
@@ -51,8 +69,8 @@ It was generated from a real `git grep -n "\.backlogit" -- .github templates sch
 | `.github/skills/install-harness/SKILL.md` | 1701 | `literal-required` | `reader requires \`.backlogit\` and would otherwise permanently BLOCK once` | literal-required installed/template harness prose or variable table reference |
 | `.github/skills/tune-harness/SKILL.md` | 338 | `literal-required` | `6. Map the directory structure if different (e.g., \`.backlogit/\` → \`backlog/\`)` | literal-required installed/template harness prose or variable table reference |
 | `.github/skills/workspace-discovery/SKILL.md` | 125 | `literal-required` | `directory such as \`.backlogit/**\` and harness metadata \`.autoharness/**\`).` | literal-required installed/template harness prose or variable table reference |
-| `.github/skills/workspace-discovery/SKILL.md` | 369 | `literal-required` | `\| \`.backlogit/\` directory with \`config.yaml\` \| backlogit \| \`.backlogit/\` \|` | literal-required installed/template harness prose or variable table reference |
-| `.github/skills/workspace-discovery/SKILL.md` | 397 | `literal-required` | `directory: ".backlogit"\|"backlog"\|".backlog"\|null` | literal-required installed/template harness prose or variable table reference |
+| `.github/skills/workspace-discovery/SKILL.md` | 369 | `resolver-routable` | `\| \`.backlogit/\` directory with \`config.yaml\` \| backlogit (legacy root) \| \`.backlogit/\` \|` | agent-executed backlog-tool detection table row; drives `backlog_tool.directory` classification (post-review correction, PR #344) |
+| `.github/skills/workspace-discovery/SKILL.md` | 397 | `resolver-routable` | `directory: ".backlogit"\|"backlog"\|".backlog"\|null` | recorded detection output consumed by `install-harness` Step 2.3 to override the copied registry `directory` field (post-review correction, PR #344) |
 | `.github/workflows/ci.yml` | 71 | `literal-required` | `- '!.backlogit/**'` | literal-required workflow prose or path-filter example referencing backlog state |
 | `.github/workflows/ci.yml` | 107 | `literal-required` | `# leave exactly the commits most likely to touch \`.backlogit/\` state` | literal-required workflow prose or path-filter example referencing backlog state |
 
@@ -60,7 +78,7 @@ It was generated from a real `git grep -n "\.backlogit" -- .github templates sch
 
 | File | Line | Classification | Context | Note |
 |---|---:|---|---|---|
-| `templates/backlog/registries/backlogit.registry.yaml` | 4 | `literal-required` | `directory: ".backlogit"` | literal-required template registry default for generated backlogit installs |
+| `templates/backlog/registries/backlogit.registry.yaml` | 4 | `resolver-routable` | `directory: ".backlogit"` | static template default overridden at install time by `install-harness` Step 2.3 with the detected `backlog_tool.directory` (post-review correction, PR #344) |
 | `templates/ci/README.md` | 51 | `literal-required` | `\| \`{{CI_DOCS_ONLY_PATHS}}\` \| \`ci.docs_only_paths\` \| Rendered as indented denylist negations, e.g. \`- '!docs/**'\` / \`- '!.backlogit/**'\`. Prefer positively-identified docs/state **directories**. Avoid an extension-wide glob like \`- '!**/*.md'\` when Markdown is executable product (agent/skill/instruction files), or those changes skip the gate while the aggregation check still passes. \|` | literal-required template prose/example/reference |
 | `templates/ci/README.md` | 73 | `literal-required` | `\`.backlogit/\`; installing this job for a backlog-md/manual/non-shipment-capable` | literal-required template prose/example/reference |
 | `templates/ci/README.md` | 86 | `literal-required` | `\`.backlogit/\` state unchecked.` | literal-required template prose/example/reference |

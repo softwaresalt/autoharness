@@ -1098,10 +1098,21 @@ agent definitions. Agents will use file-based backlog scanning only.
 Otherwise:
 
 1. **Copy the matching registry**: Load the pre-built registry from `{autoharness_home}/templates/backlog/registries/{tool_name}.registry.yaml`
-2. **Install as `.autoharness/backlog-registry.yaml`** in the target workspace
-3. **Resolve backlog template variables** from the registry into all templates
-4. **Add the backlog MCP server** to the tools list in all agent definitions that interact with the backlog
-5. **Preserve the registry launcher runtime contract**: native-binary registries
+2. **Override `directory` with the detected root before install**: the copied
+   registry's `directory` field (for example `.backlogit` in
+   `backlogit.registry.yaml`) is a static template default, not the
+   authoritative value for this workspace. Overwrite it with
+   `backlog_tool.directory` as detected in Step 1.6 of `workspace-discovery`
+   (`.backlog` for a backlogit 1.9.0+ default-root workspace, `.backlogit` for
+   a legacy-root workspace) before writing the installed file. Installing the
+   template's static default verbatim on a `.backlog`-root workspace would
+   silently point the installed registry (and everything that resolves
+   `registry.get("directory")` ahead of the harness-config fallback) at the
+   wrong directory.
+3. **Install as `.autoharness/backlog-registry.yaml`** in the target workspace
+4. **Resolve backlog template variables** from the registry into all templates
+5. **Add the backlog MCP server** to the tools list in all agent definitions that interact with the backlog
+6. **Preserve the registry launcher runtime contract**: native-binary registries
    (for example backlogit) use their binary directly; JavaScript-engine
    registries (for example backlog-md) use `bunx` and therefore require Bun and
    `bunx` on `PATH`. Use `bunx --bun` only when the specific package has been

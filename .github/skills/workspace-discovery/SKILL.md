@@ -366,7 +366,9 @@ Detect installed backlog management tools by scanning for their workspace marker
 
 | Signal | Tool | Directory |
 |--------|------|-----------|
-| `.backlogit/` directory with `config.yaml` | backlogit | `.backlogit/` |
+| `.backlogit/` directory with `config.yaml` | backlogit (legacy root) | `.backlogit/` |
+| `.backlog/` directory with `config.yaml` | backlogit (default root, backlogit 1.9.0+) | `.backlog/` |
+| Both `.backlog/config.yaml` and `.backlogit/config.yaml` present | backlogit -- ambiguous root (fail closed, do not guess) | report both; do not pick one |
 | `backlog/` directory with `config.yml` | backlog-md | `backlog/` |
 | `backlog/` directory with `config.yaml` | backlog-md (alt) | `backlog/` |
 | `backlog.config.yml` at root | backlog-md (project-root config) | `backlog/` |
