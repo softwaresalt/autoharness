@@ -96,6 +96,20 @@ class CiTopologyCheckEntrypointStructureTests(unittest.TestCase):
         text = _read()
         self.assertIn("PIPELINE_TOPOLOGY_GATE_REQUIRED", text)
 
+    def test_resolves_storage_root_with_shared_precedence(self) -> None:
+        text = _read()
+        self.assertIn("BACKLOGIT_WORKSPACE_DIR", text)
+        self.assertIn("[ -d .backlog ]", text)
+        self.assertIn("[ -d .backlogit ]", text)
+        self.assertIn("resolved backlog root", text)
+
+    def test_fails_closed_on_invalid_override_and_dual_root_ambiguity(self) -> None:
+        text = _read()
+        self.assertIn("BACKLOGIT_WORKSPACE_DIR is set but empty", text)
+        self.assertIn("points to a missing directory", text)
+        self.assertIn("both .backlog and .backlogit are present", text)
+        self.assertIn("resolve the ambiguity", text)
+
     def test_single_pass_no_retry_loop(self) -> None:
         text = _read().lower()
         self.assertNotIn("while true", text)

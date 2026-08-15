@@ -13,9 +13,11 @@
 # NON-SHIPMENT-SCOPED INVOCATION: no human-supplied --shipment is passed, and
 # no --shipment is resolved from CI job inputs. The gate deterministically
 # resolves its own target the SAME way the local ambient hooks do: (1) the
-# currently-claimed active shipment recorded in the SYNCED `.backlogit/`
-# state, or (2) failing that, the branch under validation. The phase is
-# always `ambient`. Per the phase semantics matrix
+# currently-claimed active shipment recorded in the SYNCED resolved backlog
+# root (`.backlog/` for new installs, `.backlogit/` for legacy workspaces, or
+# `BACKLOGIT_WORKSPACE_DIR` when explicitly overridden), or (2) failing that,
+# the branch under validation. The phase is always `ambient`. Per the phase
+# semantics matrix
 # (docs/pipeline-topology-gate.md): zero active shipments / no resolvable
 # target PASSES (ordinary CI stays non-blocking for commits with no claimed
 # shipment); a single active shipment matching the resolved target PASSES; a
@@ -65,7 +67,7 @@
 
 set -uo pipefail
 
-# Run from repo root so the repo-root-relative `.backlogit/` read is valid.
+# Run from repo root so repo-root-relative backlog-root resolution is valid.
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 if ! command -v autoharness >/dev/null 2>&1; then
@@ -73,6 +75,29 @@ if ! command -v autoharness >/dev/null 2>&1; then
   exit 1
 fi
 
+if [ "${BACKLOGIT_WORKSPACE_DIR+x}" = "x" ]; then
+  if [ -z "$BACKLOGIT_WORKSPACE_DIR" ]; then
+    echo "::error::[CI Topology Check] BACKLOGIT_WORKSPACE_DIR is set but empty." >&2
+    exit 1
+  elif [ ! -d "$BACKLOGIT_WORKSPACE_DIR" ]; then
+    echo "::error::[CI Topology Check] BACKLOGIT_WORKSPACE_DIR points to a missing directory: $BACKLOGIT_WORKSPACE_DIR" >&2
+    exit 1
+  fi
+  backlog_dir="$BACKLOGIT_WORKSPACE_DIR"
+elif [ -d .backlog ] && [ -d .backlogit ]; then
+  echo "::error::[CI Topology Check] both .backlog and .backlogit are present; resolve the ambiguity before running the topology gate." >&2
+  exit 1
+elif [ -d .backlog ]; then
+  backlog_dir=".backlog"
+  export BACKLOGIT_WORKSPACE_DIR="$backlog_dir"
+elif [ -d .backlogit ]; then
+  backlog_dir=".backlogit"
+  export BACKLOGIT_WORKSPACE_DIR="$backlog_dir"
+else
+  backlog_dir="(unavailable)"
+fi
+
+echo "[CI Topology Check] resolved backlog root: ${backlog_dir}"
 echo "[CI Topology Check] autoharness gate pipeline-topology --mode ci --phase ambient --json"
 autoharness gate pipeline-topology --mode ci --phase ambient --json
 exit_code=$?
