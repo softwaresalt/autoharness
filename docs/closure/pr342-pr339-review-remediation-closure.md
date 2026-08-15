@@ -10,7 +10,7 @@ merged_at: "2026-08-15T16:43:19Z"
 reviewed_head: 500bf1308848536c397137093884fd083a48facb
 merge_strategy: merge-commit
 admin_fallback_used: false
-closure_status: READY_WITH_VIOLATION
+closure_status: READY
 p010_violation: true
 p010_violation_actor: stage
 p010_violation_ops: [pr_merge_342, pr_create_push_343]
@@ -196,6 +196,7 @@ landed and the skill is non-destructive.
 | Stage's sanctioned alternative | Git row: "Commit backlog/planning artifacts on default or admin branch" — i.e. publish closure/planning artifacts by direct commit to `main`, not via a Stage-created and Stage-merged PR |
 | Reversibility | **Not reversible.** The #342 merge landed at `fd2e5e3d` and is an ancestor of `origin/main`. Reverting would rewrite or contradict shipped history for a change whose *content* was fully reviewed, gated, and correct. |
 | P-005 telemetry sink | **Unavailable — attempted.** `autoharness telemetry record` returned `enabled: false`, `sqlite_written: false`, `jsonl_written: false`, `idempotency_outcome: "disabled"` (structured no-op; telemetry is disabled in this workspace). `backlogit`'s `log_telemetry` operation is MCP-only in `.autoharness/backlog-registry.yaml` with no `cli_command` fallback. **This artifact and `docs/memory/2026-08-15-stage-pr342-review-remediation-closure.md` are therefore the durable P-005 record.** |
+| Releasability field | `closure_status: READY` — the canonical closure contract allows only `READY`, `READY_WITH_CONDITIONS`, or `BLOCKED` (`templates/skills/operational-closure/SKILL.md.tmpl`), and `_closure_artifact_complete` (`src/autoharness/gates/topology.py:299-305`) fails closed on any other value. The P-010 crossing is a **process/actor** defect, not a releasability condition, and is carried by the dedicated `p010_*` frontmatter fields plus this section. There are no blocking follow-ups, so `READY` is correct. |
 | Disposition | Recorded and escalated to the operator. The merge's technical evidence (gates, CI, thread resolution, parents, ancestry) is unaffected and remains valid; only the **actor** was wrong. |
 
 The content of PR #342 was correctly reviewed and correctly gated. This record
