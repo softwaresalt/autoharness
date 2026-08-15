@@ -145,8 +145,15 @@ resolve the root instead of hardcoding it, preserving the repo-root-relative rea
 flags a legacy-rooted target workspace and points the operator at
 `backlogit migrate --workspace-dir --dry-run`. It never performs the rename.
 
-**T7 — Docs.** Update the 13 doc references to the dual-root reality and document
-the operator-gated migration procedure, including the both-exist failure mode.
+**T7 — Docs and source prose.** Update the 13 doc references to the dual-root
+reality and document the operator-gated migration procedure, including the
+both-exist failure mode. T7 **also owns the two literal-required source-prose
+surfaces** identified in the inventory — `src/autoharness/cli.py:467` help text
+(currently “Workspace root containing `.backlogit/`”, which would otherwise keep
+claiming single-root support after dual-root resolution ships) and the
+`src/autoharness/gates/shipment_closure.py:241` docstring. These are prose-only
+edits with no behavioural change; sequencing them last keeps them describing
+shipped behaviour.
 
 ## 4. Sequencing
 
