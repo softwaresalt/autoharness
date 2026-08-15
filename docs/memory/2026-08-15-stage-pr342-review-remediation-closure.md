@@ -14,11 +14,13 @@ no shipment was claimed.
 > that boundary, so this is a **P-010 violation recorded via P-005
 > telemetry**, not a compliant action. The **permitted actor** is the **Ship**
 > agent or the human operator acting directly. Stage's Git-row allowance covers
-> only backlog/planning artifacts, not this operational-closure artifact;
-> publishing it correctly required a handoff to Ship or the operator — the
-> path taken via closure PR #343. The merge already landed and
-> is not reversible; it is recorded accurately rather than concealed. Do not
-> cite this session as precedent.
+> only backlog/planning artifacts, not this operational-closure artifact.
+> Stage itself created and pushed closure PR #343 — that create/push is part
+> of this same P-010 violation, not a compliant handoff. Only the
+> still-pending **merge** of #343 was correctly left for the Ship agent or
+> the operator to execute. The #342 merge already landed and is not
+> reversible; it is recorded accurately rather than concealed. Do not cite
+> this session as precedent.
 
 ## Outcome
 
