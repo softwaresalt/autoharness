@@ -581,8 +581,21 @@ $noKid = Test-CascadeEligible @($s129 | Where-Object { $_ -ne '120.004-T' })
 Assert (-not $noKid.Ok) "NEGATIVE CONTROL: dropping a child makes 120-F partially covered -> REJECTED ($($noKid.Reason))"
 $foreignM = Test-CascadeEligible @($s129 + '119.001-T')
 Assert (-not $foreignM.Ok) "NEGATIVE CONTROL: a task belonging to no member feature -> REJECTED ($($foreignM.Reason))"
-$nonRoot = Test-CascadeEligible @('118.003-T')
-Assert (-not $nonRoot.Ok) "NEGATIVE CONTROL: a manifest with no feature member -> REJECTED ($($nonRoot.Reason))"
+$noFeatureMember = Test-CascadeEligible @('118.003-T')
+Assert (-not $noFeatureMember.Ok) "NEGATIVE CONTROL: a manifest with no feature member -> REJECTED ($($noFeatureMember.Reason))"
+# 127.002-T (stash A5628E7E): the case above only proves "manifest has no
+# feature member at all" -- it never exercises the NON-ROOT-FEATURE rejection
+# branch (the `$art.parent_id` check inside Test-CascadeEligible), because a
+# bare task ID never reaches that branch. This control is PURELY ADDITIVE per
+# the accepted plan ruling: it adds a genuine non-root-feature case without
+# modifying, reordering, or weakening any existing assertion. '026.001-F' is a
+# real, archived, live-readable feature whose parent_id is '026-F', so a
+# manifest containing it reaches the feature loop, finds a non-null
+# parent_id, and is rejected on THAT branch specifically -- not on "no
+# feature member".
+$nonRootFeature = Test-CascadeEligible @('026.001-F')
+Assert (-not $nonRootFeature.Ok) "NEGATIVE CONTROL: a manifest with a non-root feature member -> REJECTED ($($nonRootFeature.Reason))"
+Assert ($nonRootFeature.Reason -like '*is not a ROOT*') "NEGATIVE CONTROL: the non-root-feature rejection is via the ROOT check, not the no-feature-member check (actual reason: $($nonRootFeature.Reason))"
 
 # ---------------------------------------------------------------------------
 # V14 (F32/F33): approvals must be ON the runtime chain, not merely defined.
