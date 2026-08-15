@@ -54,6 +54,48 @@ class StartupScriptContractTests(unittest.TestCase):
                 self.assertEqual(proposal_data["severity"], "degrading")
                 self.assertFalse(proposal_data["manual_review"])
 
+    def test_disabled_current_marker_is_not_classified_as_current(self) -> None:
+        """Regression: a commented-out (disabled) copy of the current delegation
+        marker must not be treated as an active delegation line -- a raw substring
+        search previously misclassified such a script as ``current`` even though it
+        no longer actually delegates to ``autoharness run``."""
+        for shell in ("ps1", "sh"):
+            with self.subTest(shell=shell):
+                marker = STARTUP_SCRIPT_CONTRACTS[shell]["current_marker"]
+                content = f"# disabled: {marker}\n"
+                classification = classify_startup_script(shell, content)
+
+                self.assertNotEqual(classification["status"], "current")
+
+    def test_known_legacy_with_custom_tail_carries_custom_sections_forward(self) -> None:
+        """Regression: a legacy script may still carry an operator-edited custom
+        section. The classifier must extract and surface it (not silently drop it)
+        so an accepted refresh reattaches it instead of overwriting it."""
+        for shell in ("ps1", "sh"):
+            with self.subTest(shell=shell):
+                legacy_body = "\n".join(STARTUP_SCRIPT_CONTRACTS[shell]["legacy_markers"])
+                content = (
+                    legacy_body
+                    + "\n# ── Custom ──────────────────────────────────────────────────────────\n"
+                    + "# operator-specific legacy custom command\n"
+                )
+                classification = classify_startup_script(shell, content)
+                proposal = plan_startup_script_migration(
+                    shell,
+                    self._relative_path(shell),
+                    classification,
+                )
+                proposal_data = proposal or {}
+
+                self.assertEqual(classification["status"], "known-legacy")
+                self.assertIn("operator-specific legacy custom command", classification["custom_sections"])
+                self.assertIsNotNone(proposal)
+                self.assertEqual(
+                    proposal_data["custom_sections"],
+                    classification["custom_sections"],
+                )
+                self.assertIn("reattach", proposal_data["action"])
+
     def test_customized_classification_preserves_custom_tail(self) -> None:
         for shell in ("ps1", "sh"):
             with self.subTest(shell=shell):

@@ -136,7 +136,7 @@ def classify_startup_script(
         return classification
 
     current_marker = contract["current_marker"]
-    current_marker_present = current_marker in content
+    current_marker_present = _has_active_marker(content, current_marker)
     legacy_hits = [marker for marker in contract["legacy_markers"] if marker in content]
 
     if current_marker_present and not legacy_hits:
@@ -162,6 +162,14 @@ def classify_startup_script(
         )
         evidence.append("Current thin-shim delegation marker was not found.")
         classification["status"] = "known-legacy"
+        _core, tail = _find_custom_tail(content, contract["custom_section_markers"])
+        if tail.strip():
+            evidence.append(
+                "Detected a preserved custom-section tail in the legacy script; it "
+                "must be extracted and reattached (not discarded) when this script "
+                "is refreshed to the current contract."
+            )
+            classification["custom_sections"] = tail
         classification["evidence"] = evidence
         return classification
 
@@ -242,9 +250,32 @@ def plan_startup_script_migration(
         "manual_review": status == "ambiguous",
         "evidence": list(classification.get("evidence") or []),
     }
-    if status == "customized" and classification.get("custom_sections"):
+    if classification.get("custom_sections"):
         proposal["custom_sections"] = classification["custom_sections"]
+        if status == "known-legacy":
+            proposal["action"] = (
+                "Back up the installed script under the target workspace's dated "
+                "autoharness backup area before refresh, refresh the core "
+                "delegation block from the current template, deterministically "
+                "reattach the preserved supported custom section(s) recovered "
+                "from this legacy script, and update manifest contract/checksum "
+                "metadata only after the accepted refresh lands."
+            )
     return proposal
+
+
+def _has_active_marker(content: str, marker: str) -> bool:
+    """True if `marker` appears on at least one non-commented (active) line.
+
+    A raw substring search would also match a disabled/commented-out copy of the
+    marker text (e.g. ``# exec autoharness run --workspace "$script_dir" -- "$@"``),
+    misclassifying a script that no longer delegates as ``current``. Only a line
+    whose stripped text does not begin with a comment marker counts as active.
+    """
+    for line in content.splitlines():
+        if marker in line and not line.strip().startswith("#"):
+            return True
+    return False
 
 
 def _find_custom_tail(content: str, patterns: tuple[re.Pattern[str], ...]) -> tuple[str, str]:
