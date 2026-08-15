@@ -140,7 +140,20 @@ Options:
   --pty                Spawn the child under a pseudo-terminal (falls back
                         to inherited stdio on any PTY failure).
   --no-pty             Never attempt a PTY; always use inherited stdio.
-  --session-id ID      Explicit session id (default: generated).
+  --session-id ID      Explicit session id (default: a generated uuid4 hex).
+                       This id is a LABEL recorded in the session record for
+                       identification only -- it need not be unique per
+                       workspace, and supplying one does not itself grant
+                       exclusivity. Exclusivity is enforced separately by a
+                       per-workspace singleton guard lock (at most one
+                       active supervised session per workspace at a time,
+                       regardless of the supplied or generated id). Starting
+                       a session while another is already live in the same
+                       workspace is refused with SessionLockRefused
+                       (fail closed) -- this collision is detected by live
+                       guard-lock contention, not by comparing session id
+                       values, so it is refused even if the new --session-id
+                       differs from the live session's id.
   --workspace, -w PATH Workspace root for bootstrap/lock/journal state.
                        Default: the current working directory. The
                        start.ps1/start.sh compatibility shims pass this

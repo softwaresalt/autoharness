@@ -62,6 +62,28 @@ class RunHelpTests(unittest.TestCase):
         out, _, _ = _run("--help")
         self.assertIn("autoharness run", out)
 
+    def test_session_id_help_documents_uniqueness_and_collision(self) -> None:
+        """127.001-T (stash 024FDA20): the CLI contract must answer the two
+        questions actually raised against the pre-existing
+        ``--session-id ID  Explicit session id (default: generated).`` text --
+        must the id be unique per workspace, and what happens on collision
+        with a live session -- not just operator-supplied-vs-generated. This
+        DOCUMENTS the existing ``SessionLockRefused`` guard-lock behavior in
+        ``autoharness.supervise.locking``; it must not describe any new
+        behavior."""
+
+        out, _, code = _run("run", "--help")
+        self.assertEqual(code, 0)
+        # Uniqueness: the guard lock is a per-workspace singleton -- exactly
+        # one active session regardless of the supplied id -- not a
+        # per-session-id uniqueness constraint. The contract must say so.
+        self.assertIn("need not be unique", out)
+        # Collision: starting a session while another is live in the same
+        # workspace is refused (fail closed), independent of whether the
+        # supplied id matches the live session's id.
+        self.assertIn("refused", out)
+        self.assertIn("SessionLockRefused", out)
+
 
 class RunHelpTokenAfterSeparatorForwardingTests(unittest.TestCase):
     """Regression guard (129-S review gate P1 finding): a forwarded child
