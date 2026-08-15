@@ -143,7 +143,7 @@ def classify_startup_script(
         _core, tail = _find_custom_tail(content, contract["custom_section_markers"])
         evidence.append(f"Matched current delegation marker: {current_marker}")
         if tail:
-            if tail == contract["default_custom_tail"]:
+            if tail.rstrip() == contract["default_custom_tail"].rstrip():
                 evidence.append("Supported custom-section scaffold matches the current default tail.")
                 classification["status"] = "current"
             else:

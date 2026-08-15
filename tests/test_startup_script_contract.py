@@ -109,6 +109,21 @@ class StartupScriptContractTests(unittest.TestCase):
                 self.assertIsNotNone(proposal)
                 self.assertTrue(proposal_data["manual_review"])
 
+    def test_current_templates_with_trailing_whitespace_still_classify_as_current(self) -> None:
+        """Regression: a trailing-newline/whitespace-only difference at EOF (e.g. an
+        editor's insert-final-newline setting) must not be misclassified as
+        ``customized`` -- that would violate the documented idempotence guarantee and
+        generate spurious migration proposals for realistic, untouched workspaces."""
+        for shell in ("ps1", "sh"):
+            with self.subTest(shell=shell):
+                content = self._read_template(shell) + "\n\n"
+                classification = classify_startup_script(shell, content)
+
+                self.assertEqual(classification["status"], "current")
+                self.assertNotIn("custom_sections", classification)
+                self.assertIsNone(
+                    plan_startup_script_migration(shell, self._relative_path(shell), classification)
+                )
     def test_current_classification_is_idempotent(self) -> None:
         for shell in ("ps1", "sh"):
             with self.subTest(shell=shell):
