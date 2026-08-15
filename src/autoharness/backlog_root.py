@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 import os
 from pathlib import Path
+import stat
 
 BACKLOG_ROOT_OVERRIDE_ENV = "BACKLOGIT_WORKSPACE_DIR"
 
@@ -72,14 +73,34 @@ def _validate_override_name(override: str) -> str:
     raise BacklogUnavailableError(Path(override), _must_be_one_of_message())
 
 
+def _is_reparse_point(candidate_path: Path) -> bool:
+    """Detect a Windows reparse point (e.g. a directory junction) that
+    ``Path.is_symlink()`` alone would miss (PR #344 Copilot review round 3,
+    thread PRRT_kwDORzpWpM6ZipoH): on Windows, directory junctions are
+    reparse points but are NOT symbolic links, so ``Path.is_symlink()``
+    returns ``False`` for them while ``Path.is_dir()`` still follows them --
+    letting a junction silently redirect the backlog root outside the
+    workspace. Inspects ``os.lstat(...).st_file_attributes`` (populated on
+    Windows since Python 3.5; the attribute is simply absent/``None`` on
+    POSIX, where junctions do not exist and ``Path.is_symlink()`` already
+    covers real symlinks)."""
+    st_file_attributes = getattr(os.lstat(candidate_path), "st_file_attributes", None)
+    if st_file_attributes is None:
+        return False
+    return bool(st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
 def _reject_symlink(candidate_path: Path) -> None:
     """Reject a resolved backlog directory that is a symlink or reparse
-    point (PR #344 Copilot review, thread PRRT_kwDORzpWpM6ZihN5): upstream's
-    ``probeWorkspaceCandidate`` lstats the candidate and refuses to treat a
-    symlink/reparse point as a valid workspace storage root, since
-    ``Path.is_dir()`` alone follows symlinks and would let an unrelated or
-    escaping directory be selected."""
-    if candidate_path.is_symlink():
+    point (PR #344 Copilot review, threads PRRT_kwDORzpWpM6ZihN5 and
+    PRRT_kwDORzpWpM6ZipoH): upstream's ``probeWorkspaceCandidate`` lstats the
+    candidate and refuses to treat a symlink/reparse point as a valid
+    workspace storage root, since ``Path.is_dir()`` alone follows symlinks
+    (and, on Windows, directory junctions) and would let an unrelated or
+    escaping directory be selected. ``Path.is_symlink()`` alone does not
+    reject Windows junctions, so the reparse-point attribute check above is
+    required in addition to it."""
+    if candidate_path.is_symlink() or _is_reparse_point(candidate_path):
         raise BacklogUnavailableError(
             candidate_path, "backlog directory is a symlink or reparse point"
         )

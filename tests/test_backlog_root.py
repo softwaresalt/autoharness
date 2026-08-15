@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -199,6 +200,54 @@ class CandidateSymlinkRejectionTests(unittest.TestCase):
             real_target.mkdir()
             link = workspace / ".backlogit"
             self._skip_if_symlink_unsupported(workspace, real_target, link)
+
+            with self.assertRaises(BacklogUnavailableError) as exc:
+                resolve_backlog_root(workspace, env={"BACKLOGIT_WORKSPACE_DIR": ".backlogit"})
+
+        self.assertIn("symlink", exc.exception.reason)
+
+
+class CandidateJunctionRejectionTests(unittest.TestCase):
+    """PR #344 Copilot review round 3, thread PRRT_kwDORzpWpM6ZipoH: on
+    Windows, directory junctions are reparse points but are NOT symbolic
+    links, so ``Path.is_symlink()`` alone does not catch them and
+    ``Path.is_dir()`` still follows them -- a junction could otherwise
+    silently redirect the resolved backlog root outside the workspace."""
+
+    def _make_junction(self, link: Path, target: Path) -> None:
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            self.skipTest(
+                f"directory junction creation unsupported in this environment: {result.stderr.strip()}"
+            )
+
+    @unittest.skipUnless(sys.platform == "win32", "directory junctions are a Windows-only filesystem feature")
+    def test_junction_candidate_is_rejected_on_auto_detect(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            real_target = workspace / "elsewhere"
+            real_target.mkdir()
+            link = workspace / ".backlog"
+            self._make_junction(link, real_target)
+
+            with self.assertRaises(BacklogUnavailableError) as exc:
+                resolve_backlog_root(workspace, env={})
+
+        self.assertIn("symlink", exc.exception.reason)
+
+    @unittest.skipUnless(sys.platform == "win32", "directory junctions are a Windows-only filesystem feature")
+    def test_junction_override_target_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            real_target = workspace / "elsewhere"
+            real_target.mkdir()
+            link = workspace / ".backlogit"
+            self._make_junction(link, real_target)
 
             with self.assertRaises(BacklogUnavailableError) as exc:
                 resolve_backlog_root(workspace, env={"BACKLOGIT_WORKSPACE_DIR": ".backlogit"})
