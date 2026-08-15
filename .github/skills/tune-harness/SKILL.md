@@ -311,6 +311,8 @@ For each installed artifact, check:
   3. Verify AGENTS.md contains the Foundational Protocols table referencing these instructions
 * **Deprecated agents**: If deprecated agent files are found in `.github/agents/` that match AGENTS.md's deprecation table, flag as P2 Degrading drift and propose removal with a note that the functionality has been absorbed into the active agent/skill set.
 
+* **Startup-script contract drift (`start.ps1` / `start.sh`)**: Treat installed target-workspace startup scripts as contract-versioned artifacts, not checksum-only files. Checksum drift alone is insufficient here: a script can still be byte-identical to its own old manifest checksum and therefore look `unchanged` in the generic checksum scan while still reflecting an obsolete pre-shim contract relative to the current thin-shim templates. Use `src/autoharness/startup_script_contract.py` (`classify_startup_script`) to classify each manifest-tracked `start.ps1` / `start.sh` into exactly one of `missing`, `current`, `known-legacy`, `customized`, or `ambiguous`. A legacy file whose bytes still match its old manifest checksum MUST still produce `known-legacy` plus a migration proposal here — that is the explicit checksum-gap this scan closes. This rule applies only to installed target-workspace copies tracked by the manifest via a `path` entry; the canonical `templates/scripts/start.ps1.tmpl` / `start.sh.tmpl` are reference `template` sources, never classification targets themselves. This repository's own root `start.ps1` / `start.sh` are pre-existing, intentionally customized self-install artifacts (see their manifest `note` fields) and are never Tune migration targets -- but the classifier does not special-case them for reporting purposes: if their content does not cleanly resolve to `current` (for example, unattributed checksum drift with no recognized custom-section tail to explain it), the classifier correctly reports `ambiguous` rather than silently treating unrecognized divergence as clean. `ambiguous` always fails closed to operator review and is never auto-applied, so this can never cause Tune to modify them.
+
 Record: `health_report{}` with per-artifact status and any `compound-refresh`
 recommendations for stale institutional knowledge.
 
@@ -905,6 +907,14 @@ For each accepted proposal:
 workspace, applied tune changes should remain on a feature branch or as local
 uncommitted changes until the operator reviews them and opens a pull request.
 
+Accepted startup-script contract proposals follow this target-workspace-only path:
+
+* **Missing `start.ps1` / `start.sh`**: Generate the script from the current `templates/scripts/start.ps1.tmpl` / `templates/scripts/start.sh.tmpl` source resolved with the workspace's own template variables, write the installed file, then record the contract version and checksum in the manifest.
+* **`known-legacy` / `customized` startup scripts**: Back up the installed file to `.autoharness/backups/{YYYY-MM-DD}/` BEFORE any refresh, refresh the core delegation block from the current thin-shim template, and update manifest checksum / contract-version metadata ONLY AFTER the file write is accepted. For `customized`, deterministically reattach the previously extracted supported custom tail (Claude Code, OpenAI Codex / Agents, or a recognized `── Custom ──` extension section) after refreshing the core block.
+* **`ambiguous` / unrecognized content**: Do not auto-apply. Present the script as an operator-review proposal and never silently overwrite it.
+* **Scope guardrails**: This migration path is for installed target workspaces only. It must never modify this repository's own root startup scripts regardless of their reported classification (including `ambiguous`), and it must not resurrect any out-of-scope Plan 3 remote-UI work.
+* **Idempotence**: Re-running Tune against an already-`current` startup script is a no-op and produces no migration proposal.
+
 #### Step 4.2: Generate New Artifacts
 
 If growth opportunities were accepted (new review personas, new instructions, new skills):
@@ -978,6 +988,8 @@ both drift and verification issues in a single pass.
 * No harness artifact references non-existent files after tuning
 * Checksum scan classifies every manifest-tracked artifact or intentional ignore outcome
 * Backup copies exist for every modified artifact
+* Startup-script contract classification (`start.ps1` / `start.sh`) covers `missing`, `current`, `known-legacy`, `customized`, and `ambiguous` with structured evidence, and a legacy-but-checksum-unchanged script still produces a migration proposal
+* Backup copies exist before any startup-script refresh, and supported custom sections survive migration
 * The tuning report is comprehensive and actionable
 * The harness manifest reflects the post-tuning state
 * When the workspace is Git-backed, tune output is left as feature-branch work or local uncommitted changes awaiting feature-branch handoff; direct default-branch commit/push is never recommended
