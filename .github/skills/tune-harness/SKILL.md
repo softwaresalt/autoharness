@@ -328,6 +328,18 @@ Compare the currently registered backlog tool (from `.autoharness/backlog-regist
 | Tool removed | Breaking | Propose fallback to manual backlog or new tool registration |
 | New tool added (was manual/none) | Growth | Propose tool registration |
 
+**Backlog storage-root follow-up (detect-and-report only):**
+
+* If the target workspace resolves to a **legacy-only** backlog root (`.backlogit/`
+  present, `.backlog/` absent), classify the drift as **Degrading** and surface an
+  operator proposal to review `backlogit migrate --workspace-dir --dry-run` as the
+  next step. Do **not** invoke migration, do **not** rename the directory, and do
+  **not** write to the target workspace's backlog storage root from Tune.
+* If the target workspace has **both** `.backlog/` and `.backlogit/` present at the
+  same time, classify the drift as **Breaking**, fail closed to operator review, and
+  report that the ambiguity must be resolved manually before Tune or Ship proceeds.
+  Do **not** guess, merge, copy, delete, or rename either root from Tune.
+
 **Migration proposal** (tool switch) includes:
 
 1. Replace `.autoharness/backlog-registry.yaml` with the new tool's registry
