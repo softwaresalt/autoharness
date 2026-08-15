@@ -11,6 +11,7 @@ thin-shim startup-script contract.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from typing import Any
@@ -149,7 +150,7 @@ def classify_startup_script(
             else:
                 evidence.append("Detected preserved custom-section tail after the current delegation block.")
                 classification["status"] = "customized"
-                classification["custom_sections"] = tail
+                classification["custom_sections"] = _summarize_custom_tail(tail)
         else:
             evidence.append("No supported custom-section tail was present after the current delegation block.")
             classification["status"] = "current"
@@ -169,7 +170,7 @@ def classify_startup_script(
                 "must be extracted and reattached (not discarded) when this script "
                 "is refreshed to the current contract."
             )
-            classification["custom_sections"] = tail
+            classification["custom_sections"] = _summarize_custom_tail(tail)
         classification["evidence"] = evidence
         return classification
 
@@ -229,8 +230,10 @@ def plan_startup_script_migration(
             "Back up the installed script under the target workspace's dated "
             "autoharness backup area before refresh, refresh the core delegation "
             "block from the current template, deterministically reattach the "
-            "preserved supported custom section(s), and update manifest "
-            "contract/checksum metadata only after the accepted refresh lands."
+            "preserved supported custom section(s) by re-reading them from the "
+            "original installed script (never from this proposal's summary "
+            "metadata), and update manifest contract/checksum metadata only "
+            "after the accepted refresh lands."
         ),
         "ambiguous": (
             "Do not auto-apply. Surface the script for operator review and choose "
@@ -251,17 +254,47 @@ def plan_startup_script_migration(
         "evidence": list(classification.get("evidence") or []),
     }
     if classification.get("custom_sections"):
+        # `custom_sections` is a non-sensitive summary (hash + size metadata),
+        # never the raw tail content -- both this proposal and the enclosing
+        # classification are serialized verbatim into on-disk JSON verification
+        # reports, and the tail is operator-controlled content that may contain
+        # environment variables or inline credentials. An accepted migration
+        # must re-read the original installed script from disk to recover and
+        # reattach the actual custom section(s); it must never be sourced from
+        # this proposal or classification.
         proposal["custom_sections"] = classification["custom_sections"]
         if status == "known-legacy":
             proposal["action"] = (
                 "Back up the installed script under the target workspace's dated "
                 "autoharness backup area before refresh, refresh the core "
                 "delegation block from the current template, deterministically "
-                "reattach the preserved supported custom section(s) recovered "
-                "from this legacy script, and update manifest contract/checksum "
-                "metadata only after the accepted refresh lands."
+                "reattach the preserved supported custom section(s) by "
+                "re-reading them from the original installed legacy script "
+                "(never from this proposal's summary metadata), and update "
+                "manifest contract/checksum metadata only after the accepted "
+                "refresh lands."
             )
     return proposal
+
+
+def _summarize_custom_tail(tail: str) -> dict[str, Any]:
+    """Produce a non-sensitive summary of a preserved custom-section tail.
+
+    The custom-section tail is operator-controlled content -- exactly where
+    users configure environment variables and custom commands -- and may
+    contain inline credentials. Both the classification and any migration
+    proposal that carries this value are serialized verbatim into on-disk
+    JSON verification reports, so the raw tail text must never be embedded
+    here. Only a content hash and size metadata are safe to record; an
+    accepted migration re-reads the original script from disk to recover
+    and reattach the actual tail content.
+    """
+    encoded = tail.encode("utf-8")
+    return {
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "byte_length": len(encoded),
+        "line_count": len(tail.splitlines()),
+    }
 
 
 def _has_active_marker(content: str, marker: str) -> bool:

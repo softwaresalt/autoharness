@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -88,13 +89,54 @@ class StartupScriptContractTests(unittest.TestCase):
                 proposal_data = proposal or {}
 
                 self.assertEqual(classification["status"], "known-legacy")
-                self.assertIn("operator-specific legacy custom command", classification["custom_sections"])
+                # `custom_sections` must be a non-sensitive summary (hash + size
+                # metadata), never the raw tail text -- both classification and
+                # proposal are serialized verbatim into on-disk JSON verification
+                # reports, and the tail may contain operator secrets.
+                summary = classification["custom_sections"]
+                self.assertIsInstance(summary, dict)
+                self.assertIn("sha256", summary)
+                self.assertGreater(summary["byte_length"], 0)
+                self.assertGreater(summary["line_count"], 0)
+                serialized = json.dumps(classification)
+                self.assertNotIn("operator-specific legacy custom command", serialized)
                 self.assertIsNotNone(proposal)
                 self.assertEqual(
                     proposal_data["custom_sections"],
                     classification["custom_sections"],
                 )
+                self.assertNotIn("operator-specific legacy custom command", json.dumps(proposal_data))
                 self.assertIn("reattach", proposal_data["action"])
+                self.assertIn("re-reading", proposal_data["action"])
+
+    def test_custom_sections_never_leak_raw_secrets_into_serialized_output(self) -> None:
+        """Regression: the custom-section tail is operator-controlled content
+        (environment variables, inline credentials) and both classification and
+        proposal are serialized verbatim into on-disk JSON verification reports.
+        A raw tail excerpt must never appear in either serialized structure --
+        only a non-sensitive hash/size summary is safe to carry forward."""
+        secret_token = "AKIA_FAKE_SECRET_TOKEN_1234567890"
+        for shell in ("ps1", "sh"):
+            with self.subTest(shell=shell):
+                content = (
+                    self._read_template(shell)
+                    + "\n# ── Custom ──────────────────────────────────────────────────────────\n"
+                    + f"# export API_TOKEN={secret_token}\n"
+                )
+                classification = classify_startup_script(shell, content)
+                proposal = plan_startup_script_migration(
+                    shell,
+                    self._relative_path(shell),
+                    classification,
+                )
+
+                self.assertEqual(classification["status"], "customized")
+                summary = classification["custom_sections"]
+                self.assertIsInstance(summary, dict)
+                self.assertEqual(set(summary), {"sha256", "byte_length", "line_count"})
+                self.assertNotIn(secret_token, json.dumps(classification))
+                self.assertIsNotNone(proposal)
+                self.assertNotIn(secret_token, json.dumps(proposal))
 
     def test_customized_classification_preserves_custom_tail(self) -> None:
         for shell in ("ps1", "sh"):
@@ -113,13 +155,19 @@ class StartupScriptContractTests(unittest.TestCase):
                 proposal_data = proposal or {}
 
                 self.assertEqual(classification["status"], "customized")
-                self.assertTrue(classification["custom_sections"].strip())
-                self.assertIn("operator-specific custom command", classification["custom_sections"])
+                summary = classification["custom_sections"]
+                self.assertIsInstance(summary, dict)
+                self.assertIn("sha256", summary)
+                self.assertGreater(summary["byte_length"], 0)
+                serialized = json.dumps(classification)
+                self.assertNotIn("operator-specific custom command", serialized)
                 self.assertIsNotNone(proposal)
                 self.assertEqual(
                     proposal_data["custom_sections"],
                     classification["custom_sections"],
                 )
+                self.assertNotIn("operator-specific custom command", json.dumps(proposal_data))
+                self.assertIn("re-reading", proposal_data["action"])
 
     def test_ambiguous_classification_covers_unrecognized_and_unknown_version(self) -> None:
         for shell in ("ps1", "sh"):
