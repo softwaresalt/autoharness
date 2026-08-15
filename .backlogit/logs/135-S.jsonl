@@ -7,3 +7,7 @@
 {"timestamp":"2026-08-14T22:38:03.0420165-07:00","actor":"backlogit","item_id":"135-S","event_type":"shipment_item_added","delta":{"item_id":"126.006-T"}}
 {"timestamp":"2026-08-14T22:38:35.3444582-07:00","actor":"backlogit","item_id":"135-S","event_type":"shipment_item_added","delta":{"item_id":"126.007-T"}}
 {"timestamp":"2026-08-15T10:38:24.1207677-07:00","actor":"backlogit","item_id":"135-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-15T14:00:01.1249064-07:00","actor":"backlogit","item_id":"135-S","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-08-15T14:00:05.6983545-07:00","actor":"backlogit","item_id":"135-S","event_type":"shipment_status_changed","delta":{"status":"shipped"}}
+{"timestamp":"2026-08-15T14:00:14.3399326-07:00","actor":"backlogit","item_id":"135-S","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"9851cc3defb8ba295940064d201bda006b15d7ff","message":"feat(135-S/126-F): adopt the backlogit .backlog storage root"}}
+{"timestamp":"2026-08-15T14:02:06.3065303-07:00","actor":"backlogit","item_id":"135-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/135-S.md"}}
