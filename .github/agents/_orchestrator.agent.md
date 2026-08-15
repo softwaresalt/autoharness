@@ -215,13 +215,13 @@ This step defines only the Orchestrator's own detection-and-routing responsibili
 
 After Stage completes and before routing to Ship, verify that all staging artifacts (backlog items, shipment manifests) are committed to `main` **and present on the remote**. Ship's Branch Creation Gate (P-011) requires a clean `main` but does not verify that the shipment manifest being claimed exists on `main`.
 
-1. Check `git status --short -- .backlogit/` for uncommitted backlog files. If dirty, proceed to step 3 to commit them first; if clean, proceed to step 2.
+1. Check `git status --short -- .backlogit/` for uncommitted backlog files in this repository's current legacy backlog root (`.backlog/` is the default for new installs; legacy `.backlogit/` remains supported, and both-roots-present must fail closed). If dirty, proceed to step 3 to commit them first; if clean, proceed to step 2.
 2. Check for unpushed local commits: `git fetch origin main` then `git log origin/main..main --oneline`. If empty, local and remote are in sync (step 4); if non-empty, proceed to step 3 (push-only path).
 3. Publish staging artifacts to `main` — commit before pushing so dirty files are not silently skipped:
    a. **Uncommitted backlog files**: commit them first, then attempt a direct push to `main`; if the push is rejected (branch protection), create a `chore/stage-{shipment_id}` branch at the current commit (which now includes the backlog commit), push it, then open a PR to `main` from that branch, wait for operator-approved merge, then pull `main`.
    b. **Already-committed local `main` commits that merely need pushing**: attempt a direct push; if rejected, create a `chore/stage-{shipment_id}` branch at the current commit, push it, then open a PR to `main` from that branch, wait for operator-approved merge, then pull `main`.
    This attempt-and-handle-failure approach is deterministic regardless of branch protection state.
-4. Verify the shipment manifest exists on the remote: `git show origin/main:.backlogit/queue/{shipment_id}.md`. If present, proceed to Step 2; if not, halt with `STAGING_GATE_FAIL: shipment manifest {shipment_id} not found on origin/main`.
+4. Verify the shipment manifest exists on the remote under this repository's current legacy backlog root: `git show origin/main:.backlogit/queue/{shipment_id}.md` (`.backlog/` is the default for new installs; legacy `.backlogit/` remains supported, and both-roots-present must fail closed). If present, proceed to Step 2; if not, halt with `STAGING_GATE_FAIL: shipment manifest {shipment_id} not found on origin/main`.
 
 ### Step 2: Route to Ship (when a queued shipment is ready)
 
