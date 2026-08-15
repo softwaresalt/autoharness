@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-14T16:54:09.4085548-07:00","actor":"stage","item_id":"124-F","event_type":"comment","delta":{"comment":"Plan 3 S3 staged as queued shipment 133-S, blocked by shipment 132-S. Tasks cover stable API discovery, responsive Gradio presentation, automatic updates, and full acceptance/degraded-mode validation. Gradio remains an adapter over the broker, not the session protocol."}}
+{"timestamp":"2026-08-14T19:13:23.9382501-07:00","actor":"backlogit","item_id":"124-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/124-F.md"}}

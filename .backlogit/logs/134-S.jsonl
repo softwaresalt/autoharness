@@ -1,0 +1,5 @@
+{"timestamp":"2026-08-14T21:37:30.7318962-07:00","actor":"backlogit","item_id":"134-S","event_type":"shipment_created","delta":{"items":["125-F"],"title":"Tune startup-script contract migration"}}
+{"timestamp":"2026-08-14T21:37:38.2513109-07:00","actor":"backlogit","item_id":"134-S","event_type":"shipment_item_added","delta":{"item_id":"125.002-T"}}
+{"timestamp":"2026-08-14T21:37:43.6767629-07:00","actor":"backlogit","item_id":"134-S","event_type":"shipment_item_added","delta":{"item_id":"125.001-T"}}
+{"timestamp":"2026-08-14T21:37:49.3116657-07:00","actor":"backlogit","item_id":"134-S","event_type":"shipment_item_added","delta":{"item_id":"125.003-T"}}
+{"timestamp":"2026-08-14T21:38:18.5704514-07:00","actor":"stage","item_id":"134-S","event_type":"comment","delta":{"comment":"STAGE COMPLETE: Shipment is queued for Ship. Scope: target-workspace Tune detection/migration of stale pre-shim start.ps1/start.sh using versioned contract evidence, backup-before-refresh, safe custom-section preservation, and regression verification. Feature 125-F; tasks 125.002-T -\u003e 125.001-T -\u003e 125.003-T. Stash 015B2914 archived."}}

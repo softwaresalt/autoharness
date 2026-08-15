@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-14T16:47:59.482155-07:00","actor":"agent","item_id":"124.002-T","event_type":"estimate_history","delta":{"actor":"agent","size":"S","size_ruleset_version":"stage-2axis-v1","size_source":"agent"}}
+{"timestamp":"2026-08-14T19:14:30.1793533-07:00","actor":"backlogit","item_id":"124.002-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/124.002-T.md"}}

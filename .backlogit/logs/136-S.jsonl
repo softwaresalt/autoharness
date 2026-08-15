@@ -1,0 +1,3 @@
+{"timestamp":"2026-08-14T22:44:27.1320265-07:00","actor":"backlogit","item_id":"136-S","event_type":"shipment_created","delta":{"items":["127-F"],"title":"Plan 1 supervisor contract and verification closeout (024FDA20 + A5628E7E)"}}
+{"timestamp":"2026-08-14T22:44:59.7550156-07:00","actor":"backlogit","item_id":"136-S","event_type":"shipment_item_added","delta":{"item_id":"127.001-T"}}
+{"timestamp":"2026-08-14T22:45:29.6922649-07:00","actor":"backlogit","item_id":"136-S","event_type":"shipment_item_added","delta":{"item_id":"127.002-T"}}

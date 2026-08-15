@@ -1,0 +1,7 @@
+{"timestamp":"2026-08-14T16:51:34.5186373-07:00","actor":"backlogit","item_id":"132-S","event_type":"shipment_created","delta":{"items":["123-F"],"title":"Plan 3 S2 — PTY and ACP runtime controls, handoff, and live updates"}}
+{"timestamp":"2026-08-14T16:52:03.7743964-07:00","actor":"backlogit","item_id":"132-S","event_type":"shipment_item_added","delta":{"item_id":"123.002-T"}}
+{"timestamp":"2026-08-14T16:52:06.184314-07:00","actor":"backlogit","item_id":"132-S","event_type":"shipment_item_added","delta":{"item_id":"123.001-T"}}
+{"timestamp":"2026-08-14T16:52:08.6627037-07:00","actor":"backlogit","item_id":"132-S","event_type":"shipment_item_added","delta":{"item_id":"123.003-T"}}
+{"timestamp":"2026-08-14T16:52:14.4313003-07:00","actor":"backlogit","item_id":"132-S","event_type":"shipment_item_added","delta":{"item_id":"123.004-T"}}
+{"timestamp":"2026-08-14T16:54:22.2661055-07:00","actor":"stage","item_id":"132-S","event_type":"comment","delta":{"comment":"Queued successor blocked by 131-S. Manifest is root 123-F plus 123.001-T..123.004-T; runtime controls remain gated behind S1 broker/security foundations. S2 implementation plan: .backlogit/queue/123-F.md."}}
+{"timestamp":"2026-08-14T19:15:39.6180508-07:00","actor":"backlogit","item_id":"132-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/132-S.md"}}

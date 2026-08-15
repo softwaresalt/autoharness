@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-14T16:54:09.3830818-07:00","actor":"stage","item_id":"123-F","event_type":"comment","delta":{"comment":"Plan 3 S2 staged as queued shipment 132-S, blocked by shipment 131-S. Tasks cover PTY controls, ACP routing, restart handoff, and cursor-based updates. PTY slash commands and ACP messages remain distinct; privileged controls require local approval."}}
+{"timestamp":"2026-08-14T19:10:34.6687455-07:00","actor":"backlogit","item_id":"123-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/123-F.md"}}
