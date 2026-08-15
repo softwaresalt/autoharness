@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
 from unittest import mock
 
 from autoharness.cli import main
@@ -169,6 +172,52 @@ class DagReadinessDegradedTests(unittest.TestCase):
             out, _, code = _run("gate", "dag-readiness")
         self.assertEqual(code, 0)
         self.assertIn("DEGRADED", out)
+
+
+class DagReadinessStorageRootResolutionTests(unittest.TestCase):
+    def _write_minimal_backlog_root(self, root: Path) -> None:
+        (root / "queue").mkdir(parents=True)
+        (root / "archive").mkdir(parents=True)
+
+    def test_backlog_only_workspace_succeeds(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            self._write_minimal_backlog_root(workspace / ".backlog")
+
+            out, err, code = _run("gate", "dag-readiness", "--workspace", str(workspace), "--json")
+
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+        payload = json.loads(out)
+        self.assertEqual(payload["status"], "empty")
+        self.assertIsNone(payload["degraded_reason"])
+
+    def test_both_roots_present_reports_degraded_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            self._write_minimal_backlog_root(workspace / ".backlog")
+            self._write_minimal_backlog_root(workspace / ".backlogit")
+
+            out, err, code = _run("gate", "dag-readiness", "--workspace", str(workspace), "--json")
+
+        self.assertEqual(code, 0)
+        self.assertNotIn("Traceback", err)
+        payload = json.loads(out)
+        self.assertEqual(payload["status"], "degraded")
+        self.assertIn("multiple backlog directories are present", payload["degraded_reason"])
+
+    def test_missing_override_reports_degraded_without_fallthrough(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            self._write_minimal_backlog_root(workspace / ".backlog")
+            with mock.patch.dict(os.environ, {"BACKLOGIT_WORKSPACE_DIR": "missing-root"}):
+                out, err, code = _run("gate", "dag-readiness", "--workspace", str(workspace), "--json")
+
+        self.assertEqual(code, 0)
+        self.assertNotIn("Traceback", err)
+        payload = json.loads(out)
+        self.assertEqual(payload["status"], "degraded")
+        self.assertIn("configured backlog directory is unavailable", payload["degraded_reason"])
 
 
 class DagReadinessNextEligibleFieldsTests(unittest.TestCase):

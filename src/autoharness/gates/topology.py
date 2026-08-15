@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
+
 VALID_MODES = ("agent", "manual", "ci")
 VALID_PHASES = ("pre_claim", "post_claim", "lifecycle", "ambient")
 SCOPED_PHASES = ("pre_claim", "post_claim", "lifecycle")
@@ -74,13 +76,6 @@ _POST_CLAIM_WRAP_TOKENS = frozenset({
     "LIFECYCLE_MULTIPLE_ACTIVE_SHIPMENTS",
     "LIFECYCLE_ACTIVE_SHIPMENT_MISMATCH",
 })
-
-
-class BacklogUnavailableError(RuntimeError):
-    def __init__(self, path: Path, reason: str) -> None:
-        self.path = str(path)
-        self.reason = reason
-        super().__init__(f"{reason}: {path}")
 
 
 @dataclass(frozen=True)
@@ -369,7 +364,13 @@ class FilesystemTopologyReaders:
 
     def __init__(self, workspace: Path | str = ".") -> None:
         self.workspace = Path(workspace)
-        self.backlog_dir = self.workspace / ".backlogit"
+        self._backlog_dir: Path | None = None
+
+    @property
+    def backlog_dir(self) -> Path:
+        if self._backlog_dir is None:
+            self._backlog_dir = resolve_backlog_root(self.workspace)
+        return self._backlog_dir
 
     def _glob_id(self, folder: str, artifact_id: str) -> Path | None:
         base = self.backlog_dir / folder
