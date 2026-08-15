@@ -3,7 +3,7 @@ shipment: 134-S
 feature: 125-F
 tasks: [125.001-T, 125.002-T, 125.003-T]
 feature_pr: 340
-closure_pr: null
+closure_pr: 341
 merge_commit: afde69344d827d2b883f86f91ad5c842aab72885
 merged_at: "2026-08-15T08:58:21Z"
 reviewed_head: 4bab0d0f19d2e838ad0d4e177bf0552ba81a5dfe
@@ -144,8 +144,10 @@ independently) and redeploy the prior `main` revision if necessary.
 
 `closure_status: READY`. Merge, review (local + Copilot, both clean at final
 HEAD), CI, and full regression-suite evidence are complete for the code that
-shipped in PR #340. No deployment or runtime surface is affected. No
-outstanding follow-up conditions.
+shipped in PR #340. The CLI runtime surface touched by this change was
+identified and validated (see Runtime Verification above); no runtime
+service, background job, or additional deployment surface is introduced or
+altered. No outstanding follow-up conditions.
 
 ## P-020 Compaction
 
