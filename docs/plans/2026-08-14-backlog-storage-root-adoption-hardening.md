@@ -59,14 +59,34 @@ halt, mirroring upstream `AmbiguousWorkspaceRootError`. It MUST NOT:
 This is a report-and-halt boundary identical in spirit to the shipment-reconcile
 default preserved by stash `936C68F3`.
 
-## H4 — Schema changes are additive with a version bump
+## H4 — Schema changes are additive; the version bump is conditional
 
-The three schema updates MUST widen the accepted set (add `.backlog`, keep
-`.backlogit` valid) and MUST carry a version identifier bump. In-place semantic
-mutation of a validation contract without a version bump is a recorded prior
-failure: `docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md`.
-Removing `.backlogit` from any enum or example set in this shipment is forbidden —
-legacy workspaces remain supported upstream and MUST remain supported here.
+**Revised (PR #339 Copilot review, comment 3788712399; PR #342 follow-up).** The
+original wording mandated widening plus a version bump unconditionally. Verified
+against current `main`, there is nothing to widen: `harness-config.schema.json:107-114`
+and `backlog-tool-registry.schema.json:22-26` both declare `directory` as an
+unconstrained `"type": "string"` (no `enum`, no `pattern`), and
+`workspace-profile.schema.json:224` mentions `.backlogit/**` only as prose inside a
+`description`. `.backlog` documents already validate.
+
+H4 therefore now reads:
+
+1. **Additive only** — removing `.backlogit` from any enum or example set in this
+   shipment stays **forbidden**. Legacy workspaces remain supported upstream and MUST
+   remain supported here. This half of H4 is unchanged and remains mandatory.
+2. **No version bump for descriptive/default edits** — T3 as rescoped changes only
+   examples, descriptions, and stated defaults. It MUST NOT carry a schema version
+   identifier bump, because a bump that leaves the accepted-document set unchanged is
+   pure migration and compatibility churn.
+3. **Conditional escalation** — if and only if T1 (`126.001-T`) discovers a genuine
+   validation constraint on the storage root, the widening becomes real. It MUST then
+   be additive, MUST carry a version identifier bump, MUST add the versioned schema
+   mirror, and MUST update `src/autoharness/schema_contracts.py`, per
+   `docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md`.
+
+This matches the rescoped T3 in the plan and the reclassified `126.003-T`, so
+implementation receives one consistent instruction rather than contradictory
+mandatory directives.
 
 ## H5 — The live repository rename is excluded from automation (dark-mode guard)
 

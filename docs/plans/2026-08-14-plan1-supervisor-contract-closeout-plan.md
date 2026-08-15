@@ -63,9 +63,19 @@ therefore never executed**, exactly as the stash claims.
 is cited evidence for the F14 topology redesign, so its existing 196/196
 assertions MUST NOT be modified, reordered, or weakened. The fix is **purely
 additive**: add a genuine non-root-feature negative control alongside the existing
-one, and rename the existing assertion message so it accurately describes the
-no-feature-member case it actually tests. Assertion count increases; no existing
-assertion changes semantics.
+one. Assertion count increases; no existing assertion changes semantics.
+
+**Correction (PR #339 Copilot review, comment 3788712405).** An earlier draft of
+this ruling also asked for the existing assertion *message* to be corrected. That
+instruction was wrong and is **withdrawn**: line 585 already reads
+`"NEGATIVE CONTROL: a manifest with no feature member -> REJECTED ($($nonRoot.Reason))"`,
+which already describes the no-feature-member case it actually tests — so there is
+no message correction to make, and making one would have contradicted the
+immediately preceding “MUST NOT be modified” constraint. The only misleading token
+is the **identifier** `$nonRoot`. Existing predicates, messages, and ordering stay
+**unchanged**; renaming `$nonRoot` to `$noFeatureMember` is **optional** and, if
+done, is a pure local-variable rename that changes no assertion semantics and no
+assertion count.
 
 ## 4. Sequencing
 
