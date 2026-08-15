@@ -21,6 +21,11 @@ from autoharness.schema_contracts import (
     resolve_contract_schema_path,
     summarize_schema_contract,
 )
+from autoharness.startup_script_contract import (
+    classify_startup_script,
+    plan_startup_script_migration,
+    resolve_startup_script_shell,
+)
 
 
 PLACEHOLDER_RE = re.compile(r"\{\{[A-Z0-9_]+\}\}")
@@ -3912,6 +3917,7 @@ def verify_workspace(
         "unresolved": [],
         "checksum_scan": [],
         "schema_contracts": {},
+        "startup_script_contracts": {},
         "migration_proposals": [],
         "new_artifacts": [],
         "targeted_checks": {},
@@ -4093,6 +4099,21 @@ def verify_workspace(
                         "message": "Manifest-listed artifact has no checksum; drift scan skipped checksum comparison for this path.",
                     }
                 )
+
+        shell = resolve_startup_script_shell(relative_path, artifact.get("template"))
+        if shell is not None:
+            content = None
+            if workspace_file.exists():
+                content = workspace_file.read_text(encoding="utf-8", errors="replace")
+            classification = classify_startup_script(
+                shell,
+                content,
+                artifact.get("contract_version"),
+            )
+            report["startup_script_contracts"][relative_path] = classification
+            proposal = plan_startup_script_migration(shell, relative_path, classification)
+            if proposal is not None:
+                report["migration_proposals"].append(proposal)
 
         source_path, mode = _resolve_source_template(autoharness_home, workspace_path, artifact)
         if source_path is None or mode is None:
