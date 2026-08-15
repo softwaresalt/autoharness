@@ -70,19 +70,34 @@ class RunHelpTests(unittest.TestCase):
         with a live session -- not just operator-supplied-vs-generated. This
         DOCUMENTS the existing ``SessionLockRefused`` guard-lock behavior in
         ``autoharness.supervise.locking``; it must not describe any new
-        behavior."""
+        behavior.
+
+        PR #347 Copilot review finding: an earlier draft of this text said
+        the id "need not be unique" without qualification, which is only
+        true of the GUARD LOCK -- ``autoharness.supervise.journal.SessionJournal``
+        keys the on-disk journal path by this same id
+        (``.autoharness/sessions/<id>/journal.jsonl``) and APPENDS to an
+        existing journal (continuing its sequence) when an id is reused,
+        rather than starting a fresh one. The contract must disclose BOTH
+        facts, not just the guard-lock one."""
 
         out, _, code = _run("run", "--help")
         self.assertEqual(code, 0)
-        # Uniqueness: the guard lock is a per-workspace singleton -- exactly
+        # Locking: the guard lock is a per-workspace singleton -- exactly
         # one active session regardless of the supplied id -- not a
         # per-session-id uniqueness constraint. The contract must say so.
-        self.assertIn("need not be unique", out)
+        self.assertIn("grants no exclusivity", out)
         # Collision: starting a session while another is live in the same
         # workspace is refused (fail closed), independent of whether the
         # supplied id matches the live session's id.
         self.assertIn("refused", out)
         self.assertIn("SessionLockRefused", out)
+        # Journaling: reusing an id APPENDS to that id's existing journal
+        # (continuing its sequence) instead of starting a new one -- this is
+        # a real, disclosed consequence of reuse, distinct from the guard
+        # lock's exclusivity semantics.
+        self.assertIn("APPENDS", out)
+        self.assertIn("journal", out)
 
 
 class RunHelpTokenAfterSeparatorForwardingTests(unittest.TestCase):
