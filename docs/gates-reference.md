@@ -87,7 +87,7 @@ lifecycle_hooks:
         command: "engram verify {file_path}"
         timeout_seconds: 15
 
-      - pattern: ".backlogit/queue/*.md"
+      - pattern: ".backlog/queue/*.md"
         command: "backlogit doctor --target {file_path}"
         timeout_seconds: 5
 
@@ -104,6 +104,11 @@ telemetry:
 > The `telemetry` block is accepted and stored but **not acted upon** in Phase 1.
 > Gate execution does not read it. It exists so Phase 2 can consume it without a
 > schema migration.
+
+> For legacy backlogit workspaces, use `.backlogit/queue/*.md` in place of the
+> `.backlog/queue/*.md` example above. New installs default to `.backlog/`, and
+> both roots present at once should be resolved manually before relying on a
+> path-specific gate.
 
 ## Gate Policy
 

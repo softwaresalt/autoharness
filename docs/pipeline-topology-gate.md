@@ -243,8 +243,10 @@ in the CI rollout doc for the full explanation and recommended mitigation.
 **Backlogit-only**: `install-harness` installs this entrypoint and its workflow
 job only when the workspace's backlog tool is `backlogit`
 (`{{FEATURE_SHIPMENTS}}` is `true`). The gate's backlog reader
-(`FilesystemTopologyReaders`) currently reads only `.backlogit/`; a backlog-md,
-manual, or other non-shipment-capable workspace would otherwise always resolve
+(`FilesystemTopologyReaders`) resolves backlogit's storage root with
+`BACKLOGIT_WORKSPACE_DIR` first, `.backlog/` second (default for new installs),
+and legacy `.backlogit/` third; both roots present at once fail closed. A
+backlog-md, manual, or other non-shipment-capable workspace would still resolve
 `BACKLOG_UNAVAILABLE`, a hard BLOCK once `PIPELINE_TOPOLOGY_GATE_REQUIRED` is
 promoted to required. See
 [the CI rollout doc's Applicability section](pipeline-topology-gate-ci-rollout.md#applicability-backlogit-only).

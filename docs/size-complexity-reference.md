@@ -87,7 +87,9 @@ pair.
 ## Storage and validation
 
 `size` and `complexity` are **not** supported by the same set of artifact types in
-`.backlogit/header-def.yaml`:
+the active backlogit storage root's `header-def.yaml` (`.backlog/header-def.yaml`
+for new installs; this repository currently retains the legacy
+`.backlogit/header-def.yaml`):
 
 * **`size`** is stored on both the `task` and `subtask` artifact types (both `optional`,
   same `XS|S|M|L|XL` enum). Features and shipments expose computed, not stored, size
@@ -99,7 +101,8 @@ This staging workflow's own mandate (harvest skill, Stage agent) targets **task-
 work items**, so both fields are emitted together there — but that task-only emission
 scope must not be read as "both fields are task-only in storage": `size` alone extends to
 subtasks. Both fields, wherever stored, are validated against the enum values defined in
-`.backlogit/header-def.yaml` before write — invalid values are rejected fail-closed rather
+the active backlogit storage root's `header-def.yaml` before write — invalid
+values are rejected fail-closed rather
 than silently coerced or defaulted.
 
 ## Cross-references

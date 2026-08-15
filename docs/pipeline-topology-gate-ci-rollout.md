@@ -30,11 +30,14 @@ workspaces whose backlog tool is `backlogit`. `install-harness` installs the
 when `{{FEATURE_SHIPMENTS}}` is `true`; for backlog-md, manual, or any other
 non-shipment-capable install, the job and entrypoint are omitted entirely, not
 rendered advisory-only. This is because the gate's backlog reader
-(`FilesystemTopologyReaders`) currently reads only `.backlogit/`: installing
-the job unconditionally for those workspaces would leave it permanently
-reporting `BACKLOG_UNAVAILABLE`, which becomes a hard, unrecoverable BLOCK the
-moment `PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted to required. Omission is
-a single atomic composition step: `install-harness` must also strip
+(`FilesystemTopologyReaders`) is backlogit-specific even though it now resolves
+the backlogit storage root via `BACKLOGIT_WORKSPACE_DIR` → `.backlog/`
+(default for new installs) → legacy `.backlogit/`, failing closed when both
+roots are present. Installing the job unconditionally for backlog-md/manual
+workspaces would still leave it permanently reporting `BACKLOG_UNAVAILABLE`,
+which becomes a hard, unrecoverable BLOCK the moment
+`PIPELINE_TOPOLOGY_GATE_REQUIRED` is promoted to required. Omission is a single
+atomic composition step: `install-harness` must also strip
 `topology-check` from `ci-gate`'s `needs:` array and its
 `needs['topology-check'].result` reference from the result-aggregation line —
 otherwise the rendered workflow references an undefined job, which is invalid

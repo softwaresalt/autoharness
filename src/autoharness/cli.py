@@ -464,7 +464,9 @@ pipeline-topology options:
   --force             Reserve an operator override for a blocked topology gate.
 
 dag-readiness options:
-  --workspace, -w     Workspace root containing .backlogit/. Default: .
+  --workspace, -w     Workspace root containing the backlogit storage root
+                      (.backlog/ by default for new installs; legacy
+                      .backlogit/ remains valid). Default: .
   --json              Emit the report as JSON.
 
 `dag-readiness` is READ-ONLY: it performs no backlogit or git mutation on any

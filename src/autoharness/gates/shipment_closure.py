@@ -238,7 +238,8 @@ def classify_shipment_close_path(
             in whatever order the manifest declares them.
         workspace_backlog_dir: path to the workspace's backlog directory
             (containing ``queue/`` and ``archive/`` subdirectories, e.g.
-            ``.backlogit``).
+            ``.backlog`` for new installs or legacy ``.backlogit`` for
+            existing workspaces).
 
     Returns a :class:`ClosePathDecision` naming the permitted close operation
     and the reason. Any ambiguity, read failure, or precondition violation
