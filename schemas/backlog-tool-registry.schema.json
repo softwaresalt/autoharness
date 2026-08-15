@@ -21,8 +21,8 @@
     },
     "directory": {
       "type": "string",
-      "description": "Root directory for backlog files relative to workspace root",
-      "examples": [".backlogit", "backlog"]
+      "description": "Root directory for backlog files relative to workspace root. New installs default to '.backlog'; legacy workspaces may continue using '.backlogit'.",
+      "examples": [".backlog", ".backlogit", "backlog"]
     },
     "mcp_server": {
       "type": "object",

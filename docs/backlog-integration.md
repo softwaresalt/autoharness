@@ -15,7 +15,7 @@ autoharness supports pluggable backlog tools through a registry abstraction laye
 
 | Tool | Runtime | Directory | Transport | Key Differentiators |
 |------|---------|-----------|-----------|---------------------|
-| **backlogit** | Go binary | `.backlogit/` | MCP (stdio) + CLI | SQL query engine, telemetry, memory/checkpoints, sections |
+| **backlogit** | Go binary | `.backlog/` (default) or legacy `.backlogit/` | MCP (stdio) + CLI | SQL query engine, telemetry, memory/checkpoints, sections |
 | **backlog-md** | Bun/`bunx` launcher; keep Node if bare `bunx` is retained | `backlog/` | MCP (stdio) + CLI | Milestones, documents, Definition of Done, workflow guides |
 
 ## How Detection and Registry Abstraction Works
@@ -24,6 +24,11 @@ autoharness supports pluggable backlog tools through a registry abstraction laye
 2. **Registry**: A pre-built registry YAML maps abstract operations (create, list, update, move) to the tool's specific MCP tool names and CLI commands
 3. **Abstraction**: All agent templates reference abstract operations (`{{OP_CREATE_MCP}}`, `{{STATUS_QUEUED}}`), which are resolved to tool-specific values during installation
 4. **Migration**: The Auto-Tune agent detects tool switches and generates migration proposals that update all harness references
+
+For backlogit specifically, new installs default to `.backlog/`. Existing
+legacy workspaces may keep `.backlogit/` until an operator explicitly migrates
+them. If both roots are present at once, autoharness fails closed and requires
+manual resolution rather than guessing.
 
 Pre-built registries live in `templates/backlog/registries/` inside the autoharness installation:
 - `backlogit.registry.yaml`

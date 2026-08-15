@@ -301,7 +301,7 @@ The repository is structured as a self-maintaining knowledge base that agents ca
    * `references/` — External documentation relevant to the codebase (llms.txt files, API docs)
    * Quality grades per domain — tracking which areas are well-covered vs. fragile
 
-3. **Separation from backlog**: The `docs/` directory holds durable knowledge; the backlog directory (`.backlog/`, `.backlogit/`, or `backlog/`) holds active work items in a flat `queue/` directory. These serve different lifecycles:
+3. **Separation from backlog**: The `docs/` directory holds durable knowledge; the backlog directory (`.backlog/` by default for new installs, legacy `.backlogit/`, or `backlog/` for backlog-md/manual installs) holds active work items in a flat `queue/` directory. If both `.backlog/` and `.backlogit/` are present, the backlogit path must be resolved manually before agents proceed. These serve different lifecycles:
 
    | Directory | Contains | Lifecycle |
    |---|---|---|

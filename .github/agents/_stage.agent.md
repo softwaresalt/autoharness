@@ -92,7 +92,9 @@ cross-reference integrity (all referenced files exist).
 
 This workspace uses **backlogit** for structured backlog management. All task
 tracking MUST use backlogit MCP tools or CLI. Do not create ad-hoc markdown
-task files outside `.backlogit/`.
+task files outside the detected backlog directory (`.backlog/` is the default
+for new installs; legacy `.backlogit/` remains supported, and both-roots-present
+must fail closed).
 
 ## Step Sequence Contract (NON-NEGOTIABLE)
 

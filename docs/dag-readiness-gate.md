@@ -44,7 +44,7 @@ autoharness gate dag-readiness [--workspace <path>] [--json]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--workspace`, `-w` | `.` | Workspace root containing `.backlogit/`. |
+| `--workspace`, `-w` | `.` | Workspace root containing the backlogit storage root (`.backlog/` by default for new installs, legacy `.backlogit/` for existing workspaces). |
 | `--json` | off | Emit the report as a machine-readable JSON object (see [`--json` Output Shape](#--json-output-shape)). |
 
 All reads are performed through the same read-only `FilesystemTopologyReaders`
@@ -280,7 +280,8 @@ most one `next eligible: ...` line rendered on every path — including the
   `downstream_dependents: {}`, `status: "empty"`) and the command exits
   **0**.
 * **DEGRADED**: when the backlog is unreachable (e.g. a missing or
-  unreadable `.backlogit/` directory, or a malformed shipment record — the
+  unreadable backlog root, both `.backlog/` and `.backlogit/` present at once,
+  or a malformed shipment record — the
   same conditions that raise `BacklogUnavailableError` in
   `autoharness.gates.topology`), the command reports `status: "degraded"`
   with a `degraded_reason`, and exits **0** (non-fatal/advisory). It never

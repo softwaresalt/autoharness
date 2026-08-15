@@ -612,8 +612,10 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
       self-hosting repository's own implementation) over the shipment manifest's items.
       The cascade close path is permitted **only** when, for **every** feature member of
       the manifest: it is a root (no `parent_id`); it is fully covered (every one of its
-      children, enumerated live from `.backlogit/queue/` + `.backlogit/archive/`, is
-      also a manifest member); and, if it enumerates to zero children, that
+      children, enumerated live from the resolved backlog root's `queue/` +
+      `archive/` directories (`.backlog/` is the default for new installs;
+      legacy `.backlogit/` remains supported, and both-roots-present must fail
+      closed) is also a manifest member); and, if it enumerates to zero children, that
       childlessness is **positively verified** against the live workspace (never
       inferred from an incomplete or failed enumeration) and the feature is additionally
       terminal (no manifest member declares it as parent). The manifest must contain
@@ -625,7 +627,9 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
       `backlogit_ship_shipment` operation in place of steps a-d above for this
       shipment's closure.
    f. If the skill returns `HALT — cascade detected, revert required`, restore
-      `.backlogit/queue/` + `.backlogit/archive/`, surface the protected-set
+      the resolved backlog root's `queue/` + `archive/` directories (`.backlog/`
+      is the default for new installs; legacy `.backlogit/` remains supported,
+      and both-roots-present must fail closed), surface the protected-set
       violation, and halt. Do NOT commit a corrupt backlog.
 3. Write compound learnings for hard-won solutions.
 4. Update documentation if templates changed significantly.

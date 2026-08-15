@@ -106,7 +106,7 @@
         },
         "directory": {
           "type": "string",
-          "description": "Root directory for the backlog (relative to workspace root). Defaults to the detected tool's directory or '.backlog'.",
+          "description": "Root directory for the backlog (relative to workspace root). New installs default to '.backlog'; '.backlogit' remains valid for existing legacy workspaces. Used as a fallback default when no tool-detected directory is present in the backlog registry; it does not override a detected registry directory.",
           "examples": [
             ".backlogit",
             ".backlog",

@@ -123,7 +123,8 @@ jobs:
   # Always runs -- unlike `expensive`, this job is NOT gated on the `changes`
   # path-filter output: the ambient invocation is inexpensive and
   # non-shipment-scoped, and skipping it for docs/backlog-only changes would
-  # leave exactly the commits most likely to touch `.backlogit/` state
+  # leave exactly the commits most likely to touch `.backlog/` state (or legacy
+  # `.backlogit/` state; both-roots-present must fail closed)
   # unchecked.
   #
   # REQUIRED-VS-ADVISORY is an explicit OPERATOR TOGGLE via the

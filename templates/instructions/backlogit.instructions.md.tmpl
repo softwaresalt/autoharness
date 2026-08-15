@@ -30,7 +30,7 @@ tracking system when backlogit is available.
 
 When inspecting backlog state:
 
-1. Prefer targeted query operations over reading many `.backlogit/` markdown files directly.
+1. Prefer targeted query operations over reading many `.backlog/` markdown files directly (`.backlog` is the default for new installs; legacy `.backlogit/` remains supported. When no valid `BACKLOGIT_WORKSPACE_DIR` override resolves the root, both roots present at once must fail closed until the operator resolves the ambiguity; a valid override resolves the root per precedence and is not itself an ambiguity).
 2. Use direct item retrieval for current-state lookups.
 3. Fall back to file reads only when the query surface cannot answer the question.
 
@@ -140,7 +140,7 @@ When work changes backlog state materially:
 
 ## Index Freshness Rule
 
-If `.backlogit/` content was edited outside the usual backlogit mutation flow, refresh the index
+If `.backlog/` or legacy `.backlogit/` content was edited outside the usual backlogit mutation flow (and if both roots are present with no valid `BACKLOGIT_WORKSPACE_DIR` override resolving the root, fail closed until the operator resolves the ambiguity), refresh the index
 before relying on query or queue output. Treat stale index results as suspect until rehydration completes.
 
 ## Data Ownership Rule

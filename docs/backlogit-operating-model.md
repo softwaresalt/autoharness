@@ -86,7 +86,8 @@ more existing backlog work items together with a branch and pull request to
 track their journey from claimed to shipped. Despite being a lifecycle envelope
 conceptually, shipment is implemented as a first-class artifact type in
 backlogit's type system with its own suffix (`S`), ID format (`NNN-S`), and
-file in `.backlogit/queue/`.
+file in the active backlogit storage root's `queue/` directory (`.backlog/`
+for new installs, legacy `.backlogit/` for existing workspaces).
 
 Concrete shape (from real backlogit shipments):
 
@@ -166,6 +167,33 @@ Error sentinels: `ErrShipmentNotFound`, `ErrShipmentConflict`,
 The shipment surface is graduated and wired into the backlogit registry
 template. The remaining incubating items (stash JSONL, file naming
 conventions) are independent of the shipment contract.
+
+## Storage-root contract and operator-gated migration
+
+Autoharness follows backlogit's dual-root storage contract:
+
+* `BACKLOGIT_WORKSPACE_DIR` override first
+* `.backlog/` second (default for new installs)
+* `.backlogit/` third (legacy-supported)
+
+If both `.backlog/` and `.backlogit/` are present at once, autoharness fails
+closed and requires operator review; it never guesses, merges, copies, deletes,
+or renames either root automatically.
+
+Migration between the legacy and default roots is an **operator-invoked**
+backlogit action, not an autoharness automation step:
+
+```bash
+backlogit migrate --workspace-dir
+```
+
+`backlogit migrate --workspace-dir --dry-run` previews the move, and
+`backlogit migrate --workspace-dir --rollback` exists for operator-directed
+recovery. Autoharness intentionally excludes this command from install, tune,
+Stage, Ship, and dark-mode automation because the storage root is live state:
+renaming it mid-run relocates queue/archive manifests, indexes, checkpoints,
+and other backlogit-managed files together, and there is no safe unattended
+mid-run recovery path if other agents keep writing during the move.
 
 The remaining two-agent choreography is promising, but it is not yet ready to
 become template truth in `autoharness`.

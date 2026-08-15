@@ -96,6 +96,32 @@ class CiTopologyCheckEntrypointStructureTests(unittest.TestCase):
         text = _read()
         self.assertIn("PIPELINE_TOPOLOGY_GATE_REQUIRED", text)
 
+    def test_resolves_storage_root_with_shared_precedence(self) -> None:
+        text = _read()
+        self.assertIn("BACKLOGIT_WORKSPACE_DIR", text)
+        self.assertIn("[ -d .backlog ]", text)
+        self.assertIn("[ -d .backlogit ]", text)
+        self.assertIn("resolved backlog root", text)
+
+    def test_fails_closed_on_invalid_override_and_dual_root_ambiguity(self) -> None:
+        text = _read()
+        self.assertIn("BACKLOGIT_WORKSPACE_DIR is set but empty", text)
+        self.assertIn("points to a missing directory", text)
+        self.assertIn("both .backlog and .backlogit are present", text)
+        self.assertIn("resolve the ambiguity", text)
+
+    def test_override_must_be_exact_literal_candidate_name(self) -> None:
+        # PR #344 Copilot review round 2, thread PRRT_kwDORzpWpM6ZihN-: the
+        # override is not an arbitrary filesystem path; it must be exactly
+        # ".backlog" or ".backlogit" (mirrors backlogit 1.9.0's
+        # validateWorkspaceDirOverride). A single exact-string comparison
+        # against both literals rejects separators, absolute paths, "."/"..",
+        # and case aliases in one step.
+        text = _read()
+        self.assertIn('"$BACKLOGIT_WORKSPACE_DIR" != ".backlog"', text)
+        self.assertIn('"$BACKLOGIT_WORKSPACE_DIR" != ".backlogit"', text)
+        self.assertIn("must be exactly .backlog or .backlogit", text)
+
     def test_single_pass_no_retry_loop(self) -> None:
         text = _read().lower()
         self.assertNotIn("while true", text)
@@ -176,6 +202,133 @@ class CiTopologyCheckEntrypointBehaviorTests(unittest.TestCase):
         result = self._run(0, autoharness_present=False)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("not found on PATH", result.stdout + result.stderr)
+
+    def _run_in_isolated_workspace(
+        self,
+        *,
+        exit_code: int = 0,
+        backlog_dirs: tuple = (),
+        override_env: dict = None,
+    ):
+        """Run the entrypoint against a real, isolated git repository (never
+        this repository's own single `.backlogit` root) so the new
+        BACKLOGIT_WORKSPACE_DIR / dual-root resolution branches are actually
+        exercised end to end (Copilot review, PR #344 thread
+        PRRT_kwDORzpWpM6ZiZHb): the pre-existing subprocess tests above only
+        assert the branch strings exist in the template text, never that the
+        shell control flow for empty-override, missing-override, or
+        dual-root-ambiguity actually resolves/fails correctly."""
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            subprocess.run(
+                ["git", "init", "-q"], cwd=tmp_path, check=True, timeout=30
+            )
+            for name in backlog_dirs:
+                (tmp_path / name).mkdir(parents=True, exist_ok=True)
+
+            script = tmp_path / "ci-topology-check.sh"
+            script.write_text(_read(), encoding="utf-8", newline="\n")
+            script.chmod(0o755)
+
+            stub_dir = tmp_path / "stub-bin"
+            stub_dir.mkdir()
+            _stub_autoharness_path(stub_dir, exit_code)
+
+            env = dict(os.environ)
+            env["PATH"] = f"{stub_dir}{os.pathsep}{env.get('PATH', '')}"
+            if override_env:
+                env.update(override_env)
+            else:
+                env.pop("BACKLOGIT_WORKSPACE_DIR", None)
+
+            return subprocess.run(
+                [_BASH, str(script)],
+                cwd=tmp_path,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
+            )
+
+    def test_dot_backlog_only_workspace_resolves_and_passes(self) -> None:
+        result = self._run_in_isolated_workspace(exit_code=0, backlog_dirs=(".backlog",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("resolved backlog root: .backlog", result.stdout)
+
+    def test_legacy_dot_backlogit_only_workspace_resolves_and_passes(self) -> None:
+        result = self._run_in_isolated_workspace(exit_code=0, backlog_dirs=(".backlogit",))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("resolved backlog root: .backlogit", result.stdout)
+
+    def test_dual_root_present_with_no_override_fails_closed(self) -> None:
+        result = self._run_in_isolated_workspace(
+            exit_code=0, backlog_dirs=(".backlog", ".backlogit")
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "both .backlog and .backlogit are present", result.stdout + result.stderr
+        )
+
+    def test_empty_override_fails_closed(self) -> None:
+        result = self._run_in_isolated_workspace(
+            exit_code=0, backlog_dirs=(".backlog",), override_env={"BACKLOGIT_WORKSPACE_DIR": ""}
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "BACKLOGIT_WORKSPACE_DIR is set but empty", result.stdout + result.stderr
+        )
+
+    def test_override_naming_missing_directory_fails_closed(self) -> None:
+        # A valid literal override name (.backlogit) that does not exist on
+        # disk still fails closed on the missing-directory branch, distinct
+        # from the exact-literal-name rejection branch below.
+        result = self._run_in_isolated_workspace(
+            exit_code=0,
+            backlog_dirs=(".backlog",),
+            override_env={"BACKLOGIT_WORKSPACE_DIR": ".backlogit"},
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "points to a missing directory", result.stdout + result.stderr
+        )
+
+    def test_override_naming_non_literal_value_fails_closed(self) -> None:
+        # PR #344 Copilot review round 2, thread PRRT_kwDORzpWpM6ZihN-: an
+        # override value that is not exactly ".backlog" or ".backlogit" --
+        # even if it names a directory that actually exists on disk -- must
+        # be rejected before any directory-existence check runs, since the
+        # override is not an arbitrary filesystem path.
+        result = self._run_in_isolated_workspace(
+            exit_code=0,
+            backlog_dirs=(".backlog", "custom-root"),
+            override_env={"BACKLOGIT_WORKSPACE_DIR": "custom-root"},
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "must be exactly .backlog or .backlogit", result.stdout + result.stderr
+        )
+
+    def test_valid_override_takes_precedence_over_dual_root_ambiguity(self) -> None:
+        # A valid, literal BACKLOGIT_WORKSPACE_DIR override (one of the two
+        # supported candidate names) resolves the root even when both
+        # .backlog and .backlogit also happen to exist -- the override
+        # branch is checked first and short-circuits the dual-root ambiguity
+        # branch entirely (Copilot review, PR #344 threads
+        # PRRT_kwDORzpWpM6ZiZHP / PRRT_kwDORzpWpM6ZiZHZ: the ambiguity rule
+        # must not fire when a valid override already resolves the root).
+        # Round 2 (thread PRRT_kwDORzpWpM6ZihN-) tightened the override to
+        # only the two literal names, so this now overrides to .backlogit
+        # rather than an arbitrary "custom-root" name.
+        result = self._run_in_isolated_workspace(
+            exit_code=0,
+            backlog_dirs=(".backlog", ".backlogit"),
+            override_env={"BACKLOGIT_WORKSPACE_DIR": ".backlogit"},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("resolved backlog root: .backlogit", result.stdout)
 
 
 _INSTALL_SKILL = _REPO_ROOT / ".github" / "skills" / "install-harness" / "SKILL.md"

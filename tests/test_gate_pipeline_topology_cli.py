@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -215,6 +216,72 @@ class PipelineTopologyArgTests(unittest.TestCase):
         self.assertEqual(text_code, 3)
         self.assertIn('RETRY_REQUIRED', text_out)
         self.assertNotIn('INVALID', text_out)
+
+
+class PipelineTopologyStorageRootResolutionTests(unittest.TestCase):
+    def _write_minimal_backlog_root(self, root: Path) -> None:
+        (root / 'queue').mkdir(parents=True)
+        (root / 'archive').mkdir(parents=True)
+
+    def test_backlog_only_workspace_succeeds(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            self._write_minimal_backlog_root(workspace / '.backlog')
+            with mock.patch(
+                'autoharness.gates.topology.FilesystemTopologyReaders',
+                side_effect=lambda _workspace: FilesystemTopologyReaders(workspace),
+            ):
+                out, err, code = _run('gate', 'pipeline-topology', '--mode', 'ci', '--json')
+
+        self.assertEqual(code, 0)
+        self.assertEqual(err, '')
+        payload = json.loads(out)
+        self.assertEqual(payload['message'], 'topology gate pass')
+        self.assertEqual(payload['token'], None)
+
+    def test_both_roots_present_returns_structured_block_without_traceback(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            self._write_minimal_backlog_root(workspace / '.backlog')
+            self._write_minimal_backlog_root(workspace / '.backlogit')
+            with mock.patch(
+                'autoharness.gates.topology.FilesystemTopologyReaders',
+                side_effect=lambda _workspace: FilesystemTopologyReaders(workspace),
+            ):
+                out, err, code = _run('gate', 'pipeline-topology', '--mode', 'ci', '--json')
+
+        self.assertEqual(code, 1)
+        self.assertNotIn('Traceback', err)
+        payload = json.loads(out)
+        self.assertEqual(payload['token'], 'BACKLOG_UNAVAILABLE')
+        self.assertIn('multiple backlog directories are present', payload['message'])
+
+    def test_missing_override_returns_structured_block_without_fallthrough(self) -> None:
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        # '.backlogit' is a valid literal candidate name (accepted by the strict
+        # override validator) that simply does not exist as a directory here --
+        # this exercises the missing-directory-after-a-valid-override path,
+        # distinct from a non-literal override value (covered elsewhere).
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+            workspace = Path(tmp)
+            self._write_minimal_backlog_root(workspace / '.backlog')
+            with mock.patch.dict(os.environ, {'BACKLOGIT_WORKSPACE_DIR': '.backlogit'}):
+                with mock.patch(
+                    'autoharness.gates.topology.FilesystemTopologyReaders',
+                    side_effect=lambda _workspace: FilesystemTopologyReaders(workspace),
+                ):
+                    out, err, code = _run('gate', 'pipeline-topology', '--mode', 'ci', '--json')
+
+        self.assertEqual(code, 1)
+        self.assertNotIn('Traceback', err)
+        payload = json.loads(out)
+        self.assertEqual(payload['token'], 'BACKLOG_UNAVAILABLE')
+        self.assertIn('configured backlog directory is unavailable', payload['message'])
 
 
 class PipelineTopologyTelemetryTests(unittest.TestCase):
