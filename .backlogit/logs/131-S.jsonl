@@ -1,0 +1,7 @@
+{"timestamp":"2026-08-14T16:51:30.5158388-07:00","actor":"backlogit","item_id":"131-S","event_type":"shipment_created","delta":{"items":["122-F"],"title":"Plan 3 S1 — remote broker contracts, adapters, arbitration, and security"}}
+{"timestamp":"2026-08-14T16:51:45.9639827-07:00","actor":"backlogit","item_id":"131-S","event_type":"shipment_item_added","delta":{"item_id":"122.003-T"}}
+{"timestamp":"2026-08-14T16:51:48.5756212-07:00","actor":"backlogit","item_id":"131-S","event_type":"shipment_item_added","delta":{"item_id":"122.001-T"}}
+{"timestamp":"2026-08-14T16:51:51.1928844-07:00","actor":"backlogit","item_id":"131-S","event_type":"shipment_item_added","delta":{"item_id":"122.002-T"}}
+{"timestamp":"2026-08-14T16:51:57.6570837-07:00","actor":"backlogit","item_id":"131-S","event_type":"shipment_item_added","delta":{"item_id":"122.004-T"}}
+{"timestamp":"2026-08-14T16:54:22.2555675-07:00","actor":"stage","item_id":"131-S","event_type":"comment","delta":{"comment":"Queued and ready for Ship as the first eligible Plan 3 cursor. Manifest is root 122-F plus 122.001-T..122.004-T; all tasks are sized/complexity-rated and item dependencies are wired. Requirements/decision artifact: .backlogit/queue/016-DL.md; S1 implementation plan: .backlogit/queue/122-F.md."}}
+{"timestamp":"2026-08-14T19:07:36.0321349-07:00","actor":"backlogit","item_id":"131-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/131-S.md"}}
