@@ -1,1 +1,3 @@
 {"timestamp":"2026-08-15T10:38:27.1153411-07:00","actor":"backlogit","item_id":"126-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-15T14:00:23.1141473-07:00","actor":"backlogit","item_id":"126-F","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"9851cc3defb8ba295940064d201bda006b15d7ff","message":"feat(135-S/126-F): adopt the backlogit .backlog storage root"}}
+{"timestamp":"2026-08-15T14:02:01.8903896-07:00","actor":"backlogit","item_id":"126-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/126-F.md"}}
