@@ -79,6 +79,17 @@ if [ "${BACKLOGIT_WORKSPACE_DIR+x}" = "x" ]; then
   if [ -z "$BACKLOGIT_WORKSPACE_DIR" ]; then
     echo "::error::[CI Topology Check] BACKLOGIT_WORKSPACE_DIR is set but empty." >&2
     exit 1
+  elif [ "$BACKLOGIT_WORKSPACE_DIR" != ".backlog" ] && [ "$BACKLOGIT_WORKSPACE_DIR" != ".backlogit" ]; then
+    # Mirrors backlogit 1.9.0's own validateWorkspaceDirOverride
+    # (internal/core/workspace.go): the override is NOT an arbitrary
+    # filesystem path -- it must be exactly one of the two supported literal
+    # candidate names (case-sensitive). This single exact-string comparison
+    # rejects path separators, "." / "..", absolute paths, drive/UNC
+    # prefixes, and case aliases in one step, since none of those values can
+    # ever equal ".backlog" or ".backlogit" verbatim (PR #344 Copilot review,
+    # thread PRRT_kwDORzpWpM6ZihN-).
+    echo "::error::[CI Topology Check] BACKLOGIT_WORKSPACE_DIR must be exactly .backlog or .backlogit (got: $BACKLOGIT_WORKSPACE_DIR)." >&2
+    exit 1
   elif [ ! -d "$BACKLOGIT_WORKSPACE_DIR" ]; then
     echo "::error::[CI Topology Check] BACKLOGIT_WORKSPACE_DIR points to a missing directory: $BACKLOGIT_WORKSPACE_DIR" >&2
     exit 1

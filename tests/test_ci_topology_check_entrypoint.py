@@ -110,6 +110,18 @@ class CiTopologyCheckEntrypointStructureTests(unittest.TestCase):
         self.assertIn("both .backlog and .backlogit are present", text)
         self.assertIn("resolve the ambiguity", text)
 
+    def test_override_must_be_exact_literal_candidate_name(self) -> None:
+        # PR #344 Copilot review round 2, thread PRRT_kwDORzpWpM6ZihN-: the
+        # override is not an arbitrary filesystem path; it must be exactly
+        # ".backlog" or ".backlogit" (mirrors backlogit 1.9.0's
+        # validateWorkspaceDirOverride). A single exact-string comparison
+        # against both literals rejects separators, absolute paths, "."/"..",
+        # and case aliases in one step.
+        text = _read()
+        self.assertIn('"$BACKLOGIT_WORKSPACE_DIR" != ".backlog"', text)
+        self.assertIn('"$BACKLOGIT_WORKSPACE_DIR" != ".backlogit"', text)
+        self.assertIn("must be exactly .backlog or .backlogit", text)
+
     def test_single_pass_no_retry_loop(self) -> None:
         text = _read().lower()
         self.assertNotIn("while true", text)
@@ -270,30 +282,53 @@ class CiTopologyCheckEntrypointBehaviorTests(unittest.TestCase):
         )
 
     def test_override_naming_missing_directory_fails_closed(self) -> None:
+        # A valid literal override name (.backlogit) that does not exist on
+        # disk still fails closed on the missing-directory branch, distinct
+        # from the exact-literal-name rejection branch below.
         result = self._run_in_isolated_workspace(
             exit_code=0,
             backlog_dirs=(".backlog",),
-            override_env={"BACKLOGIT_WORKSPACE_DIR": "/no/such/directory"},
+            override_env={"BACKLOGIT_WORKSPACE_DIR": ".backlogit"},
         )
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn(
             "points to a missing directory", result.stdout + result.stderr
         )
 
+    def test_override_naming_non_literal_value_fails_closed(self) -> None:
+        # PR #344 Copilot review round 2, thread PRRT_kwDORzpWpM6ZihN-: an
+        # override value that is not exactly ".backlog" or ".backlogit" --
+        # even if it names a directory that actually exists on disk -- must
+        # be rejected before any directory-existence check runs, since the
+        # override is not an arbitrary filesystem path.
+        result = self._run_in_isolated_workspace(
+            exit_code=0,
+            backlog_dirs=(".backlog", "custom-root"),
+            override_env={"BACKLOGIT_WORKSPACE_DIR": "custom-root"},
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "must be exactly .backlog or .backlogit", result.stdout + result.stderr
+        )
+
     def test_valid_override_takes_precedence_over_dual_root_ambiguity(self) -> None:
-        # A valid BACKLOGIT_WORKSPACE_DIR override resolves the root even when
-        # both .backlog and .backlogit also happen to exist -- the override
+        # A valid, literal BACKLOGIT_WORKSPACE_DIR override (one of the two
+        # supported candidate names) resolves the root even when both
+        # .backlog and .backlogit also happen to exist -- the override
         # branch is checked first and short-circuits the dual-root ambiguity
         # branch entirely (Copilot review, PR #344 threads
         # PRRT_kwDORzpWpM6ZiZHP / PRRT_kwDORzpWpM6ZiZHZ: the ambiguity rule
         # must not fire when a valid override already resolves the root).
+        # Round 2 (thread PRRT_kwDORzpWpM6ZihN-) tightened the override to
+        # only the two literal names, so this now overrides to .backlogit
+        # rather than an arbitrary "custom-root" name.
         result = self._run_in_isolated_workspace(
             exit_code=0,
-            backlog_dirs=(".backlog", ".backlogit", "custom-root"),
-            override_env={"BACKLOGIT_WORKSPACE_DIR": "custom-root"},
+            backlog_dirs=(".backlog", ".backlogit"),
+            override_env={"BACKLOGIT_WORKSPACE_DIR": ".backlogit"},
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("resolved backlog root: custom-root", result.stdout)
+        self.assertIn("resolved backlog root: .backlogit", result.stdout)
 
 
 _INSTALL_SKILL = _REPO_ROOT / ".github" / "skills" / "install-harness" / "SKILL.md"

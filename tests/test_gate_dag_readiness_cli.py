@@ -207,10 +207,14 @@ class DagReadinessStorageRootResolutionTests(unittest.TestCase):
         self.assertIn("multiple backlog directories are present", payload["degraded_reason"])
 
     def test_missing_override_reports_degraded_without_fallthrough(self) -> None:
+        # ".backlogit" is a valid literal candidate name (accepted by the strict
+        # override validator) that simply does not exist as a directory here --
+        # this exercises the missing-directory-after-a-valid-override path,
+        # distinct from a non-literal override value (covered elsewhere).
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / ".backlog")
-            with mock.patch.dict(os.environ, {"BACKLOGIT_WORKSPACE_DIR": "missing-root"}):
+            with mock.patch.dict(os.environ, {"BACKLOGIT_WORKSPACE_DIR": ".backlogit"}):
                 out, err, code = _run("gate", "dag-readiness", "--workspace", str(workspace), "--json")
 
         self.assertEqual(code, 0)

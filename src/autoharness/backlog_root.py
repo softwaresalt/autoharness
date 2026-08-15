@@ -8,6 +8,12 @@ from pathlib import Path
 
 BACKLOG_ROOT_OVERRIDE_ENV = "BACKLOGIT_WORKSPACE_DIR"
 
+# The only two directory names backlogit 1.9.0's own
+# ``validateWorkspaceDirOverride`` (internal/core/workspace.go) accepts for
+# BACKLOGIT_WORKSPACE_DIR, in discovery precedence order. Never derived from
+# config; mirrors upstream's private ``workspaceRootCandidates`` exactly.
+_CANDIDATE_NAMES: tuple[str, ...] = (".backlog", ".backlogit")
+
 
 class BacklogUnavailableError(RuntimeError):
     def __init__(self, path: Path, reason: str) -> None:
@@ -24,6 +30,61 @@ class AmbiguousBacklogRootError(BacklogUnavailableError):
         super().__init__(workspace, f"multiple backlog directories are present ({names})")
 
 
+def _must_be_one_of_message() -> str:
+    return f"{BACKLOG_ROOT_OVERRIDE_ENV} must be one of {', '.join(_CANDIDATE_NAMES)}"
+
+
+def _validate_override_name(override: str) -> str:
+    """Validate a raw BACKLOGIT_WORKSPACE_DIR override value.
+
+    Mirrors backlogit 1.9.0's ``validateWorkspaceDirOverride`` (PR #344
+    Copilot review, thread PRRT_kwDORzpWpM6ZihN2): the override is NOT an
+    arbitrary filesystem path. It must be exactly one of ``_CANDIDATE_NAMES``
+    (case-sensitive) -- no path separators, no ``.``/``..``, no absolute
+    paths, and no drive/UNC prefixes. A value that only differs from a
+    candidate by case is rejected with a distinct diagnostic (upstream
+    requires the exact supported case) rather than silently accepted or
+    silently treated as ambiguous.
+    """
+    if not override:
+        raise BacklogUnavailableError(Path(override), f"{BACKLOG_ROOT_OVERRIDE_ENV} is set but empty")
+    if "\x00" in override:
+        raise BacklogUnavailableError(
+            Path(override), f"{BACKLOG_ROOT_OVERRIDE_ENV} contains a NUL byte"
+        )
+    if override in (".", ".."):
+        raise BacklogUnavailableError(Path(override), _must_be_one_of_message())
+    if any(sep in override for sep in ("/", "\\")):
+        raise BacklogUnavailableError(Path(override), _must_be_one_of_message())
+    if os.path.isabs(override):
+        raise BacklogUnavailableError(Path(override), _must_be_one_of_message())
+    drive, _tail = os.path.splitdrive(override)
+    if drive:
+        raise BacklogUnavailableError(Path(override), _must_be_one_of_message())
+    if override in _CANDIDATE_NAMES:
+        return override
+    for candidate in _CANDIDATE_NAMES:
+        if override.lower() == candidate.lower():
+            raise BacklogUnavailableError(
+                Path(override),
+                f"{BACKLOG_ROOT_OVERRIDE_ENV} must use the exact supported case ({candidate})",
+            )
+    raise BacklogUnavailableError(Path(override), _must_be_one_of_message())
+
+
+def _reject_symlink(candidate_path: Path) -> None:
+    """Reject a resolved backlog directory that is a symlink or reparse
+    point (PR #344 Copilot review, thread PRRT_kwDORzpWpM6ZihN5): upstream's
+    ``probeWorkspaceCandidate`` lstats the candidate and refuses to treat a
+    symlink/reparse point as a valid workspace storage root, since
+    ``Path.is_dir()`` alone follows symlinks and would let an unrelated or
+    escaping directory be selected."""
+    if candidate_path.is_symlink():
+        raise BacklogUnavailableError(
+            candidate_path, "backlog directory is a symlink or reparse point"
+        )
+
+
 def resolve_backlog_root(
     workspace: Path | str = ".",
     *,
@@ -34,28 +95,25 @@ def resolve_backlog_root(
     env_map = os.environ if env is None else env
     override = env_map.get(BACKLOG_ROOT_OVERRIDE_ENV)
     if override is not None:
-        if not override:
-            raise BacklogUnavailableError(workspace_path, f"{BACKLOG_ROOT_OVERRIDE_ENV} is empty")
-        if "\x00" in override:
-            raise BacklogUnavailableError(
-                workspace_path,
-                f"{BACKLOG_ROOT_OVERRIDE_ENV} contains a NUL byte",
-            )
-        override_path = Path(override)
-        if not override_path.is_absolute():
-            override_path = workspace_path / override_path
-        if not override_path.exists() or not override_path.is_dir():
+        validated_name = _validate_override_name(override)
+        override_path = workspace_path / validated_name
+        if not override_path.exists():
+            raise BacklogUnavailableError(override_path, "configured backlog directory is unavailable")
+        _reject_symlink(override_path)
+        if not override_path.is_dir():
             raise BacklogUnavailableError(override_path, "configured backlog directory is unavailable")
         return override_path
 
-    backlog_root = workspace_path / ".backlog"
-    legacy_root = workspace_path / ".backlogit"
-    backlog_exists = backlog_root.is_dir()
-    legacy_exists = legacy_root.is_dir()
-    if backlog_exists and legacy_exists:
-        raise AmbiguousBacklogRootError(workspace_path, (backlog_root, legacy_root))
-    if backlog_exists:
-        return backlog_root
-    if legacy_exists:
-        return legacy_root
+    matches: list[Path] = []
+    for name in _CANDIDATE_NAMES:
+        candidate_path = workspace_path / name
+        if not candidate_path.exists():
+            continue
+        _reject_symlink(candidate_path)
+        if candidate_path.is_dir():
+            matches.append(candidate_path)
+    if len(matches) > 1:
+        raise AmbiguousBacklogRootError(workspace_path, (matches[0], matches[1]))
+    if matches:
+        return matches[0]
     raise BacklogUnavailableError(workspace_path, "backlog directory is unavailable")

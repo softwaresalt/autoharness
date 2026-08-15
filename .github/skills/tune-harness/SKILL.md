@@ -339,9 +339,12 @@ Compare the currently registered backlog tool (from `.autoharness/backlog-regist
   same time **and no valid `BACKLOGIT_WORKSPACE_DIR` override resolves the root**,
   classify the drift as **Breaking**, fail closed to operator review, and report that
   the ambiguity must be resolved manually before Tune or Ship proceeds. Do **not**
-  guess, merge, copy, delete, or rename either root from Tune. When a valid
-  `BACKLOGIT_WORKSPACE_DIR` override names an existing directory, that override
-  resolves the root per the documented resolver precedence and both-roots-present is
+  guess, merge, copy, delete, or rename either root from Tune. A "valid"
+  `BACKLOGIT_WORKSPACE_DIR` override is one that names exactly `.backlog` or
+  `.backlogit` (the only two literal names the resolver accepts -- not an
+  arbitrary path, and not a value that only differs by case) and whose named
+  directory actually exists; when that condition holds, the override resolves
+  the root per the documented resolver precedence and both-roots-present is
   not itself an ambiguity in that case — do not report Breaking solely because both
   directories exist.
 
