@@ -4057,7 +4057,9 @@ def verify_workspace(
         workspace_file = workspace_path / Path(relative_path)
         raw_expected_checksum = artifact.get("checksum")
         expected_checksum = _normalize_signal_text(raw_expected_checksum)
+        checksum_status: str | None = None
         if not workspace_file.exists():
+            checksum_status = "missing"
             checksum_entry = {"path": relative_path, "status": "missing"}
             if expected_checksum:
                 checksum_entry["expected"] = expected_checksum
@@ -4075,6 +4077,7 @@ def verify_workspace(
             actual_checksum = _sha256_bytes(workspace_file.read_bytes())
             if expected_checksum:
                 status = "unchanged" if actual_checksum == expected_checksum else "user-modified"
+                checksum_status = status
                 report["checksum_scan"].append(
                     {
                         "path": relative_path,
@@ -4084,6 +4087,7 @@ def verify_workspace(
                     }
                 )
             else:
+                checksum_status = "checksum-untracked"
                 report["checksum_scan"].append(
                     {
                         "path": relative_path,
@@ -4110,6 +4114,24 @@ def verify_workspace(
                 content,
                 artifact.get("contract_version"),
             )
+            if (
+                checksum_status == "user-modified"
+                and classification.get("status") in ("known-legacy", "current")
+                and not classification.get("custom_sections")
+            ):
+                # The manifest-recorded checksum for this artifact no longer matches
+                # its installed content, but the marker-based classifier found no
+                # recognized custom-section tail to attribute the divergence to. The
+                # unaccounted-for change could be an operator edit to the core
+                # delegation logic itself; auto-refreshing would silently discard it.
+                # Fail closed to ambiguous (manual review) rather than guessing.
+                classification["status"] = "ambiguous"
+                classification.setdefault("evidence", []).append(
+                    "Installed content differs from the manifest-recorded checksum, "
+                    "but no recognized custom-section tail explains the difference; "
+                    "downgraded to ambiguous to avoid discarding an unrecognized "
+                    "core-content edit on refresh."
+                )
             report["startup_script_contracts"][relative_path] = classification
             proposal = plan_startup_script_migration(shell, relative_path, classification)
             if proposal is not None:

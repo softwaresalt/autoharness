@@ -2739,6 +2739,35 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertEqual(proposal["severity"], "degrading")
         self.assertFalse(proposal["manual_review"])
 
+    def test_verify_workspace_downgrades_unattributed_checksum_drift_to_ambiguous(self) -> None:
+        """Regression: a known-legacy (or current) script whose installed content no
+        longer matches its manifest-recorded checksum, but whose divergence cannot be
+        attributed to a recognized custom-section tail, must fail closed to
+        ``ambiguous`` (manual review) rather than silently proceeding with an
+        auto-refresh proposal that would discard the unrecognized core-content edit."""
+        legacy_content = "\n".join(STARTUP_SCRIPT_CONTRACTS["ps1"]["legacy_markers"]) + "\n"
+        drifted_content = legacy_content + "# operator hand-edited an extra core command\n"
+        stale_checksum = hashlib.sha256(legacy_content.encode("utf-8")).hexdigest()
+        report = _run_startup_script_verify_fixture(
+            [
+                {
+                    "shell": "ps1",
+                    "path": "start.ps1",
+                    "content": drifted_content,
+                    "checksum": stale_checksum,
+                }
+            ]
+        )
+
+        self.assertEqual(report["checksum_scan"][0]["status"], "user-modified")
+        self.assertEqual(report["startup_script_contracts"]["start.ps1"]["status"], "ambiguous")
+        proposal = next(
+            proposal
+            for proposal in report["migration_proposals"]
+            if proposal["contract"] == "startup-script-ps1"
+        )
+        self.assertTrue(proposal["manual_review"])
+
     def test_verify_workspace_records_missing_startup_script_contract(self) -> None:
         report = _run_startup_script_verify_fixture(
             [
