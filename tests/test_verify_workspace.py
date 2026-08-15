@@ -8,6 +8,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -18,7 +19,19 @@ from autoharness.schema_contracts import (
     summarize_schema_contract,
 )
 from autoharness.cli import _report_has_failures
-from autoharness.verify_workspace import _derive_template_variables, _find_unresolved_placeholders, _normalize_stage_path, _resolve_agent_scan_dirs, _run_portability_scan, _scan_agent_identity_migrations, _scan_uninstalled_templates, verify_workspace, FOUNDATION_ASSERTIONS, _add_text_check
+from autoharness.startup_script_contract import STARTUP_SCRIPT_CONTRACTS
+from autoharness.verify_workspace import (
+    FOUNDATION_ASSERTIONS,
+    _add_text_check,
+    _derive_template_variables,
+    _find_unresolved_placeholders,
+    _normalize_stage_path,
+    _resolve_agent_scan_dirs,
+    _run_portability_scan,
+    _scan_agent_identity_migrations,
+    _scan_uninstalled_templates,
+    verify_workspace,
+)
 
 
 def _write_yaml(path: Path, data: dict) -> None:
@@ -31,6 +44,93 @@ def _extract_quoted_value(text: str, pattern: str) -> str:
     if not match:
         raise AssertionError(f"Unable to find pattern: {pattern}")
     return match.group(1)
+
+
+def _write_permissive_contract_schemas(autoharness_home: Path) -> None:
+    schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+    }
+    for schema_name, versioned_dir in (
+        ("harness-manifest.schema.json", "harness-manifest"),
+        ("harness-config.schema.json", "harness-config"),
+        ("workspace-profile.schema.json", "workspace-profile"),
+    ):
+        (autoharness_home / "schemas").mkdir(parents=True, exist_ok=True)
+        (autoharness_home / "schemas" / schema_name).write_text(
+            json.dumps(schema),
+            encoding="utf-8",
+        )
+        (autoharness_home / "schemas" / versioned_dir).mkdir(parents=True, exist_ok=True)
+        (autoharness_home / "schemas" / versioned_dir / "1.0.0.schema.json").write_text(
+            json.dumps(schema),
+            encoding="utf-8",
+        )
+
+
+def _run_startup_script_verify_fixture(artifacts: list[dict[str, Any]]) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        repo_root = Path(__file__).resolve().parents[1]
+        autoharness_home = root / "autoharness-home"
+        workspace = root / "workspace"
+        staging = workspace / ".autoharness" / "staging"
+
+        (autoharness_home / "templates" / "scripts").mkdir(parents=True, exist_ok=True)
+        (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
+        _write_permissive_contract_schemas(autoharness_home)
+
+        for shell, contract in STARTUP_SCRIPT_CONTRACTS.items():
+            template_name = Path(contract["template"]).name
+            template_source = repo_root / "templates" / "scripts" / template_name
+            (autoharness_home / "templates" / "scripts" / template_name).write_text(
+                template_source.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+        manifest_artifacts = []
+        for artifact in artifacts:
+            shell = artifact["shell"]
+            relative_path = artifact["path"]
+            content = artifact.get("content")
+            workspace_file = workspace / relative_path
+            if content is not None:
+                workspace_file.write_text(content, encoding="utf-8")
+
+            checksum = artifact.get("checksum")
+            if checksum is None and content is not None:
+                checksum = hashlib.sha256(workspace_file.read_bytes()).hexdigest()
+
+            manifest_entry = {
+                "path": relative_path,
+                "primitive": 5,
+                "template": STARTUP_SCRIPT_CONTRACTS[shell]["template"],
+                "checksum": checksum or "",
+            }
+            if "contract_version" in artifact:
+                manifest_entry["contract_version"] = artifact["contract_version"]
+            manifest_artifacts.append(manifest_entry)
+
+        _write_yaml(
+            workspace / ".autoharness" / "harness-manifest.yaml",
+            {
+                "schema_version": "1.0.0",
+                "installed_at": "2026-08-15T00:00:00Z",
+                "autoharness_version": "1.4.11",
+                "profile_hash": "abc",
+                "primitives_installed": [5],
+                "capability_packs": [],
+                "artifacts": manifest_artifacts,
+                "variables_used": {
+                    "PROJECT_NAME": "demo-workspace",
+                    "COPILOT_EXE_PATH": "copilot",
+                },
+            },
+        )
+        _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+        _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+
+        return verify_workspace(workspace, autoharness_home, staging)
 
 
 class VerifyWorkspaceTests(unittest.TestCase):
@@ -2584,6 +2684,101 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 },
                 report["warnings"],
             )
+
+    def test_verify_workspace_records_current_startup_script_contracts(self) -> None:
+        report = _run_startup_script_verify_fixture(
+            [
+                {
+                    "shell": "ps1",
+                    "path": "start.ps1",
+                    "content": (
+                        Path(__file__).resolve().parents[1]
+                        / "templates"
+                        / "scripts"
+                        / "start.ps1.tmpl"
+                    ).read_text(encoding="utf-8"),
+                },
+                {
+                    "shell": "sh",
+                    "path": "start.sh",
+                    "content": (
+                        Path(__file__).resolve().parents[1]
+                        / "templates"
+                        / "scripts"
+                        / "start.sh.tmpl"
+                    ).read_text(encoding="utf-8"),
+                },
+            ]
+        )
+
+        self.assertEqual(report["startup_script_contracts"]["start.ps1"]["status"], "current")
+        self.assertEqual(report["startup_script_contracts"]["start.sh"]["status"], "current")
+        self.assertFalse(
+            any(
+                proposal["contract"] in {"startup-script-ps1", "startup-script-sh"}
+                for proposal in report["migration_proposals"]
+            )
+        )
+
+    def test_verify_workspace_flags_known_legacy_startup_script_even_when_checksum_is_unchanged(self) -> None:
+        legacy_content = "\n".join(STARTUP_SCRIPT_CONTRACTS["ps1"]["legacy_markers"]) + "\n"
+        report = _run_startup_script_verify_fixture(
+            [{"shell": "ps1", "path": "start.ps1", "content": legacy_content}]
+        )
+
+        self.assertEqual(report["checksum_scan"][0]["path"], "start.ps1")
+        self.assertEqual(report["checksum_scan"][0]["status"], "unchanged")
+        self.assertEqual(report["startup_script_contracts"]["start.ps1"]["status"], "known-legacy")
+        proposal = next(
+            proposal
+            for proposal in report["migration_proposals"]
+            if proposal["contract"] == "startup-script-ps1"
+        )
+        self.assertEqual(proposal["path"], "start.ps1")
+        self.assertEqual(proposal["status"], "known-legacy")
+        self.assertEqual(proposal["severity"], "degrading")
+        self.assertFalse(proposal["manual_review"])
+
+    def test_verify_workspace_records_missing_startup_script_contract(self) -> None:
+        report = _run_startup_script_verify_fixture(
+            [
+                {
+                    "shell": "sh",
+                    "path": "start.sh",
+                    "content": None,
+                    "checksum": "expected-start-sh-checksum",
+                }
+            ]
+        )
+
+        self.assertEqual(report["startup_script_contracts"]["start.sh"]["status"], "missing")
+        self.assertEqual(report["checksum_scan"][0]["status"], "missing")
+
+    def test_verify_workspace_marks_unknown_startup_script_contract_version_as_ambiguous(self) -> None:
+        current_content = (
+            Path(__file__).resolve().parents[1]
+            / "templates"
+            / "scripts"
+            / "start.sh.tmpl"
+        ).read_text(encoding="utf-8")
+        report = _run_startup_script_verify_fixture(
+            [
+                {
+                    "shell": "sh",
+                    "path": "start.sh",
+                    "content": current_content,
+                    "contract_version": "2.0.0",
+                }
+            ]
+        )
+
+        self.assertEqual(report["startup_script_contracts"]["start.sh"]["status"], "ambiguous")
+        proposal = next(
+            proposal
+            for proposal in report["migration_proposals"]
+            if proposal["contract"] == "startup-script-sh"
+        )
+        self.assertTrue(proposal["manual_review"])
 
     def test_review_surface_templates_and_routing_are_wired(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
