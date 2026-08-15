@@ -103,6 +103,17 @@ mirrors upstream precedence **exactly**: `BACKLOGIT_WORKSPACE_DIR` -> `.backlog`
 Divergence from upstream precedence is the primary correctness risk, so the
 helper's ordering is asserted against the upstream table in tests.
 
+T2 also routes the one functional in-repo consumer, `FilesystemTopologyReaders`
+(`src/autoharness/gates/topology.py:372`), through the helper **without changing
+either CLI call site's failure contract**. Both sites construct the reader outside
+their error handling — `cli.py:1186` builds it before the `try` that turns
+`BacklogUnavailableError` into the documented non-fatal `degraded` payload, and
+`cli.py:1063` builds it as an argument to `topology.evaluate()` — so a resolver
+raise from `__init__` would escape as an unhandled traceback on both paths.
+Resolution is therefore **deferred to first use and surfaced as the existing
+`BacklogUnavailableError`**, and regressions cover `.backlog`-only success,
+both-roots ambiguity, and an invalid/missing explicit override on both paths.
+
 **T3 — Schema descriptive/default alignment (no validation widening).**
 Verified against current `main`: none of the three occurrences constrains the
 storage root today. `schemas/harness-config.schema.json:107-114` declares
