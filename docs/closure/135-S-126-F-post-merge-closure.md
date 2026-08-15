@@ -3,7 +3,7 @@ shipment: 135-S
 feature: 126-F
 tasks: [126.001-T, 126.002-T, 126.003-T, 126.004-T, 126.005-T, 126.006-T, 126.007-T]
 feature_pr: 344
-closure_pr: null
+closure_pr: 345
 merge_commit: 9851cc3defb8ba295940064d201bda006b15d7ff
 merged_at: "2026-08-15T20:50:38Z"
 reviewed_head: 125a916d4820821e9d9179e9c6b97b8dbea60a48
