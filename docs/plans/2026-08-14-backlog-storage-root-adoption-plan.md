@@ -60,7 +60,15 @@ registry default:
   `.github/agents/_stage.agent.md:95`, `.github/agents/auto-mergeinstall.agent.md:84`
   (already dual-root aware — use as the reference pattern)
 * **Scripts (1)** — `scripts/ci-topology-check.sh` (2)
-* **CLI (1)** — `src/autoharness/cli.py:467` help text
+* **Python source (3)** — `src/autoharness/gates/topology.py:372`
+  (`FilesystemTopologyReaders.backlog_dir`, which hardcodes `.backlogit`). This is
+  the *functional* reader behind both CLI gate paths — instantiated at
+  `src/autoharness/cli.py:1063` (pipeline-topology) and `src/autoharness/cli.py:1186`
+  (DAG-readiness) — so a `.backlog`-only workspace fails both gates with
+  “backlog directory is unavailable” until it is resolver-routed. It is
+  **resolver-routable and in scope**, together with its regression tests.
+  Also: `src/autoharness/cli.py:467` help text and
+  `src/autoharness/gates/shipment_closure.py:241` docstring (both literal-required prose).
 * **Docs (13)** — `docs/backlog-integration.md`, `docs/backlogit-operating-model.md`,
   `docs/dag-readiness-gate.md`, `docs/gates-reference.md`,
   `docs/pipeline-topology-gate.md`, `docs/pipeline-topology-gate-ci-rollout.md`,
@@ -95,11 +103,23 @@ mirrors upstream precedence **exactly**: `BACKLOGIT_WORKSPACE_DIR` -> `.backlog`
 Divergence from upstream precedence is the primary correctness risk, so the
 helper's ordering is asserted against the upstream table in tests.
 
-**T3 — Schema acceptance.** Update the three schemas to accept and prefer
-`.backlog` while continuing to validate legacy `.backlogit` values. Follows
-`docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md`:
-a changed validation contract needs a versioned identifier and a preserved legacy
-interpretation — no in-place semantic mutation without a version bump.
+**T3 — Schema descriptive/default alignment (no validation widening).**
+Verified against current `main`: none of the three occurrences constrains the
+storage root today. `schemas/harness-config.schema.json:107-114` declares
+`directory` as an unconstrained `"type": "string"` whose `examples` already list
+`.backlog`; `schemas/backlog-tool-registry.schema.json:22-26` is likewise an
+unconstrained string; and `schemas/workspace-profile.schema.json:224` mentions
+`.backlogit/**` only as prose inside the `docs_only_paths` *description*. Every
+`.backlog` document therefore already validates, so **there is no acceptance
+contract to widen**. T3 is limited to **descriptive/default updates** (examples,
+descriptions, stated defaults) and MUST NOT carry a schema version bump on its
+own: a bump that changes no accepted-document set is pure migration and
+compatibility churn. If — and only if — T1 discovers a genuine validation
+constraint on the storage root, the widening becomes real and MUST then follow
+`docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md`
+in full: additive widening, a **versioned schema mirror**, and a corresponding
+update to `src/autoharness/schema_contracts.py`. Removing `.backlogit` from any
+enum or example set stays forbidden either way.
 
 **T4 — Template + instruction family.** Update the template and instruction
 families so generated workspaces stop asserting a single hardcoded root and name

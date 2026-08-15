@@ -73,6 +73,14 @@ replacement, invalidating every existing legacy workspace.
 *Resolution:* **H4** requires additive widening plus a version bump and forbids
 removing `.backlogit` from any enum or example set. **Closed.**
 
+*Post-merge correction (PR #339 Copilot review, comment 3788712399).* The
+narrowing risk this item guarded against cannot arise, because there is no
+validation to narrow: all three occurrences are unconstrained strings or prose
+(see the revised T3 in the plan). The forbid-removal half of **H4** still stands;
+the mandatory-version-bump half is now **conditional** on T1 finding a real
+validation constraint, and a genuine bump additionally requires a versioned schema
+mirror plus a `src/autoharness/schema_contracts.py` update.
+
 ### P2-1 — Doc surface is broad but low-risk — ACCEPTED
 
 13 doc references are prose. T7 is sequenced last so documentation describes
