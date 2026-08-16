@@ -134,12 +134,21 @@ model_routing:
     reasoning_effort: "{{ANCHOR_REVIEW_REASONING_EFFORT}}"  # Leave empty to use model default
 
 # AI CLI tool startup configuration
-# Resolves {{COPILOT_EXE_PATH}} in the generated start.ps1 and start.sh scripts.
-# Set exe_path to the full path if copilot is not on PATH.
+# Resolves {{COPILOT_EXE_PATH}} in the generated start.ps1 and start.sh scripts,
+# and is read directly by `autoharness run`. Set exe_path to the full path if
+# copilot is not on PATH. Use args for flags that should always be passed, e.g.
+# ["--remote"].
 ai_tools:
   copilot_cli:
     exe_path: "{{COPILOT_EXE_PATH}}"  # Default: "copilot" (expects it on PATH)
                                       # Example: "C:\\Tools\\ghcpcli\\copilot.exe"
+    args: {{COPILOT_CLI_ARGS_YAML}}  # Default: []
+
+# Sidecar syncs `autoharness run` performs before launching the AI CLI tool.
+# Derived at merge-install time from the capability packs enabled for this
+# workspace. Omit this key to run every known sidecar (backward-compatible
+# default).
+sidecars: {{ENABLED_SIDECARS_YAML}}
 
 # Optional browser-automation capability configuration (used when browser-verification is enabled)
 browser:

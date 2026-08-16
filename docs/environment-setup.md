@@ -178,14 +178,13 @@ native tool already falls back correctly to its own CWD-relative default
 (`backlogit`'s `--cwd`, Engram's workspace binding, graphtor-docs's
 `.graphtor/config/sources.yaml` / `.graphtor/graph.db` defaults) when the
 variable is unset, **provided** the parent `copilot` process's own working
-directory is the workspace root. `autoharness run` (and therefore
-`start.ps1`/`start.sh`) now anchors that cwd explicitly for the spawned
-Copilot child, so no operator action is required beyond invoking the
-startup script from (or with `--workspace` pointed at) the intended
-workspace. The workspace-local `.env.local` key `workspaceFolder` remains
-useful for other, explicitly-consuming tooling, but it is **not** a
-`${...}` substitution source for `.mcp.json` and must never be reintroduced
-as one.
+directory is the workspace root. `start.ps1`/`start.sh` now anchor that cwd
+explicitly before launching Copilot (running the script from, or `cd`'d into,
+the intended workspace root), so no operator action is required beyond
+invoking the startup script from the intended workspace. The workspace-local
+`.env.local` key `workspaceFolder` remains useful for other, explicitly-consuming
+tooling, but it is **not** a `${...}` substitution source for `.mcp.json` and
+must never be reintroduced as one.
 
 Install Bun using the upstream installer for your platform:
 
@@ -236,10 +235,6 @@ workspaceFolder=C:\Source\GitHub\my-app
 
 # optional per-developer secrets
 # GITHUB_TOKEN=...
-
-# Copilot CLI remote mode (opt-in; start.ps1 / PowerShell only). Set to true or
-# 1 to launch Copilot CLI with --remote. Omitted or false leaves remote off.
-COPILOT_USE_REMOTE=false
 ```
 
 The loaders skip full-line comments (lines beginning with `#`) and blank lines,
@@ -254,18 +249,27 @@ for machine-specific values such as `workspaceFolder` and for local secrets
 (API keys, tokens) that should stay off the shared configuration surface.
 
 Because `.env.local` is never regenerated, an existing install will not gain new
-keys automatically. To enable Copilot CLI remote mode after upgrading, add
-`COPILOT_USE_REMOTE=true` to your `.env.local` manually — `start.ps1` treats a
-missing or non-truthy value as remote-off (`--remote` is opt-in).
+keys automatically.
 
-To configure the Copilot CLI path (when it is not on PATH), set it in `.autoharness/config.yaml` before running install or tune:
+To configure the Copilot CLI path or extra arguments (e.g. `--remote`), set them in
+`.autoharness/config.yaml` before running install or tune:
 
 ```yaml
 ai_tools:
   copilot_cli:
     exe_path: "C:\\Tools\\ghcpcli\\copilot.exe"   # Windows example
     # exe_path: "/usr/local/bin/copilot"           # macOS/Linux example
+    args: []                                       # e.g. ["--remote"] to always launch with --remote
+
+# Sidecar syncs start.ps1/start.sh perform before launching the tool, derived at
+# merge-install time from the capability packs enabled for this workspace.
+sidecars: ["backlogit", "engram", "graphtor-docs"]
 ```
+
+`start.ps1`/`start.sh` load `.env.local`, run the sidecar syncs listed in
+`sidecars`, resolve the configured tool, and launch it directly, all natively
+in the script itself — no delegated helper process, PTY relay, or remote
+control surface.
 
 ## Next Steps
 
