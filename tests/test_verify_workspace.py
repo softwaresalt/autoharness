@@ -980,6 +980,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertEqual(variables["STATUS_QUEUED"], "queued")
         self.assertEqual(variables["FIELD_TYPE"], "artifact_type")
         self.assertEqual(variables["FEATURE_SHIPMENTS"], "true")
+        self.assertEqual(variables["CIRCUIT_BREAKER_COOLDOWN"], "5 minutes")
 
     def test_classify_schema_error_downgrades_known_legacy_values(self) -> None:
         classification, payload = classify_schema_error(

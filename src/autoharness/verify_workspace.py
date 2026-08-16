@@ -2210,6 +2210,7 @@ def _derive_template_variables(
 
     variables.setdefault("PROJECT_NAME", workspace_path.name)
     variables.setdefault("DATE", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    variables.setdefault("CIRCUIT_BREAKER_COOLDOWN", "5 minutes")
 
     config_packs = [str(pack) for pack in config.get("capability_packs") or []]
     manifest_packs = [str(pack) for pack in manifest.get("capability_packs") or []]

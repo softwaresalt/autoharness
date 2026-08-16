@@ -36,12 +36,16 @@ The threshold is exactly three counted failures for the same operation.
 Agents MUST classify failures conservatively when deciding whether attempts are
 substantially the same operation.
 
-* Use the normalized command or tool name, target, working directory, relevant
-  environment values, and workflow phase as the baseline operation identity.
-* When output truncation hides the concrete failure details, same-operation identity MAY be provisional. Compute a provisional same-operation fingerprint
-  over the normalized command/target, cwd, relevant environment, and workflow
-  phase; another failed invocation with that fingerprint counts against the same
-  operation unless a genuinely different observable error is available.
+* Use the normalized command or tool name, target, working directory, workflow
+  phase, allowlisted non-secret environment key names, and redacted or
+  one-way-digested non-secret values as the baseline operation identity. Never
+  fingerprint or persist the environment wholesale, secret-bearing values, or
+  raw command payloads.
+* When output truncation hides the concrete failure details, same-operation
+  identity MAY be provisional. Compute a provisional same-operation fingerprint
+  from only the safe baseline signals above. While details remain hidden,
+  another failed invocation with that fingerprint counts against the same
+  operation.
 * Once concrete details are observable, record identity from native process exit
   or timeout, stable target/code, normalized message, affected path, workflow
   phase, and links to any already captured diagnostic evidence.
@@ -63,11 +67,16 @@ the next counted attempt.
   limits hide details, the agent MAY change diagnostic transport on the next
   counted diagnostic invocation, such as using a narrower target, structured
   output, or a bounded log capture.
-* The next counted diagnostic consumes the next attempt. If it returns non-zero
-  or times out, it increments the same-operation counter immediately.
+* The next counted diagnostic consumes the next attempt. Assign its attempt
+  number before execution. If it returns non-zero or times out, increment the
+  same-operation counter immediately. A zero exit MUST NOT erase prior counted
+  failures. It closes the chain only when it directly verifies that the same
+  operation succeeded.
 * Diagnostic escalation is never a side channel, preflight replay, parallel
   counter, reset, or free probe. If the next counted diagnostic is attempt
   three and observes the same operation failing, the circuit trips.
+* Preserve the native exit status separately from captured output. Masking or
+  replacing the native exit status does not create a successful attempt.
 * After diagnosis or success, diagnostic verbosity MUST return to normal
   logging with immediate de-escalation.
 
@@ -99,10 +108,23 @@ Upon hitting the retry threshold (universal or skill-managed):
    probe, and do not route the same operation through a parallel counter.
 2. **Log** — record the failure chain as a session memory checkpoint at
    `docs/memory/{YYYY-MM-DD}/circuit-break-{operation-slug}.md`.
-   All workspace logs MUST be bounded: every diagnostic artifact written under the
-   workspace MUST have explicit byte, line, and time limits; be redacted before
-   persistence; exclude secrets, credentials, tokens, sensitive output, and raw payload content; and use bounded extraction retention so only the minimum
-   useful excerpt is retained for the shortest useful duration.
+   All workspace logs MUST be bounded and follow these controls:
+   * Write workspace diagnostics only below an ignored `logs/diagnostics/` path
+     after verifying the ignore rule. If that cannot be verified, use an
+     operating-system temporary location outside the worktree and never stage
+     it.
+   * Capture combined stdout and stderr only up to 1 MiB or 10,000 lines,
+     whichever is reached first, and never beyond the command timeout. Preserve
+     the native exit status separately.
+   * Inspect at most the final 64 KiB or 500 lines, or a smaller identified
+     failure block.
+   * Persist only a redacted summary and evidence link; exclude secrets,
+     credentials, tokens, sensitive output, raw payload content, and raw
+     environment values.
+   * Apply bounded extraction retention: retain the ignored raw capture only for
+     the active diagnostic session, then use the repository-approved log
+     disposition path. A memory checkpoint retains only the redacted excerpt,
+     hash, and limits used.
    Each entry MUST include:
    * Timestamp (ISO 8601)
    * Operation that failed
@@ -119,10 +141,10 @@ Upon hitting the retry threshold (universal or skill-managed):
    `Circuit breaker triggered after {N} consecutive failures. Details: docs/memory/{filename}. Please advise.`
 4. **Checkpoint** — write a memory checkpoint so session state is preserved if
    the operator decides to restart or reassign.
-5. **De-escalate diagnostics** — after the diagnostic record is written or the
-   task succeeds through another approved path, return to normal logging with
-   immediate de-escalation. Do not keep high-volume capture, expanded tracing,
-   or diagnostic transports enabled beyond the bounded diagnosis window.
+5. **De-escalate diagnostics** — After diagnosis or success, diagnostic
+   verbosity MUST return to normal logging with immediate de-escalation. Do not
+   keep high-volume capture, expanded tracing, or diagnostic transports enabled
+   beyond the bounded diagnosis window.
 
 ## Domain-Specific Limits
 
@@ -231,6 +253,8 @@ Agents MUST NOT attempt to work around the circuit breaker by:
   same error
 * Ignoring, suppressing, or discarding error output to avoid incrementing the
   counter
+* Piping, wrapping, or otherwise masking a failing command so its native exit
+  status is replaced by a successful helper or shell exit
 * Treating hidden or truncated output as proof of a different error
 * Resetting attempt counters without explicit operator approval for a genuinely
   new operation
@@ -242,8 +266,8 @@ Agents MUST NOT attempt to work around the circuit breaker by:
 ## Log Format
 
 Each circuit breaker checkpoint in `docs/memory/` follows this structure.
-Keep captured output bounded and redacted; include summaries or links to bounded
-artifacts rather than full raw output.
+Keep captured output within the explicit limits above and redacted; include
+summaries or links to ignored bounded artifacts rather than full raw output.
 
 ```markdown
 ---

@@ -14,5 +14,6 @@
 .github/instructions/harness-architecture.instructions.md text eol=lf
 .github/instructions/backlogit.instructions.md text eol=lf
 .github/instructions/escalation-protocol.instructions.md text eol=lf
+.github/instructions/circuit-breaker.instructions.md text eol=lf
 AGENTS.md text eol=lf
 start.ps1 text eol=lf

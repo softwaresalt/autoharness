@@ -373,7 +373,7 @@ Resolution notes for browser and experiment variables:
 
 | Template Variable | Source | Default | Description |
 |---|---|---|---|
-| `{{CIRCUIT_BREAKER_COOLDOWN}}` | `config.overrides.CIRCUIT_BREAKER_COOLDOWN` or resolved install defaults | `5 minutes` | Cooldown window used by the optional circuit-breaker auto-reset guidance before a single retry is allowed |
+| `{{CIRCUIT_BREAKER_COOLDOWN}}` | `config.overrides.CIRCUIT_BREAKER_COOLDOWN` or resolved install defaults | `5 minutes` | Maximum below-threshold cooldown delay before the next counted attempt; never an auto-reset or post-trip probe |
 
 Resolution note for guardrail variables:
 
@@ -1060,7 +1060,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
    * `git-merge.instructions.md` — Universal (install as-is)
    * `pull-request.instructions.md` — Universal (install as-is)
    * `prompt-builder.instructions.md` — Universal (install as-is)
-   * `circuit-breaker.instructions.md` — Anti-spinning protocol with retry thresholds, escalation, error logging, and optional cooldown/auto-reset guidance. Universal (install as-is). Resolve `{{CIRCUIT_BREAKER_COOLDOWN}}` with default `5 minutes`. Referenced by the constitution's Stop Conditions section.
+   * `circuit-breaker.instructions.md` — Anti-spinning protocol with retry thresholds, escalation, error logging, and a below-threshold cooldown delay with no auto-reset or post-trip probe. Universal (install as-is). Resolve `{{CIRCUIT_BREAKER_COOLDOWN}}` with default `5 minutes`. Referenced by the constitution's Stop Conditions section.
    * `concurrency.instructions.md` — File operation locking protocol for multi-agent and human+agent concurrency control. Universal (install as-is). Requires the `file-lock` skill scripts to be installed alongside.
    * `architecture-doc.instructions.md` — Progressive disclosure and architecture documentation rules (Primitive 9)
    * `context-efficiency.instructions.md` — Context window hygiene: tool result offloading, committed change eviction, and proactive compaction triggers (Primitive 1). Universal (install as-is).

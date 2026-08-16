@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 import yaml
+from autoharness.verify_workspace import _derive_template_variables, _render_template
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _TEMPLATE = (
@@ -15,14 +16,15 @@ _TEMPLATE = (
 )
 _DOGFOOD = _REPO_ROOT / ".github" / "instructions" / "circuit-breaker.instructions.md"
 _MANIFEST = _REPO_ROOT / ".autoharness" / "harness-manifest.yaml"
+_INSTALL_SKILL = _REPO_ROOT / ".github" / "skills" / "install-harness" / "SKILL.md"
+_GITATTRIBUTES = _REPO_ROOT / ".gitattributes"
 
-_DOGFOOD_VALUES = {
-    "DOCS_MEMORY": "docs/memory",
-    "STATUS_BLOCKED": "blocked",
-    "STATUS_DONE": "done",
-    "CIRCUIT_BREAKER_COOLDOWN": "5 minutes",
+_EXPECTED_TEMPLATE_PLACEHOLDERS = {
+    "{{DOCS_MEMORY}}",
+    "{{STATUS_BLOCKED}}",
+    "{{STATUS_DONE}}",
+    "{{CIRCUIT_BREAKER_COOLDOWN}}",
 }
-_EXPECTED_TEMPLATE_PLACEHOLDERS = {"{{" + key + "}}" for key in _DOGFOOD_VALUES}
 _DOUBLE_BRACE_TOKEN = re.compile(r"(?<!\$)\{\{[^{}\n]+\}\}")
 _CODE_FENCE = re.compile(r"^\s*```")
 
@@ -32,14 +34,49 @@ def _lf_bytes(path: Path) -> bytes:
 
 
 def _render_template_bytes() -> bytes:
-    rendered = _lf_bytes(_TEMPLATE).decode("utf-8")
-    for key, value in _DOGFOOD_VALUES.items():
-        rendered = rendered.replace("{{" + key + "}}", value)
+    autoharness_dir = _REPO_ROOT / ".autoharness"
+    load_yaml = lambda name: yaml.safe_load(
+        (autoharness_dir / name).read_text(encoding="utf-8")
+    )
+    variables = _derive_template_variables(
+        _REPO_ROOT,
+        load_yaml("harness-manifest.yaml"),
+        load_yaml("config.yaml"),
+        load_yaml("workspace-profile.yaml"),
+        load_yaml("backlog-registry.yaml"),
+    )
+    rendered = _render_template(
+        _lf_bytes(_TEMPLATE).decode("utf-8"),
+        variables,
+    )
     return rendered.encode("utf-8")
 
 
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _markdown_section(text: str, heading: str) -> str:
+    lines = text.splitlines()
+    try:
+        start = lines.index(heading)
+    except ValueError as error:
+        raise AssertionError(f"missing Markdown heading: {heading}") from error
+    level = len(heading) - len(heading.lstrip("#"))
+    end = len(lines)
+    in_code_fence = False
+    for index in range(start + 1, len(lines)):
+        candidate = lines[index]
+        if _CODE_FENCE.match(candidate):
+            in_code_fence = not in_code_fence
+            continue
+        if in_code_fence:
+            continue
+        candidate_level = len(candidate) - len(candidate.lstrip("#"))
+        if candidate_level and candidate_level <= level:
+            end = index
+            break
+    return "\n".join(lines[start:end])
 
 
 def _double_brace_tokens_outside_fences(text: str) -> list[str]:
@@ -84,6 +121,7 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
         self.assertTrue(_TEMPLATE.is_file(), f"missing template: {_TEMPLATE}")
         self.assertTrue(_DOGFOOD.is_file(), f"missing dogfood output: {_DOGFOOD}")
         self.assertTrue(_MANIFEST.is_file(), f"missing manifest: {_MANIFEST}")
+        self.assertTrue(_INSTALL_SKILL.is_file(), f"missing install skill: {_INSTALL_SKILL}")
 
     def test_frontmatter_and_markdown_shape_are_valid(self) -> None:
         for source, text in (
@@ -120,61 +158,83 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
 
     def test_required_behavioral_clauses_are_present(self) -> None:
         clauses = {
-            "threshold-three": (
+            "## Universal Retry Threshold": {
+                "threshold-three": (
                 "The threshold is exactly three counted failures for the same operation.",
+                "Count every non-zero native process exit, tool failure, validation failure, and timeout immediately when it is observed.",
                 "If any single operation (command execution, code fix attempt, file generation, tool invocation, or equivalent workflow action) fails three counted times with substantially the same error, the agent MUST STOP executing that operation immediately.",
                 "If the same error recurs on the third counted same-operation attempt within the loop, the universal circuit breaker applies: STOP and escalate.",
-            ),
-            "next-counted-diagnostics": (
+                ),
+                "next-counted-diagnostics": (
                 "Changing diagnostic transport is allowed only below the threshold and only as the next counted attempt.",
-                "The next counted diagnostic consumes the next attempt. If it returns non-zero or times out, it increments the same-operation counter immediately.",
+                "The next counted diagnostic consumes the next attempt.",
+                "If it returns non-zero or times out, increment the same-operation counter immediately.",
+                "A zero exit MUST NOT erase prior counted failures.",
+                "Masking or replacing the native exit status does not create a successful attempt.",
                 "Diagnostic escalation is never a side channel, preflight replay, parallel counter, reset, or free probe.",
                 "If the next counted diagnostic is attempt three and observes the same operation failing, the circuit trips.",
-            ),
-            "no-fourth-reset-pause-parallel-counter": (
+                ),
+                "no-fourth-reset-pause-parallel-counter": (
                 "Agents MUST NOT make a fourth attempt for the same operation after the third counted same-operation failure.",
                 "A pause, cooldown, context compaction, model switch, shell restart, worktree switch, or parallel work item MUST NOT reset the same-operation counter.",
                 "No reset, pause, parallel counter, or fourth run exists for a tripped same-operation circuit.",
-                "After the third counted same-operation failure, cooldown MUST NOT reset/retry a tripped same-operation circuit. There is no post-trip probe and no fourth attempt.",
-                "do not attempt the operation again, do not schedule a post-trip probe, and do not route the same operation through a parallel counter.",
-            ),
-            "provisional-concrete-identity": (
+                ),
+                "provisional-concrete-identity": (
+                "Never fingerprint or persist the environment wholesale, secret-bearing values, or raw command payloads.",
                 "When output truncation hides the concrete failure details, same-operation identity MAY be provisional.",
-                "Compute a provisional same-operation fingerprint over the normalized command/target, cwd, relevant environment, and workflow phase",
+                "While details remain hidden, another failed invocation with that fingerprint counts against the same operation.",
                 "Once concrete details are observable, record identity from native process exit or timeout, stable target/code, normalized message, affected path, workflow phase",
                 "Escalation records MUST link each counted attempt to concrete operation evidence without recounting prior attempts.",
                 "Linking provisional attempts to a later concrete identity is bookkeeping only; it never restarts the threshold.",
-            ),
-            "genuinely-different-observable-error": (
+                ),
+                "genuinely-different-observable-error": (
                 "Only a genuinely different observable error, with distinct stable evidence, may break the same-error chain and continue a skill-managed exploration loop.",
                 "only for genuinely different observable errors within their loop scope",
                 "Hidden or truncated output does not prove a different error.",
-            ),
-            "bounded-redacted-logs-and-retention": (
-                "All workspace logs MUST be bounded: every diagnostic artifact written under the workspace MUST have explicit byte, line, and time limits; be redacted before persistence; exclude secrets, credentials, tokens, sensitive output, and raw payload content; and use bounded extraction retention",
-                "only the minimum useful excerpt is retained for the shortest useful duration.",
-                "Keep captured output bounded and redacted; include summaries or links to bounded artifacts rather than full raw output.",
-                "Logging controls: {byte limit, line limit, time limit, redaction, retention}",
-            ),
-            "native-exit": (
-                "Count every non-zero native process exit, tool failure, validation failure, and timeout immediately when it is observed.",
+                ),
+            },
+            "## Cooldown Delay (No Auto-Reset)": {
+                "no-post-trip-cooldown": (
+                "After the third counted same-operation failure, cooldown MUST NOT reset/retry a tripped same-operation circuit. There is no post-trip probe and no fourth attempt.",
+                ),
+            },
+            "## Escalation Protocol": {
+                "bounded-redacted-logs-and-retention": (
+                "Write workspace diagnostics only below an ignored `logs/diagnostics/` path after verifying the ignore rule.",
+                "Capture combined stdout and stderr only up to 1 MiB or 10,000 lines, whichever is reached first, and never beyond the command timeout.",
+                "Inspect at most the final 64 KiB or 500 lines, or a smaller identified failure block.",
+                "Persist only a redacted summary and evidence link; exclude secrets, credentials, tokens, sensitive output, raw payload content, and raw environment values.",
+                "Apply bounded extraction retention: retain the ignored raw capture only for the active diagnostic session, then use the repository-approved log disposition path.",
+                ),
+                "native-exit": (
                 "For each attempt: native process exit code or timeout marker",
-                "The timeout marker is part of the same-operation evidence, just like a native process exit code.",
-            ),
-            "immediate-de-escalation": (
-                "After diagnosis or success, diagnostic verbosity MUST return to normal logging with immediate de-escalation.",
+                ),
+                "immediate-de-escalation": (
                 "return to normal logging with immediate de-escalation. Do not keep high-volume capture, expanded tracing, or diagnostic transports enabled beyond the bounded diagnosis window.",
+                ),
+            },
+            "## Log Format": {
+                "checkpoint-bounds": (
+                "Logging controls: {byte limit, line limit, time limit, redaction, retention}",
+                ),
+            },
+            "## Stall Detection": {
+                "timeout-identity": (
+                "The timeout marker is part of the same-operation evidence, just like a native process exit code.",
                 "Stall diagnostics follow the same workspace-log bounds, redaction, raw-payload exclusion, bounded extraction retention, and immediate de-escalation rules",
-            ),
+                ),
+            },
         }
         for source, text in (
             ("rendered template", self.rendered_text),
             ("dogfood", self.dogfood_text),
         ):
-            for behavior, behavior_clauses in clauses.items():
-                for clause in behavior_clauses:
-                    with self.subTest(source=source, behavior=behavior, clause=clause):
-                        self.assertClause(text, clause, source=source)
+            for heading, section_clauses in clauses.items():
+                section = _markdown_section(text, heading)
+                for behavior, behavior_clauses in section_clauses.items():
+                    for clause in behavior_clauses:
+                        with self.subTest(source=source, behavior=behavior, clause=clause):
+                            self.assertClause(section, clause, source=source)
 
     def test_legacy_auto_reset_probe_language_is_absent(self) -> None:
         forbidden_clauses = (
@@ -191,6 +251,16 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
             for clause in forbidden_clauses:
                 with self.subTest(source=source, forbidden_clause=clause):
                     self.assertNotIn(_normalize(clause), normalized)
+
+    def test_install_skill_does_not_reintroduce_auto_reset(self) -> None:
+        text = _INSTALL_SKILL.read_text(encoding="utf-8")
+        normalized = _normalize(text)
+        self.assertNotIn("optional cooldown/auto-reset guidance", normalized)
+        self.assertNotIn("auto-reset guidance before a single retry", normalized)
+        self.assertIn(
+            "below-threshold cooldown delay with no auto-reset or post-trip probe",
+            normalized,
+        )
 
     def test_manifest_checksum_matches_lf_normalized_generated_bytes(self) -> None:
         manifest = yaml.safe_load(_MANIFEST.read_text(encoding="utf-8"))
@@ -209,6 +279,27 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
         expected_checksum = hashlib.sha256(self.rendered_bytes).hexdigest()
         self.assertRegex(str(artifact.get("checksum")), r"^[0-9a-f]{64}$")
         self.assertEqual(artifact.get("checksum"), expected_checksum)
+
+    def test_manifest_managed_policy_artifacts_are_lf_pinned(self) -> None:
+        manifest = yaml.safe_load(_MANIFEST.read_text(encoding="utf-8"))
+        artifacts = {
+            artifact["path"]: artifact
+            for artifact in manifest.get("artifacts", [])
+        }
+        attributes = _GITATTRIBUTES.read_text(encoding="utf-8")
+        for relative_path in (
+            ".github/instructions/circuit-breaker.instructions.md",
+            ".github/skills/install-harness/SKILL.md",
+        ):
+            with self.subTest(path=relative_path):
+                path = _REPO_ROOT / relative_path
+                raw_bytes = path.read_bytes()
+                self.assertNotIn(b"\r\n", raw_bytes)
+                self.assertIn(f"{relative_path} text eol=lf", attributes)
+                self.assertEqual(
+                    artifacts[relative_path]["checksum"],
+                    hashlib.sha256(raw_bytes).hexdigest(),
+                )
 
 
 if __name__ == "__main__":
