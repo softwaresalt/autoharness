@@ -37,9 +37,11 @@ _COMPLIANT_ESCALATION_INSTRUCTION = (
     "---\nname: escalation-protocol\n---\n\n"
     "# Escalation Protocol\n\n"
     "## Terminal Engram Handoff\n\n"
-    "The agent MUST NOT re-execute the failing operation after its circuit is "
-    "open. The handoff is for asynchronous or operator review, not a fourth "
-    "attempt.\n"
+    "When the resolved route is available and not degraded, the halting "
+    "agent records the route in the payload's `resolved_escalation_route` "
+    "field. The agent MUST NOT re-execute the failing operation after its "
+    "circuit is open. The handoff is for asynchronous or operator review, "
+    "not a fourth attempt.\n"
 )
 
 
@@ -4952,6 +4954,71 @@ class VerifyWorkspaceTests(unittest.TestCase):
                         "expected negated/scoped retry wording to pass: "
                         f"{check}",
                     )
+
+    def test_escalation_directive_check_fails_when_shared_instruction_lacks_resolved_route_field(
+        self,
+    ) -> None:
+        """Copilot review finding (PR #348, cycle 6 direct consequence): once
+        the Escalation-Payload Contract defines a `resolved_escalation_route`
+        field, the shared-instruction verifier must require it. A mixed-
+        version installed instruction that still carries the terminal
+        handoff/no-re-execution wording but omits the route field is stale
+        with respect to the contract and must fail verification, not pass
+        as if the contract had no route field at all."""
+        from autoharness.verify_workspace import _add_escalation_directive_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\n"
+                "### Escalation Protocol — Consecutive Task Failures\n\n"
+                "Follow P-013.6 and `escalation-protocol.instructions.md`.\n"
+                "1. Compile the escalation payload.\n"
+                "2. Resolve the escalation route.\n"
+                "3. Treat a same-route resolution as `ESCALATION_DEGRADED`.\n"
+                "4. **Hand off** for asynchronous or operator review, not a "
+                "fourth attempt.\n"
+                "5. The agent MUST NOT re-execute the failing operation after "
+                "its circuit is open.\n",
+                encoding="utf-8",
+            )
+            instructions_dir = workspace_path / ".github" / "instructions"
+            instructions_dir.mkdir(parents=True, exist_ok=True)
+            (instructions_dir / "escalation-protocol.instructions.md").write_text(
+                # Pre-cycle-6 wording: terminal handoff/no-re-execution tokens
+                # present, but the route is only ever "recorded in the
+                # payload" -- no contract-defined field name at all.
+                "---\nname: escalation-protocol\n---\n\n"
+                "# Escalation Protocol\n\n"
+                "## Terminal Engram Handoff\n\n"
+                "When the resolved route is available and not degraded, the "
+                "halting agent records the route in the payload, hands the "
+                "compiled payload to engram for asynchronous or operator "
+                "review, and halts. It MUST NOT re-execute the failing "
+                "operation after its circuit is open. The handoff is for "
+                "asynchronous or operator review, not a fourth attempt.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_escalation_directive_check(
+                report, "escalation_directive_present", workspace_path
+            )
+            check = report["targeted_checks"]["escalation_directive_present"]
+            self.assertFalse(
+                check["ok"],
+                "expected a shared instruction missing the "
+                f"resolved_escalation_route field to fail: {check}",
+            )
+            self.assertTrue(
+                any(
+                    "resolved_escalation_route" in error.lower()
+                    for error in check["errors"]
+                ),
+                f"expected the missing-field error to name the field: {check}",
+            )
 
     def test_escalation_directive_check_passes_with_only_ship_installed(self) -> None:
         """Either-agent install condition: when only _ship.agent.md is

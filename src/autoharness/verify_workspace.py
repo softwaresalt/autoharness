@@ -3228,6 +3228,7 @@ def _add_escalation_directive_check(
         instruction_required_tokens = [
             "MUST NOT re-execute the failing operation after its circuit is open",
             "asynchronous or operator review, not a fourth attempt",
+            "resolved_escalation_route",
         ]
         instruction_missing = [
             token
