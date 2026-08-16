@@ -3037,9 +3037,11 @@ def _add_escalation_directive_check(
     (either-agent condition, distinct from the two-agent-only
     role-enforcement gate), and that each installed pipeline agent that is
     present references both the auto-escalation directive and the P-013.6
-    policy identifier. Gated entirely on file existence: a workspace with
-    neither agent installed registers no failure; a workspace with only one
-    agent installed is checked for that agent alone."""
+    policy identifier, including the no-re-execution +
+    asynchronous/operator-review terminal handoff semantics. Gated entirely
+    on file existence: a workspace with neither agent installed registers no
+    failure; a workspace with only one agent installed is checked for that
+    agent alone."""
     stage_path = workspace_path / ".github/agents/_stage.agent.md"
     ship_path = workspace_path / ".github/agents/_ship.agent.md"
     escalation_instruction_path = (
@@ -3059,11 +3061,11 @@ def _add_escalation_directive_check(
     # ("Escalation Protocol —", em dash, regardless of heading level/suffix),
     # (b) an explicit reference to the shared canonical instruction so the
     # agent does not re-define the term locally, (c) the P-013.6 policy
-    # identifier and the ESCALATION_DEGRADED term itself, and (d) the two
-    # required-action phrases that name the actual compile/resolve steps
-    # ("escalation payload", "escalation route") plus the terminal handoff
-    # action ("hand off"). A stale or partial agent missing any of these
-    # verifiable markers must not pass.
+    # identifier and the ESCALATION_DEGRADED term itself, and (d) the actual
+    # compile/resolve/handoff steps plus the explicit no-re-execution and
+    # asynchronous/operator-review-not-fourth-attempt semantics. A stale or
+    # partial agent missing any of these verifiable markers, or one that still
+    # instructs a post-threshold re-attempt, must not pass.
     required_tokens = [
         "Escalation Protocol —",
         "escalation-protocol.instructions.md",
@@ -3072,6 +3074,15 @@ def _add_escalation_directive_check(
         "escalation payload",
         "escalation route",
         "hand off",
+        "MUST NOT re-execute the failing operation after its circuit is open",
+        "asynchronous or operator review, not a fourth attempt",
+    ]
+    stale_directive_tokens = [
+        "re-attempt at the resolved route",
+        "re-attempt the failing",
+        "successful re-attempt",
+        "auto-escalation attempt",
+        "re-attempts before falling back",
     ]
 
     for agent_name, agent_path, present in (
@@ -3081,11 +3092,26 @@ def _add_escalation_directive_check(
         if not present:
             continue
         content = agent_path.read_text(encoding="utf-8")
-        missing = [token for token in required_tokens if token not in content]
+        normalized_content = " ".join(re.sub(r"[*`]+", "", content).lower().split())
+        missing = [
+            token
+            for token in required_tokens
+            if " ".join(token.lower().split()) not in normalized_content
+        ]
         if missing:
             errors.append(
                 f"{agent_name} agent definition ({agent_path}) is missing the "
                 f"auto-escalation directive tokens: {missing}"
+            )
+        stale = [
+            token
+            for token in stale_directive_tokens
+            if " ".join(token.lower().split()) in normalized_content
+        ]
+        if stale:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) contains stale "
+                f"post-threshold re-attempt directive phrase(s): {stale}"
             )
 
     if not escalation_instruction_path.exists():

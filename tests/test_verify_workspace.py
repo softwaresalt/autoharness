@@ -4188,7 +4188,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
         """P-013.6 / Copilot staging finding C1: when the resolved escalation
         model_family is identical to a declared role route's resolved
         model_family (Stage's explicit route equals tier3, and no distinct
-        escalation route is declared), the auto-escalation attempt would be a
+        escalation route is declared), the analysis handoff would be a
         same-route no-op -- this must fail as ESCALATION_DEGRADED, not pass
         silently. This also doubles as the one-sided-missing-fields
         regression case Copilot review round 3 (PR #316) asked for: Stage
@@ -4666,7 +4666,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
     ) -> None:
         """Fail-closed regression (Copilot review finding): a one-line file
         that only incidentally mentions the two bare tokens `P-013.6` and
-        `ESCALATION_DEGRADED` -- with no compile/resolve/re-attempt/handoff
+        `ESCALATION_DEGRADED` -- with no compile/resolve/no-re-execution/handoff
         directive and no reference to the shared instruction -- must NOT
         pass. Stable markers (section heading, shared instruction reference,
         required-action phrases) are required in addition to the bare
@@ -4700,6 +4700,52 @@ class VerifyWorkspaceTests(unittest.TestCase):
             )
             self.assertTrue(any("ship" in e for e in check["errors"]))
 
+    def test_escalation_directive_check_fails_on_stale_post_threshold_reattempt_wording(
+        self,
+    ) -> None:
+        """Regression guard: even when the shared instruction reference and
+        the new handoff language are present, stale post-threshold
+        re-attempt wording must fail verification rather than slipping by as
+        an incidental extra sentence."""
+        from autoharness.verify_workspace import _add_escalation_directive_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\n"
+                "### Escalation Protocol — Consecutive Task Failures\n\n"
+                "Upon 3 consecutive task failures, follow the auto-escalation "
+                "directive below (P-013.6, `escalation-protocol.instructions.md`):\n\n"
+                "1. Compile the escalation payload.\n"
+                "2. Resolve the escalation route.\n"
+                "3. Same-route guard: treat a same-route resolution as "
+                "`ESCALATION_DEGRADED`.\n"
+                "4. **Hand off** the compiled payload to engram for "
+                "asynchronous or operator review, not a fourth attempt.\n"
+                "5. The agent MUST NOT re-execute the failing operation "
+                "after its circuit is open.\n"
+                "6. Re-attempt at the resolved route if the stronger model "
+                "looks appropriate.\n",
+                encoding="utf-8",
+            )
+            instructions_dir = workspace_path / ".github" / "instructions"
+            instructions_dir.mkdir(parents=True, exist_ok=True)
+            (instructions_dir / "escalation-protocol.instructions.md").write_text(
+                "---\nname: escalation-protocol\n---\n\n# Escalation Protocol\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_escalation_directive_check(report, "escalation_directive_present", workspace_path)
+            check = report["targeted_checks"]["escalation_directive_present"]
+            self.assertFalse(
+                check["ok"],
+                f"expected stale post-threshold re-attempt wording to fail: {check}",
+            )
+            self.assertTrue(any("stale" in e.lower() or "re-attempt" in e.lower() for e in check["errors"]))
+
     def test_escalation_directive_check_passes_with_only_ship_installed(self) -> None:
         """Either-agent install condition: when only _ship.agent.md is
         installed (no _stage.agent.md), the check evaluates ship alone and
@@ -4720,8 +4766,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "2. Resolve the escalation route.\n"
                 "3. Same-route guard: treat a same-route resolution as "
                 "`ESCALATION_DEGRADED`.\n"
-                "4. Re-attempt at the resolved route; if it also fails, "
-                "**hand off** the compiled payload to engram.\n",
+                "4. **Hand off** the compiled payload to engram for "
+                "asynchronous or operator review, not a fourth attempt.\n"
+                "5. The agent MUST NOT re-execute the failing operation "
+                "after its circuit is open.\n",
                 encoding="utf-8",
             )
             instructions_dir = workspace_path / ".github" / "instructions"
@@ -4774,8 +4822,10 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "2. Resolve the escalation route.\n"
                 "3. Same-route guard: treat a same-route resolution as "
                 "`ESCALATION_DEGRADED`.\n"
-                "4. Re-attempt at the resolved route; if it also fails, "
-                "**hand off** the compiled payload to engram.\n"
+                "4. **Hand off** the compiled payload to engram for "
+                "asynchronous or operator review, not a fourth attempt.\n"
+                "5. The agent MUST NOT re-execute the failing operation "
+                "after its circuit is open.\n"
             )
             for agent_file in ("_stage.agent.md", "_ship.agent.md"):
                 agent_path = workspace / ".github" / "agents" / agent_file

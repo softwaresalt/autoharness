@@ -18,6 +18,22 @@ _DOGFOOD = _REPO_ROOT / ".github" / "instructions" / "circuit-breaker.instructio
 _MANIFEST = _REPO_ROOT / ".autoharness" / "harness-manifest.yaml"
 _INSTALL_SKILL = _REPO_ROOT / ".github" / "skills" / "install-harness" / "SKILL.md"
 _GITATTRIBUTES = _REPO_ROOT / ".gitattributes"
+_ESCALATION_TEMPLATE = (
+    _REPO_ROOT / "templates" / "instructions" / "escalation-protocol.instructions.md.tmpl"
+)
+_ESCALATION_DOGFOOD = (
+    _REPO_ROOT / ".github" / "instructions" / "escalation-protocol.instructions.md"
+)
+_WORKFLOW_POLICY_TEMPLATE = (
+    _REPO_ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
+)
+_SHIP_TEMPLATE = _REPO_ROOT / "templates" / "agents" / "_ship.agent.md.tmpl"
+_SHIP_DOGFOOD = _REPO_ROOT / ".github" / "agents" / "_ship.agent.md"
+_STAGE_TEMPLATE = _REPO_ROOT / "templates" / "agents" / "_stage.agent.md.tmpl"
+_STAGE_DOGFOOD = _REPO_ROOT / ".github" / "agents" / "_stage.agent.md"
+_BUILD_FEATURE_TEMPLATE = (
+    _REPO_ROOT / "templates" / "skills" / "build-feature" / "SKILL.md.tmpl"
+)
 
 _EXPECTED_TEMPLATE_PLACEHOLDERS = {
     "{{DOCS_MEMORY}}",
@@ -200,7 +216,10 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
             },
             "## Escalation Protocol": {
                 "bounded-redacted-logs-and-retention": (
-                "Write workspace diagnostics only below an ignored `logs/diagnostics/` path after verifying the ignore rule.",
+                "Canonicalize the workspace root and candidate diagnostics path before any raw capture.",
+                "Write workspace diagnostics only below an ignored `logs/diagnostics/` path after verifying the ignore rule and confirming the canonicalized diagnostics path stays inside the canonicalized workspace root.",
+                "If canonicalization fails, or the resolved diagnostics path escapes the workspace root (including through a symlink/junction/reparse point), omit the raw capture and retain only the bounded, redacted checkpoint evidence below.",
+                "Never write captures outside the workspace.",
                 "Capture combined stdout and stderr only up to 1 MiB or 10,000 lines, whichever is reached first, and never beyond the command timeout.",
                 "Inspect at most the final 64 KiB or 500 lines, or a smaller identified failure block.",
                 "Persist only a redacted summary and evidence link; exclude secrets, credentials, tokens, sensitive output, raw payload content, and raw environment values.",
@@ -242,6 +261,7 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
             "When the cooldown expires, auto-reset the circuit state and allow",
             "The probe retry is a one-shot test",
             "After **3 circuit trips**",
+            "operating-system temporary location outside the worktree",
         )
         for source, text in (
             ("rendered template", self.rendered_text),
@@ -260,6 +280,63 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
         self.assertIn(
             "below-threshold cooldown delay with no auto-reset or post-trip probe",
             normalized,
+        )
+
+    def test_open_breaker_handoff_never_reexecutes_the_failed_operation(self) -> None:
+        escalation_surfaces = (
+            _ESCALATION_TEMPLATE,
+            _ESCALATION_DOGFOOD,
+            _WORKFLOW_POLICY_TEMPLATE,
+            _SHIP_TEMPLATE,
+            _SHIP_DOGFOOD,
+            _STAGE_TEMPLATE,
+            _STAGE_DOGFOOD,
+        )
+        required = (
+            "MUST NOT re-execute the failing operation after its circuit is open",
+            "handoff is for asynchronous or operator review, not a fourth attempt",
+        )
+        forbidden = (
+            "re-attempts before falling back",
+            "Re-attempt the failing",
+            "successful re-attempt",
+            "interposes an auto-escalation attempt",
+        )
+        for path in escalation_surfaces:
+            text = _normalize(path.read_text(encoding="utf-8"))
+            for clause in required:
+                with self.subTest(path=path, clause=clause):
+                    self.assertIn(_normalize(clause), text)
+            for clause in forbidden:
+                with self.subTest(path=path, forbidden=clause):
+                    self.assertNotIn(_normalize(clause), text)
+
+    def test_build_loop_uses_per_operation_failure_count(self) -> None:
+        text = _normalize(_BUILD_FEATURE_TEMPLATE.read_text(encoding="utf-8"))
+        self.assertIn(
+            _normalize(
+                "if the same error reaches its third counted failure for the same operation"
+            ),
+            text,
+        )
+        self.assertIn(
+            _normalize("Track same-operation counters across the entire loop."),
+            text,
+        )
+        self.assertIn(
+            _normalize(
+                "A recurrence can match any prior attempt in that operation's failure chain, not only the immediately previous iteration."
+            ),
+            text,
+        )
+        self.assertIn(
+            _normalize("Distinct errors advance distinct per-operation counters."),
+            text,
+        )
+        self.assertNotIn(_normalize("same error recurs on attempts 3+"), text)
+        self.assertNotIn(
+            _normalize("If error is substantially identical to previous attempt"),
+            text,
         )
 
     def test_manifest_checksum_matches_lf_normalized_generated_bytes(self) -> None:

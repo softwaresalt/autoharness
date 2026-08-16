@@ -456,13 +456,14 @@ before falling back to the operator-halt checkpoint:
    route (`gpt-5.6-sol`/`openai`/`high`) specifically to keep genuine
    escalation available; re-verify this guard whenever the escalation or
    tier3 route configuration changes.
-4. **Re-attempt** the failing unit of work at the resolved route when it is
-   not degraded; if it also fails, **hand off** the compiled payload to
-   engram (when available) as a terminal state.
+4. **Hand off and halt**: when the route is not degraded, record it in the
+   compiled payload, hand that payload to engram for analysis, and halt. The
+   agent MUST NOT re-execute the failing operation after its circuit is open.
+   The handoff is for asynchronous or operator review, not a fourth attempt.
 5. **`ESCALATION_DEGRADED` fallback**: when the route is unavailable, engram
    is unavailable, or the same-route guard fires, halt and prompt the
-   operator exactly as before — this directive only interposes an
-   auto-escalation attempt ahead of the existing halt.
+   operator exactly as before — this directive never authorizes another
+   execution attempt ahead of the existing halt.
 
 This is a **reasoning escalation only** — it never self-authorizes promotion
 to plan, harvest, or shipment assembly (P-001/P-009/P-014/P-017/P-020

@@ -22,9 +22,10 @@ or `_ship.agent.md` crosses its own already-existing, agent-observed
 consecutive-failure/iteration threshold (each pipeline agent's own Stop
 Conditions table — no new runtime component is required for the agent itself
 to follow this directive), the halting agent compiles the escalation payload,
-resolves the escalation route, applies the same-route guard, and re-attempts
-before falling back to the operator-halt path. This is a real, present-tense
-behavior change to each agent's own stop-condition handling, not a future one.
+resolves the escalation route, applies the same-route guard, hands the payload
+off for analysis, and halts without executing the failed operation again. This
+is a real, present-tense behavior change to each agent's own stop-condition
+handling, not a future one.
 
 What remains **external and dormant** (routed OUT, per the 106-F plan) is
 narrower than "the whole protocol": specifically, (a) a standing, independent
@@ -43,8 +44,8 @@ resolves the route.
 
 ## Authority-Preservation Invariant (NON-NEGOTIABLE)
 
-Escalation under this protocol is a **reasoning escalation** — a request to
-re-attempt the failing unit of work with a stronger/deeper reasoning model — and
+Escalation under this protocol is a **reasoning escalation** — a request for
+analysis of the failed unit of work by a stronger/deeper reasoning model — and
 is **never an authority escalation**. Compiling an escalation payload, resolving
 an escalation route, or handing off to engram MUST NOT, by itself:
 
@@ -56,23 +57,23 @@ an escalation route, or handing off to engram MUST NOT, by itself:
   (local review readiness), P-017 (dark factory contract), or P-020 (post-merge
   compaction).
 
-The terminal state of an escalation is either a successful re-attempt at the
-resolved route, or a **halt + engram handoff** for operator/asynchronous review.
-It is never a silent, unsupervised expansion of what the halting agent is
-allowed to do.
+The terminal state of an escalation is a **halt + engram handoff** for
+operator/asynchronous review. The handoff is for asynchronous or operator
+review, not a fourth attempt. It is never a silent, unsupervised expansion of
+what the halting agent is allowed to do.
 
 ## Escalation-Payload Contract
 
 When a halting agent crosses its consecutive-failure threshold (see the
 invoking agent's own Stop Conditions table), it MUST compile an escalation
-payload containing the following fields before re-routing or halting:
+payload containing the following fields before handing off and halting:
 
 | Field | Description |
 |---|---|
 | `threshold_kind` | The stop-condition category that triggered escalation (e.g., `build_fix_attempts`, `consecutive_task_failures`, `review_fix_cycles`, `fix_ci_cycles`). |
 | `threshold_count` | The observed count that crossed the configured limit for `threshold_kind`. |
 | `failure_summary` | A concise, human-readable summary of what failed and the immediate suspected cause(s). |
-| `last_n_action_refs` | References (tool-call identifiers, commit SHAs, or log offsets) to the last N actions attempted, so a reviewer or re-attempting agent can reconstruct recent history without replaying it blind. |
+| `last_n_action_refs` | References (tool-call identifiers, commit SHAs, or log offsets) to the last N actions attempted, so a reviewer or handoff analyst can reconstruct recent history without replaying it blind. |
 | `last_n_observation_refs` | References to the last N observed results (build/test output, review findings, CI check results) corresponding to `last_n_action_refs`. |
 | `artifact_refs` | Paths or identifiers of artifacts touched by the failing unit of work (files, backlog item IDs, PR number). Field name aligns with `schemas/tool-telemetry-event.schema.json#artifact_refs` so escalation payloads and tool telemetry events can be cross-referenced. |
 | `evidence_path` | Path to any structured telemetry evidence backing the failure (when telemetry is enabled), aligned with `schemas/tool-telemetry-event.schema.json#evidence_path`. Absent/empty when telemetry is disabled — this is not itself a failure condition. |
@@ -96,8 +97,8 @@ The escalation route resolves via a role-scoped precedence:
    override, so this is this workspace's currently-resolved escalation
    route: `model_family = gpt-5.6-sol`, `model_provider = openai`,
    `reasoning_effort = high` — a distinct vendor/family from the Stage role
-   route (`claude-opus-5`/`anthropic`), so an auto-escalation attempt is a
-   genuine escalation, not a same-route no-op.
+   route (`claude-opus-5`/`anthropic`), so the handoff can provide genuinely
+   independent analysis rather than a same-route no-op.
 3. **Tier3 fallback**: any field still unresolved after (1)/(2) falls back
    per-field to `model_routing.tier3` (`claude-opus-5`; this workspace's
    `tier3` is a plain model-identifier string, so its provider/reasoning-
@@ -143,11 +144,11 @@ templates.
 ## Terminal Engram Handoff
 
 When the resolved route is available and not degraded, the halting agent
-re-attempts the failing unit of work at the resolved escalation route. If the
-re-attempt also fails, or the agent halts for any other reason after
-escalation, it MUST hand off the compiled escalation payload to engram (when
-available) as the terminal state, then halt for operator review. This handoff
-is informational/diagnostic — it carries no authority of its own (see the
+records the route in the payload, hands the compiled payload to engram for
+asynchronous or operator review, and halts. It MUST NOT re-execute the failing
+operation after its circuit is open. The handoff is for asynchronous or
+operator review, not a fourth attempt. This handoff is
+informational/diagnostic — it carries no authority of its own (see the
 Authority-Preservation Invariant above).
 
 ## Relationship to Other Policies
