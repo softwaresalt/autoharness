@@ -34,6 +34,12 @@ _STAGE_DOGFOOD = _REPO_ROOT / ".github" / "agents" / "_stage.agent.md"
 _BUILD_FEATURE_TEMPLATE = (
     _REPO_ROOT / "templates" / "skills" / "build-feature" / "SKILL.md.tmpl"
 )
+_ESCALATION_DECISION = (
+    _REPO_ROOT
+    / "docs"
+    / "decisions"
+    / "2026-08-02-telemetry-auto-escalation-external-guard-boundary.md"
+)
 
 _EXPECTED_TEMPLATE_PLACEHOLDERS = {
     "{{DOCS_MEMORY}}",
@@ -291,6 +297,7 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
             _SHIP_DOGFOOD,
             _STAGE_TEMPLATE,
             _STAGE_DOGFOOD,
+            _ESCALATION_DECISION,
         )
         required = (
             "MUST NOT re-execute the failing operation after its circuit is open",
@@ -334,6 +341,17 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
             text,
         )
         self.assertNotIn(_normalize("same error recurs on attempts 3+"), text)
+        self.assertIn(
+            _normalize(
+                "The third counted failure of the same operation and error triggers "
+                "the universal circuit breaker"
+            ),
+            text,
+        )
+        self.assertNotIn(
+            _normalize("third counted recurrence of the same error"),
+            text,
+        )
         self.assertNotIn(
             _normalize("If error is substantially identical to previous attempt"),
             text,

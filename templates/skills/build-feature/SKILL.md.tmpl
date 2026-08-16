@@ -137,8 +137,8 @@ If all quality gates pass:
 * No subagent spawning (leaf executor)
 * Never modify test files (tests are the specification)
 * Maximum 5 attempts before circuit breaker trips (skill-managed exception; see `circuit-breaker.instructions.md`)
-* The third counted recurrence of the same error for the same operation triggers
-  the universal circuit breaker
+* The third counted failure of the same operation and error triggers the
+  universal circuit breaker.
 * Same-operation counters persist across all prior loop attempts; distinct
   errors advance distinct per-operation counters
 * Read coding standards once at task start; targeted re-read for unfamiliar modules

@@ -3077,13 +3077,52 @@ def _add_escalation_directive_check(
         "MUST NOT re-execute the failing operation after its circuit is open",
         "asynchronous or operator review, not a fourth attempt",
     ]
-    stale_directive_tokens = [
-        "re-attempt at the resolved route",
-        "re-attempt the failing",
-        "successful re-attempt",
-        "auto-escalation attempt",
-        "re-attempts before falling back",
-    ]
+    retry_directive_pattern = re.compile(
+        r"\b(?:"
+        r"re[- ]?attempt(?:s|ed|ing)?|"
+        r"re[- ]?tr(?:y|ies|ied|ying)|"
+        r"re[- ]?run(?:s|ning)?|reran|"
+        r"re[- ]?invoke(?:s|d|ing)?|"
+        r"re[- ]?execute(?:s|d|ing)?|"
+        r"re[- ]?dispatch(?:es|ed|ing)?|"
+        r"(?:try|attempt|run|invoke|execute|dispatch)\s+again|"
+        r"another\s+(?:attempt|try|run|pass|execution|invocation|dispatch)"
+        r")\b"
+    )
+    negated_directive_pattern = re.compile(
+        r"\b(?:do not|don't|never|must not|shall not|may not|"
+        r"cannot|can't|forbid(?:s|den)?|prohibit(?:s|ed)?|without)\b"
+    )
+
+    def escalation_sections(markdown: str) -> list[str]:
+        """Return only P-013.6 escalation sections, bounded by headings."""
+        lines = markdown.splitlines()
+        sections: list[str] = []
+        for index, line in enumerate(lines):
+            heading = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
+            if not heading or "escalation protocol —" not in heading.group(2).lower():
+                continue
+            level = len(heading.group(1))
+            end = len(lines)
+            for candidate_index in range(index + 1, len(lines)):
+                candidate = re.match(r"^(#{1,6})\s+", lines[candidate_index].strip())
+                if candidate and len(candidate.group(1)) <= level:
+                    end = candidate_index
+                    break
+            sections.append("\n".join(lines[index:end]))
+        return sections
+
+    def affirmative_retry_directives(markdown: str) -> list[str]:
+        stale: list[str] = []
+        for section in escalation_sections(markdown):
+            cleaned = re.sub(r"[*`]+", "", section.lower())
+            statements = re.split(r"(?<=[.!?])\s+|\n\s*\n+", cleaned)
+            for statement in statements:
+                if retry_directive_pattern.search(statement) and not (
+                    negated_directive_pattern.search(statement)
+                ):
+                    stale.append(" ".join(statement.split())[:240])
+        return stale
 
     for agent_name, agent_path, present in (
         ("stage", stage_path, stage_present),
@@ -3103,15 +3142,11 @@ def _add_escalation_directive_check(
                 f"{agent_name} agent definition ({agent_path}) is missing the "
                 f"auto-escalation directive tokens: {missing}"
             )
-        stale = [
-            token
-            for token in stale_directive_tokens
-            if " ".join(token.lower().split()) in normalized_content
-        ]
+        stale = affirmative_retry_directives(content)
         if stale:
             errors.append(
                 f"{agent_name} agent definition ({agent_path}) contains stale "
-                f"post-threshold re-attempt directive phrase(s): {stale}"
+                f"affirmative post-threshold retry directive excerpt(s): {stale}"
             )
 
     if not escalation_instruction_path.exists():

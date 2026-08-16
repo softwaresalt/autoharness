@@ -4709,42 +4709,123 @@ class VerifyWorkspaceTests(unittest.TestCase):
         an incidental extra sentence."""
         from autoharness.verify_workspace import _add_escalation_directive_check
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            workspace_path = Path(temp_dir)
-            agents_dir = workspace_path / ".github" / "agents"
-            agents_dir.mkdir(parents=True, exist_ok=True)
-            (agents_dir / "_ship.agent.md").write_text(
-                "# Ship\n\n"
-                "### Escalation Protocol — Consecutive Task Failures\n\n"
-                "Upon 3 consecutive task failures, follow the auto-escalation "
-                "directive below (P-013.6, `escalation-protocol.instructions.md`):\n\n"
-                "1. Compile the escalation payload.\n"
-                "2. Resolve the escalation route.\n"
-                "3. Same-route guard: treat a same-route resolution as "
-                "`ESCALATION_DEGRADED`.\n"
-                "4. **Hand off** the compiled payload to engram for "
-                "asynchronous or operator review, not a fourth attempt.\n"
-                "5. The agent MUST NOT re-execute the failing operation "
-                "after its circuit is open.\n"
-                "6. Re-attempt at the resolved route if the stronger model "
-                "looks appropriate.\n",
-                encoding="utf-8",
-            )
-            instructions_dir = workspace_path / ".github" / "instructions"
-            instructions_dir.mkdir(parents=True, exist_ok=True)
-            (instructions_dir / "escalation-protocol.instructions.md").write_text(
-                "---\nname: escalation-protocol\n---\n\n# Escalation Protocol\n",
-                encoding="utf-8",
-            )
+        stale_directives = (
+            "Re-attempt at the resolved route if the stronger model looks appropriate.",
+            "Retry the failing operation at the resolved route.",
+            "Rerun the failing operation with the stronger model.",
+            "Re-run the failing operation after handoff.",
+            "After escalation, retry the failing operation.",
+            "At the resolved route, retry the operation once.",
+            "Try again at the resolved route with a stronger model.",
+            "Re-invoke the failing operation at the resolved route.",
+            "Re-try the failing operation after escalation.",
+            "Re-execute the failing operation after handoff.",
+            "Make another pass at the failing operation after escalation.",
+        )
+        for stale_directive in stale_directives:
+            with self.subTest(stale_directive=stale_directive):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    workspace_path = Path(temp_dir)
+                    agents_dir = workspace_path / ".github" / "agents"
+                    agents_dir.mkdir(parents=True, exist_ok=True)
+                    (agents_dir / "_ship.agent.md").write_text(
+                        "# Ship\n\n"
+                        "### Escalation Protocol — Consecutive Task Failures\n\n"
+                        "Upon 3 consecutive task failures, follow the auto-escalation "
+                        "directive below (P-013.6, "
+                        "`escalation-protocol.instructions.md`):\n\n"
+                        "1. Compile the escalation payload.\n"
+                        "2. Resolve the escalation route.\n"
+                        "3. Same-route guard: treat a same-route resolution as "
+                        "`ESCALATION_DEGRADED`.\n"
+                        "4. **Hand off** the compiled payload to engram for "
+                        "asynchronous or operator review, not a fourth attempt.\n"
+                        "5. The agent MUST NOT re-execute the failing operation "
+                        "after its circuit is open.\n"
+                        f"6. {stale_directive}\n",
+                        encoding="utf-8",
+                    )
+                    instructions_dir = workspace_path / ".github" / "instructions"
+                    instructions_dir.mkdir(parents=True, exist_ok=True)
+                    (instructions_dir / "escalation-protocol.instructions.md").write_text(
+                        "---\nname: escalation-protocol\n---\n\n"
+                        "# Escalation Protocol\n",
+                        encoding="utf-8",
+                    )
 
-            report: dict = {"targeted_checks": {}}
-            _add_escalation_directive_check(report, "escalation_directive_present", workspace_path)
-            check = report["targeted_checks"]["escalation_directive_present"]
-            self.assertFalse(
-                check["ok"],
-                f"expected stale post-threshold re-attempt wording to fail: {check}",
-            )
-            self.assertTrue(any("stale" in e.lower() or "re-attempt" in e.lower() for e in check["errors"]))
+                    report: dict = {"targeted_checks": {}}
+                    _add_escalation_directive_check(
+                        report, "escalation_directive_present", workspace_path
+                    )
+                    check = report["targeted_checks"]["escalation_directive_present"]
+                    self.assertFalse(
+                        check["ok"],
+                        "expected stale post-threshold retry wording to fail: "
+                        f"{check}",
+                    )
+                    self.assertTrue(
+                        any(
+                            "stale" in error.lower() or "retry" in error.lower()
+                            for error in check["errors"]
+                        )
+                    )
+
+    def test_escalation_directive_check_accepts_negated_and_scoped_retry_wording(
+        self,
+    ) -> None:
+        """The fail-closed guard must accept prohibitions and ignore
+        pre-threshold retry language outside the escalation section."""
+        from autoharness.verify_workspace import _add_escalation_directive_check
+
+        compliant_directives = (
+            "Never retry the failing operation after escalation.",
+            "Do not re-run the failing operation after handoff.",
+            "The agent MUST NOT re-execute the failing operation after its circuit is open.",
+            "Another pass after escalation is forbidden.",
+        )
+        for compliant_directive in compliant_directives:
+            with self.subTest(compliant_directive=compliant_directive):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    workspace_path = Path(temp_dir)
+                    agents_dir = workspace_path / ".github" / "agents"
+                    agents_dir.mkdir(parents=True, exist_ok=True)
+                    (agents_dir / "_ship.agent.md").write_text(
+                        "# Ship\n\n"
+                        "Before threshold, a counted diagnostic may retry with "
+                        "bounded output.\n\n"
+                        "### Escalation Protocol — Consecutive Task Failures\n\n"
+                        "Upon 3 consecutive task failures, follow the auto-escalation "
+                        "directive below (P-013.6, "
+                        "`escalation-protocol.instructions.md`):\n\n"
+                        "1. Compile the escalation payload.\n"
+                        "2. Resolve the escalation route.\n"
+                        "3. Same-route guard: treat a same-route resolution as "
+                        "`ESCALATION_DEGRADED`.\n"
+                        "4. **Hand off** the compiled payload to engram for "
+                        "asynchronous or operator review, not a fourth attempt.\n"
+                        "5. The agent MUST NOT re-execute the failing operation "
+                        "after its circuit is open.\n"
+                        f"6. {compliant_directive}\n",
+                        encoding="utf-8",
+                    )
+                    instructions_dir = workspace_path / ".github" / "instructions"
+                    instructions_dir.mkdir(parents=True, exist_ok=True)
+                    (instructions_dir / "escalation-protocol.instructions.md").write_text(
+                        "---\nname: escalation-protocol\n---\n\n"
+                        "# Escalation Protocol\n",
+                        encoding="utf-8",
+                    )
+
+                    report: dict = {"targeted_checks": {}}
+                    _add_escalation_directive_check(
+                        report, "escalation_directive_present", workspace_path
+                    )
+                    check = report["targeted_checks"]["escalation_directive_present"]
+                    self.assertTrue(
+                        check["ok"],
+                        "expected negated/scoped retry wording to pass: "
+                        f"{check}",
+                    )
 
     def test_escalation_directive_check_passes_with_only_ship_installed(self) -> None:
         """Either-agent install condition: when only _ship.agent.md is
