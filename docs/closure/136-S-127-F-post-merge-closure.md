@@ -1,0 +1,170 @@
+---
+shipment: 136-S
+feature: 127-F
+tasks: [127.001-T, 127.002-T]
+feature_pr: 347
+closure_pr: TBD
+merge_commit: 335608b9663cf9fb900c5491629102cd136b9778
+merged_at: "2026-08-16T08:10:03Z"
+reviewed_head: 701a9d013cbf523b0ed0c1ee75eafa99f559d1a6
+closure_status: READY
+compaction_status: degraded
+feature_terminal_status: done
+feature_archived_status: done
+---
+
+# 136-S / 127-F Post-Merge Closure — Plan 1 Supervisor Contract and Verification Closeout
+
+Shipment `136-S` implemented covering feature `127-F`: closing the two
+remaining PR #325 findings with real scope — documenting `--session-id`
+uniqueness/collision semantics in the CLI contract (`127.001-T`), and adding
+an additive non-root-feature negative control to the shipment-topology
+verifier (`127.002-T`) — plus a revert of the Python supervisor architecture
+in favor of self-contained start scripts.
+
+`127-F` is a root feature (no `parent_id`) with exactly 2 children
+(`127.001-T`, `127.002-T`), both of which are this shipment's manifest, and
+both `127-F` and its 2 tasks were already archived (`archived_status: done`)
+as part of the feature-PR merge commit itself (`chore(backlog): complete
+127.001-T, 127.002-T, 127-F for shipment 136-S`, part of PR #347) — this
+closure only needed to close the shipment record itself.
+
+## Merge Confirmation
+
+- PR **#347** ("revert: remove Python supervisor architecture, restore
+  self-contained start scripts (136-S)") merged to `main` at
+  `2026-08-16T08:10:03Z` with merge commit
+  `335608b9663cf9fb900c5491629102cd136b9778`, which is `origin/main`'s
+  current tip. Confirmed ancestor of `origin/main` via
+  `git merge-base --is-ancestor 335608b9... origin/main` (exit 0).
+- Repo merge-strategy settings (P-009), re-verified this session:
+  `allow_merge_commit: true`, `allow_squash_merge: false`,
+  `allow_rebase_merge: false` — only "Create a merge commit" is possible.
+
+## TOPOLOGY_GATE note (pre-closure remediation)
+
+At session start, two non-spike/research git worktrees existed on this
+machine simultaneously: `C:/Source/GitHub/autoharness` (root, `main`) and
+`C:/Source/GitHub/autoharness-116-s` (`feat/circuit-breaker-diagnostic-
+escalation-policy`, the head branch of the separate, unrelated PR #348).
+`autoharness gate pipeline-topology --mode agent --shipment 136-S --phase
+lifecycle --json` correctly BLOCKED with `MULTIPLE_IMPLEMENTATION_WORKTREES`
+under this pre-existing structural state. Remediation: the second worktree
+was verified clean and byte-identical to `origin/feat/circuit-breaker-
+diagnostic-escalation-policy` (`701a9d01...`), then removed with
+`git worktree remove` (branch itself, and its remote copy, are untouched —
+no data loss; PR #348 work resumes by checking out the same branch directly
+in the single remaining worktree once this closure is complete). Re-running
+the gate then returned `exit_code: 0` (`WORKTREE_TOPOLOGY_OK`,
+`active_shipment_invariant` passed for `136-S`). See compound learning
+`docs/compound/2026-08-16-multiple-implementation-worktrees-blocks-topology-gate-globally.md`.
+
+## Backlog State Inspection (this closure session)
+
+- `127-F`, `127.001-T`, `127.002-T`: all already in
+  `.backlogit/archive/` at session start, each `archived_status: done` —
+  archived as part of the PR #347 merge itself. Safe-close step 4
+  classified all three manifest items `pre-archived` (no re-archival
+  performed).
+- Protected-set computation: covering feature `127-F` **is** a manifest
+  member of `136-S` (not a partial-feature shipment); no additional
+  children of `127-F` exist beyond the two manifest tasks (confirmed via
+  directory enumeration of `.backlogit/queue/` + `.backlogit/archive/` for
+  the `127.*` prefix) — protected set is empty.
+- Shipment record `136-S` (the only remaining live artifact) closed this
+  session: `backlogit move 136-S --status shipped` → verified live
+  `status: shipped` → `backlogit archive 136-S` → verified
+  `archived_status: shipped`.
+
+## Local Review
+
+Adversarial local review of the closure delta (backlog archival for the
+shipment record + this closure's own new docs) performed this session,
+multi-persona (correctness/provenance, role-boundary, security/secrets):
+
+- **P0/P1**: none found.
+- **P2**: none found.
+- No secrets, credentials, or raw operator content present in any new file
+  in this closure delta.
+
+## Validator Evidence
+
+This closure changes only `.backlogit/*` backlog-state files and `docs/*`
+(closure artifact, compound learning, session memory) — no source code,
+schema, or template changed. Full local build/test suite is **not
+applicable**; recorded per the docs/backlog-only exemption. A CLI smoke
+check was still run for baseline confidence:
+
+| Area | Verdict | Evidence |
+|---|---|---|
+| CLI smoke test | PASS | `.venv\Scripts\autoharness.exe verify-workspace --workspace .` — 0 strict schema blockers, 0 blockers, 0 warnings |
+| Shipment safe-close invariant (manual, see above) | PASS | manifest items all `pre-archived`, protected set empty and intact, shipment record `shipped`→`archived` verified at each step |
+| Full local build/test suite | N/A | Docs/backlog-only closure delta; no source changed |
+
+## Runtime Verification
+
+No runtime surface is touched by this closure delta (backlog-state files
+and documentation only). Per `.autoharness/workspace-profile.yaml`
+`runtime_validation.validator_manifest`, the only declared surface is `cli`;
+the CLI smoke check above satisfies that surface's probe. No additional
+validator evidence is applicable.
+
+## Invariants Preserved
+
+- The pre-existing feature/task archival (from PR #347's own backlog
+  commit) is verified byte-for-byte consistent: `archived_status: done` on
+  `127-F`, `127.001-T`, `127.002-T`; no residual `queue/127*` entries.
+- No commit in this closure targets `main` directly; all closure commits
+  land on `post-merge/136-s-plan-1-supervisor-contract-and-verification-closeout`.
+
+## Pre-Deploy Audits and Deployment Path
+
+Docs/backlog-only change; released by merge-only deployment to `main`. No
+runtime service, background job, deployment surface, or public API is
+introduced or altered. No pre-deploy audit beyond the CLI smoke check above
+is applicable.
+
+## Monitoring and Healthy Signals
+
+No dedicated monitoring is required for a backlog-archival/documentation
+closure. Healthy state is simply `136-S` showing `archived_status: shipped`
+with `127-F`/`127.001-T`/`127.002-T` remaining `archived_status: done` and
+no residual `queue/127*` entries.
+
+## Failure Signals and Rollback
+
+Rollback for this closure is a plain revert of the closure merge commit
+(additive backlog-state + docs only, no destructive migration).
+
+## Releasability Evidence
+
+`closure_status: READY`. Merge, review (PR #347 review history + this
+session's own closure-delta review), and backlog-state invariant evidence
+are complete. No runtime surface is introduced or altered by this closure.
+No P0/P1/P2 follow-ups outstanding.
+
+## P-020 Compaction
+
+`compaction_status: degraded`. The mandatory `compact-context` invocation
+was attempted at post-merge closure, but no installed/executable runtime
+skill exists in this environment — only the repository's own authored
+template at `templates/skills/compact-context/SKILL.md.tmpl` (this
+self-hosting repo does not resolve `.github/skills/compact-context/SKILL.md`),
+consistent with the `130-S`/`121-F`, `134-S`/`125-F`, and `135-S`/`126-F`
+closure precedents. This session's own manual consolidation — one compound-
+learning document and one session-memory document, both written during this
+same closure — constitutes the bounded, cheap Tier-1 consolidation of this
+shipment's fresh memory that a working `compact-context` tool would
+otherwise perform. Recorded as attempted-and-degraded, non-blocking, per
+P-020.
+
+## Backlog Archival
+
+- Feature `127-F` and its 2 tasks (`127.001-T`, `127.002-T`) were archived
+  as part of PR #347's own backlog-completion commit (prior to this
+  session), each `archived_status: done`. Verified intact this session.
+- Shipment `136-S` archived this session with `archived_status: shipped`.
+
+## Follow-Ups
+
+None outstanding for this closure.
