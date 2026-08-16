@@ -10,7 +10,6 @@ reviewed_head: da9327b177b8442b88bc1dddfa52c38d0f8b7538
 closure_status: READY
 compaction_status: degraded
 feature_terminal_status: done
-feature_archived_status: done
 ---
 
 # 136-S / 127-F Post-Merge Closure — Plan 1 Supervisor Contract and Verification Closeout
@@ -24,10 +23,25 @@ in favor of self-contained start scripts.
 
 `127-F` is a root feature (no `parent_id`) with exactly 2 children
 (`127.001-T`, `127.002-T`), both of which are this shipment's manifest, and
-both `127-F` and its 2 tasks were already archived (`archived_status: done`)
-as part of the feature-PR merge commit itself (`chore(backlog): complete
-127.001-T, 127.002-T, 127-F for shipment 136-S`, part of PR #347) — this
-closure only needed to close the shipment record itself.
+both `127-F` and its 2 tasks were already archived (`status: done`, the
+terminal-relocation form — see note below) as part of the feature-PR merge
+commit itself (`chore(backlog): complete 127.001-T, 127.002-T, 127-F for
+shipment 136-S`, part of PR #347) — this closure only needed to close the
+shipment record itself.
+
+**Note on archival provenance forms (correction, Copilot review round 3)**:
+`.backlogit/archive/127-F.md`, `127.001-T.md`, and `127.002-T.md` each carry
+only `status: done` under `.backlogit/archive/` — a valid **terminal-
+relocation** representation (the file was moved into the archive directory
+as part of a git commit) with no `archived_status`/`archived_from` fields.
+This is distinct from the **CLI-mutation** provenance form that
+`backlogit archive <id>` produces, which stamps `archived_status`,
+`archived_from`, and `status: archived` (as seen on the `136-S` shipment
+record closed this session — see Backlog State Inspection below). Earlier
+drafts of this closure doc incorrectly attributed `archived_status: done` to
+`127-F`/`127.001-T`/`127.002-T`, which does not exist on those records; every
+occurrence below has been corrected to describe the actual terminal-
+relocation form.
 
 ## Merge Confirmation
 
@@ -62,7 +76,8 @@ the gate then returned `exit_code: 0` (`WORKTREE_TOPOLOGY_OK`,
 ## Backlog State Inspection (this closure session)
 
 - `127-F`, `127.001-T`, `127.002-T`: all already in
-  `.backlogit/archive/` at session start, each `archived_status: done` —
+  `.backlogit/archive/` at session start, each `status: done` (terminal-
+  relocation form, no `archived_status` field — see note above) —
   archived as part of the PR #347 merge itself. Safe-close step 4
   classified all three manifest items `pre-archived` (no re-archival
   performed).
@@ -130,8 +145,9 @@ validator evidence is applicable.
 ## Invariants Preserved
 
 - The pre-existing feature/task archival (from PR #347's own backlog
-  commit) is verified byte-for-byte consistent: `archived_status: done` on
-  `127-F`, `127.001-T`, `127.002-T`; no residual `queue/127*` entries.
+  commit) is verified byte-for-byte consistent: `status: done` (terminal-
+  relocation form) on `127-F`, `127.001-T`, `127.002-T`; no residual
+  `queue/127*` entries.
 - No commit in this closure targets `main` directly; all closure commits
   land on `post-merge/136-s-plan-1-supervisor-contract-and-verification-closeout`.
 
@@ -146,8 +162,9 @@ is applicable.
 
 No dedicated monitoring is required for a backlog-archival/documentation
 closure. Healthy state is simply `136-S` showing `archived_status: shipped`
-with `127-F`/`127.001-T`/`127.002-T` remaining `archived_status: done` and
-no residual `queue/127*` entries.
+with `127-F`/`127.001-T`/`127.002-T` remaining `status: done` (terminal-
+relocation form) under `.backlogit/archive/` and no residual `queue/127*`
+entries.
 
 ## Failure Signals and Rollback
 
@@ -181,8 +198,10 @@ P-020.
 
 - Feature `127-F` and its 2 tasks (`127.001-T`, `127.002-T`) were archived
   as part of PR #347's own backlog-completion commit (prior to this
-  session), each `archived_status: done`. Verified intact this session.
-- Shipment `136-S` archived this session with `archived_status: shipped`.
+  session), each `status: done` (terminal-relocation form, no
+  `archived_status` field). Verified intact this session.
+- Shipment `136-S` archived this session with `archived_status: shipped`
+  (CLI-mutation form, via `backlogit archive 136-S`).
 
 ## Follow-Ups
 
