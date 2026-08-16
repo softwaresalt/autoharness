@@ -3104,8 +3104,19 @@ def _add_escalation_directive_check(
         r"forbid(?:s|den)?|prohibit(?:s|ed)?)"
         r"(?:(?!\s+(?:and|or|but|nor)\b)\s+[\w-]+){0,8}\s*$"
     )
+    # Fail-closed guard (Copilot review finding, mirrors the leading-negation
+    # fix above): the intervening-character run must not cross a
+    # subordinating/coordinating clause boundary that introduces a
+    # *different* grammatical subject before the prohibition, e.g. "Retry
+    # the failing operation because halting is forbidden." must NOT be read
+    # as prohibiting the retry -- "forbidden" there grammatically governs
+    # "halting", a different verb, not "retry". Each character of the
+    # intervening run is guarded by a lookahead rejecting these clause-
+    # boundary words as a whole word at that position.
     trailing_prohibition_pattern = re.compile(
-        r"^[\s\w,/'\"()-]{0,120}\b(?:is|are|remains?)?\s*"
+        r"^(?:(?!\b(?:because|since|as|if|when|while|though|although|"
+        r"and|or|but|nor)\b)[\s\w,/'\"()-]){0,120}"
+        r"\b(?:is|are|remains?)?\s*"
         r"(?:forbidden|prohibited|not permitted|not allowed)\b"
     )
 

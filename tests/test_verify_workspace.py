@@ -4733,6 +4733,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             "Retry the failing operation without delay after escalation.",
             "Repeat the failing operation after escalation.",
             "Do not halt and retry the failing operation.",
+            "Retry the failing operation because halting is forbidden.",
         )
         for stale_directive in stale_directives:
             with self.subTest(stale_directive=stale_directive):
