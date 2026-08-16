@@ -3085,13 +3085,24 @@ def _add_escalation_directive_check(
         r"re[- ]?invoke(?:s|d|ing)?|"
         r"re[- ]?execute(?:s|d|ing)?|"
         r"re[- ]?dispatch(?:es|ed|ing)?|"
-        r"(?:try|attempt|run|invoke|execute|dispatch)\s+again|"
-        r"another\s+(?:attempt|try|run|pass|execution|invocation|dispatch)"
+        r"re[- ]?peat(?:s|ed|ing)?|"
+        r"(?:try|attempt|run|invoke|execute|dispatch|repeat)\s+again|"
+        r"another\s+(?:attempt|try|run|pass|execution|invocation|dispatch|repeat(?:ition)?)"
         r")\b"
     )
+    # Fail-closed guard (Copilot review finding): the intervening-word class
+    # below excludes coordinating conjunctions ("and"/"or"/"but"/"nor") so a
+    # negation cannot be read as scoping a retry verb across a coordinated
+    # clause that actually negates a *different* verb, e.g. "Do not halt and
+    # retry the failing operation." must NOT be treated as a prohibition of
+    # the retry -- the negation there governs "halt", not "retry". A bare
+    # word boundary (not whitespace) such as a comma already breaks the
+    # `\s+[\w-]+` intervening-word match, so explicit conjunction words are
+    # the only additional exclusion needed.
     leading_negation_pattern = re.compile(
         r"\b(?:do not|don't|never|must not|shall not|may not|cannot|can't|"
-        r"forbid(?:s|den)?|prohibit(?:s|ed)?)(?:\s+[\w-]+){0,8}\s*$"
+        r"forbid(?:s|den)?|prohibit(?:s|ed)?)"
+        r"(?:(?!\s+(?:and|or|but|nor)\b)\s+[\w-]+){0,8}\s*$"
     )
     trailing_prohibition_pattern = re.compile(
         r"^[\s\w,/'\"()-]{0,120}\b(?:is|are|remains?)?\s*"
@@ -3126,19 +3137,44 @@ def _add_escalation_directive_check(
             or trailing_prohibition_pattern.search(suffix)
         )
 
+    def stale_retry_statements(markdown_text: str) -> list[str]:
+        """Scan raw Markdown text (already section-scoped by the caller,
+        or a whole document) for affirmative post-threshold retry
+        directives, returning excerpts that are not negated/prohibited."""
+        stale: list[str] = []
+        cleaned = re.sub(r"[*`]+", "", markdown_text.lower())
+        statements = re.split(r"(?<=[.!?])\s+|\n\s*\n+", cleaned)
+        for statement in statements:
+            for retry in retry_directive_pattern.finditer(statement):
+                if not retry_is_prohibited(statement, retry):
+                    stale.append(" ".join(statement.split())[:240])
+                    break
+        return stale
+
     def affirmative_retry_directives(
         markdown: str, heading_fragments: tuple[str, ...]
     ) -> list[str]:
         stale: list[str] = []
         for section in markdown_sections(markdown, heading_fragments):
-            cleaned = re.sub(r"[*`]+", "", section.lower())
-            statements = re.split(r"(?<=[.!?])\s+|\n\s*\n+", cleaned)
-            for statement in statements:
-                for retry in retry_directive_pattern.finditer(statement):
-                    if not retry_is_prohibited(statement, retry):
-                        stale.append(" ".join(statement.split())[:240])
-                        break
+            stale.extend(stale_retry_statements(section))
         return stale
+
+    def document_from_first_h1(markdown: str) -> str:
+        """Return the document body starting at its own first level-1
+        heading (the escalation-protocol instruction's title), so the
+        whole shared instruction -- every subsection under that H1,
+        including `Status`, `Authority-Preservation`, and `Terminal Engram
+        Handoff` alike -- is scanned rather than only a single named
+        subsection (Copilot review finding: a mixed-version instruction
+        could keep a clean `Terminal Engram Handoff` section while adding
+        an affirmative post-threshold retry directive elsewhere). Falls
+        back to the full document when no H1 is present so scanning is
+        never narrower than before."""
+        lines = markdown.splitlines()
+        for index, line in enumerate(lines):
+            if re.match(r"^#\s+\S", line.strip()):
+                return "\n".join(lines[index:])
+        return markdown
 
     for agent_name, agent_path, present in (
         ("stage", stage_path, stage_present),
@@ -3193,8 +3229,8 @@ def _add_escalation_directive_check(
                 f"({escalation_instruction_path}) is missing terminal "
                 f"handoff/no-re-execution tokens: {instruction_missing}"
             )
-        instruction_stale = affirmative_retry_directives(
-            instruction_content, ("terminal engram handoff",)
+        instruction_stale = stale_retry_statements(
+            document_from_first_h1(instruction_content)
         )
         if instruction_stale:
             errors.append(
