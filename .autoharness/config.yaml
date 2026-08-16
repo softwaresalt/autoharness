@@ -82,5 +82,8 @@ model_routing:
 ai_tools:
   copilot_cli:
     exe_path: "copilot"
+    args: []
+
+sidecars: ["backlogit", "engram", "graphtor-docs"]
 
 overrides: {}
