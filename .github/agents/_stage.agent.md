@@ -457,7 +457,8 @@ before falling back to the operator-halt checkpoint:
    escalation available; re-verify this guard whenever the escalation or
    tier3 route configuration changes.
 4. **Hand off and halt**: when the route is not degraded, record it in the
-   compiled payload, hand that payload to engram for analysis, and halt. The
+   compiled payload's `resolved_escalation_route` field, hand that payload to
+   engram for analysis, and halt. The
    agent MUST NOT re-execute the failing operation after its circuit is open.
    The handoff is for asynchronous or operator review, not a fourth attempt.
 5. **`ESCALATION_DEGRADED` fallback**: when the route is unavailable, engram

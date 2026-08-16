@@ -318,6 +318,45 @@ class CircuitBreakerPolicyContractTests(unittest.TestCase):
                 with self.subTest(path=path, forbidden=clause):
                     self.assertNotIn(_normalize(clause), text)
 
+    def test_escalation_payload_contract_defines_resolved_route_field(self) -> None:
+        """Copilot review finding (PR #348): the Terminal Engram Handoff step
+        says the halting agent "records the route in the payload", but the
+        Escalation-Payload Contract table defined no route/model field, so a
+        producer could not satisfy the closed payload contract and a handoff
+        consumer had no contract-defined field to read the resolved route
+        from. The contract must name an explicit `resolved_escalation_route`
+        field, and every surface that describes the handoff step (the
+        instruction itself, and both agent templates/dogfood outputs) must
+        reference that same field name rather than a bare "the payload"."""
+        contract_surfaces = (_ESCALATION_TEMPLATE, _ESCALATION_DOGFOOD)
+        for path in contract_surfaces:
+            text = _normalize(path.read_text(encoding="utf-8"))
+            with self.subTest(path=path, check="payload_contract_row"):
+                self.assertIn(_normalize("`resolved_escalation_route`"), text)
+                self.assertIn(
+                    _normalize("model_family, model_provider, reasoning_effort"), text
+                )
+            with self.subTest(path=path, check="terminal_handoff_references_field"):
+                self.assertIn(
+                    _normalize(
+                        "records the route in the payload's "
+                        "`resolved_escalation_route` field"
+                    ),
+                    text,
+                )
+
+        handoff_surfaces = (_SHIP_TEMPLATE, _SHIP_DOGFOOD, _STAGE_TEMPLATE, _STAGE_DOGFOOD)
+        for path in handoff_surfaces:
+            text = _normalize(path.read_text(encoding="utf-8"))
+            with self.subTest(path=path, check="hand_off_and_halt_references_field"):
+                self.assertIn(
+                    _normalize(
+                        "record it in the compiled payload's "
+                        "`resolved_escalation_route` field"
+                    ),
+                    text,
+                )
+
     def test_build_loop_uses_per_operation_failure_count(self) -> None:
         text = _normalize(_BUILD_FEATURE_TEMPLATE.read_text(encoding="utf-8"))
         self.assertIn(

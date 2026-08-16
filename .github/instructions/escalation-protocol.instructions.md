@@ -78,6 +78,7 @@ payload containing the following fields before handing off and halting:
 | `artifact_refs` | Paths or identifiers of artifacts touched by the failing unit of work (files, backlog item IDs, PR number). Field name aligns with `schemas/tool-telemetry-event.schema.json#artifact_refs` so escalation payloads and tool telemetry events can be cross-referenced. |
 | `evidence_path` | Path to any structured telemetry evidence backing the failure (when telemetry is enabled), aligned with `schemas/tool-telemetry-event.schema.json#evidence_path`. Absent/empty when telemetry is disabled — this is not itself a failure condition. |
 | `resumption_checkpoint_ref` | A reference (checkpoint filename, memory doc path, or backlog comment) that lets the resolved escalation route (or the operator) resume the unit of work without losing state. |
+| `resolved_escalation_route` | The `(model_family, model_provider, reasoning_effort)` tuple actually resolved for this handoff, per the Escalation Route Resolution section below. Recorded here — not merely resolved in-memory — so a handoff consumer has a contract-defined route on which to run the promised independent analysis without re-deriving the resolution precedence itself. Present only when the resolution is not `ESCALATION_DEGRADED` (see below); a degraded route is never recorded in this field. |
 
 ## Escalation Route Resolution (P-013.6 / F02FD596 nested per-role hierarchy)
 
@@ -144,8 +145,9 @@ templates.
 ## Terminal Engram Handoff
 
 When the resolved route is available and not degraded, the halting agent
-records the route in the payload, hands the compiled payload to engram for
-asynchronous or operator review, and halts. It MUST NOT re-execute the failing
+records the route in the payload's `resolved_escalation_route` field, hands
+the compiled payload to engram for asynchronous or operator review, and
+halts. It MUST NOT re-execute the failing
 operation after its circuit is open. The handoff is for asynchronous or
 operator review, not a fourth attempt. This handoff is
 informational/diagnostic — it carries no authority of its own (see the

@@ -718,7 +718,8 @@ operator-halt checkpoint:
    same-tuple resolution as `ESCALATION_DEGRADED` per the canonical
    definition in `escalation-protocol.instructions.md`.
 4. **Hand off and halt**: when the route is not degraded, record it in the
-   compiled payload, hand that payload to engram for analysis, and halt. The
+   compiled payload's `resolved_escalation_route` field, hand that payload to
+   engram for analysis, and halt. The
    agent MUST NOT re-execute the failing operation after its circuit is open.
    The handoff is for asynchronous or operator review, not a fourth attempt.
 5. **`ESCALATION_DEGRADED` fallback / existing operator-halt path** (route
