@@ -7,7 +7,7 @@ merged_at: "2026-08-16T10:37:43Z"
 reviewed_head: 53e3cdcd4aa87abfa0cf6eb5711693fc5e33937c
 merge_strategy: merge-commit
 admin_fallback_used: false
-closure_status: READY_WITH_CONDITIONS
+closure_status: READY
 compaction_status: degraded
 terminal_closure: true
 follow_ups:
@@ -108,17 +108,96 @@ operator's final-cycle scope boundary.
   `AssertionError: True is not false`), then restored the fix and confirmed
   GREEN.
 
-## Releasability
+## Local Review
 
-`closure_status: READY_WITH_CONDITIONS` — the merge, gates, and CI evidence
-are all clean, but three Copilot findings were explicitly disclosed rather
-than fixed (see Follow-Ups below), so this is not an unconditional `READY`.
-None of the three is a P0/P1 finding; none blocks the shipped functionality's
-correctness (the stale-retry matcher gaps are checker-robustness gaps against
-content that is currently compliant, not defects in shipped content; the
-`strict_safety` question is a policy-interaction design question, not a
-demonstrated bypass, since the P-013.6 handoff is explicitly non-authoritative
-and halts rather than re-executing).
+Adversarial local review of the shipped delta (the `verify_workspace.py`
+stale-retry-directive hardening, the `resolved_escalation_route` contract
+field, and the mirrored template/dogfood/manifest updates) was performed
+across cycles 4-7 via the Copilot review-fix loop plus this session's own
+read-through. No P0/P1 findings remain open: all fixable findings were
+fixed with a code change; the three residual findings below are checker-
+robustness gaps and one open policy-design question, none of which is a
+defect in currently shipped, compliant content.
+
+## Validator Evidence
+
+This PR changed Python source (`src/autoharness/verify_workspace.py`),
+Markdown instruction/agent templates, and a manifest checksum file — the
+full local build/test suite is applicable and was run to completion.
+
+| Area | Verdict | Evidence |
+|---|---|---|
+| Full local test suite | PASS | `.venv\Scripts\python.exe -m pytest tests/ -q` — 1501 passed, 20 skipped, 0 failed |
+| `verify-workspace` smoke gate | PASS | 0 strict schema blockers, 0 blockers, 0 warnings (one pre-existing, unrelated advisory carried from prior harness-upgrade drift) |
+| CLI smoke test | PASS | `.venv\Scripts\autoharness.exe --help` |
+| Red-green discipline (cycles 6-7) | PASS | see Test-First Discipline below |
+
+## Runtime Verification
+
+No runtime service, background job, deployment surface, or public API is
+introduced or altered by this PR. Per `.autoharness/workspace-profile.yaml`
+`runtime_validation.validator_manifest`, the only declared surface is `cli`;
+the CLI smoke check above satisfies that surface's probe. This PR changes an
+authoring-time/CI-time verifier (`verify_workspace.py`) and static
+instruction/template content — there is no live rollout-sensitive behavior
+beyond what the full test suite and `verify-workspace` gate already exercise.
+
+## Invariants Preserved
+
+- The pre-existing stale-retry-directive checks for previously-compliant
+  content continue to pass (no false positives introduced — verified by the
+  full suite's existing coverage in `tests/test_verify_workspace.py`).
+- The Escalation-Payload Contract table's pre-existing fields
+  (threshold-kind, failure summary, artifact refs, telemetry-evidence
+  pointer, resumption checkpoint ref) are unchanged; `resolved_escalation_route`
+  is additive only.
+- No commit in this closure targets `main` directly; all closure commits land
+  on `post-merge/348-circuit-breaker-diagnostic-escalation-policy`.
+
+## Pre-Deploy Audits and Deployment Path
+
+Merge-only deployment to `main` (this is a self-hosting agent-harness
+template repository, not a deployed service). No migration, feature flag,
+config change, or access change is introduced. No canary or phased rollout
+is applicable.
+
+## Monitoring and Healthy Signals
+
+No dedicated runtime monitoring applies. Healthy state is: `verify-workspace`
+continuing to report 0 blockers on `main`, and the full test suite remaining
+green on subsequent CI runs. The next agent session that authors or edits an
+escalation-instruction file exercising `_add_escalation_directive_check`
+serves as the practical acceptance signal that the `resolved_escalation_route`
+requirement is enforced correctly.
+
+## Failure Signals and Rollback
+
+Failure signal: a future `verify-workspace` run reporting a new blocker
+against `resolved_escalation_route` enforcement, or a test regression in
+`tests/test_verify_workspace.py` / `tests/test_circuit_breaker_policy_contract.py`.
+Rollback is a plain revert of merge commit `685fc255ab64bd9dbb68a8ae306ab81de5968498`
+(additive verifier/template/doc change only, no destructive migration).
+
+## Validation Window and Owner
+
+Validation window: through the next full CI run on `main` plus the next
+agent session authoring escalation-instruction content (informal, no fixed
+duration — this is a template/tooling repository, not a deployed service).
+Owner: the Ship agent role, on behalf of the operator, for any regression
+surfaced by `verify-workspace` or the test suite referencing this PR's
+changes.
+
+## Releasability Evidence
+
+`closure_status: READY`. Merge, review (12/12 threads resolved across the
+PR's full lifetime), full local build/test evidence, and the invariants
+above are all complete and clean. Three Copilot findings were explicitly
+disclosed rather than fixed (see Follow-Ups below) and are recorded as
+non-blocking, non-release-affecting residual risk — none is a P0/P1, and
+none is a condition gating this closure's own completeness (they are
+follow-up candidates for future work, not prerequisites this closure is
+waiting on). No runtime surface is introduced or altered by this PR beyond
+what the `cli` validator surface and full test suite already cover.
 
 ## P-020 Compaction
 

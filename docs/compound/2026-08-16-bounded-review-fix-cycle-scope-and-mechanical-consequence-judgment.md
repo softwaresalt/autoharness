@@ -1,3 +1,23 @@
+---
+title: "Bounded review-fix cycle scope: distinguishing 'same contract surface' from 'same file'"
+description: "How to judge whether a new Copilot finding during an operator-authorized bounded review-fix exception is in scope, and how to close out-of-scope findings without leaving a P-018 gate blocked"
+problem_type: "process-judgment"
+category: "workflow-issues"
+component: "ship-agent-review-fix-cycle"
+root_cause: "A scope-bounded operator exception to a review-fix circuit breaker (Stop Conditions) has no built-in test for whether a subsequent Copilot finding is 'in scope'; a loose relatedness test ('same file/PR/function') would let every follow-on comment relitigate the breaker, while a zero-tolerance test would leave legitimate mechanical consequences of the authorized fix unaddressed."
+resolution_type: "workaround"
+severity: "medium"
+tags:
+  - "ship"
+  - "review-fix-cycle"
+  - "p-018"
+  - "circuit-breaker"
+  - "scope-boundary"
+citations:
+  - "PR #348"
+  - "docs/closure/pr348-circuit-breaker-diagnostic-escalation-policy-closure.md"
+---
+
 # Bounded Review-Fix Cycle Scope: Distinguishing "Same Contract Surface" from "Same File"
 
 ## Context
