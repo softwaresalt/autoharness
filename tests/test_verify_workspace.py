@@ -33,6 +33,15 @@ from autoharness.verify_workspace import (
     verify_workspace,
 )
 
+_COMPLIANT_ESCALATION_INSTRUCTION = (
+    "---\nname: escalation-protocol\n---\n\n"
+    "# Escalation Protocol\n\n"
+    "## Terminal Engram Handoff\n\n"
+    "The agent MUST NOT re-execute the failing operation after its circuit is "
+    "open. The handoff is for asynchronous or operator review, not a fourth "
+    "attempt.\n"
+)
+
 
 def _write_yaml(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -4721,6 +4730,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             "Re-try the failing operation after escalation.",
             "Re-execute the failing operation after handoff.",
             "Make another pass at the failing operation after escalation.",
+            "Retry the failing operation without delay after escalation.",
         )
         for stale_directive in stale_directives:
             with self.subTest(stale_directive=stale_directive):
@@ -4770,6 +4780,59 @@ class VerifyWorkspaceTests(unittest.TestCase):
                         )
                     )
 
+    def test_escalation_directive_check_fails_on_stale_shared_instruction(
+        self,
+    ) -> None:
+        """A mixed-version shared instruction must not restore a routed
+        retry after compliant Stage/Ship text has adopted handoff-and-halt."""
+        from autoharness.verify_workspace import _add_escalation_directive_check
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_path = Path(temp_dir)
+            agents_dir = workspace_path / ".github" / "agents"
+            agents_dir.mkdir(parents=True, exist_ok=True)
+            (agents_dir / "_ship.agent.md").write_text(
+                "# Ship\n\n"
+                "### Escalation Protocol — Consecutive Task Failures\n\n"
+                "Follow P-013.6 and `escalation-protocol.instructions.md`.\n"
+                "1. Compile the escalation payload.\n"
+                "2. Resolve the escalation route.\n"
+                "3. Treat a same-route resolution as `ESCALATION_DEGRADED`.\n"
+                "4. **Hand off** for asynchronous or operator review, not a "
+                "fourth attempt.\n"
+                "5. The agent MUST NOT re-execute the failing operation after "
+                "its circuit is open.\n",
+                encoding="utf-8",
+            )
+            instructions_dir = workspace_path / ".github" / "instructions"
+            instructions_dir.mkdir(parents=True, exist_ok=True)
+            (instructions_dir / "escalation-protocol.instructions.md").write_text(
+                "---\nname: escalation-protocol\n---\n\n"
+                "# Escalation Protocol\n\n"
+                "## Terminal Engram Handoff\n\n"
+                "The agent MUST NOT re-execute the failing operation after its "
+                "circuit is open. The handoff is for asynchronous or operator "
+                "review, not a fourth attempt. Retry the failing operation "
+                "without delay after escalation.\n",
+                encoding="utf-8",
+            )
+
+            report: dict = {"targeted_checks": {}}
+            _add_escalation_directive_check(
+                report, "escalation_directive_present", workspace_path
+            )
+            check = report["targeted_checks"]["escalation_directive_present"]
+            self.assertFalse(
+                check["ok"],
+                f"expected stale shared instruction to fail: {check}",
+            )
+            self.assertTrue(
+                any(
+                    "shared" in error.lower() or "retry" in error.lower()
+                    for error in check["errors"]
+                )
+            )
+
     def test_escalation_directive_check_accepts_negated_and_scoped_retry_wording(
         self,
     ) -> None:
@@ -4811,8 +4874,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     instructions_dir = workspace_path / ".github" / "instructions"
                     instructions_dir.mkdir(parents=True, exist_ok=True)
                     (instructions_dir / "escalation-protocol.instructions.md").write_text(
-                        "---\nname: escalation-protocol\n---\n\n"
-                        "# Escalation Protocol\n",
+                        _COMPLIANT_ESCALATION_INSTRUCTION,
                         encoding="utf-8",
                     )
 
@@ -4856,7 +4918,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             instructions_dir = workspace_path / ".github" / "instructions"
             instructions_dir.mkdir(parents=True, exist_ok=True)
             (instructions_dir / "escalation-protocol.instructions.md").write_text(
-                "---\nname: escalation-protocol\n---\n\n# Escalation Protocol\n",
+                _COMPLIANT_ESCALATION_INSTRUCTION,
                 encoding="utf-8",
             )
 
@@ -4916,7 +4978,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             instructions_dir = workspace / ".github" / "instructions"
             instructions_dir.mkdir(parents=True, exist_ok=True)
             (instructions_dir / "escalation-protocol.instructions.md").write_text(
-                "---\nname: escalation-protocol\n---\n\n# Escalation Protocol\n",
+                _COMPLIANT_ESCALATION_INSTRUCTION,
                 encoding="utf-8",
             )
 
