@@ -3,10 +3,10 @@ shipment: 136-S
 feature: 127-F
 tasks: [127.001-T, 127.002-T]
 feature_pr: 347
-closure_pr: TBD
+closure_pr: 349
 merge_commit: 335608b9663cf9fb900c5491629102cd136b9778
 merged_at: "2026-08-16T08:10:03Z"
-reviewed_head: 701a9d013cbf523b0ed0c1ee75eafa99f559d1a6
+reviewed_head: da9327b177b8442b88bc1dddfa52c38d0f8b7538
 closure_status: READY
 compaction_status: degraded
 feature_terminal_status: done
@@ -76,6 +76,23 @@ the gate then returned `exit_code: 0` (`WORKTREE_TOPOLOGY_OK`,
   `status: shipped` → `backlogit archive 136-S` → verified
   `archived_status: shipped`.
 
+### Addendum: a backlog audit-log discrepancy, noted but not fabricated
+
+This session's own PR #349 review separately flagged that
+`.backlogit/logs/136-S.jsonl` jumps directly from a `shipment_status_changed`
+event recording `status: active` to an `archived` event, omitting an
+intermediate `shipment_status_changed` event for the `shipped` transition
+that comparable prior closures (e.g. `093-S`, `096-S`, `114-S`) do record. The
+archived record's own `archived_status: shipped` field confirms the
+transition genuinely happened at the data level (this was verified multiple
+times during the safe-close's `move`/`archive` verification steps in this
+same session), so the discrepancy is isolated to the append-only audit log's
+completeness, not to the correctness of the final state. This is recorded
+here as a known discrepancy for the backlogit maintainers/Stage to
+investigate — Ship does not hand-author a synthetic log entry to paper over
+a gap in an append-only audit trail, as that would itself corrupt the
+trail's integrity.
+
 ## Local Review
 
 Adversarial local review of the closure delta (backlog archival for the
@@ -83,7 +100,8 @@ shipment record + this closure's own new docs) performed this session,
 multi-persona (correctness/provenance, role-boundary, security/secrets):
 
 - **P0/P1**: none found.
-- **P2**: none found.
+- **P2**: one — the backlog audit-log completeness gap (see Addendum in
+  Backlog State Inspection above and Follow-Ups below).
 - No secrets, credentials, or raw operator content present in any new file
   in this closure delta.
 
@@ -141,7 +159,8 @@ Rollback for this closure is a plain revert of the closure merge commit
 `closure_status: READY`. Merge, review (PR #347 review history + this
 session's own closure-delta review), and backlog-state invariant evidence
 are complete. No runtime surface is introduced or altered by this closure.
-No P0/P1/P2 follow-ups outstanding.
+One explicit, non-blocking P2 follow-up is recorded (the backlog audit-log
+completeness gap, owned by backlogit maintainers/Stage).
 
 ## P-020 Compaction
 
@@ -167,4 +186,9 @@ P-020.
 
 ## Follow-Ups
 
-None outstanding for this closure.
+- **P2 (non-blocking, owned by backlogit maintainers/Stage)**: investigate why
+  `.backlogit/logs/136-S.jsonl` omits an intermediate `shipment_status_changed:
+  shipped` event between the `active` event and the `archived` event (see
+  Addendum above). Underlying data is correct (`archived_status: shipped`
+  independently verified); this is an audit-log completeness gap, not a
+  correctness defect in `136-S`'s own closure.

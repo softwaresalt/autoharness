@@ -37,23 +37,51 @@ worktree's branch.
 
 ## Resolution
 
+`git worktree remove` is a destructive command under
+`.github/instructions/constitution.instructions.md` Section VII (deletes
+files) — it MUST have explicit operator approval before execution,
+regardless of how permissive the invoking agent's mode is. A clean
+`git status --short` plus a byte-identical remote-tracking comparison
+proves every *tracked* file is disposable, but it does **not** prove every
+*ignored* file (e.g. local `.venv`, build artifacts, untracked scratch
+files a prior session may have left) is disposable — those checks alone are
+insufficient justification to skip the approval step.
+
 1. Verify the extra worktree is clean and byte-identical to its own remote
    tracking branch (`git status --short`; compare local HEAD to
-   `git rev-parse origin/{branch}` after `git fetch`) — this proves no work
-   will be lost.
-2. Remove it with `git worktree remove {path}` (never `--force` unless the
-   clean/identical check above already passed) — this only detaches the
-   worktree *directory*; the branch itself, and its remote copy, are
-   untouched and can be checked out again later, including back in the same
-   single remaining worktree.
-3. Re-run the topology gate — with exactly one implementation worktree
+   `git rev-parse origin/{branch}` after `git fetch`) — this is necessary
+   evidence to present to the operator, not sufficient grounds to proceed
+   unilaterally.
+2. **Obtain explicit operator approval before removing the worktree**,
+   presenting the clean/identical evidence above. Do not treat an implicit
+   task instruction (e.g. "use the existing worktree for X") as approval for
+   a *different* destructive action (removing that same worktree) unless the
+   operator was actually asked and confirmed.
+3. Only on explicit approval, remove it with `git worktree remove {path}`
+   (never `--force` as a default escalation). If normal removal refuses
+   (e.g. it reports untracked/ignored content), do not automatically retry
+   with `--force` — inspect all remaining content first and obtain a
+   **separate** explicit approval for that specific remaining content before
+   using `--force`. This only detaches the worktree *directory*; the branch
+   itself, and its remote copy, are untouched and can be checked out again
+   later, including back in the same single remaining worktree.
+4. Re-run the topology gate — with exactly one implementation worktree
    remaining, `worktree_topology` now reports `WORKTREE_TOPOLOGY_OK`.
-4. Resume work on the removed worktree's branch (e.g. PR #348) by checking
+5. Resume work on the removed worktree's branch (e.g. PR #348) by checking
    it out directly in the single remaining worktree once the *other*,
    unrelated shipment's closure work currently occupying that worktree is
    complete — sequential single-worktree operation, never parallel
    worktrees, is what both P-001 (one active release unit) and P-016 (no
    parallel worktree execution) actually require.
+
+**Self-correction note**: the session that first wrote this learning removed
+the second worktree per steps 1 and 3-5 above *without* first performing step
+2 (explicit operator approval) — the task instructions authorized *using*
+the existing worktree for PR #348, not removing it. That was a process
+deviation from Constitution Section VII, caught by this PR's own Copilot
+review rather than by the acting session itself, and is disclosed as such in
+this closure's operator-facing report. This resolution procedure is
+corrected here to require the approval step going forward.
 
 ## Generalization
 
