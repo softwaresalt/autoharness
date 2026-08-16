@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Agent CLI Startup Script — {{PROJECT_NAME}}
 #
-# This script is a thin compatibility shim: it delegates the entire
-# supervised Copilot CLI session lifecycle -- workspace bootstrap, sidecar
-# preflight, CLI resolution, spawn, and lifecycle supervision -- to
-# `autoharness run`. See src/autoharness/supervise/ (bootstrap.py,
-# sidecar.py, resolve.py, app.py) for the implementation this script no
-# longer duplicates.
+# This script is self-contained: it loads .env.local, resolves workspace-local
+# AI-tool state directories, runs the sidecar syncs enabled for this workspace
+# (backlogit/Engram/graphtor-docs), resolves the Copilot CLI executable, and
+# launches it directly in THIS shell -- no supervising process, no
+# process-spawning layer in between. This is deliberate: an intermediate
+# process (e.g. a Python launcher) was found to change how many processes are
+# attached to the console, which breaks mouse/scroll handling in the launched
+# interactive tool on Windows. Keeping bootstrap-and-launch native and in-shell
+# avoids that class of problem entirely.
 #
 # Usage: ./start.sh
 #   Requires execute permission on first use: chmod +x start.sh
@@ -17,6 +20,27 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Load .env.local (gitignored per-developer overrides) if present. Each
+# KEY=VALUE line is exported only when that variable is not already set. A
+# single pair of matching surrounding quotes is stripped from the value.
+env_local="$script_dir/.env.local"
+if [[ -f "$env_local" ]]; then
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+			env_name="${BASH_REMATCH[1]}"
+			env_value="${BASH_REMATCH[2]}"
+			env_value="${env_value%$'\r'}"
+			env_value="${env_value%"${env_value##*[![:space:]]}"}"
+			if [[ ${#env_value} -ge 2 && "${env_value:0:1}" == "${env_value: -1}" && ( "${env_value:0:1}" == '"' || "${env_value:0:1}" == "'" ) ]]; then
+				env_value="${env_value:1:${#env_value}-2}"
+			fi
+			if [[ -z "${!env_name+x}" ]]; then
+				export "$env_name=$env_value"
+			fi
+		fi
+	done < "$env_local"
+fi
+
 # ── GitHub Copilot CLI ──────────────────────────────────────────────────────
 # This script does NOT install or refresh Auto-MergeInstall / Auto-Tune.
 # Those are GLOBAL agents provided by the autoharness marketplace plugin --
@@ -25,11 +49,32 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shadow the global agent during an upgrade. Upgrade them globally with
 # `copilot plugin install autoharness@autoharness`.
 #
+# COPILOT_HOME/ENGRAM_DATA_DIR redirect AI-tool state to workspace-local
+# hidden directories so agent memories, checkpoints, and database files are
+# git-visible and project-scoped rather than shared across all workspaces.
+export COPILOT_HOME="${COPILOT_HOME:-$script_dir/.copilot}"
+export ENGRAM_DATA_DIR="${ENGRAM_DATA_DIR:-$script_dir/.engram}"
+
+# GitHub token resolution via `gh`. Non-fatal when `gh` is absent or failing --
+# the affected variable is simply left unset. GITHUB_PERSONAL_ACCESS_TOKEN is
+# unguarded (always re-resolved when `gh` is available); GITHUB_TOKEN is
+# guarded (no-clobber) -- this asymmetry is intentional, matching each
+# variable's own conventional precedence.
+if command -v gh >/dev/null 2>&1; then
+	if gh_pat="$(gh auth token 2>/dev/null)"; then
+		export GITHUB_PERSONAL_ACCESS_TOKEN="$gh_pat"
+	fi
+	if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+		if gh_token="$(gh auth token 2>/dev/null)"; then
+			export GITHUB_TOKEN="$gh_token"
+		fi
+	fi
+fi
+
 # ai_tools.copilot_cli.exe_path from .autoharness/config.yaml, when
 # explicitly configured to something other than a bare PATH lookup, is
-# forwarded as an environment default so `autoharness run`'s own CLI
-# resolution (COPILOT_EXE_PATH env -> COPILOT_EXE env -> PATH lookup) picks
-# it up at the same precedence tier the operator's own environment would.
+# forwarded as an environment default so the resolution below picks it up
+# at the same precedence tier the operator's own environment would.
 if [[ -z "${COPILOT_EXE_PATH:-}" && -z "${COPILOT_EXE:-}" ]]; then
 	default_copilot_exe="{{COPILOT_EXE_PATH}}"
 	if [[ -n "$default_copilot_exe" && "$default_copilot_exe" != "copilot" ]]; then
@@ -37,7 +82,58 @@ if [[ -z "${COPILOT_EXE_PATH:-}" && -z "${COPILOT_EXE:-}" ]]; then
 	fi
 fi
 
-exec autoharness run --workspace "$script_dir" -- "$@"
+copilot_exe="${COPILOT_EXE_PATH:-${COPILOT_EXE:-copilot}}"
+
+if command -v "$copilot_exe" >/dev/null 2>&1; then
+	copilot_exe="$(command -v "$copilot_exe")"
+elif [[ ! -x "$copilot_exe" ]]; then
+	echo "Unable to locate Copilot CLI. Set COPILOT_EXE_PATH (or COPILOT_EXE for backward compatibility) or add 'copilot' to PATH." >&2
+	exit 1
+fi
+
+# Sidecar syncs -- derived at install time from the capability packs enabled
+# for this workspace (backlogit/agent-engram/graphtor-docs).
+enabled_sidecars=({{ENABLED_SIDECARS_SH}})
+
+_sidecar_enabled() {
+	local name="$1"
+	for s in "${enabled_sidecars[@]:-}"; do
+		[[ "$s" == "$name" ]] && return 0
+	done
+	return 1
+}
+
+if _sidecar_enabled "backlogit" && command -v backlogit >/dev/null 2>&1; then
+	backlogit sync || echo "Warning: backlogit sync failed (non-fatal)" >&2
+fi
+
+if _sidecar_enabled "engram" && command -v engram >/dev/null 2>&1; then
+	echo "Synchronizing Engram index — Direct pre-warm before Copilot startup"
+	if ! engram --format text sync --timeout 300 --direct; then
+		echo "Warning: engram direct pre-warm failed; retrying via daemon sync" >&2
+		engram --format text bind || true
+		echo "Synchronizing Engram index — Daemon-backed pre-warm fallback"
+		engram --format text sync --timeout 300 || echo "Warning: engram sync failed (non-fatal)" >&2
+	fi
+fi
+
+if _sidecar_enabled "graphtor-docs"; then
+	graphtor_docs_exe=""
+	if command -v graphtor-docs >/dev/null 2>&1; then
+		graphtor_docs_exe="graphtor-docs"
+	elif [[ -x "$script_dir/.graphtor/bin/graphtor-docs" ]]; then
+		graphtor_docs_exe="$script_dir/.graphtor/bin/graphtor-docs"
+	fi
+	if [[ -n "$graphtor_docs_exe" ]]; then
+		"$graphtor_docs_exe" sync || echo "Warning: graphtor-docs sync failed (non-fatal)" >&2
+	fi
+fi
+
+# ai_tools.copilot_cli.args from .autoharness/config.yaml -- extra arguments
+# always passed before the operator's own argv (e.g. ["--remote"]).
+copilot_arguments=({{COPILOT_CLI_ARGS_SH}})
+
+exec "$copilot_exe" "${copilot_arguments[@]:-}" "$@"
 
 # ── Claude Code ─────────────────────────────────────────────────────────────
 # Uncomment to run Claude Code with workspace-local state directories.
@@ -52,3 +148,4 @@ exec autoharness run --workspace "$script_dir" -- "$@"
 #
 # export OPENAI_API_KEY="$(cat .openai-token)"
 # codex
+

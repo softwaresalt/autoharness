@@ -464,6 +464,10 @@ The anchor review route is always object-shaped (`model_provider`, `model_family
 | Template Variable | Source | Default | Description |
 |---|---|---|---|
 | `{{COPILOT_EXE_PATH}}` | `config.ai_tools.copilot_cli.exe_path` | `copilot` | Path to the Copilot CLI executable only (no arguments); resolved into `start.ps1` and `start.sh` |
+| `{{COPILOT_CLI_ARGS_PS1}}` | `config.ai_tools.copilot_cli.args` | (empty) | Comma-separated, PowerShell-quoted array literal contents baked into `start.ps1`'s `$copilotArguments = @(...)` (e.g. `"--remote"`), always passed before the operator's own argv |
+| `{{COPILOT_CLI_ARGS_SH}}` | `config.ai_tools.copilot_cli.args` | (empty) | Space-separated, POSIX-quoted array literal contents baked into `start.sh`'s `copilot_arguments=(...)` (e.g. `"--remote"`) |
+| `{{ENABLED_SIDECARS_PS1}}` | Derived from enabled capability packs | `"backlogit", "engram", "graphtor-docs"` | Comma-separated, PowerShell-quoted array literal contents baked into `start.ps1`'s `$enabledSidecars = @(...)`, naming which sidecar syncs the script performs before launch. Include `"backlogit"` when the `backlogit` pack is selected, `"engram"` when `agent-engram` is selected, `"graphtor-docs"` when `graphtor-docs` is selected. A capability pack not selected is simply omitted -- its sidecar sync is skipped entirely rather than probed. |
+| `{{ENABLED_SIDECARS_SH}}` | Derived from enabled capability packs | `"backlogit" "engram" "graphtor-docs"` | Space-separated, POSIX-quoted array literal contents baked into `start.sh`'s `enabled_sidecars=(...)`, same semantics as `{{ENABLED_SIDECARS_PS1}}` |
 
 Resolution order: (1) operator `.autoharness/config.yaml` `ai_tools.copilot_cli.exe_path` → (2) schema default `copilot` (expects it on PATH).
 `exe_path` must be an executable path only. The generated scripts validate this at runtime.
@@ -1346,14 +1350,27 @@ Reviews are appended to the plan they review (not separate files). The compact-c
 
 Generate workspace-root startup scripts from `{autoharness_home}/templates/scripts/`:
 
-1. **`start.ps1`** (from `start.ps1.tmpl`) — PowerShell startup script; sets `COPILOT_HOME` and other AI tool env vars to workspace-local directories, then launches the selected AI CLI tool.
+1. **`start.ps1`** (from `start.ps1.tmpl`) — self-contained PowerShell startup script; loads `.env.local`, sets `COPILOT_HOME`/`ENGRAM_DATA_DIR` and other AI tool env vars to workspace-local directories, resolves GitHub tokens, runs the enabled sidecar syncs (backlogit/Engram/graphtor-docs), then launches the selected AI CLI tool -- all natively in this one PowerShell host, with no delegation to any other process for bootstrap or launch.
 2. **`start.sh`** (from `start.sh.tmpl`) — Bash equivalent. Set execute permission after install: `chmod +x start.sh`.
 
 Both scripts redirect AI tool state to workspace-local hidden directories (`.copilot`, `.claude`, etc.) so that agent memories, checkpoints, and database files are git-visible and project-scoped rather than shared across all workspaces. Sections for GitHub Copilot CLI, Claude Code, and OpenAI Codex are included; only the relevant section is active — the others are commented out for reference.
 
+**Why fully self-contained, not delegated to a helper process:** an earlier design delegated bootstrap/sidecar-sync/launch to a separate process (a Python `autoharness run` command). That intermediate process changed how many processes were attached to the console at launch time, which broke mouse/scroll handling in the launched interactive CLI on Windows (empirically verified). Keeping all of bootstrap, sidecar sync, and launch native and in-process in the startup script itself avoids that entire class of problem, matching how the script behaved before that design was tried.
+
 Resolve `{{COPILOT_EXE_PATH}}`:
 - From `config.ai_tools.copilot_cli.exe_path` if present in `.autoharness/config.yaml`
 - Otherwise default to `copilot` (expects the executable on PATH)
+
+Resolve `{{COPILOT_CLI_ARGS_PS1}}`/`{{COPILOT_CLI_ARGS_SH}}` from `config.ai_tools.copilot_cli.args`
+if present (each entry rendered as a quoted array-literal element in the target
+script's own syntax), otherwise empty.
+
+Resolve `{{ENABLED_SIDECARS_PS1}}`/`{{ENABLED_SIDECARS_SH}}` by mapping each capability
+pack selected for this install to its sidecar name (rendered as quoted array-literal
+elements in the target script's own syntax): `backlogit` -> `"backlogit"`, `agent-engram`
+-> `"engram"`, `graphtor-docs` -> `"graphtor-docs"`. A pack not selected contributes no
+entry, so the startup script skips that sidecar's sync entirely rather than probing
+for a tool the workspace deliberately does not use.
 
 Also generate the workspace-local environment file:
 

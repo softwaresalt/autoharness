@@ -6,7 +6,9 @@ manifest. That catches missing or locally modified files, but it cannot detect
 contract staleness when a target workspace still has an untouched, byte-for-byte
 legacy ``start.ps1`` or ``start.sh`` from an older autoharness install. This
 module closes that gap with deterministic, marker-based classification for the
-thin-shim startup-script contract.
+self-contained startup-script contract (v2.0.0): bootstrap, sidecar sync, and
+launch all run natively in the script itself, with no delegation to a Python
+process for any of it.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 
-STARTUP_SCRIPT_CONTRACT_VERSION = "1.0.0"
+STARTUP_SCRIPT_CONTRACT_VERSION = "1.1.0"
 
 _CUSTOM_SECTION_MARKERS = (
     re.compile(r"──\s*Claude Code\s*─+"),
@@ -66,11 +68,12 @@ STARTUP_SCRIPT_CONTRACTS: dict[str, dict[str, Any]] = {
         "contract_name": "startup-script-ps1",
         "template": "scripts/start.ps1.tmpl",
         "current_version": STARTUP_SCRIPT_CONTRACT_VERSION,
-        "known_versions": ("0.9.0", STARTUP_SCRIPT_CONTRACT_VERSION),
-        "current_marker": "autoharness run --workspace $PSScriptRoot -- @args",
+        "known_versions": ("0.9.0", "1.0.0", STARTUP_SCRIPT_CONTRACT_VERSION),
+        "current_marker": '$enabledSidecars = @(',
         "legacy_markers": (
             "COPILOT_HOME redirects the Copilot CLI database",
             "function Invoke-EngramCommandWithProgress",
+            "autoharness run --workspace $PSScriptRoot -- @args",
         ),
         "custom_section_markers": _CUSTOM_SECTION_MARKERS,
         "default_custom_tail": _PS1_DEFAULT_CUSTOM_TAIL,
@@ -79,9 +82,12 @@ STARTUP_SCRIPT_CONTRACTS: dict[str, dict[str, Any]] = {
         "contract_name": "startup-script-sh",
         "template": "scripts/start.sh.tmpl",
         "current_version": STARTUP_SCRIPT_CONTRACT_VERSION,
-        "known_versions": ("0.9.0", STARTUP_SCRIPT_CONTRACT_VERSION),
-        'current_marker': 'exec autoharness run --workspace "$script_dir" -- "$@"',
-        "legacy_markers": ("COPILOT_HOME redirects the Copilot CLI database",),
+        "known_versions": ("0.9.0", "1.0.0", STARTUP_SCRIPT_CONTRACT_VERSION),
+        "current_marker": 'enabled_sidecars=(',
+        "legacy_markers": (
+            "COPILOT_HOME redirects the Copilot CLI database",
+            'exec autoharness run --workspace "$script_dir" -- "$@"',
+        ),
         "custom_section_markers": _CUSTOM_SECTION_MARKERS,
         "default_custom_tail": _SH_DEFAULT_CUSTOM_TAIL,
     },
