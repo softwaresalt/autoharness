@@ -86,15 +86,21 @@ external-guard concerns and are **not** built as part of 106-F/110-S:
 
 ## Agent-directed steps active now; runtime telemetry substrate remains external (revised framing)
 
+> **116-S safety amendment (2026-08-16):** This section supersedes its prior
+> post-threshold re-attempt wording. The accepted boundary remains unchanged;
+> only the terminal action is corrected to honor the universal circuit breaker.
+
 P-013.6's **agent-directed steps** — compile the escalation payload, resolve
-the escalation route, apply the same-route guard, and re-attempt before
-falling back to the operator-halt path — are **active now** in the installed
-`_stage.agent.md` and `_ship.agent.md`: each pipeline agent already tracks its
-own consecutive-failure/iteration counters as Stop Conditions prose, and
-crossing that existing threshold now triggers this directive directly, with
-no new runtime component required for the agent itself to follow it. This is
-a real, present-tense change to each agent's own stop-condition handling —
-not a stub, and not merely a future capability.
+the escalation route, apply the same-route guard, hand off the payload for
+analysis, and halt — are **active now** in the installed `_stage.agent.md` and
+`_ship.agent.md`: each pipeline agent already tracks its own
+consecutive-failure/iteration counters as Stop Conditions prose, and crossing
+that existing threshold now triggers this directive directly, with no new
+runtime component required for the agent itself to follow it. The agent MUST
+NOT re-execute the failing operation after its circuit is open. The handoff is
+for asynchronous or operator review, not a fourth attempt. This is a real,
+present-tense change to each agent's own stop-condition handling — not a stub,
+and not merely a future capability.
 
 What remains **external and dormant** is narrower than "the whole protocol":
 specifically, a standing, independent runtime telemetry event emitter/sink/

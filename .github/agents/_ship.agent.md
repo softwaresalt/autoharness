@@ -717,9 +717,11 @@ operator-halt checkpoint:
    escalation for Ship, not a same-route no-op — treat any future
    same-tuple resolution as `ESCALATION_DEGRADED` per the canonical
    definition in `escalation-protocol.instructions.md`.
-4. **Re-attempt** the failing task at the resolved route when it is not
-   degraded; if it also fails, **hand off** the compiled payload to engram
-   (when available) as a terminal state.
+4. **Hand off and halt**: when the route is not degraded, record it in the
+   compiled payload's `resolved_escalation_route` field, hand that payload to
+   engram for analysis, and halt. The
+   agent MUST NOT re-execute the failing operation after its circuit is open.
+   The handoff is for asynchronous or operator review, not a fourth attempt.
 5. **`ESCALATION_DEGRADED` fallback / existing operator-halt path** (route
    unavailable, engram unavailable, or same-route no-op):
    a. Write a checkpoint to `docs/memory/` capturing the failed task IDs, root

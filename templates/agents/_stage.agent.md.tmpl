@@ -864,15 +864,16 @@ halt without first following this auto-escalation directive
    Model Routing below — so an unset `escalation` route resolves to the
    identical model), treat this as `ESCALATION_DEGRADED` (same-route
    no-op) per the canonical definition in `escalation-protocol.instructions.md`.
-4. **Re-attempt** the failing unit of work at the resolved route when it is
-   not degraded; if it also fails, **hand off** the compiled payload to
-   engram (when available) as a terminal state.
+4. **Hand off and halt**: when the route is not degraded, record it in the
+   compiled payload's `resolved_escalation_route` field, hand that payload to
+   engram for analysis, and halt. The
+   agent MUST NOT re-execute the failing operation after its circuit is open.
+   The handoff is for asynchronous or operator review, not a fourth attempt.
 5. **`ESCALATION_DEGRADED` fallback**: when the route is unavailable, engram
    is unavailable, or the same-route guard fires, fall back to the existing
    operator-halt behavior described at each gate above (e.g., halt and
    require operator intervention) exactly as before — this directive never
-   replaces that fallback, it only interposes an auto-escalation attempt
-   ahead of it.
+   replaces that fallback or authorizes another execution attempt.
 
 This is a **reasoning escalation only** — it never self-authorizes
 promotion to plan, harvest, shipment assembly, or any operation this

@@ -2210,6 +2210,7 @@ def _derive_template_variables(
 
     variables.setdefault("PROJECT_NAME", workspace_path.name)
     variables.setdefault("DATE", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    variables.setdefault("CIRCUIT_BREAKER_COOLDOWN", "5 minutes")
 
     config_packs = [str(pack) for pack in config.get("capability_packs") or []]
     manifest_packs = [str(pack) for pack in manifest.get("capability_packs") or []]
@@ -3036,9 +3037,11 @@ def _add_escalation_directive_check(
     (either-agent condition, distinct from the two-agent-only
     role-enforcement gate), and that each installed pipeline agent that is
     present references both the auto-escalation directive and the P-013.6
-    policy identifier. Gated entirely on file existence: a workspace with
-    neither agent installed registers no failure; a workspace with only one
-    agent installed is checked for that agent alone."""
+    policy identifier, including the no-re-execution +
+    asynchronous/operator-review terminal handoff semantics. Gated entirely
+    on file existence: a workspace with neither agent installed registers no
+    failure; a workspace with only one agent installed is checked for that
+    agent alone."""
     stage_path = workspace_path / ".github/agents/_stage.agent.md"
     ship_path = workspace_path / ".github/agents/_ship.agent.md"
     escalation_instruction_path = (
@@ -3058,11 +3061,11 @@ def _add_escalation_directive_check(
     # ("Escalation Protocol —", em dash, regardless of heading level/suffix),
     # (b) an explicit reference to the shared canonical instruction so the
     # agent does not re-define the term locally, (c) the P-013.6 policy
-    # identifier and the ESCALATION_DEGRADED term itself, and (d) the two
-    # required-action phrases that name the actual compile/resolve steps
-    # ("escalation payload", "escalation route") plus the terminal handoff
-    # action ("hand off"). A stale or partial agent missing any of these
-    # verifiable markers must not pass.
+    # identifier and the ESCALATION_DEGRADED term itself, and (d) the actual
+    # compile/resolve/handoff steps plus the explicit no-re-execution and
+    # asynchronous/operator-review-not-fourth-attempt semantics. A stale or
+    # partial agent missing any of these verifiable markers, or one that still
+    # instructs a post-threshold re-attempt, must not pass.
     required_tokens = [
         "Escalation Protocol —",
         "escalation-protocol.instructions.md",
@@ -3071,7 +3074,118 @@ def _add_escalation_directive_check(
         "escalation payload",
         "escalation route",
         "hand off",
+        "MUST NOT re-execute the failing operation after its circuit is open",
+        "asynchronous or operator review, not a fourth attempt",
     ]
+    retry_directive_pattern = re.compile(
+        r"\b(?:"
+        r"re[- ]?attempt(?:s|ed|ing)?|"
+        r"re[- ]?tr(?:y|ies|ied|ying)|"
+        r"re[- ]?run(?:s|ning)?|reran|"
+        r"re[- ]?invoke(?:s|d|ing)?|"
+        r"re[- ]?execute(?:s|d|ing)?|"
+        r"re[- ]?dispatch(?:es|ed|ing)?|"
+        r"re[- ]?peat(?:s|ed|ing)?|"
+        r"(?:try|attempt|run|invoke|execute|dispatch|repeat)\s+again|"
+        r"another\s+(?:attempt|try|run|pass|execution|invocation|dispatch|repeat(?:ition)?)"
+        r")\b"
+    )
+    # Fail-closed guard (Copilot review finding): the intervening-word class
+    # below excludes coordinating conjunctions ("and"/"or"/"but"/"nor") so a
+    # negation cannot be read as scoping a retry verb across a coordinated
+    # clause that actually negates a *different* verb, e.g. "Do not halt and
+    # retry the failing operation." must NOT be treated as a prohibition of
+    # the retry -- the negation there governs "halt", not "retry". A bare
+    # word boundary (not whitespace) such as a comma already breaks the
+    # `\s+[\w-]+` intervening-word match, so explicit conjunction words are
+    # the only additional exclusion needed.
+    leading_negation_pattern = re.compile(
+        r"\b(?:do not|don't|never|must not|shall not|may not|cannot|can't|"
+        r"forbid(?:s|den)?|prohibit(?:s|ed)?)"
+        r"(?:(?!\s+(?:and|or|but|nor)\b)\s+[\w-]+){0,8}\s*$"
+    )
+    # Fail-closed guard (Copilot review finding, mirrors the leading-negation
+    # fix above): the intervening-character run must not cross a
+    # subordinating/coordinating clause boundary that introduces a
+    # *different* grammatical subject before the prohibition, e.g. "Retry
+    # the failing operation because halting is forbidden." must NOT be read
+    # as prohibiting the retry -- "forbidden" there grammatically governs
+    # "halting", a different verb, not "retry". Each character of the
+    # intervening run is guarded by a lookahead rejecting these clause-
+    # boundary words as a whole word at that position.
+    trailing_prohibition_pattern = re.compile(
+        r"^(?:(?!\b(?:because|since|as|if|when|while|though|although|"
+        r"and|or|but|nor)\b)[\s\w,/'\"()-]){0,120}"
+        r"\b(?:is|are|remains?)?\s*"
+        r"(?:forbidden|prohibited|not permitted|not allowed)\b"
+    )
+
+    def markdown_sections(markdown: str, heading_fragments: tuple[str, ...]) -> list[str]:
+        """Return matching Markdown sections, bounded by heading level."""
+        lines = markdown.splitlines()
+        sections: list[str] = []
+        for index, line in enumerate(lines):
+            heading = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
+            if not heading or not any(
+                fragment in heading.group(2).lower() for fragment in heading_fragments
+            ):
+                continue
+            level = len(heading.group(1))
+            end = len(lines)
+            for candidate_index in range(index + 1, len(lines)):
+                candidate = re.match(r"^(#{1,6})\s+", lines[candidate_index].strip())
+                if candidate and len(candidate.group(1)) <= level:
+                    end = candidate_index
+                    break
+            sections.append("\n".join(lines[index:end]))
+        return sections
+
+    def retry_is_prohibited(statement: str, retry: re.Match[str]) -> bool:
+        prefix = statement[max(0, retry.start() - 120) : retry.start()]
+        suffix = statement[retry.end() : retry.end() + 120]
+        return bool(
+            leading_negation_pattern.search(prefix)
+            or trailing_prohibition_pattern.search(suffix)
+        )
+
+    def stale_retry_statements(markdown_text: str) -> list[str]:
+        """Scan raw Markdown text (already section-scoped by the caller,
+        or a whole document) for affirmative post-threshold retry
+        directives, returning excerpts that are not negated/prohibited."""
+        stale: list[str] = []
+        cleaned = re.sub(r"[*`]+", "", markdown_text.lower())
+        statements = re.split(r"(?<=[.!?])\s+|\n\s*\n+", cleaned)
+        for statement in statements:
+            for retry in retry_directive_pattern.finditer(statement):
+                if not retry_is_prohibited(statement, retry):
+                    stale.append(" ".join(statement.split())[:240])
+                    break
+        return stale
+
+    def affirmative_retry_directives(
+        markdown: str, heading_fragments: tuple[str, ...]
+    ) -> list[str]:
+        stale: list[str] = []
+        for section in markdown_sections(markdown, heading_fragments):
+            stale.extend(stale_retry_statements(section))
+        return stale
+
+    def document_from_first_h1(markdown: str) -> str:
+        """Return the document body starting at its own first level-1
+        heading (the escalation-protocol instruction's title), so the
+        whole shared instruction -- every subsection under that H1,
+        including `Status`, `Authority-Preservation`, and `Terminal Engram
+        Handoff` alike -- is scanned rather than only a single named
+        subsection (Copilot review finding: a mixed-version instruction
+        could keep a clean `Terminal Engram Handoff` section while adding
+        an affirmative post-threshold retry directive elsewhere). Falls
+        back to the full document when no H1 is present so scanning is
+        never narrower than before."""
+        lines = markdown.splitlines()
+        for index, line in enumerate(lines):
+            if re.match(r"^#\s+\S", line.strip()):
+                return "\n".join(lines[index:])
+        return markdown
 
     for agent_name, agent_path, present in (
         ("stage", stage_path, stage_present),
@@ -3080,11 +3194,22 @@ def _add_escalation_directive_check(
         if not present:
             continue
         content = agent_path.read_text(encoding="utf-8")
-        missing = [token for token in required_tokens if token not in content]
+        normalized_content = " ".join(re.sub(r"[*`]+", "", content).lower().split())
+        missing = [
+            token
+            for token in required_tokens
+            if " ".join(token.lower().split()) not in normalized_content
+        ]
         if missing:
             errors.append(
                 f"{agent_name} agent definition ({agent_path}) is missing the "
                 f"auto-escalation directive tokens: {missing}"
+            )
+        stale = affirmative_retry_directives(content, ("escalation protocol —",))
+        if stale:
+            errors.append(
+                f"{agent_name} agent definition ({agent_path}) contains stale "
+                f"affirmative post-threshold retry directive excerpt(s): {stale}"
             )
 
     if not escalation_instruction_path.exists():
@@ -3095,6 +3220,36 @@ def _add_escalation_directive_check(
             f"{'_ship.agent.md' if ship_present else ''} being present "
             "(either-agent install condition)"
         )
+    else:
+        instruction_content = escalation_instruction_path.read_text(encoding="utf-8")
+        normalized_instruction = " ".join(
+            re.sub(r"[*`]+", "", instruction_content).lower().split()
+        )
+        instruction_required_tokens = [
+            "MUST NOT re-execute the failing operation after its circuit is open",
+            "asynchronous or operator review, not a fourth attempt",
+            "resolved_escalation_route",
+        ]
+        instruction_missing = [
+            token
+            for token in instruction_required_tokens
+            if " ".join(token.lower().split()) not in normalized_instruction
+        ]
+        if instruction_missing:
+            errors.append(
+                "shared escalation instruction "
+                f"({escalation_instruction_path}) is missing terminal "
+                f"handoff/no-re-execution tokens: {instruction_missing}"
+            )
+        instruction_stale = stale_retry_statements(
+            document_from_first_h1(instruction_content)
+        )
+        if instruction_stale:
+            errors.append(
+                "shared escalation instruction "
+                f"({escalation_instruction_path}) contains stale affirmative "
+                f"post-threshold retry directive excerpt(s): {instruction_stale}"
+            )
 
     report["targeted_checks"][key] = {
         "ok": not errors,

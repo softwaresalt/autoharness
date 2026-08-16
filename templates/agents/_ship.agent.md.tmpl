@@ -833,9 +833,11 @@ before falling back to the operator-halt checkpoint:
    agent's own role route tuple (P-013.5), treat this as
    `ESCALATION_DEGRADED` (same-route no-op) per the canonical definition in
    `escalation-protocol.instructions.md`.
-4. **Re-attempt** the failing task at the resolved route when it is not
-   degraded; if it also fails, **hand off** the compiled payload to engram
-   (when available) as a terminal state.
+4. **Hand off and halt**: when the route is not degraded, record it in the
+   compiled payload's `resolved_escalation_route` field, hand that payload to
+   engram for analysis, and halt. The
+   agent MUST NOT re-execute the failing operation after its circuit is open.
+   The handoff is for asynchronous or operator review, not a fourth attempt.
 5. **`ESCALATION_DEGRADED` fallback / existing operator-halt path** (route
    unavailable, engram unavailable, or same-route no-op):
    a. Write a checkpoint to `{{DOCS_MEMORY}}/` capturing:
@@ -1006,13 +1008,11 @@ This agent operates at **Tier 2 (Standard)** — orchestration, coordination, an
 
 **Escalation**: When 3 consecutive task failures occur, follow the
 **Escalation Protocol — Consecutive Task Failures** above (P-013.6): compile
-the escalation payload, resolve the escalation route, and re-attempt when
-not `ESCALATION_DEGRADED`. Only when that flow degrades or the re-attempt
-also fails does this agent escalate to the operator: present the failures
-with context, request guidance on whether to retry with a different
-approach, skip the task, or halt the session. This paragraph does not
-independently improvise a model-selection suggestion — the single flow
-above is authoritative.
+the escalation payload, resolve the escalation route, hand off for analysis,
+and halt when not `ESCALATION_DEGRADED`. If that flow degrades, present the
+failures with context and halt for operator guidance. This paragraph does not
+independently improvise a model-selection suggestion or authorize another
+execution attempt — the single flow above is authoritative.
 
 ## Subagent Depth
 
