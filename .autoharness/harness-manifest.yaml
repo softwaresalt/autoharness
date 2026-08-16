@@ -212,7 +212,7 @@ artifacts:
   - path: ".github/instructions/circuit-breaker.instructions.md"
     primitive: 5
     template: "instructions/circuit-breaker.instructions.md.tmpl"
-    checksum: "2f51f8b8bebcf830d68d1910d24c396f924fb7e0acbf6e00ea0b50c0dc2371de"
+    checksum: "27cc49c4c43c75540cb48a2d42c78b36cfbfafed7d566347547872422094acc8"
     note: "circuit breaker guardrail instruction (previously unrecorded)"
   - path: ".github/instructions/coding-discipline.instructions.md"
     primitive: 6
