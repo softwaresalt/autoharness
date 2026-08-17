@@ -133,6 +133,53 @@ supporting tooling and repository structure.
 
 ---
 
+### `references/atv-phoenix`
+
+**Source**: [All-The-Vibes/ATV-Phoenix](https://github.com/All-The-Vibes/ATV-Phoenix)
+
+An intent-to-outcome verification and recovery harness for GitHub Copilot and
+Microsoft Scout. Phoenix formalizes runnable acceptance checks, drives
+bounded self-healing loops, and treats red-to-green trace evidence as the
+source of truth rather than self-reported completion.
+
+**Best for**: Evaluation of failure-first acceptance gates, self-healing
+workflow patterns, long-horizon goal execution, and measured learning loops
+that remain human-gated.
+
+---
+
+### `references/hve-core`
+
+**Source**: [microsoft/hve-core](https://github.com/microsoft/hve-core)
+
+Hypervelocity Engineering (HVE) Core, a prompt and agent library for GitHub
+Copilot combining specialized agents, reusable prompts, coding instructions,
+and validated skills into one convention-driven AI workflow system.
+
+**Best for**: Convention-driven Copilot agent/prompt/instruction/skill
+patterns and structured AI workflow building blocks. Treat as a source of
+patterns and learning — the upstream project describes itself as highly
+opinionated and rapidly evolving, not a stable platform or production
+dependency.
+
+---
+
+### `references/tokenmasterx`
+
+**Source**: [All-The-Vibes/TokenMasterX](https://github.com/All-The-Vibes/TokenMasterX)
+
+A token-economics harness layer for Claude Code and GitHub Copilot CLI that
+routes structural code-understanding questions to a prebuilt code graph
+instead of re-deriving them via repeated transcript grepping, plus a
+"Brainspace" compression layer for raw tool output already in context.
+
+**Best for**: Patterns for bounding per-turn re-derivation cost in
+code-understanding agent harnesses (graph-routed queries, context
+compression) as a source of ideas for reducing autoharness's own
+context/token footprint.
+
+---
+
 ## Keeping references current
 
 The submodule registrations in `.gitmodules` are the index of record for these

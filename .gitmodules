@@ -34,3 +34,9 @@
 	path = references/atv-phoenix
 	url = https://github.com/All-The-Vibes/ATV-Phoenix
 	branch = main
+[submodule "references/hve-core"]
+	path = references/hve-core
+	url = https://github.com/microsoft/hve-core
+[submodule "references/tokenmasterx"]
+	path = references/tokenmasterx
+	url = https://github.com/All-The-Vibes/TokenMasterX.git
