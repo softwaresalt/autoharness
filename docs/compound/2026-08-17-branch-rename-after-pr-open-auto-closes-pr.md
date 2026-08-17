@@ -63,7 +63,7 @@ branch-alias mismatch is discovered only after a PR is already open:
   and move on.
 * If the branch genuinely must be renamed, do it by pushing a **new** branch
   under the correct name (`git push origin HEAD:refs/heads/{new_name}`) and
-  opening a **new** PR from it, then closing the old PR with an explanit
+  opening a **new** PR from it, then closing the old PR with an explanatory
   comment — i.e., treat it as the recovery path directly, rather than
   attempting the rename API first and only falling back to a new PR after
   the rename silently destroys the old one.
