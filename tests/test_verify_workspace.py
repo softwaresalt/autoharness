@@ -314,6 +314,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             "references/agent-skills",
             "references/mattpocock-eng-skills",
             "references/atv-starterkit",
+            "references/atv-phoenix",
         ]
         for path in expected_paths:
             self.assertIn(path, gitmodules_content, f"Expected submodule path '{path}' in .gitmodules")

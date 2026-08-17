@@ -133,6 +133,21 @@ supporting tooling and repository structure.
 
 ---
 
+### `references/atv-phoenix`
+
+**Source**: [All-The-Vibes/ATV-Phoenix](https://github.com/All-The-Vibes/ATV-Phoenix)
+
+An intent-to-outcome verification and recovery harness for GitHub Copilot and
+Microsoft Scout. Phoenix formalizes runnable acceptance checks, drives
+bounded self-healing loops, and treats red-to-green trace evidence as the
+source of truth rather than self-reported completion.
+
+**Best for**: Evaluation of failure-first acceptance gates, self-healing
+workflow patterns, long-horizon goal execution, and measured learning loops
+that remain human-gated.
+
+---
+
 ## Keeping references current
 
 The submodule registrations in `.gitmodules` are the index of record for these
