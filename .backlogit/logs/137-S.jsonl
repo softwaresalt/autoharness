@@ -2,3 +2,6 @@
 {"timestamp":"2026-08-16T16:07:21.8651247-07:00","actor":"backlogit","item_id":"137-S","event_type":"shipment_item_added","delta":{"item_id":"128.001-T"}}
 {"timestamp":"2026-08-16T16:13:20.8336473-07:00","actor":"backlogit","item_id":"137-S","event_type":"shipment_item_added","delta":{"item_id":"128.002-T"}}
 {"timestamp":"2026-08-17T14:10:20.8910425-07:00","actor":"backlogit","item_id":"137-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-17T14:56:44.2408527-07:00","actor":"backlogit","item_id":"137-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"137-S","status":"shipped"}}
+{"timestamp":"2026-08-17T14:56:52.964061-07:00","actor":"backlogit","item_id":"137-S","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"aa460ccefc65dab03d03b6b745b60f30c50b5344","message":"fix(templates): spike skill template docline frontmatter conformance (128-F) (#354)"}}
+{"timestamp":"2026-08-17T14:57:34.8326157-07:00","actor":"backlogit","item_id":"137-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/137-S.md"}}
