@@ -8,7 +8,7 @@ docline:
   date: 2026-08-16
   time_box: "single Stage session, read-only"
   conclusion: "defer"
-  confidence: "medium-high"
+  confidence: "high"
   linked_parent_work_item: null
   promoted_to: ["none"]
   tags:
@@ -123,7 +123,7 @@ evidence; only the enforcing mechanism would, and that one is gated.
 
 ## Conclusion
 
-**DEFER** (confidence: medium-high).
+**DEFER** (confidence: high).
 
 The 2026-08-15 hypothesis is **half-confirmed and half-refuted**. Observable termination
 *is* separable from reasoning-state identity (F3) and the emission substrate *does*
