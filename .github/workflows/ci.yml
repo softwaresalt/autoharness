@@ -91,6 +91,23 @@ jobs:
           python-version: '3.12'
       - name: Install runtime dependencies
         run: python -m pip install --upgrade pip jsonschema PyYAML
+      # Pinned, checksum-verified backlogit binary so
+      # tests/test_spike_template_docline_frontmatter.py's real-linter
+      # acceptance tests (128.002-T) are not silently skipped in CI --
+      # flagged by Copilot review on PR #354: without this, the PR's core
+      # external-contract claim (generated artifacts pass
+      # `backlogit docs lint`) was protected only by structural assertions
+      # that duplicate the expected shape, so a future docline-contract
+      # drift in backlogit would not be caught here.
+      - name: Install backlogit (pinned v1.9.0, checksum-verified)
+        run: |
+          set -euo pipefail
+          curl -fsSL -o backlogit-linux-amd64 https://github.com/softwaresalt/backlogit/releases/download/v1.9.0/backlogit-linux-amd64
+          echo "5bf29fdacb6a927d2cb2d255eceb979078e09ae1adcafba93433b22049ce87de  backlogit-linux-amd64" | sha256sum -c -
+          chmod +x backlogit-linux-amd64
+          mkdir -p "$RUNNER_TEMP/bin"
+          mv backlogit-linux-amd64 "$RUNNER_TEMP/bin/backlogit"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Run unittest suite
         run: PYTHONPATH=src python -m unittest discover -s tests
 
