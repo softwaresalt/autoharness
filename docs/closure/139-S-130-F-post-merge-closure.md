@@ -4,7 +4,23 @@ feature: 130-F
 feature_pr: 357
 merge_commit: 9bb3a24b946694924e2d7306daa9a5b863784d2a
 merged_at: "2026-08-18T03:13:14Z"
-closure_status: READY
+reviewed_head: b35b994ec2adf908b45db6a2bcaba6e46bd6d0dd
+closure_status: READY_WITH_CONDITIONS
+compaction_status: done
+conditions:
+  - id: "topology-forward-dependent-suppression-fix"
+    description: >-
+      Apply the verified fix in
+      docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md
+      to src/autoharness/gates/topology.py's _prior_shipment_id, restricting
+      the reverse-edge suppression check to numerically-lower dependents
+      only, plus its accompanying regression test. Must be fixed and
+      verified via a dedicated Stage-triaged hotfix task before any future
+      shipment relies on the numeric-adjacency implicit-predecessor
+      fallback in a configuration where a numerically-higher shipment
+      declares a normal forward dependency on the target.
+    satisfied: false
+    evidence: "Not yet applied; verified diff + regression test embedded in the compound doc for hand-off. No currently-known live shipment configuration triggers this false negative today."
 ---
 
 # 139-S / 130-F Post-Merge Closure — Enforce Backlogit Checkpoint Payload Contract
@@ -139,9 +155,19 @@ lineage.
   it remains `queued` and untouched by this session per the operator's
   bounded-stop instruction.
 
-**Closure verdict: READY.** Runtime verification passed, the P-015 cascade
-close completed with all post-conditions verified, the five residual
-Copilot findings are documented, rationale-backed follow-ups rather than
-unresolved defects, and the one genuine unfixed residual defect discovered
-during closure review is fully documented with a verified fix ready for
-Stage hand-off rather than silently absorbed or left undiscoverable.
+**Closure verdict: READY_WITH_CONDITIONS.** Runtime verification passed,
+the P-015 cascade close completed with all post-conditions verified, the
+five residual Copilot findings are documented, rationale-backed follow-ups
+rather than unresolved defects, and P-020 compaction is recorded `done`
+(see `compaction_status` above). This verdict is **`READY_WITH_CONDITIONS`
+rather than an unconditional `READY`** because a genuine, high-severity
+correctness defect was discovered in already-merged code during this
+closure's own review (see the `conditions` block in this document's
+frontmatter and the Known Residual Defect note above): the defect has zero
+*known* live blast radius today (no current shipment configuration
+triggers it) but is not unreachable in an absolute sense, and must be
+fixed and verified via a dedicated Stage-triaged hotfix task — the fix
+itself is fully verified and ready, just deliberately not applied on this
+closure branch, per the same discipline as the `114-S`/`109-F` closure
+precedent (`docs/closure/114-S-109-F-post-merge-closure.md`) for dormant
+residual gate defects surfaced by a closure PR's own review.
