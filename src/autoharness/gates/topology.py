@@ -1327,6 +1327,23 @@ def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str |
     if not match:
         return None
     target_num = int(match.group(1))
+    # If ANY shipment in the full set explicitly declares the target as one
+    # of its own `dependencies` (i.e. that shipment depends on / is blocked
+    # by the target), the ordering here is governed by explicit
+    # dependencies, not implicit numeric guessing -- for the WHOLE target,
+    # not just the specific numerically-adjacent shipment that made the
+    # declaration. Skipping only that one violator and falling through to
+    # the next-lower numeric candidate is still wrong: it would fabricate an
+    # implicit predecessor relationship the backlog never declared for a
+    # DIFFERENT, unrelated shipment. For example, with 137-S queued and
+    # unrelated, 138-S declaring `dependencies: [139-S]`, and target =
+    # 139-S: 138-S is skipped as the direct violator, but 137-S has no real
+    # relationship to 139-S at all and must not be injected either. The
+    # mere existence of any explicit reverse edge proves this target's
+    # ordering is explicit, so the entire numeric-adjacency fallback is
+    # disabled for it.
+    if any(target in shipment.blocking_predecessor_ids for shipment in shipments):
+        return None
     prior: tuple[int, str] | None = None
     for shipment in shipments:
         other = re.match(r"^(\d+)-S$", shipment.shipment_id)

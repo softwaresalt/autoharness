@@ -633,7 +633,16 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
       violation, and halt. Do NOT commit a corrupt backlog.
 3. Write compound learnings for hard-won solutions.
 4. Update documentation if templates changed significantly.
-5. Write session memory to `docs/memory/`.
+5. Write session memory to `docs/memory/`. When the `backlogit` capability pack is
+   installed and `backlogit_create_checkpoint` is available, also persist a
+   phase-tagged structured checkpoint through backlogit, conforming to the
+   Checkpoint Payload Contract (`schema_version: 1`, written only through the
+   official create operation, all domain data nested under `context`) — see
+   `.github/instructions/backlogit.instructions.md`. Resolve any still-active
+   checkpoints from the current session with `backlogit_resolve_checkpoint`
+   before ending the session; leave at most one final best-effort checkpoint
+   only when closure work must survive a context-window shutdown, and never
+   leave an active recovery candidate for completed work.
 6. **Mandatory (P-020)**: Invoke **compact-context** with `target: all` to consolidate
    memory checkpoints, finalize any decided-plans, and compact closure artifacts, then
    record the outcome as the operational-closure artifact's compaction status.

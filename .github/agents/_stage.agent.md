@@ -401,10 +401,19 @@ Before ending a session:
 1. Write session memory to `docs/memory/` — include task IDs completed, decisions,
    and next steps.
 2. Update backlogit task state via MCP tools.
-3. **End-of-session index sync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback)
-   as the final action before presenting the session summary. This ensures all session
-   mutations — new backlog items, archived stash entries, assembled shipments — are
-   reflected in the index. Log `INDEX_SYNC_OK` on success, `INDEX_SYNC_WARN` on failure.
+3. When the `backlogit` capability pack is installed and `backlogit_create_checkpoint` is
+   available, also persist a phase-tagged structured checkpoint through backlogit,
+   conforming to the Checkpoint Payload Contract (`schema_version: 1`, written only
+   through the official create operation, all domain data nested under `context`) — see
+   `.github/instructions/backlogit.instructions.md`. Resolve any still-active checkpoints
+   from the current session with `backlogit_resolve_checkpoint` before ending the session;
+   leave at most one final best-effort checkpoint only when the next action must survive a
+   context-window shutdown, and never leave an active recovery candidate for completed work.
+4. **End-of-session index sync**: Call `backlogit_sync_index` (or `backlogit sync` CLI fallback)
+   as the final action before presenting the session summary, so it reflects any checkpoint
+   just created in item 3 along with all other session mutations — new backlog items,
+   archived stash entries, assembled shipments. Log `INDEX_SYNC_OK` on success,
+   `INDEX_SYNC_WARN` on failure.
 
 ## Stop Conditions
 
