@@ -5,6 +5,7 @@ doc_type: review
 source: docs/reviews/2026-08-17-backlogit-self-migration-review.md
 status: pass
 date: 2026-08-17
+correction_pass: 2026-08-17
 stash_source: BED0DDED
 plan: docs/plans/2026-08-17-backlogit-self-migration-plan.md
 hardening: docs/plans/2026-08-17-backlogit-self-migration-hardening.md
@@ -44,12 +45,14 @@ This materially lowers the residual risk of the whole plan.
 
 ### F2 (P2, ACCEPTED) — Backup retention
 
-The out-of-tree backup contains full telemetry and memory history. Auto-deleting
+The backup contains full telemetry and memory history. Auto-deleting
 it on success would destroy the only recovery artifact at the moment it is most
 likely to be needed.
 
 **Resolution:** added **H15** — disposal is operator-gated, never automatic,
-never before merge and `T009` verification.
+never before merge and `T009` verification. *(Correction pass: the backup
+location moved out-of-tree → in-repo contained; the operator-gated disposal
+rule is retained unchanged. See F9.)*
 
 ## Persona 2 — Windows platform specialist
 
@@ -169,7 +172,8 @@ Two rebuttals were tested and both failed to overturn the decision:
 
 *Residual challenge accepted:* `migrate --rollback` semantics were never
 executed and remain unverified. The plan correctly does **not** depend on them
-(**H9**); the out-of-tree backup is the primary recovery path.
+(**H9**); the in-repo containment-gated backup (**H4**) is the primary recovery
+path.
 
 ## Findings summary
 
@@ -185,3 +189,183 @@ executed and remain unverified. The plan correctly does **not** depend on them
 | F8 | P1 | Governance | RESOLVED — H5 narrowed explicitly |
 
 **0 unresolved P0. 0 unresolved P1. Plan approved for harvest.**
+
+---
+
+# Correction pass — 2026-08-17 (post-Orchestrator review)
+
+The verdict above was issued over a plan carrying **two P1 defects that this
+review missed**. Orchestrator review found them. This appended pass re-runs the
+multi-persona adversarial review against the **corrected safety contract**
+only; the original pass is retained above as provenance and is not erased.
+
+**Missed-defect accountability:** Persona 1 and Persona 5 both accepted "the
+backup lives outside the repository" as a *safety* property without testing it
+against Constitution Principle IV / CLI containment, which forbids creating or
+modifying anything outside the current working directory. Persona 3 reviewed
+staging hazards but never read the rollback section's `git checkout -- .` as an
+in-scope destructive breadth question. Both are review-coverage gaps, now
+closed by adding containment and destructive-authority to the persona charters.
+
+## Persona 7 — Security / containment (Principle IV)
+
+### F9 (P1, RESOLVED) — Out-of-repository backup violated CLI containment
+
+The plan, **H4**, **H15**, `129.004-T`, the Ship handoff and the rollback all
+mandated a backup under `$env:TEMP` — outside the working directory tree. This
+is a non-negotiable Principle IV violation and made the plan unshippable. It
+was not a stylistic preference: no amount of migration authorization permits
+writing outside cwd.
+
+**Resolution:** **H4** rewritten. The backup moves inside the working
+directory, outside both root-level storage candidates, to
+`.copilot\session-state\<id>\files\backlog-premigration-<UTC>\`, behind six
+containment gates **G1–G6**, all empirically verified this session:
+
+| Gate | Result | Evidence |
+|---|---|---|
+| G1 canonical containment | PASS | `GetFullPath` resolves under the repo root |
+| G2 no reparse point | PASS | every segment `ReparsePoint = None` |
+| G3 ignored | PASS | `.gitignore:4:*.copilot` |
+| G4 unstageable | PASS | `git add` exit 1; `git status` clean; nothing staged |
+| G5 non-candidate naming | PASS | basename is not `.backlog`/`.backlogit` |
+| G6 resolver-undiscoverable | PASS | `BacklogUnavailableError` at the path and its parent |
+
+Escape-hatch abuse is closed explicitly: a failed gate does **not** authorize
+relocating outside cwd; it requires selecting another existing ignored in-repo
+path (`.autoharness/staging/`) and re-running all six gates.
+
+## Persona 8 — Backlog-root / self-hosting specialist
+
+### F10 (P1, RESOLVED) — The obvious in-repo fix would have created a second root
+
+The original H4's stated justification was real: a naive in-repo backup made by
+`Copy-Item .backlogit -Destination X -Recurse` creates `X\.backlogit` — a
+**candidate-named** directory. A **negative control** confirmed the danger:
+creating `.copilot\session-state\<id>\files\.backlogit\` caused
+`resolve_backlog_root(files)` to return **that** directory.
+
+Root selection is by directory **name**, not by `config.yaml` marker presence;
+the resolver does not recurse downward, and the engine does not walk up
+ancestors (`backlogit --cwd <rootless-subdir> list` → `workspace storage root
+not found`, exit 1, **nothing created**).
+
+**Resolution:** **G5** is therefore load-bearing and mandates copying the
+**contents** of `.backlogit\*` into a non-candidate-named backup root, never
+the directory itself, plus a post-copy recursive assertion that zero
+`.backlog`/`.backlogit` directories exist at any depth inside the backup. The
+copied `config.yaml` landing in a non-candidate-named directory is inert.
+
+## Persona 9 — Git / VCS specialist
+
+### F11 (P1, RESOLVED) — In-repo backup must not be able to enter git
+
+The original H4's second justification — committing ~14 MB of binary SQLite
+state — is also real.
+
+**Resolution:** closed by proof rather than by distance. **G3** shows the path
+matches `.gitignore:4:*.copilot`; **G4** shows `git status --porcelain` does
+not surface it and `git add` without `-f` exits **1** with nothing staged;
+**H11** independently forbids `git add -A` in Commit B and requires explicit
+path staging. Three independent layers.
+
+### F12 (P1, RESOLVED) — `git clean -x` would silently destroy the backup
+
+**Newly found in this pass.** Being gitignored is what makes the backup safe
+for git — and simultaneously makes it a target for `git clean -x`/`-X`, which
+deletes ignored files. A routine cleanup between `T004` and disposal would
+destroy the **primary recovery artifact**, and nothing in the plan forbade it.
+
+**Resolution:** **H4** now prohibits `git clean -x`/`-X` (and plain
+`git clean -fd`) for the entire window from `T004` until operator-approved
+disposal, alongside the H15 session-state preservation rule and a mandatory
+backup re-assertion immediately before `T006`.
+
+## Persona 10 — Reliability / durability
+
+### F13 (P2, ACCEPTED with mitigation) — The backup lives in CLI-managed state
+
+`.copilot/session-state/` is managed by the Copilot CLI, and the chosen
+subdirectory belongs to **Stage's** session while Ship executes in a different
+one. Aggressive pruning would remove the recovery artifact.
+
+**Evidence against high severity:** 27 session-state directories are present
+and the oldest dates to **2026-04-22** (~4 months), so pruning is not
+aggressive. Free space is 323 GB against a ~14 MB payload.
+
+**Mitigation:** **H15** forbids clearing session state before operator-approved
+disposal; **H4** requires backup re-assertion immediately before the
+irreversible step, so a vanished backup HALTS rather than silently proceeding;
+the absolute path is recorded in the task record, runbook and handoff.
+`.autoharness/staging/` remains the documented fallback.
+
+## Persona 11 — Destructive-operation governance
+
+### F14 (P1, RESOLVED) — The automatic rollback was both unauthorized and incorrect
+
+The rollback directed `delete .backlog` and `git checkout -- .`
+**automatically**. Two independent defects:
+
+1. **Unauthorized breadth.** General authorization to perform the migration
+   does not silently authorize destroying a storage root or resetting the whole
+   worktree after a failure. `git checkout -- .` also reverts unrelated tracked
+   changes, violating surgical preservation.
+2. **It does not work.** `.backlogit` is git-tracked (**E1**, 1613 files), so
+   after the rename `git checkout -- .` **restores `.backlogit` from HEAD while
+   `.backlog` still exists on disk** — manufacturing the exact dual-root state
+   **H10** exists to prevent. The prescribed recovery would have *caused* the
+   failure mode it was meant to cure.
+
+**Resolution:** added **H16**. Failure recovery is now: verified
+`BACKLOGIT_WORKSPACE_DIR` to restore tooling without touching the filesystem →
+preserve both roots and the backup → record evidence → **HALT** for explicit
+operator approval. Auto-deleting a root, broad `git checkout -- .`, and
+guessing root authority are prohibited outright. An approved rollback targets
+an **enumerated pathspec list** and a named source/destination copy-back only.
+The plan's "Rollback" section is replaced by "Failure recovery"; `T006` and
+`129.006-T` now route to H16.
+
+## Persona 12 — Devil's advocate against the correction
+
+*Challenge 1: "This trades a policy violation for a safety regression — the
+out-of-tree backup was genuinely safer."*
+
+Rejected. Distance never **closed** either hazard; it merely avoided being
+near them, and it was never permissible in the first place. The corrected
+design closes both by construction and proves it: the second-root hazard by
+name-based resolution semantics plus a negative control (**F10**), and the
+git-pollution hazard by three independent layers (**F11**). The corrected
+design also surfaced **F12**, a hazard the out-of-tree design would have hidden
+rather than removed.
+
+*Challenge 2: "`BACKLOGIT_WORKSPACE_DIR` may not survive a dual-root state, so
+H16's step 1 is wishful."*
+
+Rejected on evidence. The validated override returns at
+`src/autoharness/backlog_root.py:126`, **before** the ambiguity check at
+`:136`; `scripts/ci-topology-check.sh` honours it ahead of its own dual-root
+error; and both `=.backlog` and `=.backlogit` resolved cleanly in throwaway
+two-root directories at staging time.
+
+*Challenge 3: "H16 halts instead of recovering, leaving the repo unusable."*
+
+Rejected. H16 step 1 restores tooling non-destructively and immediately. The
+halt gates **deletion and restoration**, not operability. Halting with both
+roots and a verified backup intact strictly dominates halting with a root
+already destroyed.
+
+## Correction-pass findings summary
+
+| ID | Severity | Persona | Status |
+|---|---|---|---|
+| F9 | P1 | Security/containment | RESOLVED — H4 rewritten, G1–G6 verified |
+| F10 | P1 | Backlog-root/self-hosting | RESOLVED — G5 + contents-copy, negative control |
+| F11 | P1 | Git/VCS | RESOLVED — G3/G4 + H11 |
+| F12 | P1 | Git/VCS | RESOLVED — H4 `git clean -x` prohibition |
+| F13 | P2 | Reliability | ACCEPTED — H15 + pre-T006 re-assertion + fallback path |
+| F14 | P1 | Destructive governance | RESOLVED — H16 replaces automatic rollback |
+
+**Correction-pass verdict: PASS — 0 unresolved P0, 0 unresolved P1.**
+Five P1 findings raised, all resolved in the artifacts before this verdict. One
+P2 accepted with explicit, gated mitigation. The corrected safety contract is
+approved; `138-S` is shippable.

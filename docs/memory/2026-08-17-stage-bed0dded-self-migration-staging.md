@@ -42,7 +42,8 @@ commits.**
 * **Commit A** — root-agnostic *superset*: `.gitignore` and CI path filters
   cover **both** roots, plus the resolver fix for the live-root test binding.
   Correct before *and* after the rename, so it creates no ordering hazard.
-* **Commit B** — the atomic switch: stop MCP → dry-run → out-of-tree backup →
+* **Commit B** — the atomic switch: stop MCP → dry-run → contained in-repo
+  backup (H4) →
   migrate → single-root assertion → parity verify → flip five config surfaces →
   refresh three manifest checksums → CLI verify → index rebuild.
 
@@ -102,8 +103,8 @@ session contract.
 |---|---|---|
 | Deliberation | `docs/decisions/2026-08-17-backlogit-self-migration-choreography-deliberation.md` | decided |
 | Plan | `docs/plans/2026-08-17-backlogit-self-migration-plan.md` | 9 tasks |
-| Hardening (P-006) | `docs/plans/2026-08-17-backlogit-self-migration-hardening.md` | HARDENED, H1–H15 |
-| Review | `docs/reviews/2026-08-17-backlogit-self-migration-review.md` | **PASS, 0 P0 / 0 P1** |
+| Hardening (P-006) | `docs/plans/2026-08-17-backlogit-self-migration-hardening.md` | HARDENED, H1–H16 |
+| Review | `docs/reviews/2026-08-17-backlogit-self-migration-review.md` | **PASS, 0 P0 / 0 P1** (+ correction pass: PASS, 0 P0 / 0 P1) |
 
 Review raised 8 findings across 6 personas; all 6 P1s resolved before the
 verdict (F1→H13, F3→H2 rewrite, F4→H6, F5→T001+H11, F6→T002+H14, F8→H5
@@ -153,6 +154,64 @@ exact prefix of the new text (12578 → 18108 chars, +5530).
 ## Next steps for Ship
 
 See the handoff constraints in the hardening document — H2 (prove lock release,
-not just process exit), H4 (out-of-tree backup), H6 (no pre-migration ref
+not just process exit), **H4 (contained in-repo backup behind gates G1–G6, with
+bounded inventory verification, `git clean -x/-X` prohibited, and a mandatory
+backup re-assertion immediately before `129.006-T`)**, H6 (no pre-migration ref
 transitions after Commit B; use `git checkout -B main origin/main`), H7 (MCP
-outage window scheduling), H11 (explicit-path staging, never `git add -A`).
+outage window scheduling), H11 (explicit-path staging, never `git add -A`),
+**H15 (operator-gated disposal; do not clear Copilot session state until
+disposal is approved)** and **H16 (failure recovery is non-destructive,
+evidence-first and operator-gated — never auto-delete a root, never broad
+`git checkout -- .`, never guess authority)**.
+
+## Correction pass — 2026-08-17 (post-Orchestrator review)
+
+This memory's original record described an **out-of-tree `$env:TEMP` backup**
+and an automatic destructive rollback. Both were P1 defects. They are corrected
+in the plan, hardening, review, deliberation and tasks; this section records
+the correction rather than erasing the original account.
+
+### C1 — Containment (Constitution Principle IV)
+
+Writing outside the current working directory tree is forbidden. The backup is
+now **in-repo**, outside both root-level storage candidates:
+
+```text
+.copilot\session-state\7ced3fcb-faba-47fb-81f9-09e0670a393f\files\backlog-premigration-<UTC>\
+```
+
+Six containment gates were run this session and **all passed**: G1 canonical
+containment; G2 no reparse point on any segment; G3 gitignored
+(`.gitignore:4:*.copilot`); G4 unstageable (`git add` exit 1, nothing staged);
+G5 non-candidate naming; G6 resolver-undiscoverable.
+
+**New evidence (E10)** — root selection is by directory **name**: the resolver
+does not recurse downward and the engine does not walk up ancestors
+(`backlogit --cwd <rootless-subdir> list` → `workspace storage root not found`,
+exit 1, nothing created). A **negative control** confirmed G5 is load-bearing:
+creating `files\.backlogit\` made `resolve_backlog_root(files)` return it.
+Hence the backup copies the **contents** of `.backlogit\*`, never the directory.
+
+**New evidence (E11)** — the backup is gitignored and would therefore be
+destroyed by `git clean -x`/`-X` (finding **F12**). Now prohibited for the whole
+backup window, with a mandatory pre-`T006` re-assertion.
+
+### C2 — Non-destructive failure recovery (H16)
+
+`delete .backlog` + `git checkout -- .` was not only unauthorized breadth — it
+was **provably incorrect**. Because `.backlogit` is git-tracked (**E1**),
+`git checkout -- .` after the rename restores `.backlogit` from HEAD while
+`.backlog` persists on disk, manufacturing the exact dual-root state **H10**
+exists to prevent. Replaced by preserve → evidence → HALT → explicit operator
+approval, with enumerated-path-only restoration thereafter.
+
+### Correction-pass review
+
+Personas 7–12 re-reviewed the corrected safety contract: **five P1 findings
+(F9–F12, F14) raised and all resolved**, one P2 accepted with gated mitigation
+(**F13**, CLI-managed session-state durability — 27 session dirs persisting
+since 2026-04-22 evidence low pruning risk; fallback `.autoharness/staging/`).
+
+**Verdict: PASS — 0 unresolved P0, 0 unresolved P1.** Hardening is now
+**H1–H16**. `138-S` remains queued with 10 items, unchanged dependency order,
+sizes and complexities — and is now shippable.

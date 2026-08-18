@@ -32,6 +32,17 @@ residue cleanup; any change to the external `backlogit` repository.
 **yes** — live workspace-state migration with repository-wide blast radius.
 See `docs/plans/2026-08-17-backlogit-self-migration-hardening.md`.
 
+## Correction record — 2026-08-17 (Stage, post-Orchestrator review)
+
+Two P1 defects were found by Orchestrator review **after** the original PASS
+verdict and corrected here. Prior provenance is preserved in git history and in
+the review's appended correction pass; nothing was erased.
+
+| # | Defect | Correction |
+|---|---|---|
+| C1 | The plan, **H4**, **H15**, `T004`, the handoff and the rollback all required an out-of-repository `$env:TEMP` backup — a Constitution Principle IV / CLI-containment violation that made the plan unshippable | Backup relocated **inside the working directory**, outside both root-level storage candidates, at a gate-proven contained path; **G1–G6** containment gates added and empirically verified |
+| C2 | Rollback directed `delete .backlog` and `git checkout -- .` **automatically** — destructive, broad, and not authorized by the general migration authorization | Replaced by the **H16** preserve-and-halt contract: verified `BACKLOGIT_WORKSPACE_DIR`, preserve both roots and the backup, record evidence, HALT for explicit operator approval; approved rollback targets explicit enumerated paths only |
+
 ## Commit structure
 
 Two ordered commits on one branch, one PR, one shipment.
@@ -51,7 +62,7 @@ Two ordered commits on one branch, one PR, one shipment.
 | P4 | Zero active checkpoints | `backlogit checkpoint list` |
 | P5 | No `backlogit.exe` process running | `Get-Process backlogit` returns none |
 | P6 | `.backlog` does **not** exist | `Test-Path .backlog` is `False` |
-| P7 | Out-of-tree backup exists and is verified | Backup manifest file-count matches source |
+| P7 | In-repo contained backup exists, gates G1–G6 pass, and inventory is verified | Backup manifest file-count + relative-path inventory match source |
 
 ## Tasks
 
@@ -123,28 +134,49 @@ prohibition and recovery, and the `BACKLOGIT_WORKSPACE_DIR` escape hatch.
 procedure authored after the irreversible step is not a rollback procedure.
 
 **Acceptance:** runbook committed; contains an explicit "if both roots exist"
-recovery section; states that out-of-tree backup restore is the **primary**
-recovery mechanism and `migrate --rollback` is secondary and unverified.
+recovery section reproducing the **H16** preserve-and-halt contract; states
+that restore from the **H4 in-repo contained backup** is the **primary**
+recovery mechanism and `migrate --rollback` is secondary and unverified; states
+that every recovery action is operator-gated and targets explicit enumerated
+paths only.
 
 *Size S · Complexity low · ~45 min*
 
-### T004 — Pre-flight gate, inventory snapshot, out-of-tree backup
+### T004 — Pre-flight gate, inventory snapshot, contained in-repo backup
 
-Verify P1–P4 and P6. Capture a snapshot to a path **outside the repository**
-(e.g. `$env:TEMP\backlogit-premigration-<timestamp>\`):
+Verify P1–P4 and P6. Then capture a snapshot to a gate-proven contained path
+**inside the working directory** and **outside both root-level storage
+candidates** (`.backlog`, `.backlogit`):
+
+```text
+.copilot\session-state\7ced3fcb-faba-47fb-81f9-09e0670a393f\files\backlog-premigration-<UTC-timestamp>\
+```
+
+Run containment gates **G1–G6** (see **H4**) and record each result **before
+copying any byte**. All six passed at staging time. If any fails, HALT and
+select another existing ignored in-repo path (fallback: `.autoharness/staging/`);
+**never write outside the working directory** — that is a Constitution
+Principle IV / CLI-containment violation.
+
+Capture:
 
 * full recursive relative-path + size inventory of `.backlogit` (expect 1656
   files),
 * `backlogit list` / `query_sql` counts by `artifact_type` + `status`,
 * `backlogit checkpoint list` count (expect 32) and stash entry count,
-* a byte-for-byte **copy** of the entire `.backlogit` tree.
+* a byte-for-byte copy of the **contents** of `.backlogit\*` into the backup
+  root — **not** the `.backlogit` directory itself, which would create a
+  candidate-named directory and violate **G5**.
 
-**The backup MUST NOT be written inside the repository working tree** — a copy
-at any in-tree path risks creating a second discoverable root or polluting git.
+**The backup MUST NOT be written outside the working directory tree**, and MUST
+NOT create any directory named `.backlog` or `.backlogit` at any depth.
 
-**Acceptance:** backup directory exists outside the repo; its file count equals
-the source inventory count; snapshot JSON/text committed under
-`docs/runbooks/` or attached to the task record.
+**Acceptance:** G1–G6 all recorded PASS; backup exists at the contained path;
+file count equals the source inventory count (1656) and the relative-path
+inventory symmetric difference is empty; `archive/` = 820 and `queue/` = 12
+subtotals match; DB/WAL/SHM byte differences excluded per **H13**;
+`backup-manifest.json` written; snapshot recorded in the task record. An
+unverified backup is not a rollback capability.
 
 *Size S · Complexity medium · ~45 min*
 
@@ -173,9 +205,10 @@ Run `backlogit migrate --workspace-dir`. Immediately assert:
 * `Test-Path .backlog` is `True`
 * `Test-Path .backlogit` is `False`  ← **fail-closed dual-root detection**
 
-If **both** exist, STOP: do not commit, do not continue. Set
-`BACKLOGIT_WORKSPACE_DIR` to restore tooling, then execute the runbook
-recovery from the out-of-tree backup.
+If **both** exist, STOP: do not commit, do not continue. Set a verified
+`BACKLOGIT_WORKSPACE_DIR` to restore tooling, preserve both roots and the
+backup, record evidence, and HALT for explicit operator approval per **H16**.
+Do **not** delete a root and do **not** run a broad `git checkout -- .`.
 
 Then verify parity against the T004 inventory: every relative path and size
 present under `.backlog`, file count equal, and specifically that
@@ -253,15 +286,40 @@ mergeable); `T003` is documentation that must land before the irreversible
 step. Everything from `T004` onward is strictly serial — each step's output is
 the next step's precondition — and `T004`–`T009` form **Commit B**.
 
-## Rollback
+## Failure recovery (replaces the former "Rollback" section)
 
-**Primary:** stop all `backlogit.exe`, delete `.backlog`, restore `.backlogit`
-from the T004 out-of-tree backup, `git checkout -- .` to restore tracked state,
-restart MCP.
+> **CORRECTED 2026-08-17.** The former rollback directed `delete .backlog` and
+> `git checkout -- .` **automatically**. Both are destructive and broad, and
+> general migration authorization does not silently authorize them after a
+> failure. Superseded by **H16**.
 
-**Secondary (unverified, convenience only):** `backlogit migrate --rollback`.
-The plan does not depend on it.
+**On any failure, dual-root state, or partial migration — the immediate,
+non-negotiable sequence:**
 
-**Dual-root emergency:** `BACKLOGIT_WORKSPACE_DIR=.backlog` (or `.backlogit`)
-restores resolution immediately in both the engine and the harness resolver
-without touching the filesystem.
+1. Set a **verified** `BACKLOGIT_WORKSPACE_DIR` override (exactly `.backlog` or
+   `.backlogit`, existing, a real directory, not a symlink/reparse point) so
+   tooling resolves again **without touching the filesystem**.
+2. **Preserve both roots and the H4 backup.** Delete nothing, restore nothing,
+   move nothing.
+3. **Record evidence**: per-root inventories, which root holds the
+   authoritative `config.yaml`, `git status --porcelain`, resolver output,
+   backup path and verification result, timestamps.
+4. **HALT** and request **explicit operator approval** for any deletion or
+   restoration.
+
+**Prohibited without explicit operator approval — and prohibited outright in
+their broad forms:**
+
+* auto-deleting either root,
+* `git checkout -- .` or any whole-worktree reset,
+* guessing which root is authoritative.
+
+**A future approved rollback targets explicit paths only** — an enumerated
+pathspec list for tracked files, and a named source/destination pair for the
+backlog-root copy-back from the **H4** backup. `backlogit migrate --rollback`
+remains **secondary, unverified (H9), and operator-gated**.
+
+**Dual-root emergency (non-destructive, always safe):**
+`BACKLOGIT_WORKSPACE_DIR=.backlog` (or `.backlogit`) restores resolution
+immediately in both the engine and the harness resolver without touching the
+filesystem.

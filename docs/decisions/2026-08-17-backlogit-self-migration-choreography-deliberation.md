@@ -229,8 +229,9 @@ conditions enumerated in the plan.
   after fetch so Ship never lands on a stale pre-migration `main`.
 * **`migrate --rollback` scope is unverified by us.** We deliberately did not
   execute it. The plan therefore does **not** rely on it as the primary
-  recovery mechanism; an out-of-tree filesystem backup is primary, with
-  `--rollback` as a secondary convenience only.
+  recovery mechanism; an in-repo, containment-gated filesystem backup (H4) is
+  primary, with `--rollback` as a secondary convenience only — and every
+  recovery action is non-destructive and operator-gated (H16).
 * **Stale lock residue.** `.backlogit/queue/.128.001-T.md.lock`,
   `.128.002-T.md.lock` and `.locks/.137-S.lock` are leftovers from closed work.
   They will migrate harmlessly; cleaning them is explicitly out of scope to
