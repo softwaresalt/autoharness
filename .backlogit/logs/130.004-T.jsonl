@@ -1,2 +1,4 @@
 {"timestamp":"2026-08-17T17:38:34.1718279-07:00","actor":"agent","item_id":"130.004-T","event_type":"estimate_history","delta":{"actor":"agent","size":"S","size_ruleset_version":"2h-rule-v1","size_source":"agent"}}
 {"timestamp":"2026-08-17T18:23:18.6425411-07:00","actor":"backlogit","item_id":"130.004-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-17T18:37:09.3041496-07:00","actor":"backlogit","item_id":"130.004-T","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"","head_ref":"HEAD","head_sha":"99854eb91e1d3fabfe1020918834da95544f2151","new_status":"done","old_status":"active","outcome":"passed","ran":false,"state_changed":true}}
+{"timestamp":"2026-08-17T18:37:30.8107797-07:00","actor":"backlogit","item_id":"130.004-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"99854eb9","message":""}}
