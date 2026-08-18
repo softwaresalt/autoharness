@@ -38,6 +38,17 @@ class ShipmentReconcileSafeCloseTests(unittest.TestCase):
         self.assertIn('RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE', content)
         self.assertIn('live+archived duplication', content)
 
+    def test_fail_closed_tokens_cover_pre_close_snapshot_ambiguity_and_absence(self) -> None:
+        # 141-S / 132.001-T: Step 0(b)'s pre-close parent_id snapshot now
+        # reads from whichever of queue/ or archive/ currently holds a
+        # manifest task item (a task item may already be pre-archived when
+        # the snapshot runs) and halts fail-closed on an ambiguous or
+        # missing record rather than assuming queue/ only.
+        content = _content()
+        self.assertIn('RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS', content)
+        self.assertIn('RECONCILE_FAIL_SNAPSHOT_MISSING', content)
+        self.assertIn('already be\n      pre-archived', content)
+
     def test_scenario_matrix_covers_serial_success_and_negatives(self) -> None:
         content = _content()
         self.assertIn('114-S -> 115-S -> 116-S serial-close success chain', content)
