@@ -7,3 +7,6 @@
 {"timestamp":"2026-08-17T17:41:55.6651718-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.006-T"}}
 {"timestamp":"2026-08-17T17:42:04.3536516-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.007-T"}}
 {"timestamp":"2026-08-17T18:22:45.313971-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-17T20:23:31.1484576-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"139-S","status":"shipped"}}
+{"timestamp":"2026-08-17T20:23:43.4324486-07:00","actor":"backlogit","item_id":"139-S","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"9bb3a24b946694924e2d7306daa9a5b863784d2a","message":"Merge pull request #357 from softwaresalt/feat/enforce-backlogit-checkpoint-payload-contract"}}
+{"timestamp":"2026-08-17T20:26:42.8932184-07:00","actor":"backlogit","item_id":"139-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/139-S.md"}}
