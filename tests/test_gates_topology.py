@@ -1698,6 +1698,30 @@ class ImplicitNumericPredecessorTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIsNone(result.primary_token)
 
+    def test_higher_numbered_forward_dependent_does_not_suppress_targets_own_predecessor_check(
+        self,
+    ) -> None:
+        # 113-S (numerically HIGHER than the target) declares
+        # dependencies: [112-S] -- an ordinary forward-order dependency,
+        # not a reverse-edge anomaly. It must not suppress the
+        # numeric-adjacency fallback for the target (112-S), which still
+        # has its own genuinely unshipped, undeclared numeric predecessor
+        # (111-S).
+        readers = _FakeReaders(shipments=(
+            _shipment('111-S', 'queued'),
+            _shipment('112-S', 'queued'),
+            _shipment('113-S', 'queued', deps=('112-S',)),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='112-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
+        self.assertEqual(
+            result.checks[0].details.get('predecessor_id'),
+            '111-S',
+        )
+
 
 class PostClaimVerifyTests(unittest.TestCase):
     def test_target_sole_active_passes(self) -> None:
