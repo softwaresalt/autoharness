@@ -220,3 +220,35 @@ wheel or sdist.
 | F16 | P3 | ACCEPTED (follow-up) |
 
 **Unresolved P0: 0. Unresolved P1: 0. Verdict: PASS — cleared for harvest.**
+
+## Ship addendum -- Copilot shadow review on staging PR #367 (2026-08-18)
+
+Copilot review (`copilot-pull-request-reviewer[bot]`) engaged automatically on
+staging PR #367 and raised 3 threads, all on the same underlying issue:
+
+- **C1** (`.backlogit/queue/133.001-T.md`, acceptance criterion 5): the deletion-stat
+  assertion used an unscoped `git diff --cached --stat`, which would also pick up
+  the pre-existing operator-staged `.gitmodules`/`references/*` gitlink entries and
+  could never report exactly 3 files -- causing Ship to fail closed on an otherwise
+  correct deletion.
+- **C2** (plan section 5.1 assertion 5): same unscoped-diff issue in the plan's own
+  copy of the assertion.
+- **C3** (plan section 6 execution steps): step 2 said "Run 5.1 assertions 1-4",
+  silently omitting assertion 5 (the deletion-stat check) from the execution
+  sequence.
+
+**Disposition: all 3 VALID (P1-equivalent -- would have caused a false
+fail-closed halt during 133.001-T execution given the operator's
+concurrently-staged `.gitmodules`/gitlink entries).** Fixed directly in this PR:
+
+- `.backlogit/queue/133.001-T.md` criterion 5 now reads
+  `git diff --cached --stat -- out.json res.json results.json` (pathspec-scoped).
+- Plan section 5.1 assertion 5 now reads the same pathspec-scoped form, with
+  rationale.
+- Plan section 6 step 2 now says "Run 5.1 assertions 1-5 (all five, including the
+  path-scoped diff-stat check)".
+
+No other content changed. This addendum is append-only; the original 6-persona
+verdict (PASS, 0 unresolved P0/P1 at time of authoring) stands unmodified above.
+All three Copilot threads were replied to individually with the fixing commit and
+resolved via GraphQL `resolveReviewThread`.

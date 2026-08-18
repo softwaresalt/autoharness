@@ -163,8 +163,12 @@ verification already demands.
    — proving both absence AND no collateral file loss.
 4. `git status --porcelain` shows exactly three `D ` entries for the three
    named paths and no other deletion.
-5. `git diff --cached --stat` for the deletion commit touches exactly 3 files,
-   `0 insertions`, `1762 deletions` (588 + 587 + 587).
+5. `git diff --cached --stat -- out.json res.json results.json` (scoped to exactly
+   these three literal pathspecs -- an unscoped `git diff --cached --stat` would
+   also report the pre-existing operator-staged `.gitmodules`/`references/*` gitlink
+   entries and could never report exactly three files, causing Ship to fail closed
+   on a correct deletion) touches exactly 3 files, `0 insertions`, `1762 deletions`
+   (588 + 587 + 587).
 
 ### 5.2 Regression test
 
@@ -193,7 +197,8 @@ new test executes in CI. No workflow edit is required.
 
 1. Branch per P-011, then `git rm out.json res.json results.json` (three explicit
    pathspecs; no wildcard, no `-r`, no `.`).
-2. Run §5.1 assertions 1–4.
+2. Run §5.1 assertions 1–5 (all five, including the path-scoped diff-stat check
+   in assertion 5 above).
 3. Add `tests/test_repo_root_artifacts.py` implementing §5.2.
 4. Run `PYTHONPATH=src python -m unittest discover -s tests` — full suite green.
 5. Commit with explicit pathspecs only.
