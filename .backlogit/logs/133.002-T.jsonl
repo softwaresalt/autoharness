@@ -2,3 +2,5 @@
 {"timestamp":"2026-08-18T15:39:15.0332489-07:00","actor":"backlogit","item_id":"133.002-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
 {"timestamp":"2026-08-18T15:54:39.6330614-07:00","actor":"backlogit","item_id":"133.002-T","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"","head_ref":"HEAD","head_sha":"75de0399ccc02d974230815c151802d4f3309f21","new_status":"done","old_status":"active","outcome":"passed","ran":false,"state_changed":true}}
 {"timestamp":"2026-08-18T15:55:10.0469109-07:00","actor":"backlogit","item_id":"133.002-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"75de0399ccc02d974230815c151802d4f3309f21","message":""}}
+{"timestamp":"2026-08-18T16:04:57.2912335-07:00","actor":"backlogit","item_id":"133.002-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"093e09966696f1e753193105427acd9bd1c3a1dc","message":""}}
+{"timestamp":"2026-08-18T16:05:03.1016383-07:00","actor":"backlogit","item_id":"133.002-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/133.002-T.md"}}
