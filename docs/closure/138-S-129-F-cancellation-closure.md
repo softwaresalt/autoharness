@@ -77,22 +77,45 @@ branch (itself the just-merged PR #361 branch, tree-identical to `main`):
 `140-S`, `137-S` all satisfied).
 
 After creating the dedicated cancellation branch `chore/abandon-138-s` (see
-§3), the same gate invocation returned **exit 1**, `token: BRANCH_MISMATCH`,
-because the gate's `branch_ownership` heuristic only recognizes
-`feat/138-s-...` / `chore/138-s-...` (slug-matching) or `post-merge/*`
-branch names as eligible for shipment `138-S` — it has no concept of a
-dedicated **cancellation/abandonment** branch, since the gate was designed
-for implementation, not cancellation, flows. This is a documented gate
-coverage gap, not a topology or safety violation: the substantive checks
-(`active_shipment_invariant`, `worktree_topology`, `shipment_readiness`) are
-branch-name-independent and were independently re-confirmed unchanged
-(single worktree; zero active shipments in `.backlogit/queue/`; predecessor
-set unchanged) immediately after branch creation. `--force` was never used
-(operator-only, never reachable from an agent surface, and not needed here
-since the underlying invariants were already proven). This limitation and
-its independent-verification substitute are recorded here per the operator's
-explicit "documented bootstrap exemption plus independent dependency/closure/
-P-001/P-016 checks" allowance.
+§3), the same gate invocation returned **exit 1**, `token: BRANCH_MISMATCH`.
+**Corrected characterization** (an earlier draft of this document
+mischaracterized this as a cancellation-specific gate coverage gap;
+Copilot review on PR #362 correctly flagged that as inaccurate): the gate
+is purpose-agnostic and is not designed around implementation vs.
+cancellation intent at all. Per `_branch_aliases`
+(`src/autoharness/gates/topology.py:1040-1048`), it accepts only branches
+of the form `feat/{slug}` / `chore/{slug}` or `feat/{shipment-id}-{slug}` /
+`chore/{shipment-id}-{slug}` — i.e. the shipment ID, when present in the
+branch name at all, must appear as a **leading** token, e.g.
+`chore/138-s-migrate-live-backlogit-storage-root-backlogit-backlog`.
+`chore/abandon-138-s` matches neither form: it reverses the expected
+token order (a literal prefix `abandon-` followed by the ID in the middle
+of the string). This is a genuine, correctly-detected `BRANCH_MISMATCH`
+under the gate's existing, purpose-agnostic naming rule — not a missing
+"cancellation branch" feature and not a limitation this closure needed to
+route around.
+
+The reason this branch was used anyway is a **specific, current-session
+operator authorization**, not a gate workaround: the operator's
+cancellation-lifecycle instructions for this session explicitly named
+`chore/abandon-138-s` as the branch to create, superseding both (a) the
+gate's canonical naming convention and (b) the pre-existing Stage
+instruction in §5 of
+`docs/decisions/2026-08-18-backlogit-legacy-root-support-operator-scope-correction.md`
+that Ship must not create *any* branch for `138-S` (see that document's
+§8 for the disclosed supersession). The branch exists solely as a commit
+target for this cancellation-closure evidence — no file within
+`129-F`/`129.001-T`…`129.009-T`'s scope was touched, and no storage root
+was touched. The substantive topology-gate checks that are
+branch-name-independent (`active_shipment_invariant`, `worktree_topology`,
+`shipment_readiness`) were independently re-confirmed unchanged (single
+worktree; zero active shipments in `.backlogit/queue/`; predecessor set
+unchanged) immediately after branch creation, so the underlying safety
+invariants the gate protects were never at risk despite the
+`branch_ownership` mismatch. `--force` was never used (operator-only,
+never reachable from an agent surface, and not needed here since the
+underlying invariants were already independently proven and the branch
+name itself was operator-authorized rather than gate-bypassed).
 
 ## 3. Cancellation branch and preserved operator changes
 
@@ -161,17 +184,51 @@ any point — all nine remain `rejected`, unchanged from before this session.
 `backlogit sync` was run after the mutation (`Indexed 858 artifacts`) to
 keep the SQLite index consistent with the on-disk state.
 
+### Audit-log discrepancy, disclosed not fabricated
+
+`.backlogit/logs/138-S.jsonl` records the `queued -> active` claim event
+(`shipment_status_changed`, `delta.status: active`) but contains **no**
+corresponding event for the subsequent `active -> abandoned` transition —
+the log stops at `active` even though `.backlogit/queue/138-S.md`'s
+`status` field and every `backlogit get 138-S` query in this session
+confirm `abandoned`. Unlike the `queued -> active` claim (which appended a
+log line), `backlogit move --status abandoned` did not append a
+corresponding item-log entry in this backlogit build (v1.9.0-39-g17530fe3).
+This was verified directly: the file has exactly 3 lines both before and
+after the `move` command ran, and no 4th line was ever written. The final
+state is correct and independently re-verified multiple times via
+`backlogit get 138-S --format json` (`"status": "abandoned"`); the
+discrepancy is isolated to the append-only audit log's completeness for
+this transition type, not to the correctness of the terminal state. Per
+the precedent set in
+`docs/closure/136-S-127-F-post-merge-closure.md` (its own "Addendum: a
+backlog audit-log discrepancy, noted but not fabricated" section), Ship
+does **not** hand-author a synthetic log entry to paper over this gap —
+doing so would itself corrupt the append-only trail's integrity. This is
+recorded here as a known discrepancy for the backlogit maintainers/Stage
+to investigate, and the "complete, traceable cancellation lifecycle"
+framing used for this task is narrowed accordingly: the backlog **state**
+transition is complete and traceable via direct queries at each step; the
+**append-only event log** for this shipment is missing one event.
+
 ## 5. Rollback / non-applicability
 
 No migration was implemented, no template/schema/CLI/skill/documentation
 code changed, and no storage root was touched. There is **nothing to roll
-back**: the `.backlogit` root is exactly as it was before this closure began,
-modulo the backlog-state transitions recorded in §4 (which are themselves
-the intended, reversible-by-re-claim outcome, not a defect). A future
-operator wishing to reopen this work would `backlogit shipment claim 138-S`
-again from `abandoned` only if backlogit's state machine permits re-claiming
-an abandoned shipment; that is out of scope for this closure and not
-attempted here.
+back**: the `.backlogit` root is exactly as it was before this closure
+began, modulo the backlog-state transitions recorded in §4, which are
+themselves the **intended terminal outcome** of this closure, not a defect
+requiring rollback. **Correction**: `abandoned` is a terminal state under
+backlogit 1.9.0's shipment state machine — the only valid transitions are
+`queued -> active`, `active -> shipped`, and `active -> abandoned`
+(`internal/core/shipment.go::isValidShipmentTransition`; see §4 and
+`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`).
+There is **no** `abandoned -> active` (or any other) transition out of
+`abandoned` defined anywhere in that state machine, so this is not a
+reversible-by-re-claim outcome. If a future operator wishes to reopen this
+work, that requires a fresh, separate decision and a new shipment/feature
+record — not a re-claim of `138-S` — and is explicitly out of scope for,
+and not attempted by, this closure.
 
 ## 6. Full local build
 

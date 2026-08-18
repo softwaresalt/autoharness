@@ -30,13 +30,25 @@ evidence — no implementation, no migration, nothing built.
 * Pre-claim topology gate passed cleanly (exit 0) while still on the
   previously-checked-out `post-merge/131-f-...` branch. After creating the
   dedicated `chore/abandon-138-s` cancellation branch, the same gate
-  returned `BRANCH_MISMATCH` (exit 1) — a genuine coverage gap: the
-  branch-ownership heuristic has no concept of a cancellation/abandon
-  branch, only feat/chore-slug-matching or post-merge/* branches. Treated
-  as a documented bootstrap exemption since the other four checks
-  (active-shipment invariant, worktree topology, shipment readiness) are
-  branch-name-independent and were independently reconfirmed unchanged.
-  Never used `--force` (operator-only, not agent-reachable, and unneeded).
+  returned `BRANCH_MISMATCH` (exit 1). **Corrected characterization**
+  (Copilot review on PR #362 caught an inaccurate first-draft framing of
+  this as a "cancellation gate coverage gap"): the gate is purpose-agnostic
+  and accepts only canonical `feat/{slug}` / `chore/{slug}` or
+  `feat/{shipment-id}-{slug}` / `chore/{shipment-id}-{slug}` branch forms
+  (`_branch_aliases`, `src/autoharness/gates/topology.py:1040-1048`) — the
+  shipment ID, when present, must be a *leading* token. `chore/abandon-138-s`
+  reverses that order and matches neither form, so this is a genuine,
+  correctly-detected `BRANCH_MISMATCH`, not a missing feature. The branch
+  name was used anyway because the **operator's own current-session
+  instructions explicitly named `chore/abandon-138-s`**, superseding both
+  the gate's naming convention and Stage's earlier "Ship MUST NOT create a
+  branch for 138-S" instruction (disclosed and cited in the decision doc's
+  §8 append). The other four gate checks (active-shipment invariant,
+  worktree topology, shipment readiness) are branch-name-independent and
+  were independently reconfirmed unchanged after the branch switch. Never
+  used `--force` (operator-only, not agent-reachable, and unneeded — the
+  invariants were already independently proven and the branch name was
+  operator-authorized, not gate-bypassed).
 * Created the cancellation branch from `main` rather than reusing the
   already-merged `post-merge/131-f-...` branch, since the two trees are
   byte-identical (`git diff main HEAD --stat` empty) — so the switch was

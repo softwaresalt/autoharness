@@ -169,8 +169,20 @@ interrupted.
 
 ## 8. Ship-confirmed durable abandonment (append, 2026-08-18)
 
-Ship executed the §5 sequence exactly as specified, on a dedicated
-cancellation branch `chore/abandon-138-s` created from `main`
+Ship executed the §5 backlogit-state-machine sequence (claim then move)
+exactly as specified. **Deviation disclosure, not silently glossed over:**
+§5 above also directs "Ship MUST NOT ... create a branch for `138-S`". A
+later, session-specific operator instruction explicitly superseded that
+clause for this cancellation: the operator directed Ship to "create a
+dedicated cancellation branch based on current main" for traceability of
+the closure commit, and explicitly authorized the literal name
+`chore/abandon-138-s`. Ship therefore did create a branch — not to execute
+or prepare `138-S`'s contents (no file under `129.001-T`…`129.009-T`'s
+scope was touched, no storage root was touched), but solely as a commit
+target for the cancellation-closure evidence itself, per that later
+operator authorization. This is recorded here as an explicit, cited
+supersession of §5's no-branch clause, not an unacknowledged deviation.
+The branch was created from `main`
 (`99b8ead601a72642ed9791cb99258ac4f2e1bd8e`), with all pre-existing
 operator-staged worktree changes (`.gitmodules`, `references/skillopt`,
 `references/waza`, `references/witr`) verified byte-for-byte preserved
