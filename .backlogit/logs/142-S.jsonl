@@ -1,2 +1,5 @@
 {"timestamp":"2026-08-18T15:02:41.0646607-07:00","actor":"backlogit","item_id":"142-S","event_type":"shipment_created","delta":{"items":["133-F","133.001-T","133.002-T"],"title":"Repository hygiene: remove stale tracked root scratch artifacts"}}
 {"timestamp":"2026-08-18T15:39:03.9874888-07:00","actor":"backlogit","item_id":"142-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-18T16:04:31.9274622-07:00","actor":"backlogit","item_id":"142-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"142-S","status":"shipped"}}
+{"timestamp":"2026-08-18T16:04:37.7376943-07:00","actor":"backlogit","item_id":"142-S","event_type":"commit_tracked","delta":{"author":"","commit_sha":"093e09966696f1e753193105427acd9bd1c3a1dc","message":""}}
+{"timestamp":"2026-08-18T16:05:09.3136321-07:00","actor":"backlogit","item_id":"142-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/142-S.md"}}

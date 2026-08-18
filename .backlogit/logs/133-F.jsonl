@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-18T15:39:09.1541987-07:00","actor":"backlogit","item_id":"133-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-18T16:04:26.8886562-07:00","actor":"backlogit","item_id":"133-F","event_type":"status_changed","delta":{"_shipment_operation":"142-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-18T16:04:43.3598165-07:00","actor":"backlogit","item_id":"133-F","event_type":"commit_tracked","delta":{"author":"","commit_sha":"093e09966696f1e753193105427acd9bd1c3a1dc","message":""}}
+{"timestamp":"2026-08-18T16:05:06.112406-07:00","actor":"backlogit","item_id":"133-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/133-F.md"}}

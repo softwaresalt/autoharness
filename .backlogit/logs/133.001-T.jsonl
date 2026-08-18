@@ -3,3 +3,5 @@
 {"timestamp":"2026-08-18T15:45:44.905992-07:00","actor":"backlogit","item_id":"133.001-T","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"","head_ref":"HEAD","head_sha":"b2af432100128b420556be4ef42552e1f11a829e","new_status":"done","old_status":"active","outcome":"passed","ran":false,"state_changed":true}}
 {"timestamp":"2026-08-18T15:46:02.5013521-07:00","actor":"backlogit","item_id":"133.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"b2af43219cbf46d8a186b6bfd2b6b2a1f9a1b6c5","message":""}}
 {"timestamp":"2026-08-18T15:47:04.7957104-07:00","actor":"backlogit","item_id":"133.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"b2af432100128b420556be4ef42552e1f11a829e","message":""}}
+{"timestamp":"2026-08-18T16:04:49.1381591-07:00","actor":"backlogit","item_id":"133.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"093e09966696f1e753193105427acd9bd1c3a1dc","message":""}}
+{"timestamp":"2026-08-18T16:05:00.10261-07:00","actor":"backlogit","item_id":"133.001-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/133.001-T.md"}}
