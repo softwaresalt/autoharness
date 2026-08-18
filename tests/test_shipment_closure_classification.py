@@ -309,6 +309,27 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
         assert "225.002-T" in decision.reason
 
 
+    def test_pre_archived_feature_with_pre_archived_out_of_manifest_child_falls_back_to_safe_close(
+        self,
+    ) -> None:
+        # Strengthens the prior negative case (Copilot review, PR #365): that
+        # case only pre-archived the out-of-manifest CHILD while leaving the
+        # feature itself queued, so it only proved the child's location is
+        # irrelevant -- it did not prove that pre-archiving the FEATURE
+        # record cannot itself create a false CASCADE grant. Here BOTH the
+        # root feature and the out-of-manifest child are already archived;
+        # the manifest still omits the real child, so this must still fall
+        # back to safe-close.
+        _write_artifact(self.backlog_dir, "archive", "228-F", "feature")
+        _write_artifact(self.backlog_dir, "queue", "228.001-T", "task", parent_id="228-F")
+        _write_artifact(self.backlog_dir, "archive", "228.002-T", "task", parent_id="228-F")
+
+        decision = classify_shipment_close_path(["228-F", "228.001-T"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+        assert "228.002-T" in decision.reason
+
+
     def test_pre_archived_non_root_feature_falls_back_to_safe_close(self) -> None:
         # Negative case: a feature member that declares a parent_id (is not a
         # root) is disqualifying regardless of whether its own record lives
