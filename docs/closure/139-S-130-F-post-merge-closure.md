@@ -150,10 +150,26 @@ lineage.
   Post-Merge Branch Protocol's closure-only scope). See
   `docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md`.
   This should be routed to Stage as a dedicated hotfix task.
-- **Predecessor unblock**: shipment `138-S` (declared dependency `138-S ->
-  139-S`, blocking) is now dependency-eligible for claim in a future session;
-  it remains `queued` and untouched by this session per the operator's
-  bounded-stop instruction.
+- **Predecessor unblock**: shipment `139-S`'s own shipment-level dependency
+  requirement for `138-S` (`138-S -> 139-S`, blocking) is satisfied — `139-S`
+  is now `shipped`/`archived`. However, verified against
+  `src/autoharness/gates/topology.py::_closure_conditions_satisfied` /
+  `closure_complete`, the pipeline-topology gate reads **this closure
+  artifact's own frontmatter** for any shipment that names `139-S` as a
+  predecessor: because `closure_status` here is `READY_WITH_CONDITIONS`
+  with an outstanding `satisfied: false` condition, `closure_complete("139-S")`
+  evaluates to `False` (not `None`/skip), so the gate will correctly report
+  `PREDECESSOR_CLOSURE_INCOMPLETE` — not `PASS` — for `138-S` (or any other
+  shipment declaring `139-S` as a predecessor) until this condition is
+  marked `satisfied: true` with evidence. **This is intentional, correct
+  gate behavior, not a defect in this closure record**: the honest
+  `READY_WITH_CONDITIONS` reporting is designed to hold dependent shipments
+  back from building on a predecessor closure with a known, unresolved
+  correctness defect. `138-S` remains `queued` and untouched by this
+  session per the operator's bounded-stop instruction; it will not be
+  gate-eligible for claim until the hotfix in the `conditions` block above
+  lands and is verified (or this record is otherwise revised by a future
+  session with new evidence).
 
 **Closure verdict: READY_WITH_CONDITIONS.** Runtime verification passed,
 the P-015 cascade close completed with all post-conditions verified, the
