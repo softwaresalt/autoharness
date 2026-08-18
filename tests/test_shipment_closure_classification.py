@@ -203,5 +203,148 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
         assert "211-F" in decision.reason
 
 
+
+    # --- Regression tests: pre-archived manifest members and the P-015
+    # cascade classifier (132.003-T). These prove the classifier already
+    # scans BOTH queue/ and archive/ for every manifest member -- a manifest
+    # member's archival state at classification time never changes the
+    # CASCADE/SAFE_CLOSE verdict, exactly as
+    # docs/spikes/2026-08-18-cascade-close-pre-archived-member-behavior.md
+    # found for the live backlogit engine. See templates/skills/
+    # shipment-reconcile/SKILL.md.tmpl's Cascade Close Sub-Procedure preamble
+    # and P-015's "VERIFIED FULLY-COVERED-ROOT EXCEPTION" item 7 in
+    # templates/policies/workflow-policies.md.tmpl for the authoritative
+    # contract these tests guard.
+
+    def test_all_manifest_members_pre_archived_still_selects_cascade(self) -> None:
+        # Every manifest member -- feature and both children -- is already
+        # archived when classification runs. A pre-archived manifest member
+        # must not disqualify CASCADE.
+        _write_artifact(self.backlog_dir, "archive", "220-F", "feature")
+        _write_artifact(self.backlog_dir, "archive", "220.001-T", "task", parent_id="220-F")
+        _write_artifact(self.backlog_dir, "archive", "220.002-T", "task", parent_id="220-F")
+
+        decision = classify_shipment_close_path(
+            ["220-F", "220.001-T", "220.002-T"], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.qualifying_feature_ids == ("220-F",)
+
+
+    def test_feature_pre_archived_children_queued_still_selects_cascade(self) -> None:
+        # The covering feature is already archived while its children remain
+        # queued -- an asymmetric pre-archival pattern that must still
+        # qualify.
+        _write_artifact(self.backlog_dir, "archive", "221-F", "feature")
+        _write_artifact(self.backlog_dir, "queue", "221.001-T", "task", parent_id="221-F")
+        _write_artifact(self.backlog_dir, "queue", "221.002-T", "task", parent_id="221-F")
+
+        decision = classify_shipment_close_path(
+            ["221-F", "221.001-T", "221.002-T"], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.qualifying_feature_ids == ("221-F",)
+
+
+    def test_feature_queued_children_pre_archived_still_selects_cascade(self) -> None:
+        # The inverse asymmetric pattern: the covering feature remains
+        # queued while one child is already archived.
+        _write_artifact(self.backlog_dir, "queue", "222-F", "feature")
+        _write_artifact(self.backlog_dir, "archive", "222.001-T", "task", parent_id="222-F")
+        _write_artifact(self.backlog_dir, "queue", "222.002-T", "task", parent_id="222-F")
+
+        decision = classify_shipment_close_path(
+            ["222-F", "222.001-T", "222.002-T"], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.qualifying_feature_ids == ("222-F",)
+
+
+    def test_mixed_pre_archived_and_queued_manifest_members_still_selects_cascade(self) -> None:
+        # A three-child manifest with a mix of queued and pre-archived
+        # children alongside a queued feature.
+        _write_artifact(self.backlog_dir, "queue", "223-F", "feature")
+        _write_artifact(self.backlog_dir, "archive", "223.001-T", "task", parent_id="223-F")
+        _write_artifact(self.backlog_dir, "queue", "223.002-T", "task", parent_id="223-F")
+        _write_artifact(self.backlog_dir, "archive", "223.003-T", "task", parent_id="223-F")
+
+        decision = classify_shipment_close_path(
+            ["223-F", "223.001-T", "223.002-T", "223.003-T"], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.qualifying_feature_ids == ("223-F",)
+
+
+    def test_verified_childless_terminal_root_feature_pre_archived_still_qualifies(self) -> None:
+        # A childless, terminal root feature that is ITSELF already archived
+        # (not merely its children) must still positively verify childless
+        # and qualify for CASCADE -- childlessness verification scans both
+        # queue/ and archive/, and so does the feature-record lookup itself.
+        _write_artifact(self.backlog_dir, "archive", "224-F", "feature")
+
+        decision = classify_shipment_close_path(["224-F"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.qualifying_feature_ids == ("224-F",)
+
+
+    def test_pre_archived_out_of_manifest_child_falls_back_to_safe_close(self) -> None:
+        # Negative case: a REAL child of the root feature already sits in
+        # archive/ but is NOT listed in the manifest. Pre-archival must not
+        # excuse an out-of-manifest child from the full-coverage precondition
+        # -- this must still fall back to safe-close exactly as an
+        # out-of-manifest child in queue/ would (existing coverage:
+        # test_root_feature_missing_child_falls_back_to_safe_close).
+        _write_artifact(self.backlog_dir, "queue", "225-F", "feature")
+        _write_artifact(self.backlog_dir, "queue", "225.001-T", "task", parent_id="225-F")
+        _write_artifact(self.backlog_dir, "archive", "225.002-T", "task", parent_id="225-F")
+
+        decision = classify_shipment_close_path(["225-F", "225.001-T"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+        assert "225.002-T" in decision.reason
+
+
+    def test_pre_archived_feature_with_pre_archived_out_of_manifest_child_falls_back_to_safe_close(
+        self,
+    ) -> None:
+        # Strengthens the prior negative case (Copilot review, PR #365): that
+        # case only pre-archived the out-of-manifest CHILD while leaving the
+        # feature itself queued, so it only proved the child's location is
+        # irrelevant -- it did not prove that pre-archiving the FEATURE
+        # record cannot itself create a false CASCADE grant. Here BOTH the
+        # root feature and the out-of-manifest child are already archived;
+        # the manifest still omits the real child, so this must still fall
+        # back to safe-close.
+        _write_artifact(self.backlog_dir, "archive", "228-F", "feature")
+        _write_artifact(self.backlog_dir, "queue", "228.001-T", "task", parent_id="228-F")
+        _write_artifact(self.backlog_dir, "archive", "228.002-T", "task", parent_id="228-F")
+
+        decision = classify_shipment_close_path(["228-F", "228.001-T"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+        assert "228.002-T" in decision.reason
+
+
+    def test_pre_archived_non_root_feature_falls_back_to_safe_close(self) -> None:
+        # Negative case: a feature member that declares a parent_id (is not a
+        # root) is disqualifying regardless of whether its own record lives
+        # in queue/ or archive/ -- pre-archival tolerance never relaxes the
+        # root-ness precondition.
+        _write_artifact(self.backlog_dir, "queue", "226-F", "feature")
+        _write_artifact(
+            self.backlog_dir, "archive", "227-F", "feature", parent_id="226-F"
+        )
+
+        decision = classify_shipment_close_path(["227-F"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+        assert "227-F" in decision.reason
+        assert "not a root" in decision.reason
+
 if __name__ == "__main__":
     unittest.main()

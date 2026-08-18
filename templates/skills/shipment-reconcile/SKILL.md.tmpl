@@ -373,12 +373,22 @@ completion.
       pre/post-comparison in the Cascade Close Sub-Procedure both require it,
       and the cascade path skips steps 1–10 entirely.
    b. **Snapshot pre-close `parent_id` for every task item** in the manifest
-      by reading each task's current frontmatter from
-      `{{BACKLOG_DIRECTORY}}/queue/`. Retain this snapshot in memory for the
-      duration of this close operation; it is the baseline the Cascade Close
-      Sub-Procedure's step 4 parent-preservation check compares against, and
-      it must be captured **before** any mutating call (cascade or otherwise)
-      runs, never reconstructed after the fact.
+      by reading each task's current frontmatter from whichever of
+      `{{BACKLOG_DIRECTORY}}/queue/` or `{{BACKLOG_DIRECTORY}}/archive/`
+      currently contains it — a manifest task item may already be
+      pre-archived when this snapshot runs (see the Cascade Close
+      Sub-Procedure's pre-archived-member preamble below), and its
+      snapshot must still be captured from wherever it actually resides.
+      If a task item's record is found in **both** locations (an
+      ambiguous/torn state) or in **neither** (missing), halt immediately
+      with `RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS` or
+      `RECONCILE_FAIL_SNAPSHOT_MISSING` respectively — never guess which
+      copy or location is authoritative. Retain this snapshot in memory
+      for the duration of this close operation; it is the baseline the
+      Cascade Close Sub-Procedure's step 4 parent-preservation check
+      compares against, and it must be captured **before** any mutating
+      call (cascade or otherwise) runs, never reconstructed after the
+      fact.
    c. **Classify the close path**: run the machine-checkable classification
       described in P-015 over the manifest `items` loaded in (a). Workspaces
       with a Python implementation installed reuse a
@@ -521,6 +531,60 @@ captured in (a)/(b) — this sub-procedure never reloads the manifest or
 attempts to reconstruct pre-close state after the fact. Replaces
 steps 1–10 above entirely for this shipment's closure; there is no partial
 mixing of the two paths.
+
+**Pre-archived manifest members (expected and tolerated)**: before invoking
+step 1 below, classify each manifest member as `queued` or `pre-archived` by
+checking whether its record currently resides in
+`{{BACKLOG_DIRECTORY}}/queue/` or `{{BACKLOG_DIRECTORY}}/archive/`, and
+retain the `pre-archived` set for the cascade-close report (step 5 below).
+A `pre-archived` manifest member is **expected and tolerated on this
+path**: it does **not** disqualify the `CASCADE` verdict, does **not**
+constitute a classifier ambiguity or unresolved precondition, and does
+**not** authorize a fallback to safe-close. Step 0(c)'s classifier already
+resolves each manifest member by scanning **both** `queue/` and
+`archive/`, so archived inputs were already accounted for when the
+verdict was selected — this clause states the execution-time consequence
+of that fact and does not add a new classifier precondition; Step 0(c)'s
+precondition wording is unchanged.
+
+This tolerance applies to **manifest members only** — it does not
+restate, weaken, or cross-apply to the protected set, which has no
+pre-archived exemption (see Safe-Close Mode steps 3/5 above). A manifest
+that qualifies for `CASCADE` has no protected set by construction (full
+coverage is itself a Step 0(c) precondition), so no protected set arises
+on this path.
+
+The cascade operation invoked in step 1 below is idempotent over
+pre-archived members — per
+`docs/spikes/2026-08-18-cascade-close-pre-archived-member-behavior.md`,
+control/partial-pre-archive/full-pre-archive arms all returned identical
+`archived_ids` that already include members archived before the call —
+so step 3's exact-match post-condition below applies **unchanged**: it is
+evaluated against the manifest's full item set, never against "members
+newly archived by this call". This tolerance rests on observed engine
+behavior, not a published API guarantee; step 3's exact-match check
+remains the live fail-closed guard that would catch any future engine
+regression, which is why it must never be relaxed.
+
+**No-substitution rule**: once Step 0 selects `CASCADE`, that verdict is
+final for this closure — between the verdict and step 1's invocation
+below, substituting manual safe-close is a **P-005 process deviation**,
+never a permitted fallback, regardless of the manifest's archival state.
+This complements, and does not restate or contradict, step 2's separate
+rule against falling back to safe-close **after** a cascade has already
+executed: together the two rules close both the pre-execution and
+post-execution substitution windows. The asymmetry is intentional and
+one-directional — this rule forbids `CASCADE -> manual safe-close`
+substitution only; it grants no license to invoke cascade when Step 0
+selects `SAFE_CLOSE`, which remains governed by the P-015 default
+prohibition. If a genuine unhandled error occurs during the cascade
+operation, halt and disclose it per the verification steps below — never
+silently switch to safe-close instead.
+
+Ship performs **no** manual per-item archive loop on this path: the
+cascade operation in step 1 below performs all remaining archival
+itself, consistent with the "no partial mixing of the two paths" rule
+above.
 
 1. Invoke `{{OP_SHIP_SHIPMENT_MCP}}(shipment_id, merge_commit_sha)` directly
    (CLI: `backlogit shipment ship <shipment_id> --sha <merge_commit_sha>
@@ -735,7 +799,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `mode: pre` with `expected_status: {{STATUS_QUEUED}}` (or `{{STATUS_ACTIVE}}` for already-claimed shipments) runs at Ship Step 0.5 intake
 * `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself — **except** when Step 0's P-015 verified fully-covered-root classification selects `CASCADE`, in which case the Cascade Close Sub-Procedure runs instead and safe-close steps 1–10 are skipped entirely
 * Close-path selection is made **only** from the machine-checkable classification result (Step 0), never inferred from prose or manifest shape alone; any classifier error, ambiguity, or unresolved precondition falls back to safe-close
-* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` matches the manifest exactly, and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
+* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` matches the manifest exactly (a pre-archived manifest member is expected and tolerated here — the cascade operation is idempotent and still returns it in `archived_ids`, so this exact-match check is evaluated against the full manifest, unchanged), and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
 * Safe-close computes the protected set (parent feature + unshipped siblings) from expected IDs and proves it is fully present in queue at a baseline gate before archiving anything
 * Safe-close verifies the protected set survives after every single-item archival (verify-after-each invariant), with no pre-archived exemption for protected-set members
 * Safe-close moves the shipment record to live `shipped`, verifies it, explicitly archives only that record, and verifies `archived_status: shipped` before closure completes
