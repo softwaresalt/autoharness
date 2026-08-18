@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-17T22:14:01.5270404-07:00","actor":"agent","item_id":"131.001-T","event_type":"estimate_history","delta":{"actor":"agent","size":"XS","size_ruleset_version":"2h-rule-v1","size_source":"agent"}}
+{"timestamp":"2026-08-17T22:44:28.6136051-07:00","actor":"backlogit","item_id":"131.001-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
