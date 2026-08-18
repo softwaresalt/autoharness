@@ -133,3 +133,70 @@ Step 0 classification returns `CASCADE` must follow the Cascade Close
 Sub-Procedure as written, even when manifest items are already archived.
 If that produces an unhandled error or ambiguity, halt and disclose rather
 than silently falling back to manual safe-close.
+
+
+## Update (141-S / 132-F closure, stash EDE3CC2D): follow-up implemented, one prior speculation disproven
+
+The "Follow-up (Stage-owned, not opened by Ship)" section above recommended
+extending the Cascade Close Sub-Procedure to explicitly handle pre-archived
+manifest items. Shipment **141-S** (feature **132-F**, stash **EDE3CC2D**)
+implemented exactly this:
+
+* `templates/skills/shipment-reconcile/SKILL.md.tmpl` now carries an
+  **unnumbered preamble** before the Cascade Close Sub-Procedure's step 1
+  that: classifies each manifest member `queued` vs `pre-archived`; states a
+  `pre-archived` member is expected/tolerated and does not disqualify
+  `CASCADE` or authorize a safe-close fallback; cites empirical spike
+  evidence for the cascade operation's idempotency over pre-archived
+  members; and restates the no-substitution rule (a `CASCADE` verdict is
+  final once selected — manual safe-close substitution before invocation is
+  a P-005 deviation, symmetric with step 2's existing post-execution rule).
+* `templates/policies/workflow-policies.md.tmpl`'s P-015 "VERIFIED
+  FULLY-COVERED-ROOT EXCEPTION" block gained a mirrored item 7 stating the
+  same tolerance and no-substitution rule at the policy level.
+* `tests/test_shipment_closure_classification.py` gained 9 regression tests
+  (7 from 132.003-T's original commit + 2 Copilot-review-driven additions)
+  proving `classify_shipment_close_path` already returns `CASCADE`
+  correctly regardless of which manifest members (feature, children, or
+  both) are pre-archived, and correctly still falls back to `SAFE_CLOSE`
+  when a real out-of-manifest child exists even if the feature record
+  itself is pre-archived.
+
+**One prior speculation in this document is corrected, not merely
+implemented as originally worded.** Point 3 under "The rule (corrected)"
+above speculated the fix might need to "adjust the `archived_ids`
+exact-match post-condition to account for items that were already archived
+before the cascade operation ran" — implying the exact-match check itself
+might need to be relaxed or made conditional. **This is disproven.** The
+141-S spike (`docs/spikes/2026-08-18-cascade-close-pre-archived-member-behavior.md`)
+found that `backlogit shipment ship` is already idempotent over
+pre-archived manifest members across all three tested arms (control,
+partial-pre-archive, full-pre-archive): `archived_ids` in every arm already
+includes members archived before the call, `returned_ids` is empty, and
+`parent_id` is preserved. No engine behavior change and no relaxation of
+the `archived_ids` exact-match invariant was needed or made — the existing
+post-condition wording in the Cascade Close Sub-Procedure's step 3 applies
+**unchanged**, evaluated against the full manifest as it always has been.
+`src/autoharness/gates/shipment_closure.py` (the classifier) was likewise
+left unchanged: it already scans both `queue/` and `archive/` for every
+manifest member and every child-enumeration, so a manifest member's
+archival state at classification time never altered its `CASCADE`/
+`SAFE_CLOSE` verdict in the first place. The gap this document identified
+was a **contract/documentation gap**, never a gate-code or engine defect.
+
+**141-S's own closure is a live confirmation of the corrected contract.**
+141-S's manifest (`132-F`, `132.001-T`, `132.002-T`, `132.003-T`) is itself
+a fully-covered-root shipment: `132-F` is a root feature whose only
+children are the three manifest tasks. Running
+`classify_shipment_close_path` against 141-S's own manifest at closure time
+returned `CASCADE`. The Cascade Close Sub-Procedure was followed as
+written: `backlogit shipment ship 141-S --sha 01c1735b... --message ...
+--author ...` returned `archived_ids: ["132.001-T", "132.002-T",
+"132.003-T", "132-F", "141-S"]` (exact manifest + shipment record match),
+`returned_ids: []`, and every task's `parent_id` (`132-F`) was confirmed
+unchanged post-archive against the Step 0(b) pre-close snapshot. Gate
+decision: `CLOSED`.
+
+**Follow-up status**: implemented and closed. No further Stage-owned
+backlog item is needed for the recommendation in the original "Follow-up"
+section above.

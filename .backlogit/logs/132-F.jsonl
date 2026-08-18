@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-18T13:28:57.335172-07:00","actor":"backlogit","item_id":"132-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-18T14:19:39.6357544-07:00","actor":"backlogit","item_id":"132-F","event_type":"status_changed","delta":{"_shipment_operation":"141-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-18T14:19:53.8627326-07:00","actor":"backlogit","item_id":"132-F","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"01c1735b09c1580e5bb7dc0732763cc293aaebeb","message":"Merge pull request #365 from softwaresalt/feat/141-s-p-015-cascade-close-explicit-pre-archived-manifest-member-handling"}}
+{"timestamp":"2026-08-18T14:20:24.7352596-07:00","actor":"backlogit","item_id":"132-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/132-F.md"}}
