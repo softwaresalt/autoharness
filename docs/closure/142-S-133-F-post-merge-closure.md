@@ -271,7 +271,7 @@ per the Post-Merge Branch Protocol (closure mutations never land directly on
 
 `compact-context --target all` invoked per the mandatory per-merge trigger
 (see closure PR for the recorded outcome). This shipment's own session
-memory (`docs/memory/2026-08-18-ship-142-s-full-lifecycle-closure.md`)
+memory (`docs/archive/memory/2026-08-18-ship-142-s-full-lifecycle-closure.md`)
 qualifies under the completed-work rule regardless of age.
 
 **Closure verdict: READY.** Runtime verification passed; backlog
