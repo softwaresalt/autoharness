@@ -953,7 +953,7 @@ Write a checkpoint to `{{DOCS_MEMORY}}/` after any of these milestones:
 
 Each checkpoint captures: items completed, items blocked, branch state, decisions with rationale, errors encountered and how they were resolved, and next steps.
 
-When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. Include shipment or feature IDs, completed and blocked item IDs, branch state, next step, and a `resume_hint` specific enough for a later recovery decision. The payload MUST declare `schema_version: 1`, be written only through the official create operation, and nest all of the above (shipment/feature IDs, completed/blocked item IDs, branch state, etc.) under `context` — see the backlogit overlay instruction's Checkpoint Payload Contract for the full rule set.
+When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. The payload MUST declare `schema_version: 1` and be written only through the official create operation. `agent`, `session_id`, `phase`, and `resume_hint` (a `resume_hint` specific enough for a later recovery decision) stay top-level; nest only the domain data — shipment or feature IDs, completed and blocked item IDs, and branch state — under `context`, never at the top level. See the backlogit overlay instruction's Checkpoint Payload Contract for the full rule set.
 
 ### Learnings capture
 

@@ -770,7 +770,7 @@ Write a checkpoint to `{{DOCS_MEMORY}}/` after any of these milestones:
 
 Each checkpoint captures: stash IDs processed, artifact IDs created, decisions with rationale, and next steps.
 
-When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. Include the current phase, relevant stash or feature IDs, created artifact IDs, next step, and a `resume_hint` specific enough for a later recovery decision. The payload MUST declare `schema_version: 1`, be written only through the official create operation, and nest all of the above (stash/feature IDs, artifact IDs, etc.) under `context` — see the backlogit overlay instruction's Checkpoint Payload Contract for the full rule set.
+When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. The payload MUST declare `schema_version: 1` and be written only through the official create operation. `agent`, `session_id`, `phase`, and `resume_hint` (a `resume_hint` specific enough for a later recovery decision) stay top-level; nest only the domain data — relevant stash or feature IDs and created artifact IDs — under `context`, never at the top level. See the backlogit overlay instruction's Checkpoint Payload Contract for the full rule set.
 
 ### Session end
 

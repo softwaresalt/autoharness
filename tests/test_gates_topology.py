@@ -1613,7 +1613,10 @@ class ImplicitNumericPredecessorTests(unittest.TestCase):
     edge: when the numerically-lower shipment itself declares the target as
     its own dependency (i.e. the lower shipment depends on / is blocked by
     the higher one -- the opposite direction the heuristic assumes), the
-    heuristic must not inject a contradictory implicit predecessor block."""
+    heuristic must not inject a contradictory implicit predecessor block --
+    and this must hold even across a multi-hop chain where a THIRD,
+    unrelated shipment could otherwise be mistakenly selected once the
+    direct violator is skipped."""
 
     def test_lower_numbered_shipment_declaring_target_as_its_own_dependency_is_not_treated_as_predecessor(
         self,
@@ -1670,6 +1673,30 @@ class ImplicitNumericPredecessorTests(unittest.TestCase):
             result.checks[0].details.get('predecessor_id'),
             '113-S',
         )
+
+    def test_multi_hop_reverse_dependency_disables_fallback_entirely_not_just_the_violator(
+        self,
+    ) -> None:
+        # Reproduces the exact multi-hop gap: 137-S is queued and wholly
+        # unrelated to the target; 138-S (numerically closer to the target)
+        # declares dependencies: [139-S], the reverse-edge violator; target
+        # = 139-S. Skipping only 138-S and falling through to the
+        # next-lower numeric candidate (137-S) is still wrong -- 137-S has
+        # no real relationship to 139-S at all. The mere existence of ANY
+        # explicit reverse edge for the target must disable the entire
+        # numeric-adjacency fallback for that target, not just skip the one
+        # violating candidate.
+        readers = _FakeReaders(shipments=(
+            _shipment('137-S', 'queued'),
+            _shipment('138-S', 'queued', deps=('139-S',)),
+            _shipment('139-S', 'queued'),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='139-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIsNone(result.primary_token)
 
 
 class PostClaimVerifyTests(unittest.TestCase):

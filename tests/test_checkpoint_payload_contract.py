@@ -160,8 +160,12 @@ class WriteSiteMinimumTests(unittest.TestCase):
     """
 
     def _assert_write_site_minimum(self, section: str) -> None:
-        self.assertIn("schema_version", section)
-        self.assertIn("1", section)
+        self.assertRegex(
+            section,
+            r"schema_version[^0-9]{0,10}1\b",
+            "write site must require schema_version: 1 specifically (not just "
+            "mention the word 'schema_version' and an unrelated digit '1')",
+        )
         self.assertIn("context", section)
         self.assertIn("Checkpoint Payload Contract", section)
         # Item 3 of the T7 assertion list: each write site references the
@@ -222,6 +226,19 @@ class NegativeAntiRegressionTests(unittest.TestCase):
     _DOMAIN_KEY_RE = re.compile(
         r"feature_id|shipment_id|stash_source|\bmode\b|\broute\b|\bartifacts\b|domain data"
     )
+    # The negation must be BOUND to the actual hoisting clause -- a negation
+    # word within 20 characters of the "to/at the top level" prepositional
+    # phrase (covering both "MUST NOT be hoisted to the top level" and
+    # "never ... at the top level" phrasings) -- not merely present
+    # anywhere in a wide domain-data window. Otherwise an unrelated
+    # negation elsewhere in the window (e.g. "domain data MUST NOT be
+    # omitted; place `feature_id` at the top level") would incorrectly
+    # satisfy the check while still instructing the exact malformed shape
+    # this shipment prevents.
+    _NEGATED_HOIST_CLAUSE_RE = re.compile(
+        r"(never|not|must\s+not)\b[^.;]{0,20}\b(?:to|at)\s+the\s+top[- ]level",
+        re.IGNORECASE,
+    )
 
     def _assert_no_top_level_hoist_instruction(self, section: str) -> None:
         # Real occurrences of "top level" in these files fall into two
@@ -231,19 +248,20 @@ class NegativeAntiRegressionTests(unittest.TestCase):
         # window rather than immediately abutting it, and (b) unrelated
         # prose such as Ship's P-001 "top-level release unit" language. Only
         # windows that actually reference domain data are in-scope for this
-        # check; every in-scope occurrence must be a negation (never / MUST
-        # NOT / not be), never an instruction to hoist.
+        # check; every in-scope occurrence must have its negation bound
+        # directly to the hoisting clause itself, never an instruction to
+        # hoist (and never a negation of something else nearby).
         for match in self._TOP_LEVEL_TOKEN_RE.finditer(section):
             window_start = max(0, match.start() - 250)
             window = section[window_start : match.end() + 10]
             if not self._DOMAIN_KEY_RE.search(window):
                 continue
+            clause_start = max(0, match.start() - 60)
+            clause = section[clause_start : match.end() + 10]
             self.assertTrue(
-                any(
-                    neg in window
-                    for neg in ("never", "NEVER", "MUST NOT", "not be", "must not")
-                ),
-                f"unexpected non-negated top-level domain-field mention: {window!r}",
+                self._NEGATED_HOIST_CLAUSE_RE.search(clause),
+                "unexpected non-negated (or non-bound-negation) top-level "
+                f"domain-field mention: {window!r}",
             )
 
     def test_overlay_contract_sections(self) -> None:
@@ -299,6 +317,29 @@ class NegativeAntiRegressionTests(unittest.TestCase):
         )
         with self.assertRaises(AssertionError):
             self._assert_no_top_level_hoist_instruction(bad)
+
+    def test_helper_rejects_unbound_negation_near_an_unnegated_hoist(self) -> None:
+        # A negation present nearby but bound to a DIFFERENT clause (not the
+        # hoisting instruction itself) must not satisfy the check: "domain
+        # data MUST NOT be omitted; place `feature_id` at the top level" is
+        # still an (unnegated) instruction to hoist `feature_id`.
+        bad = (
+            "domain data MUST NOT be omitted; place `feature_id` at the "
+            "top level of the payload."
+        )
+        with self.assertRaises(AssertionError):
+            self._assert_no_top_level_hoist_instruction(bad)
+
+    def test_helper_accepts_the_real_canonical_negation_phrasing(self) -> None:
+        # The actual canonical contract sentence, isolated, must pass: the
+        # negation ("MUST NOT be hoisted to the top level") is directly
+        # bound to the hoisting clause.
+        good = (
+            "nest all domain data (feature/shipment/stash IDs, artifact paths, branch "
+            "state, completed/blocked items, mode, route) inside the `context` object "
+            "\u2014 these MUST NOT be hoisted to the top level;"
+        )
+        self._assert_no_top_level_hoist_instruction(good)
 
     def test_helper_ignores_unrelated_top_level_prose(self) -> None:
         # Ship's own P-001 "top-level release unit" language must not be
