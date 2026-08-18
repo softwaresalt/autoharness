@@ -113,20 +113,35 @@ lineage.
   genuine predecessor blocks).
 - **Owner**: Ship agent for closure evidence; operator `@softwaresalt` for
   merge approval and release follow-up routing.
-- **Residual follow-up**: two Copilot findings were declined with rationale
-  rather than fixed (documented in PR #357's Follow-ups section): (1)
-  shell-safe transport for `cli_command` registry values — confirmed
-  documentation-only, never shell-executed, so no code change required; (2)
-  CLI-fallback gating not wired into write-site conditionals — predates this
-  PR in both template and mirror, tracked as pre-existing scope, not a
-  regression introduced here. Neither requires a new backlog item; both are
-  residual-risk notes only.
+- **Residual follow-up**: five Copilot-review threads were declined with
+  rationale rather than fixed (documented in PR #357's Follow-ups
+  section): (1) shell-safe transport for `cli_command` registry values (2
+  threads) — confirmed documentation-only, never shell-executed, so no
+  code change required; (2) CLI-fallback gating not wired into write-site
+  conditionals (3 threads) — predates this PR in both template and mirror,
+  tracked as pre-existing scope, not a regression introduced here. Neither
+  requires a new backlog item; both are residual-risk notes only.
+- **Known residual defect on `main` (not yet fixed)**: an independent
+  adversarial review during post-merge closure found that the topology
+  gate's `_prior_shipment_id` multi-hop redesign (this PR's own fix for a
+  different Copilot finding) also wrongly suppresses the
+  implicit-predecessor fallback whenever a numerically-HIGHER shipment
+  declares a normal forward dependency on the target — a real correctness
+  bug flagged only as a never-threaded "Suppressed comment" in the raw
+  Copilot review body, never fixed before merge. A verified fix +
+  regression test is fully written up but deliberately not committed to
+  this closure branch (out of `139-S`'s bounded-stop scope and the
+  Post-Merge Branch Protocol's closure-only scope). See
+  `docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md`.
+  This should be routed to Stage as a dedicated hotfix task.
 - **Predecessor unblock**: shipment `138-S` (declared dependency `138-S ->
   139-S`, blocking) is now dependency-eligible for claim in a future session;
   it remains `queued` and untouched by this session per the operator's
   bounded-stop instruction.
 
 **Closure verdict: READY.** Runtime verification passed, the P-015 cascade
-close completed with all post-conditions verified, and both residual
+close completed with all post-conditions verified, the five residual
 Copilot findings are documented, rationale-backed follow-ups rather than
-unresolved defects.
+unresolved defects, and the one genuine unfixed residual defect discovered
+during closure review is fully documented with a verified fix ready for
+Stage hand-off rather than silently absorbed or left undiscoverable.

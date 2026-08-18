@@ -45,22 +45,37 @@ before claiming.
 - Found and TDD-fixed the topology-gate false positive's actual root cause
   in `_prior_shipment_id` (first pass — later found incomplete, see below).
 - PR #357 opened. CI green.
-- **Two rounds of hosted Copilot review** (9 threads total): fixed 6
-  (write-site wording ambiguity in both template files; anti-regression
-  regex loophole tightened via clause-bound negation detection; a genuine
-  multi-hop gap in the topology-gate fix — see
-  `docs/compound/2026-08-18-topology-gate-multi-hop-reverse-dependency-fallback.md`;
-  a genuine checkpoint/index-sync ordering self-contradiction in the Stage
-  mirror — see
-  `docs/compound/2026-08-18-stage-agent-checkpoint-index-sync-ordering-self-contradiction.md`);
-  declined 3 with documented rationale (shell-safe `cli_command` transport
-  is documentation-only, never shell-executed; CLI-fallback gating
-  predates this PR in both template and mirror).
+- **Two rounds of hosted Copilot review** (9 `reviewThreads` total, plus 2
+  additional findings that surfaced only as "Suppressed comments" inside
+  review bodies rather than as posted threads — see the count-correction
+  note below): fixed 4 threads (checkpoint/index-sync ordering
+  self-contradiction in the Stage mirror — see
+  `docs/compound/2026-08-18-stage-agent-checkpoint-index-sync-ordering-self-contradiction.md`;
+  write-site wording ambiguity in both template files; anti-regression
+  regex loophole tightened via clause-bound negation detection); declined 5
+  threads with documented rationale (2x shell-safe `cli_command` transport
+  — documentation-only, never shell-executed; 3x CLI-fallback gating
+  predates this PR in both template and mirror). Separately, two
+  suppressed (never-threaded) Copilot findings concerned
+  `src/autoharness/gates/topology.py`'s multi-hop reverse-dependency fix:
+  one was addressed by redesigning `_prior_shipment_id` (see
+  `docs/compound/2026-08-18-topology-gate-multi-hop-reverse-dependency-fallback.md`);
+  the second — a forward-dependent false-negative in that same redesigned
+  check — was discovered only during this session's post-merge closure
+  review and was **not** fixed before merge; see
+  `docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md`
+  for the verified-but-unapplied fix, handed off to Stage rather than
+  committed out-of-scope on the closure branch.
 - Second delegated adversarial review after fixes: READY, 0 findings.
 - All 9 GraphQL review threads replied-to (file-backed reply bodies) and
-  resolved.
+  resolved. (Count-correction note: an independent adversarial review
+  during post-merge closure found this session's original PR-body/memory
+  narrative had drifted internally on the fixed/declined split — corrected
+  here to 4 fixed / 5 declined across the 9 actual `reviewThreads`, with
+  the 2 suppressed topology.py findings tracked separately since they were
+  never posted as threads at all.)
 - PR body rewritten with final Local Review Readiness (HEAD `14767738`),
-  CI-remediation summary, and Follow-ups section for the 2 declined
+  CI-remediation summary, and Follow-ups section for the declined
   findings.
 - P-018 copilot-review gate: SATISFIED (0 unresolved threads). P-009:
   merge-commit-only confirmed via repo settings. P-014: operator
@@ -99,6 +114,22 @@ before claiming.
   call's unusually slow I/O this session).
 - Wrote two compound-learning docs (topology-gate multi-hop fallback gap;
   checkpoint/index-sync ordering self-contradiction).
+- **Discovered a second, unfixed residual defect during closure review**:
+  an independent adversarial re-check of PR #357's raw review bodies (not
+  just the resolved `reviewThreads`) surfaced two Copilot findings that
+  were only ever posted as "Suppressed comments" text, never as actual
+  threads, on `src/autoharness/gates/topology.py`. One matched the already
+  -fixed multi-hop gap; the other described a genuine, still-present bug:
+  the multi-hop fix's `any(...)` check has no directionality filter, so it
+  also wrongly disables the numeric-adjacency fallback when a numerically
+  HIGHER shipment declares a completely normal forward dependency on the
+  target. Verified with a reproduction + a corrected fix (94/94 topology
+  tests, 1550/1551 full suite pass with the fix applied locally) — but
+  deliberately did **not** commit the fix to the closure branch (out of
+  139-S's bounded-stop scope and the Post-Merge Branch Protocol's
+  closure-only scope). See
+  `docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md`
+  for the full repro, verified diff, and hand-off recommendation to Stage.
 
 ## Notable process points for future sessions
 
@@ -112,7 +143,10 @@ before claiming.
    target with *any* explicit reverse edge, not just skipped for the one
    violating shipment. General lesson: "is this candidate a special case?"
    framings for disabling a fallback heuristic are a bug magnet compared to
-   "does an explicit relationship exist for this target at all?"
+   "does an explicit relationship exist for this target at all?" — but as
+   the residual-defect doc shows, "any relationship at all" turned out to
+   be too broad in the opposite direction; the correct predicate needed
+   both an explicit edge AND the right numeric direction.
 3. Inserting a new step into an already-numbered procedure requires
    re-scanning the *whole* list (not just the diff) for stale
    finality/ordinal claims ("this is the final action") that the insertion
@@ -123,6 +157,19 @@ before claiming.
    confirm `cli_command` fields are never shell-executed) before writing
    the decline rationale — a decline is not a shortcut around due
    diligence.
+5. Copilot findings can surface only as "Suppressed comments" text inside
+   a review body, never as an actual `reviewThreads` entry — relying
+   solely on the `reviewThreads` GraphQL query for coverage can silently
+   miss real findings (as it did here for the forward-dependent
+   suppression bug). A thorough closure/coverage check should also scan
+   raw review body text for `Suppressed comments` blocks, not just
+   enumerate resolved threads.
+6. Discovering a genuine defect in already-merged code during post-merge
+   closure does not license silently folding a fix into the closure
+   branch — the closure branch's scope (backlog archival, docs,
+   compaction) and the session's bounded-stop authorization both take
+   precedence; preserve the verified fix in a compound doc and hand off
+   explicitly instead.
 
 ## Final state
 
@@ -131,6 +178,12 @@ before claiming.
   done`), `parent_id` preserved throughout.
 - PR #356 (staging) and PR #357 (139-S feature): both merged with verified
   2-parent merge commits.
+- **Known residual defect on `main`** (not blocking, not yet fixed):
+  `src/autoharness/gates/topology.py`'s `_prior_shipment_id` still wrongly
+  suppresses the implicit-predecessor fallback for a target whenever any
+  numerically-higher shipment declares a normal forward dependency on it.
+  See
+  `docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md`.
 - Post-merge closure work committed to
   `post-merge/enforce-backlogit-checkpoint-payload-contract` (not yet
   pushed/PR'd/merged as of this memory write — see closure PR follow-up in
