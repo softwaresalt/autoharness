@@ -7,7 +7,7 @@ merged_at: "2026-08-18T03:13:14Z"
 reviewed_head: 14767738bfc5521e3f60684b7c200b4aa6c1c5b1
 closure_pr: 358
 closure_reviewed_head: 5eff1a9194cd23df0d43be962175fa2253001716
-closure_status: READY_WITH_CONDITIONS
+closure_status: READY
 compaction_status: done
 conditions:
   - id: "topology-forward-dependent-suppression-fix"
@@ -21,8 +21,30 @@ conditions:
       shipment relies on the numeric-adjacency implicit-predecessor
       fallback in a configuration where a numerically-higher shipment
       declares a normal forward dependency on the target.
-    satisfied: false
-    evidence: "Not yet applied; verified diff + regression test embedded in the compound doc for hand-off. No currently-known live shipment configuration triggers this false negative today."
+    satisfied: true
+    evidence: >-
+      Fixed and shipped via 131-F / 131.001-T / shipment 140-S, feature PR
+      #360 ("fix(gates): restrict topology forward-dependent suppression to
+      a directional predicate"), merged to main with 2-parent merge commit
+      57b5af38008905ea47ce01887c1680205b75350e at 2026-08-18T06:02:02Z
+      (confirmed via `git merge-base --is-ancestor` exit 0). Applied the
+      recorded diff verbatim per the compound doc, plus regression test
+      test_higher_numbered_forward_dependent_does_not_suppress_targets_own_predecessor_check.
+      Verification: tests/test_gates_topology.py 94/94 tests, 113/113
+      subtests pass (93 pre-existing + 1 new); existing
+      test_multi_hop_reverse_dependency_disables_fallback_entirely_not_just_the_violator
+      re-verified passing unmodified; full repo suite 1550 passed, 0 new
+      failures (one known-unrelated pre-existing failure,
+      test_checklist_report_prints_non_interactively, reproduces with or
+      without this fix); no existing test flipped from a blocking token to
+      a passing one (H7 fail-closed direction confirmed). Plan/hardening
+      (P-006, H1-H9)/multi-persona review PASS (0 P0/0 P1) at
+      docs/plans/2026-08-18-topology-gate-forward-dependent-directional-predicate-plan.md,
+      docs/plans/2026-08-18-topology-gate-forward-dependent-directional-predicate-hardening.md,
+      docs/reviews/2026-08-18-topology-gate-forward-dependent-directional-predicate-review.md.
+      P-018 copilot-review gate SATISFIED (0 unresolved threads) on PR #360.
+      This condition is now fully satisfied; 139-S/130-F post-merge closure
+      is complete.
 ---
 
 # 139-S / 130-F Post-Merge Closure — Enforce Backlogit Checkpoint Payload Contract
@@ -197,3 +219,18 @@ itself is fully verified and ready, just deliberately not applied on this
 closure branch, per the same discipline as the `114-S`/`109-F` closure
 precedent (`docs/closure/114-S-109-F-post-merge-closure.md`) for dormant
 residual gate defects surfaced by a closure PR's own review.
+
+## Addendum (2026-08-18) — Condition satisfied; closure now complete
+
+The `topology-forward-dependent-suppression-fix` condition recorded above is
+now **satisfied** (see the updated frontmatter `conditions` entry and its
+`evidence` field). The hotfix was triaged as `131-F`/`131.001-T`, shipped as
+`140-S`, and merged to `main` via feature PR #360 (2-parent merge commit
+`57b5af38008905ea47ce01887c1680205b75350e`). This addendum does not revise
+the historical narrative above — it remains an accurate record of the state
+at the time of the `139-S` closure — but supersedes its `READY_WITH_CONDITIONS`
+verdict going forward: `closure_status` in this document's frontmatter is now
+`READY`, so `closure_complete("139-S")` evaluates as fully satisfied and the
+pipeline-topology gate will no longer report `PREDECESSOR_CLOSURE_INCOMPLETE`
+for any shipment (e.g. `138-S`) declaring `139-S` as a predecessor. The
+`139-S`/`130-F` post-merge closure is hereby **complete**.
