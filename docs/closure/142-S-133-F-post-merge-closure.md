@@ -8,7 +8,7 @@ reviewed_head: 0e8cfab85059ee020b904f0956136273648cbb4e
 staging_pr: 367
 staging_merge_commit: ebe5c2d4900ffe729a664835c85636aa5a7974b5
 staging_reviewed_head: bdd11713
-closure_pr: null
+closure_pr: 369
 closure_reviewed_head: null
 closure_status: READY
 compaction_status: done
@@ -52,9 +52,15 @@ on an otherwise-correct deletion. All three were valid P1-equivalent
 findings. Fixed by scoping the diff command to the three literal pathspecs
 (`git diff --cached --stat -- out.json res.json results.json`) in commit
 `bdd11713`; replied to each thread individually referencing the fixing
-commit; resolved all three via GraphQL `resolveReviewThread`. Zero
-minimized/suppressed comments observed. P-018 gate `SATISFIED` at HEAD
-`bdd11713` after resolution, 0 unresolved threads.
+commit; resolved all three via GraphQL `resolveReviewThread`. Copilot's
+follow-up re-review after resolution reported **1 suppressed comment**
+(not a new open thread) on the plan document, unrelated to the resolved
+findings -- concerning a missing machine-readable `## Plan Review` gate
+marker block per the `plan-review`/`harvest` skill contract. This is a
+Stage-owned planning-artifact concern outside Ship's role boundary (P-010:
+Ship cannot edit deliberation/plan/review artifacts) and did not block
+merge (suppressed, no open thread, 0 unresolved at merge time). P-018 gate
+`SATISFIED` at HEAD `bdd11713` after resolution, 0 unresolved threads.
 
 ## Merge Confirmation
 
@@ -237,17 +243,29 @@ per the Post-Merge Branch Protocol (closure mutations never land directly on
   1. During 133.001-T's commit-tracking step, a fabricated/incorrect commit
      SHA (`b2af43219cbf46d8a186b6bfd2b6b2a1f9a1b6c5`) was transiently tracked
      via `backlogit update --commit` before being caught and corrected to
-     the real SHA (`b2af432100128b420556be4ef42552e1f11a829e`). The
-     authoritative frontmatter `commit:` field in the archived record is
-     single-valued and correctly holds only the real SHA; the erroneous
-     value persists only as a harmless historical entry in the append-only
-     commit-links audit log (no CLI removal capability exists for this
-     log; file-level surgery on an append-only audit trail was judged
-     riskier than leaving the artifact). No functional or provenance
-     impact -- disclosed here for transparency. Process note: verify
-     `git rev-parse HEAD` output length (40 hex chars) immediately before
-     any `backlogit update --commit` call, as was done successfully for
-     133.002-T's tracking.
+     the real SHA (`b2af432100128b420556be4ef42552e1f11a829e`). At the time
+     of implementation, the authoritative frontmatter `commit:` field in the
+     archived record was single-valued and correctly held only the real
+     implementation SHA; the erroneous value persisted only as a harmless
+     historical entry in the append-only commit-links audit log (no CLI
+     removal capability exists for this log; file-level surgery on an
+     append-only audit trail was judged riskier than leaving the artifact).
+     **Post-closure update**: the subsequent P-015 cascade `backlogit
+     shipment ship` call (see Backlog Reconciliation above) itself rewrote
+     the frontmatter `commit:` field on both `133.001-T` and `133.002-T` to
+     the shipment merge SHA `093e09966696f1e753193105427acd9bd1c3a1dc` (the
+     cascade operation stamps its own tracked SHA onto every archived
+     manifest member it touches). The originally-tracked implementation SHAs
+     (`b2af4321...` for 133.001-T, `75de0399...` for 133.002-T) remain
+     accurate and traceable via git commit history and this closure
+     document, but are no longer the live frontmatter value as of the
+     cascade close -- this is expected cascade behavior, not a defect, and
+     is recorded here so the evidentiary chain (implementation SHA ->
+     cascade-overwritten merge SHA) is explicit rather than assumed static.
+     No functional or provenance impact -- disclosed here for transparency.
+     Process note: verify `git rev-parse HEAD` output length (40 hex
+     chars) immediately before any `backlogit update --commit` call, as was
+     done successfully for 133.002-T's tracking.
 
 ## Compaction (P-020)
 
