@@ -1,0 +1,7 @@
+{
+  "filename": "checkpoint-20260817-234318.json",
+  "disposition": "quarantined",
+  "reason": "Schema/timestamp validation failure: missing schema_version (CheckpointV1.SchemaVersion eq tag) and missing created_at/updated_at (required tags); domain fields hoisted to top level instead of nested context, indicating record was written outside the supported create path. Resume_hint is stale pre-containment-remediation H4 text superseded by 22dc3154. Phase=complete/status=resolved, no recovery value.",
+  "operator": "DWWORKPC\\derek.williams",
+  "disposition_at": "2026-08-18T00:21:08.2694458Z"
+}
