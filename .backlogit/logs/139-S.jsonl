@@ -1,0 +1,8 @@
+{"timestamp":"2026-08-17T17:41:13.5610695-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_created","delta":{"items":["130-F"],"title":"Enforce backlogit checkpoint payload contract (predecessor of 138-S)"}}
+{"timestamp":"2026-08-17T17:41:20.6732298-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.001-T"}}
+{"timestamp":"2026-08-17T17:41:30.90643-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.002-T"}}
+{"timestamp":"2026-08-17T17:41:37.5522182-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.003-T"}}
+{"timestamp":"2026-08-17T17:41:43.7411517-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.004-T"}}
+{"timestamp":"2026-08-17T17:41:49.7649377-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.005-T"}}
+{"timestamp":"2026-08-17T17:41:55.6651718-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.006-T"}}
+{"timestamp":"2026-08-17T17:42:04.3536516-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.007-T"}}
