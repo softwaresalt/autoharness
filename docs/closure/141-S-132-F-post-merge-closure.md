@@ -7,8 +7,8 @@ merged_at: "2026-08-18T21:16:48Z"
 reviewed_head: 1bfa111f4cd161266f82ff1cea102aac7a1e810d
 staging_pr: 364
 staging_merge_commit: bd1b2e96906cc45227ee09f62f84f8bcb3261d82
-closure_pr: null
-closure_reviewed_head: null
+closure_pr: 366
+closure_reviewed_head: cf529ac4c0d85dec466edd2ca308dcf45eee6059
 closure_status: READY
 compaction_status: done
 conditions: []
@@ -131,8 +131,14 @@ shipment's spike evidence disproves.
 - **Healthy signals**:
   - Staging PR #364 and implementation PR #365 both merged with verified
     2-parent merge commits.
-  - Full local test suite green (1580/1581, 1 pre-existing unrelated
-    flake, 20 skipped) at every gate checkpoint.
+  - Full local test suite run at every gate checkpoint: 1580 tests total,
+    1 pre-existing unrelated intermittent failure
+    (`test_deploy_harness_scripts...test_checklist_report_prints_non_interactively`,
+    confirmed reproducing identically on unmodified merge-base and
+    independently observed to pass on a repeat run), 20 skipped. Not
+    fully green, but the single failure is confirmed pre-existing,
+    environment-flaky, and unrelated to this shipment's diff at every
+    checkpoint it was observed.
   - CI green on both PRs (`detect code changes`, `pipeline-topology
     (ambient)`, `test`, `ci gate`).
   - P-018 Copilot-review gate `SATISFIED` on both PRs after full
