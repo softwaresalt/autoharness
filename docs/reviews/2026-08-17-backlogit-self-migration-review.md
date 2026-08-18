@@ -369,3 +369,34 @@ already destroyed.
 Five P1 findings raised, all resolved in the artifacts before this verdict. One
 P2 accepted with explicit, gated mitigation. The corrected safety contract is
 approved; `138-S` is shippable.
+
+---
+
+## SUPERSEDED — SUBJECT CANCELLED BY OPERATOR SCOPE CORRECTION (2026-08-18)
+
+> **APPEND-ONLY NOTICE. Both verdicts above stand as issued.** No finding,
+> severity, resolution or verdict has been altered or withdrawn.
+
+**The PASS verdicts above remain literally true and are NOT retracted.** The
+plan they approved was sound. What changed is not the plan's *quality* but its
+*premise*.
+
+Per `docs/decisions/2026-08-18-backlogit-legacy-root-support-operator-scope-correction.md`,
+the operator has ruled that `.backlogit` remains a supported workspace root,
+that `.backlog` is the default for **new workspaces only**, and that
+**existing workspaces require no migration**. The reviewed work therefore has
+no outcome the operator wants.
+
+**Effect on this review artifact:**
+
+* The verdict line "`138-S` is shippable" is **superseded**. `138-S` is now
+  destined for `abandoned`, not for shipping. That sentence was correct at the
+  time of writing and is preserved for the record.
+* No re-review is required or possible — there is no revised plan to review.
+  Cancellation is an operator scope decision, outside review authority.
+* The review's findings F1–F13 and the containment/rollback analysis remain
+  valid reference material for any future storage-root work.
+
+**This review did not fail, and must not be recorded as a failure** in any
+telemetry, learnings, or quality metric. Classify as
+`cancelled-by-scope-change`.

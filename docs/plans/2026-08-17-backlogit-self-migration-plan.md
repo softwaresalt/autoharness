@@ -323,3 +323,45 @@ remains **secondary, unverified (H9), and operator-gated**.
 `BACKLOGIT_WORKSPACE_DIR=.backlog` (or `.backlogit`) restores resolution
 immediately in both the engine and the harness resolver without touching the
 filesystem.
+
+---
+
+## SUPERSEDED — CANCELLED BY OPERATOR SCOPE CORRECTION (2026-08-18)
+
+> **APPEND-ONLY NOTICE. Nothing above this line has been altered, deleted, or
+> back-dated.** Every step, hardening reference, containment proof and
+> rationale above remains the authentic record of what was planned.
+
+**This plan WILL NOT EXECUTE. Status: CANCELLED.**
+
+The operator issued an authoritative scope correction recorded at
+`docs/decisions/2026-08-18-backlogit-legacy-root-support-operator-scope-correction.md`:
+
+1. `.backlogit` **remains an acceptable, supported** Backlogit workspace
+   directory — permanently, with no removal schedule.
+2. `.backlog` is the default **only for NEW workspaces** into which Backlogit
+   is installed.
+3. **Existing workspaces do NOT need migration** — including this repository.
+
+The premise of this plan — that this repository's live `.backlogit` root must
+be renamed to `.backlog` — has therefore been withdrawn. There is no longer any
+outcome this plan can deliver that the operator wants.
+
+**This is a scope withdrawal, NOT a quality judgement.** This plan passed
+review (0 P0 / 0 P1) and was hardened to H1–H16 including a six-gate,
+empirically verified containment proof. It was correct as designed. It is
+cancelled because its *goal* is no longer desired, not because it was unsound.
+
+**Do not execute any step of this plan.** Do not rename, create, or delete any
+storage root. Do not create the pre-migration backup.
+
+Disposition of the associated backlog artifacts:
+
+* `129-F` → `rejected`
+* `129.001-T` … `129.009-T` → `rejected`
+* `138-S` → `abandoned` (Ship-owned; see §5 of the decision artifact for the
+  exact supported command sequence and the `queued → active → abandoned`
+  transition constraint)
+
+The already-shipped new-workspace product surface (`126-F` / `135-S` / PR #345
+/ merge `9851cc3`) is **unaffected and remains correct**.
