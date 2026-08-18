@@ -4,7 +4,7 @@ feature: 130-F
 feature_pr: 357
 merge_commit: 9bb3a24b946694924e2d7306daa9a5b863784d2a
 merged_at: "2026-08-18T03:13:14Z"
-reviewed_head: b35b994ec2adf908b45db6a2bcaba6e46bd6d0dd
+reviewed_head: bc2317e4e424e9f84b23cac85dabf271fe3b5ff1
 closure_status: READY_WITH_CONDITIONS
 compaction_status: done
 conditions:
