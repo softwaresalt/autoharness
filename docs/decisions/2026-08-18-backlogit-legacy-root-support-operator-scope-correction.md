@@ -166,3 +166,32 @@ interrupted.
 * Cancelled deliberation: `docs/decisions/2026-08-17-backlogit-self-migration-choreography-deliberation.md`
 * Shipped and retained product surface: `126-F` / `135-S` / PR #345 / merge `9851cc3`
 * Shipment status constraints: `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`
+
+## 8. Ship-confirmed durable abandonment (append, 2026-08-18)
+
+Ship executed the §5 sequence exactly as specified, on a dedicated
+cancellation branch `chore/abandon-138-s` created from `main`
+(`99b8ead601a72642ed9791cb99258ac4f2e1bd8e`), with all pre-existing
+operator-staged worktree changes (`.gitmodules`, `references/skillopt`,
+`references/waza`, `references/witr`) verified byte-for-byte preserved
+across the branch operation:
+
+1. `backlogit shipment get 138-S` — confirmed `queued`, dependencies
+   `139-S`/`140-S` both `archived_status: shipped`.
+2. `backlogit shipment claim 138-S` — `queued -> active`
+   (`updated_at: 2026-08-18T18:10:04.0668911Z`).
+3. `backlogit move 138-S --status abandoned` — `active -> abandoned`
+   (`updated_at: 2026-08-18T18:10:56.0929182Z`).
+4. `backlogit get 138-S --format json` — verified `"status": "abandoned"`.
+
+**Closure condition (2) from §6 above is now satisfied.** `138-S` is
+durably `abandoned`. Combined with condition (1) (this decision artifact,
+already committed at `456844c0`), both §6 closure conditions hold as of
+this append. `BED0DDED` archival remains **Stage-owned** per the bounded
+stop in Ship's cancellation lifecycle instructions — Ship does not archive
+the stash in this closure; that is left for Stage to perform in a
+subsequent session now that both conditions are met.
+
+Full evidence trail (pre-flight P-001/P-016/dependency verification, gate
+output, index-preservation proof, and full state-transition timestamps) is
+recorded in `docs/closure/138-S-129-F-cancellation-closure.md`.
