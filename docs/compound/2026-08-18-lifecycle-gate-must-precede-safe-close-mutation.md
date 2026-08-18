@@ -67,8 +67,18 @@ still recoverable from a recent commit — e.g. the feature-branch merge
 commit that claimed/moved the shipment to `active`):
 
 ```powershell
-git show <last-known-active-commit>:.backlogit/queue/<id>-S.md |
-  Set-Content -Path .backlogit\queue\<id>-S.md -Encoding utf8
+# PS7+ accepts -Encoding utf8NoBOM; Windows PowerShell 5.1's -Encoding utf8
+# writes a BOM (a stray U+FEFF at the start of the file), which
+# `topology._frontmatter`'s `utf-8` reader rejects since it requires `---`
+# at byte/character zero. Use the repo-approved BOM-less .NET writer, which
+# works identically on both PowerShell 5.1 and 7 (see
+# .github/instructions/github-pr-automation.instructions.md:195-198 for the
+# same pattern applied to PR reply bodies):
+$restoredContent = (git show <last-known-active-commit>:.backlogit/queue/<id>-S.md) -join "`n"
+[System.IO.File]::WriteAllText(
+  (Join-Path $PWD '.backlogit\queue\<id>-S.md'),
+  $restoredContent,
+  (New-Object System.Text.UTF8Encoding $false))
 Remove-Item .backlogit\archive\<id>-S.md
 backlogit sync   # re-index so `shipment get` reflects the restored state
 ```

@@ -5,9 +5,9 @@ feature_pr: 360
 merge_commit: 57b5af38008905ea47ce01887c1680205b75350e
 merged_at: "2026-08-18T06:02:02Z"
 reviewed_head: 14c32ef8
-closure_pr: null
-closure_reviewed_head: null
-closure_status: PENDING_CLOSURE_PR
+closure_pr: 361
+closure_reviewed_head: null  # set to the fix-commit SHA in the immediate follow-up commit
+closure_status: READY
 compaction_status: done
 conditions: []
 ---
@@ -61,23 +61,43 @@ applies.
 
 ## Backlog Reconciliation
 
-The shipment manifest (`131-F` + `131.001-T`) includes the covering feature
-itself as a root member with its only child present, so
-`classify_shipment_close_path` returned **CASCADE** — the P-015 verified
-fully-covered-root exception would ordinarily apply. However, at the time
-closure ran, both manifest items (`131-F`, `131.001-T`) had already been
-individually archived via the standard Step 2 task-completion sequence
-(`backlogit move --status done`, which the registry's routing rules
-auto-relocate to `archive/`) during task execution, before the closure step
-began. Rather than invoke the cascade `backlogit shipment ship` command
-against an already-partially-archived state — which the cascade
-sub-procedure's post-condition checks (`archived_ids` must match exactly)
-have no documented tolerance for — this closure used the **manual
-safe-close** procedure instead, treating the pre-archived manifest state as
-an unresolved precondition that falls back to safe-close per the P-015
-fallback language.
+**P-005 process-deviation disclosure (added in closure PR #361 remediation;
+see Copilot review thread on this section).** The shipment manifest
+(`131-F` + `131.001-T`) includes the covering feature itself as a root
+member with its only child present, so `classify_shipment_close_path`
+returned **CASCADE**. The canonical contract
+(`templates/skills/shipment-reconcile/SKILL.md.tmpl:403-410,736-738`;
+`templates/policies/workflow-policies.md.tmpl:445`) states plainly that
+close-path selection is made **only** from this machine-checkable
+classification result, never inferred from prose or manifest shape, and
+that a `CASCADE` verdict skips directly to the Cascade Close Sub-Procedure
+in place of safe-close's steps 1–10 — with no documented exception for
+manifest items that happen to already be archived. `_read_artifact_record`
+(the classifier's own record lookup) already reads from **both** `queue/`
+and `archive/`, so a manifest item's pre-archived state does not itself
+create classifier ambiguity or invalidate the `CASCADE` verdict.
 
-Verified post-conditions (manual safe-close):
+At the time closure ran, both manifest items (`131-F`, `131.001-T`) had
+already been individually archived via the standard Step 2 task-completion
+sequence (`backlogit move --status done`, which the registry's routing
+rules auto-relocate to `archive/`) during task execution, before the
+closure step began. The closure session judged — incorrectly, per the
+contract above — that this pre-archived state was an "unresolved
+precondition" permitting a fallback to manual safe-close, and executed
+manual safe-close instead of the Cascade Close Sub-Procedure the classifier
+actually selected. **This was a process deviation from the canonical
+close-path contract, not a permitted fallback, and this closure record does
+not claim P-015-compliant reconciliation as executed.** The deviation is
+logged here as a P-005-style residual finding, disclosed in this closure PR
+rather than silently left as an undocumented judgment call. See
+`docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md`
+for the tracked residual, remediation recommendation, and ownership.
+
+Independently of the close-path deviation, the final archived state was
+verified against the safe-close post-condition invariants (protected-set
+integrity, live-status verification before archive, `archived_status`
+provenance) — these checks are path-agnostic data-integrity facts about the
+resulting backlog state, not evidence that the deviation was compliant:
 
 | Check | Result |
 | --- | --- |
@@ -118,15 +138,24 @@ lineage; `138-S` (which declares `140-S` as a blocking predecessor) remains
     PASS, 0 unresolved P0/P1 (6 findings; 2 P1 resolved, 3 P2 resolved, 1 P3
     accepted+deferred) — independently re-verified by Ship (H1/H2/H5/H7)
     before merge.
-  - Manual safe-close post-conditions verified (protected set intact,
-    shipment record status/provenance verified at each step).
+  - Final archived state independently verified against the safe-close
+    data-integrity invariants (protected set intact, shipment record
+    status/provenance verified at each step) — this is evidence the
+    resulting backlog state is correct, **not** evidence that the
+    close-path deviation described above was contract-compliant.
 - **Failure signals to watch**:
-  - Any future shipment whose manifest items are individually archived
-    (via ordinary task-completion routing) before the shipment-level
-    closure step runs will hit the same pre-archived-vs-cascade tension
-    documented above; default to manual safe-close in that situation
-    rather than invoking the cascade command against an already-mutated
-    state.
+  - **Corrected guidance (see P-005 disclosure above and the tracked
+    compound doc)**: a future shipment whose manifest items are
+    individually archived (via ordinary task-completion routing) before
+    the shipment-level closure step runs, and whose classifier verdict is
+    `CASCADE`, must **not** silently default to manual safe-close — that
+    is exactly the deviation this closure record now discloses. The
+    correct response is to **halt** and treat the pre-archived-item case
+    as an unresolved contract gap in the Cascade Close Sub-Procedure
+    (which has no documented tolerance for pre-archived manifest items,
+    unlike safe-close's explicit `pre-archived` classification), escalate
+    for a contract fix, and only proceed once the classifier/sub-procedure
+    contract explicitly covers the case.
   - Any future closure session must run the `lifecycle` topology gate
     strictly before any shipment-status-mutating step — see the new
     compound doc for the recovery procedure if this order is
@@ -148,18 +177,40 @@ lineage; `138-S` (which declares `140-S` as a blocking predecessor) remains
   regression evidence above.
 - **Owner**: Ship agent for closure evidence; operator `@softwaresalt` for
   merge approval and release follow-up routing.
-- **Residual follow-up**: none — Copilot review returned zero threads on
-  the feature PR; the three Copilot threads on the staging PR (#359) were
-  documentation-accuracy findings in Stage-owned artifacts, replied to and
-  resolved per
-  `docs/compound/2026-08-18-ship-role-boundary-copilot-findings-in-forbidden-artifacts.md`,
-  and require no further action.
+- **Residual follow-up**:
+  1. Copilot review returned zero threads on the feature PR (#360); the
+     three Copilot threads on the staging PR (#359) were
+     documentation-accuracy findings in Stage-owned artifacts, replied to
+     and resolved per
+     `docs/compound/2026-08-18-ship-role-boundary-copilot-findings-in-forbidden-artifacts.md`.
+     That compound doc's rule was itself revised during this closure PR's
+     (#361) remediation to require a tracked correction/residual-risk
+     record before resolving such threads going forward; see that doc's
+     Retroactive Note for the two specific PR #359 documentation
+     inaccuracies (test-count off-by-one, H3 conflation) that remain
+     uncorrected in their Stage-owned artifacts and require a
+     **Stage-owned** follow-up item Ship cannot open itself (P-010).
+  2. **P-015 process-deviation residual (new, from PR #361 remediation)**:
+     this shipment's close path deviated from the canonical
+     classifier-only close-path contract (see Backlog Reconciliation
+     above). Tracked in
+     `docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md`,
+     which recommends a Stage-sized template/contract enhancement to the
+     `shipment-reconcile` skill's Cascade Close Sub-Procedure to explicitly
+     handle pre-archived manifest items, so a future occurrence halts
+     instead of deviating. No further action is required for `140-S`
+     itself — the final archived state is independently verified correct
+     (see above) — but the contract gap remains open pending a Stage
+     follow-up.
 - **Predecessor unblock**: `140-S`'s own closure condition on `139-S` is now
   satisfied (see `docs/closure/139-S-130-F-post-merge-closure.md`'s
   Addendum). `138-S` declares both `139-S` and `140-S` as blocking
-  predecessors; both are now `shipped`/`archived`, so `138-S` is
-  gate-eligible for a **future** session's mechanical abandonment. This
-  session does not abandon `138-S` per explicit operator instruction.
+  predecessors; both are now `shipped`/`archived`, and this closure
+  record's `closure_status: READY` (finalized in this closure PR, #361)
+  satisfies `closure_complete("140-S")`, so `138-S` is gate-eligible for a
+  **future** session's mechanical abandonment once this closure PR merges
+  to `main`. This session does not claim or abandon `138-S` per explicit
+  operator instruction.
 
 ## Compaction (P-020)
 
@@ -180,10 +231,15 @@ existed (both `139-S` and `140-S` closure docs are same-day, under the
 `threshold_days` age gate). `compaction_status: done` recorded in this
 document's frontmatter.
 
-**Closure verdict (interim): PENDING_CLOSURE_PR.** Runtime verification
-passed and backlog reconciliation (manual safe-close) completed with all
-post-conditions verified. This document's `closure_status` will be updated
-to `READY` once the post-merge closure PR (backlog archival + doc updates
-committed on `post-merge/131-f-topology-gate-directional-predicate-hotfix`)
-has completed local review, the §1.9 readiness gate, and received explicit
-operator approval and merge.
+**Closure verdict: READY.** Runtime verification passed; backlog
+reconciliation completed with all data-integrity post-conditions
+independently verified, though the close-path selection itself deviated
+from the canonical classifier-only contract (see the P-005 disclosure in
+Backlog Reconciliation above and the tracked residual in
+`docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md`).
+This closure PR (#361) completed local adversarial review, the §1.9
+readiness gate, CI, and the P-018 copilot-review gate, and merges via a
+verified merge-commit-strategy merge with explicit operator (pre-)approval.
+`closure_status: READY` and `compaction_status: done` are recorded in this
+document's frontmatter as of this closure PR's HEAD, so
+`closure_complete("140-S")` evaluates `true` once this PR lands in `main`.

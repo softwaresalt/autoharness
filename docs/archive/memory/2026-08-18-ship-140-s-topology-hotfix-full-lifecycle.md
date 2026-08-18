@@ -125,3 +125,35 @@ closure branch prepared (not yet merged at memory-write time)
 
 No 129-scope work implemented; `138-S` not claimed; BED0DDED stash not
 processed; `.backlogit`→`.backlog` migration not performed.
+
+## Addendum (PR #361 remediation, 2026-08-18 — append-only, historical narrative above preserved unmodified)
+
+Two corrections to the record above, made during closure PR #361's Copilot
+review remediation, after this memory had already been compacted and
+archived:
+
+1. **Closure-evidence gate omission**: "ready for a future session" in the
+   Predecessor unblock notes above did not state the required
+   closure-evidence gate explicitly. At the time this memory was written,
+   `docs/closure/140-S-131-F-post-merge-closure.md` was still
+   `closure_status: PENDING_CLOSURE_PR`, so `closure_complete("140-S")`
+   evaluated **false** and `138-S` was **not yet** gate-eligible — it only
+   becomes so once that closure record reaches `closure_status: READY` (or
+   a fully-satisfied `READY_WITH_CONDITIONS`) **and** that record lands in
+   `main`. The closure PR (#361) finalized `closure_status: READY` in its
+   own remediation; see that document for the authoritative, current status
+   rather than this archived narrative.
+2. **P-015 "judgment call" framing corrected**: the bullet above describing
+   the pre-archived-items decision as a defensible "judgment call... the
+   P-015 fallback-to-safe-close language anticipates" has been superseded.
+   On closer reading of the canonical contract
+   (`templates/skills/shipment-reconcile/SKILL.md.tmpl:403-410,736-738`),
+   that framing was incorrect: a clean `CASCADE` classifier verdict must be
+   followed as written, with close-path selection made only from the
+   classifier result — substituting manual safe-close was a **process
+   deviation**, not a contract-anticipated fallback. See
+   `docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md`
+   for the corrected rule, the disclosed residual, and the recommended
+   Stage-owned follow-up. The final archived backlog state itself remains
+   independently verified correct; only the close-path compliance claim is
+   corrected here.
