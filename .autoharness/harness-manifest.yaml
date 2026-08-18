@@ -112,8 +112,8 @@ artifacts:
   - path: ".autoharness/backlog-registry.yaml"
     primitive: 4
     template: "backlog/registries/backlogit.registry.yaml"
-    checksum: "c055a6d4656a7ba86965e8fb02776b866081a8a068771338b1089c20bd985b5e"
-    note: "checksum refreshed 139-S/130.005-T (create_checkpoint operation now declares cli_command: \"backlogit checkpoint create\" fallback, matching list_checkpoints/get_checkpoint/resolve_checkpoint); checksum computed from the LF-normalized committed git blob via `git cat-file -p :<path>`, never a raw Windows working-tree read"
+    checksum: "f2086877ee51dff1cc2eef042aa8159146d5e22862197633e3ce9320b7926e57"
+    note: "checksum refreshed 139-S/130.005-T (create_checkpoint operation now declares cli_command: \"backlogit checkpoint create --state-dump {{state_dump}}\" fallback, matching the embedded-placeholder convention used by list_checkpoints/get_checkpoint/resolve_checkpoint and every other params-bearing operation); checksum computed from the LF-normalized committed git blob via `git cat-file -p :<path>`, never a raw Windows working-tree read; re-refreshed after local review follow-up added the missing `--state-dump {{state_dump}}` placeholder"
   - path: ".github/agents/_stage.agent.md"
     primitive: 4
     template: "global agent definition"

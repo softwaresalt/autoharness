@@ -218,21 +218,31 @@ class NegativeAntiRegressionTests(unittest.TestCase):
     those fields outside `context`.
     """
 
-    _TOP_LEVEL_HOIST_RE = re.compile(
-        r"top[- ]level\s+`?(feature_id|shipment_id|stash_source|mode|route|artifacts)`?"
+    _TOP_LEVEL_TOKEN_RE = re.compile(r"top[- ]level")
+    _DOMAIN_KEY_RE = re.compile(
+        r"feature_id|shipment_id|stash_source|\bmode\b|\broute\b|\bartifacts\b|domain data"
     )
 
     def _assert_no_top_level_hoist_instruction(self, section: str) -> None:
-        # The only permitted mention of "top level" + a domain key is the
-        # prohibition itself (contract rule 4), not an instruction to place
-        # domain keys there. We assert the fenced examples never contain the
-        # domain keys outside of `context`, and that any explicit top-level
-        # domain key mention is a negation (never / MUST NOT / not).
-        for match in self._TOP_LEVEL_HOIST_RE.finditer(section):
-            window_start = max(0, match.start() - 40)
-            window = section[window_start : match.end()]
+        # Real occurrences of "top level" in these files fall into two
+        # unrelated buckets: (a) the checkpoint-domain-data prohibition
+        # itself ("...MUST NOT be hoisted to the top level"), where a
+        # domain-key/"domain data" mention precedes the phrase within a wide
+        # window rather than immediately abutting it, and (b) unrelated
+        # prose such as Ship's P-001 "top-level release unit" language. Only
+        # windows that actually reference domain data are in-scope for this
+        # check; every in-scope occurrence must be a negation (never / MUST
+        # NOT / not be), never an instruction to hoist.
+        for match in self._TOP_LEVEL_TOKEN_RE.finditer(section):
+            window_start = max(0, match.start() - 250)
+            window = section[window_start : match.end() + 10]
+            if not self._DOMAIN_KEY_RE.search(window):
+                continue
             self.assertTrue(
-                any(neg in window for neg in ("never", "NEVER", "MUST NOT", "not be")),
+                any(
+                    neg in window
+                    for neg in ("never", "NEVER", "MUST NOT", "not be", "must not")
+                ),
                 f"unexpected non-negated top-level domain-field mention: {window!r}",
             )
 
@@ -243,9 +253,61 @@ class NegativeAntiRegressionTests(unittest.TestCase):
             self._assert_no_top_level_hoist_instruction(section)
 
     def test_agent_write_sites(self) -> None:
-        for path in (_STAGE_TEMPLATE, _SHIP_TEMPLATE, _STAGE_MIRROR, _SHIP_MIRROR):
-            text = _read(path)
-            self._assert_no_top_level_hoist_instruction(text)
+        # Scoped to the actual checkpoint write-site sections (mirroring
+        # WriteSiteMinimumTests' section boundaries), not the whole file:
+        # Ship/Stage templates and mirrors both use `shipment_id` and
+        # "top-level release unit" language extensively elsewhere (P-001,
+        # telemetry, etc.) that is wholly unrelated to checkpoint payloads,
+        # so a whole-file scan produces false positives on unrelated prose.
+        stage_template_text = _read(_STAGE_TEMPLATE)
+        self._assert_no_top_level_hoist_instruction(
+            stage_template_text.split("### Mid-session checkpoints", 1)[1].split(
+                "### Context Overflow Protocol", 1
+            )[0]
+        )
+        ship_template_text = _read(_SHIP_TEMPLATE)
+        self._assert_no_top_level_hoist_instruction(
+            ship_template_text.split("### Mid-session checkpoints", 1)[1].split(
+                "### Learnings capture", 1
+            )[0]
+        )
+        self._assert_no_top_level_hoist_instruction(
+            ship_template_text.split("### Session end", 1)[1].split(
+                "## Stop Conditions", 1
+            )[0]
+        )
+        stage_mirror_text = _read(_STAGE_MIRROR)
+        self._assert_no_top_level_hoist_instruction(
+            stage_mirror_text.split("### Step 6: Session Continuity", 1)[1].split(
+                "## Stop Conditions", 1
+            )[0]
+        )
+        ship_mirror_text = _read(_SHIP_MIRROR)
+        self._assert_no_top_level_hoist_instruction(
+            ship_mirror_text.split("5. Write session memory to `docs/memory/`.", 1)[1][
+                :1200
+            ]
+        )
+
+    def test_helper_actually_detects_a_synthetic_hoist_instruction(self) -> None:
+        # Proves the detector is not vacuous: a genuine (un-negated)
+        # instruction to place domain data at the top level must fail this
+        # check, using the same prose style as the real contract sentence.
+        bad = (
+            "nest all domain data (feature_id, shipment_id, mode, route) "
+            "at the top level of the payload for quick access."
+        )
+        with self.assertRaises(AssertionError):
+            self._assert_no_top_level_hoist_instruction(bad)
+
+    def test_helper_ignores_unrelated_top_level_prose(self) -> None:
+        # Ship's own P-001 "top-level release unit" language must not be
+        # mistaken for a checkpoint-payload hoist instruction.
+        benign = (
+            "Check that no other top-level release units (features or "
+            "chores) are `Active` in the backlog."
+        )
+        self._assert_no_top_level_hoist_instruction(benign)
 
 
 class RegistryCliFallbackTests(unittest.TestCase):
@@ -270,7 +332,20 @@ class RegistryCliFallbackTests(unittest.TestCase):
             create_checkpoint = _find(registry)
         self.assertIsNotNone(create_checkpoint, f"create_checkpoint operation not found in {path}")
         self.assertIn("cli_command", create_checkpoint)
-        self.assertIn("backlogit checkpoint create", create_checkpoint["cli_command"])
+        cli_command = create_checkpoint["cli_command"]
+        self.assertIn("backlogit checkpoint create", cli_command)
+        # Convention parity: every other params-bearing operation embeds its
+        # param placeholders directly in the command string (e.g. create_task
+        # -> `--title {{title}}`). The `state_dump` param must be embedded
+        # the same way, not omitted, so a degraded-mode agent trusting only
+        # the declared fallback still knows how to pass the payload.
+        params = create_checkpoint.get("params", {})
+        for placeholder_key in params:
+            self.assertIn(
+                f"{{{{{placeholder_key}}}}}",
+                cli_command,
+                f"cli_command missing {{{{{placeholder_key}}}}} placeholder in {path}: {cli_command!r}",
+            )
 
     def test_installed_registry(self) -> None:
         self._assert_create_checkpoint_cli_fallback(_INSTALLED_REGISTRY)
@@ -310,6 +385,26 @@ class ManifestChecksumCoherenceTests(unittest.TestCase):
 
     def test_backlogit_instruction_checksum(self) -> None:
         self._assert_checksum_matches(".github/instructions/backlogit.instructions.md")
+
+    def _assert_checksum_matches_lf_normalized(self, rel_path: str) -> None:
+        """`.autoharness/backlog-registry.yaml` carries no `eol=lf`
+        gitattribute pin (unlike the other three touched artifacts), so its
+        raw Windows working-tree bytes may be CRLF while the manifest
+        checksum is computed from the LF-normalized git blob. Normalize
+        before hashing rather than comparing raw on-disk bytes directly."""
+        artifact = self._artifact(rel_path)
+        self.assertIn("checksum", artifact)
+        self.assertNotIn("installed_checksum", artifact)
+        self.assertNotIn("source_checksum", artifact)
+        raw = (_REPO_ROOT / rel_path).read_bytes()
+        normalized = raw.replace(b"\r\n", b"\n")
+        digest = hashlib.sha256(normalized).hexdigest()
+        self.assertEqual(
+            artifact["checksum"], digest, f"manifest checksum drift for {rel_path}"
+        )
+
+    def test_backlog_registry_checksum(self) -> None:
+        self._assert_checksum_matches_lf_normalized(".autoharness/backlog-registry.yaml")
 
     def test_backlogit_overlay_verification_checks_present(self) -> None:
         overlay = next(
