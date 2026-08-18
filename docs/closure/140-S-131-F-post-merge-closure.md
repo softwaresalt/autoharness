@@ -6,7 +6,7 @@ merge_commit: 57b5af38008905ea47ce01887c1680205b75350e
 merged_at: "2026-08-18T06:02:02Z"
 reviewed_head: 14c32ef8
 closure_pr: 361
-closure_reviewed_head: null  # set to the fix-commit SHA in the immediate follow-up commit
+closure_reviewed_head: 1995296a97aa4c78e8a35f3187a1bbb19d917623
 closure_status: READY
 compaction_status: done
 conditions: []
