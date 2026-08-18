@@ -34,7 +34,7 @@ for the full evidentiary record.
    RED with stale files present, GREEN after deletion, plus a
    restore-and-refail control-fire proof for acceptance criterion 3).
    Two-commit-per-task convention followed for both.
-6. Full local suite: 1580/1581 pass. The 1 failure
+6. Full local suite: 1560 passed, 1 failed, 20 skipped (1581 total). The 1 failure
    (`test_checklist_report_prints_non_interactively`) confirmed as a
    pre-existing, deterministic, environment-local-build artifact unrelated
    to this shipment (file byte-identical to `main`; CI's own `test` job

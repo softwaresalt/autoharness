@@ -17,6 +17,16 @@ conditions: []
 
 # 142-S / 133-F Post-Merge Closure — Repository Hygiene: Remove Stale Tracked Root Scratch Artifacts
 
+> **Note on `closure_reviewed_head`**: this field records the SHA at which
+> the last substantive content fix received a Copilot `SATISFIED` verdict
+> (0 unresolved threads). Because any further edit to *this same file* to
+> update that field would itself advance HEAD past the recorded value, the
+> field carries an inherent one-commit self-reference lag once no further
+> substantive (non-bookkeeping) content changes remain. The authoritative
+> merge-readiness record for this PR is the closure PR's own "Local Review
+> Readiness" body block at its final merged HEAD, not this frontmatter
+> field in isolation.
+
 Shipment 142-S removed three stale tracked scratch artifacts (`out.json`,
 `res.json`, `results.json`) from the autoharness repository root -- accidental
 `autoharness verify-workspace --format json` outputs for the *external*
@@ -116,7 +126,7 @@ separate `chore(<task-id>): mark task done and track <x> commit`).
   "test_repo_root_artifacts.py"` -> OK (1 test), both pre- and
   post-deletion, and during the criterion-3 restore/revert cycle.
 - Full canonical suite (local): `PYTHONPATH=src python -m unittest discover
-  -s tests` -> **1580/1581 pass, 20 skipped**. The single failure
+  -s tests` -> **1560 passed, 1 failed, 20 skipped (1581 total)**. The single failure
   (`test_deploy_harness_scripts...test_checklist_report_prints_non_interactively`)
   is a pre-existing, deterministic (reproduced twice in isolation),
   environment-local-build artifact -- the file is byte-identical to `main`
@@ -158,8 +168,12 @@ immediately before merge (still `SATISFIED`, HEAD unchanged).
 
 ## CI
 
-All required checks green on both PRs: `detect code changes`,
-`pipeline-topology (ambient)`, `test`, `ci gate`.
+All required checks green on both PRs for `detect code changes`,
+`pipeline-topology (ambient)`, and `ci gate`. The `test` job ran and
+passed on PR #368 (code-classified diff); on the docs/backlog-only staging
+PR #367 the `test` job correctly concluded `skipped` (not run) per the
+CI workflow's fail-closed `changes`-job denylist, which is the expected
+non-code-diff outcome, not a green pass.
 
 ## Runtime Verification
 
@@ -177,7 +191,7 @@ sufficient surface.
 | Surface adapter | `command` (CLI) |
 | Runtime probe | `uv run autoharness --help` -- exit 0, prints CLI help text |
 | Canonical gate | Full repo suite `PYTHONPATH=src python -m unittest discover -s tests` |
-| Result | 1580/1581 pass, 1 pre-existing unrelated local-build flake (see Validation above), 20 skipped |
+| Result | 1560 passed, 1 failed (pre-existing unrelated local-build flake, see Validation above), 20 skipped (1581 total) |
 | Live gate exercise | `pipeline-topology --phase lifecycle` returned `exit_code: 0` at every invocation (pre-build, pre-PR-creation, pre-closure) |
 | Verdict | **PASS** |
 
