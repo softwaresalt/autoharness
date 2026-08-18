@@ -953,7 +953,7 @@ Write a checkpoint to `{{DOCS_MEMORY}}/` after any of these milestones:
 
 Each checkpoint captures: items completed, items blocked, branch state, decisions with rationale, errors encountered and how they were resolved, and next steps.
 
-When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. Include shipment or feature IDs, completed and blocked item IDs, branch state, next step, and a `resume_hint` specific enough for a later recovery decision.
+When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. Include shipment or feature IDs, completed and blocked item IDs, branch state, next step, and a `resume_hint` specific enough for a later recovery decision. The payload MUST declare `schema_version: 1`, be written only through the official create operation, and nest all of the above (shipment/feature IDs, completed/blocked item IDs, branch state, etc.) under `context` — see the backlogit overlay instruction's Checkpoint Payload Contract for the full rule set.
 
 ### Learnings capture
 
@@ -967,7 +967,7 @@ After build execution (Step 4) and CI remediation, evaluate whether the work unc
 ### Session end
 
 1. Write a final memory file to `{{DOCS_MEMORY}}/` capturing: items completed, blocked conditions, branch state, PR status, and any pending merge approval.
-2. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, resolve any still-active checkpoints from the current session with `{{OP_RESOLVE_CHECKPOINT_MCP}}`. When merge approval or closure work must survive a context-window shutdown, leave at most one final best-effort checkpoint written via `{{OP_CREATE_CHECKPOINT_MCP}}` with a clear `resume_hint`.
+2. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, resolve any still-active checkpoints from the current session with `{{OP_RESOLVE_CHECKPOINT_MCP}}`. When merge approval or closure work must survive a context-window shutdown, leave at most one final best-effort checkpoint written via `{{OP_CREATE_CHECKPOINT_MCP}}` with a clear `resume_hint`. Any such checkpoint MUST conform to the Checkpoint Payload Contract (`schema_version: 1`, official create operation, domain data under `context`).
 3. Capture compound learnings via the compound skill when hard-won solutions were discovered.
 4. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
 
