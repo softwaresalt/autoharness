@@ -164,6 +164,12 @@ class WriteSiteMinimumTests(unittest.TestCase):
         self.assertIn("1", section)
         self.assertIn("context", section)
         self.assertIn("Checkpoint Payload Contract", section)
+        # Item 3 of the T7 assertion list: each write site references the
+        # official create operation and prohibits direct file writes (the
+        # prohibition itself lives in the canonical contract section, but
+        # each site must at minimum name the official path as the required
+        # route).
+        self.assertIn("official create operation", section)
 
     def test_stage_template_write_sites(self) -> None:
         text = _read(_STAGE_TEMPLATE)
