@@ -188,7 +188,13 @@ before claiming.
   `post-merge/enforce-backlogit-checkpoint-payload-contract` (not yet
   pushed/PR'd/merged as of this memory write — see closure PR follow-up in
   next session step).
-- Shipment `138-S`: still queued, untouched, now dependency-eligible only
-  after 139-S shipped (its predecessor).
+- Shipment `138-S`: still queued, untouched. Its shipment-level
+  dependency on `139-S` is satisfied (shipped), but it is **not gate-
+  eligible to claim yet**: the closure record's `READY_WITH_CONDITIONS`
+  status with an unsatisfied condition makes `closure_complete("139-S")`
+  return `False`, so the pipeline-topology gate returns
+  `PREDECESSOR_CLOSURE_INCOMPLETE` for `138-S` until the condition is
+  satisfied (added after this entry was first written — see the closure
+  PR's later review-fix commits for the corrected framing).
 - No `.backlogit -> .backlog` migration was performed at any point this
   session.
