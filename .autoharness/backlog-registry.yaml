@@ -107,6 +107,7 @@ operations:
 
   create_checkpoint:
     mcp_tool: "backlogit_create_checkpoint"
+    cli_command: "backlogit checkpoint create"
     params:
       state_dump: "state_dump"
 
