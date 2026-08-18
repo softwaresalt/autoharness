@@ -770,14 +770,14 @@ Write a checkpoint to `{{DOCS_MEMORY}}/` after any of these milestones:
 
 Each checkpoint captures: stash IDs processed, artifact IDs created, decisions with rationale, and next steps.
 
-When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. Include the current phase, relevant stash or feature IDs, created artifact IDs, next step, and a `resume_hint` specific enough for a later recovery decision.
+When the `backlogit` capability pack is installed and `{{OP_CREATE_CHECKPOINT_MCP}}` is available, also persist a phase-tagged structured checkpoint through backlogit. Include the current phase, relevant stash or feature IDs, created artifact IDs, next step, and a `resume_hint` specific enough for a later recovery decision. The payload MUST declare `schema_version: 1`, be written only through the official create operation, and nest all of the above (stash/feature IDs, artifact IDs, etc.) under `context` — see the backlogit overlay instruction's Checkpoint Payload Contract for the full rule set.
 
 ### Session end
 
 1. Write a final memory file to `{{DOCS_MEMORY}}/` capturing: stash entries processed,
    groupings proposed and selected, deliberation or plan artifacts produced, backlog IDs
    created, shipment ID(s) assembled, and deferred entries with reasoning.
-2. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, resolve any still-active checkpoints from the current session with `{{OP_RESOLVE_CHECKPOINT_MCP}}`. When the next action must survive a context-window shutdown, leave at most one final best-effort checkpoint written via `{{OP_CREATE_CHECKPOINT_MCP}}` with a clear `resume_hint`.
+2. When the `backlogit` capability pack is installed and the registry advertises checkpoint recovery operations, resolve any still-active checkpoints from the current session with `{{OP_RESOLVE_CHECKPOINT_MCP}}`. When the next action must survive a context-window shutdown, leave at most one final best-effort checkpoint written via `{{OP_CREATE_CHECKPOINT_MCP}}` with a clear `resume_hint`. Any such checkpoint MUST conform to the Checkpoint Payload Contract (`schema_version: 1`, official create operation, domain data under `context`).
 3. If tracking context has accumulated beyond thresholds, invoke the `compact-context` skill.
 4. Capture compound learnings via the compound skill when hard-won solutions were discovered.
 5. When the `continuous-learning` capability pack is installed, invoke the **learn** skill with `scope: recent` to cluster observations accumulated during this session into instincts. If any instinct has reached the promotion threshold (`{{CONTINUOUS_LEARNING_PROMOTION_THRESHOLD}}`), invoke the **evolve** skill in `mode: propose` for each mature instinct and include the proposal paths in the session summary.
