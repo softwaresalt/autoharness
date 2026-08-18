@@ -9,7 +9,7 @@ staging_pr: 367
 staging_merge_commit: ebe5c2d4900ffe729a664835c85636aa5a7974b5
 staging_reviewed_head: bdd11713
 closure_pr: 369
-closure_reviewed_head: null
+closure_reviewed_head: 6784b53086b53cb9937ad4157ad11d229d2eea9d
 closure_status: READY
 compaction_status: done
 conditions: []
