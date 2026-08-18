@@ -340,3 +340,38 @@ irreversible step (`T006`) is preceded by a gate-proven **in-repo** backup
 committed rollback runbook (`T003`), and is followed by a fail-closed
 single-root assertion (**H10**) whose failure path is non-destructive and
 operator-gated (**H16**).
+
+---
+
+## SUPERSEDED — CANCELLED BY OPERATOR SCOPE CORRECTION (2026-08-18)
+
+> **APPEND-ONLY NOTICE. Hardening controls H1–H16 above are preserved
+> verbatim.** No control has been weakened, removed, or re-scoped.
+
+**The plan these controls harden will not execute. Status: CANCELLED.**
+
+Per `docs/decisions/2026-08-18-backlogit-legacy-root-support-operator-scope-correction.md`,
+`.backlogit` remains a supported workspace root, `.backlog` is the default for
+**new workspaces only**, and **existing workspaces need no migration**. The
+live self-migration of this repository is cancelled.
+
+**H1–H16 are hereby DORMANT, not retired.** They were authored against a
+live storage-root rename. They are preserved here because:
+
+* they remain the correct control set **if** a root migration is ever
+  authorized in future — do not re-derive them, reuse them;
+* **H16** (never auto-delete a root; never broad `git checkout -- .`; preserve
+  both roots and the backup; HALT for explicit operator approval) states a
+  general safety rule that outlives this plan and should be honoured by any
+  future work touching storage roots;
+* the **G1–G6 containment proof** for an in-working-directory backup, and the
+  negative control proving G5 (non-candidate naming) is load-bearing, are
+  reusable empirical results independent of the migration goal.
+
+**No control here is to be executed now.** In particular: create no backup,
+take no lock, run no dry-run, and perform no single-root assertion.
+
+Ironically, the size of this control set is itself part of the operator's
+stated rationale for cancellation: a cosmetic rename that required sixteen
+hardening controls and a six-gate containment proof to be survivable is a
+change whose cost/benefit does not close.

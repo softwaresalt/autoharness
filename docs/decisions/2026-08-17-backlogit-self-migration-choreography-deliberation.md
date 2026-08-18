@@ -236,3 +236,39 @@ conditions enumerated in the plan.
   `.128.002-T.md.lock` and `.locks/.137-S.lock` are leftovers from closed work.
   They will migrate harmlessly; cleaning them is explicitly out of scope to
   keep the change bounded.
+
+---
+
+## SUPERSEDED — CANCELLED BY OPERATOR SCOPE CORRECTION (2026-08-18)
+
+> **APPEND-ONLY NOTICE. The deliberation above — problem frame, options
+> considered, chosen direction and open questions — is preserved unaltered.**
+
+**The chosen direction is withdrawn. Status: CANCELLED.**
+
+This deliberation framed the question as *how* to choreograph a live
+`.backlogit → .backlog` self-migration of this repository, and selected a
+one-shipment / one-PR / two-ordered-commit choreography.
+
+The operator has since answered a **prior** question this deliberation did not
+ask: *whether the existing root should migrate at all.* Per
+`docs/decisions/2026-08-18-backlogit-legacy-root-support-operator-scope-correction.md`:
+
+* `.backlogit` remains an **acceptable, supported** workspace directory;
+* `.backlog` is the default for **NEW workspaces only**;
+* **existing workspaces do NOT need migration.**
+
+**Deliberation lesson worth keeping.** This deliberation's options were all
+*how-to-migrate* options — a single-commit rename, a two-commit split, a
+staged dual-root window. **"Do not migrate; support both roots
+indefinitely" was never enumerated as an option.** The framing inherited an
+unexamined premise from the stash text (`BED0DDED`), which conflated
+"change the default for new workspaces" with "migrate existing workspaces."
+
+Future deliberations on any migration/deprecation topic MUST enumerate
+*"keep supporting the old surface indefinitely"* as a first-class option
+before comparing execution choreographies. Separating "default for new" from
+"mandatory for existing" is a reusable decomposition, not a special case.
+
+The follow-on artifacts (plan, H1–H16 hardening, review) are likewise
+superseded; each carries its own append-only cancellation notice.
