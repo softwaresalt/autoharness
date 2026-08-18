@@ -4,7 +4,9 @@ feature: 130-F
 feature_pr: 357
 merge_commit: 9bb3a24b946694924e2d7306daa9a5b863784d2a
 merged_at: "2026-08-18T03:13:14Z"
-reviewed_head: bc2317e4e424e9f84b23cac85dabf271fe3b5ff1
+reviewed_head: 14767738bfc5521e3f60684b7c200b4aa6c1c5b1
+closure_pr: 358
+closure_reviewed_head: 5eff1a9194cd23df0d43be962175fa2253001716
 closure_status: READY_WITH_CONDITIONS
 compaction_status: done
 conditions:
@@ -123,10 +125,18 @@ lineage.
   `main` synced to merge commit `9bb3a24b...`, merged at
   `2026-08-18T03:13:14Z`.
 - **Rollback trigger**: revert merge commit `9bb3a24b...` if checkpoint
-  writes from Stage or Ship begin failing schema validation, or if the
-  topology gate begins misclassifying shipment predecessors (false
-  `PRECLAIM_ACTIVE_SHIPMENT_PRESENT`/`BRANCH_MISMATCH` blocks or missed
-  genuine predecessor blocks).
+  writes from Stage or Ship begin failing schema validation in **live**
+  usage, or if the topology gate begins misclassifying shipment
+  predecessors with **live, observed** impact (a false
+  `PRECLAIM_ACTIVE_SHIPMENT_PRESENT`/`BRANCH_MISMATCH` block, or a missed
+  genuine predecessor block that actually let an ineligible shipment
+  claim proceed). This trigger is intentionally scoped to live impact,
+  not the synthetic reproduction already covered by the unsatisfied
+  `conditions` entry above: the reproduction proves the fallback's
+  false-negative *shape* exists, but no live shipment configuration has
+  yet triggered it, so a revert is not warranted on the reproduction
+  alone. Track resolution via the hotfix condition, not a revert, unless
+  this trigger is actually observed.
 - **Owner**: Ship agent for closure evidence; operator `@softwaresalt` for
   merge approval and release follow-up routing.
 - **Residual follow-up**: five Copilot-review threads were declined with
