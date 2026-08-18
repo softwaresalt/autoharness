@@ -1606,6 +1606,72 @@ class ShipmentReadinessTests(unittest.TestCase):
         self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
 
 
+class ImplicitNumericPredecessorTests(unittest.TestCase):
+    """`_prior_shipment_id`'s numeric-adjacency heuristic exists to catch an
+    unstated-but-intended sequential predecessor when no shipment declares
+    `dependencies`. It must never override an EXPLICIT reverse dependency
+    edge: when the numerically-lower shipment itself declares the target as
+    its own dependency (i.e. the lower shipment depends on / is blocked by
+    the higher one -- the opposite direction the heuristic assumes), the
+    heuristic must not inject a contradictory implicit predecessor block."""
+
+    def test_lower_numbered_shipment_declaring_target_as_its_own_dependency_is_not_treated_as_predecessor(
+        self,
+    ) -> None:
+        # 139-S declares zero dependencies (it is the actual predecessor).
+        # 138-S (numerically lower) declares dependencies: [139-S] -- i.e.
+        # 138-S depends on / is blocked by 139-S, the reverse of what the
+        # naive numeric-adjacency heuristic assumes.
+        readers = _FakeReaders(shipments=(
+            _shipment('138-S', 'queued', deps=('139-S',)),
+            _shipment('139-S', 'queued'),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='139-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIsNone(result.primary_token)
+
+    def test_implicit_numeric_predecessor_still_blocks_when_no_declared_reverse_dependency(
+        self,
+    ) -> None:
+        # Preserves the original intent of the heuristic: with no declared
+        # `dependencies` anywhere, an unshipped numerically-prior shipment
+        # is still treated as an implicit predecessor.
+        readers = _FakeReaders(shipments=(
+            _shipment('113-S', 'queued'),
+            _shipment('114-S', 'queued'),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
+
+    def test_implicit_numeric_predecessor_still_blocks_when_lower_shipment_has_unrelated_deps(
+        self,
+    ) -> None:
+        # The lower-numbered shipment declaring SOME dependency that is not
+        # the target must not suppress the implicit-predecessor heuristic --
+        # only a declared dependency ON THE TARGET itself is a genuine
+        # reverse-edge contradiction.
+        readers = _FakeReaders(shipments=(
+            _shipment('112-S', 'shipped'),
+            _shipment('113-S', 'queued', deps=('112-S',)),
+            _shipment('114-S', 'queued'),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
+        self.assertEqual(
+            result.checks[0].details.get('predecessor_id'),
+            '113-S',
+        )
+
+
 class PostClaimVerifyTests(unittest.TestCase):
     def test_target_sole_active_passes(self) -> None:
         readers = _FakeReaders(shipments=(_shipment('114-S', 'active'),))

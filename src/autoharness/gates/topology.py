@@ -1335,6 +1335,17 @@ def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str |
         number = int(other.group(1))
         if number >= target_num:
             continue
+        # A numerically-lower shipment that itself EXPLICITLY declares the
+        # target as one of its own `dependencies` (i.e. the lower shipment
+        # depends on / is blocked by the target -- the reverse of what this
+        # numeric-adjacency heuristic assumes) must never be injected as an
+        # implicit predecessor of the target. That would fabricate a
+        # contradictory two-shipment cycle out of an explicit, correctly-
+        # directed dependency edge. The heuristic only fills the gap when
+        # NO shipment has made the ordering explicit; an explicit reverse
+        # edge always wins.
+        if target in shipment.blocking_predecessor_ids:
+            continue
         if prior is None or number > prior[0]:
             prior = (number, shipment.shipment_id)
     return prior[1] if prior else None
