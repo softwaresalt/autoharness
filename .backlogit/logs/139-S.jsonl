@@ -6,3 +6,4 @@
 {"timestamp":"2026-08-17T17:41:49.7649377-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.005-T"}}
 {"timestamp":"2026-08-17T17:41:55.6651718-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.006-T"}}
 {"timestamp":"2026-08-17T17:42:04.3536516-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_item_added","delta":{"item_id":"130.007-T"}}
+{"timestamp":"2026-08-17T18:22:45.313971-07:00","actor":"backlogit","item_id":"139-S","event_type":"shipment_status_changed","delta":{"status":"active"}}

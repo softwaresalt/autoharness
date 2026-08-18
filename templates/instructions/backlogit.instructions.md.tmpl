@@ -126,9 +126,46 @@ an agent is presenting queue, stash, or triage choices remotely:
 At meaningful boundaries such as task completion, review handoff, or session end:
 
 1. Write the normal markdown memory artifact required by the harness.
-2. When memory or checkpoint operations are supported, also persist a concise structured summary through backlogit.
+2. When memory or checkpoint operations are supported, also persist a concise structured summary through backlogit, conforming to the Checkpoint Payload Contract below.
 3. Summaries should capture outcome, changed files or surfaces, decisions, blockers, and next steps.
 4. Do not dump raw transcript logs into backlogit memory fields.
+
+### Checkpoint Payload Contract
+
+Applies to backlogit structured checkpoints only. The markdown `docs/memory/`
+continuity artifact is a separate mechanism and takes no `schema_version`.
+
+A backlogit structured checkpoint payload MUST:
+
+1. declare `"schema_version": 1` as a top-level field — without it backlogit
+   skips V1 validation and auto-population entirely and writes the payload
+   through unvalidated;
+2. be written through the official create operation — MCP
+   `backlogit_create_checkpoint` (`state_dump`) or CLI
+   `backlogit checkpoint create --state-dump` — never by writing a file into
+   the checkpoints directory directly;
+3. carry `agent` (`stage` or `ship`), `session_id`, `phase`, and a
+   `resume_hint` specific enough to support a later recovery decision;
+4. nest all domain data (feature/shipment/stash IDs, artifact paths, branch
+   state, completed/blocked items, mode, route) inside the `context` object —
+   these MUST NOT be hoisted to the top level;
+5. rely on backlogit to populate `created_at`, `updated_at`, and `status`,
+   which it does only when rule 1 is satisfied.
+
+```json
+{
+  "schema_version": 1,
+  "agent": "stage",
+  "session_id": "stage-2026-08-17-example",
+  "phase": "harvest",
+  "resume_hint": "Harvest complete; next step is shipment assembly.",
+  "context": {
+    "feature_id": "130-F",
+    "shipment_id": "139-S",
+    "artifacts": { "plan": "docs/plans/example-plan.md" }
+  }
+}
+```
 
 ## Traceability Protocol
 
