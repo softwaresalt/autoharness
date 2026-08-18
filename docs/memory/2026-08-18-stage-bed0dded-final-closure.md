@@ -27,7 +27,7 @@ template, schema or config change.
 | `138-S` durably abandoned | shipment status `abandoned`; merged PR #362, merge commit `4d833367f24dab2f19a698da9d6e886b5b2bdcea` |
 | Predecessor/blocker shipments closed | `139-S` archived (checkpoint contract), `140-S` archived (topology hotfix); PR #361 merged, closure_complete(140-S) true |
 | Storage roots unchanged | `.backlogit/` present; `.backlog/` absent; no migration, no config flip, no index mutation |
-| Checkpoints clean | Unfiltered scan: 33 total, 0 quarantined, 0 needs_quarantine, 0 active |
+| Checkpoints clean | Unfiltered scan: 35 total (33 `resolved` + 2 `abandoned`), 0 quarantined, 0 needs_quarantine, 0 active |
 
 ## What was done
 
