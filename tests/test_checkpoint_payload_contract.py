@@ -318,6 +318,18 @@ class NegativeAntiRegressionTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self._assert_no_top_level_hoist_instruction(bad)
 
+    def test_helper_rejects_the_copilot_review_mixed_sentence_case(self) -> None:
+        # The exact counter-example raised in PR #357 review: a negation is
+        # present ("must never be omitted"), but it negates an unrelated
+        # clause (omission), not the actual placement instruction that
+        # follows in a separate sentence ("Place feature_id at the top
+        # level."). The separating period must break the clause-binding
+        # window so this still fails.
+        bad = "Domain data must never be omitted. Place feature_id at the top level."
+        with self.assertRaises(AssertionError):
+            self._assert_no_top_level_hoist_instruction(bad)
+
+
     def test_helper_rejects_unbound_negation_near_an_unnegated_hoist(self) -> None:
         # A negation present nearby but bound to a DIFFERENT clause (not the
         # hoisting instruction itself) must not satisfy the check: "domain
