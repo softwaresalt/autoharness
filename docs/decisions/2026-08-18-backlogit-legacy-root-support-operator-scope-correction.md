@@ -166,3 +166,44 @@ interrupted.
 * Cancelled deliberation: `docs/decisions/2026-08-17-backlogit-self-migration-choreography-deliberation.md`
 * Shipped and retained product surface: `126-F` / `135-S` / PR #345 / merge `9851cc3`
 * Shipment status constraints: `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`
+
+## 8. Ship-confirmed durable abandonment (append, 2026-08-18)
+
+Ship executed the §5 backlogit-state-machine sequence (claim then move)
+exactly as specified. **Deviation disclosure, not silently glossed over:**
+§5 above also directs "Ship MUST NOT ... create a branch for `138-S`". A
+later, session-specific operator instruction explicitly superseded that
+clause for this cancellation: the operator directed Ship to "create a
+dedicated cancellation branch based on current main" for traceability of
+the closure commit, and explicitly authorized the literal name
+`chore/abandon-138-s`. Ship therefore did create a branch — not to execute
+or prepare `138-S`'s contents (no file under `129.001-T`…`129.009-T`'s
+scope was touched, no storage root was touched), but solely as a commit
+target for the cancellation-closure evidence itself, per that later
+operator authorization. This is recorded here as an explicit, cited
+supersession of §5's no-branch clause, not an unacknowledged deviation.
+The branch was created from `main`
+(`99b8ead601a72642ed9791cb99258ac4f2e1bd8e`), with all pre-existing
+operator-staged worktree changes (`.gitmodules`, `references/skillopt`,
+`references/waza`, `references/witr`) verified byte-for-byte preserved
+across the branch operation:
+
+1. `backlogit shipment get 138-S` — confirmed `queued`, dependencies
+   `139-S`/`140-S` both `archived_status: shipped`.
+2. `backlogit shipment claim 138-S` — `queued -> active`
+   (`updated_at: 2026-08-18T18:10:04.0668911Z`).
+3. `backlogit move 138-S --status abandoned` — `active -> abandoned`
+   (`updated_at: 2026-08-18T18:10:56.0929182Z`).
+4. `backlogit get 138-S --format json` — verified `"status": "abandoned"`.
+
+**Closure condition (2) from §6 above is now satisfied.** `138-S` is
+durably `abandoned`. Combined with condition (1) (this decision artifact,
+already committed at `456844c0`), both §6 closure conditions hold as of
+this append. `BED0DDED` archival remains **Stage-owned** per the bounded
+stop in Ship's cancellation lifecycle instructions — Ship does not archive
+the stash in this closure; that is left for Stage to perform in a
+subsequent session now that both conditions are met.
+
+Full evidence trail (pre-flight P-001/P-016/dependency verification, gate
+output, index-preservation proof, and full state-transition timestamps) is
+recorded in `docs/closure/138-S-129-F-cancellation-closure.md`.
