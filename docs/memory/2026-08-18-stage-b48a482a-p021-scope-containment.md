@@ -289,3 +289,83 @@ touched, including the known malformed frontmatter in
 * No source, template, config or test file was modified by this pass; only
   backlogit-managed backlog artifacts and `docs/` planning/review/memory
   artifacts.
+
+## Fix cycle 1 (2026-08-19, review of `0facdf01`) — per-field source-ref availability
+
+`134.004-T`'s threadless path mandated **both** the PR number and the
+review-thread ID as `N/A` in a single blanket pairing. That is wrong for
+build/CI findings, because `fix-ci` runs against an **open PR** — the PR number
+is known at capture and only the thread ID is unavailable. Since the
+single-write invariant forbids supplying a value later, marking a known PR
+number `N/A` would have permanently discarded a real identifier.
+
+Corrected so source-ref availability is judged **independently per field**: the
+review-thread ID is `N/A` whenever no thread exists; the PR number carries its
+actual value whenever a PR is open and is `N/A` only for a genuinely pre-PR
+finding; both are `N/A` together only in that pre-PR case. A dedicated
+criterion now states `N/A` is a per-field availability marker and never a
+path-level default. This brought `134.004-T` into agreement with `134.007-T`,
+which had always marked only the `review-thread ID` not applicable.
+
+## Fix cycle 2 (2026-08-19, review of `5882fb4d`) — C3 conditional on thread availability
+
+The **authoritative** C3 clause in `134.001-T` still required a review-thread
+reply unconditionally, as did the plan's normative clause table. The carriers
+(`134.004-T`, `134.007-T`) had already been corrected to support threadless
+findings, so the authoritative definition had become the stale outlier — the
+inverse of the usual drift, and the more dangerous direction, since carriers
+are supposed to quote the authority rather than correct it.
+
+An unconditional C3 is unsatisfiable on two surfaces the policy governs: Ship's
+local review runs **before** PR creation, and build/CI findings have no review
+thread even on an open PR. It would have forced Ship either to violate the
+clause or to fabricate a thread.
+
+**Correction applied.** C3's reference obligation is now **conditional on
+actual thread availability**:
+
+* **Thread exists** — reference the deferred entry ID in the review-thread
+  reply, posted *before* the thread is resolved, and in the PR/closure
+  residual-risk record.
+* **No thread exists** (pre-PR local review, build/CI) — the obligation is
+  discharged **in full** by citing the deferred entry ID in the task-level,
+  run-level and closure residual-risk record. The absent reply is explicitly
+  **not** a C3 shortfall.
+
+The P-018 relationship was made precise at the same time: P-018 governs review
+threads only, so a threadless C3 discharge leaves no unresolved thread and
+raises no P-018 obligation. Preserved unchanged: C1, C2, C4–C7, capture-first
+ordering, the single-write capture invariant, per-field ID availability, and
+Stage-only reprioritization.
+
+**Artifacts corrected for coherence:** `134.001-T` (authoritative C3 + P-018
+relationship), the plan's clause table and its `004` summary, `134-F`'s
+policy restatement, and `019-DL` clause 3 — the last amended in place with an
+appended `C3 AMENDMENT` annotation so the decision record shows the change
+rather than being silently rewritten. The deliberated decision (Option C)
+is unchanged.
+
+**Deliberately not changed.** The operator's verbatim direction is preserved
+everywhere it appears (`019-DL` frontmatter and problem frame, `134-F`
+description, `stash.jsonl`) — those are the operator's words, not policy text.
+The `134.006-T` / `134.007-T` ordering-consistency notes quote the *old* C3
+wording as historical record of an earlier correction and were left intact.
+
+**Disclosed, not fixed (P-021 C1 applied to this cycle).**
+
+* The plan's clause table states C2's source refs as "PR + review-thread ID"
+  without the "when applicable" qualifier that the authoritative `134.001-T`
+  C2 criterion already carries. That is a C2 surface, not C3, so under the C1
+  same-contract-surface test it is out of scope for this cycle. Low risk,
+  because the authoritative clause governs.
+* `134-F` line 41 renders `git cat-file -p :<path> | sha256` as unwrapped
+  prose, so `<path>` is parsed as inline HTML (`MD033`) and disappears on
+  render — the same class of defect corrected in `019-DL` last cycle. Verified
+  **pre-existing at HEAD** and untouched by this cycle's one-line edit at line
+  53. It is a different surface from the C3 correction, so C1 defers it;
+  `MD033` is also outside the enforced `MD001`/`MD025`/`MD041` gate.
+
+Both are recorded here rather than silently expanded into. Neither was
+captured as a deferred stash entry because Stage owns these artifacts directly
+and can schedule them in a normal cycle; C2 capture governs Ship's in-cycle
+findings, not Stage's own disclosed backlog observations.

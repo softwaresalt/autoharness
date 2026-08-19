@@ -58,7 +58,7 @@ surfaces byte-consistent with refreshed manifest checksums.
 |---|---|
 | C1 Scope test | A finding is in scope only if fixing it requires **only completing the exact change already authorized** (the same contract surface). "Same file", "same function", "same PR", "same subsystem", or "related" is **not** sufficient. Work requiring original design/decision effort or an unrelated code path is out of scope. Genuine ambiguity resolves **out of scope**. |
 | C2 Mandatory capture | An out-of-scope expansion MUST be captured as a stash entry carrying a `DEFERRED SCOPE EXPANSION` marker, source refs (PR + review-thread ID, task/feature ID, shipment ID), and a `requires deliberation` flag. Capture is a precondition for closing the finding. |
-| C3 Bounded resolution | Resolve the in-scope defect/comment as far as possible **without** the expansion; reference the deferred entry ID in the review-thread reply and in the PR/closure residual-risk record. |
+| C3 Bounded resolution | Resolve the in-scope defect/comment as far as possible **without** the expansion. The reference obligation is **conditional on actual thread availability**: where a review thread exists, reference the deferred entry ID in the review-thread reply (posted before the thread is resolved) and in the PR/closure residual-risk record; where no thread exists (pre-PR local review, build/CI), the obligation is discharged **in full** by citing the deferred entry ID in the task/run/closure residual-risk record, and the absent reply is not a shortfall. |
 | C4 Non-bypass | Review pressure, severity, dark factory mode (P-017), circuit-breaker exhaustion, and convenience never authorize expansion. Only an explicit operator authorization recorded as new/expanded approved scope does. |
 | C5 Ship capture-only carve-out | Ship MAY create stash entries **for capture only**. Ship MUST NOT triage, prioritize, re-classify, edit, harvest, deliberate on, or remove them. |
 | C6 Stage intake obligation | A stash entry marked `DEFERRED SCOPE EXPANSION` is a distinct triage classification that MUST route to the `deliberate` skill before any planning, regardless of shape or apparent triviality. |
@@ -150,8 +150,9 @@ operation by Ship remains a P-010 violation. Dogfood + checksum refreshed.
 
 **004** — Ship's review-fix and build/CI-fix loops carry C1–C3: evaluate every
 finding against the C1 test, capture out-of-scope findings per C2, resolve the
-original per C3, and reference the deferred ID in the review reply and
-residual-risk record. The Stop Conditions table's review-fix row notes that
+original per C3, and reference the deferred ID in the review-thread reply where
+a thread exists, or in the task/run/closure residual-risk record where none
+does. The Stop Conditions table's review-fix row notes that
 cycle exhaustion does not authorize expansion (C4). Dogfood + checksum refreshed.
 
 **005** — The `### Review-Fix Cycle Definition` section states the C1 test
