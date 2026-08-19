@@ -254,6 +254,14 @@ tasks already author the guard in their own criteria. This is behaviour `B9` in
 the single-source mapping in `134.011-T`; that mapping, not this paragraph, is
 what task 012 resolves against.
 
+**Dual-path note (readiness fix cycle 3).** `fix-ci` handles both CI check
+failures and PR review comments, so it carries **both** C3 dispositions —
+threadless discharge for CI findings, thread-present reply ordering for review
+comments — selected by finding kind. Any hardening or task statement that
+describes `fix-ci` as threadless-only is a defect; the surface has a
+non-negotiable reply gate. Only `circuit-breaker` legitimately carries neither
+disposition, because it performs no thread operation at all.
+
 ## H13 — Preserve unrelated operator working-tree state
 
 **Risk.** The working tree carries staged, unrelated operator changes

@@ -693,3 +693,87 @@ repository's existing append-only convention — an `[UPDATED … STALE FACTS �
 prefix with the original preserved beneath, matching the `[SUPERSEDED …]`
 precedent already in that file. The verbatim operator direction in the stash
 entry was left byte-identical and verified as such after the edit.
+
+## Post-replanning readiness fix cycle 3 of 3 (2026-08-19, review of HEAD `904c46b9`)
+
+Review returned `BLOCKED (P0=0, P1=1)`: `fix-ci` was modelled as threadless-only.
+I verified the claim read-only against `templates/skills/fix-ci/SKILL.md.tmpl`
+before changing anything, and the review is right.
+
+### The evidence
+
+The template's own frontmatter description is "Detect CI pipeline failures **and
+review comments**". It carries:
+
+* **Step 2.5** — Copilot review-comment detection, building a full thread
+  inventory with per-thread reply status.
+* **Step 3** — categorize review comments valid / partial / invalid.
+* **Step 6** — reply to the thread using the github-pr-automation reply
+  templates, then resolve Copilot threads via the GraphQL `resolveReviewThread`
+  mutation.
+* **Step 6.5** — a **NON-NEGOTIABLE reply gate**: no commit may be pushed while
+  any open thread is unreplied.
+
+A surface with a mandatory reply gate is the last one that should have been
+excluded from thread-present reply ordering. `circuit-breaker` was re-checked in
+the same pass and has no thread operation at all, so it remains the only
+legitimately excluded surface.
+
+### Why the previous method could not catch this
+
+This is a genuinely new root cause, not a fourth instance of the previous three.
+
+Every earlier correction re-derived the matrix by **inverting the authoring set**
+— reading what the backlog tasks claim to author. That is the right method for
+finding an *under-listed carrier*, and it worked. But it inherits any factual
+error the criteria already contain. `134.007-T` correctly said "a CI/build
+failure has no review thread" — true of a **finding** — and that got silently
+generalized into a claim about the **surface**. Inversion cannot detect that,
+because the authoring set is exactly where the wrong premise lives.
+
+The fix is a rule about how a carrier's path set is determined at all:
+
+> **DUAL-PATH SURFACES.** A carrier's path set is determined by the FINDING KINDS
+> it actually handles, verified against the template — never by the loop's name
+> or its primary purpose.
+
+Two carriers are dual-path: `_ship.agent.md.tmpl` (already modelled correctly)
+and `fix-ci/SKILL.md.tmpl` (was not).
+
+### Changes
+
+B7 now includes `fix-ci`; B8 scopes `fix-ci` to its CI-finding path specifically
+rather than to the whole surface. `134.007-T` gains a thread-present criterion
+for the review-comment path and an **existing-entry reuse** rule — a dual-path
+surface is precisely where duplicate deferred capture is most likely, since the
+same finding can arrive twice through two intake paths in one run. Two new tests
+in `134.012-T`: `FIX-CI-DUAL-PATH` (with a negative guard that must fail against
+the historical wording "a review thread never surfaces inside a fix-ci run") and
+`FIX-CI-ENTRY-REUSE`.
+
+### A dependency that existed only because of the false premise
+
+`134.008-T` explicitly excluded a `134.007-T` dependency on the stated ground
+that fix-ci "originates no late identifier". That was reasoning *from* the wrong
+premise. Since Step 6.5 re-queries for threads opened during the fix phase, a CI
+finding captured with `review-thread ID: N/A` can gain a thread **inside the same
+run** — making fix-ci a genuine originator of late identifiers and its
+run/closure records a retrieval source Stage must search. Edge added; the
+retrieval-source criterion now names those records.
+
+`134.007-T` complexity raised low → **medium**: the dual-path distinction is the
+thing four consecutive cycles got wrong, so "low" was no longer credible.
+
+### Handling of the superseded rationale
+
+The cycle-2 `CARRIER-ROLE RATIONALE` contains the sentence "and fix-ci has no
+thread to reply on". I did **not** delete it. It is annotated `[SUPERSEDED IN
+PART]` pointing at correction 4, because it is the recorded reasoning that this
+correction had to overturn — and the reasoning around it (role-appropriate
+markers) is still sound. Only the example was wrong.
+
+### Incidental defect from my own cycle-2 edit
+
+The `MATRIX CORRECTION` paragraph in `134.011-T` had been **duplicated verbatim**
+by my cycle-2 replacement. Removed. Worth noting as a self-inflicted class:
+large block replacements that re-include their own anchor text.

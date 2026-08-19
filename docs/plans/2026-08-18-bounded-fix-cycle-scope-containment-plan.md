@@ -113,8 +113,8 @@ Verified facts that constrain the map:
 | 004 | Ship review-fix / build-fix defer-capture procedure + Stop Conditions rows | S4 | 002 | M | medium |
 | 005 | circuit-breaker Review-Fix Cycle Definition gains the C1 scope test | S5 | 001 | M | medium |
 | 006 | github-pr-automation autonomous comment loop: reply / resolve / capture / reference | S6 | 001, 005 | M | medium |
-| 007 | `pr-lifecycle` + `fix-ci` skill templates carry C1–C3 | S7 | 001, 005 | M | low |
-| 008 | Stage Step 1 classification + mandatory `deliberate` routing (C6) + late-identifier reconciliation | S8 | 001, 004 | L | medium |
+| 007 | `pr-lifecycle` + `fix-ci` skill templates carry C1–C3 (`fix-ci` dual-path) | S7 | 001, 005 | M | medium |
+| 008 | Stage Step 1 classification + mandatory `deliberate` routing (C6) + late-identifier reconciliation | S8 | 001, 004, 007 | L | medium |
 | 009 | Dark-mode non-bypass (C4) in Orchestrator + `feature-flow-dark` prompt | S9 | 001 | M | medium |
 | 010 | `HARNESS_ENFORCED_SUMMARY` policy-range coherence + `copilot-code-review` re-render | S10 | 001 | S | low |
 | 011 | Contract test: byte identity, checksums, and the exhaustive clause-to-carrier presence matrix | S11 | 002, 003, 004, 005, 006, 007, 008, 009, 010 (enumerated discretely in the backlog, **review finding R3**) | M | medium |
@@ -174,8 +174,13 @@ captured deferred entry, and a residual-risk record entry. Dogfood + checksum
 refreshed.
 
 **007** — Both skill templates carry C1–C3 in their review-fix / fix iteration
-steps and their residual-risk or follow-up reporting. No dogfood pair exists,
-so no checksum changes.
+steps and their residual-risk or follow-up reporting. `fix-ci` is a **dual-path**
+carrier: CI check failures take the threadless discharge, while review comments
+take the thread-present reply ordering, since the skill maintains a review-thread
+inventory, replies per template, resolves Copilot threads via GraphQL, and
+enforces a non-negotiable reply gate. It also carries the existing-entry reuse
+rule, because a dual-path surface can meet the same finding through two intake
+paths in one run. No dogfood pair exists, so no checksum changes.
 
 **008** — Stage Step 1 gains a `Deferred-scope-expansion` classification with a
 mandatory route to Step 2 `deliberate`, explicitly overriding the shape-based
@@ -183,7 +188,9 @@ routing so such an entry never goes straight to planning. Stage also gains the
 LATE-IDENTIFIER RECONCILIATION workflow: during deliberation/triage of an entry
 carrying any `N/A` source ref, Stage retrieves the late PR number or
 review-thread ID from the Ship-owned residual-risk records that cite the
-deferred entry ID, and reconciles the entry in place under its own stash
+deferred entry ID — including `fix-ci` run/closure records, where a CI finding
+captured with an `N/A` thread ID can gain a thread inside the same dual-path run
+— and reconciles the entry in place under its own stash
 authority — no Ship write, no duplicate entry, idempotent, and non-blocking when
 no late identifier ever surfaces. This is the designated consumer of the duty
 that 004's late-surfacing-thread criterion delegates to "Stage's C6 intake
@@ -217,13 +224,15 @@ test: conditional C3, threadless discharge, the task/run/closure three-record
 citation, per-field source-ID availability, the single-write capture invariant,
 capture-first ordering, thread-present reply ordering, the six-field payload, the
 C5 carve-out boundary and the C5 provenance exception, Stage-only
-reprioritization, the C1 classification gate, C4 non-bypass, and the
+reprioritization, the C1 classification gate, C4 non-bypass, the `fix-ci`
+dual-path selection with existing-entry reuse, and the
 reconciliation consumer. Each assertion resolves its carrier subset from the
 behaviour mapping (B1–B15) in 011 rather than hardcoding a list, and a
 subset-fidelity guard fails if a behaviour is asserted against a carrier the
 mapping excludes — the mechanism that keeps the suite from demanding
-thread-reply ordering from `fix-ci` or threadless discharge from
-`github-pr-automation`. It also carries a root-cause guard asserting no C2
+threadless discharge from `github-pr-automation`, or thread-reply ordering from
+`circuit-breaker`, which performs no thread operation at all. It also carries a
+root-cause guard asserting no C2
 carrier makes a PR or a review thread a precondition for capture. Every prior
 fix-cycle defect maps to a named failing test here. Full `unittest` suite passes.
 
