@@ -369,3 +369,45 @@ Both are recorded here rather than silently expanded into. Neither was
 captured as a deferred stash entry because Stage owns these artifacts directly
 and can schedule them in a normal cycle; C2 capture governs Ship's in-cycle
 findings, not Stage's own disclosed backlog observations.
+
+## Fix cycle 3 (2026-08-19, review of `2ec55865`) — task-level citation in the fix-ci carrier
+
+`134.007-T`'s threadless fix-ci disposition cited the deferred entry ID only in
+the "run/closure residual-risk record", omitting the **task-level** citation
+that authoritative C3 (`134.001-T`) and `134.004-T`'s threadless path both
+require — all three records: task-level, run-level and closure.
+
+This mattered more than a wording slip. On a threadless surface those
+residual-risk citations are the *entire* discharge of C3's reference
+obligation, because there is no thread reply to carry the ID. Dropping one of
+the three named records weakened the only mechanism keeping the deferred entry
+traceable back to the task that spawned it.
+
+**Correction applied.** Both the fix-ci acceptance criterion and the `fix-ci
+CARRIER NUANCE` implementation note now name all three records, with the
+criterion stating explicitly that this is the complete set authoritative C3
+requires for a threadless discharge. Preserved unchanged: the six-field
+capture payload, per-field source-ID availability (`review-thread ID` not
+applicable while the PR number stays concrete), the single-write capture
+invariant, capture-first ordering, the C5 capture-only role-boundary carve-out,
+and provisional-priority / Stage-only reprioritization.
+
+**Targeted consistency check.** Every `residual-risk` mention across
+`134.001-T`, `134.004-T`, `134.006-T`, `134.007-T`, `134-F`, `019-DL` and the
+plan was classified. All threadless discharges now name the identical
+three-record set; all thread-present dispositions correctly retain the
+PR/closure form (a thread reply plus PR record already carries the ID there).
+No divergence remains. Operator-direction quotations and historical correction
+notes were left untouched.
+
+### Cycle budget
+
+This was **cycle 3 of the 3-cycle bound** for this remediation. The three
+cycles addressed genuinely distinct defects rather than re-litigating one
+finding: per-field source-ID availability (cycle 1), the conditional C3
+thread obligation (cycle 2), and the completeness of the threadless citation
+set (cycle 3). All three trace to the same root cause — the policy was first
+authored assuming every finding arrives on a PR review thread, and each cycle
+removed one more consequence of that assumption. The budget is now exhausted;
+any further finding is accepted and recorded rather than fixed in this
+remediation, per the Stop Conditions rule.
