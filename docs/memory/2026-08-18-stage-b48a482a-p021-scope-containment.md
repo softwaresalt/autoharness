@@ -1272,6 +1272,17 @@ its own remediation.
 One P1: the split's **owner provenance inventories** were contradictory in both
 directions at once, and both errors have a single cause.
 
+> **Correction (cycle 3, 2026-08-19):** the claim below that 002's behaviours are
+> "**B11** … and the **B12** provisional-priority carve-out" is **wrong**, and so is
+> the "single cause" framing. B12's carrier subset is `001[A], 004, 006,
+> 007-pr-lifecycle, 007-fix-ci` — 002 has never been a B12 owner. 002's only mapped
+> behaviour is B11. So the two inventory errors have *different* causes: 013's
+> omission of 005 was genuine staleness (the split moved B1 and the inventory was
+> not re-derived), while 012's listing of 002 was **never map-supported at any point
+> in the feature's life** — the split did not make it stale, it merely made it
+> conspicuous. The remedy below (derive, never declare) is correct and unchanged;
+> only this diagnosis was faulty. Left in place as the dated record.
+
 * `134.012-T` still listed `134.002-T` as an authoring task for a
   "provisional-priority carve-out reference" — but 002's only behaviours, **B11**
   (Role Boundary verb list) and the **B12** provisional-priority carve-out, had
@@ -1319,3 +1330,77 @@ consistency is not executability*. This one is narrower and sharper: **consisten
 checks that compare two restatements cannot detect that both are restatements.**
 Both inventories were internally coherent and mutually plausible; only rederiving
 from the owner could tell either was wrong.
+
+## PR #372 review-fix cycle 3 of 3 (2026-08-19, HEAD 5b8b91c9)
+
+Final allowed local cycle. Two P1s and two P2s, and the two P1s turned out to be
+one defect seen from both ends.
+
+**P1-1 — the fail-safe suppressed the capture it existed to protect.** Cycle 1's
+DISCOVERY FAIL-SAFE made an ambiguous or unconfirmed lookup create **no** deferred
+entry, on the stated ground that the finding was *"provably already captured"*.
+That ground is false in exactly the case the same sentence admits: one candidate
+whose expansion statement **cannot be confirmed** to describe the same expansion.
+If it describes a different one, nothing was captured and the finding is gone
+silently. Enumerating candidates is not identifying one, and the fail-safe traded
+a recoverable outcome for an unrecoverable one — the inverse of its own stated
+rationale.
+
+The fix was not to add a branch but to move where the mechanism fails closed.
+Both discovery-failure paths now **capture unconditionally**; they differ only in
+the evidence recorded — `DISCOVERY-STATUS: AMBIGUOUS` with every candidate ID, or
+`DISCOVERY-STATUS: LOOKUP-UNAVAILABLE`, written inside field (2) of the fixed
+six-field payload so no seventh field appears. Failing closed now applies to the
+**identity decision**, which Ship genuinely cannot make and defers to Stage with
+full evidence, rather than to the **capture**, which Ship always can and must
+make. Disposition is now a complete four-case truth table over (candidate count ×
+identity confirmation), with positive confirmation a required predicate for
+reuse: an unconfirmed reuse is an unrecoverable mis-attachment, an unnecessary
+capture is a recoverable duplicate.
+
+I chose capture-with-evidence over the alternative the review offered — a Stage
+handoff blocking finding closure — because that alternative makes Ship's fix loop
+synchronously dependent on Stage, contradicting the capture-only carve-out (whose
+entire purpose is that Ship never needs Stage in-loop), C2's capture-first
+ordering, and 008's explicit NON-BLOCKING rule.
+
+**P1-2 — the guarantee the fix-safe leaned on did not exist.** The remedy above
+is only safe because duplicates get reconciled later. Cycle 1 asserted that
+`134.008-T` scans "unconditionally" — and it did not. Its single trigger fired
+only on an `N/A` source ref, so a duplicate captured with **every** identifier
+populated (the common case on a PR-review-comment surface, where PR and thread ID
+both always exist) would never be looked at. Split 008 into two independently
+triggered obligations: **(A)** unconditional duplicate detection over every
+triaged entry regardless of field population, and **(B)** `N/A`-triggered
+late-identifier reconciliation. A discovery-status token **accelerates** the scan
+by seeding candidate IDs but is explicitly not its trigger — the worst duplicates,
+from a lookup that silently returned a false absence, carry no token at all. B14's
+obligation (1) is now two-part with a negative guard against `N/A`-gated wording,
+and the audit output grew a fourth case (**clean scan**) for the same reason the
+no-result case exists: under an unconditional trigger, an unrecorded clean scan is
+indistinguishable from one that never ran.
+
+**P2-1** corrected the cycle-2 narrative's false B12/002 attribution (see the
+inline correction in that section). **P2-2** completed `134-F`'s DoD verb set with
+**re-prioritize** and **discretionary archival**; I judged the DoD
+acceptance-authoritative — Ship checks it at completion, so an incomplete
+enumeration would let a conforming implementation leave Ship free to archive a
+Stage-owned entry — and made it **cite** owner `134.002-T` rather than become a
+second source of truth.
+
+**Self-found, not in the review.** `134.007-T`'s fix-ci criterion said *"This skill
+MUST NOT restate that procedure"* and restated it in the immediately preceding
+clause, carrying the now-superseded ambiguous-match semantics. The
+duplicated-source-of-truth failure occurred inside the sentence forbidding it.
+Replaced with a by-name reference. The lesson is small and general: **a
+prohibition placed after the text it governs does not police it.**
+
+**The durable lesson (recorded as H14).** A safety mechanism may not assert the
+guarantee it depends on. Cycle 1's fail-safe cited 008's unconditional scan as its
+justification, and the citation was accepted as evidence because it sat in the
+artifact doing the depending. Neither the AUTHORITY-OWNER MAP audit nor the
+owner-obligation audits caught it: both check that a claim **matches its owner**,
+and this claim had no owner entry, because it was not a restatement of another
+artifact's rule but a bare assertion **about** another artifact's behaviour. That
+is the one shape neither audit was built to catch. Where X's correctness depends
+on Y providing G, the check runs against Y and the obligation is recorded on Y.

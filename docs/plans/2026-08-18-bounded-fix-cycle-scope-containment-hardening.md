@@ -340,3 +340,28 @@ adds an allocation edge, not a second source of truth. Deferring a
 known-necessary split to implementation was itself the defect: the split then
 lands mid-execution, with the 2-hour bound already breached and the least
 context available to choose the cut.
+
+**Addendum (2026-08-19, PR #372 review-fix cycle 3) — H14: a safety mechanism
+may not assert the guarantee it depends on.**
+
+Cycle 1's discovery fail-safe justified capturing on an unavailable lookup by
+stating that `134.008-T` "requires Stage to run duplicate detection over every
+deferred entry it triages, unconditionally". `134.008-T` required no such thing —
+its single trigger fired only on an `N/A` source ref, so a duplicate captured
+with every identifier populated would never be examined. The guarantee was
+asserted in the artifact that *depended* on it and provided by nothing.
+
+This slipped through two audits that were specifically looking for mismatches.
+The AUTHORITY-OWNER MAP audit and the owner-obligation audits both verify that a
+claim **matches its owner** — and this claim had no owner entry, because it was
+not a restatement of another artifact's rule but a bare assertion **about**
+another artifact's behaviour. It is the one shape neither audit was built to
+catch.
+
+**Rule.** Where artifact X's correctness depends on artifact Y providing
+guarantee G, the check is performed against Y and the obligation is recorded
+**on Y**. A sentence in X asserting that Y provides G is not evidence; it is an
+unverified dependency, and it must be treated as a finding until the
+corresponding obligation exists on Y and is covered by Y's tests. The two
+obligations in `134.008-T` are now split and separately triggered precisely so
+that the guarantee 004 relies on is stated where it is owned.

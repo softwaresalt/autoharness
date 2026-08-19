@@ -199,14 +199,21 @@ paths in one run. No dogfood pair exists, so no checksum changes.
 **008** — Stage Step 1 gains a `Deferred-scope-expansion` classification with a
 mandatory route to Step 2 `deliberate`, explicitly overriding the shape-based
 routing so such an entry never goes straight to planning. Stage also gains the
-LATE-IDENTIFIER RECONCILIATION workflow: during deliberation/triage of an entry
-carrying any `N/A` source ref, Stage retrieves the late PR number or
+STAGE INTAKE obligations, two independently triggered: (A) UNCONDITIONAL
+DUPLICATE DETECTION over every deferred entry Stage triages, regardless of field
+population — a duplicate comes from a discovery failure, not a missing
+identifier, so gating it on `N/A` would leave every fully-populated duplicate
+unexamined — and (B) LATE-IDENTIFIER RECONCILIATION, triggered during
+deliberation/triage of an entry carrying any `N/A` source ref, where Stage
+retrieves the late PR number or
 review-thread ID from the Ship-owned residual-risk records that cite the
 deferred entry ID — including `fix-ci` run/closure records, where a CI finding
 captured with an `N/A` thread ID can gain a thread inside the same dual-path run
 — and reconciles the entry in place under its own stash
 authority — no Ship write, no duplicate entry, idempotent, and non-blocking when
-no late identifier ever surfaces. This is the designated consumer of the duty
+no late identifier ever surfaces. (A) is what 004's discovery fail-safe depends
+on when it captures rather than dropping a finding, so the two tasks are coupled
+in both directions. This is the designated consumer of the duty
 that 004's late-surfacing-thread criterion delegates to "Stage's C6 intake
 responsibility"; without it, every `N/A` recorded under the single-write
 invariant would be permanent. Dogfood + checksum refreshed.
