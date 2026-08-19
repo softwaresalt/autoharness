@@ -220,7 +220,8 @@ entry and a residual-risk record is itself a C7 violation.
 ## H13 — Preserve unrelated operator working-tree state
 
 **Risk.** The working tree carries staged, unrelated operator changes
-(`.gitmodules`, `references/skillopt`, `references/waza`, `references/witr`).
+(`.gitmodules`, `references/azd-backlogbuilder`, `references/azd-backlogloader`,
+`references/skillopt`, `references/waza`, `references/witr`).
 Any `git add -A` or `git commit -a` during execution would sweep them into this
 shipment's PR.
 
@@ -228,6 +229,19 @@ shipment's PR.
 path list. `git add -A`, `git add .`, and `git commit -a` are prohibited for the
 duration. Ship MUST verify with `git --no-pager diff --cached --name-only`
 before each commit that only this feature's declared surfaces are staged.
+
+**Inventory is illustrative; the allowlist is the control.** The path list above
+records the unrelated staged entries observed when this hardening was authored
+and was extended on 2026-08-19 to add `references/azd-backlogbuilder` and
+`references/azd-backlogloader`, which were present but unlisted. That extension
+does NOT change the safety rule, and the rule's protection does NOT depend on
+the inventory being complete: because staging is an explicit enumerated
+ALLOWLIST of this feature's own surfaces, any unrelated entry — listed here or
+not, already present or appearing later — is excluded by construction. The
+inventory exists to make the pre-commit `--name-only` verification concrete and
+to help a reviewer recognize a sweep, never as a denylist to be matched against.
+An out-of-date inventory is therefore a documentation defect, not a containment
+failure.
 
 ## Hardening verdict
 

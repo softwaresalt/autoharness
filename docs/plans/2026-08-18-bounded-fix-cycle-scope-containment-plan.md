@@ -57,7 +57,7 @@ surfaces byte-consistent with refreshed manifest checksums.
 | Clause | Statement |
 |---|---|
 | C1 Scope test | A finding is in scope only if fixing it requires **only completing the exact change already authorized** (the same contract surface). "Same file", "same function", "same PR", "same subsystem", or "related" is **not** sufficient. Work requiring original design/decision effort or an unrelated code path is out of scope. Genuine ambiguity resolves **out of scope**. |
-| C2 Mandatory capture | An out-of-scope expansion MUST be captured as a stash entry carrying a `DEFERRED SCOPE EXPANSION` marker, source refs (PR + review-thread ID, task/feature ID, shipment ID), and a `requires deliberation` flag. Capture is a precondition for closing the finding. |
+| C2 Mandatory capture | An out-of-scope expansion MUST be captured as a stash entry carrying a `DEFERRED SCOPE EXPANSION` marker, source refs (PR number *when applicable*, review-thread ID *when applicable*, task/feature ID, shipment ID — availability judged independently per field, never fused into a single `PR/thread` ref), and a `requires deliberation` flag. Capture is a precondition for closing the finding, and is never conditional on a PR or thread existing. |
 | C3 Bounded resolution | Resolve the in-scope defect/comment as far as possible **without** the expansion. The reference obligation is **conditional on actual thread availability**: where a review thread exists, reference the deferred entry ID in the review-thread reply (posted before the thread is resolved) and in the PR/closure residual-risk record; where no thread exists (pre-PR local review, build/CI), the obligation is discharged **in full** by citing the deferred entry ID in the task/run/closure residual-risk record, and the absent reply is not a shortfall. |
 | C4 Non-bypass | Review pressure, severity, dark factory mode (P-017), circuit-breaker exhaustion, and convenience never authorize expansion. Only an explicit operator authorization recorded as new/expanded approved scope does. |
 | C5 Ship capture-only carve-out | Ship MAY create stash entries **for capture only**. Ship MUST NOT triage, prioritize, re-classify, edit, harvest, deliberate on, or remove them. |
@@ -114,16 +114,23 @@ Verified facts that constrain the map:
 | 005 | circuit-breaker Review-Fix Cycle Definition gains the C1 scope test | S5 | 001 | M | medium |
 | 006 | github-pr-automation autonomous comment loop: reply / resolve / capture / reference | S6 | 001, 005 | M | medium |
 | 007 | `pr-lifecycle` + `fix-ci` skill templates carry C1–C3 | S7 | 001, 005 | M | low |
-| 008 | Stage Step 1 classification + mandatory `deliberate` routing (C6) | S8 | 001 | M | medium |
+| 008 | Stage Step 1 classification + mandatory `deliberate` routing (C6) + late-identifier reconciliation | S8 | 001, 004 | L | medium |
 | 009 | Dark-mode non-bypass (C4) in Orchestrator + `feature-flow-dark` prompt | S9 | 001 | M | medium |
 | 010 | `HARNESS_ENFORCED_SUMMARY` policy-range coherence + `copilot-code-review` re-render | S10 | 001 | S | low |
-| 011 | Contract test asserting P-021 clauses across template/dogfood pairs | S11 | 002, 003, 004, 005, 006, 007, 008, 009, 010 (enumerated discretely in the backlog, **review finding R3**) | M | medium |
+| 011 | Contract test: byte identity, checksums, and the exhaustive clause-to-carrier presence matrix | S11 | 002, 003, 004, 005, 006, 007, 008, 009, 010 (enumerated discretely in the backlog, **review finding R3**) | M | medium |
+| 012 | Contract test: P-021 C2/C3 semantic regression suite | S11 | 011 | M | medium |
 
 Width isolation holds: no task combines a policy-registry edit with a CLI or
 schema edit; no task edits both an agent template family and a skill template
 family. Task 001 is the single upstream dependency for every carrier surface so
-the normative text exists before any surface quotes it. Task 011 is last
-because it asserts clauses that must already exist.
+the normative text exists before any surface quotes it. Tasks 011 and 012 are
+last because they assert clauses that must already exist.
+
+**Contract replanning (2026-08-19).** Task 008 gained the Stage-owned
+late-identifier reconciliation workflow and a new `004` dependency; task 011's
+carrier matrix was corrected to be exhaustive; and task 012 was added to carry
+the semantic regression suite that 011's presence-only assertions cannot cover.
+See §5 for the per-task criteria and §7 for the risk these close.
 
 ## 5. Per-task acceptance criteria
 
@@ -172,8 +179,16 @@ so no checksum changes.
 
 **008** — Stage Step 1 gains a `Deferred-scope-expansion` classification with a
 mandatory route to Step 2 `deliberate`, explicitly overriding the shape-based
-routing so such an entry never goes straight to planning. Dogfood + checksum
-refreshed.
+routing so such an entry never goes straight to planning. Stage also gains the
+LATE-IDENTIFIER RECONCILIATION workflow: during deliberation/triage of an entry
+carrying any `N/A` source ref, Stage retrieves the late PR number or
+review-thread ID from the Ship-owned residual-risk records that cite the
+deferred entry ID, and reconciles the entry in place under its own stash
+authority — no Ship write, no duplicate entry, idempotent, and non-blocking when
+no late identifier ever surfaces. This is the designated consumer of the duty
+that 004's late-surfacing-thread criterion delegates to "Stage's C6 intake
+responsibility"; without it, every `N/A` recorded under the single-write
+invariant would be permanent. Dogfood + checksum refreshed.
 
 **009** — Orchestrator and `feature-flow-dark.prompt` state that a
 `DARK_MODE_ACTIVE` record never authorizes scope expansion and that P-021
@@ -188,8 +203,18 @@ re-rendered; checksum refreshed. `tests/test_copilot_code_review.py` passes.
 **011** — A new contract test asserts, for each dogfooded pair in the surface
 map, that the LF-normalized rendered template is byte-identical to the dogfood
 output, that the manifest checksum matches, that clauses C1–C7 appear on their
-designated carriers, and that the Ship Role Boundary no longer contains a blanket
-stash prohibition. Full `unittest` suite passes.
+designated carriers per an EXHAUSTIVE matrix, and that the Ship Role Boundary no
+longer contains a blanket stash prohibition. A carrier-completeness guard keeps
+the matrix from silently under-listing a carrier. Full `unittest` suite passes.
+
+**012** — A second contract test asserts the C2/C3 SEMANTIC invariants, so a
+clause that is present but self-contradictory fails a distinct, diagnosable
+test: conditional C3, threadless discharge, the task/run/closure three-record
+citation, per-field source-ID availability, the single-write capture invariant,
+capture-first ordering, the six-field payload, Stage-only reprioritization, and
+the reconciliation consumer. It also carries a root-cause guard asserting no C2
+carrier makes a PR or a review thread a precondition for capture. Every prior
+fix-cycle defect maps to a named failing test here. Full `unittest` suite passes.
 
 ## 6. Verification
 
@@ -228,3 +253,7 @@ stash prohibition. Full `unittest` suite passes.
 | Manifest checksum conflicts with any concurrent branch | Single serial shipment, one worktree, checksums recomputed from the merged blob per the 115-S procedure |
 | Byte-identity drift between template and dogfood | 011 asserts byte identity for every touched pair |
 | P-021 could be read as licence to *never* fix anything found in review | C1 explicitly keeps same-contract-surface completions in scope; C3 requires the original to be resolved as far as possible |
+| A clause is present and byte-identical on every carrier but semantically self-contradictory across them | Presence-only assertions cannot see this — it is how all three prior fix-cycle defects survived review. Task 012 asserts the C2/C3 semantic invariants directly, with a named regression test per historical defect |
+| A duty is delegated from one carrier to another agent's clause that no task actually defines | The late-identifier reconciliation duty was dangling exactly this way (004 → "Stage's C6 intake responsibility", undefined in 008). Closed by 008's reconciliation workflow; 012's reconciliation-consumer test fails if any such delegation loses its receiving carrier |
+| The clause-to-carrier matrix silently under-lists a carrier, so a clause regresses while the test stays green | The matrix in 011 is now exhaustive and carries a carrier-completeness guard tying it to the tasks that author each clause |
+| Contract text assumes every finding arrives on a PR review thread | The root cause behind all three prior fix cycles. Guarded directly by 012's NO-PR/NO-THREAD-ASSUMPTION test rather than only via its known symptoms |

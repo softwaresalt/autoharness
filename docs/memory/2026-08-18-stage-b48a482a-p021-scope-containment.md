@@ -411,3 +411,101 @@ authored assuming every finding arrives on a PR review thread, and each cycle
 removed one more consequence of that assumption. The budget is now exhausted;
 any further finding is accepted and recorded rather than fixed in this
 remediation, per the Stop Conditions rule.
+
+## Operator-directed contract replanning (2026-08-19, checkpoint `checkpoint-20260819-064401.json`)
+
+After the three-cycle remediation budget was exhausted, the terminal readiness
+gate on HEAD `046adef8` returned `BLOCKED (P0=0, P1=2)` with a P2. The operator
+authorized a comprehensive **contract replan** rather than a fourth incremental
+fix cycle. This section records that replan.
+
+### Why replanning rather than another fix cycle
+
+The three prior cycles each corrected a real defect, but all three were
+symptoms of one root cause: the policy was first authored assuming every
+finding arrives on a PR review thread. Incremental cycles kept removing one
+consequence at a time. The terminal findings were structurally different — a
+*missing verification surface* and a *dangling obligation* — which no wording
+fix could close.
+
+### P1-1 — contract-test matrix was not exhaustive (`134.011-T`)
+
+The clause-to-carrier matrix under-listed carriers: C2 omitted
+`github-pr-automation`, and C3 omitted both `fix-ci` and `_ship.agent.md.tmpl`
+even though `134.004-T` authors both C3 dispositions in Ship. The consequence
+is the important part: **the matrix as written would not have detected any of
+the three prior fix-cycle defects**, because each defect lived on a surface not
+listed as a carrier of the clause it broke.
+
+Corrected the matrix to be exhaustive and added a carrier-completeness guard
+tying it to the tasks that author each clause. Then split the task: `134.011-T`
+keeps structural coverage (byte identity, checksums, presence matrix), and new
+sibling **`134.012-T`** carries the semantic regression suite. The split was
+required by the 2-hour rule — roughly a dozen behavioural assertions, each
+needing stable marker strings across eight-plus template surfaces, does not fit
+alongside the existing byte-identity and seven-clause matrix work.
+
+`134.012-T` maps every historical defect to a named failing test (conditional
+C3, threadless discharge, three-record citation, per-field IDs, fused-ref
+guard, single-write capture, capture-first, six-field payload, Stage-only
+reprioritization, reconciliation consumer) and adds a
+`NO-PR/NO-THREAD-ASSUMPTION` guard aimed at the root cause itself rather than
+only its known symptoms. Its negative guards must be validated by temporarily
+reintroducing the historical defective wording — a negative guard that cannot
+be shown to fail is worthless.
+
+### P1-2 — dangling reconciliation obligation (`134.008-T`)
+
+`134.004-T`'s LATE-SURFACING THREAD criterion correctly forbids Ship from
+touching a captured entry and delegates reconciliation to "Stage's C6 intake
+responsibility" — but **no task defined that responsibility**. Ship correctly
+refused to reconcile and nothing was obliged to pick it up, so under the
+single-write invariant every `N/A` recorded on the threadless path would have
+become permanent, silently discarding identifiers that later became known.
+
+Defined the workflow in `134.008-T`: triggered by any `N/A` source ref during
+deliberation/triage; retrieves late identifiers from the Ship-owned
+residual-risk records using the deferred entry ID as join key; reconciles in
+place under Stage's own pre-existing stash authority (**no Ship write, C5
+carve-out and single-write invariant both unweakened**); anti-duplication
+(earliest-captured entry is the stable identity); non-blocking when no late
+identifier ever surfaces; and idempotent. Added the `134.004-T` dependency —
+a genuine content-ordering prerequisite, not a checksum-serialization edge.
+Size raised M → L for honest scope growth. `134.007-T` was deliberately *not*
+added as a dependency (fix-ci is threadless by nature and originates no late
+identifier).
+
+### P2 — H13 staged-change inventory
+
+Added `references/azd-backlogbuilder` and `references/azd-backlogloader`, and
+recorded explicitly that the inventory is *illustrative*: because staging is an
+enumerated allowlist of the feature's own surfaces, containment does not depend
+on the inventory being complete. An out-of-date inventory is a documentation
+defect, not a containment failure. The allowlist safety rule is preserved
+unchanged.
+
+### Holistic C1–C7 self-review — one further root-cause defect found and fixed
+
+The directed sweep for "assumptions that every finding has a PR or thread"
+found a real one in the **authoritative** C2 payload. `134.001-T` qualified only
+the review-thread ID with "when applicable" while stating the PR number
+unconditionally — false for a pre-PR local-review finding, since Ship's local
+review runs before PR creation. Tracing upstream, `019-DL` clause 2 fused both
+into a single `PR/thread ID` token and the plan clause table carried
+`PR + review-thread ID` unqualified. **That fused token is the root form of the
+paired-`N/A` defect fix cycle 1 had to repair downstream in the carriers.**
+
+This is the same inverse-drift shape as fix cycle 2: carriers correct,
+authority stale. All three surfaces were corrected together to independent
+per-field availability with the fused form prohibited, and a `FUSED-REF` guard
+was added to `134.012-T` so the root form cannot reappear. Carriers `134.006-T`
+and `134.007-T` were checked and correctly left unchanged — both operate only
+where a PR exists, so their unconditional PR wording is accurate there.
+
+Because the operator directed a comprehensive replan explicitly hunting this
+assumption class, this was **fixed rather than disclosed**.
+
+### Disposition
+
+Shipment `143-S` now spans **12 tasks**. Checkpoint resolved after successful
+completion. Changes left uncommitted for Orchestrator publication.
