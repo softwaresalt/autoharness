@@ -80,7 +80,8 @@ Stage-owned late-identifier reconciliation workflow. The dependency graph
 remains acyclic and shallow — `012` extends the chain one level past the `011`
 join, and `008` gained a `004` edge (content ordering, not checksum
 serialization, so the H4 hazard is unaffected). Both new/grown tasks were sized
-against the 2-hour rule: `012` is M, and `008` was raised M → L.
+against the 2-hour rule: `012` was initially M and was later raised M → L as the
+suite absorbed the full C1–C7 semantic inversion, and `008` was raised M → L.
 
 ### Hardening adequacy — PASS
 

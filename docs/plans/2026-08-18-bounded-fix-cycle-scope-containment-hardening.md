@@ -53,8 +53,12 @@ shipped behavior.
 
 **Hardening.** Task 002 MUST distinguish the two by *provenance*, not by verb
 alone: retiring the source stash entry that fed the shipped scope is a
-manifest-derived closure operation and stays Allowed; discretionary removal of
-any other stash entry stays Forbidden. Task 011 MUST assert that the post-merge
+manifest-derived closure operation and stays Allowed; discretionary removal *or
+discretionary archival* of any other stash entry stays Forbidden. Naming both
+verbs matters: archival is a distinct backlogit operation that removes a
+Stage-owned deferred entry from Stage's triage queue just as effectively, so a
+prohibition covering only removal leaves the same loss reachable. Task 011 MUST
+assert that the post-merge
 Step 7 source-artifact-cleanup language is still present and not weakened.
 
 ## H3 — Every dogfood edit is a three-part atomic unit
@@ -230,7 +234,7 @@ omission that a manual pass had just repaired by hand.
 
 **Behaviour subsets (binding).** Where a clause is carried differently across its
 row, the per-behaviour carrier subsets live in the same single-source block in
-`134.011-T` (B1–B17) and task 012 resolves them by behaviour ID. A subset that is
+`134.011-T` (B1–B18) and task 012 resolves them by behaviour ID. A subset that is
 narrower than its clause row MUST carry its justification at the point of
 declaration, so a narrowing is a recorded decision rather than an omission.
 Every semantic assertion MUST carry a behaviour ID: an unnumbered assertion is

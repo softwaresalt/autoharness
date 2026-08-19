@@ -1054,3 +1054,58 @@ a row before suspecting the assertion.
 cycle, and this is cycle 3/3 — so the AUTHORITY-OWNER MAP has had no
 adversarial read. Its rows were verified individually against their owners,
 but the table as a whole is new. That is the residual risk on this handoff.
+
+## Owner-contract reconciliation — six terminal P1 findings (2026-08-19)
+
+Resumed `checkpoint-20260819-183625.json` (cursor `143-S`/`134-F`, branch
+`chore/stage-143-S`). One holistic pass rather than six patches, because all
+six findings turned out to share a single shape.
+
+**The shape.** CORRECTIONS 1–8 were wrong *content* resolved from the wrong
+source. These six are wrong **applicability**: each assertion was individually
+true of *some* carrier, then applied to a set its owner never contracted.
+Findings 1 and 3 are the same error mirrored — one demanded a per-field
+qualifier on surfaces that cannot carry it, the other demanded boundary text on
+a surface contracted only to *reference* it. Findings 4, 5 and 6 are its
+complement: a subset or a lifetime narrower than the owner's, leaving a mapped
+carrier or a real path untested.
+
+* **F1 C2 applicability.** FUSED-REF was declared UNIVERSAL while carrying B5's
+  ID, demanding independent per-field qualifiers on 006 and 007-pr-lifecycle —
+  exactly the two surfaces B5 excludes, because both IDs always exist there.
+  Split: universal *negative* (no fused `PR/thread` token anywhere) + B5-scoped
+  *positive*. Scope is now a property of the assertion, not of its behaviour ID.
+* **F2 C5 archival.** Authoritative C5 prohibited discretionary *removal* only;
+  owner `134.002-T` always said "discretionary removal/**archival**". Archival
+  reaches the same loss by a second verb. Both now named under one DISCRETIONARY
+  qualifier; the manifest-derived Step 7 exception is untouched.
+* **F3 B11 ownership.** B11 listed `003` and asserted the creation grant and
+  cleanup exception there — but H5 contracts `134.003-T` to *reference* C5, not
+  restate it. The test demanded text a *correct* template must not carry. Split
+  into **B18** (`c5-reference-role-recognition`, 003 only), with a negative guard
+  forbidding boundary semantics from being demanded on that surface.
+* **F4 B6 consumer.** SINGLE-WRITE asserted only Ship. A suite proving Ship
+  writes once, without proving anyone may close the resulting gap, passes on a
+  policy that permanently strands every `N/A`. Both halves now asserted together.
+* **F5 B14 completeness.** B14's subset is `008` alone, so its test is the only
+  place the workflow is exercised — and it asserted mere existence. Now asserts
+  all six owner-defined obligations, with Stage-authority flagged as what
+  discharges 008's cross-clause C5 carriage.
+* **F6 B17 lifetime.** Reuse was scoped to "this run", but the commonest real
+  path is a CI finding captured in an *earlier* run with `review-thread ID: N/A`
+  that gains a thread later. Reuse is now keyed on the stable deferred-entry ID,
+  never on run boundaries.
+
+Both P2s resolved: marker provenance said EIGHT while already enumerating NINE
+tasks; the review addendum still called `012` size M after it was raised to L.
+
+**Self-inflicted defect caught in-flight.** My two `Set-Content` inserts
+rewrote `134.011-T` and `134.012-T` from LF to CRLF file-wide. HEAD is LF for
+both. Normalized back and re-verified: diffs are line-scoped (8/3 and 10/9), no
+BOM. Worth remembering — `Set-Content` is not line-ending-safe on this repo;
+prefer the `edit` tool, which preserved LF on every file it touched.
+
+**Range is now B1–B18.** Audit after changes: 18 IDs defined, no gaps, no
+duplicates; allocation disjoint with union exactly B1–B18; all 15 behaviours
+owned by `134.012-T` are asserted, none foreign; every negative guard names a
+historical defective wording or an explicit defect form.
