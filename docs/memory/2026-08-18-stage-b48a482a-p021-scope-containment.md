@@ -1109,3 +1109,37 @@ prefer the `edit` tool, which preserved LF on every file it touched.
 duplicates; allocation disjoint with union exactly B1–B18; all 15 behaviours
 owned by `134.012-T` are asserted, none foreign; every negative guard names a
 historical defective wording or an explicit defect form.
+
+## Owner-reconciliation review cycle 1 (2026-08-19, HEAD 64b5817b)
+
+Two findings, both mine from the previous pass.
+
+* **Stale allocation-union range.** The RANGE-COMPLETENESS criterion is a single
+  3,027-character line containing **two** range statements. My previous edit
+  replaced the leading one and left `the union of the two constants MUST equal
+  B1–B17 exactly` untouched ~1,400 characters further along the same line. My
+  verification swept for the *line*, saw it had been changed, and moved on.
+  Fixed, and re-verified by **occurrence count** per file rather than by line
+  match — the only method that catches a second instance hiding on a line
+  already known to be edited. Result: `134.012-T` zero stale; the three in
+  `134.011-T` and six in this file are all inside historical CORRECTION /
+  prior-cycle narratives (including CORRECTION 9's deliberate `B1–B17 → B1–B18`
+  delta) and are correctly left alone.
+* **B14 completeness was still incomplete.** It claimed to assert *every*
+  owner-defined obligation while omitting `134.008-T` L45 — reconciled
+  identifiers carried into the deliberation artifact, and the reconciliation
+  **including the `no late identifier found` outcome** recorded for auditability
+  — and L46 (H5 citation style). Added as (7) and (8). (7) is marked a compound
+  clause needing both halves: under the NON-BLOCKING rule the no-result
+  termination is the *common* case, so the half most likely to be dropped is the
+  one covering most real terminations, and dropping it makes a truthful terminal
+  `N/A` indistinguishable from a reconciliation never performed.
+
+**Lesson, stated plainly.** Last cycle I fixed a *count* defect by adding an
+obligation list, and this cycle that same list was found short by two. Both
+failures are the same move: enumerating from memory of the owner instead of
+re-reading it end to end. The check that actually works is mechanical — map
+every owner criterion line to an asserted obligation and require zero unmapped.
+That mapping now runs L39–L46 → (1)–(8) with none unmapped, and the criterion
+states that if the owner grows, B14 must grow with it, since B14's
+single-carrier subset means nothing else will catch the omission.
