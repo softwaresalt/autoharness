@@ -101,7 +101,7 @@ Verified facts that constrain the map:
 | S8 | `templates/agents/_stage.agent.md.tmpl` | `.github/agents/_stage.agent.md` | yes |
 | S9 | `templates/agents/_orchestrator.agent.md.tmpl`, `templates/prompts/feature-flow-dark.prompt.md.tmpl` | `.github/agents/_orchestrator.agent.md`, `.github/prompts/feature-flow-dark.prompt.md` | yes (2) |
 | S10 | `.autoharness/harness-manifest.yaml` (`HARNESS_ENFORCED_SUMMARY`) | `.github/instructions/copilot-code-review.instructions.md` | yes |
-| S11 | `tests/test_scope_containment_policy_contract.py` (new) | — | no |
+| S11 | `tests/test_scope_containment_policy_contract.py` (new, structural — 011), `tests/test_scope_containment_semantics_contract.py` (new, semantic — 012) | — | no |
 
 ## 4. Task decomposition (2-hour rule, width-isolated)
 
@@ -118,7 +118,7 @@ Verified facts that constrain the map:
 | 009 | Dark-mode non-bypass (C4) in Orchestrator + `feature-flow-dark` prompt | S9 | 001 | M | medium |
 | 010 | `HARNESS_ENFORCED_SUMMARY` policy-range coherence + `copilot-code-review` re-render | S10 | 001 | S | low |
 | 011 | Contract test: byte identity, checksums, and the exhaustive clause-to-carrier presence matrix | S11 | 002, 003, 004, 005, 006, 007, 008, 009, 010 (enumerated discretely in the backlog, **review finding R3**) | M | medium |
-| 012 | Contract test: P-021 C2/C3 semantic regression suite | S11 | 011 | M | medium |
+| 012 | Contract test: P-021 C2/C3 semantic regression suite | S11 | 011 | L | medium |
 
 Width isolation holds: no task combines a policy-registry edit with a CLI or
 schema edit; no task edits both an agent template family and a skill template
@@ -203,16 +203,27 @@ re-rendered; checksum refreshed. `tests/test_copilot_code_review.py` passes.
 **011** — A new contract test asserts, for each dogfooded pair in the surface
 map, that the LF-normalized rendered template is byte-identical to the dogfood
 output, that the manifest checksum matches, that clauses C1–C7 appear on their
-designated carriers per an EXHAUSTIVE matrix, and that the Ship Role Boundary no
-longer contains a blanket stash prohibition. A carrier-completeness guard keeps
-the matrix from silently under-listing a carrier. Full `unittest` suite passes.
+designated carriers per an EXHAUSTIVE matrix — asserting the marker appropriate
+to each carrier's declared ROLE (authoritative / normative restatement /
+procedural / guard-only) rather than one identical string per row — and that the
+Ship Role Boundary no longer contains a blanket stash prohibition. A
+carrier-completeness guard spanning ALL seven clause rows, derived by inverting a
+declared authoring set for tasks 001–009, keeps the matrix from silently
+under-listing a carrier. Full `unittest` suite passes.
 
 **012** — A second contract test asserts the C2/C3 SEMANTIC invariants, so a
 clause that is present but self-contradictory fails a distinct, diagnosable
 test: conditional C3, threadless discharge, the task/run/closure three-record
 citation, per-field source-ID availability, the single-write capture invariant,
-capture-first ordering, the six-field payload, Stage-only reprioritization, and
-the reconciliation consumer. It also carries a root-cause guard asserting no C2
+capture-first ordering, thread-present reply ordering, the six-field payload, the
+C5 carve-out boundary and the C5 provenance exception, Stage-only
+reprioritization, the C1 classification gate, C4 non-bypass, and the
+reconciliation consumer. Each assertion resolves its carrier subset from the
+behaviour mapping (B1–B15) in 011 rather than hardcoding a list, and a
+subset-fidelity guard fails if a behaviour is asserted against a carrier the
+mapping excludes — the mechanism that keeps the suite from demanding
+thread-reply ordering from `fix-ci` or threadless discharge from
+`github-pr-automation`. It also carries a root-cause guard asserting no C2
 carrier makes a PR or a review thread a precondition for capture. Every prior
 fix-cycle defect maps to a named failing test here. Full `unittest` suite passes.
 

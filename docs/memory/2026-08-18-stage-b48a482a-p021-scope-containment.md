@@ -593,3 +593,103 @@ now closed: C2 and C3 each = registry + 004 + 005 + 006 + 007(×2); C5 = registr
 plus 002 plus 003. `134.002-T` and `134.003-T` explicitly *reference* C2 rather
 than restate it (their own criteria say so), so they are C5 carriers only;
 `134.008-T` references C3/C5 but authors C6.
+
+## Post-replanning readiness fix cycle 2 (2026-08-19, review of HEAD `b449dcbf`)
+
+Review returned `BLOCKED (P0=0, P1=4, P2=1)`. All four P1s were the same defect
+viewed from different angles, and the angle matters more than any individual fix.
+
+### The completeness guard was scoped to the defects already found
+
+Fix cycle 1 corrected the matrix by hand and added a carrier-completeness guard.
+But the guard checked **C2 and C3 only**, and its own expected set omitted
+`134.005-T` — the carrier cycle 1 had just finished adding by hand. So the guard
+could not have caught the omission it was written in response to, and it could
+not look at C1, C4, C5, C6 or C7 at all.
+
+That is the whole lesson of this cycle: **a guard derived from the clauses where
+defects were found cannot detect defects in the clauses nobody has re-derived.**
+Cycles 1 and 2 both re-inverted only C2/C3/C5. C1 and C4 had never been
+re-derived since the original authoring pass.
+
+A full inversion across all seven rows found exactly what that predicts:
+
+* **C1** listed only the registry and circuit-breaker, though `134.004-T`,
+  `134.006-T` and `134.007-T` all gate their loops on C1 classification.
+* **C4** listed only 004 and 009, though `134.006-T` and `134.007-T` both carry
+  the cycle-exhaustion annotation in their Stop Conditions rows.
+* **C5** listed only the two carve-out surfaces, though four procedural surfaces
+  carry Stage-only reprioritization and `134.008-T` carries the Stage-side
+  authority statement.
+
+H11 now binds the guard to all seven rows and to an inverted `AUTHORING_TASKS`
+constant covering tasks 001–009.
+
+### Expanding the rows required fixing the assertion model first
+
+This is the part I would have got wrong by only widening the matrix. Once C1, C4
+and C5 include their procedural carriers, asserting **one identical marker per
+row** becomes actively harmful, and three of the newly added pairings would have
+been unsatisfiable or unfaithful:
+
+* H5 **forbids** 004/006/007 from restating the C1 test text that 005 is
+  specifically designated to carry.
+* `github-pr-automation` has no threadless case — every finding on that surface
+  is a PR review comment.
+* `fix-ci` has no thread to reply on.
+
+Demanding thread-reply ordering from `fix-ci`, or threadless discharge from
+`github-pr-automation`, would have forced a contract contradicting the surface's
+own subject matter — **the precise failure mode that produced the paired-`N/A`
+defect in the first place.** Widening coverage without this would have
+manufactured a fourth instance of the original root cause while appearing to fix
+the third.
+
+So the matrix now carries two things instead of one:
+
+1. **Carrier roles** — `[A]` authoritative, `[N]` normative restatement, `[P]`
+   procedural, `[G]` guard-only — determining *which* marker is asserted where.
+2. **A clause → behaviour → carrier-subset mapping (B1–B15)** — the justified
+   subsets, each narrowing recorded with its reason at the point of declaration.
+
+`134.012-T` now resolves every assertion by behaviour ID and carries a
+`SUBSET-FIDELITY` guard that fails if a behaviour is asserted against a carrier
+the mapping excludes. Both live in the single-source block in `134.011-T`; the
+subsets were deliberately **not** given a second home, since duplicated
+definitions caused the drift this feature keeps rediscovering.
+
+### Coverage added, and one mislabel
+
+The C3 symmetric guard (B9) now asserts on all four authoring surfaces —
+registry, Ship, circuit-breaker, `fix-ci` — instead of two. The prior
+two-surface assertion left the two loops that *actually run fix cycles*
+unguarded against scope contraction.
+
+New semantic coverage for the previously un-derived clauses: `C1-GATE` (B1),
+`C4-NON-BYPASS` (B10), `C5-BOUNDARY` (B11) and `THREAD-PRESENT-ORDERING` (B7).
+B7 is split out of capture-first precisely so circuit-breaker and `fix-ci` are
+not asked to satisfy an ordering step they carry no thread for.
+
+While inverting, I found the authoritative task labelled the guard **`C12`** —
+not a clause in this policy, which has C1–C7 only. Every other carrier calls it
+`C3 symmetric guard`. Left alone, the authoritative surface would have been the
+one place B9's marker did not match. Corrected.
+
+### Sizing
+
+`134.012-T` M → **L**. Five assertions were added this cycle; the suite is now
+~16 assertions over nine surfaces. The estimate sits near the 2-hour bound rather
+than safely inside it, so the split line is **declared in advance** in the task
+(capture-and-discharge semantics vs. clause-boundary semantics) rather than
+improvised mid-execution. A pre-emptive split was rejected because it would
+duplicate the carrier-resolution table — the exact duplication this cycle removed.
+
+### P2 current-state drift
+
+`.backlogit/stash.jsonl` (B48A482A consumption prefix), `.backlogit/memories.json`
+and the plan surface map S11 all still described 11 tasks and one contract test.
+Updated to 12 tasks and two named test files. The memories entry follows the
+repository's existing append-only convention — an `[UPDATED … STALE FACTS …]`
+prefix with the original preserved beneath, matching the `[SUPERSEDED …]`
+precedent already in that file. The verbatim operator direction in the stash
+entry was left byte-identical and verified as such after the edit.

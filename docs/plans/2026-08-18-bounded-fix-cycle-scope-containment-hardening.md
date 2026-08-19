@@ -200,6 +200,11 @@ faithfully mirror the omission.
 **Hardening.** Task 011 MUST include a clause-coverage matrix assertion: for
 each of C1–C7, every named carrier file contains the clause's designated marker
 text, asserted individually so a single missing carrier fails a distinct test.
+The marker asserted MUST be the one appropriate to that carrier's declared ROLE
+— authoritative, normative restatement, procedural, or guard-only — because H5
+forbids most carriers from restating registry prose, and a surface with no
+review thread cannot carry a reply-ordering marker. One identical string per row
+would make the row either unsatisfiable or vacuous.
 
 The matrix itself is NOT restated here. Its single source of truth is the
 `AUTHORITATIVE CLAUSE-TO-CARRIER MATRIX` block in task `134.011-T`, which tasks
@@ -215,6 +220,20 @@ authoring set — enumerating every task that authors each clause — never by
 reading carriers ad hoc. `workflow-policies.md.tmpl` authors all seven clauses
 and is a carrier in every row.
 
+**Completeness-guard scope (binding).** The carrier-completeness guard MUST span
+ALL seven clause rows and MUST invert a declared authoring set covering tasks
+001–009. A guard scoped only to the clauses where defects were previously found
+cannot detect defects in the clauses nobody has re-derived: the guard originally
+checked C2 and C3 alone and omitted 134.005-T from its own expected set, so it
+could not have caught the C1, C4 and C5 under-listings — nor the very C2/C3
+omission that a manual pass had just repaired by hand.
+
+**Behaviour subsets (binding).** Where a clause is carried differently across its
+row, the per-behaviour carrier subsets live in the same single-source block in
+`134.011-T` (B1–B15) and task 012 resolves them by behaviour ID. A subset that is
+narrower than its clause row MUST carry its justification at the point of
+declaration, so a narrowing is a recorded decision rather than an omission.
+
 ## H12 — Guard against P-021 being read as a licence to stop fixing things
 
 **Risk.** An over-broad reading ("if in doubt, defer") could let an agent defer
@@ -222,11 +241,18 @@ genuine, in-scope, mechanical completions of its own change and ship a
 half-finished fix — trading silent scope expansion for silent scope *contraction*,
 which is equally dishonest and harder to detect.
 
-**Hardening.** Tasks 001 and 005 MUST state the symmetric obligation: C3
-requires the original defect/comment to be resolved **as far as possible without
-the expansion**, and a same-contract-surface completion of the authorized change
-is **in scope and must be fixed**, not deferred. Deferral without a captured
-entry and a residual-risk record is itself a C7 violation.
+**Hardening.** Tasks 001, 004, 005 and 007 (fix-ci) MUST state the symmetric
+obligation: C3 requires the original defect/comment to be resolved **as far as
+possible without the expansion**, and a same-contract-surface completion of the
+authorized change is **in scope and must be fixed**, not deferred. Deferral
+without a captured entry and a residual-risk record is itself a C7 violation.
+
+The carrier set was originally stated as 001 and 005 alone, which left the two
+loops that actually run fix cycles — Ship's review-fix/build-fix loop and the
+`fix-ci` remediation loop — unguarded against scope contraction, even though both
+tasks already author the guard in their own criteria. This is behaviour `B9` in
+the single-source mapping in `134.011-T`; that mapping, not this paragraph, is
+what task 012 resolves against.
 
 ## H13 — Preserve unrelated operator working-tree state
 
