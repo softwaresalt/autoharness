@@ -509,3 +509,87 @@ assumption class, this was **fixed rather than disclosed**.
 
 Shipment `143-S` now spans **12 tasks**. Checkpoint resolved after successful
 completion. Changes left uncommitted for Orchestrator publication.
+
+## Post-replanning readiness fix cycle 1 (2026-08-19, review of HEAD `1dad725a`)
+
+Review returned `BLOCKED (P0=0, P1=3)` plus P2/P3 coherence notes. One bounded
+correction pass; all three P1s shared a single structural cause.
+
+### P1.1 — carrier matrix still incomplete, and duplicated
+
+My replanning correction to the matrix was itself incomplete, in the same way
+and for the same reason. C2 omitted **both** authoritative
+`workflow-policies.md.tmpl` and `circuit-breaker.instructions.md.tmpl` —
+`134.005-T` criterion 6 states the C2 capture-before-close requirement outright.
+C3 omitted `circuit-breaker.instructions.md.tmpl`, whose criterion 7 carries the
+H12 symmetric guard. The registry was listed inconsistently: named in C3 and C7
+but absent from C2, C4, C5 and C6 despite authoring all seven clauses.
+
+Two root causes, both now fixed rather than patched:
+
+1. **Derivation method.** The matrix was built by reading carrier tasks ad hoc
+   instead of *inverting the authoring set*. Hardening H11 now carries a binding
+   derivation rule requiring inversion.
+2. **Duplication.** Three independently maintained copies existed — `134.011-T`,
+   H11, and `134.012-T`'s carrier lists — so fixing one left the others stale.
+   That is exactly what happened: the replanning pass fixed 011 while H11 kept
+   the original incomplete pairings. `134.011-T` is now the **single source of
+   truth**; H11 and `134.012-T` reference it and are forbidden from restating it.
+
+Added a `C3-SYMMETRIC-GUARD` test to `134.012-T` — circuit-breaker was a carrier
+the matrix had omitted *entirely*, and the guard it carries protects against
+scope **contraction**, the mirror of the expansion P-021 exists to prevent.
+
+### P1.2 — authoritative C5 forbade a correct, already-shipped Ship behaviour
+
+Authoritative C5 (plan clause table and `019-DL`) prohibited Ship removal
+without qualification. But `134.002-T` retains only **discretionary** removal in
+the Forbidden column, and H2 requires the distinction to be drawn by
+**provenance, not verb**, because Ship's post-merge Step 7 already performs a
+correct `backlogit_stash_remove` on `custom_fields.source_stash_id` to retire the
+source stash entry that fed the shipped scope.
+
+Read literally, the unamended clause would have forbidden existing shipped
+behaviour and made **every future shipment closure a C5 violation**. Corrected on
+all three authoritative surfaces (plan, `019-DL`, and `134.001-T` — whose C5
+criterion previously read only "C5 Ship capture-only carve-out present", too weak
+to constrain the wording at all). Added a `C5-EXCEPTION` contract test asserting
+the policy text and Ship Role Boundary agree on the provenance distinction, plus
+a negative guard against an unqualified "or remove" — so the exception cannot
+regress silently. Ship stays capture-only; Stage keeps sole triage and
+reconciliation authority.
+
+### The recurring shape, now named
+
+This is the **third** inverse-drift instance in this feature — carriers correct,
+authority stale — after the C3 amendment (fix cycle 2) and the C2 fused-ref
+amendment (replanning). The pattern is consistent enough to state plainly: when a
+clause is corrected, the correction lands on the surface where the defect was
+*observed* (a carrier), not on the surface that *defines* it. `019-DL` now carries
+C2, C3 and C5 amendment annotations recording all three.
+
+### P1.3 and coherence notes
+
+`docs/memory/2026-08-18/circuit-break-stage-remediation-143-S.md` gained an H1
+after frontmatter for MD041 — **structure only, no finding text altered**;
+it remains historical evidence.
+
+`134-F` goal 3 previously said the deferred ID is cited in the task/run/closure
+record "in every case", conflating the surfaces: thread-present discharges via
+the **PR/closure** record, threadless via **task/run/closure**. Now states that a
+deferred ID is referenced in every case while the record *set* differs by surface.
+
+Stale 11-task / one-test summaries updated to 12 tasks / two contract-test files
+where they describe current state (`134-F` scope line, `019-DL` S11 surface map).
+The two **verdict** sections — the hardening verdict and the plan-review
+decomposition PASS — were given dated addenda rather than rewrites, so they stand
+as issued evidence with current state recorded alongside. `019-DL`'s original
+sizing rationale was marked as-deliberated with a pointer rather than edited.
+
+### Matrix verification performed
+
+A complete inversion sweep over all 12 tasks for C2/C3/C5 confirms the matrix is
+now closed: C2 and C3 each = registry + 004 + 005 + 006 + 007(×2); C5 = registry
+plus 002 plus 003. `134.002-T` and `134.003-T` explicitly *reference* C2 rather
+than restate it (their own criteria say so), so they are C5 carriers only;
+`134.008-T` references C3/C5 but authors C6.

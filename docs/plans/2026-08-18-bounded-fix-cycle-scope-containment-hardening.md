@@ -198,11 +198,22 @@ even if a carrier surface silently omits its clause, because the dogfood would
 faithfully mirror the omission.
 
 **Hardening.** Task 011 MUST include a clause-coverage matrix assertion: for
-each of C1–C7, at least one named carrier file contains its designated marker
-text, and the specific pairings (C1 → circuit-breaker + workflow-policies;
-C2 → ship + pr-lifecycle + fix-ci; C3 → github-pr-automation + pr-lifecycle;
-C4 → orchestrator + dark prompt + ship Stop Conditions; C5 → ship Role Boundary + role-enforcement; C6 → stage; C7 → workflow-policies) are asserted
-individually so a single missing carrier fails a distinct test.
+each of C1–C7, every named carrier file contains the clause's designated marker
+text, asserted individually so a single missing carrier fails a distinct test.
+
+The matrix itself is NOT restated here. Its single source of truth is the
+`AUTHORITATIVE CLAUSE-TO-CARRIER MATRIX` block in task `134.011-T`, which tasks
+011 and 012 both reference. This hardening previously carried its own copy of
+the pairings, and that copy drifted: it omitted the Ship and fix-ci C3 carriers
+and the github-pr-automation C2 carrier, then survived a first correction pass
+because the copy in 011 was fixed while this one was not. Three independently
+maintained copies of a coverage matrix is itself the hazard — the matrix must
+have exactly one home, and every other surface must point at it.
+
+**Derivation rule (binding).** The matrix MUST be derived by inverting the
+authoring set — enumerating every task that authors each clause — never by
+reading carriers ad hoc. `workflow-policies.md.tmpl` authors all seven clauses
+and is a carrier in every row.
 
 ## H12 — Guard against P-021 being read as a licence to stop fixing things
 
@@ -253,3 +264,13 @@ H11 upgrades verification from byte identity to clause coverage.
 
 No new tasks are required; all hardening lands as tightened acceptance criteria
 on existing tasks 001–011.
+
+**Addendum (2026-08-19, operator-directed contract replanning).** The verdict
+above stands as issued, but its task inventory is superseded: the shipment now
+spans **12 tasks**. Task `012` was added to carry the C2/C3 semantic regression
+suite, because H11's clause-*presence* coverage cannot detect a clause that is
+present on every carrier yet self-contradictory across them — the failure mode
+behind all three subsequent fix cycles. Task `008` also absorbed the Stage-owned
+late-identifier reconciliation workflow and gained a `004` dependency. H11 itself
+was amended in the same pass to stop restating the carrier matrix and to point at
+its single source of truth in `134.011-T`.

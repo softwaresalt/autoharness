@@ -9,6 +9,8 @@ attempts: 3
 identity: stage-remediation:shipment-143-S:chore-stage-143-S
 ---
 
+# Circuit Breaker — Stage Remediation Readiness Cycle (Shipment 143-S)
+
 ## Failure Chain
 
 ### Attempt 1

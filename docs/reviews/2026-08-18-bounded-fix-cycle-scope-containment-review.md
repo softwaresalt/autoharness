@@ -73,6 +73,15 @@ is a shallow tree rooted at 001 with a single join at 011 — no cycles, no
 diamond hazards beyond the `_ship.agent.md` serialization that H4 makes
 explicit.
 
+**Addendum (2026-08-19, post-replanning).** This PASS verdict stands as issued
+against the eleven-task plan it reviewed. Current shipment state is **12 tasks**:
+`012` was added for the C2/C3 semantic regression suite, and `008` absorbed the
+Stage-owned late-identifier reconciliation workflow. The dependency graph
+remains acyclic and shallow — `012` extends the chain one level past the `011`
+join, and `008` gained a `004` edge (content ordering, not checksum
+serialization, so the H4 hazard is unaffected). Both new/grown tasks were sized
+against the 2-hour rule: `012` is M, and `008` was raised M → L.
+
 ### Hardening adequacy — PASS
 
 H1/H2 are the highest-value items: they prevent the P-010 repair from becoming a
