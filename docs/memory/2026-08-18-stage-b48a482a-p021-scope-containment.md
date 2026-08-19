@@ -875,3 +875,67 @@ Two structural refinements fell out of doing that honestly:
 Verified programmatically: allocation disjoint, union exactly B1–B17, nothing
 claimed twice, nothing orphaned, and the only unnumbered criteria remaining are
 the four structural ones the guard explicitly exempts.
+
+## B16/B17 correction review cycle 1 (2026-08-19, HEAD 77d1a7e0)
+
+Two P1s, **both introduced by my own correction-5 pass**. Worth stating plainly:
+the guard written to stop over-generalization was itself an over-generalization.
+
+### P1.1 — B16 selector contradicted the authoritative rule
+
+I had defined B16 as selecting between the two C3 dispositions **by finding
+kind**. The authoritative selector is **actual thread availability**: 001 states
+C3 as `WHERE A REVIEW THREAD EXISTS` / `WHERE NO REVIEW THREAD EXISTS`, and 004
+states its threadless path as `no review thread exists for the finding at the
+moment it is classified`.
+
+The disproof is a single case: a **pre-PR local-review finding** is
+*review-kind* yet has **no thread**, because Ship's local review runs before PR
+creation. A finding-kind selector routes it to the thread-present disposition
+and demands a reply on a thread that does not exist — the exact error class this
+whole feature exists to prevent.
+
+**Root cause.** Correction 4 established that a surface's *path set* is
+determined by the finding kinds it handles. That is a **presence** rule. I
+lifted it into a **selection** rule. `fix-ci`'s path split is a faithful
+*implementation* of thread availability on that surface — path there determines
+whether a thread exists — so it looked general when it was local.
+
+Fixed by renaming the behaviour to `c3-dual-disposition-carriage` (shared
+behaviour = dual **carriage**; selector is carrier-specific), stating the
+presence/selection distinction inside the DUAL-PATH SURFACES rule, and scoping
+`134.007-T`'s dual-path sentence — the likely origin of the lift — so it cannot
+seed the same generalization again.
+
+### P1.2 — discharge was attribution, not coverage
+
+The allocation counted B2/B13/B15 as discharged because the IDs appeared in the
+right constant. The owning tests covered only part of each:
+
+* **B2** (subset `{001, 005}`) — asserted on circuit-breaker alone, with three
+  of four not-sufficient phrases and none of the three worked cases.
+* **B13** (subset `{001, 008}`) — asserted on the Stage agent alone, leaving the
+  authoritative clause itself unguarded.
+* **B15** — a structural section-presence check that would pass against a
+  registry whose C7 action had been weakened to **telemetry without halt**.
+
+**Root cause — an asymmetry between the two halves of the audit.** For
+behaviours a file *owns*, SUBSET-FIDELITY already checks asserted carriers
+against the declared subset. For behaviours marked `DISCHARGED_ELSEWHERE`,
+**nothing did**. A partially-covered behaviour reported green is worse than an
+uncovered one: the uncovered case at least fails a count.
+
+Fixed by making discharge a **coverage claim** cross-checked against the declared
+subset and mapped clause text, expanding all three tests to their full subsets,
+and recording that allocation and coverage are separate properties — a file may
+legitimately own a behaviour it under-covers, and that is a coverage defect that
+must be reported rather than passing on attribution.
+
+### Incidental gap found while checking
+
+The non-vacuity rule (validate each negative guard by reintroducing the old
+wording) existed only in `134.012-T`. Now that `134.011-T` owns B2/B13/B15 and
+carries its own negative guard, it needed the rule too — added, with an explicit
+note that this is the one *deliberate* duplication between the two files, since
+it is a testing-practice rule each must honour independently rather than a
+carrier mapping.

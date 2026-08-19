@@ -224,8 +224,9 @@ test: conditional C3, threadless discharge, the task/run/closure three-record
 citation, per-field source-ID availability, the single-write capture invariant,
 capture-first ordering, thread-present reply ordering, the six-field payload, the
 C5 carve-out boundary and the C5 provenance exception, Stage-only
-reprioritization, the C1 classification gate, C4 non-bypass, the `fix-ci`
-dual-path selection with existing-entry reuse, and the
+reprioritization, the C1 classification gate, C4 non-bypass, dual C3
+disposition carriage with carrier-specific selectors and existing-entry reuse,
+and the
 reconciliation consumer. Each assertion resolves its carrier subset from the
 behaviour mapping (B1–B17) in 011 rather than hardcoding a list, and a
 subset-fidelity guard fails if a behaviour is asserted against a carrier the

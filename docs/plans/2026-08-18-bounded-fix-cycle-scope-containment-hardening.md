@@ -259,13 +259,20 @@ tasks already author the guard in their own criteria. This is behaviour `B9` in
 the single-source mapping in `134.011-T`; that mapping, not this paragraph, is
 what task 012 resolves against.
 
-**Dual-path note (readiness fix cycle 3).** `fix-ci` handles both CI check
-failures and PR review comments, so it carries **both** C3 dispositions —
-threadless discharge for CI findings, thread-present reply ordering for review
-comments — selected by finding kind. Any hardening or task statement that
-describes `fix-ci` as threadless-only is a defect; the surface has a
-non-negotiable reply gate. Only `circuit-breaker` legitimately carries neither
-disposition, because it performs no thread operation at all.
+**Dual-path note (readiness fix cycle 3, selector corrected in B16/B17 review
+cycle 1).** `fix-ci` handles both CI check failures and PR review comments, so
+it carries **both** C3 dispositions — threadless discharge for CI findings,
+thread-present reply ordering for review comments — selected on that surface by
+which path the finding arrives on. That path split is an **implementation** of
+the authoritative selector, not a rule in its own right: C3 and Ship select on
+**actual thread availability** at the moment the finding is classified, and a
+pre-PR local-review finding is review-kind yet threadless. Carrying both
+dispositions is the shared behaviour (B16); the selector is carrier-specific
+and must not be generalized from `fix-ci` onto the registry or Ship. Any
+hardening or task statement that describes `fix-ci` as threadless-only is a
+defect; the surface has a non-negotiable reply gate. Only `circuit-breaker`
+legitimately carries neither disposition, because it performs no thread
+operation at all.
 
 ## H13 — Preserve unrelated operator working-tree state
 
