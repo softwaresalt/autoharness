@@ -1,3 +1,18 @@
+---
+title: P-021 bounded fix-cycle scope containment plan hardening
+description: P-006 hardening pass (H1-H13) over the P-021 scope-containment plan; adversarial guards for a policy change spanning agent role boundaries, shared instructions and the dogfood checksum set
+doc_type: plan
+source: docs/plans/2026-08-18-bounded-fix-cycle-scope-containment-hardening.md
+status: hardened
+date: 2026-08-18
+stash_source: B48A482A
+deliberation: 019-DL
+plan: docs/plans/2026-08-18-bounded-fix-cycle-scope-containment-plan.md
+feature: 134-F
+shipment: 143-S
+route: claude-opus-5/anthropic/high
+---
+
 # Plan Hardening — P-021 Bounded Fix-Cycle Scope Containment & Deferred Expansion Capture
 
 | Field | Value |

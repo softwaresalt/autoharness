@@ -103,7 +103,69 @@
 * Pre-existing backlogit doctor legacy orphan / self-reference findings were left
   untouched, per operator direction — and consistent with P-021 itself.
 
-## Follow-up candidates (recorded, not carried)
+## Staging-gate corrections (2026-08-18, post-`474a1438`)
+
+Local staging-PR readiness review of the committed staging HEAD `474a1438`
+(local `main`, remote `chore/stage-143-S`) surfaced two findings. Both were
+corrected by Stage and left **uncommitted** for the Orchestrator staging gate.
+
+### P1 (blocking) — `134.006-T` sequenced reply before capture
+
+`.backlogit/queue/134.006-T.md` specified the out-of-scope disposition as
+*(a) thread reply → (b) capture → (c) resolve → (d) residual-risk record*, and
+did not require the reply to cite the generated deferred expansion ID. That
+contradicted two clauses of the very policy the task authors:
+
+* **C2** — "Capture is a precondition for closing the finding." A reply-first
+  ordering closes the finding before the precondition exists.
+* **C3** — "reference the deferred entry ID in the review-thread reply." A reply
+  authored before capture cannot cite an ID that has not been generated yet.
+
+It also diverged from `134.004-T`, which already carried the correct
+capture-first ordering for the Ship agent surface — so the shipment would have
+authored two contradictory orderings for the same policy.
+
+**Correction applied.** Acceptance criteria now mandate capture-first:
+C2 capture (full payload) → substantive reply citing the generated deferred
+entry ID → thread resolution → PR residual-risk record naming the same ID.
+Three criteria were added: an explicit prohibition on replying/resolving before
+the capture exists, an explicit consistency constraint against `134.004-T`, and
+the C5 provisional-priority / Stage-only-triage bound that `134.004-T` already
+carried. Implementation notes record the defect and require the template text to
+mirror `134.004-T` so the two surfaces cannot drift. A comment event was appended
+to the item history for traceability.
+
+### P2 — missing docline frontmatter on three planning artifacts
+
+The plan, hardening, and review artifacts were authored without YAML
+frontmatter, failing the docline base contract on required fields `title`,
+`source`, and `doc_type`. Conforming frontmatter was added following the
+`2026-08-17-backlogit-self-migration` triad precedent (`doc_type: plan` for both
+plan and hardening; `doc_type: review` for the review; `source` = the doc's own
+repo-relative path), plus the repository's customary `description`, `status`,
+`date`, `stash_source`, `deliberation`, `feature`, `shipment`, `route` and
+verdict/count fields. Document bodies were not otherwise altered.
+
+**Validation.** `backlogit docs lint --path <file>` (default `authoring`
+profile) returns **OK (0 violations)** for all three, exit `0`. The linter
+enforces a closed `doc_type` vocabulary — `plan` and `review` are both members.
+
+### Deferred, not fixed (P-021 discipline applied to this session)
+
+* The `ingestion` profile additionally requires `ingested_at`. That field is
+  absent from **every** authored doc in this repository, including the
+  conforming `2026-08-17` precedent — it is populated by the ingestion pipeline,
+  not at authoring time. Not a regression introduced here; not in scope.
+* `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` has
+  malformed YAML frontmatter (an unquoted scalar containing `: ` in
+  `blast_radius:`) that makes the **workspace-wide** `backlogit docs lint` abort
+  with a decode error and emit no report. This is a pre-existing defect in an
+  unrelated file. Per P-021 C1 it is out of scope for this correction pass, so
+  per-file `--path` targeting was used instead. Captured as deferred stash entry
+  **`395EBE60`** (`kind: bug`, `priority: medium`, `requires deliberation: yes`)
+  rather than silently fixed.
+
+
 
 1. Deterministic `autoharness gate scope-containment` — no reliable machine
    signal today; possible telemetry-based detection comparing the touched-file

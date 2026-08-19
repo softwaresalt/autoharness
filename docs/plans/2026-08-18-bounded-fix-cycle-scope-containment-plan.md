@@ -1,3 +1,19 @@
+---
+title: P-021 bounded fix-cycle scope containment implementation plan
+description: Plan to add P-021 bounded fix-cycle scope containment and deferred expansion capture across agent templates, shared instructions, skill templates, the policy registry and the dogfood/manifest checksum set
+doc_type: plan
+source: docs/plans/2026-08-18-bounded-fix-cycle-scope-containment-plan.md
+status: hardened
+date: 2026-08-18
+stash_source: B48A482A
+deliberation: 019-DL
+hardening: docs/plans/2026-08-18-bounded-fix-cycle-scope-containment-hardening.md
+feature: 134-F
+shipment: 143-S
+route: claude-opus-5/anthropic/high
+requires_plan_hardening: yes
+---
+
 # Implementation Plan — P-021 Bounded Fix-Cycle Scope Containment & Deferred Expansion Capture
 
 | Field | Value |
