@@ -157,15 +157,16 @@ enforces a closed `doc_type` vocabulary — `plan` and `review` are both members
   conforming `2026-08-17` precedent — it is populated by the ingestion pipeline,
   not at authoring time. Not a regression introduced here; not in scope.
 * `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` has
-  malformed YAML frontmatter (an unquoted scalar containing `: ` in
-  `blast_radius:`) that makes the **workspace-wide** `backlogit docs lint` abort
+  malformed YAML frontmatter (an unquoted scalar containing a colon-space
+  sequence in `blast_radius:`) that makes the **workspace-wide**
+  `backlogit docs lint` abort
   with a decode error and emit no report. This is a pre-existing defect in an
   unrelated file. Per P-021 C1 it is out of scope for this correction pass, so
   per-file `--path` targeting was used instead. Captured as deferred stash entry
   **`395EBE60`** (`kind: bug`, `priority: medium`, `requires deliberation: yes`)
   rather than silently fixed.
 
-
+## Follow-up candidates (not carried)
 
 1. Deterministic `autoharness gate scope-containment` — no reliable machine
    signal today; possible telemetry-based detection comparing the touched-file
@@ -174,3 +175,117 @@ enforces a closed `doc_type` vocabulary — `plan` and `review` are both members
    a free-text marker (belongs to the `backlogit` product; width isolation).
 3. Broader Orchestrator fix-cycle routing semantics beyond the dark-mode
    non-bypass clause.
+
+## Staging-readiness remediation (2026-08-19, post-`ed345cb5`)
+
+The 2026-08-18 staging gate ran three review-fix cycles and tripped the
+circuit breaker with unresolved P1 findings (`docs/memory/2026-08-18/
+circuit-break-stage-pr-readiness.md`, preserved unchanged as historical
+evidence apart from the addition of a required top-level heading). The
+operator then authorized one fresh bounded Stage remediation operation. This
+section records that operation. Ship was still not invoked; shipment `143-S`
+remains `queued`.
+
+**Checkpoint recovery.** Stage-owned checkpoint
+`checkpoint-20260819-033817.json` (`phase: staging-readiness-blocked`,
+`shipment 143-S`, `feature 134-F`, `branch chore/stage-143-S`) validated
+`valid: true` with `agent: stage`, so the ownership gate passed. Engram was
+reachable (`engram.exe` v0.2.0, daemon PID live, workspace bound to
+`D:\Source\GitHub\autoharness`, `stale_files: false`), so the restore →
+prune/gate → resume order was honoured with a bounded read-select-summarize
+context prune. The active cursor (`143-S` / `134-F`), the unresolved-checkpoint
+pointer, and the recorded gate verdicts (the three `BLOCKED` review verdicts
+and the earlier `PASS` plan-review verdict) were all preserved, not pruned.
+
+### P1 (blocking) — `134.004-T` mandated a forbidden post-capture stash edit
+
+`.backlogit/queue/134.004-T.md`'s thread-present path ordered the disposition
+as C2 capture first and only *afterwards* "record the PR number and
+review-thread ID in the captured entry's source refs". That step was
+unsatisfiable by construction: the C5 capture-only carve-out authored by
+`134.002-T` / `134.003-T` grants Ship stash-entry **creation** only and
+explicitly forbids Ship from editing a captured entry. The mandated back-fill
+would therefore have been a P-010 violation the moment Ship performed it —
+the same class of self-contradiction this feature exists to repair.
+
+**Correction applied.** The contract is now closed under a **single-write
+capture invariant**:
+
+* The C2 capture is the only write Ship ever makes to the deferred entry.
+  Ship may not edit, amend, back-fill, re-classify or re-prioritize it, and
+  may not create a second entry for the same expansion.
+* Source refs are populated **in full at capture time** — task, feature and
+  shipment IDs always; PR number and review-thread ID whenever the finding
+  already has them — with any identifier that does not exist at capture
+  recorded as an explicit `N/A` rather than left blank or deferred.
+* The thread-present path now carries **no write-back step**: reply citing the
+  generated entry ID → resolve the thread → name the same ID in the
+  PR/closure residual-risk record.
+* A new **late-surfacing-thread** criterion states that a thread appearing
+  after a threadless capture is handled by citing the *existing* entry ID in
+  the reply and in the Ship-owned residual-risk record — never by editing the
+  entry's `N/A` fields and never by duplicating it. Reconciling the entry is
+  Stage's C6 intake responsibility.
+
+Preserved unchanged: the six-field payload, the C1-cited out-of-scope
+rationale, the mandatory capture-first ordering, and the provisional-priority
+/ Stage-only reprioritization rule.
+
+**Cross-surface consistency re-verified.** `134.006-T` and `134.007-T` were
+checked for the same defect and are clean — both already populate source refs
+at capture and neither mandates a post-capture edit. This correction brings
+`134.004-T` *into* agreement with its sibling carriers rather than diverging
+from them, so neither sibling needed a change.
+
+### P1 (blocking) — Markdown gate
+
+Targeted repository markdownlint (`MD001`/`MD025`/`MD041`, per `AGENTS.md`
+P-008 and `templates/scripts/.markdownlint.json.tmpl`) reported four `MD025`
+frontmatter-title / body-H1 conflicts. All four were resolved with the
+repository-established scoped suppression
+`<!-- markdownlint-disable-next-line MD025 -->` placed immediately before the
+affected body H1, matching the existing precedent in
+`docs/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md` and
+`docs/spikes/2026-07-13-brainspace-compression-feasibility.md`.
+
+A repo-wide baseline was taken first to separate genuine defects from house
+style: established documents exhibit only `MD013` and `MD060`, so those two
+are repository convention and were left alone, while `MD022`, `MD004`,
+`MD032`, `MD012` and `MD038` — absent from the baseline — were confirmed as
+defects introduced by these Stage artifacts and corrected:
+
+* **Hardening doc** — six `## H*` headings had wrapped onto a second line, so
+  each heading rendered truncated and its remainder became stray body text
+  (`H1`, `H2`, `H6`, `H7`, `H8`, `H9`). Re-joined onto single lines. A
+  line-wrap had also left `+ role-enforcement;` at column 0, which Markdown
+  parsed as a stray unordered-list item mid-paragraph; rewrapped.
+* **`019-DL`** — three lists were not preceded by a blank line and so did not
+  render as lists; blank lines inserted. `git cat-file -p :<path> | sha256`
+  was unwrapped prose, so `<path>` was parsed as inline HTML and vanished on
+  render; now wrapped in a code span.
+* **Breaker record** — had no top-level heading (`MD041`); a title heading was
+  added. Its frontmatter, failure chain and context are otherwise byte-identical.
+* **This memory file** — the closing follow-up list had lost its heading and
+  sat orphaned after two blank lines; the `## Follow-up candidates (not
+  carried)` heading was restored.
+
+**Result:** the targeted gate is clean (exit `0`, zero violations) across all
+seven changed Stage Markdown artifacts. No unrelated pre-existing Markdown was
+touched, including the known malformed frontmatter in
+`docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
+(deferred as `395EBE60`).
+
+### Current state at handoff
+
+* Shipment `143-S` — `queued`, 12 members, `histogram {M:8, S:3}`,
+  `unsized: 0`, `skipped: []`, covering feature `134-F`. **Not claimed**;
+  claiming remains Ship's.
+* All remediation edits are **uncommitted**, for Orchestrator publication.
+* Unrelated staged operator changes remain untouched and uncommitted:
+  `.gitmodules`, `references/azd-backlogbuilder`,
+  `references/azd-backlogloader`, `references/skillopt`, `references/waza`,
+  `references/witr`. The H13 enumerated-path commit rule still applies —
+  `git add -A`, `git add .` and `git commit -a` remain prohibited.
+* No source, template, config or test file was modified by this pass; only
+  backlogit-managed backlog artifacts and `docs/` planning/review/memory
+  artifacts.

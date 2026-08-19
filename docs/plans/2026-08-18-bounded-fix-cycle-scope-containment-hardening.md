@@ -13,6 +13,7 @@ shipment: 143-S
 route: claude-opus-5/anthropic/high
 ---
 
+<!-- markdownlint-disable-next-line MD025 -->
 # Plan Hardening — P-021 Bounded Fix-Cycle Scope Containment & Deferred Expansion Capture
 
 | Field | Value |
@@ -23,8 +24,7 @@ route: claude-opus-5/anthropic/high
 | Source stash | `B48A482A` |
 | Trigger | P-006 — plan declares `Requires plan hardening: yes` (3 agent templates, 4 shared instructions, 8 dogfood artifacts, manifest variable + checksum set) |
 
-## H1 — The Ship role-boundary carve-out must be minimal and enumerated, not a
-blanket unlock
+## H1 — The Ship role-boundary carve-out must be minimal and enumerated, not a blanket unlock
 
 **Risk.** Repairing the P-010 contradiction by simply deleting "stash
 operations" from Ship's Forbidden column would silently grant Ship the full
@@ -44,8 +44,7 @@ prevent.
 A carve-out that leaves the Forbidden column silent on those verbs fails the
 task's acceptance criteria. Task 011 MUST assert both halves.
 
-## H2 — `backlogit_stash_remove` at Ship post-merge Step 7 is pre-existing and
-must be preserved, not swept into the carve-out
+## H2 — `backlogit_stash_remove` at Ship post-merge Step 7 is pre-existing and must be preserved, not swept into the carve-out
 
 **Risk.** Ship's post-merge Step 7 already calls `backlogit_stash_remove` for
 `custom_fields.source_stash_id`. H1 tells task 002 to keep "remove" in the
@@ -107,8 +106,7 @@ holds the authoritative wording; the circuit-breaker instruction holds the
 operational restatement for the review-fix loop; everything else references.
 This prevents seven divergent paraphrases of the same rule.
 
-## H6 — The C1 ambiguity default must be stated as fail-safe, with a worked
-counter-example
+## H6 — The C1 ambiguity default must be stated as fail-safe, with a worked counter-example
 
 **Risk.** "Same contract surface" is the crux judgment and is easy to read
 loosely. Without a concrete counter-example, an agent under review pressure will
@@ -131,8 +129,7 @@ Both tasks MUST cite
 as the provenance. Task 011 MUST assert the "same function, same file, same PR
 is not sufficient" clause is literally present.
 
-## H7 — C2 capture must specify required fields, or it will produce
-unactionable stash entries
+## H7 — C2 capture must specify required fields, or it will produce unactionable stash entries
 
 **Risk.** "Capture it as a stash entry" without a required-field list yields
 one-line entries that Stage cannot triage months later — the deferred item
@@ -155,8 +152,7 @@ evaporates.
 Ship sets the provisional priority as a capture attribute; **re-prioritizing it
 later remains Stage-only** (consistent with H1).
 
-## H8 — C6 must override shape-based routing explicitly, or Stage will
-short-circuit it
+## H8 — C6 must override shape-based routing explicitly, or Stage will short-circuit it
 
 **Risk.** Stage Step 1 classifies entries as feature-shaped or task-shaped, and
 task-shaped entries can flow to grouping and planning. A deferred-expansion
@@ -171,8 +167,7 @@ apparent triviality. It MUST also state that Step 1.5 contextual grouping may
 group such an entry only *after* its deliberation exists. Task 011 MUST assert
 the precedence wording.
 
-## H9 — Dark-mode non-bypass must be phrased as a P-017 relationship, matching
-the established P-018 pattern
+## H9 — Dark-mode non-bypass must be phrased as a P-017 relationship, matching the established P-018 pattern
 
 **Risk.** A free-floating "dark mode doesn't allow this" sentence in the
 Orchestrator will drift from the policy registry and carries no gate semantics.
@@ -206,8 +201,7 @@ faithfully mirror the omission.
 each of C1–C7, at least one named carrier file contains its designated marker
 text, and the specific pairings (C1 → circuit-breaker + workflow-policies;
 C2 → ship + pr-lifecycle + fix-ci; C3 → github-pr-automation + pr-lifecycle;
-C4 → orchestrator + dark prompt + ship Stop Conditions; C5 → ship Role Boundary
-+ role-enforcement; C6 → stage; C7 → workflow-policies) are asserted
+C4 → orchestrator + dark prompt + ship Stop Conditions; C5 → ship Role Boundary + role-enforcement; C6 → stage; C7 → workflow-policies) are asserted
 individually so a single missing carrier fails a distinct test.
 
 ## H12 — Guard against P-021 being read as a licence to stop fixing things

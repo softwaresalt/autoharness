@@ -18,6 +18,7 @@ cycles: 1
 route: claude-opus-5/anthropic/high
 ---
 
+<!-- markdownlint-disable-next-line MD025 -->
 # Plan Review — P-021 Bounded Fix-Cycle Scope Containment & Deferred Expansion Capture
 
 | Field | Value |

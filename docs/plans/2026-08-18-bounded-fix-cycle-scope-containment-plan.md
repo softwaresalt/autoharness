@@ -14,6 +14,7 @@ route: claude-opus-5/anthropic/high
 requires_plan_hardening: yes
 ---
 
+<!-- markdownlint-disable-next-line MD025 -->
 # Implementation Plan — P-021 Bounded Fix-Cycle Scope Containment & Deferred Expansion Capture
 
 | Field | Value |

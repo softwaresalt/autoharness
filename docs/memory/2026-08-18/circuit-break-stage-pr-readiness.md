@@ -9,6 +9,8 @@ attempts: 3
 identity: staging-readiness:shipment-143-S:origin-main...chore-stage-143-S
 ---
 
+# Circuit Breaker — Stage PR Readiness (Shipment 143-S)
+
 ## Failure Chain
 
 ### Attempt 1
