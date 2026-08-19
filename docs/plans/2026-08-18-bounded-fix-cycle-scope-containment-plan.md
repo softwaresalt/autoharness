@@ -112,7 +112,7 @@ Verified facts that constrain the map:
 | 003 | role-enforcement fail-closed protocol recognizes the carve-out | S3 | 001, 002 | S | medium |
 | 004 | Ship review-fix / build-fix defer-capture procedure + Stop Conditions rows | S4 | 002 | M | medium |
 | 005 | circuit-breaker Review-Fix Cycle Definition gains the C1 scope test | S5 | 001 | M | medium |
-| 006 | github-pr-automation autonomous comment loop: reply / resolve / capture / reference | S6 | 001, 005 | M | medium |
+| 006 | github-pr-automation autonomous comment loop: classify / capture / reply citing deferred ID / resolve / residual-risk reference | S6 | 001, 005 | M | medium |
 | 007 | `pr-lifecycle` + `fix-ci` skill templates carry C1–C3 (`fix-ci` dual-path) | S7 | 001, 005 | M | medium |
 | 008 | Stage Step 1 classification + mandatory `deliberate` routing (C6) + late-identifier reconciliation | S8 | 001, 004, 007 | L | medium |
 | 009 | Dark-mode non-bypass (C4) in Orchestrator + `feature-flow-dark` prompt | S9 | 001 | M | medium |
@@ -168,10 +168,13 @@ Existing 3-cycle semantics unchanged. Dogfood + checksum refreshed.
 `tests/test_circuit_breaker_policy_contract.py` still passes.
 
 **006** — The autonomous comment-handling loop requires each comment to be
-classified in-scope / out-of-scope by the C1 test; out-of-scope comments get a
-substantive thread reply citing the scope boundary, thread resolution, a
-captured deferred entry, and a residual-risk record entry. Dogfood + checksum
-refreshed.
+classified in-scope / out-of-scope by the C1 test; out-of-scope comments follow
+the REQUIRED ORDERED capture-first sequence — capture the deferred entry per C2,
+then a substantive thread reply citing the deferred entry ID and the scope
+boundary, then thread resolution, then the PR/closure residual-risk record naming
+the same ID. Replying to or resolving the thread before the capture exists is
+prohibited, since the reply cannot cite an entry ID that has not been generated
+yet. Dogfood + checksum refreshed.
 
 **007** — Both skill templates carry C1–C3 in their review-fix / fix iteration
 steps and their residual-risk or follow-up reporting. `fix-ci` is a **dual-path**

@@ -939,3 +939,118 @@ carries its own negative guard, it needed the rule too — added, with an explic
 note that this is the one *deliberate* duplication between the two files, since
 it is a testing-practice rule each must honour independently rather than a
 carrier mapping.
+
+## Correction cycle 2 of 3 (2026-08-19, HEAD 663205a6)
+
+Two P1s and one P2. Both P1s are the **inverse** of every earlier finding: the
+semantic test was right and the **carrier task it tests** was wrong. Every prior
+cycle fixed tests against correct carriers; this one fixed carriers against a
+correct test.
+
+### P1.1 — C1's fifth discriminator
+
+Authoritative C1 declares **five** insufficient discriminators: `same file`,
+`same function`, `same PR`, `same subsystem`, **`related`**. `134.005-T`'s
+operational restatement carried four, and my B2 assertion demanded four.
+
+**Root cause, and it is uncomfortable.** Last cycle I raised B2 from three
+phrases to four — by reading the **restatement** (005) and counting what was
+there, instead of reading the **authoritative clause** (001) and counting what
+should be. That is exactly the defect the authority/restatement split exists to
+prevent, committed inside the fix for it. The restating carrier is *by
+definition* the surface that can drift, so it can never be the source of truth
+for its own completeness. B2 now resolves the count from 001 explicitly, and
+says so in the criterion.
+
+### P1.2 — half a symmetric guard
+
+The C3 symmetric guard is a **two-part** clause: (i) a same-contract-surface
+completion IS in scope and must be fixed, not deferred; **and** (ii) deferring
+one without a captured entry *and a residual-risk record* is itself a violation.
+
+`134.004-T` and `134.007-T` carried only part (i). `134.005-T` carried part (ii)
+but dropped the residual-risk record from it.
+
+The B9 test in `134.012-T` already demanded the complete form — so **the suite
+was unsatisfiable against its own carrier contracts**. That contradiction would
+have surfaced at implementation time, when whoever wrote the tests would have
+had to either weaken the test or edit contracts mid-build. Neither is a good
+outcome; the second is how contract drift starts.
+
+**Root cause.** A compound clause treated as its memorable half. Part (i)
+forbids under-fixing and *sounds* like the point of the guard. Part (ii) forbids
+silent deferral — and is the part that makes it **symmetric** at all.
+
+Fixed in all four mapped carriers, with the **B9 subset deliberately unchanged**:
+the correction is to what each mapped carrier must state, not to which carriers
+state it, so no obligation lands on `006` or `pr-lifecycle`.
+
+### P2 — stale ordering, in two places
+
+The plan's task-006 summary listed reply → resolve → capture → residual-risk.
+`134.006-T` mandates **capture-first**: capture → reply citing the deferred ID →
+resolve → residual-risk record. The summary put capture *third*, inverting the
+single invariant this feature is built around. The task-table row carried the
+same stale ordering (`reply / resolve / capture / reference`), which the review
+did not flag — both corrected.
+
+### Pattern worth naming
+
+Three of the last four defects share one shape: **a rule correct at one scope
+applied at another** (presence→selection), **a check correct on one half of a
+partition** (owned→discharged), and now **a count taken from the derived surface
+instead of the authoritative one** (restatement→authority). All three are
+failures to ask *which artifact is the source of truth for this particular
+claim*.
+
+## Correction cycle 3 of 3 — systematic authority audit (2026-08-19)
+
+The operator adopted the recommendation that closed cycle 2: stop fixing
+reported instances and audit the *whole* surface against its authorities.
+Every acceptance criterion in `134.011-T` (12) and `134.012-T` (26) was
+resolved against the artifact that owns its claim.
+
+**Mismatches proven and fixed.**
+
+* `134.011-T` H1 guard omitted **archival**. Owner `134.002-T` L32 declares
+  "discretionary removal/**archival**". A guard checking only removal passes
+  against a Role Boundary that lets Ship discretionarily archive a
+  Stage-owned deferred entry — the exact loss C5 exists to prevent.
+* `134.012-T` marker-provenance criterion named **three** authoring tasks
+  while the suite asserts text authored across **eight**. Now enumerates all
+  eight, plus the rule that a marker resolves from the task that *authors*
+  the text, never from a restating surface.
+* Both remaining negative guards (SINGLE-WRITE, NO-PR/NO-THREAD) named verbs
+  and assumptions but **no historically defective wording**, so neither was
+  demonstrably non-vacuous. Each now names the wording it must fail against:
+  the original "capture first and only afterward record the PR and
+  review-thread IDs" flow, and the original "(PR number, review-thread ID
+  when applicable, …)" enumeration that qualified only the thread ID.
+* `019-DL` S6 row still carried the pre-capture-first ordering
+  "reply/resolve/capture/reference" → now "capture/reply/resolve/record",
+  with a dated correction note. Decision content untouched.
+
+**Verified correct — recorded so no later cycle re-derives them.**
+
+* Byte-identity list correctly *excludes* workflow-policies (S1) and the two
+  skills (S7): the surface map marks both `dogfooded: no`. It matches the
+  eight `yes` rows exactly.
+* Amendment Log `1.20.0` is right (registry ends at P-020/1.19.0).
+* Six-field payload and B4's exclusion of 005 match `134.001-T` and H7.
+* Post-merge **Step 7** is cleanup; `134.002-T`'s "Step 6" reference is about
+  entry *creation* — not a mismatch, and worth not "fixing" later.
+* `134.010-T` is correctly outside `AUTHORING_TASKS` (carries no clause text).
+* B3, B7, B11, B12 subsets in `134.012-T` match the map exactly.
+
+**The durable output** is the new **AUTHORITY-OWNER MAP** in `134.011-T`,
+naming the owning artifact for every class of claim the two test files
+assert. Four consecutive cycles produced defects of one shape — a claim
+resolved from a convenient restatement rather than its authority. An
+instance fix cannot reach that; a lookup table Ship reads before asserting
+anything can. If a future cycle finds a mismatch, suspect the map is missing
+a row before suspecting the assertion.
+
+**Honest limitation.** Each guard I write is itself unreviewed until the next
+cycle, and this is cycle 3/3 — so the AUTHORITY-OWNER MAP has had no
+adversarial read. Its rows were verified individually against their owners,
+but the table as a whole is new. That is the residual risk on this handoff.
