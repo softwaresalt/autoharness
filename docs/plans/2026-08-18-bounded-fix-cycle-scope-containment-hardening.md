@@ -216,7 +216,7 @@ would make the row either unsatisfiable or vacuous.
 
 The matrix itself is NOT restated here. Its single source of truth is the
 `AUTHORITATIVE CLAUSE-TO-CARRIER MATRIX` block in task `134.011-T`, which tasks
-011 and 012 both reference. This hardening previously carried its own copy of
+011, 012 and 013 all reference. This hardening previously carried its own copy of
 the pairings, and that copy drifted: it omitted the Ship and fix-ci C3 carriers
 and the github-pr-automation C2 carrier, then survived a first correction pass
 because the copy in 011 was fixed while this one was not. Three independently
@@ -238,7 +238,7 @@ omission that a manual pass had just repaired by hand.
 
 **Behaviour subsets (binding).** Where a clause is carried differently across its
 row, the per-behaviour carrier subsets live in the same single-source block in
-`134.011-T` (B1–B18) and task 012 resolves them by behaviour ID. A subset that is
+`134.011-T` (B1–B18) and tasks 012 and 013 resolve them by behaviour ID. A subset that is
 narrower than its clause row MUST carry its justification at the point of
 declaration, so a narrowing is a recorded decision rather than an omission.
 Every semantic assertion MUST carry a behaviour ID: an unnumbered assertion is
@@ -265,7 +265,7 @@ loops that actually run fix cycles — Ship's review-fix/build-fix loop and the
 `fix-ci` remediation loop — unguarded against scope contraction, even though both
 tasks already author the guard in their own criteria. This is behaviour `B9` in
 the single-source mapping in `134.011-T`; that mapping, not this paragraph, is
-what task 012 resolves against.
+what tasks 012 and 013 resolve against.
 
 **Dual-path note (readiness fix cycle 3, selector corrected in B16/B17 review
 cycle 1).** `fix-ci` handles both CI check failures and PR review comments, so
@@ -321,10 +321,22 @@ on existing tasks 001–011.
 
 **Addendum (2026-08-19, operator-directed contract replanning).** The verdict
 above stands as issued, but its task inventory is superseded: the shipment now
-spans **12 tasks**. Task `012` was added to carry the C2/C3 semantic regression
+spans **13 tasks**. Task `012` was added to carry the C2/C3 semantic regression
 suite, because H11's clause-*presence* coverage cannot detect a clause that is
 present on every carrier yet self-contradictory across them — the failure mode
 behind all three subsequent fix cycles. Task `008` also absorbed the Stage-owned
 late-identifier reconciliation workflow and gained a `004` dependency. H11 itself
 was amended in the same pass to stop restating the carrier matrix and to point at
 its single source of truth in `134.011-T`.
+
+**Addendum (2026-08-19, PR #372 Copilot review-fix cycle 1).** Task `012` was
+split: its pre-declared split line was TAKEN rather than deferred to
+implementation, moving the CLAUSE-BOUNDARY behaviours (B1, B10, B11, B12, B14,
+B18) into a new sibling task `013` with its own test file. Both are now **M**;
+the shipment spans **13 tasks and three contract-test files**. The behaviour map
+remains declared only in `134.011-T`, and the allocation guard in `012` imports
+each sibling's `OWNED_BEHAVIOURS` rather than hardcoding a copy — so the split
+adds an allocation edge, not a second source of truth. Deferring a
+known-necessary split to implementation was itself the defect: the split then
+lands mid-execution, with the 2-hour bound already breached and the least
+context available to choose the cut.

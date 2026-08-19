@@ -29,10 +29,11 @@ identity: stage-authority-audit:shipment-143-S:chore-stage-143-S
 
 ### Attempt 3
 
-- Exit/timeout: systematic authority audit completed before terminal review
-- Operation evidence: Stage audit of all 38 assertions against their owner artifacts
-- Normalized message: owner map added; archival verb, marker provenance, negative-guard non-vacuity, and stale deliberation ordering corrected
-- Diagnostic artifact: Stage authority-audit handoff in the active session
+- Exit/timeout: review verdict `BLOCKED`
+- Operation evidence: review of staging HEAD `c1bfddc8`
+- Stable target/code: owner-authority map and the C2/C5 applicability surfaces
+- Normalized message: six P1 owner-contract defects — C2 checklist conflicting with the per-field applicability guard, authoritative C5 omitting discretionary archival, B11 assigning complete C5 semantics to a reference-only carrier, B6 omitting its Stage-side single-write consumer, B14 not asserting the complete reconciliation contract, and B17 omitting prior-run entry reuse
+- Diagnostic artifact: local code-review result in the active session
 
 ## Terminal Gate
 
@@ -54,5 +55,6 @@ identity: stage-authority-audit:shipment-143-S:chore-stage-143-S
 - Branch: `chore/stage-143-S`
 - Unrelated operator changes preserved: `.gitmodules`, `references/azd-backlogbuilder`, `references/azd-backlogloader`, `references/skillopt`, `references/waza`, `references/witr`
 - Logging controls: bounded redacted summaries only; no raw payload or environment capture retained
+- Corrective work performed before attempt 3, recorded as context rather than as a counted attempt: a systematic authority audit of all 38 acceptance criteria in `134.011-T` and `134.012-T` against their owner artifacts, which produced the AUTHORITY-OWNER MAP and corrected the C5 archival verb, marker provenance, negative-guard non-vacuity and a stale deliberation ordering. That audit SUCCEEDED on its own terms; it is not a failure and does not occupy an attempt slot. It is recorded here because the HEAD it produced (`c1bfddc8`) is what attempt 3 submitted to review, and the review still returned `BLOCKED` — the audit found real defects but did not find these six.
 - Resolution: authority-audit correction limit reached. Ship was not invoked, shipment remains queued, and no merge was attempted.
 - Suggested next step: explicitly authorize a fresh Stage owner-contract reconciliation operation for the six terminal P1 findings, followed by a new readiness review.

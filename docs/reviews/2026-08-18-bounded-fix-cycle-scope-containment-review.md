@@ -74,14 +74,20 @@ diamond hazards beyond the `_ship.agent.md` serialization that H4 makes
 explicit.
 
 **Addendum (2026-08-19, post-replanning).** This PASS verdict stands as issued
-against the eleven-task plan it reviewed. Current shipment state is **12 tasks**:
-`012` was added for the C2/C3 semantic regression suite, and `008` absorbed the
+against the eleven-task plan it reviewed. Current shipment state is **13 tasks**:
+`012` was added for the C2/C3 semantic regression suite, `013` was later split
+out of `012` for the clause-boundary semantics, and `008` absorbed the
 Stage-owned late-identifier reconciliation workflow. The dependency graph
-remains acyclic and shallow — `012` extends the chain one level past the `011`
-join, and `008` gained a `004` edge (content ordering, not checksum
-serialization, so the H4 hazard is unaffected). Both new/grown tasks were sized
-against the 2-hour rule: `012` was initially M and was later raised M → L as the
-suite absorbed the full C1–C7 semantic inversion, and `008` was raised M → L.
+remains acyclic and shallow — `013` extends the chain one level past the `011`
+join and `012` extends it one level past `013`, and `008` gained a `004` edge
+(content ordering, not checksum serialization, so the H4 hazard is unaffected).
+Sizing against the 2-hour rule: `012` was initially M, was raised M → L as the
+suite absorbed the full C1–C7 semantic inversion, and returned to **M** when the
+split to `013` was taken in PR #372 review-fix cycle 1; `013` is **M**; `008` was
+raised M → L. Three contract-test files now exist (`011` structural, `012`
+capture-and-discharge plus allocation guards, `013` clause-boundary), and the
+allocation import direction 011/013 → 012 keeps the three-way completeness guard
+acyclic.
 
 ### Hardening adequacy — PASS
 

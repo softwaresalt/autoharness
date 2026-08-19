@@ -1,2 +1,3 @@
 {"timestamp":"2026-08-18T19:54:49.8708499-07:00","actor":"backlogit","item_id":"143-S","event_type":"shipment_created","delta":{"items":["134-F","134.001-T","134.002-T","134.003-T","134.004-T","134.005-T","134.006-T","134.007-T","134.008-T","134.009-T","134.010-T","134.011-T"],"title":"P-021 Bounded Fix-Cycle Scope Containment and Deferred Expansion Capture"}}
 {"timestamp":"2026-08-19T08:38:18.1525266-07:00","actor":"backlogit","item_id":"143-S","event_type":"shipment_item_added","delta":{"item_id":"134.012-T"}}
+{"timestamp":"2026-08-19T13:51:56.4533202-07:00","actor":"backlogit","item_id":"143-S","event_type":"shipment_item_added","delta":{"item_id":"134.013-T"}}

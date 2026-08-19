@@ -1186,3 +1186,83 @@ Atomic obligations, not criterion lines. Role semantics, not subset membership.
 B14's completeness rule is now atomic *by construction* — every distinct
 MUST/MUST NOT maps to a numbered or lettered obligation, and a sentence carrying
 two obligations counts as two. Audit: **22 atomic obligations, zero unmapped.**
+
+## Staging PR #372 Copilot review-fix cycle 1 (2026-08-19, HEAD 1c7e2458)
+
+The first review of this feature by an agent that **did not write it**, and the
+finding profile is completely different from the eight self-reviews before it.
+Not one of the five is a matrix, subset or allocation defect. Three are places
+where the artifacts stated a rule that **could not be executed** — which every
+prior cycle's internal-consistency auditing was structurally unable to see,
+because the rules were perfectly consistent with each other and simply not
+actionable.
+
+* **C4 read as a bypass.** The clause listed the insufficient authorizations and
+  closed with *"only explicit operator authorization ... does"* — naming an
+  authorization **sufficient to expand the active cycle**, the exact route around
+  C1/C2/C6 the Statement forbids. The deliberated intent was always that
+  authorization opens *separate* work; the wording never said so. The distinction
+  is **temporal direction, not authority**: authorization is a forward act that
+  opens new work, never a retroactive one that reclassifies an already-discovered
+  expansion as in-scope. Corrected on the authority, the deliberation, the plan
+  clause table and the three Stop-Conditions carriers whose halt-and-prompt is
+  exactly where an in-cycle "go ahead" gets solicited. Task 009 was deliberately
+  **not** touched — its dark surfaces already state the correct rule, and editing
+  them would have been the "same clause, therefore in scope" error this whole
+  policy exists to prevent.
+* **Prior-run entry reuse had no discovery procedure.** B17 and 134.007-T
+  required reusing an entry captured in a *prior run* while providing no way to
+  find it. In-run reuse holds the ID the capture just returned; across runs that
+  handle does not exist. So the "MUST NOT create a second entry" rule was
+  unenforceable in precisely the case that produces duplicates. Added
+  DEFERRED-ENTRY DISCOVERY (sources, join keys, disposition) and a **two-direction
+  fail-safe** to 134.004-T, authored once and referenced by 007. The asymmetry is
+  the interesting part: an *ambiguous* match fails **closed** — no entry, cite all
+  candidates, defer to Stage — while an *unavailable* lookup **captures**, because
+  a duplicate is recoverable through 008's reconciliation and a dropped finding is
+  not. One shared default would have been wrong for one of the two.
+* **Duplicate remediation said "removes".** Corrected to **archive** on two
+  independent grounds: backlogit's CLI exposes `stash archive` and no
+  `stash remove` at all, and the MCP `backlogit_stash_remove` is deprecated in
+  favour of `backlogit_stash_archive`; and a duplicate is *evidence* that a
+  discovery lookup returned a false absence, so destroying it destroys the
+  diagnostic along with any source ref the duplicate carries and the survivor
+  does not.
+* **A breaker record counted a success as a failed attempt.** Attempt 3 of the
+  authority-audit breaker recorded the *successful* audit; the actual third
+  failure was the BLOCKED review at `c1bfddc8`. Rewritten; the audit moved to
+  Context, `attempts: 3` integrity preserved.
+* **Task 012 was knowingly oversized**, with a split line declared but not taken.
+  The review's point stands: a known-necessary split deferred to implementation
+  lands mid-execution, with the bound already breached and the least context
+  available to choose the cut. Split taken into **134.013-T**.
+
+**The split, and why the cut is where it is.** The pre-declared line was followed
+exactly, extended only by *lineage* for the three behaviours registered after it
+was written. **Derived behaviours must sit with their parents** — B16 = `B7 ∩ B8`
+and B17 = `B6 ∪ {007-fix-ci}`, so all five stay in 012 or the DERIVED-SUBSET guard
+would have to recompute an intersection whose operands live in another module.
+**Split behaviours stay with their siblings** — B18 came out of B11 and moves with
+it. Allocation is now three-way and the guard **imports** each sibling's
+`OWNED_BEHAVIOURS` rather than hardcoding a copy; the import direction is one-way
+(011/013 → 012), which is what keeps the check acyclic and why the dependency
+edges run 011 → 013 → 012.
+
+**What this cycle actually taught.** Every prior correction tested the artifacts
+against *each other*. Findings 1–3 are all cases where the artifacts agreed
+perfectly and none of them could be **carried out** by the agent that would have
+to execute it: a bypass an agent would reasonably invoke, a lookup with no source
+or key, and a verb the tool no longer offers. **Internal consistency is not
+executability**, and no amount of cross-artifact auditing detects the difference.
+The rule this adds to the granularity lessons of the prior cycles: for every MUST,
+ask *who performs it, with what inputs, and whether those inputs exist at that
+moment*. A rule whose inputs are unavailable when it fires is not a strict rule —
+it is an unenforceable one, and it will be silently skipped rather than loudly
+failed.
+
+**Dogfooding note.** While correcting the archive semantics I found that Ship's
+post-merge Step 7 is documented as calling the deprecated `backlogit_stash_remove`.
+That is a different contract surface and a different kind of work, so it was
+**captured, not fixed** — stash `8D570CF8`, with per-field source refs and PR 372
+recorded, thread ID `N/A`. This is the first time the policy has been applied to
+its own remediation.
