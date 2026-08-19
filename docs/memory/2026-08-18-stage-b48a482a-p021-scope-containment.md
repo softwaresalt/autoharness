@@ -649,7 +649,7 @@ So the matrix now carries two things instead of one:
 
 1. **Carrier roles** — `[A]` authoritative, `[N]` normative restatement, `[P]`
    procedural, `[G]` guard-only — determining *which* marker is asserted where.
-2. **A clause → behaviour → carrier-subset mapping (B1–B15)** — the justified
+2. **A clause → behaviour → carrier-subset mapping (B1–B17)** — the justified
    subsets, each narrowing recorded with its reason at the point of declaration.
 
 `134.012-T` now resolves every assertion by behaviour ID and carries a
@@ -777,3 +777,101 @@ markers) is still sound. Only the example was wrong.
 The `MATRIX CORRECTION` paragraph in `134.011-T` had been **duplicated verbatim**
 by my cycle-2 replacement. Removed. Worth noting as a self-inflicted class:
 large block replacements that re-include their own anchor text.
+
+## Stage correction operation — B16/B17 behaviour registration (2026-08-19)
+
+Resumed `checkpoint-20260819-165602.json` (stage-owned, sole active, 0 anomalies
+across 36 enumerated records). Engram bound and fresh (`stale_files: false`,
+scan 15601/15601 complete); bounded prune selected an empty set — no stale
+working-context records existed that were not protected — with cursor `143-S`,
+the checkpoint pointer, and all gate verdicts preserved untouched.
+
+### The defect
+
+Fix cycle 3 added `FIX-CI-DUAL-PATH` and `FIX-CI-ENTRY-REUSE` to `134.012-T`
+with correct substance and correct carriers, but **without behaviour IDs**. The
+authoritative mapping still ended at B15 while the suite exercised seventeen
+behaviours. The two newest assertions — guarding the most recently discovered
+defect class — sat *outside* the audit entirely: unchecked by `SUBSET-FIDELITY`,
+uncounted by any completeness assertion, free to drift from the matrix without
+failing anything.
+
+### Root cause — distinct from the previous four
+
+Every prior correction fixed the **content** of the map and its guards, but the
+guards only ever policed entries **already in** the map. Nothing asserted the
+map was *complete with respect to the suite*. An unnumbered assertion is not a
+wrong entry, it is a **missing** one, and a guard that validates existing
+entries is structurally blind to it.
+
+This is MATRIX CORRECTION 3's finding one level up. That one said: a guard
+scoped to the clauses where defects were already found cannot see the clauses
+nobody looked at. This one says: a guard scoped to the behaviours already
+registered cannot see the assertions nobody registered. Same shape, higher
+altitude.
+
+### The correction
+
+* **B16 `c3-dual-path-selection`** — DERIVED as `B7 INTERSECT B8` =
+  {001[A], 004, 007-fix-ci}. Defined as a derivation, not a list, so it cannot
+  drift from its parents; a carrier gaining a second disposition enters B16
+  automatically.
+* **B17 `c2-existing-entry-reuse`** — DERIVED as `B6 UNION {007-fix-ci}` =
+  {004, 007-fix-ci, 008}. Inherits B6's carriers *and* B6's declared exemption
+  from the clause-row subset check, for the same reason: it descends from the
+  single-write invariant, a Ship ROLE property rather than a registry clause,
+  which is why 008 may appear despite being absent from the C2 row.
+  `007-fix-ci` is added because Step 6.5 re-queries for threads opened since
+  Step 2.5 — the only surface where a thread can surface *after* the capture
+  write inside a single run.
+* Three guards in `134.012-T` now govern B16/B17 exactly like B1–B15:
+  `SUBSET-FIDELITY` (extended to B1–B17, exemption list asserted to be exactly
+  `{B6, B17}` so nothing can quietly opt out), a new `RANGE-COMPLETENESS` guard
+  (range is exactly B1–B17, every ID exercised, **no assertion without an ID**),
+  and a new `DERIVED-SUBSET` guard (recomputes each derivation from its parents).
+
+### Carrier verification (read-only)
+
+B16's membership was re-confirmed against `templates/skills/fix-ci/SKILL.md.tmpl`
+rather than inferred. B17's fix-ci membership rests on Step 6.5 line 169, which
+extends the thread inventory with "any additional threads opened since Step 2.5
+ran (re-query)" — the mechanical basis for a late-surfacing thread within one run.
+
+### Range statements aligned (no map duplication)
+
+Plan §S11 narrative, hardening H11, and this file's summary all state the range
+`B1–B17` and point at the single-source block in `134.011-T`. None restates the
+map — the alignment is a pointer plus a range, which is what kept this from
+becoming a fourth copy.
+
+### The new guard immediately found more than it was written for
+
+Running the RANGE-COMPLETENESS check against its own task exposed **seven more
+unnumbered semantic criteria** in `134.012-T` (C5-EXCEPTION, CONDITIONAL-C3,
+THREE-RECORD-CITATION, FUSED-REF, SINGLE-WRITE, NO-PR/NO-THREAD-ASSUMPTION,
+RECONCILIATION-CONSUMER). B16/B17 were not the only assertions outside the
+audit — they were merely the two most recently added. Every one mapped cleanly
+onto an existing behaviour (B11, B16, B8, B5, B6, B3, B14 respectively), so all
+were bound rather than the guard being weakened.
+
+Two structural refinements fell out of doing that honestly:
+
+* **UNIVERSAL scope.** `FUSED-REF` (B5) and `NO-PR/NO-THREAD-ASSUMPTION` (B3)
+  are negative guards that deliberately run across *all* carriers rather than a
+  behaviour's subset, because the error they forbid is wrong wherever it
+  appears. They are now ID-bound *and* labelled `UNIVERSAL scope`, so
+  SUBSET-FIDELITY cannot misread their breadth as a subset violation. Without
+  the label, binding them would have created a false failure.
+* **Cross-file allocation.** My first draft of the guard demanded `134.012-T`
+  name all seventeen IDs. That was wrong in the opposite direction: **B2, B13
+  and B15** are correctly discharged by `134.011-T`'s literal-clause,
+  precedence and policy-registry tests. Demanding one file cover the whole
+  range would have forced the exact duplication that caused the original matrix
+  drift. The guard now checks the union across both files, with `OWNED` and
+  `DISCHARGED_ELSEWHERE` constants required to be disjoint and to sum to
+  B1–B17; the allocation is declared once in `134.011-T` and the three
+  criteria in that file now carry their IDs, so it is checkable from both sides.
+
+Verified programmatically: allocation disjoint, union exactly B1–B17, nothing
+claimed twice, nothing orphaned, and the only unnumbered criteria remaining are
+the four structural ones the guard explicitly exempts.

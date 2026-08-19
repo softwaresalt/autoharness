@@ -230,9 +230,14 @@ omission that a manual pass had just repaired by hand.
 
 **Behaviour subsets (binding).** Where a clause is carried differently across its
 row, the per-behaviour carrier subsets live in the same single-source block in
-`134.011-T` (B1–B15) and task 012 resolves them by behaviour ID. A subset that is
+`134.011-T` (B1–B17) and task 012 resolves them by behaviour ID. A subset that is
 narrower than its clause row MUST carry its justification at the point of
 declaration, so a narrowing is a recorded decision rather than an omission.
+Every semantic assertion MUST carry a behaviour ID: an unnumbered assertion is
+governed by neither the subset check nor the completeness check, so it is
+invisible to the audit rather than merely wrong. B16 and B17 are DERIVED subsets
+(`B7 INTERSECT B8` and `B6 UNION {007-fix-ci}`), computed from their parents
+rather than materialized, so they cannot drift from them.
 
 ## H12 — Guard against P-021 being read as a licence to stop fixing things
 

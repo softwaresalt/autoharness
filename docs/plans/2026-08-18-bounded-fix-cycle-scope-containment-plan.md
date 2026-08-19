@@ -227,7 +227,7 @@ C5 carve-out boundary and the C5 provenance exception, Stage-only
 reprioritization, the C1 classification gate, C4 non-bypass, the `fix-ci`
 dual-path selection with existing-entry reuse, and the
 reconciliation consumer. Each assertion resolves its carrier subset from the
-behaviour mapping (B1–B15) in 011 rather than hardcoding a list, and a
+behaviour mapping (B1–B17) in 011 rather than hardcoding a list, and a
 subset-fidelity guard fails if a behaviour is asserted against a carrier the
 mapping excludes — the mechanism that keeps the suite from demanding
 threadless discharge from `github-pr-automation`, or thread-reply ordering from
