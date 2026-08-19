@@ -1143,3 +1143,46 @@ every owner criterion line to an asserted obligation and require zero unmapped.
 That mapping now runs L39–L46 → (1)–(8) with none unmapped, and the criterion
 states that if the owner grows, B14 must grow with it, since B14's
 single-carrier subset means nothing else will catch the omission.
+
+## Owner-reconciliation review cycle 2 (2026-08-19, HEAD 53b080fa)
+
+Two P1s, both introduced by the two passes immediately before this one, and both
+**verification** failures rather than reasoning failures.
+
+* **B14 owner coverage — third attempt.** Cycle 1 fixed a missing-obligation
+  defect by mapping each owner criterion *line* to one obligation and asserting
+  zero unmapped. That check passes while a compound clause hides *inside* a
+  line — and owner criterion L42 carries **five** obligations, of which only two
+  and a half were asserted. The missing part was the whole *remediation* half of
+  anti-duplication: detect duplicates, reconcile into the earliest-captured
+  entry and **remove** the others, **record the merge**. That gap matters
+  because a rule which only forbids *creating* duplicates has nothing to say
+  once duplicates exist — and they do: a prior-run capture whose entry isn't
+  found on re-query is exactly how a second entry appears. Re-resolving the
+  owner atomically instead of patching the count also surfaced a **third**
+  omission nobody flagged: L40's negative half, *Stage MUST NOT ask Ship to
+  supply the identifiers by editing the entry* — without which obligation (2)
+  silently reauthorizes a second Ship write.
+* **B18 carrier role.** The B11/B18 split correctly removed the false
+  requirement that role-enforcement carry complete C5 boundary semantics, but
+  left the carrier tagged `[N]` NORMATIVE RESTATEMENT — a role whose legend
+  *explicitly designated role-enforcement for C5* and whose marker resolution
+  demands restated clause prose. H5 contracts that surface to **cite** C5, not
+  restate it. So the role marker reintroduced, through the legend, precisely the
+  false requirement the split had just removed. Added `[R]` REFERENCE-ONLY.
+
+**The pattern, and the method change it forces.** Each defect was a correct fix
+whose *verification ran one level coarser than the defect could occupy*:
+
+| Fix | Verified at | Defect lived at |
+|---|---|---|
+| Range → B1–B18 | line | second occurrence *within* a line |
+| B14 obligations | criterion line | compound clause *within* a criterion |
+| B11/B18 split | subset membership | role *marker* semantics |
+
+The durable rule: **verify at the granularity the defect can occupy, not the
+granularity the artifact is organized in.** Occurrence counts, not line matches.
+Atomic obligations, not criterion lines. Role semantics, not subset membership.
+B14's completeness rule is now atomic *by construction* — every distinct
+MUST/MUST NOT maps to a numbered or lettered obligation, and a sentence carrying
+two obligations counts as two. Audit: **22 atomic obligations, zero unmapped.**

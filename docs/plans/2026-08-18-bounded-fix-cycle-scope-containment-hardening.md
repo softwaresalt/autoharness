@@ -205,9 +205,13 @@ faithfully mirror the omission.
 each of C1–C7, every named carrier file contains the clause's designated marker
 text, asserted individually so a single missing carrier fails a distinct test.
 The marker asserted MUST be the one appropriate to that carrier's declared ROLE
-— authoritative, normative restatement, procedural, or guard-only — because H5
+— authoritative, normative restatement, reference-only, procedural, or guard-only
+— because H5
 forbids most carriers from restating registry prose, and a surface with no
-review thread cannot carry a reply-ordering marker. One identical string per row
+review thread cannot carry a reply-ordering marker. The reference-only role
+exists precisely because H5 contracts some carriers (role-enforcement for C5) to
+CITE a clause rather than restate it: asserting a restatement marker there would
+fail against a correctly authored template. One identical string per row
 would make the row either unsatisfiable or vacuous.
 
 The matrix itself is NOT restated here. Its single source of truth is the

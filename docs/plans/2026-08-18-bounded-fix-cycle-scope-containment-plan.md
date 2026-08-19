@@ -215,7 +215,7 @@ map, that the LF-normalized rendered template is byte-identical to the dogfood
 output, that the manifest checksum matches, that clauses C1–C7 appear on their
 designated carriers per an EXHAUSTIVE matrix — asserting the marker appropriate
 to each carrier's declared ROLE (authoritative / normative restatement /
-procedural / guard-only) rather than one identical string per row — and that the
+reference-only / procedural / guard-only) rather than one identical string per row — and that the
 Ship Role Boundary no longer contains a blanket stash prohibition. A
 carrier-completeness guard spanning ALL seven clause rows, derived by inverting a
 declared authoring set for tasks 001–009, keeps the matrix from silently
