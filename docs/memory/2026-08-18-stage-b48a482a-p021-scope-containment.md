@@ -1266,3 +1266,56 @@ That is a different contract surface and a different kind of work, so it was
 **captured, not fixed** — stash `8D570CF8`, with per-field source refs and PR 372
 recorded, thread ID `N/A`. This is the first time the policy has been applied to
 its own remediation.
+
+## PR #372 review-fix cycle 2 (2026-08-19, HEAD 47d5ad3e)
+
+One P1: the split's **owner provenance inventories** were contradictory in both
+directions at once, and both errors have a single cause.
+
+* `134.012-T` still listed `134.002-T` as an authoring task for a
+  "provisional-priority carve-out reference" — but 002's only behaviours, **B11**
+  (Role Boundary verb list) and the **B12** provisional-priority carve-out, had
+  *both* moved to `134.013-T` in cycle 1.
+* `134.013-T` omitted `134.005-T` — even though **B1**'s subset includes the
+  circuit-breaker `[N]` carrier and 013's own C1-GATE test already asserts the
+  gate across *"both policy surfaces"*.
+
+So one file claimed an owner it no longer had while the other disowned an owner
+its own test depended on. Neither inventory was re-derived when the split moved
+the behaviours; both were carried across as **edited copies of the pre-split
+list**, which is stale by construction, because a split moves behaviours and the
+owner union moves with them.
+
+**How I fixed it, and why the method mattered more than the answer.** The review
+supplied the expected sets. I derived them independently from the B1–B18 mapping
+instead of applying them — and the first mechanical parse came back **wrong**,
+because the regex swept task numbers out of the `NOT` exclusion clauses (`NOT 005`,
+`Deliberately NOT asserted on 001, 006 or 007`). It reported B4 as including 005
+and B6 as including 001/006/007, all of which the map explicitly *excludes*. A
+parse that reads exclusions as inclusions produces a superset that looks
+plausible and is unfalsifiable by eye. Re-parsed with negation handling and an
+evidence segment printed per behaviour, the unions came out **012 → {001, 004,
+005, 006, 007, 008}** and **013 → all nine**, matching the review. Two narrowings a
+hand-edit reliably gets wrong are now written down: 005 owns only B3 and the B9
+`[G]` guard in 012 (H7 excludes it from B4; it performs no thread operation so it
+is excluded from B7), and 007 contributes B10 to 013 through **pr-lifecycle only**,
+not fix-ci.
+
+**Why this is the failure the matrix consolidation was supposed to have ended.**
+The CARRIER-SET RESOLUTION rule *already* forbids hardcoding a carrier list — and
+these inventories **were** hardcoded carrier lists. They just described carriers
+by their *authoring task* rather than by their *surface*, so they did not look
+like the thing the rule prohibits. The rule got read as being about the **shape**
+of the data rather than about its **provenance**. That is the durable lesson: a
+derived value that is *stored* rather than *computed* is a cache, and every cache
+needs an invalidation rule. The split was the invalidation event and nothing
+recomputed. `134.011-T` now states **OWNER INVENTORIES ARE DERIVED, NEVER
+DECLARED** once, in the allocation block, with the three current unions and the
+precedence rule: where an inventory and the mapping disagree, **the mapping wins
+and the inventory is the defect** — never the evidence.
+
+This also extends the running granularity lesson. Cycle 1's was *internal
+consistency is not executability*. This one is narrower and sharper: **consistency
+checks that compare two restatements cannot detect that both are restatements.**
+Both inventories were internally coherent and mutually plausible; only rederiving
+from the owner could tell either was wrong.
