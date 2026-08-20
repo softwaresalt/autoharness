@@ -117,6 +117,30 @@ returned **CASCADE** (134-F verified fully-covered root).
 | `020-DL` (auxiliary deliberation), stashes `6D62077C`/`3C7AAC71` | untouched throughout |
 | Protected git stash `operator-work-before-ship-143-S` | untouched throughout — safe for the Orchestrator to restore now that all Ship-owned closure work is complete |
 
+## Source Artifact Cleanup (post-merge Step 7)
+
+Per the Ship Role Boundary ("retire the source stash entry that fed the
+shipped scope via `backlogit_stash_remove` on `custom_fields.source_stash_id`
+at post-merge Step 7") and `templates/agents/_ship.agent.md.tmpl`'s
+"Source artifact cleanup" step, processed for the sole shipped top-level item
+in 143-S's scope, `134-F`:
+
+* `custom_fields.source_stash_id: B48A482A` — checked `backlogit stash list`:
+  **already removed** (not present in the active stash list; its record
+  carries a `[CONSUMED 2026-08-18 by Stage: ... harvested]` annotation from
+  prior Stage triage). Skipped, logged here.
+* `custom_fields.source_deliberation_id: 019-DL` — verified it exists
+  (`status: queued`, i.e. not yet archived at the time of this check — its
+  earlier out-of-scope cascade archival, see above, had already been
+  reverted back to `queued` before this explicit Step 7 check ran). Archived
+  via `backlogit archive 019-DL` → confirmed `status: archived`,
+  `archived_status: queued`.
+
+Auxiliary top-level item `135-F` carries no `custom_fields.source_stash_id`
+or `custom_fields.source_deliberation_id` (its stash/deliberation provenance
+— `D71F6283` / `020-DL` — is recorded only in description prose, not
+structured custom fields); no Step 7 action applies to it.
+
 Committed on
 `post-merge/134-f-p-021-bounded-fix-cycle-scope-containment-and-deferred-expansion-capture`
 per the Post-Merge Branch Protocol (closure mutations never land directly on
@@ -166,6 +190,8 @@ under the completed-work rule regardless of age; compacted summary written to
 **Closure verdict: READY.** Runtime verification passed; backlog
 reconciliation completed via the classifier-selected CASCADE path with the
 one out-of-scope-artifact anomaly independently caught, reverted, and fully
-disclosed; the auxiliary 135-F/135.001-T unit closed cleanly on its own path
-outside the 143-S manifest/protected set; the protected operator git stash
-was never touched.
+disclosed; source artifact cleanup (post-merge Step 7) completed —
+`019-DL` properly archived and `B48A482A` confirmed already removed; the
+auxiliary 135-F/135.001-T unit closed cleanly on its own path outside the
+143-S manifest/protected set; the protected operator git stash was never
+touched.

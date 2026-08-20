@@ -90,6 +90,29 @@ children are manifest members, no others exist).
 | Follow-up stashes `6D62077C`, `3C7AAC71` | untouched throughout |
 | Protected git stash `operator-work-before-ship-143-S` | untouched throughout (never popped/dropped) |
 
+## Source Artifact Cleanup (post-merge Step 7)
+
+Per the Ship Role Boundary ("retire the source stash entry that fed the
+shipped scope via `backlogit_stash_remove` on `custom_fields.source_stash_id`
+at post-merge Step 7") and `templates/agents/_ship.agent.md.tmpl`'s "Source
+artifact cleanup" step (identified by a Copilot review finding on the
+closure PR, citing `templates/agents/_ship.agent.md.tmpl:818-821` — content
+added by this very shipment's own merge, requiring the mandatory
+pre-self-close context reload to catch), processed for `134-F` (the sole
+shipped top-level item in 143-S's scope):
+
+* `custom_fields.source_stash_id: B48A482A` — already removed (not present
+  in `backlogit stash list`'s active entries; carries a historical
+  `[CONSUMED 2026-08-18 by Stage ... harvested]` annotation). Skipped,
+  logged.
+* `custom_fields.source_deliberation_id: 019-DL` — existed, not yet archived
+  (its earlier out-of-scope cascade archival had already been reverted back
+  to `queued`). Archived via `backlogit archive 019-DL` →
+  `status: archived`, `archived_status: queued`.
+
+`135-F` carries no `custom_fields.source_stash_id`/`source_deliberation_id`
+(its provenance is prose-only); no Step 7 action applies to it.
+
 ## Backlog Reconciliation — 135-F / 135.001-T (own path, outside 143-S manifest/protected set)
 
 Per the task's explicit "SHIP AUTHORITY AND SCOPE" instructions and the
