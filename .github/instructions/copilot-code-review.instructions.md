@@ -49,12 +49,13 @@ purely mechanical, process, or style nits so review attention stays on substanti
 defects:
 
 * Markdown formatting and markdownlint heading hierarchy (MD001/MD025/MD041, P-008)
-* Workflow policies P-001 through P-019 and constitutional principle sequencing
+* Workflow policies P-001 through P-021 and constitutional principle sequencing
 * Test-first red-green gate mechanics (P-002, P-004) and the `unittest` suite run
 * Merge-commit-only discipline (P-009, Principle XI) — squash and rebase are forbidden
 * Role-boundary enforcement (P-010) and single-worktree topology (P-016)
 * Backlog and shipment bookkeeping conventions (backlogit)
 * Template variable-completeness and cross-reference integrity checks
+
 
 De-prioritizing is not suppression. Never suppress a substantive defect because it
 resembles a mechanical concern. If a formatting, bookkeeping, or process issue

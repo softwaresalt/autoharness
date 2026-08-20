@@ -231,8 +231,8 @@ artifacts:
   - path: ".github/instructions/copilot-code-review.instructions.md"
     primitive: 7
     template: "instructions/copilot-code-review.instructions.md.tmpl"
-    checksum: "238d6a45dde027c88d77a8262510da909b66654b41d6a9423af4f0f459987f6f"
-    note: "GitHub Copilot code-review focus instruction (086-S); GitHub-conditional, base-branch activated"
+    checksum: "7d8774cc61a1d832443f3df8b1e257945cbf970b58ceeeefaa41390720c76888"
+    note: "GitHub Copilot code-review focus instruction (086-S); GitHub-conditional, base-branch activated; checksum refreshed 143-S/134.010-T (HARNESS_ENFORCED_SUMMARY bumped from P-001-through-P-019 to P-001-through-P-021 in the manifest variables map to cover the newly authored P-021; this bump also corrects a pre-existing stale P-020 omission that had never been added to the range — disclosed here as a mechanical consequence of the C1 same-contract-surface test per hardening H10, not a silent scope creep; the template itself is unchanged, only the manifest variable changed; full re-render is byte-identical and incidentally also restores a single blank line before 'De-prioritizing is not suppression' that pre-existing dogfood drift had dropped)"
   - path: ".github/instructions/capability-pack-enforcement.instructions.md"
     primitive: 6
     template: "instructions/capability-pack-enforcement.instructions.md.tmpl"
@@ -322,7 +322,7 @@ variables_used:
   CIRCUIT_BREAKER_COOLDOWN: "5 minutes"
   HARNESS_ENFORCED_SUMMARY: |
     * Markdown formatting and markdownlint heading hierarchy (MD001/MD025/MD041, P-008)
-    * Workflow policies P-001 through P-019 and constitutional principle sequencing
+    * Workflow policies P-001 through P-021 and constitutional principle sequencing
     * Test-first red-green gate mechanics (P-002, P-004) and the `unittest` suite run
     * Merge-commit-only discipline (P-009, Principle XI) — squash and rebase are forbidden
     * Role-boundary enforcement (P-010) and single-worktree topology (P-016)
