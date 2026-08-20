@@ -219,6 +219,48 @@ OWNED_BEHAVIOURS = frozenset({"B2", "B13", "B15"})
 
 
 # ---------------------------------------------------------------------------
+# CLAUSE -> BEHAVIOR -> CARRIER-SUBSET MAPPING (B1-B18), transcribed verbatim
+# from the archived 134.011-T task spec's authoritative block of the same
+# name. This is the SINGLE SOURCE OF TRUTH for per-behaviour carrier subsets;
+# 134.013-T and 134.012-T import this constant and MUST NOT restate it or
+# hardcode their own carrier lists (134.013-T criterion: "CARRIER-SET
+# RESOLUTION rule... MUST NOT restate the matrix or hardcode a carrier list").
+# B16 and B17 are DERIVED (not hand-listed) per the task's explicit rule that
+# derived behaviours must be computed from their parents, never hardcoded.
+# ---------------------------------------------------------------------------
+
+BEHAVIOR_CARRIER_SUBSETS: dict[str, frozenset[str]] = {
+    "B1": frozenset({"001", "005", "004", "006", "007-pr-lifecycle", "007-fix-ci"}),
+    "B2": frozenset({"001", "005"}),
+    "B3": frozenset({"001", "004", "005", "006", "007-pr-lifecycle", "007-fix-ci"}),
+    "B4": frozenset({"001", "004", "006", "007-pr-lifecycle", "007-fix-ci"}),
+    "B5": frozenset({"001", "004", "007-fix-ci"}),
+    "B6": frozenset({"004", "008"}),
+    "B7": frozenset({"001", "004", "006", "007-pr-lifecycle", "007-fix-ci"}),
+    "B8": frozenset({"001", "004", "007-fix-ci"}),
+    "B9": frozenset({"001", "004", "005", "007-fix-ci"}),
+    "B10": frozenset({
+        "001", "004", "006", "007-pr-lifecycle", "009-orchestrator", "009-feature-flow-dark",
+    }),
+    "B11": frozenset({"001", "002"}),
+    "B12": frozenset({"001", "004", "006", "007-pr-lifecycle", "007-fix-ci"}),
+    "B13": frozenset({"001", "008"}),
+    "B14": frozenset({"008"}),
+    "B15": frozenset({"001"}),
+    "B18": frozenset({"003"}),
+}
+# B16 = B7 INTERSECT B8; B17 = B6 UNION {007-fix-ci} -- computed, not hardcoded.
+BEHAVIOR_CARRIER_SUBSETS["B16"] = (
+    BEHAVIOR_CARRIER_SUBSETS["B7"] & BEHAVIOR_CARRIER_SUBSETS["B8"]
+)
+BEHAVIOR_CARRIER_SUBSETS["B17"] = (
+    BEHAVIOR_CARRIER_SUBSETS["B6"] | frozenset({"007-fix-ci"})
+)
+
+ALL_BEHAVIOURS = frozenset(f"B{i}" for i in range(1, 19))
+
+
+# ---------------------------------------------------------------------------
 # Marker text per (clause, carrier), chosen as stable distinctive substrings
 # authored on that carrier (verified present via direct read of each file).
 # ---------------------------------------------------------------------------
@@ -267,45 +309,76 @@ _MARKERS: dict[tuple[str, str], str] = {
     ),
 }
 
+def _load_all_texts() -> dict[str, str]:
+    """Loads every carrier source file (LF-normalized) once. Shared by all
+    three P-021 contract-test modules so path constants and read logic are
+    not re-derived per file."""
+    return {
+        "workflow_policy": _lf_text(_WORKFLOW_POLICY_TEMPLATE),
+        "ship_template": _lf_text(_SHIP_TEMPLATE),
+        "ship_dogfood": _lf_text(_SHIP_DOGFOOD),
+        "stage_template": _lf_text(_STAGE_TEMPLATE),
+        "stage_dogfood": _lf_text(_STAGE_DOGFOOD),
+        "orchestrator_template": _lf_text(_ORCHESTRATOR_TEMPLATE),
+        "orchestrator_dogfood": _lf_text(_ORCHESTRATOR_DOGFOOD),
+        "circuit_breaker_template": _lf_text(_CIRCUIT_BREAKER_TEMPLATE),
+        "circuit_breaker_dogfood": _lf_text(_CIRCUIT_BREAKER_DOGFOOD),
+        "role_enforcement_template": _lf_text(_ROLE_ENFORCEMENT_TEMPLATE),
+        "role_enforcement_dogfood": _lf_text(_ROLE_ENFORCEMENT_DOGFOOD),
+        "github_pr_automation_template": _lf_text(_GITHUB_PR_AUTOMATION_TEMPLATE),
+        "github_pr_automation_dogfood": _lf_text(_GITHUB_PR_AUTOMATION_DOGFOOD),
+        "feature_flow_dark_template": _lf_text(_FEATURE_FLOW_DARK_TEMPLATE),
+        "feature_flow_dark_dogfood": _lf_text(_FEATURE_FLOW_DARK_DOGFOOD),
+        "pr_lifecycle_template": _lf_text(_PR_LIFECYCLE_TEMPLATE),
+        "fix_ci_template": _lf_text(_FIX_CI_TEMPLATE),
+    }
+
+
+def _load_carrier_texts(all_texts: dict[str, str]) -> dict[str, tuple[str, ...]]:
+    """Carrier id -> tuple of raw text sources to check marker presence on."""
+    return {
+        "001": (all_texts["workflow_policy"],),
+        "002": (all_texts["ship_template"], all_texts["ship_dogfood"]),
+        "003": (all_texts["role_enforcement_template"], all_texts["role_enforcement_dogfood"]),
+        "004": (all_texts["ship_template"], all_texts["ship_dogfood"]),
+        "005": (all_texts["circuit_breaker_template"], all_texts["circuit_breaker_dogfood"]),
+        "006": (all_texts["github_pr_automation_template"], all_texts["github_pr_automation_dogfood"]),
+        "007-pr-lifecycle": (all_texts["pr_lifecycle_template"],),
+        "007-fix-ci": (all_texts["fix_ci_template"],),
+        "008": (all_texts["stage_template"], all_texts["stage_dogfood"]),
+        "009-orchestrator": (all_texts["orchestrator_template"], all_texts["orchestrator_dogfood"]),
+        "009-feature-flow-dark": (
+            all_texts["feature_flow_dark_template"], all_texts["feature_flow_dark_dogfood"],
+        ),
+    }
+
+
 class ScopeContainmentPolicyContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.variables = _template_variables()
-        cls.workflow_policy_text = _lf_text(_WORKFLOW_POLICY_TEMPLATE)
+        all_texts = _load_all_texts()
+        cls.workflow_policy_text = all_texts["workflow_policy"]
 
-        cls.ship_template_text = _lf_text(_SHIP_TEMPLATE)
-        cls.ship_dogfood_text = _lf_text(_SHIP_DOGFOOD)
-        cls.stage_template_text = _lf_text(_STAGE_TEMPLATE)
-        cls.stage_dogfood_text = _lf_text(_STAGE_DOGFOOD)
-        cls.orchestrator_template_text = _lf_text(_ORCHESTRATOR_TEMPLATE)
-        cls.orchestrator_dogfood_text = _lf_text(_ORCHESTRATOR_DOGFOOD)
-        cls.circuit_breaker_template_text = _lf_text(_CIRCUIT_BREAKER_TEMPLATE)
-        cls.circuit_breaker_dogfood_text = _lf_text(_CIRCUIT_BREAKER_DOGFOOD)
-        cls.role_enforcement_template_text = _lf_text(_ROLE_ENFORCEMENT_TEMPLATE)
-        cls.role_enforcement_dogfood_text = _lf_text(_ROLE_ENFORCEMENT_DOGFOOD)
-        cls.github_pr_automation_template_text = _lf_text(_GITHUB_PR_AUTOMATION_TEMPLATE)
-        cls.github_pr_automation_dogfood_text = _lf_text(_GITHUB_PR_AUTOMATION_DOGFOOD)
-        cls.feature_flow_dark_template_text = _lf_text(_FEATURE_FLOW_DARK_TEMPLATE)
-        cls.feature_flow_dark_dogfood_text = _lf_text(_FEATURE_FLOW_DARK_DOGFOOD)
-        cls.pr_lifecycle_template_text = _lf_text(_PR_LIFECYCLE_TEMPLATE)
-        cls.fix_ci_template_text = _lf_text(_FIX_CI_TEMPLATE)
+        cls.ship_template_text = all_texts["ship_template"]
+        cls.ship_dogfood_text = all_texts["ship_dogfood"]
+        cls.stage_template_text = all_texts["stage_template"]
+        cls.stage_dogfood_text = all_texts["stage_dogfood"]
+        cls.orchestrator_template_text = all_texts["orchestrator_template"]
+        cls.orchestrator_dogfood_text = all_texts["orchestrator_dogfood"]
+        cls.circuit_breaker_template_text = all_texts["circuit_breaker_template"]
+        cls.circuit_breaker_dogfood_text = all_texts["circuit_breaker_dogfood"]
+        cls.role_enforcement_template_text = all_texts["role_enforcement_template"]
+        cls.role_enforcement_dogfood_text = all_texts["role_enforcement_dogfood"]
+        cls.github_pr_automation_template_text = all_texts["github_pr_automation_template"]
+        cls.github_pr_automation_dogfood_text = all_texts["github_pr_automation_dogfood"]
+        cls.feature_flow_dark_template_text = all_texts["feature_flow_dark_template"]
+        cls.feature_flow_dark_dogfood_text = all_texts["feature_flow_dark_dogfood"]
+        cls.pr_lifecycle_template_text = all_texts["pr_lifecycle_template"]
+        cls.fix_ci_template_text = all_texts["fix_ci_template"]
 
         # Carrier id -> tuple of raw text sources to check marker presence on.
-        cls.carrier_texts: dict[str, tuple[str, ...]] = {
-            "001": (cls.workflow_policy_text,),
-            "002": (cls.ship_template_text, cls.ship_dogfood_text),
-            "003": (cls.role_enforcement_template_text, cls.role_enforcement_dogfood_text),
-            "004": (cls.ship_template_text, cls.ship_dogfood_text),
-            "005": (cls.circuit_breaker_template_text, cls.circuit_breaker_dogfood_text),
-            "006": (cls.github_pr_automation_template_text, cls.github_pr_automation_dogfood_text),
-            "007-pr-lifecycle": (cls.pr_lifecycle_template_text,),
-            "007-fix-ci": (cls.fix_ci_template_text,),
-            "008": (cls.stage_template_text, cls.stage_dogfood_text),
-            "009-orchestrator": (cls.orchestrator_template_text, cls.orchestrator_dogfood_text),
-            "009-feature-flow-dark": (
-                cls.feature_flow_dark_template_text, cls.feature_flow_dark_dogfood_text,
-            ),
-        }
+        cls.carrier_texts: dict[str, tuple[str, ...]] = _load_carrier_texts(all_texts)
 
     # -- files exist -------------------------------------------------------
 
@@ -413,6 +486,19 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
                     inverted[clause],
                     f"MATRIX[{clause}] must equal the inversion of AUTHORING_TASKS",
                 )
+
+    def test_behavior_carrier_subsets_cover_b1_to_b18_exactly(self) -> None:
+        self.assertEqual(frozenset(BEHAVIOR_CARRIER_SUBSETS.keys()), ALL_BEHAVIOURS)
+
+    def test_derived_behaviour_subsets_are_computed_not_hardcoded(self) -> None:
+        self.assertEqual(
+            BEHAVIOR_CARRIER_SUBSETS["B16"],
+            BEHAVIOR_CARRIER_SUBSETS["B7"] & BEHAVIOR_CARRIER_SUBSETS["B8"],
+        )
+        self.assertEqual(
+            BEHAVIOR_CARRIER_SUBSETS["B17"],
+            BEHAVIOR_CARRIER_SUBSETS["B6"] | frozenset({"007-fix-ci"}),
+        )
 
     def test_carrier_completeness_guard_detects_regressed_omissions(self) -> None:
         """Non-vacuity check for the guard above: temporarily drop each of the
