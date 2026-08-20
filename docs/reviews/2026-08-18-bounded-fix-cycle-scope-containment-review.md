@@ -126,7 +126,9 @@ Deliberation §Open Questions and Plan §7 rather than absorbed.
   Conditions + dogfood + checksum) is bounded; no task requires original design
   work beyond quoting clauses authored in 001. PASS.
 * **Width isolation** — no task spans template + CLI + schema. PASS.
-* **P-006 hardening** — required, performed, 13 items, all folded into
+* **P-006 hardening** — required, performed, **H1–H15 / 15 items** (13 at the
+  time this verdict was issued; H14 and H15 were added by later Stage
+  correction operations), all folded into
   acceptance criteria. PASS.
 * **P-010 role boundary** — the plan itself is Stage-authored planning output;
   no source, template, or config file is mutated by Stage. PASS.

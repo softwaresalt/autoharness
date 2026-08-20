@@ -1518,3 +1518,60 @@ reproduced the P1-1 splice — a truncated `old_str` duplicated the H15 paragrap
 tail onto the new closing paragraph. Detected by re-reading the edit boundary
 immediately after the write and removed before validation. The tool hazard is
 real and recurring: **match to a line boundary, then verify the boundary.**
+
+## Fresh Stage operation — review-fix cycle 2 of 3 (HEAD be2ed019, P0=0/P1=1 + 3 P2)
+
+**P1 — a constant that was imported but never exported.** `134.012-T`'s
+load-bearing RANGE-COMPLETENESS guard imports an `OWNED_BEHAVIOURS` constant
+from **both** sibling test modules, and `134.013-T` already carried an explicit
+ALLOCATION CONSTANT criterion — but `134.011-T` carried none. Two of the three
+constants were owned; the third existed only as an assertion inside the
+consumer. The consumer's criterion was therefore **not executable as written**,
+and the only way to satisfy it would have been to hardcode 011's set inside 012
+— recreating at the allocation layer the duplicated-source-of-truth failure the
+matrix consolidation repaired.
+
+Fixed by adding the producer-side criterion to `134.011-T`:
+`OWNED_BEHAVIOURS == {B2, B13, B15}` (the POLICY-CONTRACT group), every
+exercised behaviour a member and every member exercised, **declared** here and
+**imported** there, with an explicit prohibition on restating the sibling sets
+or the union. `134.012-T`'s dependency note now credits both producers rather
+than only 013, and records that authoring order `011 → 013 → 012` is exactly
+the order the constants must exist in for the consumer guard to resolve.
+
+This is a textbook **H14** instance — artifact X's correctness depending on a
+guarantee artifact Y was never obligated to provide — and is recorded as H14's
+second confirmed instance. The generalisation added there: **an import is a
+dependency on a guarantee.** Every constant a guard imports must correspond to
+a declared export obligation on the artifact that owns it, and a cross-file
+audit must check the **producer** side of each import, not only the consumer
+that names it. Both prior audits missed this for the same reason H14 describes:
+they verify that a claim matches its owner, and this claim had no owner entry.
+
+**P2-1** — `019-DL.md` S11 and `134-F.md` narrative both said *two* contract
+tests; both now say three, naming
+`tests/test_scope_containment_boundary_contract.py` and noting it was split out
+during PR #372 review-fix cycle 1. Neither restates the behaviour allocation,
+which remains declared once in `134.011-T`.
+
+**P2-2** — the review gate assessment's P-006 line now reads **H1–H15 / 15
+items**, with the original 13 preserved as the figure at issue time.
+
+**P2-3, and a self-corrected mistake inside it.** The canonical `behaviour B16`
+marker sat on the CONDITIONAL-C3 criterion, which asserts carrier `001[A]`
+only, so the structural audit resolved B16 to the **narrow** criterion while the
+load-bearing full-subset dual-path test carried no marker. My first fix moved
+the marker and **removed** it from CONDITIONAL-C3 — which broke a different
+invariant this same file states twice: every semantic assertion must carry a
+behaviour ID, and an unnumbered assertion is *invisible to the audit*, the
+failure mode L35 calls strictly worse than a wrong one. Corrected: **both**
+criteria carry `behaviour B16`, and canonicity is expressed through the
+established `FULL Bn subset` designation, which now appears exactly once and on
+the load-bearing criterion. CONDITIONAL-C3 is explicitly labelled a
+SUBSET-SCOPED component that must not discharge B16 alone.
+
+The lesson generalises the cycle-1 one: **fixing a marker-resolution problem by
+deleting a marker trades one audit blind spot for another.** Identity and
+canonicity are separate properties and need separate carriers — the ID says
+*which behaviour*, the subset designation says *which criterion is
+load-bearing*. Collapsing them into one string forces a false choice.

@@ -390,6 +390,20 @@ corresponding obligation exists on Y and is covered by Y's tests. The two
 obligations in `134.008-T` are now split and separately triggered precisely so
 that the guarantee 004 relies on is stated where it is owned.
 
+**Second confirmed instance (fresh Stage operation, review-fix cycle 2).**
+`134.012-T`'s RANGE-COMPLETENESS guard imports an `OWNED_BEHAVIOURS` constant
+from *both* sibling suites, and `134.013-T` carried a matching ALLOCATION
+CONSTANT obligation — but `134.011-T` did not. Two of the three constants were
+owned and the third existed only as an assertion inside the consumer, so the
+consumer's criterion was not executable as written and the only way to satisfy
+it would have been to hardcode 011's set in 012, recreating the
+duplicated-source-of-truth failure the matrix consolidation repaired. The
+producer-side criterion now exists on `134.011-T`. The generalisation worth
+carrying: **an import is a dependency on a guarantee**, so every constant a
+guard imports must correspond to a declared export obligation on the artifact
+that owns it, and a cross-file audit must check the producer side of each
+import rather than only the consumer that names it.
+
 ## H15 — Negative guards must enumerate defect SHAPES, not defect INSTANCES
 
 Added 2026-08-19, fresh Stage correction operation after the review-fix budget

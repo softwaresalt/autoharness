@@ -242,7 +242,11 @@ reference-only / procedural / guard-only) rather than one identical string per r
 Ship Role Boundary no longer contains a blanket stash prohibition. A
 carrier-completeness guard spanning ALL seven clause rows, derived by inverting a
 declared authoring set for tasks 001–009, keeps the matrix from silently
-under-listing a carrier. Full `unittest` suite passes.
+under-listing a carrier. It declares its own `OWNED_BEHAVIOURS` constant for the
+POLICY-CONTRACT group, which 012's allocation guard imports alongside 013's, so
+all three constants are declared exactly once by their owning suite and the
+three-way completeness check never hardcodes a sibling set. Full `unittest`
+suite passes.
 
 **012** — A second contract test asserts the C2/C3 CAPTURE-AND-DISCHARGE
 SEMANTIC invariants, so a clause that is present but self-contradictory fails a
