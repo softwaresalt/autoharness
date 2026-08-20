@@ -288,7 +288,13 @@ function Invoke-PreMergeInstallChecklist {
 
     Write-Host ""
     Write-Host "  Pre-merge-install checklist (REPORT ONLY -- no install/upgrade is executed):" -ForegroundColor Yellow
-    $rows | Format-Table -AutoSize | Out-String | Write-Host
+    # Out-String falls back to an 80-column default when stdout is redirected
+    # or non-TTY, which clamps Format-Table -AutoSize and silently truncates
+    # the RecommendedAction column with an ellipsis (135.001-T). Force a
+    # deterministic, generously wide render width so output is byte-identical
+    # whether or not a console is attached -- do NOT gate this on
+    # $Host.UI.RawUI.WindowSize or [Console]::IsOutputRedirected.
+    $rows | Format-Table -AutoSize | Out-String -Width 4096 | Write-Host
     Write-Info "Capability-pack runtime provisioning, when implemented, MUST occur BEFORE merge-install composition. Actual install/upgrade execution and all supply-chain/source/OS-matrix design remain DEFERRED to operator -- see docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md."
     return $true
 }
