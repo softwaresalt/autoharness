@@ -132,18 +132,133 @@ Apply fixes for each failure. Use workspace search tools to understand context b
 When the `agent-engram` capability pack is installed, prefer `list_symbols`, `map_code`,
 `impact_analysis`, and `query_memory` before broader grep or raw file scans.
 
+Before fixing a CI check failure, classify it against the **P-021 C1**
+same-contract-surface test (see the operational restatement in
+`.github/instructions/circuit-breaker.instructions.md`'s "Review-Fix Cycle
+Definition" section). A CI check failure whose real fix lies outside the
+approved scope is captured per Step 5.5 as a `DEFERRED SCOPE EXPANSION` entry
+and reported to the operator, never expanded into.
+
+### Step 5.5: P-021 Scope Classification and Defer-Capture
+
+This skill is a DUAL-PATH carrier: findings arrive either as a CI check
+failure (Step 2/Step 4, no review thread) or a review comment (Step 2.5/Step
+3/Step 6, a review thread exists). Disposition is selected by the path the
+finding actually arrives on at classification time, never by the fact that the
+loop is named `fix-ci`.
+
+**C1 classification (shared by both paths)**: before fixing any finding —
+CI check failure or review comment — classify it against the **P-021 C1**
+same-contract-surface test. Only a finding that passes C1 (fixing it requires
+ONLY completing the exact change already authorized) may be fixed directly.
+
+**C2 mandatory capture — six-field payload**: every out-of-scope finding on
+either path MUST be captured, BEFORE the finding is closed in any form, with
+the following six fields:
+
+1. The literal token `DEFERRED SCOPE EXPANSION`.
+2. A one-sentence statement of the expansion.
+3. Why it is out of scope, citing the P-021 C1 test.
+4. Source refs: task ID, feature ID, and shipment ID are populated whenever
+   this skill runs within a Ship-orchestrated task/feature/shipment context.
+   This skill also explicitly supports direct invocation with only `pr_number`
+   (see Quick Start / Parameters above), so none of those three refs is
+   guaranteed available on that path: each one that has no resolvable value at
+   capture time is instead recorded as an explicit `N/A`, judged
+   INDEPENDENTLY PER FIELD exactly like every other source ref below — never
+   fabricated, never silently omitted. The **PR number** and the
+   **review-thread ID** are SEPARATE source refs whose availability is judged
+   INDEPENDENTLY PER FIELD — they MUST NOT be fused into a single `PR/thread`
+   token, and MUST NOT be qualified jointly or with a single trailing
+   "(when applicable)" that in fact attaches to only one of them. On this
+   surface, `fix-ci` cannot run without an open PR (see Prerequisites above),
+   so the PR number is ALWAYS recorded with its actual value — it is never
+   `N/A` here. The review-thread ID is recorded with its actual value for a
+   review comment (a thread already exists), and recorded as `N/A` for a CI
+   check failure (no thread exists for that finding kind). The two refs are
+   `N/A` together only for a genuinely pre-PR finding, which is not a state
+   this surface can be in — neither field's availability is ever assumed from
+   the other's.
+5. A `requires deliberation` flag.
+6. Kind and a PROVISIONAL priority only — re-prioritization and triage remain
+   Stage-only (P-021 C5 capture-only carve-out).
+
+**Existence of a PR or a thread is never a precondition for capture** — the
+capture in step 4 above proceeds regardless of what is or is not available.
+
+**Threadless discharge (CI check failure)**: no review thread exists for this
+finding kind, so the C3 thread-reply step does not apply. After the C2
+capture, cite the generated deferred entry ID in the TASK-LEVEL, run-level,
+and closure residual-risk records — the complete set the reference obligation
+requires when no thread reply can carry the ID.
+
+**Thread-present disposition (review comment)**: see Step 6 below for the
+ordered capture → reply → resolve → residual-risk sequence that applies when a
+review thread already exists for the finding.
+
+**Existing-entry reuse across the dual paths**: if a finding captured earlier
+in this run (or a prior run) later surfaces on the other path — for example, a
+CI check failure captured as threadless later reappears as a review comment on
+the same finding — the reply cites the ALREADY-CAPTURED deferred entry ID and
+this skill MUST NOT create a second entry, consistent with the SINGLE-WRITE
+CAPTURE INVARIANT and its LATE-SURFACING THREAD rule, both authored in
+134.004-T and carried by the installed Ship agent's own "P-021 Scope
+Classification and Defer-Capture Procedure" section (`.github/agents/_ship.agent.md`)
+— the concrete carrier an installed workspace can actually resolve, since
+`134.004-T` is an internal autoharness development task ID that is not
+installed into target workspaces. Newly available identifiers are recorded in
+the PR/closure residual-risk record, not written back into the entry;
+reconciling the entry itself is Stage's C6 responsibility. The prior-run
+lookup — lookup sources, join keys, the four-case disposition truth table,
+and both discovery-failure paths — is performed exactly as specified in that
+same installed Ship agent section's **Deferred-Entry Discovery** and
+**Discovery Fail-Safe** criteria (authored under 134.004-T); that procedure is
+referenced here by name only and is deliberately NOT reproduced, so this
+skill and the Ship agent never carry two divergent copies of it.
+
+**C3 symmetric guard (applies on both paths)**: (i) a same-contract-surface
+completion of the authorized change IS in scope and MUST be fixed, not
+deferred; AND (ii) deferring such a completion WITHOUT a captured deferred
+entry and a residual-risk record is itself a P-021 violation, actioned per
+P-021 C7. Both parts apply regardless of whether the finding arrived with a
+review thread — the threadless path discharges part (ii)'s residual-risk
+requirement through the task/run/closure records rather than a thread reply.
+
 ### Step 6: Address Review Comments
 
-For each review comment:
+For each review comment, first classify it against the **P-021 C1**
+same-contract-surface test (Step 5.5). Only a comment that passes C1 may be
+fixed directly:
 
 * Valid: Apply the suggested fix or an equivalent resolution
 * Partial: Apply relevant parts, reply explaining what was not applied and why
 * Invalid: Reply with a clear rationale for declining
+* **Out of scope (fails P-021 C1)**: follow the required ordered,
+  capture-first disposition below instead of fixing it:
+  * (a) **Capture per Step 5.5's P-021 C2** six-field payload, performed
+    BEFORE any thread reply, because C2 makes capture a precondition for
+    closing the finding.
+  * (b) Post a substantive thread reply explaining the finding, why it is out
+    of scope citing the C1 boundary, that no code change was made, and CITING
+    THE GENERATED DEFERRED ENTRY ID returned by the (a) capture, per P-021 C3.
+  * (c) Resolve the thread (per the resolution steps below), permitted only
+    after the reply citing that ID is posted.
+  * (d) Add a residual-risk record entry in the PR body naming the SAME
+    deferred entry ID.
+
+  Replying to or resolving an out-of-scope thread BEFORE the C2 capture exists
+  is PROHIBITED, since the reply cannot cite an entry ID that has not been
+  generated yet; a reply omitting the deferred entry ID does not satisfy C3.
+  This ordering matches the installed Ship agent's own "P-021 Scope
+  Classification and Defer-Capture Procedure" section (`.github/agents/_ship.agent.md`,
+  authored under 134.004-T) and the installed github-pr-automation
+  instruction's "P-021 Scope Classification and Out-of-Scope Disposition"
+  section (authored under 134.006-T) defer-capture sequence exactly.
 
 For GitHub-hosted repositories, after addressing each comment:
 
 1. Reply to the review thread per `.github/instructions/github-pr-automation.instructions.md`
-   §1.5 using the appropriate reply template (fixed / declined / partial).
+   §1.5 using the appropriate reply template (fixed / declined / partial / out-of-scope).
 2. Resolve Copilot-authored threads programmatically via GraphQL:
    ```
    gh api graphql -f query='mutation {

@@ -541,8 +541,9 @@ class _ChecklistExecutionMixin:
                 "checklist (pre-merge-install; report only)", combined
             )
             self.assertIn("REPORT ONLY", combined)  # type: ignore[attr-defined]
-            # At least one recommended-action category must appear (packs are
-            # typically absent in a throwaway CI/test workspace).
+            # At least one recommended-action category must appear AS A
+            # COMPLETE LITERAL -- not a weak any-of substring that a
+            # truncated render could accidentally satisfy (135.001-T).
             self.assertTrue(  # type: ignore[attr-defined]
                 any(
                     cat in combined
@@ -552,7 +553,32 @@ class _ChecklistExecutionMixin:
                         "unsupported-undetectable",
                     )
                 ),
-                f"no recommended-action category found:\n{combined}",
+                f"no complete recommended-action category literal found:\n{combined}",
+            )
+            # The rendered checklist block -- scoped to its own "== ... =="
+            # phase section, not the whole process output, since unrelated
+            # phases (e.g. bootstrap install/clone messages) may legitimately
+            # use "..." prose -- must contain no ellipsis/truncation marker:
+            # neither the U+2026 horizontal-ellipsis character nor a trailing
+            # "..." in a table cell. Both are symptoms of
+            # Format-Table -AutoSize / Out-String inheriting a
+            # redirected-stdout 80-column default (135.001-T root cause).
+            checklist_start = combined.index("== checklist")
+            next_phase = combined.find("\n== ", checklist_start)
+            checklist_block = (
+                combined[checklist_start:next_phase]
+                if next_phase != -1
+                else combined[checklist_start:]
+            )
+            self.assertNotIn(  # type: ignore[attr-defined]
+                "\u2026",
+                checklist_block,
+                f"checklist block contains a truncation ellipsis (U+2026):\n{checklist_block}",
+            )
+            self.assertNotIn(  # type: ignore[attr-defined]
+                "...",
+                checklist_block,
+                f"checklist block contains a truncation marker ('...'):\n{checklist_block}",
             )
 
 

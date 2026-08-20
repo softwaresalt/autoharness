@@ -246,7 +246,7 @@ class CopilotCodeReviewDeterministicCheckTests(unittest.TestCase):
 
     @staticmethod
     def _synthetic_registry() -> str:
-        return "\n".join(f"## P-{i:03d}: Policy {i}" for i in range(1, 20))
+        return "\n".join(f"## P-{i:03d}: Policy {i}" for i in range(1, 22))
 
     def test_valid_installed_file_passes(self) -> None:
         check = self._run_check(DOGFOOD_PATH.read_text(encoding="utf-8"))
@@ -309,7 +309,7 @@ class CopilotCodeReviewDeterministicCheckTests(unittest.TestCase):
             self.assertNotIn("copilot_code_review_frontmatter", report["targeted_checks"])
 
     def test_valid_policy_references_pass_with_registry(self) -> None:
-        # The dogfood summary references only defined policies (P-001..P-019);
+        # The dogfood summary references only defined policies (P-001..P-021);
         # with a registry present it resolves cleanly.
         check = self._run_check(
             DOGFOOD_PATH.read_text(encoding="utf-8"),

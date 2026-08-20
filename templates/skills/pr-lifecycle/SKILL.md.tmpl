@@ -105,20 +105,67 @@ advisory shadow mode immediately after PR creation or after pushing new commits:
 2. For GitHub-hosted repositories, follow the optional shadow-review
    workflow in `.github/instructions/github-pr-automation.instructions.md` Part 1:
    categorize comments (§1.3), apply fixes (§1.4), reply to threads
-   (§1.5), and resolve bot-authored threads via GraphQL (§1.6).
+   (§1.5), and resolve bot-authored threads via GraphQL (§1.6). Before applying
+   any fix, classify the comment against the **P-021 C1** same-contract-surface
+   test (see the operational restatement in
+   `.github/instructions/circuit-breaker.instructions.md`'s "Review-Fix Cycle
+   Definition" section): only a comment that passes C1 may be fixed directly.
    When `DARK_MODE_ACTIVE` is present and the operator is AFK, continue these
-   bounded review-fix-push iterations autonomously: fix valid comments, commit and
+   bounded review-fix-push iterations autonomously: fix in-scope comments, commit and
    push, reply with the fixing commit, resolve bot-authored threads, and only halt
    for unsafe changes, unresolved P0/P1 findings, elevated blocking review, or
    circuit-breaker limits.
 3. For non-GitHub repositories, apply bounded fixes directly when they
-   are clearly actionable.
+   are clearly actionable and pass the same P-021 C1 test.
 4. Re-run the relevant validation after each fix cycle.
 5. Before every code-changing fix push, require successful full local build
    evidence. Documentation-only/backlog-only fixes may record full-build
    non-applicability. Halt on missing or failed build evidence.
 6. Keep the PR description and review context aligned with the latest
    branch state.
+7. **Out-of-scope disposition (P-021 C2/C3)**: every comment that fails the C1
+   test in step 2/3 above MUST follow this required ordered, capture-first
+   sequence instead of being fixed — the loop terminates honestly rather than
+   by expansion:
+   * (a) **Capture per P-021 C2**, performed BEFORE any thread reply/closure
+     because C2 makes capture a precondition for closing the finding. Record
+     the full six-field payload:
+     1. The literal token `DEFERRED SCOPE EXPANSION`.
+     2. A one-sentence statement of the expansion.
+     3. Why it is out of scope, citing the P-021 C1 test.
+     4. Source refs — PR number, review-thread ID, task ID, feature ID,
+        shipment ID. On the GitHub-hosted path (step 2) the PR number and the
+        review-thread ID BOTH always exist at capture, so no per-field `N/A`
+        case arises there. On the non-GitHub path (step 3) there is no
+        review-thread mechanism: record the review-thread ID as `N/A` and the
+        PR number with its actual value whenever a PR is already open (the
+        normal case), never fusing the two refs into a single `PR/thread`
+        token or assuming one field's availability from the other's.
+     5. A `requires deliberation` flag.
+     6. Kind and a PROVISIONAL priority only — re-prioritization and triage
+        remain Stage-only (P-021 C5 capture-only carve-out).
+   * **Thread-present disposition (GitHub-hosted path, step 2)**: (b) post a
+     substantive thread reply explaining the finding, why it is out of scope
+     citing the C1 boundary, that no code change was made, and CITING THE
+     GENERATED DEFERRED ENTRY ID returned by the (a) capture, per P-021 C3;
+     (c) resolve the thread via §1.6, permitted only after the reply citing
+     that ID is posted; (d) add a residual-risk record entry in the PR body
+     naming the SAME deferred entry ID. Replying to or resolving an
+     out-of-scope thread BEFORE the C2 capture exists is PROHIBITED, since the
+     reply cannot cite an entry ID that has not been generated yet; a reply
+     omitting the deferred entry ID does not satisfy C3.
+   * **Threadless discharge (non-GitHub path, step 3)**: no review-thread
+     mechanism exists on this path, so the C3 thread-reply/resolve step does
+     not apply and its absence is NOT a C3 shortfall. After the (a) capture,
+     cite the generated deferred entry ID in the TASK-LEVEL, run-level, and
+     closure/PR residual-risk records instead — the complete set the
+     reference obligation requires when no thread reply can carry the ID.
+   * If a finding captured threadless on the non-GitHub path later surfaces on
+     a review thread (e.g. the repository migrates to a GitHub-hosted review
+     flow within the same run), the reply cites the ALREADY-CAPTURED deferred
+     entry ID; this skill MUST NOT create a second entry, consistent with the
+     SINGLE-WRITE CAPTURE INVARIANT and LATE-SURFACING THREAD rule (both
+     authored in 134.004-T).
 
 ### Step 4: Handle CI failures
 
@@ -269,7 +316,20 @@ The skill is complete only when one of these outcomes is explicit:
 | Counter | Limit | Action |
 |---|---|---|
 | Fix-CI delegation cycles | 5 | Halt, leave PR for manual intervention |
-| Review-fix cycles | 3 | Accept remaining advisory shadow-review comments as backlog follow-ups |
+| Review-fix cycles | 3 | For each remaining advisory shadow-review comment that FAILS P-021 C1: accept as a backlog follow-up via a full P-021 C2 capture carrying the full six-field payload above (not an informal note). An in-scope comment unresolved solely because this cycle budget is exhausted is NOT captured this way — see the P-021 C4 annotation below. |
+
+**P-021 C4 annotation**: reaching the review-fix cycle limit does not authorize
+expanding into an out-of-scope comment, and neither does an operator
+instruction to continue. Operator authorization at the limit can only open a
+SEPARATE work unit through P-021 C2 capture plus C6 Stage deliberation — it
+never makes the expansion in-scope for the cycle already in flight (P-021 C4).
+An in-scope comment (one that PASSES P-021 C1) left unresolved purely because
+this cycle-count budget is exhausted is a different case: it is never captured
+as a `DEFERRED SCOPE EXPANSION` entry (it was never out of scope), and per the
+P-021 C3 symmetric guard it MUST NOT be silently closed as a backlog
+follow-up either — halt this comment instead and surface it to the operator
+for explicit disposition (extend the cycle-count limit, or explicitly accept
+documented residual risk) before the PR is presented as merge-ready.
 
 ## Model Routing
 

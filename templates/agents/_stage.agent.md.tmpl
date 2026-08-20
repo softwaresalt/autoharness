@@ -225,7 +225,15 @@ for Ship to claim.
 
 1. Inspect the stash through backlog-native operations instead of manually scanning files when
    the tool surface can answer the question.
-2. For each active stash entry, classify its **shape**:
+2. **Deferred-scope-expansion classification (evaluated BEFORE shape classification)**: Before
+   assessing shape, check whether the entry text carries the literal `DEFERRED SCOPE EXPANSION`
+   marker (the token Ship's P-021 C2 capture always writes as the entry's first field). This is
+   a PRECEDENCE rule, not a fourth shape category (hardening H8): when the marker is present, it
+   FORCES the Step 2 `deliberate` route regardless of the entry's apparent shape, size, priority,
+   or triviality, and the entry MUST NOT proceed to Step 3 planning without a deliberation
+   artifact (P-021 C6).
+3. For each active stash entry not carrying the `DEFERRED SCOPE EXPANSION` marker, classify its
+   **shape**:
 
    **Feature-shaped** (declares intent and scope for a coherent capability):
    * `kind: feature`, `kind: epic`, `kind: chore`
@@ -239,17 +247,111 @@ for Ship to claim.
 
    **Ambiguous**: When classification is unclear, ask the operator before proceeding.
 
-3. Prefer high-priority entries that unblock near-term delivery goals.
-4. Preserve traceability by carrying stash IDs into every downstream artifact.
-5. When the `agent-intercom` and `backlogit` capability packs are both installed, make any
+4. Prefer high-priority entries that unblock near-term delivery goals.
+5. Preserve traceability by carrying stash IDs into every downstream artifact. For a
+   deferred-scope-expansion entry, this traceability duty is extended: carry the entry's
+   source refs (originating PR number, review-thread ID, and task/feature/shipment IDs) into
+   the deliberation artifact as well, not only the stash ID.
+6. When the `agent-intercom` and `backlogit` capability packs are both installed, make any
    remote classification broadcast self-contained: include each entry's ID, priority, kind,
    and one-line summary, and the recommended routing so the operator can confirm remotely.
+
+#### Deferred-Expansion Triage Obligations (P-021 C5/C6)
+
+The triage step over a deferred-scope-expansion entry carries TWO SEPARATELY TRIGGERED
+obligations. Conflating them under one trigger leaves a duplicate-producing path unwatched.
+
+**(A) Duplicate detection is UNCONDITIONAL.** Stage runs it over EVERY deferred-scope-expansion
+entry it triages, regardless of whether any source-ref field is `N/A` and regardless of how the
+entry was captured. A duplicate arises from a DISCOVERY failure, not from a missing identifier,
+so its indicator is independent of field population — a duplicate captured with PR number,
+review-thread ID, and all three work IDs fully populated is not merely possible but the COMMON
+case on a PR-review-comment surface, and a detection step gated on `N/A` would never look at it.
+Entries carrying a `DISCOVERY-STATUS: AMBIGUOUS` or `DISCOVERY-STATUS: LOOKUP-UNAVAILABLE` token
+(134.004-T) are KNOWN-RISK entries: the token's candidate IDs seed the scan and the entry is
+prioritized, but the token is an ACCELERATOR for the scan and never its TRIGGER, since a
+duplicate produced by a lookup that silently returned a false absence carries no token at all.
+
+**(B) Late-identifier reconciliation is MANDATORY**, performed during deliberation/triage,
+TRIGGERED whenever any source-ref field of the entry is recorded `N/A`. Ship's SINGLE-WRITE
+CAPTURE INVARIANT (134.004-T) means a field that was unavailable at capture can never be filled
+in by Ship, so an `N/A` is a permanent gap unless Stage closes it; without this step the
+identifier is simply lost.
+
+(A) and (B) are independent: an entry may need either, both, or neither, and neither trigger may
+be stated as a precondition of the other.
+
+**Retrieval source.** Stage recovers late identifiers from the SHIP-OWNED RESIDUAL-RISK RECORDS
+that cite the deferred entry ID — the PR/closure record on the late-surfacing-thread path
+(134.004-T), the task-level, run-level, and closure records on the threadless path (P-021 C3),
+and the fix-ci run/closure records where a CI finding captured with `review-thread ID: N/A` later
+gains a thread inside the same dual-path run (134.007-T). Those records are where 134.004-T and
+134.007-T require the newly available review-thread ID or PR number to be carried, so the
+deferred entry ID is the join key Stage searches on. Stage MUST NOT ask Ship to supply them by
+editing the entry.
+
+**Stage authority.** Stage reconciles the entry under its OWN pre-existing stash authority
+(triage, re-classification, re-prioritization, edit), so reconciliation requires NO change to
+Ship's C5 capture-only carve-out and NO Ship write. The single-write invariant and the carve-out
+are both preserved unweakened; this step is the designated consumer of the reconciliation duty
+that 134.004-T's LATE-SURFACING THREAD criterion assigns to "Stage's C6 intake responsibility".
+
+**Anti-duplication.** Governed by the UNCONDITIONAL detection trigger (A) above rather than by
+the `N/A` trigger (B): reconciliation MUST update the EXISTING deferred entry in place and MUST
+NOT create a second entry for the same expansion. The deferred entry ID generated by Ship's C2
+capture is the stable identity for the expansion across its whole lifetime. If Stage finds more
+than one entry describing the same expansion, it reconciles into the EARLIEST-CAPTURED entry
+and ARCHIVES the duplicates under its own authority via backlogit's stash ARCHIVE operation
+(`backlogit stash archive` / `backlogit_stash_archive`) — NEVER by destructive removal. Archival
+is the protocol-correct disposition on two independent grounds. TOOL PROTOCOL: the backlogit CLI's
+`stash archive` command is the canonical non-destructive operation (its `remove` alias resolves to
+the same archive handler rather than a separate destructive delete), and the
+`backlogit_stash_remove` MCP tool is explicitly deprecated in favour of `backlogit_stash_archive`,
+so a rule written around destructive removal contracts Stage to a disposition the tool doesn't
+perform. EVIDENCE
+PRESERVATION: a duplicate entry is itself EVIDENCE that the same expansion was captured twice
+through two different intake paths — exactly the signal that a discovery lookup returned a false
+absence — and destroying it destroys that diagnostic along with any source ref the duplicate
+carries and the survivor does not. Archival retires the duplicate from the triage queue, which is
+the entire operational need, while keeping it retrievable. The deliberation records the SURVIVING
+entry ID, the ARCHIVED DUPLICATE IDs, and the disposition, so the merge is auditable and
+reversible rather than a silent deletion.
+
+**Non-blocking.** If no late identifier ever surfaces — the genuine pre-PR finding that never
+reaches a PR, or a build/CI finding that never gains a thread — the recorded `N/A` STANDS as a
+truthful terminal record, reconciliation completes as a no-op, and deliberation proceeds. A
+missing late identifier is NEVER a gate on deliberation, planning, or harvest, and is NOT a C3 or
+C6 shortfall.
+
+**Idempotence.** Reconciliation over an already-reconciled entry is a no-op; it never overwrites
+a concrete identifier with `N/A`, and never rewrites a concrete identifier that is already
+recorded.
+
+**Recorded outcomes.** Reconciled identifiers are carried into the deliberation artifact
+alongside the originally captured refs, and the outcome is recorded for ALL FOUR CASES so the
+entry's provenance stays auditable: a successful reconciliation names the identifiers recovered
+and the residual-risk record they came from; a no-result reconciliation records "no late
+identifier found" explicitly rather than silently leaving the `N/A` unexplained; a duplicate
+merge records the SURVIVING entry ID, the ARCHIVED duplicate IDs, and the disposition; and a
+CLEAN DUPLICATE SCAN — the unconditional detection (A) having found no duplicate — is recorded
+as such. The fourth case exists for the same reason as the second: because detection (A) is
+UNCONDITIONAL, an unrecorded clean scan is indistinguishable from a scan that never ran, and the
+majority of entries terminate that way, so the outcome most likely to be dropped is again the
+commonest one. Recording only the successful case would make an unreconciled `N/A`
+indistinguishable from an unattempted one.
+
+This reconciliation workflow references P-021 C5 and C6 by policy ID and clause label; see
+`templates/policies/workflow-policies.md.tmpl` for the authoritative clause text.
 
 ### Step 1.5: Contextual Grouping Analysis (task-shaped entries only)
 
 When the triage surface contains two or more task-shaped entries, perform a contextual grouping
 analysis before routing any item through deliberation and planning. This step finds the
 contextually consistent batch of work that should ship together as one covering feature.
+
+A deferred-scope-expansion entry (per the Step 1 precedence classification) may be included in a
+grouping only AFTER its deliberation artifact exists (P-021 C6) — it does not enter this
+grouping analysis pre-deliberation.
 
 1. **Gather context for each task-shaped entry**:
    * Identify the code surfaces, domains, or product areas each task touches. When
@@ -334,6 +436,10 @@ planning. The deliberation purpose differs by entry shape:
 * When uncertain whether to spike or deliberate, ask the operator.
 
 Do not proceed to planning for any group without a durable deliberation or spike artifact.
+"Ready for planning" is UNAVAILABLE for an un-deliberated deferred-scope-expansion entry: the
+Step 1 precedence classification forces the `deliberate` route for such an entry regardless of
+shape, size, priority, or apparent triviality (P-021 C6), so it cannot reach Step 3 until its
+deliberation artifact exists.
 
 ### Step 3: Implementation Planning
 

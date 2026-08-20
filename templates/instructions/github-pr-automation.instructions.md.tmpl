@@ -299,12 +299,69 @@ actionable bot comment must receive a reply after the fix commit is pushed, and
 every fixed or explicitly declined bot-authored thread must be resolved via
 GraphQL before merge readiness is presented.
 
+**P-021 Scope Classification and Out-of-Scope Disposition**: Before applying any
+fix in this autonomous comment-handling loop, classify EVERY comment against the
+**P-021 C1** same-contract-surface test (see also the operational restatement in
+the circuit-breaker instruction's "Review-Fix Cycle Definition" section). Only a
+comment that passes C1 — fixing it requires ONLY completing the exact change
+already authorized — may be fixed directly. Every other comment is out of scope
+and MUST follow the disposition sequence below instead of being fixed.
+
+Out-of-scope disposition is a REQUIRED ORDERED, capture-first sequence:
+
+* (a) **Capture per P-021 C2** with the full payload — the literal
+  `DEFERRED SCOPE EXPANSION` token, a one-sentence expansion statement, the
+  C1-cited out-of-scope rationale, source refs (PR number, review-thread ID,
+  task ID, feature ID, shipment ID), a `requires deliberation` flag, and kind
+  plus a PROVISIONAL priority — performed BEFORE any thread reply, because C2
+  makes capture a precondition for closing the finding.
+* (b) Post a substantive thread reply explaining the finding, why it is out of
+  scope citing the C1 boundary, that no code change was made, and CITING THE
+  GENERATED DEFERRED ENTRY ID returned by the (a) capture, per P-021 C3.
+* (c) Resolve the thread via the review-thread resolution mechanism (Section
+  1.6), permitted only after the reply citing that ID is posted.
+* (d) Add a residual-risk record entry in the PR body naming the SAME deferred
+  entry ID.
+
+Replying to or resolving an out-of-scope thread BEFORE the C2 capture exists is
+PROHIBITED, since the reply cannot cite an entry ID that has not been generated
+yet; a reply omitting the deferred entry ID does not satisfy C3. This ordering
+matches the Ship agent's defer-capture sequence (capture → reply citing the ID
+→ resolve → residual-risk record) — the two surfaces MUST NOT diverge.
+
+This loop sets only a PROVISIONAL priority at capture; re-prioritization and
+triage remain Stage-only, per the P-021 C5 capture-only carve-out.
+
+This disposition satisfies P-018's zero-unresolved-threads requirement
+honestly — every thread receives a substantive disposition, not a bare
+acknowledgement — without fabricating unauthorized scope.
+
+This classification gate does not change the autonomy language above: an
+autonomous, unattended loop may still resolve every actionable comment without
+operator intervention, it simply resolves out-of-scope comments through capture
+and reference rather than through a fix.
+
 ### 1.8 Stop Conditions for Shadow-Review Cycles
 
 | Counter | Limit | Action |
 |---------|-------|--------|
-| Review-fix-push cycles | 3 | Accept remaining comments as backlog follow-ups |
+| Review-fix-push cycles | 3 | For each remaining comment that FAILS P-021 C1: accept as a backlog follow-up via a full P-021 C2 capture (not an informal note). An in-scope comment unresolved solely because this cycle budget is exhausted is NOT captured this way — see the P-021 C4 annotation below. |
 | Same comment re-raised after fix | 2 | Escalate to operator — likely a fundamental disagreement |
+
+**P-021 C4 annotation**: reaching the review-fix-push cycle limit does not
+authorize expanding into an out-of-scope comment, and neither does an operator
+instruction to continue. "Accept remaining comments as backlog follow-ups"
+means each remaining out-of-scope comment receives the full P-021 C2 capture
+above, not an informal note. Operator authorization at the limit can only open
+a SEPARATE work unit through P-021 C2 capture plus C6 Stage deliberation — it
+never makes the expansion in-scope for the cycle already in flight (P-021 C4).
+An in-scope comment (one that PASSES P-021 C1) left unresolved purely because
+this cycle-count budget is exhausted is a different case: it is never captured
+as a `DEFERRED SCOPE EXPANSION` entry (it was never out of scope), and per the
+P-021 C3 symmetric guard it MUST NOT be silently closed as a backlog
+follow-up either — halt this comment instead and surface it to the operator
+for explicit disposition (extend the cycle-count limit, or explicitly accept
+documented residual risk) before the PR is presented as merge-ready.
 
 **Cycle limits do not make shadow review merge-blocking by default** — except when
 Copilot review is enabled (P-018). When the review-fix cycle limit is reached and

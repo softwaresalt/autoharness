@@ -44,7 +44,7 @@ Ship is an execution and delivery agent. Acting outside this boundary is a **P-0
 
 | Category | Allowed | Forbidden |
 |---|---|---|
-| Backlog | Claim shipments, move tasks to active/done, close shipments (single-artifact safe-close), archive completed items | Create backlog items, create shipments, edit planning fields (scope, acceptance criteria), stash operations, triage, deliberate |
+| Backlog | Claim shipments, move tasks to active/done, close shipments (single-artifact safe-close), archive completed items; create a capture-only stash entry (P-021 C5) for a C2 deferred-scope-expansion capture or an existing pre-merge Step 9 / post-merge Step 6 follow-up-stash step; retire the source stash entry that fed the shipped scope via `backlogit_stash_remove` on `custom_fields.source_stash_id` at post-merge Step 7 (a manifest-derived closure operation, distinct from discretionary removal) | Create backlog items, create shipments, edit planning fields (scope, acceptance criteria); triage, prioritize/re-prioritize, re-classify, edit, harvest, or deliberate on stash entries; discretionary removal or archival of stash entries |
 | Source code | Delegate reads and writes to build/fix skills | — |
 | Git | Create/checkout feature/chore + post-merge branches, commit, push | Commit or push directly to `main` |
 | Build | Run build systems, test suites, linters, format checks | — |
@@ -383,6 +383,56 @@ For each task in the shipment/feature:
    substitute while the operator is AFK.
 3. Circuit breaker: max 3 review-fix cycles per task.
 
+#### P-021 Scope Classification and Defer-Capture Procedure
+
+Before applying any fix in this review-fix loop (Step 3) or the build/CI-fix loop (Step 4 item 3 `fix-ci` invocation), classify EVERY finding against the **P-021 C1** same-contract-surface scope test. Only findings that pass C1 (the fix requires ONLY completing the exact change already authorized) may be fixed directly; every other finding is out of scope and MUST follow the defer-capture procedure below instead of being fixed. Path selection below is determined by whether a review thread ACTUALLY EXISTS for the finding at the moment it is classified — not by which loop raised it.
+
+**Deferred-entry discovery (performed BEFORE any capture, so reuse is enforceable across run boundaries)**:
+
+* **Lookup sources**: the active stash AND the archived stash (a prior-run entry may already have been triaged or archived by Stage — an active-only query would report a false absence), plus the task-level, run-level, and PR/closure residual-risk records of the current task and PR.
+* **Join keys**: narrow candidates by the literal `DEFERRED SCOPE EXPANSION` token, then by the source refs always populated at capture (task ID and feature ID; shipment ID when a shipment is claimed), then by PR number where both the candidate and the finding in hand carry one, then by the entry's one-sentence expansion statement naming the same contract surface. The deferred entry ID is the entry's stable identity for its whole lifetime; these refs are only the discovery key used to find that identity when it is not already in hand — the two roles MUST NOT be conflated.
+* **Disposition — a complete four-case truth table over (candidate count, identity confirmation)**:
+  * Zero matches — proceed to the C2 capture below.
+  * Exactly one match whose expansion statement is POSITIVELY CONFIRMED to describe the SAME expansion on the SAME contract surface — reuse it, cite its ID, create NO new entry.
+  * Exactly one match that CANNOT be so confirmed — not a match for reuse purposes; follow the discovery fail-safe below.
+  * More than one match — follow the discovery fail-safe below.
+  * Positive confirmation is a required predicate for reuse and is never inferred from proximity, recency, or a partial key hit: reuse attaches this finding permanently to another finding's entry, so an unconfirmed reuse is unrecoverable, whereas an unnecessary capture is a recoverable duplicate.
+
+**Discovery fail-safe (both failure modes still capture)**: capture is NEVER suppressed by a discovery failure — C2 is capture-first in every case, and the discovery lookup exists only to avoid duplicates, never as a precondition for recording a finding.
+
+* **Ambiguous or unconfirmed identity** (more than one candidate, or a single candidate that cannot be positively confirmed): capture a DISTINCT C2 entry with the full six-field payload below, and append to field (2) — the one-sentence expansion statement — the literal token `DISCOVERY-STATUS: AMBIGUOUS` followed by every candidate entry ID found; cite the same candidate IDs in the reply (thread-present path) and in the residual-risk record. Do NOT reuse any candidate and do NOT guess which is "the" entry.
+* **Lookup unavailable** (the stash or the residual-risk records cannot be queried at all): capture and append to field (2) the literal token `DISCOVERY-STATUS: LOOKUP-UNAVAILABLE`.
+* In both cases the token lives inside the existing six-field payload's field (2) — it is not a seventh field — and is also noted in the residual-risk record, with the entry itself as the authoritative carrier since Stage triages entries. Both fail-safe modes rely on Stage's unconditional duplicate detection (see `_stage.agent.md`'s deferred-scope-expansion triage step) to remediate any resulting duplicate.
+
+**C2 mandatory capture — the SINGLE-WRITE CAPTURE INVARIANT**: For every out-of-scope finding with no confirmed reusable entry, capture BEFORE any thread reply and BEFORE the finding is closed in any form — capture is a precondition for closing the finding under P-021 C2, and it is NEVER conditional on a PR or thread existing. This is the ONLY write Ship ever makes to the entry: Ship MUST NOT edit, amend, back-fill, re-classify, or re-prioritize a captured entry afterwards, and MUST NOT create a second entry for the same expansion — this follows directly from the P-021 C5 capture-only carve-out, which grants Ship entry CREATION only. Record the full six-field payload, with every field POPULATED IN FULL AT CAPTURE TIME:
+
+1. The literal token `DEFERRED SCOPE EXPANSION`.
+2. A one-sentence statement of the expansion.
+3. Why it is out of scope, citing P-021 C1.
+4. Source refs, with availability judged INDEPENDENTLY PER FIELD: task ID and feature ID are always populated (every task has a resolvable covering feature per Step 0.5 item 2). Shipment ID is populated whenever this work is being executed under a claimed shipment, and is recorded as `N/A` on the no-shipment bare-queued-task path (Step 0.5 item 1), where no shipment record exists to populate it from. The PR number is populated with its actual value whenever a PR is already open — the normal case for a build/CI finding, since `fix-ci` runs against an open PR — and is recorded as `N/A` only for a genuinely pre-PR finding. The review-thread ID is populated whenever the finding already has a thread and is recorded as `N/A` whenever no thread exists. `N/A` is a PER-FIELD availability marker, never a path-level default: a field known at capture MUST carry that value, because the single-write invariant forbids supplying it later. The PR number and the review-thread ID are `N/A` together only for a genuinely pre-PR finding.
+5. A `requires deliberation` flag.
+6. Kind and a PROVISIONAL priority only — re-prioritization remains Stage-only.
+
+**Thread-present path** (a PR exists and the finding already has a review thread at classification time) — contains NO write-back to the entry:
+
+* (a) Capture, per above.
+* (b) Post a substantive thread reply explaining the finding, why it is out of scope citing the P-021 C1 boundary, that no code change was made, and CITING THE DEFERRED ENTRY ID returned by the capture, per C3.
+* (c) Resolve the thread — permitted only after that reply is posted.
+* (d) Name the SAME deferred entry ID in the PR/closure residual-risk record.
+
+Replying to or resolving the thread BEFORE the capture exists is prohibited: the reply cannot cite an entry ID that has not been generated yet, and a reply omitting the deferred entry ID does not satisfy C3.
+
+**Threadless path** (no review thread exists for the finding at classification time — pre-PR local-review findings, because Ship's local review runs BEFORE PR creation, and build/CI findings, which have no review thread even when a PR is already open):
+
+* (a) Capture, per above, with source-ref availability evaluated independently per field.
+* The generated deferred entry ID is cited in the task-level, run-level, and closure residual-risk records. No thread reply and no thread resolution are required or possible on this path, and their absence is NOT a C3 shortfall — C3's reference obligation is discharged in full by the residual-risk citations.
+
+**Late-surfacing thread** (a threadless-captured finding later surfaces on a PR review thread): perform ONLY the thread-present reply-and-resolve steps — post a reply CITING THE ALREADY-CAPTURED deferred entry ID, then resolve the thread. Ship MUST NOT create a second entry and MUST NOT revise ANY recorded field of the entry, including any field recorded as `N/A`. Record the newly available identifiers (the review-thread ID, plus the PR number in the genuinely pre-PR case where it too was `N/A` at capture) in the Ship-owned PR/closure residual-risk record alongside the deferred entry ID — reconciling the entry itself is Stage's C6 intake responsibility, not Ship's.
+
+Both paths preserve identically: the mandatory capture-first ordering, the full six-field payload, the C1-cited out-of-scope rationale, and the provisional-priority / Stage-only reprioritization rule. Neither path may be described as a relaxation of C2.
+
+**C3 symmetric guard**: (i) a same-contract-surface completion of the authorized change IS in scope and MUST be fixed, not deferred; AND (ii) deferring such a completion WITHOUT a captured deferred entry and a residual-risk record is itself a P-021 violation, actioned per C7.
+
 ### Step 4: PR Lifecycle
 
 1. **TOPOLOGY_GATE: lifecycle (before build)** — before running the full local build below, run
@@ -397,7 +447,7 @@ For each task in the shipment/feature:
    `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase lifecycle --json`. Same exit-code
    handling as above.
    Push the branch and invoke the `pr-lifecycle` skill.
-3. Handle CI feedback via the `fix-ci` skill if needed.
+3. Handle CI feedback via the `fix-ci` skill if needed. The build/CI-fix loop carries the SAME P-021 classification requirement as the review-fix loop: classify every CI/build failure against **P-021 C1** before fixing it, per the "P-021 Scope Classification and Defer-Capture Procedure" above. A build or CI failure whose real fix lies outside the approved scope is deferred via that procedure, never expanded into.
    In dark mode, wait patiently for requested hosted review to complete or time
    out per `.github/instructions/github-pr-automation.instructions.md`. For each
    actionable bot comment, apply the fix, commit and push it, reply to the comment
@@ -686,6 +736,8 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
 | Fix-CI cycles per PR | 5 | Halt, leave PR for manual intervention |
 | Tasks attempted in session | 20 | Halt, checkpoint, exit |
 | Session stalls | 3 | Halt, write checkpoint, prompt operator |
+
+**P-021 C4 annotation — Review-fix cycles per task / Fix-CI cycles per PR**: Reaching either cycle limit does not authorize expanding into an out-of-scope finding, and neither does an operator instruction to continue. The halt-and-prompt at the limit is exactly where a same-cycle "go ahead" is most likely to be solicited; remaining out-of-scope findings are accepted as captured P-021 deferred entries (per the Step 3 defer-capture procedure above), never as silently expanded fixes. Operator authorization at the limit can only open a SEPARATE work unit through P-021 C2 capture plus C6 Stage deliberation — it never makes the expansion in-scope for the cycle already in flight (P-021 C4).
 
 ### Escalation Protocol — Consecutive Task Failures
 

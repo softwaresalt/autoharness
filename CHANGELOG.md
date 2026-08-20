@@ -51,6 +51,37 @@
   a valid, unrestricted `model_family` value for any workspace that chooses
   it — no schema enum or install default forces this specific family.
 
+- **P-021**: Added a new "Bounded Fix-Cycle Scope Containment and Deferred
+  Expansion Capture" policy to the workflow policy registry
+  (`workflow-policies.md.tmpl`, Amendment Log `1.20.0`). C1 defines a narrow
+  same-contract-surface scope test (with a worked discrimination drawn from
+  `docs/compound/2026-08-16-bounded-review-fix-cycle-scope-and-mechanical-consequence-judgment.md`)
+  that rejects "same file/function/PR/subsystem" or "related" as sufficient
+  in-scope tests and resolves genuine ambiguity out of scope. C2 mandates a
+  six-field capture payload (greppable `DEFERRED SCOPE EXPANSION` token,
+  one-sentence expansion statement, C1-citing rationale, independently-judged
+  PR-number/review-thread-ID/task/feature/shipment source refs with explicit
+  `N/A` for unavailable identifiers, a `requires deliberation` flag, and
+  kind/provisional priority) that is never conditional on a PR or thread
+  existing. C3 requires bounded resolution of the in-scope finding, with the
+  deferred-entry reference obligation conditional on actual review-thread
+  availability — reply-then-resolve where a thread exists, residual-risk-record
+  citation alone where none exists (pre-PR local review, build/CI findings) —
+  plus a C3 symmetric guard that a same-surface completion must be fixed, not
+  deferred. C4 makes the boundary unconditional: no authorization, including
+  explicit operator authorization, expands the fix cycle that discovered the
+  expansion in place; authorization can only open a separate forward work unit
+  through the normal C2-capture-then-C6-deliberation intake path. C5 gives Ship
+  a capture-only stash carve-out (create for capture only; no triage,
+  prioritization, edit, harvest, deliberation, or discretionary removal/archival
+  — while the existing manifest-derived post-merge source-stash retirement
+  remains allowed). C6 requires every captured entry to route through Stage's
+  `deliberate` skill before any planning. C7 is the violation action (P-005
+  telemetry, `violation_policy: P-021`, halt). Relationship subsections tie
+  P-021 to P-010 (the C5 carve-out is a narrow addition to Ship's existing Role
+  Boundary), P-017 (preserved in full in dark factory mode), and P-018 (a
+  threadless C3 discharge raises no P-018 obligation, since P-018 governs review
+  threads only).
 - Renamed the two dogfood pipeline agent definitions and their templates from
   dot-prefixed to underscore-prefixed filenames: the Stage and Ship agents now
   live at `_stage.agent.md` / `_ship.agent.md` (and `_stage.agent.md.tmpl` /
