@@ -58,6 +58,8 @@ When dark mode activates, record `DARK_MODE_ACTIVE` in session state before invo
 
 Dark mode does not change normal `run pipeline` behavior. It only changes autonomy and approval routing for the recorded scope, and it never permits Orchestrator to perform Stage or Ship work directly. Pass the `DARK_MODE_ACTIVE` record to Stage/Ship subagents as context so they can enforce the same scope and stop conditions.
 
+**P-021 non-bypass (see P-021's "Relationship to P-017" subsection)**: a `DARK_MODE_ACTIVE` activation record does not satisfy or waive P-021. `DARK_MODE_SCOPE` bounds which shipments run — it never authorizes expanding the scope of a shipment already in flight. When a deferred-expansion entry is captured during a dark run, the capture does NOT interrupt the run: the entry is captured (P-021 C2) and left for the next Stage triage cycle; it is never triaged or planned inside the dark run itself.
+
 At activation, emit `DARK_MODE_START` and `DARK_MODE_SCOPE` as operator-visible
 summaries containing the resolved scope, approval authority, admin fallback
 state, stop conditions, visibility mode, and excluded items. When
