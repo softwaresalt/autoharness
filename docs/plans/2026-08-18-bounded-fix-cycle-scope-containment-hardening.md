@@ -170,7 +170,8 @@ evaporates.
    absent. Where a qualifier IS carried it must attach to **both** refs or
    neither: qualifying only the review-thread ID, as this item did before
    2026-08-19, states the PR number unconditionally and is the defective
-   asymmetric form B3 requires be rejected;
+   asymmetric form B5 requires be rejected — the ASYMMETRIC-QUALIFIER guard
+   belongs to B5, not to B3, which is capture-before-close;
 5. `requires deliberation` flag, satisfying the operator's mandatory
    deliberation/research requirement;
 6. `kind` and a provisional `priority`.

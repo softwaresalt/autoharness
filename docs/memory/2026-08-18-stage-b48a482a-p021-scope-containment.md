@@ -1575,3 +1575,50 @@ deleting a marker trades one audit blind spot for another.** Identity and
 canonicity are separate properties and need separate carriers — the ID says
 *which behaviour*, the subset designation says *which criterion is
 load-bearing*. Collapsing them into one string forces a false choice.
+
+## Fresh Stage operation — review-fix cycle 3 of 3 (HEAD e430a02a, READY_WITH_FOLLOWUPS)
+
+P0=0, P1=0. Two P2 traceability defects, both pure **attribution/pointer**
+errors with no semantic content change — no behaviour scope, subset, carrier
+set, or clause text was touched.
+
+**P2-1 — asymmetric-qualifier defect misattributed to B3.** `134.007-T` L36 and
+hardening H7 item (4) both closed by calling the asymmetric `(when applicable)`
+form "the defective asymmetric form **B3** requires be rejected". The canonical
+map assigns per-field source-ID availability to **B5**
+(`c2-per-field-source-ids`, subset `001[A], 004, 007-fix-ci`), and the
+ASYMMETRIC-QUALIFIER guard in `134.012-T` L43 is explicitly labelled a B5 guard.
+B3 is `c2-capture-before-close`. Both live references corrected to B5, each with
+a short disambiguation naming B3's actual behaviour so the swap cannot be
+reintroduced by someone reading only that line.
+
+Deliberately left unchanged: `134.007-T` L37's B3 reference — *"neither file may
+make the existence of a PR or a thread a PRECONDITION FOR CAPTURE (the B3
+universal guard)"* — which is correctly attributed, because a capture
+precondition **is** capture-before-close. The two behaviours sit adjacent in the
+same criterion, which is precisely why the mix-up was easy and why the
+disambiguation is worth its words.
+
+**P2-2 — stale suite pointer after the split.** `019-DL` L109's C5 AMENDMENT
+pointed the dedicated C5-EXCEPTION contract test at `134.012-T`; the PR #372
+review-fix cycle 1 split moved that criterion to `134.013-T` (now L37, and
+absent from both 011 and 012). Pointer corrected, with the historical fact that
+it was authored under `134.012-T` preserved and the moving split named. The line
+carries a pointer plus dated provenance and does not restate the allocation,
+which stays declared once in `134.011-T`.
+
+**Consistency sweep for both shapes** (targeted, not broadened): no other live
+artifact attributes per-field/asymmetric semantics to B3, and no other live
+artifact points a moved criterion at a stale suite. Two co-occurrences were
+inspected and correctly left alone — `134.011-T` L191 is dated MATRIX CORRECTION
+14 making a joint *"B3/B5 source-ref rule"* reference, and this file's L853 is an
+accurate historical narrative from **before** the split, when C5-EXCEPTION
+genuinely did live in `134.012-T`. Rewriting either would have falsified a dated
+record to satisfy a pattern match.
+
+**Cycle-3 note.** This is the first cycle of the fresh operation to produce no
+P0/P1 and no self-inflicted regression. Both findings were traceability drift of
+the kind that accumulates whenever a behaviour is renumbered or a criterion
+moves between suites — cheap to fix, but invisible to every structural audit in
+place, since allocation and subset checks verify that behaviours are *covered*,
+not that prose *names the right one*.
