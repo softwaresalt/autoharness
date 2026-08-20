@@ -25,7 +25,8 @@ operations, git commands, build invocations, PR actions), the agent MUST:
 3. **Check the Forbidden column.** If the operation appears in the Forbidden
    column for its category, the agent MUST:
    - **Halt** the operation immediately — do not execute the tool call.
-   - **Log** a P-010 policy violation: `P-010 VIOLATION: {agent_name} attempted forbidden operation [{operation}] in category [{category}].`
+   - **Log** a P-010 policy violation: `P-010 VIOLATION: {agent_name} attempted
+     forbidden operation [{operation}] in category [{category}].`
    - **Redirect** to the correct agent: if the operation belongs to Ship,
      instruct the operator to invoke Ship. If it belongs to Stage, instruct
      the operator to invoke Stage.
@@ -48,6 +49,15 @@ operations, git commands, build invocations, PR actions), the agent MUST:
      role boundaries because many state-mutating operations will not be
      explicitly enumerated. Fail-closed ensures that only explicitly permitted
      mutations proceed.
+   - **P-021 capture-only carve-out**: A capture-only stash write performed
+     under P-021 C2 (mandatory deferred-scope-expansion capture) matches the
+     acting agent's Allowed column via P-021 C5 (Ship's capture-only
+     carve-out) and does NOT trigger the fail-closed unclassified-mutation
+     halt above. This is an enumeration in the Allowed column, not a
+     weakening of fail-closed semantics. Any OTHER stash operation by Ship —
+     triage, prioritize, re-classify, edit, harvest, deliberate, or
+     discretionary removal/archival — remains a P-010 violation and MUST
+     halt.
 
 ## Session Start Reminder
 

@@ -276,8 +276,8 @@ artifacts:
   - path: ".github/instructions/role-enforcement.instructions.md"
     primitive: 5
     template: "instructions/role-enforcement.instructions.md.tmpl"
-    checksum: "378efc13bb2b73e400bd28fa0358968074b172b9bfc68c2202c47f9a0fb467a2"
-    note: "role boundary self-check instruction (installed 067.005-T); checksum refreshed 108-S/104.005-T (P-013.5 Skill-Delegation Model Inheritance clause), refreshed again 108-S/104.008-T review-fix (precondition wording clarified per Copilot review)"
+    checksum: "fd3af24626eeecda69699937a395f898017f592546156d45a76edf76013f2a85"
+    note: "role boundary self-check instruction (installed 067.005-T); checksum refreshed 108-S/104.005-T (P-013.5 Skill-Delegation Model Inheritance clause), refreshed again 108-S/104.008-T review-fix (precondition wording clarified per Copilot review); checksum refreshed again 143-S/134.003-T (P-021 capture-only carve-out recognized under the item-4 fail-closed evaluation — a capture-only stash write matches Allowed via P-021 C5, any other Ship stash operation remains a P-010 violation; re-rendered in full from the template since the only pre-existing drift was a cosmetic line-wrap difference)"
   - path: ".github/instructions/escalation-protocol.instructions.md"
     primitive: 5
     template: "instructions/escalation-protocol.instructions.md.tmpl"
