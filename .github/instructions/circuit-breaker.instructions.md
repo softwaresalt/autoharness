@@ -216,6 +216,41 @@ A review-fix cycle is one complete iteration of: (1) invoke review skill →
 After 3 fix cycles, accept remaining P2/P3 findings as new backlog items,
 commit the task, and move it to `done`.
 
+**Scope bound (P-021 C1)**: the 3-cycle count above bounds HOW MANY cycles are
+permitted; it does not by itself bound WHAT may be fixed within a cycle. Every
+finding raised during a review-fix cycle MUST also pass the P-021 C1
+same-contract-surface test before it is fixed: a finding is in scope ONLY if
+fixing it requires ONLY completing the exact change already authorized — the
+same contract surface. `same file`, `same function`, `same PR`, `same
+subsystem`, and `related` are NOT sufficient to put a finding in scope on
+their own. Genuine ambiguity resolves OUT of scope — this is the fail-safe
+default, not an exception to it.
+
+Three worked discrimination cases (provenance:
+`docs/compound/2026-08-16-bounded-review-fix-cycle-scope-and-mechanical-consequence-judgment.md`):
+
+* A finding that the shared-instruction verifier is missing the new field →
+  **same surface** (the field itself) → fix it.
+* A finding that a regex does not handle an object-separated form → **different
+  surface** (matcher robustness, not the new field) → defer, even though it is
+  in the exact same function, file, and PR, and was itself in scope for an
+  earlier authorized cycle.
+* A finding that a policy interaction is unresolved → **different surface and a
+  different kind of work** (design/decision work, not a mechanical fix) →
+  defer.
+
+**Capture requirement (P-021 C2)**: an out-of-scope finding MUST be captured as
+a `DEFERRED SCOPE EXPANSION` stash entry before the finding is closed in any
+form — capture is never conditional on a PR or thread existing.
+
+**Symmetric guard (P-021 C3)**: (i) a same-contract-surface completion of the
+authorized change IS in scope and MUST be fixed, not deferred; AND (ii)
+deferring such a completion WITHOUT a captured entry AND a residual-risk
+record is itself a P-021 violation, actioned per P-021 C7.
+
+These scope rules narrow WHAT is fixed inside a cycle; they do not relax, widen,
+or otherwise alter the 3-cycle count semantics above.
+
 ## Stall Detection
 
 Commands that exceed their timeout are counted as failures:
