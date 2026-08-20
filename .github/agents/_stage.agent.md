@@ -297,7 +297,8 @@ the stable identity for the expansion across its whole lifetime. If Stage finds 
 entry describing the same expansion, it reconciles into the EARLIEST-CAPTURED entry and ARCHIVES
 the duplicates under its own authority via backlogit's stash ARCHIVE operation (`backlogit stash
 archive` / `backlogit_stash_archive`) — NEVER by destructive removal. TOOL PROTOCOL: the
-backlogit CLI exposes `stash archive` and offers no `stash remove` subcommand, and the
+backlogit CLI's `stash archive` command is the canonical non-destructive operation (its `remove`
+alias resolves to the same archive handler rather than a separate destructive delete), and the
 `backlogit_stash_remove` MCP tool is deprecated in favour of `backlogit_stash_archive`. EVIDENCE
 PRESERVATION: a duplicate entry is itself evidence that the same expansion was captured twice
 through two different intake paths, and destroying it destroys that diagnostic along with any

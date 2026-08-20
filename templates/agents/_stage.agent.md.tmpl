@@ -303,10 +303,12 @@ capture is the stable identity for the expansion across its whole lifetime. If S
 than one entry describing the same expansion, it reconciles into the EARLIEST-CAPTURED entry
 and ARCHIVES the duplicates under its own authority via backlogit's stash ARCHIVE operation
 (`backlogit stash archive` / `backlogit_stash_archive`) — NEVER by destructive removal. Archival
-is the protocol-correct disposition on two independent grounds. TOOL PROTOCOL: the backlogit CLI
-exposes `stash archive` and offers no `stash remove` subcommand at all, and the
+is the protocol-correct disposition on two independent grounds. TOOL PROTOCOL: the backlogit CLI's
+`stash archive` command is the canonical non-destructive operation (its `remove` alias resolves to
+the same archive handler rather than a separate destructive delete), and the
 `backlogit_stash_remove` MCP tool is explicitly deprecated in favour of `backlogit_stash_archive`,
-so a rule written around removal contracts Stage to a disposition the tool is retiring. EVIDENCE
+so a rule written around destructive removal contracts Stage to a disposition the tool doesn't
+perform. EVIDENCE
 PRESERVATION: a duplicate entry is itself EVIDENCE that the same expansion was captured twice
 through two different intake paths — exactly the signal that a discovery lookup returned a false
 absence — and destroying it destroys that diagnostic along with any source ref the duplicate

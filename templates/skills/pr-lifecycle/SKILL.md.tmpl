@@ -127,31 +127,45 @@ advisory shadow mode immediately after PR creation or after pushing new commits:
    test in step 2/3 above MUST follow this required ordered, capture-first
    sequence instead of being fixed — the loop terminates honestly rather than
    by expansion:
-   * (a) **Capture per P-021 C2**, performed BEFORE any thread reply because C2
-     makes capture a precondition for closing the finding. Record the full
-     six-field payload:
+   * (a) **Capture per P-021 C2**, performed BEFORE any thread reply/closure
+     because C2 makes capture a precondition for closing the finding. Record
+     the full six-field payload:
      1. The literal token `DEFERRED SCOPE EXPANSION`.
      2. A one-sentence statement of the expansion.
      3. Why it is out of scope, citing the P-021 C1 test.
      4. Source refs — PR number, review-thread ID, task ID, feature ID,
-        shipment ID. On this surface the PR number and the review-thread ID
-        BOTH always exist at capture (this skill acts only on PR review
-        comments), so no per-field `N/A` case arises here.
+        shipment ID. On the GitHub-hosted path (step 2) the PR number and the
+        review-thread ID BOTH always exist at capture, so no per-field `N/A`
+        case arises there. On the non-GitHub path (step 3) there is no
+        review-thread mechanism: record the review-thread ID as `N/A` and the
+        PR number with its actual value whenever a PR is already open (the
+        normal case), never fusing the two refs into a single `PR/thread`
+        token or assuming one field's availability from the other's.
      5. A `requires deliberation` flag.
      6. Kind and a PROVISIONAL priority only — re-prioritization and triage
         remain Stage-only (P-021 C5 capture-only carve-out).
-   * (b) Post a substantive thread reply explaining the finding, why it is out
-     of scope citing the C1 boundary, that no code change was made, and CITING
-     THE GENERATED DEFERRED ENTRY ID returned by the (a) capture, per P-021 C3.
-   * (c) Resolve the thread via §1.6, permitted only after the reply citing
-     that ID is posted.
-   * (d) Add a residual-risk record entry in the PR body naming the SAME
-     deferred entry ID.
-
-   Replying to or resolving an out-of-scope thread BEFORE the C2 capture
-   exists is PROHIBITED, since the reply cannot cite an entry ID that has not
-   been generated yet; a reply omitting the deferred entry ID does not satisfy
-   C3.
+   * **Thread-present disposition (GitHub-hosted path, step 2)**: (b) post a
+     substantive thread reply explaining the finding, why it is out of scope
+     citing the C1 boundary, that no code change was made, and CITING THE
+     GENERATED DEFERRED ENTRY ID returned by the (a) capture, per P-021 C3;
+     (c) resolve the thread via §1.6, permitted only after the reply citing
+     that ID is posted; (d) add a residual-risk record entry in the PR body
+     naming the SAME deferred entry ID. Replying to or resolving an
+     out-of-scope thread BEFORE the C2 capture exists is PROHIBITED, since the
+     reply cannot cite an entry ID that has not been generated yet; a reply
+     omitting the deferred entry ID does not satisfy C3.
+   * **Threadless discharge (non-GitHub path, step 3)**: no review-thread
+     mechanism exists on this path, so the C3 thread-reply/resolve step does
+     not apply and its absence is NOT a C3 shortfall. After the (a) capture,
+     cite the generated deferred entry ID in the TASK-LEVEL, run-level, and
+     closure/PR residual-risk records instead — the complete set the
+     reference obligation requires when no thread reply can carry the ID.
+   * If a finding captured threadless on the non-GitHub path later surfaces on
+     a review thread (e.g. the repository migrates to a GitHub-hosted review
+     flow within the same run), the reply cites the ALREADY-CAPTURED deferred
+     entry ID; this skill MUST NOT create a second entry, consistent with the
+     SINGLE-WRITE CAPTURE INVARIANT and LATE-SURFACING THREAD rule (both
+     authored in 134.004-T).
 
 ### Step 4: Handle CI failures
 
