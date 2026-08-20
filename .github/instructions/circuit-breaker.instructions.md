@@ -213,8 +213,16 @@ template.
 
 A review-fix cycle is one complete iteration of: (1) invoke review skill →
 (2) parse findings → (3) apply fixes. Cycle counting starts at 0 (first review).
-After 3 fix cycles, accept remaining P2/P3 findings as new backlog items,
-commit the task, and move it to `done`.
+After 3 fix cycles: every remaining finding that FAILS the P-021 C1
+same-contract-surface test (below) is captured as a new backlog item — a
+P-021 C2 `DEFERRED SCOPE EXPANSION` entry, not an informal note — before the
+task is committed and moved to `done`. A finding that PASSES C1 and
+remains unresolved SOLELY because this 3-cycle budget is exhausted is
+different: per the Symmetric guard below, it is never captured as a deferred
+scope expansion (it was never out of scope) and it MUST NOT be silently closed
+as a backlog item either — halt the task instead and escalate that in-scope
+finding to the operator for explicit disposition (extend the cycle-count
+limit, or explicitly accept documented residual risk).
 
 **Scope bound (P-021 C1)**: the 3-cycle count above bounds HOW MANY cycles are
 permitted; it does not by itself bound WHAT may be fixed within a cycle. Every
@@ -247,6 +255,12 @@ form — capture is never conditional on a PR or thread existing.
 authorized change IS in scope and MUST be fixed, not deferred; AND (ii)
 deferring such a completion WITHOUT a captured entry AND a residual-risk
 record is itself a P-021 violation, actioned per P-021 C7.
+
+**Cycle-limit disposition (P-021 C3, hardening H14)**: this is exactly the
+cycle-limit disposition described in the Review-Fix Cycle Definition above —
+the capture-as-backlog-item action attaches only to C1-failing findings, never
+to an unresolved in-scope one, which halts and escalates to the operator
+instead.
 
 These scope rules narrow WHAT is fixed inside a cycle; they do not relax, widen,
 or otherwise alter the 3-cycle count semantics above.

@@ -159,19 +159,26 @@ the following six fields:
 1. The literal token `DEFERRED SCOPE EXPANSION`.
 2. A one-sentence statement of the expansion.
 3. Why it is out of scope, citing the P-021 C1 test.
-4. Source refs: task ID, feature ID, and shipment ID are always populated.
-   The **PR number** and the **review-thread ID** are SEPARATE source refs
-   whose availability is judged INDEPENDENTLY PER FIELD — they MUST NOT be
-   fused into a single `PR/thread` token, and MUST NOT be qualified jointly or
-   with a single trailing "(when applicable)" that in fact attaches to only
-   one of them. On this surface, `fix-ci` cannot run without an open PR, so
-   the PR number is ALWAYS recorded with its actual value — it is never `N/A`
-   here. The review-thread ID is recorded with its actual value for a review
-   comment (a thread already exists), and recorded as `N/A` for a CI check
-   failure (no thread exists for that finding kind). The two refs are `N/A`
-   together only for a genuinely pre-PR finding, which is not a state this
-   surface can be in — neither field's availability is ever assumed from the
-   other's.
+4. Source refs: task ID, feature ID, and shipment ID are populated whenever
+   this skill runs within a Ship-orchestrated task/feature/shipment context.
+   This skill also explicitly supports direct invocation with only `pr_number`
+   (see Quick Start / Parameters above), so none of those three refs is
+   guaranteed available on that path: each one that has no resolvable value at
+   capture time is instead recorded as an explicit `N/A`, judged
+   INDEPENDENTLY PER FIELD exactly like every other source ref below — never
+   fabricated, never silently omitted. The **PR number** and the
+   **review-thread ID** are SEPARATE source refs whose availability is judged
+   INDEPENDENTLY PER FIELD — they MUST NOT be fused into a single `PR/thread`
+   token, and MUST NOT be qualified jointly or with a single trailing
+   "(when applicable)" that in fact attaches to only one of them. On this
+   surface, `fix-ci` cannot run without an open PR (see Prerequisites above),
+   so the PR number is ALWAYS recorded with its actual value — it is never
+   `N/A` here. The review-thread ID is recorded with its actual value for a
+   review comment (a thread already exists), and recorded as `N/A` for a CI
+   check failure (no thread exists for that finding kind). The two refs are
+   `N/A` together only for a genuinely pre-PR finding, which is not a state
+   this surface can be in — neither field's availability is ever assumed from
+   the other's.
 5. A `requires deliberation` flag.
 6. Kind and a PROVISIONAL priority only — re-prioritization and triage remain
    Stage-only (P-021 C5 capture-only carve-out).
@@ -194,15 +201,20 @@ in this run (or a prior run) later surfaces on the other path — for example, a
 CI check failure captured as threadless later reappears as a review comment on
 the same finding — the reply cites the ALREADY-CAPTURED deferred entry ID and
 this skill MUST NOT create a second entry, consistent with the SINGLE-WRITE
-CAPTURE INVARIANT and its LATE-SURFACING THREAD rule (both authored in
-134.004-T). Newly available identifiers are recorded in the PR/closure
-residual-risk record, not written back into the entry; reconciling the entry
-itself is Stage's C6 responsibility. The prior-run lookup — lookup sources,
-join keys, the four-case disposition truth table, and both discovery-failure
-paths — is performed exactly as specified in 134.004-T's **Deferred-Entry
-Discovery** and **Discovery Fail-Safe** criteria; that procedure is referenced
-here by name only and is deliberately NOT reproduced, so this skill and the
-Ship agent never carry two divergent copies of it.
+CAPTURE INVARIANT and its LATE-SURFACING THREAD rule, both authored in
+134.004-T and carried by the installed Ship agent's own "P-021 Scope
+Classification and Defer-Capture Procedure" section (`.github/agents/_ship.agent.md`)
+— the concrete carrier an installed workspace can actually resolve, since
+`134.004-T` is an internal autoharness development task ID that is not
+installed into target workspaces. Newly available identifiers are recorded in
+the PR/closure residual-risk record, not written back into the entry;
+reconciling the entry itself is Stage's C6 responsibility. The prior-run
+lookup — lookup sources, join keys, the four-case disposition truth table,
+and both discovery-failure paths — is performed exactly as specified in that
+same installed Ship agent section's **Deferred-Entry Discovery** and
+**Discovery Fail-Safe** criteria (authored under 134.004-T); that procedure is
+referenced here by name only and is deliberately NOT reproduced, so this
+skill and the Ship agent never carry two divergent copies of it.
 
 **C3 symmetric guard (applies on both paths)**: (i) a same-contract-surface
 completion of the authorized change IS in scope and MUST be fixed, not
@@ -237,8 +249,11 @@ fixed directly:
   Replying to or resolving an out-of-scope thread BEFORE the C2 capture exists
   is PROHIBITED, since the reply cannot cite an entry ID that has not been
   generated yet; a reply omitting the deferred entry ID does not satisfy C3.
-  This ordering matches the Ship agent's (134.004-T) and github-pr-automation's
-  (134.006-T) defer-capture sequence exactly.
+  This ordering matches the installed Ship agent's own "P-021 Scope
+  Classification and Defer-Capture Procedure" section (`.github/agents/_ship.agent.md`,
+  authored under 134.004-T) and the installed github-pr-automation
+  instruction's "P-021 Scope Classification and Out-of-Scope Disposition"
+  section (authored under 134.006-T) defer-capture sequence exactly.
 
 For GitHub-hosted repositories, after addressing each comment:
 

@@ -867,7 +867,7 @@ class ScopeContainmentSemanticsContractTests(unittest.TestCase):
                 "DEFERRED SCOPE EXPANSION",
                 "A one-sentence statement of the expansion",
                 "Why it is out of scope, citing the P-021 C1 test",
-                "Source refs: task ID, feature ID, and shipment ID are always populated",
+                "Source refs: task ID, feature ID, and shipment ID are populated whenever",
                 "requires deliberation",
                 "Kind and a PROVISIONAL priority only",
             ),

@@ -316,13 +316,20 @@ The skill is complete only when one of these outcomes is explicit:
 | Counter | Limit | Action |
 |---|---|---|
 | Fix-CI delegation cycles | 5 | Halt, leave PR for manual intervention |
-| Review-fix cycles | 3 | Accept remaining advisory shadow-review comments as backlog follow-ups (a P-021 C2 capture carrying the full six-field payload above, not an informal note) |
+| Review-fix cycles | 3 | For each remaining advisory shadow-review comment that FAILS P-021 C1: accept as a backlog follow-up via a full P-021 C2 capture carrying the full six-field payload above (not an informal note). An in-scope comment unresolved solely because this cycle budget is exhausted is NOT captured this way — see the P-021 C4 annotation below. |
 
 **P-021 C4 annotation**: reaching the review-fix cycle limit does not authorize
 expanding into an out-of-scope comment, and neither does an operator
 instruction to continue. Operator authorization at the limit can only open a
 SEPARATE work unit through P-021 C2 capture plus C6 Stage deliberation — it
 never makes the expansion in-scope for the cycle already in flight (P-021 C4).
+An in-scope comment (one that PASSES P-021 C1) left unresolved purely because
+this cycle-count budget is exhausted is a different case: it is never captured
+as a `DEFERRED SCOPE EXPANSION` entry (it was never out of scope), and per the
+P-021 C3 symmetric guard it MUST NOT be silently closed as a backlog
+follow-up either — halt this comment instead and surface it to the operator
+for explicit disposition (extend the cycle-count limit, or explicitly accept
+documented residual risk) before the PR is presented as merge-ready.
 
 ## Model Routing
 

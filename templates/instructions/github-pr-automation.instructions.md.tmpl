@@ -345,7 +345,7 @@ and reference rather than through a fix.
 
 | Counter | Limit | Action |
 |---------|-------|--------|
-| Review-fix-push cycles | 3 | Accept remaining comments as backlog follow-ups (a P-021 C2 capture for each, not an informal note) |
+| Review-fix-push cycles | 3 | For each remaining comment that FAILS P-021 C1: accept as a backlog follow-up via a full P-021 C2 capture (not an informal note). An in-scope comment unresolved solely because this cycle budget is exhausted is NOT captured this way — see the P-021 C4 annotation below. |
 | Same comment re-raised after fix | 2 | Escalate to operator — likely a fundamental disagreement |
 
 **P-021 C4 annotation**: reaching the review-fix-push cycle limit does not
@@ -355,6 +355,13 @@ means each remaining out-of-scope comment receives the full P-021 C2 capture
 above, not an informal note. Operator authorization at the limit can only open
 a SEPARATE work unit through P-021 C2 capture plus C6 Stage deliberation — it
 never makes the expansion in-scope for the cycle already in flight (P-021 C4).
+An in-scope comment (one that PASSES P-021 C1) left unresolved purely because
+this cycle-count budget is exhausted is a different case: it is never captured
+as a `DEFERRED SCOPE EXPANSION` entry (it was never out of scope), and per the
+P-021 C3 symmetric guard it MUST NOT be silently closed as a backlog
+follow-up either — halt this comment instead and surface it to the operator
+for explicit disposition (extend the cycle-count limit, or explicitly accept
+documented residual risk) before the PR is presented as merge-ready.
 
 **Cycle limits do not make shadow review merge-blocking by default** — except when
 Copilot review is enabled (P-018). When the review-fix cycle limit is reached and
