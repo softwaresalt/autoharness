@@ -226,8 +226,8 @@ artifacts:
   - path: ".github/instructions/github-pr-automation.instructions.md"
     primitive: 10
     template: "instructions/github-pr-automation.instructions.md.tmpl"
-    checksum: "c79614febcde19ae55c3c05cac718586c9f1075692d1553f6b4a5c3c82a58e63"
-    note: "GitHub PR/CI automation instruction (previously unrecorded)"
+    checksum: "2b7b4258dec61318827a660772fda9c3222631594375beaa1836a6666a653e5b"
+    note: "GitHub PR/CI automation instruction (previously unrecorded); checksum refreshed 143-S/134.006-T (added P-021 Scope Classification and Out-of-Scope Disposition to the autonomous comment-handling loop after Section 1.7, matching the Ship agent's 134.004-T capture -> reply -> resolve -> residual-risk ordering exactly, plus a Section 1.8 Stop Conditions row + C4 annotation clarifying 'accept as backlog follow-ups' means a P-021 C2 capture; installed mirror carries substantial pre-existing terminology drift from the current template unrelated to this shipment (this file still says 'Copilot review'/'1.3 Categorize Review Comments'/'1.7 ... and Re-request Review' where the template now says 'Copilot shadow review'/'Categorize Shadow Review Comments'/'... and Re-request Shadow Review', and the template's rendered quality-gate command variables also do not match this repo's actual configured commands), so only the matching new section/table content was mirrored in this file's own established wording rather than forcing a full re-render, per the width-isolation precedent used for 134.002-T/134.004-T"
   - path: ".github/instructions/copilot-code-review.instructions.md"
     primitive: 7
     template: "instructions/copilot-code-review.instructions.md.tmpl"
