@@ -2,3 +2,6 @@
 {"timestamp":"2026-08-19T08:38:18.1525266-07:00","actor":"backlogit","item_id":"143-S","event_type":"shipment_item_added","delta":{"item_id":"134.012-T"}}
 {"timestamp":"2026-08-19T13:51:56.4533202-07:00","actor":"backlogit","item_id":"143-S","event_type":"shipment_item_added","delta":{"item_id":"134.013-T"}}
 {"timestamp":"2026-08-19T22:31:40.8752584-07:00","actor":"backlogit","item_id":"143-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-20T04:20:46.3258804-07:00","actor":"backlogit","item_id":"143-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"143-S","status":"shipped"}}
+{"timestamp":"2026-08-20T04:20:52.9862497-07:00","actor":"backlogit","item_id":"143-S","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"e2af4dfe1b403b85cab7f237a4f7f9b621370d70","message":"Merge pull request #373 from softwaresalt/feat/143-s-p-021-bounded-fix-cycle-scope-containment-and-deferred-expansion-capture"}}
+{"timestamp":"2026-08-20T04:23:37.5709952-07:00","actor":"backlogit","item_id":"143-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/143-S.md"}}
