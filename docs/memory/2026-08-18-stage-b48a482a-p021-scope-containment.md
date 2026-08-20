@@ -40,6 +40,9 @@
 5. **Hardening (P-006, required)** —
    `docs/plans/2026-08-18-bounded-fix-cycle-scope-containment-hardening.md`,
    13 items (H1–H13), verdict PROCEED, all folded into task acceptance criteria.
+   *(Current count is 15: H14 was added in PR #372 review-fix cycle 3 and H15 in
+   the subsequent fresh correction operation. The 13 above is the dated record of
+   the original pass and is left as written.)*
 6. **Review (plan-review gate)** —
    `docs/reviews/2026-08-18-bounded-fix-cycle-scope-containment-review.md`,
    verdict **PASS**. R1 (canonical unittest gate invocation) and R2 (missing
@@ -1404,3 +1407,65 @@ and this claim had no owner entry, because it was not a restatement of another
 artifact's rule but a bare assertion **about** another artifact's behaviour. That
 is the one shape neither audit was built to catch. Where X's correctness depends
 on Y providing G, the check runs against Y and the obligation is recorded on Y.
+
+## Fresh Stage correction operation (2026-08-19, terminal review HEAD d52ab147)
+
+Not cycle 4 — the three-cycle review-fix budget was exhausted and the operator
+authorized a NEW bounded operation, resumed from checkpoint
+`checkpoint-20260819-222114.json`.
+
+**The finding, and why it took five cycles.** The C2 source-ref rule had three
+negative guards by this point: no fused `PR/thread` token, no marking both refs
+`N/A` as a path default, no PR-or-thread precondition for capture. The terminal
+P1 matched none of them. `PR number, review-thread ID (when applicable)` uses two
+separate tokens, carries no paired-`N/A` instruction, and states no
+precondition — it passes all three — yet the lone trailing qualifier attaches to
+the thread ID only, which states the PR number unconditionally and contradicts
+independent per-field availability.
+
+Each guard had been written to reject the exact string the review in front of it
+produced. That makes a guard set a **list of past instances**, not a partition of
+the failure space, and a list of instances is always evadable by rephrasing. The
+fix was not a fourth ad-hoc guard but an ASYMMETRIC-QUALIFIER guard whose test is
+**symmetry rather than presence** — both refs qualified or neither, never one —
+plus an explicit note that grepping for the literal `(when applicable)` is
+vacuous, since the same error can be written `if one exists` or as a footnote.
+
+**The half that mattered more.** `134.007-T` was a mapped B5 carrier that had
+**never authored the behaviour at all**. Absence trips no negative guard —
+prohibitions can only reject text that is present — so a surface that simply
+omits the rule passes every prohibition ever written. And fix-ci is the one
+surface where the split case genuinely arises: it cannot run without an open PR,
+and a CI finding has no thread, so its PR number is known while its thread ID is
+unavailable. The carrier most needing the rule was the one silently missing it.
+Fixed by authoring the rule on the fix-ci surface in its own terms (`N/A` only
+for the specific unavailable field, never a path-level default) and by pairing
+the negative guards with a LIVE-CARRIER AGREEMENT test that resolves the required
+form from `134.001-T` **at assertion time** — so no carrier passes by staying
+silent, and authority and test cannot drift together while both diverge from C2.
+
+**Two deliberate non-changes.** `134.006-T` and `007-pr-lifecycle` keep their
+unqualified enumerations: B5 explicitly excludes them because both identifiers
+always exist on a PR-review-comment surface, so adding qualifiers would demand
+text those surfaces have no occasion to carry — the false-requirement failure the
+carrier-role model exists to prevent. Correcting them would have looked like
+thoroughness and been a regression.
+
+**P2s.** B17's truth-table assertion ran across the whole subset, which would
+have forced reference-only `134.007-T` to restate `134.004-T` — re-creating on
+that exact surface the duplicated-then-stale summary the owner-reconciliation
+cycle had just removed. Now scoped by carrier role: full table on the author
+(004), reference integrity on the reference-only carrier (007-fix-ci),
+reconciliation form on 008, no-suppression guard universal. Plan task-002 gained
+`edit` and discretionary archival (both load-bearing: `edit` is what SINGLE-WRITE
+forbids as a second write, and archival removes an entry from Stage's triage
+surface as effectively as deletion). H14 was promoted from an addendum paragraph
+to a real `## H14` heading — otherwise "14 items" would not have been
+structurally true — and H15 was added for the guard-shape lesson; live range
+references now read H1–H15.
+
+**Recorded, not fixed.** The backlogit checkpoint writer silently drops all but
+three `context` keys, and both the create call and `get_checkpoint`'s
+`valid: true` mask the loss. Captured as stash `3C7AAC71` (backlogit-owned, not
+an autoharness defect, not a 143-S blocker) after confirming no duplicate
+existed.

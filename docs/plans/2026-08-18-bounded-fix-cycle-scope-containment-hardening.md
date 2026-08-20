@@ -1,6 +1,6 @@
 ---
 title: P-021 bounded fix-cycle scope containment plan hardening
-description: P-006 hardening pass (H1-H13) over the P-021 scope-containment plan; adversarial guards for a policy change spanning agent role boundaries, shared instructions and the dogfood checksum set
+description: P-006 hardening pass (H1-H15) over the P-021 scope-containment plan; adversarial guards for a policy change spanning agent role boundaries, shared instructions and the dogfood checksum set
 doc_type: plan
 source: docs/plans/2026-08-18-bounded-fix-cycle-scope-containment-hardening.md
 status: hardened
@@ -147,8 +147,17 @@ evaporates.
    text;
 2. what the expansion is, in one sentence;
 3. why it was judged out of scope, citing the C1 test;
-4. source refs — PR number, review-thread ID (when applicable), task ID, feature
-   ID, shipment ID;
+4. source refs — PR number *when applicable*, review-thread ID *when
+   applicable*, task ID, feature ID, shipment ID — with **availability judged
+   INDEPENDENTLY PER FIELD**: each identifier that exists at capture is
+   recorded, and each identifier that does not exist at capture is recorded as
+   an explicit `N/A`. The PR number and the review-thread ID are SEPARATE refs
+   and MUST NOT be fused into a single `PR/thread` ref, qualified jointly, or
+   treated as jointly available — a build/CI finding has an open PR but no
+   thread, and a pre-PR local-review finding has neither. Qualifying only the
+   review-thread ID, as this item did before 2026-08-19, states the PR number
+   unconditionally and is the defective asymmetric form that B3 requires be
+   rejected;
 5. `requires deliberation` flag, satisfying the operator's mandatory
    deliberation/research requirement;
 6. `kind` and a provisional `priority`.
@@ -341,9 +350,11 @@ known-necessary split to implementation was itself the defect: the split then
 lands mid-execution, with the 2-hour bound already breached and the least
 context available to choose the cut.
 
-**Addendum (2026-08-19, PR #372 review-fix cycle 3) — H14: a safety mechanism
-may not assert the guarantee it depends on.**
+## H14 — A safety mechanism may not assert the guarantee it depends on
 
+Added 2026-08-19, PR #372 review-fix cycle 3.
+
+**Risk.**
 Cycle 1's discovery fail-safe justified capturing on an unavailable lookup by
 stating that `134.008-T` "requires Stage to run duplicate detection over every
 deferred entry it triages, unconditionally". `134.008-T` required no such thing —
@@ -365,3 +376,33 @@ unverified dependency, and it must be treated as a finding until the
 corresponding obligation exists on Y and is covered by Y's tests. The two
 obligations in `134.008-T` are now split and separately triggered precisely so
 that the guarantee 004 relies on is stated where it is owned.
+
+## H15 — Negative guards must enumerate defect SHAPES, not defect INSTANCES
+
+Added 2026-08-19, fresh Stage correction operation after the review-fix budget
+was exhausted.
+
+**Risk.** The C2 source-ref rule accumulated three guards across three cycles —
+one against the fused `PR/thread` token, one against marking both refs `N/A` as a
+path-level default, and one against making a PR or thread a precondition for
+capture. The terminal P1 was a fourth shape none of them matched: two separate
+refs, no paired-`N/A` instruction, but a single trailing `(when applicable)`
+attached to the review-thread ID alone, which states the PR number
+unconditionally. It PASSED every existing guard while contradicting the clause
+those guards exist to protect.
+
+Each guard had been written to reject the specific string that the review in
+front of it had produced. That makes the guard set a list of past instances
+rather than a partition of the failure space, and a list of instances can always
+be evaded by a new phrasing of the same underlying error.
+
+**Rule.** When a clause is protected by negative guards, enumerate the SHAPES the
+violation can take and assert the guards partition that space. For a rule over
+two independently-available fields the shapes are: fused into one token; both
+qualified together; ONE qualified and not the other; NEITHER qualified where the
+rule requires qualification; and the rule ABSENT ENTIRELY. The last is the most
+dangerous, because absence trips no negative guard at all — it is what let
+`134.007-T` be a mapped B5 carrier that never authored the behaviour. Pair every
+negative-guard set with a POSITIVE agreement test that resolves the required form
+from the authoritative owner at assertion time, so a surface cannot pass by
+staying silent.

@@ -60,7 +60,7 @@ surfaces byte-consistent with refreshed manifest checksums.
 | C2 Mandatory capture | An out-of-scope expansion MUST be captured as a stash entry carrying a `DEFERRED SCOPE EXPANSION` marker, source refs (PR number *when applicable*, review-thread ID *when applicable*, task/feature ID, shipment ID — availability judged independently per field, never fused into a single `PR/thread` ref), and a `requires deliberation` flag. Capture is a precondition for closing the finding, and is never conditional on a PR or thread existing. |
 | C3 Bounded resolution | Resolve the in-scope defect/comment as far as possible **without** the expansion. The reference obligation is **conditional on actual thread availability**: where a review thread exists, reference the deferred entry ID in the review-thread reply (posted before the thread is resolved) and in the PR/closure residual-risk record; where no thread exists (pre-PR local review, build/CI), the obligation is discharged **in full** by citing the deferred entry ID in the task/run/closure residual-risk record, and the absent reply is not a shortfall. |
 | C4 Non-bypass | Review pressure, severity, dark factory mode (P-017), circuit-breaker exhaustion, and convenience never authorize expansion — and neither does any authorization, explicit operator authorization included. Nothing expands the fix cycle that discovered the expansion. Operator authorization can create or approve a **separate** work unit via C2 capture → mandatory C6 deliberation → new approved scope; it is a forward act that opens new work, never a retroactive in-cycle override. |
-| C5 Ship capture-only carve-out | Ship MAY create stash entries **for capture only**. Ship MUST NOT triage, prioritize, re-classify, edit, harvest, deliberate on, **discretionarily remove**, or **discretionarily archive** them. Manifest-derived retirement of the source stash entry that fed the shipped scope, after a successful merge (Ship's existing post-merge Step 7), remains **Allowed** — the distinction is provenance, not verb (hardening H2). |
+| C5 Ship capture-only carve-out | Ship MAY create stash entries **for capture only**. Ship MUST NOT triage, prioritize or **re-prioritize**, re-classify, edit, harvest, deliberate on, **discretionarily remove**, or **discretionarily archive** them. Manifest-derived retirement of the source stash entry that fed the shipped scope, after a successful merge (Ship's existing post-merge Step 7), remains **Allowed** — the distinction is provenance, not verb (hardening H2). |
 | C6 Stage intake obligation | A stash entry marked `DEFERRED SCOPE EXPANSION` is a distinct triage classification that MUST route to the `deliberate` skill before any planning, regardless of shape or apparent triviality. |
 | C7 Violation action | Implementing an out-of-scope expansion inside a fix cycle, or closing an out-of-scope finding with no captured deferred entry, records a P-021 violation via P-005 telemetry and halts. |
 
@@ -156,9 +156,14 @@ format of the existing F02FD596 entry at the head of the file (**review finding
 R2**).
 
 **002** — Ship's Role Boundary Backlog row no longer forbids stash creation
-outright; it names the capture-only carve-out in **Allowed** and keeps triage /
-prioritization / re-classification / harvest / deliberation / removal in
-**Forbidden**. Rendered dogfood is byte-identical; manifest checksum refreshed
+outright; it names the capture-only carve-out in **Allowed** and keeps the
+complete forbidden verb set — triage / prioritization and **re-prioritization** /
+re-classification / **edit** / harvest / deliberation / **discretionary removal**
+/ **discretionary archival** — in **Forbidden**, matching owner `134.002-T`.
+`edit` and discretionary archival are load-bearing rather than incidental: `edit`
+is what the SINGLE-WRITE capture invariant forbids as a second write, and
+archival without it is a discretionary disposal that removes an entry from
+Stage's triage surface as effectively as deletion. Manifest checksum refreshed
 from the LF-normalized committed blob.
 
 **003** — `role-enforcement.instructions.md.tmpl` states that a capture-only
