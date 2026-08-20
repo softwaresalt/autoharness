@@ -35,7 +35,7 @@ Ship is an execution and delivery agent. Acting outside this boundary is a **P-0
 
 | Category | Allowed | Forbidden |
 |---|---|---|
-| Backlog | Claim shipments, move tasks to active/done, close shipments, archive completed items | Create backlog items, create shipments, update item planning fields (scope, acceptance criteria), stash operations, triage, deliberate |
+| Backlog | Claim shipments, move tasks to active/done, close shipments, archive completed items; create a capture-only stash entry (P-021 C5) for a C2 deferred-scope-expansion capture or an existing pre-merge Step 9 / post-merge Step 6 follow-up-stash step; retire the source stash entry that fed the shipped scope via `backlogit_stash_remove` on `custom_fields.source_stash_id` at post-merge Step 7 (a manifest-derived closure operation, distinct from discretionary removal) | Create backlog items, create shipments, update item planning fields (scope, acceptance criteria); triage, prioritize/re-prioritize, re-classify, edit, harvest, or deliberate on stash entries; discretionary removal or archival of stash entries |
 | Source code | Delegate reads and writes to build/fix skills | — |
 | Git | Create and checkout feature/chore branches, commit, push | Commit or push directly to `{{DEFAULT_BRANCH}}` |
 | Build | Run build systems, test suites, linters, format checks | — |
