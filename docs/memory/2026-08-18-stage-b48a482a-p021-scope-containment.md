@@ -1469,3 +1469,52 @@ three `context` keys, and both the create call and `get_checkpoint`'s
 `valid: true` mask the loss. Captured as stash `3C7AAC71` (backlogit-owned, not
 an autoharness defect, not a 143-S blocker) after confirming no duplicate
 existed.
+
+## Fresh Stage operation — review-fix cycle 1 of 3 (HEAD 071d3406, P0=0/P1=2)
+
+Both P1s were **regressions introduced by the preceding fresh correction
+operation** (MATRIX CORRECTION 14), not pre-existing defects. Recorded as
+MATRIX CORRECTION 15 in `134.011-T`.
+
+**P1-1 — B6 criterion silently merged into B5.** Inserting two new B5 criteria
+before the B6 SINGLE-WRITE criterion used an `old_str` matching only B6's
+opening phrase, so B6's surviving tail spliced onto the end of the last
+inserted sentence. B6 stopped existing as an independently identified
+criterion while the B1–B18 allocation still claimed it. Allocation tests did
+not catch this because they count **mappings, not criteria**. Fixed by
+restoring `SINGLE-WRITE test (behaviour B6)` as its own criterion with both
+mapped carriers (004, 008), both halves (Ship-writes-once, Stage-consumes),
+and the non-vacuity guard intact.
+
+**P1-2 — B5 imposed on carriers the map excludes.** Correction 14 correctly
+found that mapped B5 carrier `134.007-T` never authored the per-field
+availability rule, but fixed the absence by writing it into that file's
+**shared** six-field payload criterion, which is scoped to both of the file's
+surfaces. That reached `007-pr-lifecycle`, which B5 explicitly excludes;
+hardening H7 acquired the same defect because it names `006` among the payload
+carriers. Fixed by authoring the rule **path-specifically**: fix-ci carries it,
+pr-lifecycle enumerates the refs unqualified, and the genuinely universal parts
+(no fused `PR/thread` token, no PR/thread precondition for capture — a B3
+guard) are stated as universal rather than as B5. H7 item (4) is now a
+carrier-specific list naming the B5 subset `001[A], 004, 007-fix-ci` and the
+`006` / `pr-lifecycle` exclusion.
+
+**Durable lesson.** Fixing an absence by widening scope is itself the
+false-requirement failure mode, and the exact mirror of the defect being fixed.
+Absence and over-breadth are both carrier-subset errors, and the pull when
+correcting an absence is toward the nearest existing criterion — almost always
+broader than the behaviour's subset. Where one file serves several surfaces,
+the rule belongs on the **surface**, never on the shared clause.
+
+**New standing guards** (now run every cycle): a scan for the `.,`
+double-punctuation signature a tail-splice always leaves; a scan for any single
+criterion line carrying two distinct `behaviour Bn` markers; and a per-behaviour
+test that each of B1–B18 has its own `- [ ]` criterion line. The B17 criterion
+was relabelled to `FIX-CI-ENTRY-REUSE test (behaviour B17)` so the audit is
+mechanically reliable rather than dependent on prose phrasing.
+
+**Self-inflicted repeat, caught in-cycle.** Writing MATRIX CORRECTION 15 itself
+reproduced the P1-1 splice — a truncated `old_str` duplicated the H15 paragraph
+tail onto the new closing paragraph. Detected by re-reading the edit boundary
+immediately after the write and removed before validation. The tool hazard is
+real and recurring: **match to a line boundary, then verify the boundary.**

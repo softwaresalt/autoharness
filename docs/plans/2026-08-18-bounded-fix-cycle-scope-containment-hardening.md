@@ -147,17 +147,30 @@ evaporates.
    text;
 2. what the expansion is, in one sentence;
 3. why it was judged out of scope, citing the C1 test;
-4. source refs — PR number *when applicable*, review-thread ID *when
-   applicable*, task ID, feature ID, shipment ID — with **availability judged
-   INDEPENDENTLY PER FIELD**: each identifier that exists at capture is
-   recorded, and each identifier that does not exist at capture is recorded as
-   an explicit `N/A`. The PR number and the review-thread ID are SEPARATE refs
-   and MUST NOT be fused into a single `PR/thread` ref, qualified jointly, or
-   treated as jointly available — a build/CI finding has an open PR but no
-   thread, and a pre-PR local-review finding has neither. Qualifying only the
-   review-thread ID, as this item did before 2026-08-19, states the PR number
-   unconditionally and is the defective asymmetric form that B3 requires be
-   rejected;
+4. source refs — PR number, review-thread ID, task ID, feature ID, shipment ID.
+   The ENUMERATION is common to every payload carrier; the AVAILABILITY
+   QUALIFICATION is **carrier-specific**, because the carriers do not encounter
+   the same availability cases:
+   * On surfaces that can meet an unavailable identifier — the authoritative
+     registry (001), Ship's defer-capture (004) and `fix-ci` — **availability is
+     judged INDEPENDENTLY PER FIELD**: each identifier that exists at capture is
+     recorded with its actual value, and each identifier that does not exist at
+     capture is recorded as an explicit `N/A`. A build/CI finding has an open PR
+     but no thread; a pre-PR local-review finding has neither. This is behaviour
+     B5, whose subset is `001[A], 004, 007-fix-ci`.
+   * On PR-review-comment-only surfaces — task 006 and `pr-lifecycle` — the refs
+     are enumerated **unqualified**, because both identifiers always exist at
+     capture there. B5 deliberately EXCLUDES these two, and requiring the
+     per-field `N/A` form of them would demand text those surfaces have no
+     occasion to carry.
+   Universal on **every** carrier, and not a B5 requirement: the PR number and
+   the review-thread ID are SEPARATE refs and MUST NOT be fused into a single
+   `PR/thread` ref — a fused token is wrong even where both always exist,
+   because it encodes the assumption that they are jointly present or jointly
+   absent. Where a qualifier IS carried it must attach to **both** refs or
+   neither: qualifying only the review-thread ID, as this item did before
+   2026-08-19, states the PR number unconditionally and is the defective
+   asymmetric form B3 requires be rejected;
 5. `requires deliberation` flag, satisfying the operator's mandatory
    deliberation/research requirement;
 6. `kind` and a provisional `priority`.
