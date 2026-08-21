@@ -104,7 +104,36 @@ deliberately (H2); do not simplify it while renaming the operation.
 For the registry: keep the `stash_remove` mapping present but marked deprecated,
 and ensure `stash_archive` is the operation **this registry** resolves to for the
 Ship post-merge stash-retirement path (MCP primary `backlogit_stash_archive`, CLI
-fallback `backlogit stash archive`).
+fallback parameterized as below). Note the starting state: the `stash_archive`
+mapping already declares `mcp_tool` and `params.stash_id` but declares **no
+`cli_command` at all**, so Task B *adds* that key rather than editing one.
+
+**Required exact value (P1).** The CLI fallback MUST be written verbatim as:
+
+```yaml
+cli_command: "backlogit stash archive {{stash_id}}"
+```
+
+A bare `backlogit stash archive` with no stash identifier is **invalid** and must
+not be written. Verified against the installed CLI: `backlogit stash archive
+--help` declares `Usage: backlogit stash archive <stash-id>` - exactly one
+**required** positional stash identifier, with no flag form and no default. A
+bare command is unexecutable, and a P-012 degraded-mode consumer that logs or
+runs the declared fallback verbatim (`TOOL_DEGRADED: {tool_name} - CLI fallback:
+{cli_command}`) would emit a command that cannot run, silently defeating the very
+fallback leg this migration exists to establish. Registry convention embeds
+operation parameters as `{{...}}` placeholders directly in `cli_command` - see
+`stash` -> `backlogit stash add --text {{text}}`, `get_task` -> `backlogit get
+{{id}}`, `move_task` -> `backlogit move {{id}} --status {{status}}`. The
+placeholder MUST be spelled exactly `{{stash_id}}` so it binds to the mapping's
+existing `params.stash_id` key; any other spelling leaves the parameter unbound.
+
+This exact value is the **authority** for the registry `cli_command`. Where other
+migration artifacts (the `137-F` feature description, `137.003-T`, the hardening
+addendum, the deliberation, and the staging memory record) name `backlogit stash
+archive` in bare form, they describe the CLI *subcommand's existence* or contrast
+it with the deprecated `stash remove` alias - they do not quote a registry value,
+are correct as written, and do not license a bare `cli_command` here.
 
 **Scope boundary**: Task B owns the policy clause and the registry mapping only.
 It does not edit - and does not *validate* - the Ship agent contract, verifier,
@@ -119,7 +148,12 @@ either direction.
 * Registry still describes both operations; `stash_remove` marked deprecated and
   not resolved by any prescriptive execution path.
 * The registry's `stash_archive` mapping names `backlogit_stash_archive` (MCP
-  primary) and `backlogit stash archive` (CLI fallback) - evaluated against
+  primary) and declares its CLI fallback as the exact string `backlogit stash
+  archive {{stash_id}}`. **Verify literally**: the `{{stash_id}}` placeholder is
+  present in the `cli_command` value and matches the mapping's `params.stash_id`
+  key, so the stash identifier is passed through to the command. A `cli_command`
+  of bare `backlogit stash archive`, or one using any placeholder name other than
+  `{{stash_id}}`, **fails** this criterion. Evaluated against
   `templates/backlog/registries/backlogit.registry.yaml` **only**, never against
   the Ship agent contract.
 
@@ -167,6 +201,10 @@ marker string. Task B is independently gate-green and order-independent.
 2. `verify-workspace` clean.
 3. Full test suite green.
 4. `git diff --name-only` contains no path under `docs/closure/` or `docs/memory/`.
+5. The `stash_archive` mapping in `templates/backlog/registries/backlogit.registry.yaml`
+   declares `cli_command: "backlogit stash archive {{stash_id}}"` - the
+   `{{stash_id}}` placeholder is literally present and matches that mapping's
+   `params.stash_id` key. A bare `backlogit stash archive` fails this check.
 
 ## Sequencing
 
