@@ -1,1 +1,6 @@
 {"timestamp":"2026-08-20T20:12:44.7889611-07:00","actor":"agent","item_id":"138.001-T","event_type":"estimate_history","delta":{"actor":"agent","size":"S","size_ruleset_version":"2h-rule-v1","size_source":"agent"}}
+{"timestamp":"2026-08-21T01:10:34.5098228-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-21T01:54:46.1156737-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"","head_ref":"HEAD","head_sha":"e3aebc0066a8ca8e29482b1596d7a0f312742fb5","new_status":"done","old_status":"active","outcome":"passed","ran":false,"state_changed":true}}
+{"timestamp":"2026-08-21T01:56:02.4296417-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"e3aebc00","message":""}}
+{"timestamp":"2026-08-21T02:09:27.5530958-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"cae73534","message":""}}
+{"timestamp":"2026-08-21T02:29:58.8162945-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"c317eee2","message":""}}
