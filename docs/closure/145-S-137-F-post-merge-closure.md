@@ -107,8 +107,9 @@ CLI command, API, or UI behavior.
 | Surface adapter | `command` (`.autoharness/workspace-profile.yaml` `runtime_validation.validator_manifest`) |
 | Runtime probe | `uv run autoharness --help` |
 | Result | **PASS** -- exit 0 |
-| Canonical gate | `uv run python -m pytest tests/ -q` |
-| Result | `1677 passed, 20 skipped, 1116 subtests passed` -- 5 pre-existing failures, all the already-deferred (P-021 stash entry `E8158860`) full-suite test-isolation-pollution finding; confirmed unrelated (all 5 pass individually/in isolation on both `main` and this branch; reproduces identically before and after this shipment's own new test module was added) |
+| Canonical gate | `PYTHONPATH=src python -m unittest discover -s tests` (per `docs/compound/097-S-canonical-unittest-gate.md` -- a bare repository-root `pytest` invocation is NOT canonical for this workspace, since it can wander into vendored `references/*` content and fail collection unrelated to autoharness source; this shipment scoped every pytest invocation to `tests/` to avoid that specific failure mode, but the unittest command remains the declared canonical gate and is recorded here as the authoritative evidence) |
+| Result | `Ran 1702 tests in 220.533s ... FAILED (failures=3, errors=2, skipped=20)` -- the same 5 pre-existing failures as the scoped `uv run python -m pytest tests/ -q` run (`1677 passed, 20 skipped, 1116 subtests passed`, 5 failed), all the already-deferred (P-021 stash entry `E8158860`) full-suite test-isolation-pollution finding; confirmed unrelated (all 5 pass individually/in isolation on both `main` and this branch; reproduces identically before and after this shipment's own new test module was added) |
+| Scoped pytest (targeted, not canonical) | `uv run python -m pytest tests/ -q`: `1677 passed, 20 skipped, 1116 subtests passed`, same 5 pre-existing failures -- recorded for cross-reference only, not as the canonical gate result |
 | `uv run autoharness verify-workspace --workspace .` | 0 blockers, 0 warnings -- identical to the pre-existing baseline on `main` before this shipment (verified via `git stash`/isolated re-run); the pre-existing `unresolved: 83` placeholder count and handful of missing-file targeted-check failures are unchanged baseline noise (spike F5, explicitly deferred), not introduced here |
 | Hosted CI | `ci gate`, `detect code changes`, `pipeline-topology (ambient)`, `test` -- all green on PR #384 at final HEAD |
 | Manual checkpoints | none required -- no user-facing or operational runtime behavior change |
@@ -117,8 +118,9 @@ CLI command, API, or UI behavior.
 
 ### Other Gates
 
-- Full build: `uv run python -m pytest tests/ -q` (see above) is the
-  canonical build/test gate for this repository.
+- Full build: `PYTHONPATH=src python -m unittest discover -s tests` (see
+  above) is the canonical build/test gate for this repository, per
+  `docs/compound/097-S-canonical-unittest-gate.md`.
 - Quality Gates 1-4: PASS (YAML frontmatter valid for the new design doc;
   markdown structure intact; zero unresolved `{{VAR}}` placeholders in the
   changed templates -- no new template variables introduced by this change,

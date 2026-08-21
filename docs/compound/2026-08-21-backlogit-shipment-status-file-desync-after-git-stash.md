@@ -1,5 +1,18 @@
 ---
 title: "git stash/pop mid-shipment can desync backlogit's on-disk .md status from its authoritative internal state"
+description: "A git stash/pop cycle performed mid-shipment while backlogit .backlogit/queue/*.md bookkeeping files sit uncommitted can revert those files to their pre-mutation state even though backlogit's own internal state (and the CLI's claim/move conflict checks) still reflects the correct, later status."
+problem_type: "tool-state-desync"
+category: "workflow-issues"
+component: "backlogit-cli"
+root_cause: "git stash/pop operates purely on the git working tree and index; it has no awareness of backlogit's own internal state tracking. When uncommitted .backlogit/queue/*.md mutations (shipment claim, task move-to-done) are stashed and later popped, the round-trip itself was verified to correctly restore file contents, but a subsequent backlogit CLI mutation call issued afterward observed and/or persisted the pre-mutation (reverted) status for four task files, producing a file-vs-internal-state disagreement that the CLI's own claim command surfaced as a status conflict."
+resolution_type: "workaround"
+severity: "medium"
+message: "shipment status conflict / LIFECYCLE_NO_ACTIVE_SHIPMENT"
+file_path: ".backlogit/queue/145-S.md"
+citations:
+  - "PR #384"
+  - "PR #385"
+  - "docs/closure/145-S-137-F-post-merge-closure.md"
 date: 2026-08-21
 shipment: 145-S
 feature: 137-F
@@ -86,14 +99,23 @@ desync is file-only, not a real inconsistency requiring the Step 0.5 item
 
 ## Process guidance
 
-* Prefer establishing pre-existing-failure baselines via `git worktree` (a
-  separate checkout) or by running the suspected-pre-existing tests against
-  a `git show <ref>:<path>` snapshot rather than `git stash`, when the
-  working tree contains uncommitted backlogit bookkeeping mutations for an
-  in-progress shipment. `git stash`/`pop` is safe for ordinary source edits
-  but interacts poorly with backlogit's live, frequently-rewritten
-  `.backlogit/queue/` and `.backlogit/archive/` files sitting alongside a
-  long-running session's uncommitted bookkeeping state.
+* **Do NOT use a separate `git worktree` as a workaround for this.** Ship
+  operates under a strict single-worktree constraint (P-016;
+  `templates/policies/workflow-policies.md.tmpl` -- an extra worktree during
+  an in-progress Ship shipment is permitted only for Stage-owned
+  spike/research work and is explicitly forbidden for Ship execution).
+  Recommending a worktree-based baseline here would trip the
+  `pipeline-topology` worktree-uniqueness check for any Ship agent following
+  this learning literally. Retain a single-worktree method instead: prefer
+  running the suspected-pre-existing tests against a `git show
+  <ref>:<path>` snapshot (e.g. `git show main:tests/some_test.py` piped to a
+  temporary file, or `git worktree`-free `git diff`/`git log -p` inspection)
+  rather than `git stash`, when the working tree contains uncommitted
+  backlogit bookkeeping mutations for an in-progress shipment. `git
+  stash`/`pop` is safe for ordinary source edits but interacts poorly with
+  backlogit's live, frequently-rewritten `.backlogit/queue/` and
+  `.backlogit/archive/` files sitting alongside a long-running session's
+  uncommitted bookkeeping state.
 * If `git stash` is unavoidable mid-shipment, re-verify shipment AND task
   status (`backlogit get`/`shipment get` for every manifest member) via the
   Step 0.5 item 1a style check immediately after `git stash pop`, before any
