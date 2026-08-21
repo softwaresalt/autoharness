@@ -166,3 +166,90 @@ archived entries matched the probe and were examined and rejected:
 Recorded as an additive correction on `138-F` rather than by rewriting the
 archived entry, so the original record and its timestamps stay intact and the
 error stays visible as evidence of how it was caught and closed.
+---
+
+## ADDENDUM (Stage bounded correction, 2026-08-20, later session) - additive; nothing above is modified
+
+Three confirmed P1 findings were raised against the artifacts staged in this
+session and its predecessor. All three pass P-021 C1 (same contract surface as
+the already-authorized staged work), so they were **fixed in place** and **no
+deferred entries were created**.
+
+### Finding 1 - circular mandatory-gate dependency between 146-S and 144-S
+
+The "Verification performed by Stage" section above is correct about the
+`blocks` edges: the graph was a clean three-node acyclic chain. What it did not
+check is the **gate** graph.
+
+Ship evaluates **all** mandatory gates before completing **every** task. Two
+independent blockers were red at baseline and were owned by two shipments that
+each blocked the other in effect:
+
+* `146-S` / `138.001-T` repaired only the stale P-021 test-fixture resolution,
+  leaving the sole malformed `docs/` frontmatter - owned by `136.001-T` in
+  `144-S` - unrepaired. **Gate 1 (YAML frontmatter validity) stayed red**, so
+  `138.001-T` could not complete on its own merits.
+* `144-S` held that Gate 1 repair but is blocked by `146-S`, and running it
+  first would still have hit the P-021 pytest `setUpClass` collapse.
+
+**There was no executable first task anywhere in the chain.** The headline claim
+above - "`146-S` is the only claimable shipment" - was true, but its first task
+could not have gone green.
+
+**Resolved** by making `138.001-T` a **gate-atomic baseline repair** that clears
+both blockers in one commit:
+
+* `138.001-T` retitled and expanded. Original scope preserved intact as
+  **Scope B**; the malformed-scalar repair carried in **verbatim** from
+  `136.001-T` as **Scope A**. Size `S` / complexity `low` retained - `XS`+`S`
+  stays inside the 2-hour rule and a mechanical quoting edit adds no
+  uncertainty.
+* Acceptance criterion "no file outside `tests/`" superseded by an enumerated
+  **four-file budget** (the three `tests/` modules plus one line of the
+  2026-08-02 benchmark plan).
+* `136.001-T` **superseded by `138.001-T`**, stamped, archived (not deleted),
+  removed from `144-S` membership.
+* Edges `136.002-T -> 136.001-T` and `136.003-T -> 136.001-T` removed.
+  `136.002-T` is now the first task of `144-S`; `136.003-T` depends on
+  `136.002-T` alone.
+* **No cross-shipment task edge was added.** Ordering rides the pre-existing
+  `144-S depends on 146-S (blocks)` shipment edge, so nothing dangles when
+  `146-S`'s items are archived.
+
+**Both previously authorized scopes are preserved.** Neither the known scalar
+fix nor the test-path fix was dropped, weakened, or deferred.
+
+### Finding 2 - 021-DL archived by Stage
+
+`021-DL` was **archived on 2026-08-20** to `.backlogit/archive/021-DL.md`.
+References to `.backlogit/queue/021-DL.md` in the record above are therefore
+historical; the artifact is intact, with capture text, decision record,
+amendments, IDs and timestamps unmodified.
+
+**Why Stage did it rather than Ship:** the installed dogfood
+`.github/agents/_ship.agent.md` carries **no** `source_deliberation_id` cleanup
+step. That step exists only in `templates/agents/_ship.agent.md.tmpl`
+(line 820), and `146-S` executes **before** the `145-S` template/dogfood
+migration that would install it - so the field was inert and no later migration
+could have performed the archival. The deliberation is complete and fully
+harvested into `138-F` / `138.001-T` / `146-S`, so archiving it now is the
+lifecycle-safe Stage-owned mechanism.
+
+`138-F.custom_fields.source_deliberation_id` is **retained** under the
+established idempotent convention. It points at an already-archived source, so
+the Ship cleanup step ("if it exists and is not already archived, archive it;
+otherwise skip and log it") is a documented **no-op**. Retaining it preserves
+the provenance link without scheduling work. **No dogfood Ship implementation
+scope was added to `146-S`.**
+
+### Corrections to specific statements above
+
+| Statement | Status |
+| --- | --- |
+| Artifacts table: "Deliberation `.backlogit/queue/021-DL.md`" | **Superseded** - now `.backlogit/archive/021-DL.md` |
+| Artifacts table: "Task `138.001-T` (high, size S, complexity low, atomic)" | **Still accurate**, now gate-atomic across two scopes |
+| "146-S is the only claimable shipment" | **Still accurate**, and its first task can now finish gate-green |
+| Gate results / plan-review PASS | **Unchanged**; re-gated on the delta, verdict PASS retained |
+
+Full record of the correction session:
+`docs/memory/2026-08-20-stage-gate-cycle-correction.md`.

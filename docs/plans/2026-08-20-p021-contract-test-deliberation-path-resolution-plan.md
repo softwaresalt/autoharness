@@ -1,10 +1,10 @@
 ---
-title: "Repair P-021 contract-test loads of the archived 019-DL deliberation artifact"
+title: "Gate-atomic baseline repair - malformed plan frontmatter and the archived 019-DL contract-test load"
 date: 2026-08-20
 stash_id: 7852CE0D
-deliberation: ".backlogit/queue/021-DL.md"
+deliberation: "021-DL (archived 2026-08-20 to .backlogit/archive/021-DL.md)"
 requires_plan_hardening: no
-blast_radius: "low (three test modules under tests/; no source, schema, template, or CLI change)"
+blast_radius: "low (three test modules under tests/ plus one quoted line in one docs plan; no source, schema, template, or CLI change)"
 ---
 
 # Implementation Plan - P-021 contract-test deliberation-path resolution
@@ -12,7 +12,7 @@ blast_radius: "low (three test modules under tests/; no source, schema, template
 Date: 2026-08-20
 Agent: Stage (planning only - Ship executes)
 Stash source: `7852CE0D`
-Deliberation: `.backlogit/queue/021-DL.md` (021-DL)
+Deliberation: `021-DL` (archived 2026-08-20 to `.backlogit/archive/021-DL.md`)
 Classification: **bug / baseline test-harness availability**
 Route: claude-opus-5 / anthropic / high (P-013.5, inherited)
 
@@ -234,3 +234,124 @@ The guard in Step 5 scans code lines for lifecycle-volatile `queue/`-anchored
 path construction. The resolver itself legitimately contains those segments.
 The guard MUST exempt the resolver's own definition explicitly and by name, so
 the exemption is visible and cannot silently widen to cover a future violation.
+---
+
+## Amendment A4 (Stage bounded correction, 2026-08-20) - gate-atomic scope expansion
+
+**Status: additive. Nothing above is deleted; A4 supersedes the specific
+statements it names.**
+
+### Finding - circular mandatory-gate dependency between 146-S and 144-S
+
+Ship evaluates **all** mandatory gates before completing **every** task. At the
+time this plan was written, two independent blockers were red at baseline and
+were owned by two different shipments that blocked each other in effect:
+
+| Blocker | Gate | Former owner |
+| --- | --- | --- |
+| `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12 unquoted YAML scalar | Gate 1 - YAML frontmatter validity | `136.001-T` in `144-S` |
+| Stale `.backlogit/queue/019-DL.md` load in two P-021 contract modules | configured pytest suite | `138.001-T` in `146-S` |
+
+* `146-S` repaired only the pytest blocker, so `138.001-T` would have completed
+  with **Gate 1 still red**.
+* `144-S` owned the Gate 1 repair but is blocked by `146-S`, and running it
+  first would still have hit the pytest `setUpClass` collapse.
+
+The recorded `blocks` edges were acyclic, but the **gate** dependency was
+circular: **there was no executable first task anywhere in the chain.**
+
+### Resolution - Task 1 becomes the gate-atomic baseline repair
+
+Task 1 above is expanded to repair **both** blockers atomically. Its original
+content is unchanged and is now designated **Scope B**. A new **Scope A** is
+added, carried in verbatim from the superseded `136.001-T`:
+
+**Scope A - quote the malformed `blast_radius` scalar**
+
+*File*: `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`,
+line 12.
+
+```yaml
+# from
+blast_radius: elevated (result-integrity + multi-family: eval code / tests / docs / fixtures)
+# to (content byte-identical inside the quotes)
+blast_radius: "elevated (result-integrity + multi-family: eval code / tests / docs / fixtures)"
+```
+
+*Acceptance* (A1-A4): the file's frontmatter parses as YAML; `git diff` shows
+**exactly one** changed line in that file; `backlogit docs lint --path <file>`
+reports no decode error; Ship's Gate 1 is green at this task's completion gate.
+
+### Amended file budget - supersedes acceptance criterion 7
+
+Acceptance criterion 7 above ("No file outside `tests/` is modified") is
+**superseded**. The task may modify **exactly four** files:
+
+1. `tests/test_scope_containment_policy_contract.py`
+2. `tests/test_scope_containment_boundary_contract.py`
+3. `tests/test_scope_containment_semantics_contract.py`
+4. `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` - **one
+   line only**
+
+Nothing else. No `src/`, no `schemas/`, no `templates/`, no `.github/`, no other
+file under `docs/`. The repo-wide `docs/` sweep is **not** part of this task; it
+remains `136.002-T` in `144-S`.
+
+### Amended acceptance criterion 1
+
+Criterion 1 (as already narrowed by A1) is restated as: at this task's
+completion gate **all** of Ship's mandatory gates are green - Gate 1 through
+Gate 4 and the configured pytest suite - subject only to the A1 escape hatch for
+**pre-existing** failures on *other* surfaces, which are classified under
+P-021 C1, captured as `DEFERRED SCOPE EXPANSION` entries and escalated as a
+shipment-level blocker, never absorbed.
+
+### Width isolation
+
+This task deliberately crosses two families (tests plus one docs line) because
+gate-atomicity requires it. It is a bounded, explicitly enumerated four-file
+exception recorded at staging time, not a licence to widen. The docs side is a
+single quoting change whose value is byte-identical inside the quotes.
+
+### Sizing after expansion
+
+Unchanged: **size `S`, complexity `low`**. Scope A was previously sized `XS` /
+`trivial` as `136.001-T`. Adding one trivial single-line quoting edit to an
+`S`/`low` task keeps the effort axis comfortably inside the 2-hour rule and adds
+no uncertainty on the complexity axis, so neither axis forces a split.
+
+### Backlog effects
+
+* `136.001-T` - **superseded by `138.001-T`**, stamped, archived (not deleted),
+  and removed from `144-S` membership.
+* Dependency edges `136.002-T -> 136.001-T` and `136.003-T -> 136.001-T`
+  removed. `136.002-T` becomes the first task of `144-S`; `136.003-T` now
+  depends on `136.002-T` alone.
+* The shipment edge `144-S depends on 146-S (blocks)` is **preserved unchanged**
+  and is what sequences the `docs/` sweep after this gate-atomic repair. No
+  cross-shipment *task* edge was added, so nothing dangles once `146-S`'s items
+  are archived.
+* `145-S depends on 144-S (blocks)` preserved unchanged.
+
+### Deliberation lifecycle
+
+`021-DL` is complete and fully harvested into `138-F` / `138.001-T` / `146-S`,
+and was **archived** by Stage on 2026-08-20 to `.backlogit/archive/021-DL.md`.
+Provenance, capture text, amendments and timestamps are preserved unmodified.
+`138-F.custom_fields.source_deliberation_id` is **retained** under the
+established idempotent convention: it points at an already-archived source, so
+the Ship cleanup step ("if it exists and is not already archived, archive it;
+otherwise skip and log") is a **no-op**. This archival was performed by Stage
+because the installed dogfood `.github/agents/_ship.agent.md` does not carry
+that cleanup step at all - it exists only in
+`templates/agents/_ship.agent.md.tmpl` - and `146-S` executes **before** the
+`145-S` template/dogfood migration, so no later migration could have performed
+it.
+
+### Re-review
+
+Re-gated 2026-08-20; see the scope-expansion addendum in
+`docs/reviews/2026-08-20-p021-contract-test-deliberation-path-resolution-review.md`.
+Hardening conclusion is unchanged: `requires_plan_hardening: no`. Adding one
+quoted line to one documentation file triggers no P-006 elevated-blast-radius
+condition.

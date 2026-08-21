@@ -3,7 +3,7 @@
 Date: 2026-08-20
 Agent: Stage (plan-review gate)
 Plan: `docs/plans/2026-08-20-p021-contract-test-deliberation-path-resolution-plan.md`
-Deliberation: `.backlogit/queue/021-DL.md` (021-DL)
+Deliberation: `021-DL` (archived 2026-08-20 to `.backlogit/archive/021-DL.md`)
 Hardening: none — plan declares `requires_plan_hardening: no`; P-006 triggers evaluated and not met
 Stash: `7852CE0D`
 Review rounds: 1 (six personas)
@@ -186,3 +186,92 @@ an import of an already-shipped helper that carries its own contract tests.
 **PASS.** Proceed to harvest. Zero unresolved P0 or P1 findings. Three accepted
 findings carry explicit obligations recorded in the plan, the shipment wiring
 step, and the handoff memory.
+---
+
+## Addendum - scope-expansion re-gate (round 2, 2026-08-20)
+
+**Trigger.** Stage found a **circular mandatory-gate dependency** between
+`146-S` and `144-S` after this review's round-1 PASS. Task 1 of the reviewed
+plan was expanded to absorb the malformed-frontmatter repair formerly held by
+`136.001-T`. A gate re-run on the delta follows. See plan Amendment A4.
+
+**Verdict: PASS (unchanged) - 0 unresolved P0, 0 unresolved P1.**
+
+### What changed
+
+| Aspect | Round 1 | Round 2 |
+| --- | --- | --- |
+| Task 1 scope | three `tests/` modules | three `tests/` modules **+ one line** of `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` |
+| Acceptance criterion 7 | "no file outside `tests/`" | superseded by an enumerated **four-file budget** |
+| Acceptance criterion 1 | suite-scoped (per A1) | **all** mandatory gates green (Gate 1-4 + pytest), A1 escape hatch retained |
+| Size / complexity | `S` / `low` | `S` / `low` (unchanged) |
+| Hardening | `no` | `no` (unchanged) |
+
+### Re-gate findings
+
+**F1 (P1) - does the expansion actually dissolve the cycle? RESOLVED.**
+It does, and it is the *only* structure that does. Before: `146-S` repaired the
+pytest blocker but left Gate 1 red, so its own first task could not complete;
+`144-S` held the Gate 1 repair but was blocked by `146-S`. Neither shipment
+could produce a gate-green first task. After: `138.001-T` clears both blockers
+in one commit, so it is a genuine first task that can leave every mandatory
+gate green - and every downstream task inherits a green baseline. Verified by
+inspection of the gate list in `.github/agents/_ship.agent.md` (Gate 1 = YAML
+frontmatter validity) and of line 12 of the 2026-08-02 plan, which is still
+unquoted at the time of this re-gate.
+
+**F2 (P1) - is any previously authorized scope silently dropped? RESOLVED.**
+No. Both authorized scopes survive intact:
+* the known scalar fix is reproduced **verbatim** as Scope A of `138.001-T`,
+  including its "exactly ONE changed line" constraint and its
+  `backlogit docs lint --path` criterion;
+* the test-path fix is Scope B, unchanged from round 1 including amendments
+  A1/A2/A3.
+`136.001-T` is stamped, archived rather than deleted, and carries an explicit
+superseded-by pointer, so the original wording remains auditable. `136-F`
+retains the sweep and the regression guard.
+
+**F3 (P2) - width isolation. ACCEPTED with a recorded exception.**
+The task now crosses two families (tests + docs). Normally a P-003 concern.
+Accepted because gate-atomicity *requires* it: splitting the two repairs is what
+created the deadlock. The exception is bounded by an explicitly enumerated
+four-file budget, the docs side is a single quoting change with a byte-identical
+value, and the repo-wide `docs/` sweep is explicitly excluded and left in
+`136.002-T`. Recorded at staging time rather than discovered at execution time.
+
+**F4 (P2) - does the 2-hour rule still hold? ACCEPTED.**
+Scope A was independently sized `XS` / `trivial`. `XS` + `S` on the effort axis
+stays well inside 2 hours, and a mechanical quoting edit adds no uncertainty on
+the complexity axis. Neither axis forces a split. `S` / `low` retained.
+
+**F5 (P2) - orphan and dangling-reference risk from the restructure.
+RESOLVED.** The two inbound edges to `136.001-T` were removed before archival,
+`136.001-T` was removed from the `144-S` manifest, and **no** cross-shipment
+task edge was introduced - ordering rides the pre-existing shipment edge
+`144-S depends on 146-S (blocks)`. So no edge can dangle when `146-S`'s items
+are archived. `136.002-T` is dependency-free (first task of `144-S`);
+`136.003-T` depends on `136.002-T` alone.
+
+**F6 (P3) - is the docline regression guard still falsifiable? ACCEPTED.**
+Yes. `136.003-T`'s negative test now reverts the `138.001-T` Scope A quoting -
+same file, same line, same observable failure. Cross-shipment, but the guard
+lands after the fix, so the revert-and-observe procedure is unaffected.
+
+### Hardening re-check (P-006)
+
+`requires_plan_hardening: no` **stands**. The delta is one quoted line in one
+Markdown documentation file. No schema change, no CLI distribution change, no
+template family touched, no multi-family fan-out, no public interface change.
+None of the elevated-blast-radius triggers is met.
+
+### Deliberation-lifecycle note
+
+`021-DL` was archived by Stage on 2026-08-20 (to `.backlogit/archive/021-DL.md`)
+because the installed dogfood `.github/agents/_ship.agent.md` lacks the
+`source_deliberation_id` cleanup step that exists in
+`templates/agents/_ship.agent.md.tmpl`, and `146-S` executes before the `145-S`
+migration that would add it. Provenance is preserved unmodified;
+`138-F.custom_fields.source_deliberation_id` is retained and the Ship cleanup
+step is a documented **no-op** under the established idempotent convention.
+This is a backlog-lifecycle action, not a change to the reviewed plan's
+execution scope, and does not alter the verdict.

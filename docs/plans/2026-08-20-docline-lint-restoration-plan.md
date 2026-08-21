@@ -4,7 +4,7 @@ date: 2026-08-20
 stash_id: 395EBE60
 deliberation: docs/decisions/2026-08-20-docline-lint-hard-abort-malformed-frontmatter-deliberation.md
 requires_plan_hardening: no
-blast_radius: "low (one docs file, a bounded docs sweep, one new test)"
+blast_radius: "low (a bounded docs sweep and one new test; the single-file repair relocated to 146-S)"
 ---
 
 # Implementation Plan - Restore workspace-wide docline lint
@@ -155,3 +155,91 @@ validated workspace-wide.
 No blocking findings. One advisory: Task 2's sweep count is unknown until
 executed; if it exceeds a handful of files, Ship should report the count and
 confirm the change remains quoting-only before proceeding.
+---
+
+## Amendment R1 (Stage bounded correction, 2026-08-20) - Task 1 relocated to 146-S
+
+**Status: additive. Nothing above is deleted; R1 supersedes the specific
+statements it names.**
+
+### Finding - circular mandatory-gate dependency between 146-S and 144-S
+
+Ship evaluates **all** mandatory gates before completing **every** task. Task 1
+of this plan (`136.001-T`) owned the only repair for **Gate 1 - YAML frontmatter
+validity**, but it sat inside `144-S`, which is blocked by the prerequisite
+shipment `146-S`. `146-S` in turn repaired only the stale P-021 test-fixture
+resolution, so *its* first task would have completed with Gate 1 still red;
+and running `144-S` first would still have hit the P-021 pytest `setUpClass`
+collapse.
+
+The recorded `blocks` edges were acyclic, but the **gate** dependency was
+circular: **there was no executable first task anywhere in the chain.**
+
+### Resolution
+
+**Task 1 of this plan is superseded and relocated**, not dropped. Its full
+scope - the same file, the same line 12, the same byte-identical quoted
+replacement, and all three of its acceptance criteria - is carried **verbatim**
+into `138.001-T` as **Scope A** of the gate-atomic baseline repair in `146-S`.
+See Amendment A4 in
+`docs/plans/2026-08-20-p021-contract-test-deliberation-path-resolution-plan.md`.
+
+**Nothing in Task 1 is weakened, deferred, or lost.** Only its owning task and
+shipment change.
+
+### Superseded statements in this plan
+
+| Statement | Status |
+| --- | --- |
+| `## Task 1 - Quote the malformed blast_radius scalar` | **Relocated** to `138.001-T` Scope A (`146-S`). Retained above as the authoritative wording of that scope. |
+| Sequencing: "Task order is Task 1 -> Task 2 -> Task 3 (`136.001-T` -> `136.002-T` -> `136.003-T`)" | **Superseded** - see corrected sequencing below. |
+| Verification step 1 (repo-wide lint emits a report) | **Still applies**, but is first satisfied by `138.001-T` in `146-S`; `136.002-T` and `136.003-T` inherit an already-decoding baseline. |
+
+### Corrected sequencing
+
+```text
+146-S : 138.001-T  (gate-atomic: Scope A = former Task 1, Scope B = P-021 resolver)
+  |
+  v   [shipment edge: 144-S depends on 146-S (blocks)]
+144-S : 136.002-T  (Task 2, docs/ sweep)  ->  136.003-T  (Task 3, regression guard)
+  |
+  v   [shipment edge: 145-S depends on 144-S (blocks)]
+145-S : harness consistency
+```
+
+* `136.002-T` is now the **first task of `144-S`** and has **no** task-level
+  dependency.
+* `136.003-T` now depends on `136.002-T` **alone**.
+* The former edges `136.002-T -> 136.001-T` and `136.003-T -> 136.001-T` were
+  removed.
+* Ordering across shipments is carried by the pre-existing shipment edge
+  `144-S depends on 146-S (blocks)`. **No cross-shipment task edge was added**,
+  so no reference dangles once `146-S`'s items are archived.
+* Task 2's original rationale still holds: its sweep is repository-wide and
+  would otherwise consume Task 1's single known file, making Task 1's "exactly
+  one changed line" acceptance impossible. Separating them across shipments
+  preserves that property rather than weakening it.
+
+### Task 2 and Task 3 acceptance clarifications
+
+* Task 2 (`136.002-T`): on arrival the 2026-08-02 benchmark plan **already
+  decodes**. Do not re-fix it and do not count it among this task's (a)
+  corrections. "Zero additional (a) files" now means zero beyond the one already
+  repaired by `138.001-T` Scope A. If that file does *not* decode on arrival,
+  `138.001-T` did not land as specified - **halt and report**, do not absorb.
+* Task 3 (`136.003-T`): the negative test is now "the guard fails if the
+  **`138.001-T` Scope A** quoting is reverted" (same file, same line).
+
+### Scope guarantee
+
+`136-F` retains ownership of the sweep and the regression guard. Only the
+single-file repair moved. `136.001-T` is stamped `[SUPERSEDED by 138.001-T]`,
+**archived rather than deleted**, and removed from `144-S` membership, so the
+original wording stays auditable.
+
+### Plan-review status
+
+The PASS verdict recorded above is **unchanged**. The relocation removes a task
+from this plan's execution scope and adds no new work, so no new blast radius,
+no new hardening trigger (`requires_plan_hardening` remains `no`), and no
+re-review of Tasks 2-3 is warranted. The receiving plan was re-gated instead.

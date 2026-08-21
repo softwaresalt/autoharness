@@ -224,3 +224,93 @@ so this is a trivial textual rebase. **No re-plan of `145-S` is warranted** and
 nothing else in this memory changes.
 
 Full record: `docs/memory/2026-08-20-stage-7852ce0d-baseline-red-prerequisite.md`.
+---
+
+## ADDENDUM 3 (Stage bounded correction, 2026-08-20, later session) - additive; nothing above is modified
+
+Two further P1 findings landed on the work staged in this session. Both pass
+P-021 C1 against the already-authorized staged contracts and were fixed in
+place. **No deferred entries were created.**
+
+### Finding 1 - 144-S lost its first task to a gate cycle
+
+**Superseded statement:** the Output section's "`144-S` -> `136-F` + 3 tasks".
+`144-S` now carries **`136-F` + 2 tasks** (`136.002-T`, `136.003-T`).
+
+`136.001-T` (quote the malformed `blast_radius` scalar) owned the only repair
+for Ship **Gate 1 - YAML frontmatter validity**, but sat inside `144-S`, which
+Addendum 2 records as blocked by the new prerequisite `146-S`. `146-S` repaired
+only the P-021 pytest blocker, so *its* first task would have completed with
+Gate 1 still red; and `144-S` could not run first because of the pytest
+collapse. Ship gates every task, so **no executable first task existed anywhere
+in the chain** - a circular mandatory-gate dependency, invisible in the `blocks`
+graph, which remained acyclic throughout.
+
+**Resolution.** `136.001-T` is **superseded by `138.001-T`** (feature `138-F`,
+shipment `146-S`), which becomes a gate-atomic baseline repair clearing both
+blockers in one commit. The scope moved **verbatim** - same file, same line 12,
+same byte-identical quoted replacement, same three acceptance criteria - and
+nothing was dropped, weakened, or deferred. `136.001-T` was stamped
+`[SUPERSEDED by 138.001-T]`, **archived, not deleted**, and removed from `144-S`
+membership, following the same convention this session used for `137.005-T` and
+`137.006-T`.
+
+**Dependency effects inside `144-S`:**
+
+```
+136.002-T  (no deps - now the FIRST task of 144-S)
+   |-> 136.003-T
+```
+
+Edges `136.002-T -> 136.001-T` and `136.003-T -> 136.001-T` were removed. No
+cross-shipment task edge was added; ordering rides the existing
+`144-S depends on 146-S (blocks)` shipment edge, so no reference dangles once
+`146-S`'s items are archived. `136-F` retains the sweep and the regression
+guard; only the single-file repair moved.
+
+Plan effects: Amendment R1 in
+`docs/plans/2026-08-20-docline-lint-restoration-plan.md` (Task 1 relocated) and
+Amendment A4 in
+`docs/plans/2026-08-20-p021-contract-test-deliberation-path-resolution-plan.md`
+(Task 1 expanded), with a re-gate addendum on the matching review.
+
+### Finding 2 - 137.002-T required a successor-owned test reference
+
+**Superseded statement:** Addendum 1's "`137.001-T`, `137.002-T` unchanged."
+`137.002-T` has now been corrected.
+
+`137.002-T`'s acceptance required its new document to be *referenced from the
+parity contract test* - a `tests/test_scope_containment_policy_contract.py` edit
+owned by **successor** `137.001-T`, which depends on `137.002-T`. `137.002-T`
+could therefore satisfy its own acceptance only by waiting for its own successor
+or by duplicating the successor's edit on the same file and lines. Ship gates
+every task, so this blocked `137.002-T` and, transitively, `145-S`.
+
+**Resolution.** `137.002-T` is now **independently complete** on document
+creation, frontmatter validity, and content. The test reference is owned and
+verified **exclusively** by `137.001-T` (whose requirement 3 already carried it,
+now also stated as one of its acceptance criteria), with an end-state guarantee
+recorded in `137-F` covering-feature acceptance.
+
+**Deliberately not done:** no reverse dependency (the edge stays one-way
+`137.001-T -> 137.002-T`, since the reverse would be a literal cycle), and no
+duplication of the test edit - `137.002-T` is explicitly instructed to touch no
+test file. Plan wording corrected by Amendment F3 in
+`docs/plans/2026-08-20-template-dogfood-paired-edit-contract-plan.md`.
+
+The corrected dependency graph from Addendum 1 is otherwise **unchanged**:
+
+```
+137.002-T  (no deps)
+   |-> 137.001-T
+   |-> 137.003-T   [ATOMIC]
+137.004-T  (no deps, order-independent)
+```
+
+### Execution order
+
+Unchanged from Addendum 2: `146-S` -> `144-S` -> `145-S`. What changed is that
+`146-S`'s single task can now finish with every mandatory gate green, so the
+chain has a real starting point.
+
+Full record: `docs/memory/2026-08-20-stage-gate-cycle-correction.md`.

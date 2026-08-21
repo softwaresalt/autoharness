@@ -53,10 +53,13 @@ to that set fail a test.
    a goal** - the drift it tolerates is technical debt with an owner, not a
    design choice to be extended casually.
 
-**Acceptance**
-* Document exists, decodes as valid frontmatter, and is referenced from the
-  contract test.
+**Acceptance** (self-contained - satisfied by the document alone; see
+Amendment F3)
+* Document exists under `docs/` and decodes as valid frontmatter.
+* All five *must contain* items above are present.
 * Every claim traceable to the spike; no new measurements invented.
+* **Not** an acceptance criterion here: being *referenced from* the contract
+  test. That reference is authored and verified exclusively by Task 2.
 
 ## Task 2 - Pin the divergent set in the contract test
 
@@ -77,6 +80,8 @@ checksum). Keep both mechanisms. Add:
 **Acceptance**
 * Existing byte-identity assertions for the four clean pairs still pass unchanged.
 * Membership assertion fails with a clear message if a pair is added or removed.
+* The in-file rationale comment cites the Task 1 document by path. **Task 2 is
+  the sole owner of this reference** (Amendment F3); it is made once, here.
 * No production code changes.
 
 ## Verification (Ship)
@@ -108,3 +113,51 @@ exist before the edit is made under it.
 
 No blocking findings. Advisory: Task 2's membership assertion must fail
 **closed** (unknown pair present -> fail), not merely warn.
+---
+
+## Amendment F3 (Stage bounded correction, 2026-08-20) - acceptance ownership
+
+**Status: additive. Nothing above is deleted; F3 supersedes the specific
+statements it names.**
+
+### Finding - Task 1 required a successor-owned artifact
+
+Task 1 (`137.002-T`) originally required its new document to be *"referenced
+from the contract test"*. That test edit is owned by Task 2 (`137.001-T`),
+and Task 2 **depends on** Task 1 (`137.001-T -> 137.002-T (blocks)`).
+
+Task 1 therefore could not satisfy its own acceptance without either:
+
+* waiting for its own successor - a circular completion condition; or
+* making the test edit itself - **duplicating** work owned by Task 2, on a file
+  Task 2 also edits, on the same lines.
+
+Ship gates every task, so an unsatisfiable acceptance criterion blocks Task 1
+and, transitively, the whole shipment.
+
+### Resolution
+
+**Task 1 is now independently complete on document creation, frontmatter
+validity, and content.** Its acceptance is satisfied by the deliverable it
+actually owns.
+
+**Task 2 retains sole ownership of the reference.** Its requirement 3 (the
+in-file pointer to the Task 1 document) is unchanged and is now also an explicit
+Task 2 acceptance criterion, so the reference is still verified - once, in the
+task that authors it. Covering feature `137-F` acceptance carries the end-state
+guarantee that the document exists **and** is cited from the contract test.
+
+### What was deliberately *not* done
+
+* **No reverse dependency** was added. The edge stays one-way:
+  `137.001-T -> 137.002-T (blocks)`. Adding `137.002-T -> 137.001-T` would be a
+  literal cycle.
+* **No duplication of the test edit.** Task 1 is explicitly instructed not to
+  touch `tests/test_scope_containment_policy_contract.py` or any other test.
+  Width isolation for Task 1 is docs-only.
+
+### Net effect on sequencing
+
+Unchanged: `137.002-T` -> `137.001-T` -> `137.003-T`, with `137.004-T`
+order-independent. Task 1 still lands first; it simply can now *complete* when
+it lands.
