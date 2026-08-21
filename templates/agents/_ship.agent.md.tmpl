@@ -336,7 +336,7 @@ Now that all tasks are harnessed, construct the execution queue:
 1. **Shipment-manifest executable-set derivation (when operating under a Stage-prepared shipment; C1–C6,
    139-F/139.001-T)**: The shipment manifest (`custom_fields.items` recorded at Step 0.5) is the **closure
    membership record** — it is never the executable task set and is never mutated to make execution proceed. Before
-   assembling the queue in item 2 below, filter the manifest to task artifacts (IDs ending `-T`; the covering
+   assembling the queue in item 2 below, filter the manifest to task artifacts (IDs ending `{{SUFFIX_TASK}}`; the covering
    feature is resolved through `parent_id` and is never executed — the 097-S task-only-manifest precedent), THEN
    read each task record's status; artifact-type filtering always precedes any status read. Apply the exhaustive,
    positive status rule: KEEP `{{STATUS_QUEUED}}` and `{{STATUS_ACTIVE}}`; SKIP-AND-REPORT an archived member as
