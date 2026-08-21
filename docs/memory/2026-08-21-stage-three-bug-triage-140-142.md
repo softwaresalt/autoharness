@@ -134,6 +134,80 @@ working-tree changes to `.backlogit/stash.jsonl` and `.mcp.json` were preserved;
 `.mcp.json` was not touched. Publication of the `.backlogit` bookkeeping belongs
 to Orchestrator/Ship, not Stage.
 
+## Review-fix cycle 1 (PR #386, Copilot review - 17 threads)
+
+Performed by Stage on the staging artifacts only; PR #386 CI green, P-018 blocked
+on 17 unresolved Copilot threads. Corrections left UNCOMMITTED for Orchestrator to
+publish. Route honoured: claude-opus-5 / anthropic / high (P-013.5).
+
+**P-021 C1 classification: all 17 = SAME-CONTRACT-SURFACE COMPLETION -> fix, not
+defer.** Verified rather than assumed: every flagged path appears in this session's
+own HEAD commit `3e42d115` (the three plans, the derivation review, deliberations
+024-DL/025-DL, features/tasks under 140-142, and the archived stash line this
+session wrote). No finding required a new deferred entry.
+
+Four defect classes, each fixed on EVERY duplicated surface so plan, review,
+deliberation and task contracts stay consistent:
+
+1. **Unsatisfiable containment AC** (threads 1-3 area): AC6/AC-F5 forbade every file
+   outside `docs/compound/` while the same task mandates creating
+   `tests/test_docs_compound_frontmatter_contract.py`. Exempted the contract test
+   as an in-scope deliverable in 140-F, 140.001-T and the plan.
+2. **Non-runnable exclusion protocol**: `python -m unittest` has no deselect flag,
+   so "rerun with the three modules excluded" was unexecutable. Replaced with a
+   deterministic POSITIVE dotted-name generator (82 of 85 modules, `Sort-Object`
+   for reproducible ordering) in 141.001-T, the isolation plan (incl. amendment A5
+   and the baseline wording) and 024-DL.
+3. **Model-routing contract inversions** (the substantive cluster). Re-verified
+   against `.github/skills/install-harness/SKILL.md` rows 414-453 and a FULL-TREE
+   consumer search:
+   * Scalar `orchestrator` keeps the **Tier 2** provider/effort fallback (rows
+     426-427, line 452); only TIER scalars empty their metadata. `ORCHESTRATOR_FAMILY`
+     keeps its own `gpt-5.4` default (row 428).
+   * `{{STAGE_*}}`/`{{SHIP_*}}` are **RESOLVED-FROM-SOURCE with per-sub-field tier
+     fallback**, NOT raw/empty. The prior claim that they occur only in
+     `harness-config.yaml.tmpl` was FALSE - `_orchestrator.agent.md.tmpl` lines
+     527-533 consume all six and its prose demands concrete values. Review finding
+     **P2-1 WITHDRAWN**, replaced by **P1-4**, RESOLVED.
+   * `graphtor_docs.binary_path: null` resolves through PATH -> local candidates ->
+     final `graphtor`, never `""` (rows 875/881, line 1088).
+   Surfaces corrected: 142.001-T, 142.002-T, 142.003-T, 142.005-T, the derivation
+   plan (B6 + Task 1 + Task 3) and the derivation review (P1-1 + P2-1/P1-4 + verdict).
+4. **Encoding corruption**: a lone `\b` in F73BA065's text decodes as BACKSPACE in
+   both the JSON stash line and 025-DL's double-quoted YAML scalar. Fixed at both
+   the archived source-of-truth and the deliberation; index re-synced (935 items)
+   after the out-of-band edit.
+
+**Lesson (candidate for `docs/compound/`).** The review's own P2-1 generalised from
+ONE template to the whole tree and inverted a contract as a result. A claim of the
+form "variable X occurs ONLY in file Y" is a full-tree search obligation, not an
+inference from the file you happened to open.
+
+**Re-gate.** Derivation review re-gated **PASS**, 0 unresolved P0/P1, cycle 1 of 3.
+The other two reviews needed no verdict change (their findings were AC-text defects,
+not verdict-bearing). Integrity re-verified after edits: all 13 YAML frontmatters
+parse, 0 leading/trailing-space references repo-wide, both stash JSONL files valid
+(176 archived / 12 active lines), manifests unchanged at 148-S (3) -> 149-S (6) ->
+150-S (7) with 148-S alone claimable, and no task ID or scope lost.
+
+**Residual risk (new, accepted and recorded, not silently resolved).** Storing a
+RESOLVED role-route value in `harness-config.yaml.tmpl` materialises a concrete
+value where the operator declared none, so later `tier3`/`tier2` changes stop
+propagating through that stored file. The contract mandates the fallback, and the
+template comment "falls back to tier3/tier2 when empty" describes CONSUMER
+behaviour on an empty field - so the two are consistent. Changing it would be a
+SKILL.md contract change and re-enters P-021 capture; it does not block 150-S.
+
+**Out of scope, verified benign.** Active entry `84D8E6AB` carries a `\r` inside a
+multi-line text field - legitimate CRLF, not corruption, and untouched by this
+work. Pre-existing `\\b` sequences elsewhere in the archive are correctly escaped
+Windows paths. `.mcp.json` preserved untouched.
+
+**Role boundary re-affirmed.** No commit, push, PR-body edit, thread reply/resolve,
+merge, shipment claim, source/test/template edit, build/test run, or branch/worktree
+creation. No new checkpoint created: the session checkpoint is already
+`resolved`/`complete` and must not become a recovery candidate for finished work.
+
 ## Next actions for Ship
 
 Claim **148-S** first. Do not claim 149-S or 150-S until their predecessor has

@@ -97,10 +97,18 @@ in the failure message so a skipped file cannot hide.
 * AC4. Second migration dry-run plans zero changes (idempotence proven).
 * AC5. The 4 no-frontmatter files are individually named in the task record with
   their disposition (migrated vs hand-authored).
-* AC6. No file outside `docs/compound/` is modified.
+* AC6. No file outside `docs/compound/` is modified, with ONE explicit
+  exemption: `tests/test_docs_compound_frontmatter_contract.py`, which the
+  test-first requirement above REQUIRES this task to create. That test is an
+  in-scope deliverable of this plan, not a scope breach. No other path outside
+  `docs/compound/` may be touched. (Corrected in review-fix cycle 1 - as
+  originally written AC6 contradicted the task's own test-first requirement and
+  was unsatisfiable.)
 
 **Rollback.** `git checkout -- docs/compound` restores the corpus exactly;
-the migration writes nothing outside that path.
+the migration writes nothing outside that path. The contract test
+`tests/test_docs_compound_frontmatter_contract.py` is a newly added file and is
+removed separately if the task is abandoned.
 
 ### Task 2 - Amend the compound authoring template to require source and doc_type
 

@@ -119,9 +119,13 @@ raw `LEGACY_ESCALATION_*` / `STAGE_ESCALATION_*` / `SHIP_ESCALATION_*` blocks.
 
 **Test-first.** Extend the contract test with per-family assertions BEFORE
 implementing: resolved fields take their value from `config.model_routing`;
-raw escalation fields derive to `""` when unset; the P-013.5 per-sub-field tier
-fallback holds (an absent `stage`/`ship` route resolves each sub-field from
-tier3/tier2, never from a hardcoded default).
+the RAW ESCALATION fields (`LEGACY_`/`STAGE_`/`SHIP_ESCALATION_*`) derive to `""`
+when unset; the P-013.5 per-sub-field tier fallback holds for the ROLE ROUTES
+themselves - an absent `stage`/`ship` route resolves each sub-field from
+tier3/tier2 (never from a hardcoded default, never from the current session
+model), and `{{STAGE_*}}`/`{{SHIP_*}}` are asserted specifically NOT `""`; and a
+scalar `orchestrator` keeps its tier2 provider/effort fallback while
+`ORCHESTRATOR_FAMILY` uses its own `gpt-5.4` default.
 
 **Acceptance criteria.**
 * AC1a. All ~30 variables removed from T0a's expected set.
@@ -162,14 +166,25 @@ and that the parsed values round-trip equal to the source config; assert
 **Rule for empty profile fields (023-DL R3).** Use the SKILL.md documented
 default where one exists; otherwise derive to `""`. **Never invent a value.**
 `GRAPHTOR_BINARY_PATH` must tolerate the `null` currently recorded in
-`.autoharness/workspace-profile.yaml`.
+`.autoharness/workspace-profile.yaml` - and `null`/absent is a
+DOCUMENTED-DEFAULT case, **not** an empty-string case. Per SKILL.md row 875 and
+the prose at line 1088 it resolves through an ORDERED CHAIN: (1) `graphtor` on
+PATH; (2) `.graphtor/bin/graphtor-docs.exe` or `.graphtor/bin/graphtor-docs`;
+(3) final default `graphtor`. The chain always yields a NON-EMPTY value, and
+SKILL.md line 881 independently requires this variable to be fully resolved in
+installed output. (Corrected in review-fix cycle 1.)
 
 **Acceptance criteria.**
 * AC3a. All remaining variables removed from T0a's expected set.
 * AC3b. **T0b (zero unresolved) is GREEN** - this is the shipment's headline
   acceptance criterion.
-* AC3c. A test asserts `GRAPHTOR_BINARY_PATH: null` derives to `""` and not to
-  the literal string `"None"`.
+* AC3c (CORRECTED, review-fix cycle 1). A test asserts
+  `graphtor_docs.binary_path: null` derives through the documented fallback chain
+  to a NON-EMPTY value - never `""`, never the literal string `"None"` -
+  covering each rung: `graphtor` on PATH; a PATH miss with a
+  `.graphtor/bin/graphtor-docs[.exe]` candidate present; and both absent yielding
+  the final default `graphtor`. A declared non-null `binary_path` still wins over
+  the whole chain (config-first, C2).
 
 ### Task 4 - Parity and manifest reconciliation
 
@@ -239,22 +254,50 @@ Source: `docs/reviews/2026-08-21-verify-workspace-variable-derivation-review.md`
   each task lowers it; the final task sets it to empty, at which point T0b is the
   zero assertion. Every intermediate commit is green, and a NEW unresolved
   variable still fails immediately because the expected set is exact.
-* **B6 (P1-1, P2-1)** - Derivation MUST normalise the POLYMORPHIC
+* **B6 (P1-1, P2-1; the scalar-orchestrator and role-route clauses were
+  CORRECTED in review-fix cycle 1)** - Derivation MUST normalise the POLYMORPHIC
   `config.model_routing` shape. In the live workspace `tier2`, `tier3` and
   `orchestrator` are SCALAR STRINGS while `tier1`, `stage`, `ship` and
   `escalation` are MAPPINGS. Rules:
-  * Scalar form -> the value is the model identifier; it populates
-    `MODEL_ROUTING_*` and `*_FAMILY`; `*_PROVIDER` and `*_REASONING_EFFORT`
-    derive to the empty string.
-  * Mapping form -> each sub-field derives independently.
+  * Scalar form, TIER routes (`tier1`/`tier2`/`tier3`) -> the value is the model
+    identifier; it populates `MODEL_ROUTING_*` and `*_FAMILY`; `*_PROVIDER` and
+    `*_REASONING_EFFORT` derive to the empty string (SKILL.md rows 414-416, "all
+    other tier sub-fields default to empty").
+  * Scalar form, ORCHESTRATOR route -> the value populates `ORCHESTRATOR_FAMILY`
+    ONLY. `ORCHESTRATOR_PROVIDER` and `ORCHESTRATOR_REASONING_EFFORT` **fall back
+    to `{{TIER_2_PROVIDER}}` / `{{TIER_2_REASONING_EFFORT}}`**, NOT to the empty
+    string - SKILL.md rows 426-427, and line 452 states it verbatim for the
+    string form ("The `reasoning_effort` and `model_provider` fields fall back to
+    their tier2 equivalents"). Asymmetry to preserve: `ORCHESTRATOR_FAMILY`
+    itself does NOT fall back to tier2; its own default is `gpt-5.4` (row 428).
+  * Mapping form -> each sub-field derives independently, with the same per-field
+    fallbacks applied to any absent or empty sub-field.
   * Contract tests MUST cover BOTH shapes for at least one tier route and for the
-    orchestrator route.
-  * Classification rule: `{{STAGE_*}}` / `{{SHIP_*}}` occur ONLY in
-    `harness-config.yaml.tmpl` raw storage (the agent templates' frontmatter uses
-    `{{TIER_3_*}}`), so they are RAW pass-through - empty when unset, tier
-    fallback NOT applied. `{{ORCHESTRATOR_*}}` is DUAL-USE (agent frontmatter and
-    config storage) and must resolve for frontmatter while remaining faithful to
-    the stored value.
+    orchestrator route, including the orchestrator's tier2 provider/effort
+    fallback and its distinct `gpt-5.4` family default.
+  * Classification rule (CORRECTED): `{{STAGE_*}}` / `{{SHIP_*}}` are
+    `RESOLVED-FROM-SOURCE` with the P-013.5 PER-SUB-FIELD tier fallback APPLIED
+    (`stage.<field>` -> `{{TIER_3_<field>}}`, `ship.<field>` ->
+    `{{TIER_2_<field>}}`; SKILL.md rows 429-434 and the role-route paragraph at
+    line 453). The earlier claim that they occur ONLY in
+    `harness-config.yaml.tmpl` raw storage is FALSE and is WITHDRAWN:
+    `templates/agents/_orchestrator.agent.md.tmpl` lines 527-533 consume all six
+    directly, and its prose requires concrete resolved values. Unlike escalation
+    - where SKILL.md defines a SECOND, raw-only family
+    (`LEGACY_`/`STAGE_`/`SHIP_ESCALATION_*`) precisely to keep resolved values
+    out of raw storage - there is exactly ONE variable per role sub-field,
+    defined WITH its fallback. `{{ORCHESTRATOR_*}}` is likewise DUAL-USE (agent
+    frontmatter and config storage) and must resolve for frontmatter while
+    remaining faithful to the stored value.
+  * Round-trip consequence (RESIDUAL RISK - record, do not silently resolve):
+    storing a resolved role-route value in `harness-config.yaml.tmpl`
+    materialises a concrete value where the operator declared none, so later
+    `tier3`/`tier2` changes stop propagating through that stored file. The
+    harness-config comment "falls back to tier3 (stage) / tier2 (ship) when
+    empty" describes CONSUMER behaviour on an empty field, not a derivation
+    instruction, so contract and comment are consistent. Implement per contract
+    and surface the consequence; changing it is a SKILL.md contract change and
+    re-enters P-021 capture.
 * **B7 (P1-2)** - (i) Shape normalisation in the STAGED tree is acceptable and
   expected; this shipment MUST NOT write the staged `.autoharness/config.yaml`
   back over the live workspace config. (ii) B3's round-trip test is strengthened

@@ -6,6 +6,8 @@ hardening: docs/plans/2026-08-21-verify-workspace-variable-derivation-hardening.
 stash_id: 8FA8FC22
 deliberation: "023-DL"
 verdict: PASS
+review_fix_cycle: 1
+regated: 2026-08-21
 ---
 
 # Plan Review - verify-workspace variable derivation
@@ -17,8 +19,27 @@ Route: claude-opus-5 / anthropic / high (P-013.5, inherited)
 
 ## Verdict
 
-**PASS** - 3 P1 raised, all RESOLVED by amendments B5, B6, B7; 1 P2 raised and
-folded into B6. **0 unresolved P0/P1.** Review-fix cycles used: 1 of 3.
+**PASS (re-gated after review-fix cycle 1).**
+
+*Original pass:* P1-1, P1-2, P1-3 RESOLVED by amendments B5, B6, B7; P2-1 folded
+into B6.
+
+*Review-fix cycle 1* (Copilot review on PR #386, 17 threads; 6 landed on this
+plan/review pair): P2-1 was found FACTUALLY FALSE, **WITHDRAWN**, and replaced by
+**P1-4** (role-route classification inverts the contract); the P1-1 resolution
+was found to over-apply the tier-scalar empty-metadata rule to the ORCHESTRATOR
+route and was corrected; and the sibling `GRAPHTOR_BINARY_PATH` criterion (AC3c)
+was corrected from "derives to `\"\"`" to the documented PATH -> local-candidate
+-> `graphtor` fallback chain. All three corrections are folded into the plan's
+B6 clause and Task 3.
+
+**0 unresolved P0/P1.** P1-4 RESOLVED. Review-fix cycles used: 1 of 3.
+
+*Method note:* every corrected claim in this cycle was re-verified against the
+authoritative source (`.github/skills/install-harness/SKILL.md` rows 414-453,
+875, 881, 1088) and against a full-tree search for each variable's consumers,
+rather than against a single template. The withdrawn P2-1 is a direct instance of
+the failure mode that check exists to catch.
 
 ## P1-1 (RESOLVED by amendment B6) - `config.model_routing` is POLYMORPHIC and the plan assumes it is not
 
@@ -51,11 +72,34 @@ mechanism of the reported gap, and the plan does not mention it.
 fixing, for the specific variables cited as evidence, is not implementable as
 written.
 
-**Resolution (B6).** Derivation MUST normalise both forms per route key: a scalar
-value means "model identifier" and populates `*_FAMILY` (and `MODEL_ROUTING_*`)
-with the provider/reasoning-effort sub-fields deriving to the empty string; a
-mapping populates each sub-field independently. Contract tests must cover BOTH
-shapes for at least one tier and the orchestrator route.
+**Resolution (B6) - CORRECTED in review-fix cycle 1.** Derivation MUST normalise
+both forms per route key, and the scalar rule is **NOT uniform across route
+keys**:
+
+* **TIER routes** (`tier1`/`tier2`/`tier3`), scalar form: the value populates
+  `*_FAMILY` and `MODEL_ROUTING_*`; `*_PROVIDER` and `*_REASONING_EFFORT` derive
+  to the empty string (SKILL.md rows 414-416).
+* **ORCHESTRATOR route**, scalar form: the value populates `ORCHESTRATOR_FAMILY`
+  only; `ORCHESTRATOR_PROVIDER` and `ORCHESTRATOR_REASONING_EFFORT` **fall back
+  to their Tier 2 equivalents**, not to the empty string (SKILL.md rows 426-427;
+  line 452 states it verbatim for the string form). `ORCHESTRATOR_FAMILY` does
+  not fall back to tier2 - its own default is `gpt-5.4` (row 428).
+* **Mapping form**: each sub-field derives independently, with the same
+  per-field fallbacks applied to absent or empty sub-fields.
+
+Contract tests must cover BOTH shapes for at least one tier and the orchestrator
+route, and must assert the orchestrator's tier2 provider/effort fallback
+specifically.
+
+**Correction note (why the original resolution was wrong).** As first written,
+this resolution applied the tier-scalar "empty metadata" rule to the orchestrator
+route as well. That would have emptied `ORCHESTRATOR_PROVIDER` and
+`ORCHESTRATOR_REASONING_EFFORT` for exactly the live scalar
+`orchestrator: "gpt-5.6-sol"` config cited in this finding's own evidence - and
+those two variables render `_orchestrator.agent.md` frontmatter, so the
+"resolution" would have preserved the reported defect for two of the seven
+variables it named. An empty-string expectation in the orchestrator test would
+have locked the defect in as intended behaviour.
 
 ## P1-2 (RESOLVED by amendment B7) - the round-trip test can pass while the config is reshaped
 
@@ -92,19 +136,64 @@ expected set to empty and T0b degenerates to the zero assertion. Every commit is
 green; a NEW unresolved variable still fails immediately because the expected set
 is exact, not an upper bound on count alone.
 
-## P2-1 (FOLDED into B6) - STAGE_*/SHIP_* are config-storage-only and must be RAW
+## P2-1 (WITHDRAWN in review-fix cycle 1) - superseded by P1-4
 
-**Finding.** `templates/agents/_stage.agent.md.tmpl` frontmatter uses
-`{{TIER_3_*}}`, not `{{STAGE_*}}`. So `{{STAGE_FAMILY}}`/`{{SHIP_FAMILY}}` and
-siblings occur ONLY in `harness-config.yaml.tmpl` raw storage, whose comment
-reads "Absent/empty sub-fields fall back to tier3 (stage) / tier2 (ship)."
-Deriving these with the tier fallback APPLIED would materialise a role override
-the operator never declared - the same defect class as the H2 escalation
-ambiguity, one level up. By contrast `{{ORCHESTRATOR_*}}` IS dual-use (agent
-frontmatter AND config storage), so it must resolve for frontmatter while
-remaining faithful for storage.
+**Original finding (WITHDRAWN - factually false).** P2-1 asserted that because
+`templates/agents/_stage.agent.md.tmpl` frontmatter uses `{{TIER_3_*}}` rather
+than `{{STAGE_*}}`, the `{{STAGE_*}}`/`{{SHIP_*}}` variables "occur ONLY in
+`harness-config.yaml.tmpl` raw storage" and must therefore be RAW pass-through
+with the tier fallback NOT applied.
 
-**Resolution.** Folded into B6 as an explicit per-variable classification rule.
+**Why it was wrong.** The premise does not survive a full-tree search. It
+generalised from one template to the whole repository.
+`templates/agents/_orchestrator.agent.md.tmpl` lines 527-533 consume all six
+role-route variables directly, and the prose immediately below requires them to
+resolve concretely ("An installed workspace resolves each placeholder to concrete
+values ... resolves `stage` to `claude-opus-5`/`anthropic` and `ship` to
+`claude-sonnet-5`/`anthropic`"). That `_stage.agent.md.tmpl` uses `{{TIER_3_*}}`
+in its OWN frontmatter never implied `{{STAGE_*}}` was unused elsewhere.
+
+## P1-4 (RAISED in review-fix cycle 1; RESOLVED by the corrected B6 clause) - the role-route classification inverts the contract
+
+**Finding.** The plan classified `{{STAGE_*}}`/`{{SHIP_*}}` as RAW
+pass-through, deriving to `""` when unset. SKILL.md rows 429-434 define each of
+these variables **with** its fallback (`{{STAGE_FAMILY}}` =
+`config.model_routing.stage.model_family`, fallback `{{TIER_3_FAMILY}}`, default
+`claude-opus-5`; mirrored for ship -> tier2). The P-013.5 paragraph at line 453
+requires resolution "**per sub-field**, not as an all-or-nothing block ... never
+from a hardcoded default and never silently from the current session model", and
+requires the installer to resolve `{{STAGE_*}}`/`{{SHIP_*}}` "so the installed
+frontmatter never carries an unresolved `{{...}}` placeholder".
+
+**Why it is P1.** Deriving these to `""` would render `.github/agents/_orchestrator.agent.md`
+with empty role-route values that contradict that file's own prose, and would do
+so while T0b reports "zero unresolved" - the shipment's headline acceptance
+criterion would be GREEN over a wrong render. A classification error that the
+headline gate cannot see is exactly the class that ships.
+
+**Why the escalation analogy does not transfer.** For escalation, SKILL.md
+deliberately defines TWO families - resolved `{{ESCALATION_*}}` (prose-only) and
+raw `{{LEGACY_ESCALATION_*}}`/`{{STAGE_ESCALATION_*}}`/`{{SHIP_ESCALATION_*}}`
+(storage-only) - so a resolved value is never round-tripped into raw storage. No
+such second raw-only family exists for the role routes; there is exactly one
+variable per role sub-field. "Empty when unset" for `{{STAGE_*}}` would not
+preserve a contract distinction, it would fabricate one.
+
+**Resolution (corrected B6 classification clause).** `{{STAGE_*}}`/`{{SHIP_*}}`
+are `RESOLVED-FROM-SOURCE` with the per-sub-field tier fallback APPLIED. The
+raw/empty-when-unset classification remains correct for, and only for,
+`{{LEGACY_ESCALATION_*}}`, `{{STAGE_ESCALATION_*}}` and
+`{{SHIP_ESCALATION_*}}` - constraint C3 is unchanged and was never in error.
+
+**Residual risk carried forward (ACCEPTED, recorded).** Storing a resolved
+role-route value in `harness-config.yaml.tmpl` materialises a concrete value
+where the operator declared none, so later `tier3`/`tier2` changes stop
+propagating through that stored file. This is a genuine consequence of the
+contract as written. The harness-config comment "falls back to tier3 (stage) /
+tier2 (ship) when empty" describes CONSUMER behaviour on an empty field, not a
+derivation instruction, so contract and comment are consistent. Changing it is a
+SKILL.md contract change and re-enters P-021 capture; it does not block this
+plan.
 
 ## Confirmed strengths (no action)
 

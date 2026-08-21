@@ -47,7 +47,9 @@ subprocess paths):
 Established facts (024-DL): reproduces on the CANONICAL gate and on pytest;
 does NOT reproduce on hosted Linux CI (146-S and 147-S closure records);
 pre-existing on merge-base `b9d91b18`; all five pass when the three
-`tests/test_scope_containment_*` modules are excluded.
+`tests/test_scope_containment_*` modules are ABSENT FROM THE RUN (an OBSERVED
+result - re-derive it with the positive dotted-name enumeration in Task 1
+step 2, since the canonical runner has no deselect flag).
 
 Stage static findings that REFUTE the entry's own hypotheses: there is no
 `os.chdir` anywhere in `tests/`; there is no bare `os.environ[...]` assignment
@@ -72,8 +74,24 @@ causal predecessor is not determinable within Stage's role boundary.
    discover -s tests`, per `docs/compound/097-S-canonical-unittest-gate.md`).
    Capture the five IDs AND the full verbatim stderr for each - especially the
    `git init` exit-128 message text, which has never been recorded.
-2. Confirm the exclusion result: rerun with the three
-   `tests/test_scope_containment_*` modules excluded. Expect green.
+2. Confirm the "exclusion" result. `python -m unittest` has NO deselect /
+   `--ignore` facility, so this step MUST be run as a POSITIVE dotted-name
+   enumeration of the COMPLEMENT SET (amendment A5), produced by a
+   deterministic generator rather than hand-listed:
+
+   ```powershell
+   $env:PYTHONPATH = 'src'
+   $mods = Get-ChildItem tests -Filter 'test_*.py' -Name |
+       Where-Object { $_ -notlike 'test_scope_containment_*' } |
+       ForEach-Object { 'tests.' + $_.Substring(0, $_.Length - 3) } |
+       Sort-Object
+   python -m unittest $mods
+   ```
+
+   At plan time this selects 82 of the 85 `tests/test_*.py` modules; the three
+   `test_scope_containment_*` modules are exactly the complement. `Sort-Object`
+   makes the ordering deterministic across rounds. Record the generated count
+   and the exact module list alongside the result. Expect green.
    **If NOT green, the entry premise is falsified - STOP and return to Stage.**
 3. Binary-search the polluting set. Each round runs only
    {candidate subset} + {the five victims}. Halve by module, then by TestCase
@@ -193,9 +211,14 @@ Source: `docs/reviews/2026-08-21-full-suite-test-isolation-review.md` (PASS).
   empties the allowlist and asserts it is empty, so the allowlist cannot persist
   as an escape hatch. This supersedes the Harvest note's "expected to stay RED"
   wording.
-* **A5 (P1-2)** - The bisect protocol runs on the canonical runner using EXPLICIT
-  DOTTED-NAME ENUMERATION, never exclusion:
-  `$env:PYTHONPATH='src'; python -m unittest <module-or-test-ids...>`.
+* **A5 (P1-2; made EXECUTABLE in review-fix cycle 1)** - The bisect protocol runs
+  on the canonical runner using EXPLICIT DOTTED-NAME ENUMERATION, never
+  exclusion: `$env:PYTHONPATH='src'; python -m unittest <module-or-test-ids...>`.
   `unittest discover` has no deselect facility, so every round names its subset
-  positively. pytest may be used as a cross-reference only and never as the
+  positively. Where a round needs a COMPLEMENT of some excluded set, it MUST be
+  produced by the deterministic generator shown in Task 1 step 2 (filter the
+  `tests/test_*.py` listing, map to `tests.<module>` dotted names, `Sort-Object`)
+  and the generated list recorded with the result. No step in this plan may be
+  phrased as "excluded"/"without" without an accompanying runnable positive
+  enumeration. pytest may be used as a cross-reference only and never as the
   measurement gate (`docs/compound/097-S-canonical-unittest-gate.md`).
