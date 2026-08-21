@@ -1,2 +1,4 @@
 {"timestamp":"2026-08-20T17:47:44.5088041-07:00","actor":"agent","item_id":"137.002-T","event_type":"estimate_history","delta":{"actor":"agent","size":"M","size_ruleset_version":"2h-rule-v1","size_source":"agent"}}
 {"timestamp":"2026-08-21T08:02:07.139204-07:00","actor":"backlogit","item_id":"137.002-T","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"","head_ref":"HEAD","head_sha":"a337e47e2c30b200cb1ba5e1239c405b537fd976","new_status":"done","old_status":"active","outcome":"passed","ran":false,"state_changed":true}}
+{"timestamp":"2026-08-21T08:33:13.9460073-07:00","actor":"backlogit","item_id":"137.002-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"a1bce32f5f0173d82d8ac1301c66876e6b177356","message":""}}
+{"timestamp":"2026-08-21T08:33:57.5974228-07:00","actor":"backlogit","item_id":"137.002-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/137.002-T.md"}}

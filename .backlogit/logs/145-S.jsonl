@@ -1,3 +1,6 @@
 {"timestamp":"2026-08-20T17:51:37.4967789-07:00","actor":"backlogit","item_id":"145-S","event_type":"shipment_created","delta":{"items":["137-F","137.002-T","137.001-T","137.003-T","137.004-T","137.005-T","137.006-T"],"title":"Harness consistency: template/dogfood paired-edit contract + stash-archive migration (6D62077C + 8D570CF8)"}}
 {"timestamp":"2026-08-20T22:47:16.31153-07:00","actor":"backlogit","item_id":"145-S","event_type":"shipment_item_added","delta":{"item_id":"137.005-T"}}
 {"timestamp":"2026-08-20T22:47:26.2571031-07:00","actor":"backlogit","item_id":"145-S","event_type":"shipment_item_added","delta":{"item_id":"137.006-T"}}
+{"timestamp":"2026-08-21T08:32:29.9245008-07:00","actor":"backlogit","item_id":"145-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"145-S","status":"shipped"}}
+{"timestamp":"2026-08-21T08:32:41.5263419-07:00","actor":"backlogit","item_id":"145-S","event_type":"commit_tracked","delta":{"author":"","commit_sha":"a1bce32f5f0173d82d8ac1301c66876e6b177356","message":""}}
+{"timestamp":"2026-08-21T08:34:41.2579738-07:00","actor":"backlogit","item_id":"145-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/145-S.md"}}
