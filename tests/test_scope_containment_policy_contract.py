@@ -93,6 +93,14 @@ _SEMANTICS_CONTRACT_TEST_SOURCE = _REPO_ROOT / "tests" / "test_scope_containment
 # so those are asserted at full byte granularity below; the four divergent
 # pairs are instead asserted via marker presence (both sides) plus a manifest
 # checksum match against the *actual* committed dogfood bytes.
+#
+# This split is now a FORMALLY DEFINED, DURABLY DOCUMENTED maintenance
+# contract (137-F / 145-S, stash `6D62077C`), not merely an inline test-file
+# rationale: see
+# docs/design-docs/2026-08-20-template-dogfood-paired-edit-maintenance-contract.md
+# for the two-category definition, the full eight-pair inventory, the
+# per-pair cause taxonomy (mirrored in `_DIVERGENT_PAIR_CAUSES` below), the
+# author obligation, and the "recorded exception, not a goal" statement.
 # ---------------------------------------------------------------------------
 
 _CLEAN_BYTE_IDENTICAL_PAIRS = (
@@ -112,6 +120,63 @@ _DIVERGENT_MARKER_ONLY_PAIRS = (
     (_ORCHESTRATOR_TEMPLATE, _ORCHESTRATOR_DOGFOOD, ".github/agents/_orchestrator.agent.md"),
     (_GITHUB_PR_AUTOMATION_TEMPLATE, _GITHUB_PR_AUTOMATION_DOGFOOD,
      ".github/instructions/github-pr-automation.instructions.md"),
+)
+
+# Per-pair CAUSE ANNOTATION (137.001-T), matching the taxonomy authored in
+# docs/design-docs/2026-08-20-template-dogfood-paired-edit-maintenance-contract.md
+# (137.002-T), itself citing spike F4 (docs/decisions/2026-08-20-template-dogfood-render-parity-spike.md).
+# Keyed by the same manifest-path label used in `_DIVERGENT_MARKER_ONLY_PAIRS`.
+# Causes are non-exclusive; a pair may carry more than one.
+_CAUSE_INSTALL_TIME_CONDITIONAL_CONTENT = "install_time_conditional_content"
+_CAUSE_SEMANTIC_PROSE_DRIFT = "semantic_prose_drift"
+_CAUSE_VARIABLE_DERIVATION_COVERAGE_GAP = "variable_derivation_coverage_gap"
+
+_DIVERGENT_PAIR_CAUSES: dict[str, tuple[str, ...]] = {
+    # F4(1): 2 backlog-md + 2 no-backlog-tool conditional branches.
+    ".github/agents/_ship.agent.md": (
+        _CAUSE_INSTALL_TIME_CONDITIONAL_CONTENT,
+        _CAUSE_SEMANTIC_PROSE_DRIFT,
+        _CAUSE_VARIABLE_DERIVATION_COVERAGE_GAP,
+    ),
+    # F4(1): 2 backlog-md + 1 no-backlog-tool conditional branches.
+    ".github/agents/_stage.agent.md": (
+        _CAUSE_INSTALL_TIME_CONDITIONAL_CONTENT,
+        _CAUSE_SEMANTIC_PROSE_DRIFT,
+        _CAUSE_VARIABLE_DERIVATION_COVERAGE_GAP,
+    ),
+    # F4(1): 0 backlog-md + 1 no-backlog-tool conditional branch (still
+    # non-zero -- the count is asymmetric, not absent).
+    ".github/agents/_orchestrator.agent.md": (
+        _CAUSE_INSTALL_TIME_CONDITIONAL_CONTENT,
+        _CAUSE_SEMANTIC_PROSE_DRIFT,
+        _CAUSE_VARIABLE_DERIVATION_COVERAGE_GAP,
+    ),
+    # F3/F4(2): ZERO backlog-md / no-backlog-tool markers on either side, yet
+    # still a 725-byte (1.9%) delta -- conditional content cannot explain it,
+    # so this pair carries no install-time-conditional-content cause.
+    ".github/instructions/github-pr-automation.instructions.md": (
+        _CAUSE_SEMANTIC_PROSE_DRIFT,
+        _CAUSE_VARIABLE_DERIVATION_COVERAGE_GAP,
+    ),
+}
+
+# The EXACT expected membership of the divergent set, hardcoded as an
+# INDEPENDENT literal (PR #384 Copilot review round 1 fix) -- NOT derived
+# from `_DIVERGENT_MARKER_ONLY_PAIRS` itself. Deriving the expectation from
+# the same tuple the test re-derives its "actual" side from would make the
+# membership assertion vacuous: adding or removing an entry from
+# `_DIVERGENT_MARKER_ONLY_PAIRS` would change BOTH sides together, so the
+# assertion would always pass regardless of what changed. Pinning these four
+# paths as an independent literal is what makes an inventory change (a fifth
+# pair silently becoming non-renderable, or an existing pair being removed)
+# fail this test by NAME rather than pass unnoticed or merely warn.
+_EXPECTED_DIVERGENT_PAIR_MANIFEST_PATHS = frozenset(
+    {
+        ".github/agents/_ship.agent.md",
+        ".github/agents/_stage.agent.md",
+        ".github/agents/_orchestrator.agent.md",
+        ".github/instructions/github-pr-automation.instructions.md",
+    }
 )
 
 # Every dogfooded artifact this feature touches, for the manifest-checksum
@@ -587,6 +652,63 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
                     "of leaving it under the marker-only split.",
                 )
 
+    def test_divergent_pair_membership_is_pinned_and_annotated(self) -> None:
+        """137.001-T: pins the divergent pair set to its EXACT expected
+        membership (a fifth pair silently joining, or an existing pair
+        being removed, is a named test failure -- fails CLOSED, never a
+        silent pass) and requires every entry to carry at least one cause
+        annotation from the taxonomy authored in
+        docs/design-docs/2026-08-20-template-dogfood-paired-edit-maintenance-contract.md
+        (137.002-T)."""
+        actual_manifest_paths = frozenset(
+            label for _, _, label in _DIVERGENT_MARKER_ONLY_PAIRS
+        )
+        self.assertSetEqual(
+            actual_manifest_paths,
+            _EXPECTED_DIVERGENT_PAIR_MANIFEST_PATHS,
+            "divergent pair set membership changed -- an unreviewed pair was "
+            "added to or removed from _DIVERGENT_MARKER_ONLY_PAIRS without "
+            "updating the pinned expectation and the maintenance-contract "
+            "document's eight-pair inventory.",
+        )
+        _valid_causes = frozenset(
+            {
+                _CAUSE_INSTALL_TIME_CONDITIONAL_CONTENT,
+                _CAUSE_SEMANTIC_PROSE_DRIFT,
+                _CAUSE_VARIABLE_DERIVATION_COVERAGE_GAP,
+            }
+        )
+        for _, _, label in _DIVERGENT_MARKER_ONLY_PAIRS:
+            with self.subTest(pair=label):
+                self.assertIn(
+                    label,
+                    _DIVERGENT_PAIR_CAUSES,
+                    f"{label} is missing a per-pair cause annotation in "
+                    "_DIVERGENT_PAIR_CAUSES",
+                )
+                causes = _DIVERGENT_PAIR_CAUSES[label]
+                self.assertTrue(causes, f"{label} has an empty cause annotation")
+                for cause in causes:
+                    self.assertIn(
+                        cause,
+                        _valid_causes,
+                        f"{label} cites unknown cause {cause!r}; causes must "
+                        "come from the taxonomy in the maintenance-contract "
+                        "document",
+                    )
+
+    def test_divergent_pair_membership_guard_is_non_vacuous(self) -> None:
+        """Confirms the membership guard actually fails against a shrunk or
+        expanded set, rather than passing vacuously against any input."""
+        shrunk = frozenset(
+            list(_EXPECTED_DIVERGENT_PAIR_MANIFEST_PATHS)[:-1]
+        )
+        self.assertNotEqual(shrunk, _EXPECTED_DIVERGENT_PAIR_MANIFEST_PATHS)
+        expanded = _EXPECTED_DIVERGENT_PAIR_MANIFEST_PATHS | frozenset(
+            {".github/agents/_new_hypothetical_pair.agent.md"}
+        )
+        self.assertNotEqual(expanded, _EXPECTED_DIVERGENT_PAIR_MANIFEST_PATHS)
+
     def test_manifest_checksum_matches_actual_dogfood_bytes_for_all_eight_pairs(self) -> None:
         manifest = yaml.safe_load(_MANIFEST.read_text(encoding="utf-8"))
         artifacts = {artifact["path"]: artifact for artifact in manifest.get("artifacts", [])}
@@ -755,7 +877,7 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
         # touches) only.
         text = self.ship_template_text
         self.assertIn("Source artifact cleanup", text)
-        self.assertIn("backlogit_stash_remove", text)
+        self.assertIn("backlogit_stash_archive", text)
         self.assertIn("custom_fields.source_stash_id", text)
 
     # -- B2: literal-clause test (owned behaviour) --------------------------

@@ -281,6 +281,7 @@ operations:
 
   stash_archive:
     mcp_tool: "backlogit_stash_archive"
+    cli_command: "backlogit stash archive {{stash_id}}"
     params:
       stash_id: "stash_id"
 

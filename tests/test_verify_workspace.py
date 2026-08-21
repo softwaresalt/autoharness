@@ -1857,7 +1857,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (workspace / ".github" / "agents" / "_ship.agent.md").write_text(
-                "source_stash_id\nsource_deliberation_id\nbacklogit_stash_remove\nbacklogit_archive_item\n",
+                "source_stash_id\nsource_deliberation_id\nbacklogit_stash_archive\nbacklogit_archive_item\n",
                 encoding="utf-8",
             )
             (workspace / ".github" / "skills" / "operational-closure" / "SKILL.md").write_text(
@@ -3132,7 +3132,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "Post-Merge Branch Protocol (NON-NEGOTIABLE)\n"
                 "Branch Management Rules (NON-NEGOTIABLE)\n"
                 "post-merge/{feature_slug}\n"
-                "source_stash_id\nsource_deliberation_id\nbacklogit_stash_remove\nbacklogit_archive_item\n"
+                "source_stash_id\nsource_deliberation_id\nbacklogit_stash_archive\nbacklogit_archive_item\n"
                 "## Step 0.0: Tool Availability Gate (P-012)\n"
                 "TOOL_OK\n"
                 "TOOL_DEGRADED\n"
