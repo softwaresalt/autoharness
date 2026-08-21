@@ -4,3 +4,5 @@
 {"timestamp":"2026-08-21T01:56:02.4296417-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"e3aebc00","message":""}}
 {"timestamp":"2026-08-21T02:09:27.5530958-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"cae73534","message":""}}
 {"timestamp":"2026-08-21T02:29:58.8162945-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"commit_tracked","delta":{"author":"","commit_sha":"c317eee2","message":""}}
+{"timestamp":"2026-08-21T02:43:41.5490889-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"77ee301a2cb91cda5c244d0d52363a8d95277dc7","message":"Merge pull request #376 from softwaresalt/feat/146-s-prerequisite-repair-both-baseline-blockers-malformed-plan-frontmatter-archived-019-dl-contract-test-load"}}
+{"timestamp":"2026-08-21T02:43:52.0949393-07:00","actor":"backlogit","item_id":"138.001-T","event_type":"archived","delta":{"archive_path":".backlogit/archive/138.001-T.md"}}
