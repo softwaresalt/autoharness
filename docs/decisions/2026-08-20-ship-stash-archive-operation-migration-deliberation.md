@@ -37,7 +37,9 @@ deprecated that operation in favour of `backlogit_stash_archive`.
   at **line 38** (Role Boundary table) and **line 819** (post-merge Step 7).
 * The dogfood mirror `.github/agents/_ship.agent.md` carries it at **line 47**.
 * The `backlogit_stash_remove` **MCP** tool is still exposed by the server and
-  still functions today.
+  still functions today, self-described as `[Deprecated: use backlogit_stash_archive]`.
+* The replacement `backlogit_stash_archive` **MCP** tool is **also exposed** by
+  the same v1.10.0 server build, and is the primary archive operation.
 
 ## Severity re-assessment
 
@@ -46,11 +48,13 @@ MCP tool still functions". That is true but incomplete, and the rating deserves
 a correction on the record.
 
 The harness's standard degradation pattern is **MCP tool first, CLI fallback
-second** (P-012). For this operation the CLI fallback **does not exist** - there
-is no `backlogit stash remove` to fall back to. So the documented step is not
-merely stale wording: it is a step whose degraded path is unreachable. If the
-MCP tool is withdrawn, or is unavailable in a degraded session, Ship's post-merge
-Step 7 has no route to completion and post-merge closure stalls.
+second** (P-012). Both legs are available today for the *replacement* operation -
+MCP primary `backlogit_stash_archive`, CLI fallback `backlogit stash archive` -
+so there is no reachability defect. The defect is that the documented step pins
+Ship's contract to a **deprecated** surface: the prescribed name is scheduled for
+withdrawal, and it asserts *removal* semantics for what is in fact a
+non-destructive archival. If `backlogit_stash_remove` is withdrawn upstream,
+Ship's post-merge Step 7 breaks with no contract-level replacement named.
 
 **Decision: keep priority `low`** (there is no correctness impact today and no
 user-visible breakage), **but treat it as non-deferrable within this staging
@@ -160,42 +164,44 @@ here for visibility and is **not** fixed in this shipment.
 
 ---
 
-## ADDENDUM (Stage, 2026-08-20) - the two tool surfaces are INVERTED
+## ADDENDUM (Stage, 2026-08-20) - tool surface ground truth
 
-Discovered while performing this session's own stash archival, after the plan
-was drafted. This is a **material correction to the migration target** and must
-be read before executing Task A / Task C.
+> **RETRACTION (Stage review-fix cycle 3, 2026-08-20).** An earlier revision of
+> this addendum asserted that the MCP and CLI surfaces were *inverted*, and that
+> `backlogit_stash_archive` was **not exposed** on MCP. That assertion was
+> **false** and is retracted in full. It was the premise behind a
+> CLI-canonical-plus-deprecated-alias-MCP-fallback direction that contradicted
+> the rest of this shipment. The corrected ground truth is below; the main body
+> of this deliberation was already correct and stands.
 
-The MCP and CLI surfaces of backlogit v1.10.0 expose **complementary, inverted**
-subsets of this operation:
+Verified read-only against the installed `backlogit v1.10.0` (`backlogit manifest`,
+`backlogit stash --help`, `backlogit stash archive --help`):
 
-| Surface | `stash_remove` | `stash_archive` |
+| Surface | `stash_archive` | `stash_remove` |
 |---|---|---|
-| **MCP** | EXPOSED, self-described as `[Deprecated: use backlogit_stash_archive]` | **NOT EXPOSED** |
-| **CLI** | **NOT EXPOSED** (no `stash remove` subcommand) | EXPOSED (`backlogit stash archive`) |
+| **MCP** | **EXPOSED - primary** (`backlogit_stash_archive`, "Archive an active stash entry") | EXPOSED, self-described `[Deprecated: use backlogit_stash_archive]` |
+| **CLI** | **EXPOSED - canonical** (`backlogit stash archive <id>`) | present only as an **alias** of `archive`, resolving to the same handler |
 
-So the MCP tool's own deprecation notice points at a tool name that this server
-build **does not expose**, and the CLI exposes only the replacement.
+`.mcp.json` runs the same `backlogit mcp` executable with `tools: ["*"]`, so
+`backlogit_stash_archive` is reachable in this workspace. Both surfaces expose
+the archive operation as primary; neither surface is missing it.
 
 ### Consequence for the migration
 
-A naive rename of the Ship contract to "call `backlogit_stash_archive`" would
-name an MCP tool that does not currently exist, replacing a working-but-deprecated
-call with a broken one. That is worse than the status quo.
+A direct rename of the Ship contract to the archive operation is **correct,
+executable, and complete**. There is no nonexistent-tool hazard.
 
-### Corrected direction
+### Confirmed direction
 
-The Ship contract must name **both** surfaces, in P-012 MCP-first / CLI-fallback
-order, and must not assume the MCP archive tool is present:
+The Ship contract names both surfaces in P-012 MCP-first / CLI-fallback order:
 
-1. **Canonical operation**: `backlogit stash archive <id>` (CLI) - exposed, non-destructive.
-2. **MCP path**: call `backlogit_stash_archive` **when the server exposes it**;
-   on server builds that do not (including v1.10.0), fall back to the deprecated
-   `backlogit_stash_remove` alias, which **resolves to the same archive handler**
-   and is therefore non-destructive despite its name.
-3. The registry (Task B) must keep both mappings for exactly this reason - which
-   independently vindicates hardening H5's "deprecate in place, do not delete".
-
-This preserves the deprecation intent (stop naming removal semantics) without
-introducing a call to a nonexistent tool, and it keeps a reachable degraded path,
-which was the original severity argument for doing this work at all.
+1. **MCP primary**: `backlogit_stash_archive`.
+2. **CLI fallback**: `backlogit stash archive <id>` - exposed, non-destructive.
+3. `backlogit_stash_remove` **must not** be specified as an execution fallback or
+   any other prescriptive path. It may appear only as non-prescriptive
+   legacy/deprecation context describing the behaviour being removed.
+4. The registry (Task B) still keeps both mappings, but for a **descriptive**
+   reason only - the deprecated tool genuinely still exists upstream, and the
+   registry should describe reality. This continues to support hardening H5's
+   "deprecate in place, do not delete", while H5's descriptive mapping never
+   authorises a prescriptive fallback.

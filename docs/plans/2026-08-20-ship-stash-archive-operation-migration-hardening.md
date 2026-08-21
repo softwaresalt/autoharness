@@ -85,10 +85,16 @@ an oversight.
 
 Deleting the `stash_remove` mapping from the registry template would state that
 the operation does not exist. It does - the MCP tool is still exposed and still
-functions; only the CLI subcommand is gone.
+functions, and the CLI retains `stash remove` as an alias of `stash archive`.
 
 **Mitigation**: deprecate in place, do not delete (plan Task B). The registry's
 job is to describe the tool truthfully, including its deprecated surface.
+
+**Scope limit (added review-fix cycle 3)**: this mapping is retained for
+**description only**. `backlogit_stash_archive` is exposed on MCP and
+`backlogit stash archive` on CLI, so both P-012 legs resolve to the replacement.
+H5 never authorises `stash_remove` as an execution fallback in any prescriptive
+contract.
 
 ## H6 (P3) - Manifest checksum drift is a silent failure mode
 

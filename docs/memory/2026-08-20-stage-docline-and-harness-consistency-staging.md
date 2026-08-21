@@ -67,20 +67,27 @@ maintenance instead. The disqualifier for the alternative is that reconciling
 drifted normative sentence in the harness's own governing agent contracts -
 editorial correctness work, not mechanical refactoring.
 
-## Key finding - the two backlogit tool surfaces are inverted
+## Key finding - both backlogit tool surfaces expose the archive operation
 
-Found late, while performing this session's own stash archival:
+> **CORRECTED (review-fix cycle 3, 2026-08-20).** A mid-session addendum claimed
+> the two surfaces were *inverted* and that `backlogit_stash_archive` was not
+> exposed on MCP. That was **false**, and the CLI-canonical-plus-deprecated-alias-MCP-fallback
+> direction it produced has been retracted from the deliberation, the plan, and
+> tasks `137.003-T` / `137.005-T`.
 
-| Surface | `stash_remove` | `stash_archive` |
+Verified read-only against installed `backlogit v1.10.0`:
+
+| Surface | `stash_archive` | `stash_remove` |
 |---|---|---|
-| MCP | exposed, self-described `[Deprecated: use backlogit_stash_archive]` | **not exposed** |
-| CLI | **not exposed** | exposed |
+| MCP | **exposed - primary** (`backlogit_stash_archive`) | exposed, self-described `[Deprecated: use backlogit_stash_archive]` |
+| CLI | **exposed - canonical** (`backlogit stash archive`) | alias of `archive`, same handler |
 
-A naive rename of Ship's contract to "call `backlogit_stash_archive`" would name
-an MCP tool that does not exist. Deliberation, plan, and tasks `137.003-T` /
-`137.005-T` were corrected mid-session with an addendum specifying CLI-canonical
-plus deprecated-alias MCP fallback. This also independently vindicated hardening
-H5 ("deprecate in place, do not delete" in the registry).
+`.mcp.json` runs `backlogit mcp` with `tools: ["*"]`, so the archive tool is
+reachable. The migration is therefore a direct rename: **MCP primary
+`backlogit_stash_archive`, CLI fallback `backlogit stash archive`**, with
+`backlogit_stash_remove` never named as a prescriptive execution path. Hardening
+H5 ("deprecate in place, do not delete" in the registry) still holds, but as a
+**descriptive** registry obligation only.
 
 ## Scope discipline (P-021 C1)
 

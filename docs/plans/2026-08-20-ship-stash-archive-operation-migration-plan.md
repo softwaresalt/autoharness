@@ -149,42 +149,45 @@ Second within its shipment, **after** the paired-edit maintenance contract.
 
 ---
 
-## ADDENDUM (Stage, 2026-08-20) - the two tool surfaces are INVERTED
+## ADDENDUM (Stage, 2026-08-20) - tool surface ground truth
 
-Discovered while performing this session's own stash archival, after the plan
-was drafted. This is a **material correction to the migration target** and must
-be read before executing Task A / Task C.
+> **RETRACTION (Stage review-fix cycle 3, 2026-08-20).** An earlier revision of
+> this addendum asserted the MCP and CLI surfaces were *inverted* and that
+> `backlogit_stash_archive` was **not exposed** on MCP. That was **false** and is
+> retracted in full, together with the CLI-canonical-plus-deprecated-alias-MCP-fallback
+> direction it produced. Tasks A and C execute as a direct rename to the archive
+> operation.
 
-The MCP and CLI surfaces of backlogit v1.10.0 expose **complementary, inverted**
-subsets of this operation:
+Verified read-only against the installed `backlogit v1.10.0` (`backlogit manifest`,
+`backlogit stash --help`, `backlogit stash archive --help`):
 
-| Surface | `stash_remove` | `stash_archive` |
+| Surface | `stash_archive` | `stash_remove` |
 |---|---|---|
-| **MCP** | EXPOSED, self-described as `[Deprecated: use backlogit_stash_archive]` | **NOT EXPOSED** |
-| **CLI** | **NOT EXPOSED** (no `stash remove` subcommand) | EXPOSED (`backlogit stash archive`) |
+| **MCP** | **EXPOSED - primary** (`backlogit_stash_archive`, "Archive an active stash entry") | EXPOSED, self-described `[Deprecated: use backlogit_stash_archive]` |
+| **CLI** | **EXPOSED - canonical** (`backlogit stash archive <id>`) | present only as an **alias** of `archive`, resolving to the same handler |
 
-So the MCP tool's own deprecation notice points at a tool name that this server
-build **does not expose**, and the CLI exposes only the replacement.
+`.mcp.json` runs the same `backlogit mcp` executable with `tools: ["*"]`, so
+`backlogit_stash_archive` is reachable in this workspace.
 
 ### Consequence for the migration
 
-A naive rename of the Ship contract to "call `backlogit_stash_archive`" would
-name an MCP tool that does not currently exist, replacing a working-but-deprecated
-call with a broken one. That is worse than the status quo.
+A direct rename of the Ship contract to the archive operation is **correct,
+executable, and complete on both surfaces**. There is no nonexistent-tool hazard
+and no need for a deprecated-alias fallback.
 
-### Corrected direction
+### Confirmed direction (binding on Task A and Task C)
 
-The Ship contract must name **both** surfaces, in P-012 MCP-first / CLI-fallback
-order, and must not assume the MCP archive tool is present:
+The Ship contract names both surfaces in P-012 MCP-first / CLI-fallback order:
 
-1. **Canonical operation**: `backlogit stash archive <id>` (CLI) - exposed, non-destructive.
-2. **MCP path**: call `backlogit_stash_archive` **when the server exposes it**;
-   on server builds that do not (including v1.10.0), fall back to the deprecated
-   `backlogit_stash_remove` alias, which **resolves to the same archive handler**
-   and is therefore non-destructive despite its name.
-3. The registry (Task B) must keep both mappings for exactly this reason - which
-   independently vindicates hardening H5's "deprecate in place, do not delete".
+1. **MCP primary**: `backlogit_stash_archive`.
+2. **CLI fallback**: `backlogit stash archive <id>` - exposed, non-destructive.
+3. `backlogit_stash_remove` **must not** be specified as an execution fallback or
+   any other prescriptive path. It may appear only as non-prescriptive
+   legacy/deprecation context describing the behaviour being removed.
+4. Task B still keeps both registry mappings, for a **descriptive** reason only:
+   the deprecated tool genuinely still exists upstream and the registry should
+   describe reality. That supports hardening H5's "deprecate in place, do not
+   delete"; it never authorises a prescriptive fallback.
 
-This preserves the deprecation intent (stop naming removal semantics) without
-introducing a call to a nonexistent tool, and it keeps a reachable degraded path,
-which was the original severity argument for doing this work at all.
+This preserves the deprecation intent (stop naming removal semantics) and keeps
+both P-012 legs satisfied by the replacement operation itself.
