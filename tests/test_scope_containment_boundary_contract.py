@@ -31,6 +31,7 @@ from test_scope_containment_policy_contract import (
     _load_all_texts,
     _load_carrier_texts,
     _normalize,
+    _resolve_backlog_artifact,
 )
 
 # Behaviours this file OWNS, per the CROSS-FILE BEHAVIOUR ALLOCATION.
@@ -53,7 +54,8 @@ def _extract_paragraph_starting_with(text: str, prefix: str) -> str:
     ``prefix``. Used for the C4 negative guard so it inspects only the
     OPERATIVE clause statement on a surface, not an unrelated historical
     quotation elsewhere in the same file (134.013's "deliberation" surface,
-    ``.backlogit/queue/019-DL.md``, legitimately quotes the historical
+    019-DL (backlog artifact, resolved via ``_resolve_backlog_artifact`` --
+    not a hardcoded ``queue/`` path), legitimately quotes the historical
     defective C4 wording inside its own AMENDMENT note as a documented
     correction -- a blind whole-file substring scan would false-positive on
     that legitimate quotation, so this helper narrows the scan to the
@@ -66,15 +68,17 @@ def _extract_paragraph_starting_with(text: str, prefix: str) -> str:
 
 
 # Historical defective C4 wording (Staging PR #372 review-fix cycle 1,
-# `.backlogit/queue/019-DL.md` "C4 AMENDMENT" note): the clause originally
+# 019-DL (backlog artifact, location resolved not hardcoded) "C4 AMENDMENT"
+# note): the clause originally
 # closed its non-bypass list with a sentence naming ONE authorization as
 # sufficient to expand the ACTIVE fix cycle -- an in-cycle bypass license,
 # not the FORWARD-acting/separate-work-unit semantics the corrected clause
 # states.
 _C4_DEFECTIVE_BYPASS_PHRASE = "only an explicit operator authorization"
 
-# Historical defective C5 wording (`.backlogit/queue/019-DL.md` "C5 AMENDMENT"
-# note): the clause originally prohibited Ship from "removing" stash entries
+# Historical defective C5 wording (019-DL (backlog artifact, location
+# resolved not hardcoded) "C5 AMENDMENT" note): the clause originally
+# prohibited Ship from "removing" stash entries
 # WITHOUT QUALIFICATION, which would forbid Ship's own correct, manifest-
 # derived post-merge Step 7 `backlogit_stash_remove` retirement. The corrected
 # clause qualifies the prohibition with DISCRETIONARY/DISCRETIONARILY.
@@ -122,9 +126,10 @@ class ScopeContainmentBoundaryContractTests(unittest.TestCase):
         cls.plan_text = plan_path.read_text(encoding="utf-8")
 
         # Deliberation artifact (the third surface the C4 universal negative
-        # guard sweeps). Still in queue (not yet archived) at the time this
-        # test was authored.
-        deliberation_path = repo_root / ".backlogit" / "queue" / "019-DL.md"
+        # guard sweeps). Resolved via the shared lifecycle-stable resolver
+        # (queue/ -> archive/ probe) rather than a hardcoded queue/ path,
+        # since 019-DL's lifecycle location is not stable across archival.
+        deliberation_path = _resolve_backlog_artifact("019-DL", repo_root=repo_root)
         cls.deliberation_text = deliberation_path.read_text(encoding="utf-8")
 
     # -- shared self-consistency check -------------------------------------
@@ -211,7 +216,8 @@ class ScopeContainmentBoundaryContractTests(unittest.TestCase):
         authorization recorded as [a] new/expanded approved scope does" --
         a closing sentence that reads as naming ONE authorization
         sufficient to expand the ACTIVE fix cycle (the exact bypass C1/C4
-        forbid). See `.backlogit/queue/019-DL.md` "C4 AMENDMENT" note."""
+        forbid). See 019-DL (backlog artifact, location resolved not
+        hardcoded) "C4 AMENDMENT" note."""
         subset = _resolve("B10")
         for carrier in subset:
             for text in self.carrier_texts[carrier]:
@@ -288,7 +294,8 @@ class ScopeContainmentBoundaryContractTests(unittest.TestCase):
         capture-only creation grant, (b) the forbidden verbs BY NAME --
         discretionary REMOVAL and discretionary ARCHIVAL, governed by one
         DISCRETIONARY qualifier (owner 134.002-T; C5 ARCHIVAL AMENDMENT in
-        `.backlogit/queue/019-DL.md` -- archival was originally omitted from
+        019-DL (backlog artifact, location resolved not hardcoded) --
+        archival was originally omitted from
         the prohibition even though 134.002-T always named both verbs), and
         (c) the manifest-derived post-merge Step 7 cleanup exception."""
         # (a) creation grant
@@ -326,8 +333,9 @@ class ScopeContainmentBoundaryContractTests(unittest.TestCase):
     def test_b11_c5_exception_negative_guard_no_unqualified_remove(self) -> None:
         """C5-EXCEPTION sub-test: negative guard against the historical
         defective wording that prohibited Ship from "removing" stash
-        entries WITHOUT QUALIFICATION (`.backlogit/queue/019-DL.md` "C5
-        AMENDMENT" note) -- a blanket verb prohibition that would have made
+        entries WITHOUT QUALIFICATION (019-DL (backlog artifact, location
+        resolved not hardcoded) "C5 AMENDMENT" note) -- a blanket verb
+        prohibition that would have made
         Ship's own correct, manifest-derived post-merge Step 7
         `backlogit_stash_remove` retirement a C5 violation."""
         for text in (self.workflow_policy_text, self.ship_template_text, self.ship_dogfood_text):

@@ -9,7 +9,7 @@ deliberation: docs/decisions/2026-08-02-structural-navigation-benchmark-design-d
 chosen_direction: "C — Hybrid, deterministic-core-first"
 requires_plan_hardening: yes
 hardening_present: yes
-blast_radius: elevated (result-integrity + multi-family: eval code / tests / docs / fixtures)
+blast_radius: "elevated (result-integrity + multi-family: eval code / tests / docs / fixtures)"
 ---
 
 ## Summary

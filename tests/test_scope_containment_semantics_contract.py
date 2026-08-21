@@ -40,6 +40,7 @@ from test_scope_containment_policy_contract import (
     _load_all_texts,
     _load_carrier_texts,
     _normalize,
+    _resolve_backlog_artifact,
 )
 from test_scope_containment_boundary_contract import OWNED_BEHAVIOURS as _BOUNDARY_OWNED
 
@@ -134,7 +135,11 @@ class ScopeContainmentSemanticsContractTests(unittest.TestCase):
         )
         cls.hardening_text = hardening_path.read_text(encoding="utf-8")
 
-        deliberation_path = _REPO_ROOT / ".backlogit" / "queue" / "019-DL.md"
+        # Deliberation artifact, resolved via the shared lifecycle-stable
+        # resolver (queue/ -> archive/ probe) rather than a hardcoded queue/
+        # path, since 019-DL's lifecycle location is not stable across
+        # archival.
+        deliberation_path = _resolve_backlog_artifact("019-DL", repo_root=_REPO_ROOT)
         cls.deliberation_text = deliberation_path.read_text(encoding="utf-8")
 
     # -- shared self-consistency check ---------------------------------------

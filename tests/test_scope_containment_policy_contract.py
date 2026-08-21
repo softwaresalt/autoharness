@@ -14,12 +14,17 @@ precedence) and B15 (C7 violation action). See ``OWNED_BEHAVIOURS`` below.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import re
+import tempfile
+import tokenize
 import unittest
+from io import StringIO
 from pathlib import Path
 
 import yaml
+from autoharness.backlog_root import resolve_backlog_root
 from autoharness.verify_workspace import _derive_template_variables, _render_template
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -63,6 +68,12 @@ _FEATURE_FLOW_DARK_DOGFOOD = _REPO_ROOT / ".github" / "prompts" / "feature-flow-
 
 _PR_LIFECYCLE_TEMPLATE = _REPO_ROOT / "templates" / "skills" / "pr-lifecycle" / "SKILL.md.tmpl"
 _FIX_CI_TEMPLATE = _REPO_ROOT / "templates" / "skills" / "fix-ci" / "SKILL.md.tmpl"
+
+# Source files of the three P-021 contract-test modules themselves, for the
+# 138.001-T Scope B Regression Guard 2 (structural) scan below.
+_POLICY_CONTRACT_TEST_SOURCE = Path(__file__).resolve()
+_BOUNDARY_CONTRACT_TEST_SOURCE = _REPO_ROOT / "tests" / "test_scope_containment_boundary_contract.py"
+_SEMANTICS_CONTRACT_TEST_SOURCE = _REPO_ROOT / "tests" / "test_scope_containment_semantics_contract.py"
 
 # ---------------------------------------------------------------------------
 # PRE-EXISTING ARCHITECTURAL FACT (not introduced by this feature, not fixed
@@ -123,6 +134,147 @@ def _lf_text(path: Path) -> str:
 
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
+
+
+# ---------------------------------------------------------------------------
+# 138.001-T Scope B: lifecycle-stable backlog artifact resolver.
+#
+# Both P-021 contract-test siblings (134.013-T, 134.012-T) previously
+# hardcoded ``.backlogit/queue/019-DL.md`` in their ``setUpClass``. That
+# path broke the moment 019-DL was archived (``backlogit archive`` moves an
+# artifact from ``queue/`` to ``archive/``) -- exactly the baseline-red
+# blocker this task repairs. This resolver is the shared, lifecycle-stable
+# replacement: it probes both lifecycle locations in order and is agnostic
+# to which one currently holds the artifact.
+# ---------------------------------------------------------------------------
+
+
+class BacklogArtifactResolutionError(RuntimeError):
+    """Raised when a backlog artifact cannot be uniquely resolved via
+    ``_resolve_backlog_artifact`` -- either a miss (not found in any
+    lifecycle location) or backlog lifecycle drift (found in more than one
+    lifecycle location simultaneously, signalling a half-completed
+    archival)."""
+
+
+def _resolve_backlog_artifact(artifact_id: str, *, repo_root: Path = _REPO_ROOT) -> Path:
+    """Resolve a backlog artifact's on-disk path.
+
+    Resolves the storage root via ``resolve_backlog_root(repo_root,
+    env={})``. The explicit ``env={}`` is MANDATORY (plan amendment A2):
+    ``resolve_backlog_root`` consults ``BACKLOGIT_WORKSPACE_DIR`` first and
+    raises ``BacklogUnavailableError`` when the override names a missing
+    directory. Without this isolation, any developer or CI runner with that
+    variable set in the ambient environment would make this resolver -- and
+    every contract test built on it -- fail for a reason unrelated to the
+    code under test, the same nondeterministic-red class this task removes.
+    Mirrors the isolation pattern already used in ``tests/test_backlog_root.py``.
+
+    Probes ``queue/<artifact_id>.md``, then ``archive/<artifact_id>.md``.
+    Simultaneous presence in BOTH locations is backlog lifecycle drift (a
+    half-completed archival) and MUST fail loudly rather than silently
+    preferring one location -- do not weaken this by reflex. A miss (absent
+    from both) raises an error naming the artifact ID and EVERY probed
+    candidate path.
+
+    ``repo_root`` defaults to this module's ``_REPO_ROOT`` for production
+    use by both P-021 contract-test siblings; test-only callers may inject
+    an isolated temporary workspace to exercise the drift/miss branches
+    without touching this repository's real backlog store.
+    """
+    backlog_root = resolve_backlog_root(repo_root, env={})
+    candidates = (
+        backlog_root / "queue" / f"{artifact_id}.md",
+        backlog_root / "archive" / f"{artifact_id}.md",
+    )
+    found = [candidate for candidate in candidates if candidate.is_file()]
+    if len(found) > 1:
+        raise BacklogArtifactResolutionError(
+            f"backlog artifact {artifact_id!r} found in more than one lifecycle "
+            "location simultaneously -- this signals backlog lifecycle drift "
+            f"(a half-completed archival): {', '.join(str(c) for c in found)}"
+        )
+    if not found:
+        raise BacklogArtifactResolutionError(
+            f"backlog artifact {artifact_id!r} not found; probed: "
+            f"{', '.join(str(c) for c in candidates)}"
+        )
+    return found[0]
+
+
+# ---------------------------------------------------------------------------
+# 138.001-T Scope B Regression Guard 2 (structural): scan machinery.
+#
+# Confirms no P-021 contract module constructs a hardcoded, lifecycle-volatile
+# `queue/`-anchored artifact path outside the shared resolver. Scoped to CODE
+# lines only -- docstrings and inline comments legitimately cite
+# `.backlogit/queue/019-DL.md` in prose (see e.g. the historical-wording notes
+# in ``test_scope_containment_boundary_contract.py``) and must not
+# false-positive this scan.
+# ---------------------------------------------------------------------------
+
+_QUEUE_PATH_CONSTRUCTION_PATTERN = re.compile(r'["\']queue["\']\s*/|/\s*["\']queue["\']')
+_RESOLVER_FUNCTION_NAME = "_resolve_backlog_artifact"
+
+# Regression Guard 1's own fixture tests deliberately construct SYNTHETIC
+# `queue`/`archive` directories inside an isolated `tempfile.TemporaryDirectory`
+# to unit-test the resolver's drift/miss branches -- these are not the
+# production 019-DL resolution logic Regression Guard 2 polices, so they are
+# exempted BY NAME alongside the resolver's own definition (plan amendment A3
+# extended to this test-only fixture category).
+_GUARD2_EXEMPT_FUNCTION_NAMES = (
+    _RESOLVER_FUNCTION_NAME,
+    "test_regression_guard1_resolver_fails_loudly_on_simultaneous_presence",
+    "test_regression_guard1_resolver_names_artifact_id_and_every_candidate_on_miss",
+)
+
+
+def _executable_code_lines(source: str) -> dict[int, str]:
+    """Maps 1-based line number -> line text, restricted to CODE lines.
+
+    Excludes: (a) lines wholly consumed by a standalone string-literal
+    expression statement (module/class/function docstrings, or any bare
+    string statement used comment-style), and (b) the comment portion of any
+    line carrying a trailing ``#`` comment (the code portion preceding the
+    comment, if any, is still scanned).
+    """
+    lines = source.splitlines()
+    docstring_lines: set[int] = set()
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            docstring_lines.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+
+    comment_start_col: dict[int, int] = {}
+    for tok in tokenize.generate_tokens(StringIO(source).readline):
+        if tok.type == tokenize.COMMENT:
+            comment_start_col[tok.start[0]] = tok.start[1]
+
+    result: dict[int, str] = {}
+    for lineno, line in enumerate(lines, start=1):
+        if lineno in docstring_lines:
+            continue
+        text = line[: comment_start_col[lineno]] if lineno in comment_start_col else line
+        if text.strip() == "":
+            continue
+        result[lineno] = text
+    return result
+
+
+def _function_definition_line_range(source: str, function_name: str) -> range:
+    """1-based inclusive line range of a top-level (or nested) function
+    definition, identified BY NAME (plan amendment A3), so the Regression
+    Guard 2 exemption for the resolver's own definition is visible and
+    cannot silently widen."""
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name:
+            return range(node.lineno, (node.end_lineno or node.lineno) + 1)
+    raise AssertionError(f"function {function_name!r} not found in source")
 
 
 def _template_variables() -> dict:
@@ -719,6 +871,88 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
             "(`violation_policy: P-021`) and halts"
         )
         self.assertNotIn(required, _normalize(weakened))
+
+
+    # -- 138.001-T Scope B Regression Guard 1 (behavioural, primary) --------
+
+    def test_regression_guard1_resolver_locates_019_dl_and_preserves_content(self) -> None:
+        """The shared resolver locates 019-DL in this repository's actual
+        backlog store, and the loaded text still contains the `C4 AMENDMENT`
+        and `C5 AMENDMENT` markers -- proving content equivalence rather than
+        silent coverage reduction."""
+        resolved = _resolve_backlog_artifact("019-DL")
+        self.assertTrue(resolved.is_file(), f"resolved path does not exist: {resolved}")
+        text = resolved.read_text(encoding="utf-8")
+        self.assertIn("C4 AMENDMENT", text)
+        self.assertIn("C5 AMENDMENT", text)
+
+    def test_regression_guard1_resolver_fails_loudly_on_simultaneous_presence(self) -> None:
+        """Backlog lifecycle drift (simultaneous presence in BOTH `queue/`
+        and `archive/`, signalling a half-completed archival) MUST fail
+        loudly, not silently prefer one location. The failure message names
+        backlog lifecycle drift explicitly."""
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            backlog_root = workspace / ".backlog"
+            (backlog_root / "queue").mkdir(parents=True)
+            (backlog_root / "archive").mkdir(parents=True)
+            (backlog_root / "queue" / "999-DL.md").write_text("queue copy", encoding="utf-8")
+            (backlog_root / "archive" / "999-DL.md").write_text("archive copy", encoding="utf-8")
+            with self.assertRaises(BacklogArtifactResolutionError) as ctx:
+                _resolve_backlog_artifact("999-DL", repo_root=workspace)
+            self.assertIn("lifecycle drift", str(ctx.exception))
+            self.assertIn("999-DL", str(ctx.exception))
+
+    def test_regression_guard1_resolver_names_artifact_id_and_every_candidate_on_miss(self) -> None:
+        """A miss (absent from both lifecycle locations) raises an error
+        naming the artifact ID and EVERY probed candidate path."""
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            backlog_root = workspace / ".backlog"
+            (backlog_root / "queue").mkdir(parents=True)
+            (backlog_root / "archive").mkdir(parents=True)
+            with self.assertRaises(BacklogArtifactResolutionError) as ctx:
+                _resolve_backlog_artifact("999-DL", repo_root=workspace)
+            message = str(ctx.exception)
+            self.assertIn("999-DL", message)
+            self.assertIn(str(backlog_root / "queue" / "999-DL.md"), message)
+            self.assertIn(str(backlog_root / "archive" / "999-DL.md"), message)
+
+    # -- 138.001-T Scope B Regression Guard 2 (structural, secondary) -------
+
+    def test_regression_guard2_no_lifecycle_volatile_queue_path_outside_resolver(self) -> None:
+        """No P-021 contract module constructs a hardcoded, lifecycle-volatile
+        `queue/`-anchored artifact path outside the shared resolver
+        `_resolve_backlog_artifact`. Scoped to CODE lines of the three named
+        modules so prose citations of `.backlogit/queue/019-DL.md` do not
+        false-positive. The resolver's own definition is exempted explicitly
+        and BY NAME (plan amendment A3) so the exemption is visible and
+        cannot silently widen, as are this file's own Regression Guard 1
+        fixture tests (synthetic tempfile-based drift/miss unit tests, not
+        production 019-DL resolution logic), also exempted explicitly BY
+        NAME."""
+        for path in (
+            _POLICY_CONTRACT_TEST_SOURCE,
+            _BOUNDARY_CONTRACT_TEST_SOURCE,
+            _SEMANTICS_CONTRACT_TEST_SOURCE,
+        ):
+            with self.subTest(path=path.name):
+                source = path.read_text(encoding="utf-8")
+                code_lines = _executable_code_lines(source)
+                if path == _POLICY_CONTRACT_TEST_SOURCE:
+                    exempt_lines: set[int] = set()
+                    for name in _GUARD2_EXEMPT_FUNCTION_NAMES:
+                        exempt_lines.update(_function_definition_line_range(source, name))
+                else:
+                    exempt_lines = set()
+                for lineno, text in code_lines.items():
+                    if lineno in exempt_lines:
+                        continue
+                    self.assertIsNone(
+                        _QUEUE_PATH_CONSTRUCTION_PATTERN.search(text),
+                        f"{path.name}:{lineno} constructs a lifecycle-volatile "
+                        f"queue/-anchored path outside the resolver: {text!r}",
+                    )
 
 
 if __name__ == "__main__":
