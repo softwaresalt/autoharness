@@ -96,6 +96,12 @@ decodes.
 
 ## Sequencing
 
+Task order is **Task 1 -> Task 2 -> Task 3** (`136.001-T` -> `136.002-T` ->
+`136.003-T`), recorded as `blocks` dependency edges. Task 2's sweep is
+repository-wide and would otherwise consume Task 1's single known file, leaving
+Task 1's `exactly ONE changed line` acceptance impossible to satisfy. Task 3
+verifies the result of both and stays last.
+
 Predecessor of the harness-consistency shipment. Restoring the repo-wide lint
 first means that shipment's new and edited documentation can actually be
 validated workspace-wide.
