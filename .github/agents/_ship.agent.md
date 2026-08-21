@@ -297,6 +297,14 @@ is prohibited (P-001 role separation).
    to any pre_claim, lifecycle, build, PR, or closure invocation, and never to any other non-zero verdict. (Bootstrap
    exemption: while `autoharness gate pipeline-topology` is not yet installed, this section operates on the backlogit
    CLI re-read alone, exactly as it always has.)
+6. **Intake reconciliation check (self-hosting note, 139-F/139.001-T)**: Invoke `shipment-reconcile` with
+    `mode: pre` and `expected_status: queued` (or `active` if already claimed). This verifies every manifest item is
+    present in `.backlogit/queue/` with the expected status, and scans for orphan items. A `RECONCILE_FAIL` here means
+    Stage swept non-harvest items into the manifest; reconcile before proceeding to Step 1. (Lock is not held at
+    intake — this is a lightweight early-warning check only.) In this self-hosting repository, `shipment-reconcile` is
+    not installed as a resolved `.github/skills/` copy; read the authored template at
+    `templates/skills/shipment-reconcile/SKILL.md.tmpl` directly when operating here — the template already carries
+    this same intake reconciliation reference at its own Step 0.5 item 6.
 
 ### Step 1: Pre-Flight Checks
 
@@ -307,7 +315,24 @@ is prohibited (P-001 role separation).
 
 ### Step 2: Task Execution Loop
 
-For each task in the shipment/feature:
+**Executable Task Set Derivation (C1–C6, 139-F/139.001-T)**: The shipment manifest (`custom_fields.items`) is the
+**closure membership record** — it is never the executable task set and is never mutated to make execution proceed.
+Before iterating, derive the executable task set: first filter the manifest to task artifacts (IDs ending `-T`; the
+covering feature is resolved through `parent_id` and is never executed — the 097-S task-only-manifest precedent),
+THEN read each task record's status. Artifact-type filtering always precedes any status read. Apply the exhaustive,
+positive status rule: KEEP `queued` and `active`; SKIP-AND-REPORT an archived member as `pre_archived_skipped` (the
+`pre-archived` classification already defined by `shipment-reconcile`); REPORT an already-`done` member separately as
+`already_done`; ANY OTHER, MISSING, OR UNREADABLE status is a FAIL-CLOSED HALT, never a skip. `already_done` and
+`pre_archived_skipped` are distinct reported outcomes — a `done` member must never be laundered as a tolerated
+pre-archived skip. A `pre-archived` member is EXPECTED AND TOLERATED, not an error: it must not halt the run, and it
+is never claimed, never moved to active, never unarchived, and never removed from the manifest. This derivation is a
+work-SELECTION step, never an integrity-guard step: the Step 0.5 item 1a queued-with-active-work early-warning is
+UNCHANGED and continues to run strictly BEFORE this derivation, exactly where it runs today; the derivation never
+suppresses, replaces, softens, or pre-empts item 1a's `SHIPMENT_STATE_INCONSISTENT` halt. If the derived executable
+set is EMPTY while the manifest is non-empty, HALT and report — do NOT advance to build or PR, and do NOT trigger any
+closure path; this is an operator-disposition case only.
+
+For each task in the derived executable task set:
 
 1. **Claim**: Move the task to active via `backlogit_move_item`.
 2. **Begin telemetry context**: Immediately after claim and before pre-build
