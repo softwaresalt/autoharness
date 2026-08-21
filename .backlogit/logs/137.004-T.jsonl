@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-20T17:48:28.5543695-07:00","actor":"agent","item_id":"137.004-T","event_type":"estimate_history","delta":{"actor":"agent","size":"S","size_ruleset_version":"2h-rule-v1","size_source":"agent"}}
+{"timestamp":"2026-08-21T08:04:24.9350248-07:00","actor":"backlogit","item_id":"137.004-T","event_type":"pre_task_completion_gate_passed","delta":{"base_ref":"","head_ref":"HEAD","head_sha":"a337e47e2c30b200cb1ba5e1239c405b537fd976","new_status":"done","old_status":"active","outcome":"passed","ran":false,"state_changed":true}}
