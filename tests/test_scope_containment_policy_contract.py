@@ -865,7 +865,7 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
         # touches) only.
         text = self.ship_template_text
         self.assertIn("Source artifact cleanup", text)
-        self.assertIn("backlogit_stash_remove", text)
+        self.assertIn("backlogit_stash_archive", text)
         self.assertIn("custom_fields.source_stash_id", text)
 
     # -- B2: literal-clause test (owned behaviour) --------------------------

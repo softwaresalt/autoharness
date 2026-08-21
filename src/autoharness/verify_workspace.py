@@ -293,7 +293,7 @@ PACK_ASSERTIONS = {
             "must_contain": [
                 "source_stash_id",
                 "source_deliberation_id",
-                "backlogit_stash_remove",
+                "backlogit_stash_archive",
                 "backlogit_archive_item",
             ],
         },

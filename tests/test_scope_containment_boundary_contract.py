@@ -80,7 +80,9 @@ _C4_DEFECTIVE_BYPASS_PHRASE = "only an explicit operator authorization"
 # resolved not hardcoded) "C5 AMENDMENT" note): the clause originally
 # prohibited Ship from "removing" stash entries
 # WITHOUT QUALIFICATION, which would forbid Ship's own correct, manifest-
-# derived post-merge Step 7 `backlogit_stash_remove` retirement. The corrected
+# derived post-merge Step 7 stash-retirement operation (migrated 137.003-T
+# from the deprecated `backlogit_stash_remove` to `backlogit_stash_archive`,
+# MCP primary, CLI fallback `backlogit stash archive`). The corrected
 # clause qualifies the prohibition with DISCRETIONARY/DISCRETIONARILY.
 _C5_UNQUALIFIED_REMOVE_PHRASE = "or remove them"
 
@@ -88,8 +90,10 @@ _C5_UNQUALIFIED_REMOVE_PHRASE = "or remove them"
 # obligation): a defect would have Stage *remove* (destructively) rather than
 # *archive* the duplicate entries it finds during reconciliation, which
 # contradicts the ARCHIVE-not-REMOVE disposition and the backlogit tool
-# protocol (no `stash remove` subcommand; `backlogit_stash_remove` deprecated
-# in favour of `backlogit_stash_archive`).
+# protocol (canonical CLI subcommand is `stash archive`; `stash remove`
+# survives only as a DEPRECATED ALIAS resolving to the same archive handler;
+# MCP primary is `backlogit_stash_archive`, with `backlogit_stash_remove`
+# exposed but self-described `[Deprecated: use backlogit_stash_archive]`).
 _B14_DEFECTIVE_REMOVE_DUPLICATES_PHRASE = "removes the duplicates under its own authority"
 
 
@@ -337,7 +341,9 @@ class ScopeContainmentBoundaryContractTests(unittest.TestCase):
         resolved not hardcoded) "C5 AMENDMENT" note) -- a blanket verb
         prohibition that would have made
         Ship's own correct, manifest-derived post-merge Step 7
-        `backlogit_stash_remove` retirement a C5 violation."""
+        stash-retirement operation (`backlogit_stash_archive`, migrated
+        137.003-T from the deprecated `backlogit_stash_remove`) a C5
+        violation."""
         for text in (self.workflow_policy_text, self.ship_template_text, self.ship_dogfood_text):
             self.assertNotIn(_C5_UNQUALIFIED_REMOVE_PHRASE, _normalize(text))
 
@@ -556,9 +562,11 @@ class ScopeContainmentBoundaryContractTests(unittest.TestCase):
         """Non-vacuous negative guard against the historical defective
         wording that would have Stage *remove* (destructively) rather than
         *archive* the duplicate entries it finds -- contradicting both the
-        ARCHIVE-not-REMOVE disposition and the backlogit tool protocol (no
-        `stash remove` subcommand; `backlogit_stash_remove` deprecated in
-        favour of `backlogit_stash_archive`)."""
+        ARCHIVE-not-REMOVE disposition and the backlogit tool protocol
+        (canonical CLI subcommand is `stash archive`; `stash remove`
+        survives only as a deprecated alias resolving to the same archive
+        handler; MCP primary is `backlogit_stash_archive`, with
+        `backlogit_stash_remove` exposed but deprecated in its favour)."""
         for text in (self.stage_template_text, self.stage_dogfood_text):
             self.assertNotIn(_B14_DEFECTIVE_REMOVE_DUPLICATES_PHRASE, _normalize(text))
 
