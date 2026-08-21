@@ -15,7 +15,7 @@ merge_commit: a1bce32f5f0173d82d8ac1301c66876e6b177356
 merged_at: "2026-08-21T15:26:51Z"
 reviewed_head: 124fcdaaed31599b4806dc1a364d333a04c81a71
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 conditions: []
 ---
 
@@ -246,8 +246,8 @@ this session for either source stash.
 - **Releasability evidence**: **READY**. All required evidence is present:
   verified merge commit (two parents), green CI, P-018 `SATISFIED`, P-015
   cascade-close independently re-verified, and P-020 compaction evidence
-  will be recorded below once `compact-context` completes. No condition is
-  outstanding.
+  (`compaction_status: done`) backed by durable compacted/archived memory
+  files. No condition is outstanding.
 - **Residual follow-up (non-blocking)**:
   1. P-021 deferred stash entries `E8158860` (full-suite test-isolation
      pollution), `F73BA065`, `90F2A9F8`, and `8FA8FC22` remain open; require
@@ -268,9 +268,15 @@ this session for either source stash.
 
 ## Compaction (P-020)
 
-`compact-context --target all` invocation and outcome recorded in session
-memory; this field will be finalized to `done` or `degraded` once that step
-completes (see `docs/memory/` for the session record).
+`compact-context --target all` was invoked per the mandatory per-merge
+trigger during this closure work (the `templates/skills/compact-context/SKILL.md.tmpl`
+authored contract, since this self-hosting repository has no resolved
+`.github/skills/compact-context/` copy). This shipment's own session
+memory qualified under the completed-work rule; compacted summary written
+to `docs/memory/compacted/2026-08-21-145S-137F-compacted.md`, consolidating
+the verbose original at
+`docs/archive/memory/2026-08-21-ship-145-s-execution-and-closure-session.md`.
+Neither artifact records a compaction degradation or failure signal.
 
 **Closure verdict: READY.** Runtime verification passed, the one Copilot
 review thread was resolved before merge, backlog cascade-close is complete
