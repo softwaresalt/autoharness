@@ -196,9 +196,15 @@ never from prose:
 * **R1** - verdict `PAIR-ISOLATED` and the reproducer still FAILS -> remediate the
   polluter at its own source (fixture/teardown scoping in the POLLUTING test),
   citing Task 1's minimal pair. Do not modify any victim's assertions.
-* **R2** - verdict `PAIR-ISOLATED` but the reproducer now PASSES (Task 2's anchor
-  work, or the variable-derivation shipment, already removed it) -> make NO source
-  edit; record the now-passing output and the likely intervening cause.
+* **R2** - verdict `PAIR-ISOLATED` but the reproducer now PASSES -> make NO source
+  edit; record the now-passing output and the likely intervening cause. Candidate
+  causes are restricted to changes that can actually PRECEDE this shipment under the
+  dependency graph `148-S -> 149-S -> 151-S -> 150-S`: Task 2's anchor work in 149-S
+  (the primary candidate - it removes all 58 `dir=Path.cwd()` sites), Task 3a's
+  git-subprocess change earlier in THIS shipment, 148-S's docs/compound migration,
+  or an intervening merge from `main`. **The variable-derivation shipment 150-S is
+  NOT an admissible cause** - it is ordered AFTER 151-S and cannot have landed yet
+  (corrected in review-fix cycle 3).
 * **R3** - verdict `INCONCLUSIVE` -> make NO source edit. There is no
   speculative-fix path. Re-measure the canonical gate. If green, record it. If
   still red, record the residual failure set plus Task 1's narrowed candidate set

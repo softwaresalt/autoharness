@@ -5,6 +5,9 @@ agent: Stage
 route: "claude-opus-5 / anthropic / high (P-013.5, inherited)"
 shipments: [148-S, 149-S, 151-S, 150-S]
 features: [140-F, 141-F, 142-F, 143-F]
+task_count_executable: 15
+task_count_superseded: 1
+review_fix_cycles_used: 3
 deliberations: [023-DL, 024-DL, 025-DL]
 ---
 
@@ -27,7 +30,28 @@ planning and shipment assembly. None omitted.
   `needs_quarantine: 0`, `quarantined: 0`, no validation anomalies; zero ACTIVE
   `stage`-owned candidates. Normal startup, not a failure, not an operator handoff.
 
-## Grouping decision (Step 1.5) - THREE features, not one
+## SCOPE OF RECORD (authoritative; supersedes every point-in-time count below)
+
+Final scope after review-fix cycles 1-3. Any count stated later in this document is
+a POINT-IN-TIME record of the run that produced it and must not be read as current.
+
+| Dimension | Final | Original harvest |
+|---|---|---|
+| Features | **4** - 140-F, 141-F, 142-F, **143-F** | 3 (140-F, 141-F, 142-F) |
+| Shipments | **4** - 148-S, 149-S, **151-S**, 150-S | 3 (148-S, 149-S, 150-S) |
+| Executable tasks | **15** | 13 |
+| Superseded/archived tasks | **1** - 141.005-T | 0 |
+| Review-fix cycles used | **3 of 3 (limit reached)** | 0 |
+
+Per-feature executable tasks: 140-F = 2 (140.001-T, 140.002-T); 141-F = 4
+(141.001-T - 141.004-T); 142-F = **7** (142.001-T - **142.007-T**); 143-F = 2
+(143.001-T, 143.002-T).
+
+Manifest sizes: 148-S = 3, 149-S = 6 (includes the pre-archived 141.005-T),
+151-S = 3, 150-S = **8**. Chain `148-S -> 149-S -> 151-S -> 150-S`, 148-S alone
+claimable.
+
+## Grouping decision (Step 1.5) - THREE features, not one (POINT-IN-TIME: a fourth, 143-F, was added in review-fix cycle 2)
 
 All three entries carry the literal `DEFERRED SCOPE EXPANSION` marker, so the
 Step 1 precedence rule FORCED the `deliberate` route for each regardless of shape
@@ -121,11 +145,11 @@ order is genuine, not cosmetic:
 * `backlogit doctor`: 62 pre-existing findings, **ZERO touching any ID created
   this session** (140/141/142/148/149/150/023-DL/024-DL/025-DL).
 * Shipment manifests verified by read-back; item counts match the harvested
-  hierarchies exactly (3 / 6 / 7).
+  hierarchies exactly (3 / 6 / 7). *(Point-in-time, pre-review. Final: 3 / 6 / 3 / 8 across 148-S / 149-S / 151-S / 150-S - see SCOPE OF RECORD.)*
 * Dependency chain verified acyclic: `149-S -> 148-S`, `150-S -> 149-S`.
 * Ready-shipment queue returns **148-S alone** as claimable - single-active
   preserved.
-* All 13 tasks carry BOTH `size` and `complexity` as structured fields, written
+* All 13 tasks *(point-in-time; final count 15 - see SCOPE OF RECORD)* carry BOTH `size` and `complexity` as structured fields, written
   through the three-call sequence the registry requires (create with no sizing;
   `--size` + `--size-source` + `--size-ruleset-version` together; `--complexity`
   alone). Verified by SQL read-back.
@@ -193,7 +217,7 @@ inference from the file you happened to open.
 
 **Re-gate.** Derivation review re-gated **PASS**, 0 unresolved P0/P1, cycle 1 of 3.
 The other two reviews needed no verdict change (their findings were AC-text defects,
-not verdict-bearing). Integrity re-verified after edits: all 13 YAML frontmatters
+not verdict-bearing). Integrity re-verified after edits: all 13 YAML frontmatters *(point-in-time count at cycle 1)*
 parse, 0 leading/trailing-space references repo-wide, both stash JSONL files valid
 (176 archived / 12 active lines), manifests unchanged at 148-S (3) -> 149-S (6) ->
 150-S (7) with 148-S alone claimable, and no task ID or scope lost.
@@ -317,6 +341,83 @@ the wildcard. This is the cycle-2 reviewer lesson applied to my own finding.
 reply/resolve, merge, shipment claim, source/test/template edit, build/test run,
 or branch/worktree creation. `.mcp.json` untouched. No `.engram/` artifact was
 hand-edited (tool-managed state, per the pack's Data Ownership Rule).
+
+## Review-fix cycle 3 (PR #386, Copilot review at HEAD `8cae5e80` - 6 threads) - FINAL CYCLE
+
+Cycle limit reached: **3 of 3**. Corrections left UNCOMMITTED for Orchestrator.
+Route honoured: claude-opus-5 / anthropic / high. **`ENGRAM_DEGRADED` unchanged** -
+the same-operation circuit remained open and Engram was NOT invoked; no raw
+unified/graph/code-dependency search was used as a workaround. All reads were exact
+known-path/line reads under the direct-tool exemption.
+
+**P-021 C1: all 6 = SAME-CONTRACT-SURFACE -> fix, not defer.** Classified
+individually, not in bulk:
+
+| # | Thread | Surface | C1 |
+|---|---|---|---|
+| 1 | `…TZTM` | `verify_workspace.py` derivation/render + its contract tests - already 142-F's declared surface | SAME |
+| 2 | `…TZTe` | `143.002-T` body, created by this PR | SAME |
+| 3 | `…TZTp` | isolation plan, created by this PR | SAME |
+| 4 | `…TZTy` | checkpoint evidence for this PR's own work | SAME |
+| 5 | `…TZUC` | archived stash disposition this PR wrote | SAME |
+| 6 | `…TZUR` | `143-F` + scope reporting, created by this PR | SAME |
+
+No finding required a new deferred entry. Finding 1 was the only one with any
+deferral argument (it touches `src/`), and it was rejected: 142-F's declared surface
+IS `verify_workspace.py` derivation plus its contract tests, so a derivation-model
+defect is in-scope by construction. It does NOT touch SKILL.md or `_render_template`.
+
+**Finding 1 - the substantive one.** The plan assumed ONE global variable map
+suffices. Verified at exact call sites: `verify_workspace.py:4196` derives
+`variables` ONCE outside the artifact loop; `:4340` applies that same dict to EVERY
+artifact. But `_stage.agent.md.tmpl:946-947` and `_ship.agent.md.tmpl:898-899` both
+consume the same collapsed `{{ESCALATION_*}}` triple, while escalation resolves PER
+ROLE (nested `model_routing.<role>.escalation` -> flat -> `tier3`). Task 1 calls
+that value "acting-role-collapsed" - a collapse a role-less map cannot perform.
+**Latent today**: config lines 57-80 declare only the flat block, so both agents
+coincidentally render the same correct value and every proposed test passes; it
+activates silently the first time the documented nested per-role override is used.
+Resolved by amendment **B8** / plan **Task 1b** / hardening **H9** / task
+**142.007-T** (M, high): an artifact/role-aware selection+composition step in FRONT
+of a still-pure `_render_template` (C5 intact, asserted byte-identical), scoped
+strictly to the collapsed prose triple so the RAW families and C3 are untouched.
+Acceptance is a distinct Stage-vs-Ship override test asserting the two rendered
+triples are **NOT EQUAL** - an equality-only test would pass under the defect
+precisely because today's config makes them coincide.
+
+**Findings 2, 3 and the line-44 occurrence in 6 - one defect, three carriers.** The
+R2 disposition named 150-S as a possible intervening cause, which the graph forbids:
+`151-S` is ordered BEFORE `150-S`. Corrected in `143.002-T`, `143-F` and the
+isolation plan, replaced with only causes that can actually precede 151-S (149-S
+anchor work - the primary candidate; 143.001-T earlier in the same shipment; 148-S's
+docs/compound migration; an intervening merge from `main`).
+
+**Finding 4 - checkpoint.** Regenerated through the OFFICIAL create operation and
+resolved: `checkpoint-20260821-220209.json`, explicitly recording that it SUPERSEDES
+`checkpoint-20260821-203637.json`. The stale record was NOT hand-edited and NOT
+deleted - it remains as historical evidence, and `cleanup_checkpoints` was
+deliberately not run because retention-based cleanup would sweep unrelated sessions'
+checkpoints. Note `checkpoint-20260821-100303.json` appeared between cycles and is
+not Stage-authored; left untouched.
+
+**Finding 5 - archived stash.** `backlogit_stash_get E8158860` returned
+`not_found`: the official stash operations reach only the ACTIVE stash, not
+`.backlogit/archive/stash.jsonl`. The out-of-band edit was therefore unavoidable, as
+the directive anticipated. Performed via JSON parse -> field edit -> re-serialise in
+the file's existing compact separator style; full-file JSONL revalidated (**176
+lines, 0 invalid**) and the index re-synced (940). Forward refs now name 143-F,
+143.001-T, 143.002-T, the superseded 141.005-T, 151-S, and the corrected
+`149-S blocks 151-S` edge.
+
+**Finding 6 - scope counts.** An authoritative **SCOPE OF RECORD** table was added
+at the top of this document; every surviving earlier count is explicitly annotated
+POINT-IN-TIME so nothing reads as current. PR body text is Orchestrator-owned and is
+reported to the parent rather than edited here.
+
+**Re-gate.** Derivation review re-gated **PASS**, P1-6 raised and RESOLVED, cycles
+**3 of 3**. Isolation and docline reviews unchanged at PASS (cycle 2) - cycle-3
+findings 2/3/6 were factual corrections to already-accepted resolutions, not
+verdict-bearing. **0 unresolved P0/P1 across all three reviews.**
 
 ## Next actions for Ship
 

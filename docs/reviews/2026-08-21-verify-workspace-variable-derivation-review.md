@@ -6,7 +6,7 @@ hardening: docs/plans/2026-08-21-verify-workspace-variable-derivation-hardening.
 stash_id: 8FA8FC22
 deliberation: "023-DL"
 verdict: PASS
-review_fix_cycle: 2
+review_fix_cycle: 3
 regated: 2026-08-21
 ---
 
@@ -39,7 +39,13 @@ amendment B5 was recorded but never APPLIED to the plan's operative Task 0, whos
 heading, T0b bullet and AC0c still described a standing-RED baseline. RESOLVED by
 rewriting Task 0 in place.
 
-**0 unresolved P0/P1.** P1-4 and P1-5 RESOLVED. Review-fix cycles used: **2 of 3.**
+*Review-fix cycle 3* (Copilot review on PR #386 at HEAD `8cae5e80`; 1 of the 6
+current-head threads landed here - `PRRT_kwDORzpWpM6bTZTM`): **P1-6** raised - the
+plan's single-global-variable-map model cannot serve role-distinct consumers of the
+same placeholder. RESOLVED by amendment B8 / new Task 1b / task 142.007-T.
+
+**0 unresolved P0/P1.** P1-4, P1-5 and P1-6 RESOLVED. Review-fix cycles used:
+**3 of 3 (limit reached).**
 
 *Method note:* every corrected claim in this cycle was re-verified against the
 authoritative source (`.github/skills/install-harness/SKILL.md` rows 414-453,
@@ -234,3 +240,65 @@ plan.
   source) closes the most tempting shortcut in the whole shipment.
 * Decomposing by RESOLUTION SOURCE rather than by file keeps each task owning one
   coherent rule set, which is what makes the 2-hour bound achievable at all.
+
+## P1-6 (RAISED in review-fix cycle 3; RESOLVED by amendment B8) - one global variable map cannot serve role-distinct consumers
+
+**Thread.** `PRRT_kwDORzpWpM6bTZTM`.
+
+**Finding.** The plan derives ONE variable mapping and applies it to every artifact,
+but two artifacts legitimately need DIFFERENT values for the SAME placeholder.
+Verified at the exact call sites rather than inferred:
+
+* `src/autoharness/verify_workspace.py:4196` - `variables = _derive_template_variables(...)`
+  is computed ONCE, outside the artifact loop.
+* `src/autoharness/verify_workspace.py:4340` - `_render_template(source_content, variables)`
+  applies that same dict to EVERY artifact.
+* `templates/agents/_stage.agent.md.tmpl:946-947` and
+  `templates/agents/_ship.agent.md.tmpl:898-899` both consume the same collapsed
+  triple `{{ESCALATION_FAMILY}}` / `{{ESCALATION_PROVIDER}}` /
+  `{{ESCALATION_REASONING_EFFORT}}`.
+* The escalation route resolves PER ROLE: nested `model_routing.<role>.escalation`
+  -> flat `model_routing.escalation` (deprecated) -> `tier3` per-field.
+
+Task 1 itself calls `{{ESCALATION_*}}` the "acting-role-collapsed" value. A global,
+role-less mapping cannot perform that collapse, so the plan's own definition was
+unsatisfiable as plumbed.
+
+**Why it is P1 and not P2.** The defect is LATENT and therefore invisible to the
+plan's entire existing acceptance surface. `.autoharness/config.yaml` lines 57-80
+declare only the flat `escalation` block, so today both agents collapse to the same
+value, render correctly, and every proposed test passes. It activates silently the
+first time an operator declares the nested per-role override that the Stage contract
+documents as PREFERRED (F02FD596) - at which point one agent renders the other
+role's escalation route. That is a wrong-model-routing defect with no local symptom,
+shipped by a plan that believed it had proven zero unresolved placeholders.
+
+**Resolution (B8).** New Task 1b, harvested as **142.007-T** (M / high) into 150-S,
+gated `142.007-T -> 142.003-T` with `142.006-T -> 142.007-T` so parity/checksum
+reconciliation runs after composition. An artifact/role-aware SELECTION and
+COMPOSITION step sits in FRONT of the renderer:
+
+* `_render_template` is UNCHANGED and stays pure `{{VAR}}` substitution (C5, and
+  142.003-T AC-e), asserted byte-identical by diff.
+* Role is resolved from ARTIFACT IDENTITY via an explicit mapping table over the
+  manifest artifact's `path`/`template` - never from ambient session state.
+* Only the COLLAPSED prose triple is role-scoped. The RAW
+  `LEGACY_`/`STAGE_`/`SHIP_ESCALATION_*` families stay global and raw, so C3 is
+  preserved rather than weakened; role-scoping a raw slot would reintroduce the
+  PR #316 round-3 flat+nested ambiguity this feature exists partly to protect.
+* Role-less artifacts and the role-neutral `escalation-protocol.instructions.md`
+  receive the base map unchanged.
+
+**Acceptance surface.** A DISTINCT Stage-vs-Ship override test: differing
+`stage.escalation` and `ship.escalation`, assert each agent renders its own role's
+values AND that the two triples are NOT EQUAL. The not-equal assertion is the
+load-bearing part - an equality-only test would pass under the defect precisely
+because today's flat-only config makes the two coincide. Plus AC1b-b (flat-only
+config still renders identically, proving strict generalisation), AC1b-d
+(`_render_template` byte-identical), and AC1b-e (raw families byte-identical
+across artifacts).
+
+**Task granularity.** Kept as its own unit rather than folded into 142.003-T: it is
+a render-pipeline seam, not a variable derivation, and 142.003-T is already M/high.
+142.003-T is updated to hand ownership of the role-aware collapse to 142.007-T so
+the two tasks do not both claim it.

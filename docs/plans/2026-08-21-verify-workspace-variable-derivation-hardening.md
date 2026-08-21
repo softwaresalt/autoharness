@@ -5,7 +5,7 @@ plan: docs/plans/2026-08-21-verify-workspace-variable-derivation-plan.md
 stash_id: 8FA8FC22
 deliberation: ".backlogit/queue/023-DL.md"
 outcome: HARDENED
-amendments: [B1, B2, B3, B4]
+amendments: [B1, B2, B3, B4, B8]
 ---
 
 # Plan Hardening - verify-workspace variable derivation
@@ -122,11 +122,52 @@ surface.
 five known failures, and one of the implicated modules is the very module this
 plan extends.
 
-**Hardening.** Confirmed by the shipment dependency edge: this shipment executes
-AFTER the test-isolation shipment. Recorded in both plans.
+**Hardening.** Confirmed by the shipment dependency edges. Review-fix cycle 2 split
+the test-isolation work across TWO shipments, so the chain is now
+`148-S -> 149-S -> 151-S -> 150-S` and this shipment executes AFTER BOTH of them
+(149-S diagnosis + decoupling, then 151-S remediation). Recorded in both plans.
+
+## H9 - One global variable map cannot serve role-distinct consumers
+
+*(RAISED in review-fix cycle 3, PR #386, thread `PRRT_kwDORzpWpM6bTZTM`.)*
+
+**Risk.** The plan's whole derivation model assumes a SINGLE variable mapping is
+sufficient for the entire render pass. Verified at the exact call sites, that
+assumption is false in a way the plan could not have caught by variable-by-variable
+review: `verify_workspace.py:4196` derives `variables` ONCE outside the artifact
+loop, and `:4340` applies that same dict to EVERY artifact - yet
+`_stage.agent.md.tmpl:946-947` and `_ship.agent.md.tmpl:898-899` consume the SAME
+collapsed `{{ESCALATION_*}}` triple while the escalation route resolves PER ROLE.
+Task 1 even names `{{ESCALATION_*}}` the "acting-role-collapsed" value - a collapse
+that a role-less global map cannot perform.
+
+The failure mode is especially dangerous because it is LATENT: today's config
+declares only the flat `escalation` block, so both agents coincidentally render the
+same correct value and every test would pass. It activates silently the first time
+an operator uses the nested per-role override the Stage contract documents as
+PREFERRED (F02FD596), at which point one of the two agents renders another role's
+escalation route - a wrong-model routing defect with no local symptom.
+
+A second, independent reason: the ESCALATION_DEGRADED same-route guard is
+role-relative (Stage's route == `tier3`, Ship's == `tier2`), so a shared collapsed
+value cannot express "degraded for Stage, genuine for Ship".
+
+**Hardening.** **AMENDMENT B8** - add Task 1b: an artifact/role-aware SELECTION and
+COMPOSITION step in front of the renderer. Binding constraints, all testable:
+`_render_template` stays pure and byte-identical (C5, asserted by diff); role is
+resolved from ARTIFACT IDENTITY via an explicit mapping table, never from ambient
+state; only the COLLAPSED prose triple is role-scoped while the RAW
+`LEGACY_`/`STAGE_`/`SHIP_ESCALATION_*` families stay global and raw (C3 preserved -
+role-scoping a raw slot would reintroduce the PR #316 round-3 flat+nested
+ambiguity); role-less artifacts get the base map unchanged. The acceptance surface
+is a DISTINCT Stage-vs-Ship override test asserting the two rendered triples are
+NOT EQUAL - an equality-only test would pass under the defect whenever the values
+coincide, which is exactly today's situation.
 
 ## Outcome
 
-**HARDENED.** Amendments B1, B2, B3, B4 to be applied to
+**HARDENED.** Amendments B1, B2, B3, B4 applied to
 `docs/plans/2026-08-21-verify-workspace-variable-derivation-plan.md` before
-plan-review.
+plan-review; **B8 added in review-fix cycle 3** after Copilot review surfaced the
+single-global-map defect (H9), and applied to the plan as new Task 1b and harvested
+as 142.007-T.

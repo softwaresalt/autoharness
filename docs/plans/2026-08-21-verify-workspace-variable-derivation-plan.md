@@ -146,6 +146,59 @@ scalar `orchestrator` keeps its tier2 provider/effort fallback while
 * AC1c. C4 round-trip: any of these stored in config render into
   `templates/harness-config.yaml.tmpl` at the documented slot.
 
+### Task 1b - Artifact/role-aware variable selection and composition (render pipeline)
+
+**Why this task exists (review-fix cycle 3, thread `PRRT_kwDORzpWpM6bTZTM`).**
+Tasks 0-1 assume ONE global variable mapping is sufficient. It is not.
+`verify_workspace.py:4196` derives `variables` ONCE, outside the artifact loop, and
+`verify_workspace.py:4340` passes that SAME dict to `_render_template` for EVERY
+artifact. But `templates/agents/_stage.agent.md.tmpl:946-947` and
+`templates/agents/_ship.agent.md.tmpl:898-899` both consume the SAME collapsed
+triple `{{ESCALATION_FAMILY}}` / `{{ESCALATION_PROVIDER}}` /
+`{{ESCALATION_REASONING_EFFORT}}`, while the escalation route is resolved PER ROLE
+(nested `model_routing.<role>.escalation` -> flat `model_routing.escalation` ->
+`tier3` per-field). Task 1 calls `{{ESCALATION_*}}` the "acting-role-collapsed"
+value, but a single global dict has no acting role, so that collapse is
+unsatisfiable as currently plumbed.
+
+**Latent, not active.** `.autoharness/config.yaml` lines 57-80 declare only the FLAT
+`escalation` block and no nested per-role override, so today both agents collapse to
+the same value and render correctly by coincidence. The defect activates the moment
+a nested per-role override is declared - the form the Stage contract documents as
+preferred (F02FD596). It must be fixed while this surface is open.
+
+**Design (C5 preserved - `_render_template` does NOT change).**
+1. Add a PURE composition helper (e.g. `_compose_artifact_variables(base, role)`)
+   returning a NEW mapping = base overlaid with the role-scoped collapsed triple.
+   It must not mutate the base, which is reused across the loop.
+2. Add role resolution from ARTIFACT IDENTITY (e.g. `_resolve_artifact_role`),
+   driven by an explicit mapping table over the manifest artifact's `path`/`template`
+   - never from ambient session state, the acting agent, or an env var.
+3. Change ONLY the render call site (4340) to pass the composed mapping. Keep the
+   single derivation at 4196 so cost stays O(1) in derivations.
+4. Scope role-awareness to the COLLAPSED prose triple ONLY. The RAW families
+   (`LEGACY_`/`STAGE_`/`SHIP_ESCALATION_*`) stay GLOBAL and RAW - C3 is preserved,
+   not weakened. Role-scoping a raw slot would reintroduce the PR #316 round-3
+   flat+nested ambiguity.
+5. Artifacts with no role (instructions, config, start scripts, `AGENTS.md`) and the
+   role-neutral `escalation-protocol.instructions.md` receive the BASE map unchanged.
+
+**Acceptance criteria.**
+* AC1b-a. A DISTINCT Stage-vs-Ship override test exists: given differing
+  `model_routing.stage.escalation` and `model_routing.ship.escalation`, the staged
+  `_stage.agent.md` and `_ship.agent.md` carry the respective role's values AND the
+  two triples are asserted NOT EQUAL. An equality-only assertion would pass under
+  the defect whenever the two happen to coincide.
+* AC1b-b. With only the FLAT block declared (today's live shape), both agents render
+  the SAME value - proving a strict generalisation and a no-op for current config.
+* AC1b-c. With neither declared, each role falls back to `tier3` per-field.
+* AC1b-d. `_render_template` is byte-identical to its pre-change form (assert by diff).
+* AC1b-e. RAW `*_ESCALATION_*` families render byte-identically across all artifacts.
+* AC1b-f. Role-less artifacts render byte-identically to pre-change output.
+
+**Dependency.** Task 1 (the escalation slots must exist before they can be composed).
+Task 4 depends on this task, because composition changes rendered bytes.
+
 ### Task 2 - Derive the install-shape family (~10 variables)
 
 `INSTALL_PRESET`, `PRIMARY_STACK_PACK`, `STACK_PACKS_YAML`, `INSTALL_LAYERS_YAML`,
@@ -199,7 +252,8 @@ installed output. (Corrected in review-fix cycle 1.)
 
 ### Task 4 - Parity and manifest reconciliation
 
-**Dependency.** Depends on Tasks 1-3.
+**Dependency.** Depends on Tasks 1, 1b, 2 and 3. Task 1b is included because
+artifact/role-aware composition changes rendered bytes and therefore checksums.
 
 **Steps.**
 1. Re-run the byte-identity contract test for the four clean pairs. If any
@@ -318,3 +372,21 @@ Source: `docs/reviews/2026-08-21-verify-workspace-variable-derivation-review.md`
   family/provider/effort) before and after rendering - not merely equality of the
   derived variable map, which is invariant under normalisation and would mask the
   reshape.
+
+## Amendments applied in review-fix cycle 3 (PR #386)
+
+Thread: `PRRT_kwDORzpWpM6bTZTM`.
+
+* **B8** - **NEW Task 1b.** One global variable mapping cannot serve two artifacts
+  that consume the same placeholder with role-distinct correct values. Verified at
+  the exact call sites (`verify_workspace.py:4196` single derivation, `:4340` same
+  dict per artifact) and the exact consumers (`_stage.agent.md.tmpl:946-947`,
+  `_ship.agent.md.tmpl:898-899`). Resolved by an artifact/role-aware
+  SELECTION/COMPOSITION step in front of a still-pure `_render_template` (C5 intact),
+  scoped strictly to the collapsed `{{ESCALATION_*}}` prose triple so the raw
+  storage families and C3 are untouched. Harvested as **142.007-T** (M / high) into
+  150-S, gated `142.007-T -> 142.003-T` and `142.006-T -> 142.007-T`.
+
+P-021 C1: SAME CONTRACT SURFACE - `src/autoharness/verify_workspace.py` plus its
+contract tests, already this feature's declared surface. No SKILL.md edit, no
+`_render_template` behavioural change. No new deferred capture required.
