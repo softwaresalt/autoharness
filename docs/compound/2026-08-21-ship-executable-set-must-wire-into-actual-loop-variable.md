@@ -17,6 +17,8 @@ feature: 139-F
 tasks: [139.001-T, 139.002-T]
 pr: 379
 tags: [ship-agent, template-portability, agent-contract-wiring, p-018, copilot-review]
+source: docs/compound/2026-08-21-ship-executable-set-must-wire-into-actual-loop-variable.md
+doc_type: learning
 ---
 
 # Compound Learning: a described derivation is not a wired derivation

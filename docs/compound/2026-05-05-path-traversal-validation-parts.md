@@ -6,6 +6,8 @@ root_cause: "raw_value.startswith('..') only catches paths that start with a tra
 tags: [verify_workspace, path-validation, workspace-containment, security, traversal]
 shipment: 007-S
 date: 2026-05-05
+source: docs/compound/2026-05-05-path-traversal-validation-parts.md
+doc_type: learning
 ---
 
 ## Problem

@@ -5,6 +5,9 @@ root_cause: design-finding-location-requirements
 tags: [review, quality-criteria, STRIDE, file-line, evidence-anchor]
 created: 2026-05-05
 shipment: 006-S
+source: docs/compound/2026-05-05-stride-evidence-anchor-pattern.md
+doc_type: learning
+title: "STRIDE Findings and the File:Line Requirement"
 ---
 
 # STRIDE Findings and the File:Line Requirement

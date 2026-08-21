@@ -6,6 +6,9 @@ tags: [backlogit, index-sync, merge-confirmation, session-gates, ship-agent, sta
 shipment: 010-S
 pr: 38
 merged_at: "2026-05-07T01:53:32Z"
+source: docs/compound/010-S-session-lifecycle-gates.md
+doc_type: learning
+title: "010-S: Session Lifecycle Gates and Backlogit Sync"
 ---
 
 # 010-S: Session Lifecycle Gates and Backlogit Sync

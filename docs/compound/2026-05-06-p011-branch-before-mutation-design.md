@@ -6,6 +6,8 @@ category: harness-design
 root_cause: Ship agent created or mutated the workspace before verifying a feature branch existed, risking commits directly to main
 tags: [p-011, branch-creation, ship-agent, workflow-gates, ordering]
 shipment: 009-S
+source: docs/compound/2026-05-06-p011-branch-before-mutation-design.md
+doc_type: learning
 ---
 
 # Branch-Before-Mutation: P-011 Design and Ordering Constraint

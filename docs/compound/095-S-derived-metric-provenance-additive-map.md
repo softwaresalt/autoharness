@@ -7,6 +7,9 @@ shipment: 095-S
 feature: 090-F
 pr: 235
 merged_at: "2026-07-27T21:40:54Z"
+source: docs/compound/095-S-derived-metric-provenance-additive-map.md
+doc_type: learning
+title: "095-S / PR #235: Carrying Provenance Without Breaking Numeric Metric Consumers"
 ---
 
 # 095-S / PR #235: Carrying Provenance Without Breaking Numeric Metric Consumers

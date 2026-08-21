@@ -16,6 +16,8 @@ tags:
 citations:
   - "PR #354 comment 3799056616 (posted mangled, then corrected via PATCH)"
   - "Shipment 137-S"
+source: docs/compound/2026-08-17-powershell-doublequote-herestring-mangles-backticks-in-comment-bodies.md
+doc_type: learning
 ---
 
 # PowerShell Double-Quoted Here-Strings Mangle Backticks in Comment Bodies

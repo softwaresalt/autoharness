@@ -17,6 +17,8 @@ feature: 136-F
 tasks: ["136.002-T", "136.003-T"]
 pr: 382
 tags: [backlogit, shipment-claim, version-drift, intake-reconciliation, ship-agent]
+source: docs/compound/2026-08-21-backlogit-1-10-shipment-claim-cascades-to-children.md
+doc_type: learning
 ---
 
 # Compound Learning: backlogit 1.10.0 shipment claim cascades to children

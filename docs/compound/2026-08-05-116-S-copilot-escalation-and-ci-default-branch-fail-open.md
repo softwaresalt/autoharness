@@ -8,6 +8,8 @@ tags: [ship, copilot-review, ci, topology-gate, fail-closed, windows, testing, p
 shipment: 116-S
 pr: 302
 merged_at: "2026-08-05T23:04:57Z"
+source: docs/compound/2026-08-05-116-S-copilot-escalation-and-ci-default-branch-fail-open.md
+doc_type: learning
 ---
 
 # 116-S / 109-F: nine-round Copilot escalation chain, CI-default-branch anti-pattern, and Windows-authoring gotchas

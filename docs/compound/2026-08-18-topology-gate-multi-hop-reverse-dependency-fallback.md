@@ -20,6 +20,8 @@ citations:
   - "tests/test_gates_topology.py::ImplicitNumericPredecessorTests::test_multi_hop_reverse_dependency_disables_fallback_entirely_not_just_the_violator"
   - "Shipment 139-S"
   - "docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md (supersedes the rule below)"
+source: docs/compound/2026-08-18-topology-gate-multi-hop-reverse-dependency-fallback.md
+doc_type: learning
 ---
 
 # Multi-Hop Reverse Dependency Must Disable the Entire Fallback, Not Just Skip the Violator

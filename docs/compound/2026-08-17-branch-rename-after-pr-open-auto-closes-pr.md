@@ -17,6 +17,8 @@ citations:
   - "PR #353 (closed, superseded)"
   - "PR #354 (opened as recovery)"
   - "Shipment 137-S"
+source: docs/compound/2026-08-17-branch-rename-after-pr-open-auto-closes-pr.md
+doc_type: learning
 ---
 
 # Renaming a Branch After PR Open Auto-Closes the PR

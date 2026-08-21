@@ -5,6 +5,9 @@ root_cause: weak-string-matching-in-assertions
 tags: [verify_workspace, assertions, routing, test-fixtures, specificity]
 created: 2026-05-05
 shipment: 006-S
+source: docs/compound/2026-05-05-assertion-specificity-agent-file-names.md
+doc_type: learning
+title: "Verify Workspace Assertions: Check Agent File Names, Not Persona Names"
 ---
 
 # Verify Workspace Assertions: Check Agent File Names, Not Persona Names

@@ -7,6 +7,9 @@ shipment: 129-S
 feature: 120-F
 pr: 331
 correction_pr: 334
+source: docs/compound/129-s-supervisor-engram-graphtor-startup-and-review-hardening.md
+doc_type: learning
+title: "129-S: Supervisor Engram/graphtor-docs Startup Defect + 8-Round Review Hardening"
 ---
 
 # 129-S: Supervisor Engram/graphtor-docs Startup Defect + 8-Round Review Hardening

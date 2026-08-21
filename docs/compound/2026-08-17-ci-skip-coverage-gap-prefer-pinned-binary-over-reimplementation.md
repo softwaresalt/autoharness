@@ -16,6 +16,8 @@ tags:
 citations:
   - "PR #354 Copilot review comment 3799007126"
   - "Shipment 137-S / 128.002-T"
+source: docs/compound/2026-08-17-ci-skip-coverage-gap-prefer-pinned-binary-over-reimplementation.md
+doc_type: learning
 ---
 
 # CI-Skip Coverage Gap: Install the Real Tool, Don't Re-Implement Its Rules

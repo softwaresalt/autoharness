@@ -1,3 +1,9 @@
+---
+title: "A logged \"archived\" event without a corresponding file mutation is torn state — never commit it into a closure"
+source: docs/compound/2026-08-15-torn-archive-log-entry-without-file-mutation-must-not-be-committed.md
+doc_type: learning
+---
+
 # A logged "archived" event without a corresponding file mutation is torn state — never commit it into a closure
 
 **Date**: 2026-08-15

@@ -6,6 +6,9 @@ tags: [backlogit, shipment, safe-close, manifest, task-only-items, p-010, p-015,
 shipment: 097-S
 feature: 092-F
 pr: 241
+source: docs/compound/097-S-shipment-task-only-safe-close.md
+doc_type: learning
+title: "097-S: Shipment Manifests Must Keep `custom_fields.items` Task-ID-Only"
 ---
 
 # 097-S: Shipment Manifests Must Keep `custom_fields.items` Task-ID-Only

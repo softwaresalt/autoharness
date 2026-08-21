@@ -6,6 +6,9 @@ tags: [tests, unittest, pytest, references, validation, ci, telemetry]
 shipment: 097-S
 feature: 092-F
 pr: 241
+source: docs/compound/097-S-canonical-unittest-gate.md
+doc_type: learning
+title: "097-S: The Canonical Repository Test Gate Is `unittest`, Not Root `pytest`"
 ---
 
 # 097-S: The Canonical Repository Test Gate Is `unittest`, Not Root `pytest`

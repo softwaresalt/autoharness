@@ -6,6 +6,9 @@ tags: [testing, ast, regression-guard, p-021, review-fix]
 shipment: 146-S
 task: 138.001-T
 date: 2026-08-21
+source: docs/compound/2026-08-21-ast-based-structural-regression-guards-beat-line-regex.md
+doc_type: learning
+title: "AST-Based Structural Regression Guards Beat Line-Oriented Regex"
 ---
 
 # AST-Based Structural Regression Guards Beat Line-Oriented Regex

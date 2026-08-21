@@ -4,6 +4,8 @@ shipment: 115-S
 feature: 109-F
 pr: 300
 merge_commit: 04cdea11036119522a3c50c37ed5d8787420b4e0
+source: docs/compound/115-S-109-F-checksum-and-branch-ownership-patterns.md
+doc_type: learning
 ---
 
 # Compound Learning: 115-S / 109-F (Pipeline-Topology Gate B — hooks + install adapters)

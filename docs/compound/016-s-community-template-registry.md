@@ -8,6 +8,8 @@ tags: [community-templates, registry, checksum, drift-detection, schema-design, 
 created: 2026-05-09
 shipment: 016-S
 merge_sha: 7bcac324bbae569373d2c923e9c9aa6d166d0455
+source: docs/compound/016-s-community-template-registry.md
+doc_type: learning
 ---
 
 # Community Template Registry: dual-checksum design for drift detection

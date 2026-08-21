@@ -5,6 +5,9 @@ root_cause: building an evaluation harness inside an install/tune tool that has 
 tags: [eval, reviewer, deterministic, injectable-runner, replay, unified-diff, telemetry-coupling, hermetic-test, backlogit, shipment-ship, cascade-bug]
 created: 2026-07-02
 shipment: 056-S
+source: docs/compound/2026-07-02-headless-eval-runner-deterministic-reviewer.md
+doc_type: learning
+title: "Headless Eval Runner + Deterministic Reviewer Matrix (No Live Model Runtime)"
 ---
 
 # Headless Eval Runner + Deterministic Reviewer Matrix (No Live Model Runtime)

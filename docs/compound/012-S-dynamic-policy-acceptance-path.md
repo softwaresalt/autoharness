@@ -6,6 +6,9 @@ tags: [dynamic-policy, tune-harness, policy-proposal, operator-review]
 status: active
 created: 2026-05-07
 shipment: 012-S
+source: docs/compound/012-S-dynamic-policy-acceptance-path.md
+doc_type: learning
+title: "Dynamic Policy Acceptance Path Pattern"
 ---
 
 # Dynamic Policy Acceptance Path Pattern

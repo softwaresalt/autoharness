@@ -21,6 +21,8 @@ tags:
     - git
     - bookkeeping
     - process
+source: docs/compound/2026-08-21-backlogit-shipment-status-file-desync-after-git-stash.md
+doc_type: learning
 ---
 
 # git stash/pop mid-shipment can desync backlogit's on-disk status

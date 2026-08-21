@@ -5,6 +5,9 @@ root_cause: "backlogit move <id> --status done relocates the artifact file from 
 tags: [backlogit, archive, safe-close, P-007, P-015]
 shipment: 110-S
 date: 2026-08-02
+source: docs/compound/2026-08-02-backlogit-done-move-vs-explicit-archive.md
+doc_type: learning
+title: "backlogit: `move --status done` Is Not `archive`"
 ---
 
 # backlogit: `move --status done` Is Not `archive`

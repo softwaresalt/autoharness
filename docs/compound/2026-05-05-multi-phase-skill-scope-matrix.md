@@ -5,6 +5,9 @@ root_cause: scope-matrix-phase-gating
 tags: [skill, scope, phase-gating, security-audit, multi-phase]
 created: 2026-05-05
 shipment: 006-S
+source: docs/compound/2026-05-05-multi-phase-skill-scope-matrix.md
+doc_type: learning
+title: "Multi-Phase Skill Scope Matrix Design"
 ---
 
 # Multi-Phase Skill Scope Matrix Design

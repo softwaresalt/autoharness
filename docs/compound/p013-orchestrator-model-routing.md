@@ -9,6 +9,8 @@ pr: 46
 merge_commit: e76b874d01bf4235522743a017ccd40db858d930
 merged_at: "2026-05-08T13:07:22Z"
 date: "2026-05-08"
+source: docs/compound/p013-orchestrator-model-routing.md
+doc_type: learning
 ---
 
 > **Update (2026-07-11) — `model_tier` frontmatter retired (053.004-T).** The

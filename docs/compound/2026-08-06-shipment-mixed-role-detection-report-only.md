@@ -8,6 +8,9 @@ feature: 112-F
 source_deliberation_id: 013-DL
 source_stash_tracker_id: 936C68F3
 tokens: [DETECTED, REPORTED, DEGRADED, live-queued, live-active, "archived-completed(done)", duplicate, conflicting, missing, malformed-provenance, any-other-archived-status, orphan, out-of-role, torn-partial, malformed-legacy]
+source: docs/compound/2026-08-06-shipment-mixed-role-detection-report-only.md
+doc_type: learning
+title: "118-S / 112-F: Mixed-Role Shipment-Record-Status DETECTION + REPORT-ONLY Diagnostics (936C68F3 part 2)"
 ---
 
 # 118-S / 112-F: Mixed-Role Shipment-Record-Status DETECTION + REPORT-ONLY Diagnostics (936C68F3 part 2)

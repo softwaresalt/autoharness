@@ -6,6 +6,8 @@ category: harness-design
 root_cause: Agents silently fell back to grep/cat filesystem reads when MCP tools were unavailable, without declaring degraded mode
 tags: [p-012, mcp-tools, tool-availability, dispatch-agent, registry-driven]
 shipment: 009-S
+source: docs/compound/2026-05-06-p012-tool-availability-gate-and-dispatch.md
+doc_type: learning
 ---
 
 # MCP Tool Pre-flight Gate (P-012) and Dispatch Agent Pattern

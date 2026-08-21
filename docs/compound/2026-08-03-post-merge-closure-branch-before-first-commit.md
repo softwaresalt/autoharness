@@ -2,6 +2,8 @@
 title: Post-merge closure branch must exist before the first archival commit
 date: 2026-08-03
 tags: [ship, post-merge-closure, backlog, P-014]
+source: docs/compound/2026-08-03-post-merge-closure-branch-before-first-commit.md
+doc_type: learning
 ---
 
 # Post-merge closure branch must exist before the first archival commit

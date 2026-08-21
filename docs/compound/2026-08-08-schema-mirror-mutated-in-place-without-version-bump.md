@@ -18,6 +18,8 @@ tags: [schema-versioning, contract-integrity, copilot-review, harness-config, ve
 shipment: 121-S
 feature: 113-F
 pr: 316
+source: docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md
+doc_type: learning
 ---
 
 # Compound Learning: A schema-behavior change without a version bump silently redefines an already-published version

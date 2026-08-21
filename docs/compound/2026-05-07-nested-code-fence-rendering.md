@@ -5,6 +5,9 @@ root_cause: Backslash escaping inside fenced code blocks does not work in standa
 tags: [markdown, code-fence, template-authoring, nested-fences]
 shipment: 011-S
 date: 2026-05-07
+source: docs/compound/2026-05-07-nested-code-fence-rendering.md
+doc_type: learning
+title: "Nested Code Fences in Markdown Documentation"
 ---
 
 # Nested Code Fences in Markdown Documentation

@@ -18,6 +18,8 @@ tags:
   - "exit-status"
   - "detection-logic"
   - "code-review-finding"
+source: docs/compound/2026-08-08-shell-pipeline-exit-status-masking-in-version-probes.md
+doc_type: learning
 ---
 
 # Compound Learning: Shell Pipeline Failure Discarded by Trailing `|| true` in Version-Probe Detection Logic
