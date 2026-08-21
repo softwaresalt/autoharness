@@ -20,8 +20,11 @@ Route: claude-opus-5 / anthropic / high (P-013.5, inherited)
 
 **Migrate.** Replace `backlogit_stash_remove` with `backlogit_stash_archive`
 across the **prescriptive** carriers only, leave every **historical** record
-untouched, and hold priority at **low-but-not-deferrable** because the CLI
-fallback path documented for this operation **no longer exists**.
+untouched, and hold priority at **low-but-not-deferrable** because the
+prescribed operation is **deprecated** and misstates a non-destructive
+archival as removal - not because the replacement is unreachable: MCP
+primary `backlogit_stash_archive` and CLI fallback `backlogit stash archive`
+both exist.
 
 ## Problem statement
 
@@ -31,8 +34,13 @@ deprecated that operation in favour of `backlogit_stash_archive`.
 
 ### Stage verification (read-only)
 
-* `backlogit stash --help` (v1.10.0) lists exactly: `add`, `archive`, `edit`,
-  `get`, `harvest`, `list`. There is **no `remove` subcommand**. Confirmed.
+* `backlogit stash --help` (v1.10.0) lists exactly these **canonical**
+  subcommands: `add`, `archive`, `edit`, `get`, `harvest`, `list`. `remove` is
+  **omitted from that canonical listing but remains reachable as a deprecated
+  alias**: `backlogit stash archive --help` declares `archive, remove` as
+  aliases, so `backlogit stash remove <id>` resolves to the same non-destructive
+  archive handler. Absence from the help listing is *not* absence of the alias.
+  Confirmed.
 * `templates/agents/_ship.agent.md.tmpl` still prescribes `backlogit_stash_remove`
   at **line 38** (Role Boundary table) and **line 819** (post-merge Step 7).
 * The dogfood mirror `.github/agents/_ship.agent.md` carries it at **line 47**.
@@ -121,7 +129,7 @@ paired edits exists.
 
 | # | Option | Verdict |
 |---|---|---|
-| A | Do nothing; the MCP tool still works | Rejected - documented step has no reachable fallback |
+| A | Do nothing; the MCP tool still works | Rejected - leaves the documented step pinned to a **deprecated** operation that misstates archival as removal; both replacement legs are reachable, so the corrected rename is available today |
 | B | Change only `templates/agents/_ship.agent.md.tmpl` | Rejected - leaves mirror, policy, registry, verifier and tests inconsistent; verifier marker would then fail |
 | C | **Migrate all prescriptive carriers; leave historical records untouched** | **Chosen** |
 | D | C + remove `stash_remove` from the registry entirely | Rejected - the operation still exists upstream; the registry should describe reality. Deprecate in place, do not delete |
