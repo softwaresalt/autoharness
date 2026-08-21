@@ -160,11 +160,23 @@ _DIVERGENT_PAIR_CAUSES: dict[str, tuple[str, ...]] = {
     ),
 }
 
-# The EXACT expected membership of the divergent set (fail-closed: a fifth
-# pair silently becoming non-renderable, or an existing pair being removed,
-# must fail this test by NAME rather than pass unnoticed or merely warn).
+# The EXACT expected membership of the divergent set, hardcoded as an
+# INDEPENDENT literal (PR #384 Copilot review round 1 fix) -- NOT derived
+# from `_DIVERGENT_MARKER_ONLY_PAIRS` itself. Deriving the expectation from
+# the same tuple the test re-derives its "actual" side from would make the
+# membership assertion vacuous: adding or removing an entry from
+# `_DIVERGENT_MARKER_ONLY_PAIRS` would change BOTH sides together, so the
+# assertion would always pass regardless of what changed. Pinning these four
+# paths as an independent literal is what makes an inventory change (a fifth
+# pair silently becoming non-renderable, or an existing pair being removed)
+# fail this test by NAME rather than pass unnoticed or merely warn.
 _EXPECTED_DIVERGENT_PAIR_MANIFEST_PATHS = frozenset(
-    label for _, _, label in _DIVERGENT_MARKER_ONLY_PAIRS
+    {
+        ".github/agents/_ship.agent.md",
+        ".github/agents/_stage.agent.md",
+        ".github/agents/_orchestrator.agent.md",
+        ".github/instructions/github-pr-automation.instructions.md",
+    }
 )
 
 # Every dogfooded artifact this feature touches, for the manifest-checksum
