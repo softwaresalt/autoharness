@@ -256,6 +256,16 @@ build work begins:
    expected status, and scans for orphan items. A `RECONCILE_FAIL` here means Stage swept
    non-harvest items into the manifest; reconcile before proceeding to Step 1. (Lock is not
    held at intake — this is a lightweight early-warning check only.)
+   **Scope note (139-F/139.001-T)**: this single-`expected_status` check applies to true
+   session-start intake, where every manifest task still shares one uniform status (all
+   `{{STATUS_QUEUED}}` pre-claim, or all `{{STATUS_ACTIVE}}` immediately after this session's
+   own claim in item 4 above). `shipment-reconcile`'s `mode: pre` accepts only one
+   `expected_status` value and classifies any other status as `status-mismatch`, so it cannot
+   represent a legitimately mixed manifest. Do not invoke this check on a resumed session where
+   manifest tasks have already diverged in status from prior partial execution (some
+   `{{STATUS_DONE}}`, some `{{STATUS_ACTIVE}}`, some still `{{STATUS_QUEUED}}`) — rely instead
+   on the Step 3 item 1 executable-task-set derivation's own per-task status handling (C1–C6),
+   which is built for exactly that mixed state.
 
 **Fallback path — direct invocation without a Stage-prepared shipment**:
 
@@ -323,9 +333,37 @@ dependency graph before proceeding rather than assuming the backlog ordering is 
 
 Now that all tasks are harnessed, construct the execution queue:
 
-1. List all tasks with `harness-ready` label and `{{STATUS_QUEUED}}` status for the target feature or chore.
-2. Sort the queue by dependency order (tasks with no unfinished dependencies first).
-3. If the queue is empty after harness generation, halt and report — there is nothing to build.
+1. **Shipment-manifest executable-set derivation (when operating under a Stage-prepared shipment; C1–C6,
+   139-F/139.001-T)**: The shipment manifest (`custom_fields.items` recorded at Step 0.5) is the **closure
+   membership record** — it is never the executable task set and is never mutated to make execution proceed. Before
+   assembling the queue in item 2 below, filter the manifest to task artifacts (IDs ending `{{SUFFIX_TASK}}`; the covering
+   feature is resolved through `parent_id` and is never executed — the 097-S task-only-manifest precedent), THEN
+   read each task record's status; artifact-type filtering always precedes any status read. Apply the exhaustive,
+   positive status rule: KEEP `{{STATUS_QUEUED}}` and `{{STATUS_ACTIVE}}`; SKIP-AND-REPORT an archived member as
+   `pre_archived_skipped` — expressed through the `pre-archived` classification already defined by
+   `shipment-reconcile` (record archived / archive file present), never through a new archived-status template
+   variable (no new `{{VARIABLE}}` placeholder is introduced); REPORT an already-`{{STATUS_DONE}}` member separately
+   as `already_done`; ANY OTHER, MISSING, OR UNREADABLE status is a FAIL-CLOSED HALT, never a skip. `already_done`
+   and `pre_archived_skipped` are distinct reported outcomes — a `{{STATUS_DONE}}` member must never be laundered as
+   a tolerated pre-archived skip. A `pre-archived` member is EXPECTED AND TOLERATED, not an error: it must not halt
+   the run, and it is never claimed, never moved to `{{STATUS_ACTIVE}}`, never unarchived, and never removed from
+   the manifest. This derivation is a work-SELECTION step, never an integrity-guard step: the Step 0.5 item 1a
+   queued-with-active-work early-warning is UNCHANGED and continues to run strictly BEFORE this derivation; the
+   derivation never suppresses, replaces, softens, or pre-empts item 1a's `SHIPMENT_STATE_INCONSISTENT` halt. If the
+   derived executable set is EMPTY while the manifest is non-empty, HALT and report — do NOT advance to build or PR,
+   and do NOT trigger any closure path; this is an operator-disposition case only. **This derived set — not a
+   queued-status-only list — is wired into item 2's ready queue below**: it is the actual task-membership boundary
+   that Step 4 executes, so an `{{STATUS_ACTIVE}}` member of this derived set is never omitted from the ready queue,
+   and a `pre_archived_skipped` / `already_done` member is never included in it merely because some other queued
+   task elsewhere happens to share its label or status.
+2. List all tasks with `harness-ready` label and `{{STATUS_QUEUED}}` status for the target feature or chore. When
+   operating under a Stage-prepared shipment (item 1 above ran), replace this queued-only membership with item 1's
+   derived executable set: include every task in that set regardless of whether its status is `{{STATUS_QUEUED}}` or
+   `{{STATUS_ACTIVE}}`, and exclude any manifest task that item 1 classified as `pre_archived_skipped` or
+   `already_done` even if it would otherwise match `{{STATUS_QUEUED}}`/`{{STATUS_ACTIVE}}` elsewhere. Tasks outside
+   the shipment's manifest are never added by this substitution.
+3. Sort the queue by dependency order (tasks with no unfinished dependencies first).
+4. If the queue is empty after harness generation, halt and report — there is nothing to build.
 
 When the `agent-intercom` capability pack is installed, broadcast `[SHIP] Pre-flight passed, ready queue: {count} tasks` with the count of queued items.
 
