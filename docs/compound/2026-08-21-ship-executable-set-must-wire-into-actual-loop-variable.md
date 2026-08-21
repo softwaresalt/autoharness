@@ -1,10 +1,22 @@
 ---
 title: "A described derivation is not a wired derivation: Copilot review caught two P1s that local review missed"
+description: "A new agent-instruction derivation step can be internally coherent and still be a functional no-op if it is never wired into the specific variable a later, unedited step consumes by name."
+problem_type: "unwired_contract_derivation_and_hardcoded_portability_token"
+category: "workflow-issues"
+component: "ship-agent-templates"
+root_cause: "A new agent-instruction derivation step described a correct replacement for an existing status-filtered task list, but never stated that it replaces that list, so the unedited consuming step kept reading the old list; separately, the fix for that gap hard-coded an installation-specific ID suffix into the portable template instead of the existing template variable for it."
+resolution_type: "code_fix"
+severity: "high"
+file_path: "templates/agents/_ship.agent.md.tmpl"
+citations:
+  - "PR #379"
+  - "docs/plans/2026-08-20-ship-pre-archived-manifest-member-execution-plan.md"
 date: 2026-08-21
 shipment: 147-S
 feature: 139-F
 tasks: [139.001-T, 139.002-T]
 pr: 379
+tags: [ship-agent, template-portability, agent-contract-wiring, p-018, copilot-review]
 ---
 
 # Compound Learning: a described derivation is not a wired derivation
