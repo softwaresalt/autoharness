@@ -305,6 +305,13 @@ is prohibited (P-001 role separation).
     not installed as a resolved `.github/skills/` copy; read the authored template at
     `templates/skills/shipment-reconcile/SKILL.md.tmpl` directly when operating here — the template already carries
     this same intake reconciliation reference at its own Step 0.5 item 6.
+    **Scope note**: this single-`expected_status` check applies to true session-start intake, where every manifest
+    task still shares one uniform status (all `queued` pre-claim, or all `active` immediately after this session's
+    own claim). `shipment-reconcile`'s `mode: pre` accepts only one `expected_status` value and classifies any other
+    status as `status-mismatch`, so it cannot represent a legitimately mixed manifest. Do not invoke this check on a
+    resumed session where manifest tasks have already diverged in status from prior partial execution (some `done`,
+    some `active`, some still `queued`) — rely instead on the Step 2 executable-task-set derivation's own per-task
+    status handling (C1–C6), which is built for exactly that mixed state.
 
 ### Step 1: Pre-Flight Checks
 
