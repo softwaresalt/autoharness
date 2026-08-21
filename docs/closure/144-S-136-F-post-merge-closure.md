@@ -130,6 +130,23 @@ nothing beyond the qualifying root + children).
 manual safe-close, per the P-015 verified fully-covered-root exception
 (same exception applied to `146-S`/`138-F`).
 
+### Process note: topology gate ordering
+
+The Step 5 Closure Tasks item 1 `TOPOLOGY_GATE: lifecycle (before
+closure/safe-close)` check was run for the first time **after** the
+`backlogit shipment ship 144-S` cascade-close mutation had already
+completed, not immediately before it as the pipeline specifies. Re-running
+it afterward correctly returns `LIFECYCLE_NO_ACTIVE_SHIPMENT` (144-S was
+already archived/shipped by that point), which is the expected result for
+a check run against a topology that has since moved past the mutation it
+was meant to gate -- not evidence of an invalid close. The classifier
+precondition (`classify_shipment_close_path` -> `CASCADE`) was verified
+immediately before the mutation, and the post-mutation exact-match
+verification (`archived_ids`, `returned_ids: []`, `parent_id` preservation)
+confirms the close itself was correct. This is recorded here as a
+self-identified process-ordering deviation for future-session awareness,
+not as an unresolved integrity gap: no revert or re-close is warranted.
+
 ## Source Stash Retirement
 
 Source stash `395EBE60` was confirmed absent from both the active stash
