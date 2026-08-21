@@ -1,3 +1,6 @@
 {"timestamp":"2026-08-20T17:51:31.9967725-07:00","actor":"backlogit","item_id":"144-S","event_type":"shipment_created","delta":{"items":["136-F","136.001-T","136.002-T","136.003-T"],"title":"Restore workspace-wide docline lint (395EBE60)"}}
 {"timestamp":"2026-08-20T23:00:43.5129763-07:00","actor":"backlogit","item_id":"144-S","event_type":"shipment_item_added","delta":{"item_id":"136.001-T"}}
 {"timestamp":"2026-08-21T05:51:41.255993-07:00","actor":"backlogit","item_id":"144-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-21T06:41:57.9148-07:00","actor":"backlogit","item_id":"144-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"144-S","status":"shipped"}}
+{"timestamp":"2026-08-21T06:42:07.133276-07:00","actor":"backlogit","item_id":"144-S","event_type":"commit_tracked","delta":{"author":"ship-agent@autoharness","commit_sha":"c4e4851cb2e4e1ebee72f675b4bd96264f3a87ad","message":"merge: feature PR #382 - restore workspace-wide docline lint + regression guard"}}
+{"timestamp":"2026-08-21T06:43:12.2077322-07:00","actor":"backlogit","item_id":"144-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/144-S.md"}}

@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-21T05:51:46.8411949-07:00","actor":"backlogit","item_id":"136-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-21T06:41:54.4524495-07:00","actor":"backlogit","item_id":"136-F","event_type":"status_changed","delta":{"_shipment_operation":"144-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-21T06:42:16.0113458-07:00","actor":"backlogit","item_id":"136-F","event_type":"commit_tracked","delta":{"author":"ship-agent@autoharness","commit_sha":"c4e4851cb2e4e1ebee72f675b4bd96264f3a87ad","message":"merge: feature PR #382 - restore workspace-wide docline lint + regression guard"}}
+{"timestamp":"2026-08-21T06:43:00.7737157-07:00","actor":"backlogit","item_id":"136-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/136-F.md"}}
