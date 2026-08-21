@@ -213,7 +213,13 @@ def _resolve_backlog_artifact(artifact_id: str, *, repo_root: Path = _REPO_ROOT)
 # false-positive this scan.
 # ---------------------------------------------------------------------------
 
-_QUEUE_PATH_CONSTRUCTION_PATTERN = re.compile(r'["\']queue["\']\s*/|/\s*["\']queue["\']')
+_QUEUE_PATH_CONSTRUCTION_PATTERN = re.compile(
+    r'["\']queue["\']\s*/'          # split path-join style: "queue" / <expr>
+    r'|/\s*["\']queue["\']'         # split path-join style: <expr> / "queue"
+    r'|f?["\'][^"\']*queue/[^"\']*["\']'   # a single string/f-string literal
+    r'|f?["\'][^"\']*/queue[^"\']*["\']'   # a single string/f-string literal
+                                            # embedding "/queue" (either style)
+)
 _RESOLVER_FUNCTION_NAME = "_resolve_backlog_artifact"
 
 # Regression Guard 1's own fixture tests deliberately construct SYNTHETIC
@@ -275,6 +281,24 @@ def _function_definition_line_range(source: str, function_name: str) -> range:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name:
             return range(node.lineno, (node.end_lineno or node.lineno) + 1)
     raise AssertionError(f"function {function_name!r} not found in source")
+
+
+def _assignment_line_range(source: str, target_name: str) -> range:
+    """1-based inclusive line range of a module-level assignment statement
+    whose (sole) target is ``target_name``, identified BY NAME. Used to
+    exempt the Regression Guard 2 pattern constant's OWN definition (its raw
+    string source literally contains the substring it searches for) from its
+    own scan, alongside the function-name exemptions above."""
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == target_name
+        ):
+            return range(node.lineno, (node.end_lineno or node.lineno) + 1)
+    raise AssertionError(f"assignment to {target_name!r} not found in source")
 
 
 def _template_variables() -> dict:
@@ -943,6 +967,9 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
                     exempt_lines: set[int] = set()
                     for name in _GUARD2_EXEMPT_FUNCTION_NAMES:
                         exempt_lines.update(_function_definition_line_range(source, name))
+                    exempt_lines.update(
+                        _assignment_line_range(source, "_QUEUE_PATH_CONSTRUCTION_PATTERN")
+                    )
                 else:
                     exempt_lines = set()
                 for lineno, text in code_lines.items():
@@ -950,8 +977,8 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
                         continue
                     self.assertIsNone(
                         _QUEUE_PATH_CONSTRUCTION_PATTERN.search(text),
-                        f"{path.name}:{lineno} constructs a lifecycle-volatile "
-                        f"queue/-anchored path outside the resolver: {text!r}",
+                        f"{path.name}:{lineno} constructs a hardcoded lifecycle-"
+                        f"volatile backlog-artifact path outside the resolver: {text!r}",
                     )
 
 
