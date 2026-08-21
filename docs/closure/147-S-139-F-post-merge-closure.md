@@ -9,8 +9,8 @@ closure_pr: 380
 merge_commit: f57d0f0c50f2ea005a688e91ebf42f4decda51cd
 merged_at: "2026-08-21T11:37:53Z"
 reviewed_head: 08607503edb076b4b36a54d69ce31a07b3412692
-closure_commit: 91afda32b5b1393ffa736e9e4d340c4b559d3bf6
-closure_merged_at: "2026-08-21T12:09:20Z"
+closure_merge_commit: 91afda32b5b1393ffa736e9e4d340c4b559d3bf6
+closure_reviewed_head: c9968b41c202ef9513b72d4e4ae8fe7898547456
 closure_status: READY
 compaction_status: done
 conditions: []
@@ -79,18 +79,33 @@ alongside queued/active ones.
   compound workflow's frontmatter contract. Fixed in commit `c9968b41`. Both
   threads replied-to and resolved via GraphQL before merge.
 
-## Validation
+## Runtime Verification
 
-- Runtime smoke: `uv run autoharness --help` -> exit 0 (reproduced at time of
-  this correction, current `main`).
-- Canonical gate: `python -m unittest discover -s tests` reproduced the same
-  5 pre-existing, full-suite-only, order-dependent failures already tracked
-  under P-021 deferred stash entry `E8158860`
-  (`test_gate_pipeline_topology_cli`, `test_gates_topology`,
-  `test_repo_root_artifacts`, `test_telemetry_gitignore_template` x2) --
-  confirmed unrelated (no `src/` change in either PR #379 or #380; each test
-  passes in isolation; CI's Linux `test` job was green on PR #379). Deferred
-  entry reused, not re-captured.
+**Surface**: `cli` — the only workspace-configured runtime validator
+surface for this repository
+(`.autoharness/workspace-profile.yaml` `runtime_validation.validator_manifest`).
+This shipment touched `.github/agents/_ship.agent.md`,
+`templates/agents/_ship.agent.md.tmpl`, `.autoharness/harness-manifest.yaml`,
+and a new test module only — no `src/autoharness/` runtime, API, or UI code
+changed.
+
+### Structured Validator Evidence
+
+| Field | Evidence |
+| --- | --- |
+| Validator | Ship post-merge runtime verification |
+| Surface adapter | `command` (`.autoharness/workspace-profile.yaml` `runtime_validation.validator_manifest`) |
+| Runtime probe | `uv run autoharness --help` |
+| Result | **PASS** — exit 0 (reproduced at time of this correction, current `main`) |
+| Canonical gate | `PYTHONPATH=src python -m unittest discover -s tests` |
+| Result | `Ran 1687 tests ... FAILED (failures=3, errors=2, skipped=20)` — all 5 are the pre-existing, already-deferred (P-021 stash entry `E8158860`) full-suite test-isolation failures (`test_gate_pipeline_topology_cli`, `test_gates_topology`, `test_repo_root_artifacts`, `test_telemetry_gitignore_template` x2); confirmed unrelated (no `src/` change in either PR #379 or #380; each test passes in isolation; CI's Linux `test` job was green on PR #379) |
+| Hosted CI | `ci gate`, `detect code changes`, `pipeline-topology (ambient)`, `test` — all green on PR #379; PR #380's `test` job correctly reported `skipping` (docs-only, no code change detected) |
+| Manual checkpoints | none required — docs-only artifact, no user-facing or operational behavior change |
+| Blocked prerequisites | none |
+| Verdict | **PASS** for runtime-verification purposes; the 5 pre-existing failures are tracked as a follow-up (stash `E8158860`), not a blocker |
+
+### Other Gates
+
 - Full build: non-applicable in the CLI-tool/template sense beyond the
   canonical test suite above; this shipment changed only
   `.github/agents/_ship.agent.md`, `templates/agents/_ship.agent.md.tmpl`,
@@ -121,6 +136,25 @@ manual safe-close, per the P-015 verified fully-covered-root exception.
 
 ## Operational Closure
 
+- **Invariants to preserve**: the manifest (`custom_fields.items`) remains
+  the closure-membership record only and is never mutated by the executable
+  task set derivation; an `archived` manifest member is always
+  skip-and-reported, never reactivated.
+- **Pre-deploy audits**: not applicable — this shipment changed only Ship
+  agent instruction files and a test module; no migration, feature flag,
+  configuration, or access-control surface was touched.
+- **Deployment / rollout path**: merge-only. Ship's instruction files take
+  effect the moment `main` is synced by a future Ship session; there is no
+  separate deploy, canary, or phased-rollout step for this artifact class.
+- **Risky action record**: not applicable — no `ProposedAction` entries
+  requiring approval, containment, or rollback beyond the standard
+  operator-approved merge-commit-only merge (P-009) were taken by either
+  PR #379 or PR #380.
+- **Post-deploy checks**: re-run
+  `autoharness gate pipeline-topology --mode agent --shipment 144-S --phase
+  pre_claim --json` after `main` sync and confirm `exit_code: 0` (see
+  Verification under Correction Provenance below for the first observation
+  of this check against the working-tree copy of this file).
 - **Healthy signals**: both PR #379 and PR #380 merged with verified
   2-parent merge commits; P-018 `SATISFIED` on both PRs at final HEAD; all
   Copilot review threads (5 total across both PRs) resolved before merge;
@@ -134,6 +168,10 @@ manual safe-close, per the P-015 verified fully-covered-root exception.
   should catch a regression here; and any new agent-template literal must
   use the existing `{{SUFFIX_*}}` variable family rather than a hardcoded
   dogfood-installation token (see the compound learning below).
+- **Monitoring plan**: none required beyond the one-time post-deploy check
+  above; this is a retroactive documentation artifact for an
+  already-archived shipment, not an ongoing runtime rollout requiring
+  dashboards, alerts, or SLI monitoring.
 - **Validation window**: immediate post-merge closure was intended for
   2026-08-21 after PR #380 merged at `2026-08-21T12:09:20Z`; this specific
   closure artifact's validation window is the correction below, performed
@@ -142,8 +180,22 @@ manual safe-close, per the P-015 verified fully-covered-root exception.
 - **Rollback trigger**: revert merge commit `f57d0f0c...` if the executable
   task set derivation causes Ship to skip a legitimately `queued`/`active`
   task, or reactivate an `archived` one, in a future shipment execution.
+- **Rollback procedure**: `git revert` the `147-S`/`139-F` feature merge
+  commit (`f57d0f0c...`) on `main` through a new reviewed PR; the executable
+  task set derivation would revert to unconditional manifest iteration.
+  Separately, if only *this correction* needs to be undone (e.g. a future
+  audit finds a factual error in this artifact), revert this correction's
+  own merge commit — that action alone re-triggers
+  `PREDECESSOR_CLOSURE_INCOMPLETE` on `144-S`'s pre-claim gate without
+  touching `147-S`'s underlying shipped state.
 - **Owner**: Ship agent for closure evidence; operator `@softwaresalt` for
   merge approval and release follow-up routing.
+- **Releasability evidence**: **READY**. All required evidence for this
+  docs-only retroactive closure-artifact correction is present: verified
+  merge commits (both PRs, two parents each), green CI, P-018 `SATISFIED`
+  on both PRs, P-015 cascade-close independently re-verified, and P-020
+  compaction evidence (`compaction_status: done`) backed by durable
+  compacted/archived memory files. No condition is outstanding.
 - **Residual follow-up (non-blocking)**:
   1. P-021 deferred stash entry `E8158860` (full-suite test-isolation
      pollution, Windows-only) remains open; requires Stage deliberation
