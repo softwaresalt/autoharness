@@ -7,7 +7,7 @@ tasks:
 pre_archived_manifest_members:
     - 136.001-T
 feature_pr: 382
-closure_pr: TBD
+closure_pr: 383
 merge_commit: c4e4851cb2e4e1ebee72f675b4bd96264f3a87ad
 merged_at: "2026-08-21T13:38:16Z"
 reviewed_head: 0c443d30bb5f8523051c8f689b40b73eb7a7d6d6
@@ -196,10 +196,13 @@ session.
   regression guard produces false positives against legitimate,
   well-formed `docs/**/*.md` frontmatter in a future shipment.
 - **Rollback procedure**: `git revert` the `144-S`/`136-F` feature merge
-  commit (`c4e4851c...`) on `main` through a new reviewed PR; `backlogit
-  docs lint` traversal and the new guard would both be removed, returning
-  to the pre-shipment state (`138.001-T`'s single-file fix, from `146-S`,
-  is unaffected since it lives in a separate commit history).
+  commit (`c4e4851c...`) on `main` through a new reviewed PR; this removes
+  only the regression guard test (`tests/test_docs_frontmatter_decodes.py`)
+  and the `144-S`/`136-F` backlog metadata added by PR #382.
+  `backlogit docs lint`'s workspace-wide traversal was restored separately
+  by `138.001-T`/shipment `146-S` (a distinct, earlier commit) and would
+  **remain restored** after this revert -- only the new guard's regression
+  protection would be lost, not the traversal fix itself.
 - **Owner**: Ship agent for closure evidence; operator `@softwaresalt` for
   merge approval and release follow-up routing.
 - **Releasability evidence**: **READY**. All required evidence is present:
