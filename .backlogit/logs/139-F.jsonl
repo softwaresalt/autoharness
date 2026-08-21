@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-21T03:32:00.2643499-07:00","actor":"backlogit","item_id":"139-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-21T04:42:19.7596162-07:00","actor":"backlogit","item_id":"139-F","event_type":"status_changed","delta":{"_shipment_operation":"147-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-21T04:42:41.1671161-07:00","actor":"backlogit","item_id":"139-F","event_type":"commit_tracked","delta":{"author":"ship-agent@autoharness","commit_sha":"f57d0f0c50f2ea005a688e91ebf42f4decda51cd","message":"chore(147-S): Ship execution contract excludes pre-archived manifest members from executable task set (#379)"}}
+{"timestamp":"2026-08-21T04:43:28.333652-07:00","actor":"backlogit","item_id":"139-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/139-F.md"}}
