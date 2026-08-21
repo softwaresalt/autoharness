@@ -129,10 +129,12 @@ entry `E8158860` under Stage/Ship role separation.
 **This section corrects, and does not retract, the closure record above.**
 `146-S` is archived/shipped and was not reopened, reclaimed, or re-triaged for
 this correction; no backlogit shipment or task was created, claimed, or
-touched. The correction below was delivered as an independent
+touched. The correction below is delivered as an independent
 docs/backlog-only correction PR under Ship's post-merge correction authority,
 on its own dedicated branch, through the full Ship pipeline (local review,
-CI, P-018 Copilot review, P-014 readiness, merge-commit-only merge).
+CI, P-018 Copilot review, P-014 readiness, merge-commit-only merge); this
+addendum will be updated with completed-gate evidence only once each gate
+has actually run and passed, not in advance of it.
 
 ### Corrected defect
 
@@ -164,8 +166,14 @@ correction:
   the verbose original Ship execution session archived by the same
   compact-context run, referenced from the compacted file's `consolidates:`
   frontmatter field.
-- No degradation, failure, or partial-run marker is present in either
-  artifact; both consolidate cleanly with no open TODO or error note. This
+- Neither artifact records a degradation, failure, or partial-run marker
+  **for the compact-context invocation itself**. The archived session file
+  does contain an unrelated `## Degraded capabilities` section
+  (`ENGRAM_DEGRADED`, `INTERCOM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`) describing
+  capability-pack unavailability during that session's earlier execution
+  work, and the compacted summary separately records the pre-existing,
+  already-deferred (P-021 stash entry `E8158860`) pytest failures — neither
+  is a compact-context degradation or failure signal. This narrower claim
   supports `compaction_status: done` rather than `degraded`.
 
 ### Corrected fix
