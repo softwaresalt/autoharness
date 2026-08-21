@@ -185,3 +185,42 @@ and into the hardening record's addendum.
 
 Both findings pass P-021 C1 (same contract surface as the staged work) and were
 fixed in place. **No deferred entries were created for either.**
+
+---
+
+## ADDENDUM 2 (Stage, 2026-08-20, later session) - execution order superseded
+
+**The "Next step" section above is superseded on one point: ordering.**
+
+A later Stage session found a baseline-red defect that blocks BOTH shipments
+staged here, and inserted a new prerequisite shipment ahead of them.
+
+**Corrected execution order:**
+
+```text
+146-S  (NEW prerequisite)  ->  144-S  ->  145-S
+```
+
+`144-S` is no longer claimable until `146-S` ships. Enforced by the dependency
+edge `144-S depends on 146-S (blocks)`. The `145-S depends on 144-S (blocks)`
+edge recorded above is preserved unmodified.
+
+**Cause:** `tests/test_scope_containment_boundary_contract.py:127` and
+`tests/test_scope_containment_semantics_contract.py:137` hard-load
+`.backlogit/queue/019-DL.md`, which was archived to `.backlogit/archive/019-DL.md`
+by merge `f72109e2` (PR #374). Both modules collapse in `setUpClass`, so the
+configured suite is red before `144-S` starts and no task here can pass Ship's
+per-task green gate.
+
+**Not absorbed** - fails P-021 C1 against both `136-F` and `137-F` surfaces.
+Captured as stash `7852CE0D`, deliberated as `021-DL`, harvested to feature
+`138-F` / task `138.001-T` / shipment `146-S`.
+
+**Relevant to `137.003-T` in this session's `145-S`:** it also edits
+`tests/test_scope_containment_boundary_contract.py`. Since `146-S` merges first,
+`137.003-T` rebases onto the repaired file. Line ranges are disjoint (path
+resolution and 019-DL citations vs. `stash remove`/`archive` CLI-alias comments),
+so this is a trivial textual rebase. **No re-plan of `145-S` is warranted** and
+nothing else in this memory changes.
+
+Full record: `docs/memory/2026-08-20-stage-7852ce0d-baseline-red-prerequisite.md`.
