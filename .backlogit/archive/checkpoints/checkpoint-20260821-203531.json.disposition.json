@@ -1,0 +1,7 @@
+{
+  "filename": "checkpoint-20260821-203531.json",
+  "disposition": "quarantined",
+  "reason": "torn write: backlogit checkpoint writer truncated the state_dump at ~4975 bytes, producing unparseable JSON (unexpected end of JSON input). Distinct from known external entry 3C7AAC71 (silent context-key dropping with valid:true); this is a truncation that fails parsing outright. Re-created as a compact checkpoint.",
+  "operator": "REDMOND\\dewilliams",
+  "disposition_at": "2026-08-21T20:36:21.9640323Z"
+}

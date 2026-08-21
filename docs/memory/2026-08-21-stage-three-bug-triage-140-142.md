@@ -1,0 +1,493 @@
+---
+title: "Stage session - three-bug triage, deliberation, planning and harvest (8FA8FC22 / E8158860 / F73BA065)"
+date: 2026-08-21
+agent: Stage
+route: "claude-opus-5 / anthropic / high (P-013.5, inherited)"
+shipments: [148-S, 149-S, 151-S, 150-S]
+features: [140-F, 141-F, 142-F, 143-F]
+task_count_executable: 15
+task_count_superseded: 1
+review_fix_cycles_used: 4
+cycle_4_authorization: operator-authorized-extension
+deliberations: [023-DL, 024-DL, 025-DL]
+---
+
+# Stage Session Memory - 2026-08-21
+
+Operator selection: "We should work on resolving the following three bugs:
+8FA8FC22, E8158860, F73BA065." All three treated as explicitly selected for
+planning and shipment assembly. None omitted.
+
+## Session gates
+
+* `TOOL_OK: backlogit 1.10.0`; registry `.autoharness/backlog-registry.yaml` present,
+  root `.backlogit`. `INDEX_SYNC_OK` at start (915 indexed) and at close.
+* `ENGRAM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`, `INTERCOM_DEGRADED` - none of those
+  MCP surfaces was available in this session. All discovery, learnings retrieval
+  and impact analysis were done file-based. No operator broadcasts were possible;
+  only safe, non-destructive Stage work was performed and no approval-dependent
+  destructive operation was bypassed.
+* Crash-resumption scan: 7 checkpoints enumerated with NO `agent`/`status` filter;
+  `needs_quarantine: 0`, `quarantined: 0`, no validation anomalies; zero ACTIVE
+  `stage`-owned candidates. Normal startup, not a failure, not an operator handoff.
+
+## SCOPE OF RECORD (authoritative; supersedes every point-in-time count below)
+
+Final scope after review-fix cycles 1-3. Any count stated later in this document is
+a POINT-IN-TIME record of the run that produced it and must not be read as current.
+
+| Dimension | Final | Original harvest |
+|---|---|---|
+| Features | **4** - 140-F, 141-F, 142-F, **143-F** | 3 (140-F, 141-F, 142-F) |
+| Shipments | **4** - 148-S, 149-S, **151-S**, 150-S | 3 (148-S, 149-S, 150-S) |
+| Executable tasks | **15** | 13 |
+| Superseded/archived tasks | **1** - 141.005-T | 0 |
+| Review-fix cycles used | **4** (3 standard + 1 operator-authorized) | 0 |
+
+Per-feature executable tasks: 140-F = 2 (140.001-T, 140.002-T); 141-F = 4
+(141.001-T - 141.004-T); 142-F = **7** (142.001-T - **142.007-T**); 143-F = 2
+(143.001-T, 143.002-T).
+
+Manifest sizes: 148-S = 3, 149-S = 6 (includes the pre-archived 141.005-T),
+151-S = 3, 150-S = **8**. Chain `148-S -> 149-S -> 151-S -> 150-S`, 148-S alone
+claimable.
+
+## Grouping decision (Step 1.5) - THREE features, not one (POINT-IN-TIME: a fourth, 143-F, was added in review-fix cycle 2)
+
+All three entries carry the literal `DEFERRED SCOPE EXPANSION` marker, so the
+Step 1 precedence rule FORCED the `deliberate` route for each regardless of shape
+or size (P-021 C6). They were deliberately NOT grouped into one covering feature:
+they touch three disjoint surfaces (Python CLI install correctness / `tests/`
+isolation / `docs/` corpus), carry three different risk profiles, and grouping
+them would breach width isolation (P-003) and produce an incoherent release unit.
+
+Instead: an explicit dependency-ordered shipment sequence
+**148-S -> 149-S -> 151-S -> 150-S**, matching this repository's single-active
+serial operating model. (Review-fix cycle 2 inserted 151-S between 149-S and
+150-S; the sequence was originally `148-S -> 149-S -> 150-S`.) Rationale for the
+order is genuine, not cosmetic:
+
+1. **148-S first** - smallest, mechanical, zero-risk, and it restores a
+   trustworthy `backlogit docs lint` signal that later shipments' Gate 1 evidence
+   depends on. 72 of 73 files failing makes that gate's signal useless today.
+2. **149-S second** - DIAGNOSIS plus the unconditional ambient-cwd decoupling.
+   Every member is unconditionally executable, so this shipment can always close.
+3. **151-S third** - the CONDITIONAL remediation, split out in review-fix cycle 2
+   because a conditional task cannot safely sit in a shipment Ship is expected to
+   complete. It sits BEFORE 150-S so that no variable-derivation change lands
+   between the bisect and the remediation, and it can never strand 150-S because
+   all of its tasks terminate `done`.
+4. **150-S last** - highest blast radius, and it EXTENDS
+   `test_scope_containment_policy_contract.py`, the very module implicated as the
+   polluting set in 149-S. Landing it before the test-isolation work completes
+   would confound the bisect and could invalidate the recorded reproducer.
+
+## P-021 obligations discharged
+
+* **Duplicate detection (unconditional, C5):** run over ALL THREE entries against
+  all 187 stash entries (14 active + 173 archived). **CLEAN in all three cases.**
+  Nearest neighbours examined and explicitly rejected: 7852CE0D (twice),
+  34D50F2D, 90F2A9F8, 395EBE60. No `DISCOVERY-STATUS` tokens present.
+* **Late-identifier reconciliation (C6):**
+  * 8FA8FC22 - performed, NO RESULT; `PR: N/A` / `review-thread: N/A` stand as
+    truthful terminal records (pre-PR Stage spike). Corroborating Ship record
+    located: `docs/closure/145-S-137-F-post-merge-closure.md`.
+  * E8158860 - performed, **RESULT FOUND**; PR reconciled `N/A -> #376` from
+    `docs/closure/146-S-138-F-post-merge-closure.md`, which cites the entry by ID.
+    `review-thread: N/A` stands.
+  * F73BA065 - performed, NO RESULT; `task: N/A` stands truthfully (147-S manifest
+    is `[139-F, 139.001-T, 139.002-T]`; the doc was authored during shipment-level
+    post-merge closure, which has no task record). `PR=380` NOT overwritten.
+  All reconciliations applied IN PLACE; no second entry created anywhere.
+
+## Substantive findings Stage added beyond the entries
+
+1. **8FA8FC22 was under-scoped by ~4x.** Re-measured from
+   `.autoharness/staging/verify-workspace-report.json`: 83 unresolved occurrences
+   across **62 distinct variables** in 10 staged files, versus the entry's 4-pair
+   / 21-occurrence figure. `{{DEFAULT_BRANCH}}` alone is 12.
+2. **The likely root cause of 8FA8FC22, found at plan review:**
+   `config.model_routing` is POLYMORPHIC - `tier2`, `tier3` and `orchestrator` are
+   SCALAR STRINGS while `tier1`, `stage`, `ship` and `escalation` are MAPPINGS. A
+   mapping-only derivation returns nothing for exactly the variables the entry
+   cited as evidence. Captured as amendment B6.
+3. **Option (c) for 8FA8FC22 is refuted, not merely unattractive.** The
+   verify_workspace renderer produces the `.autoharness/staging/` refresh tree,
+   the same module raises unresolved placeholders as hard errors
+   (verify_workspace.py:3494, :3689), and the P-021 parity contract test imports
+   it directly. Declaring it non-authoritative would retire a live gate.
+4. **E8158860's own hypotheses are refuted.** There is no `os.chdir` anywhere in
+   `tests/`, no bare `os.environ[...]` assignment, and every `patch.dict` is
+   context-managed. Leading structural suspect instead: 58
+   `tempfile.TemporaryDirectory(dir=Path.cwd())` sites creating temp trees inside
+   the live working tree.
+5. **E8158860's open question is answered.** Windows-local and CI-invisible, but
+   it DOES reproduce on the canonical `unittest discover` gate. That raises
+   priority - a defect invisible to CI is exactly the class that erodes local-gate
+   trust, and it has already contaminated three consecutive shipments' evidence.
+6. **F73BA065 is not external.** `backlogit docs scope` maps `docs/compound/` to
+   `learning` (so `doc_type` is path-derived), `backlogit docs migrate` is a
+   first-party idempotent migration, and its dry-run plans
+   `body_bytes_changed: false` for every file. The "make it optional locally"
+   lever the entry hoped for does not exist (no docline config in this repo), so
+   option (b)/(d) collapse into (c) - and (c) fails because the gap is
+   self-closable today.
+
+## Gate outcomes
+
+| Entry | Deliberation | Hardening (P-006) | Review | Unresolved P0/P1 | Cycles |
+|---|---|---|---|---|---|
+| F73BA065 | 025-DL | NO (reasoned, not defaulted) | PASS | 0 | 1 of 3 |
+| E8158860 | 024-DL | YES - HARDENED (A1-A3) | PASS (A4-A5) | 0 | 1 of 3 |
+| 8FA8FC22 | 023-DL | YES - HARDENED (B1-B4) | PASS (B5-B7) | 0 | 1 of 3 |
+
+## Verification performed at close
+
+* `backlogit doctor`: 62 pre-existing findings, **ZERO touching any ID created
+  this session** (140/141/142/148/149/150/023-DL/024-DL/025-DL).
+* Shipment manifests verified by read-back; item counts match the harvested
+  hierarchies exactly (3 / 6 / 7). *(Point-in-time, pre-review. Final: 3 / 6 / 3 / 8 across 148-S / 149-S / 151-S / 150-S - see SCOPE OF RECORD.)*
+* Dependency chain verified acyclic: `149-S -> 148-S`, `150-S -> 149-S`.
+* Ready-shipment queue returns **148-S alone** as claimable - single-active
+  preserved.
+* All 13 tasks *(point-in-time; final count 15 - see SCOPE OF RECORD)* carry BOTH `size` and `complexity` as structured fields, written
+  through the three-call sequence the registry requires (create with no sizing;
+  `--size` + `--size-source` + `--size-ruleset-version` together; `--complexity`
+  alone). Verified by SQL read-back.
+* All new queue artifacts parse; no dangling references.
+
+## Role-boundary statement
+
+Stage made NO source, test, template, or config edit; ran NO build, test suite,
+or linter; created NO branch, commit, push, or PR; claimed NO shipment; created
+NO worktree (P-016 topology unchanged, still one worktree on `main`). The only
+read-only external invocations were `backlogit docs scope`, `backlogit docs
+migrate` in DRY-RUN (plan-only, zero writes), and `--help` probes. Operator
+working-tree changes to `.backlogit/stash.jsonl` and `.mcp.json` were preserved;
+`.mcp.json` was not touched. Publication of the `.backlogit` bookkeeping belongs
+to Orchestrator/Ship, not Stage.
+
+## Review-fix cycle 1 (PR #386, Copilot review - 17 threads)
+
+Performed by Stage on the staging artifacts only; PR #386 CI green, P-018 blocked
+on 17 unresolved Copilot threads. Corrections left UNCOMMITTED for Orchestrator to
+publish. Route honoured: claude-opus-5 / anthropic / high (P-013.5).
+
+**P-021 C1 classification: all 17 = SAME-CONTRACT-SURFACE COMPLETION -> fix, not
+defer.** Verified rather than assumed: every flagged path appears in this session's
+own HEAD commit `3e42d115` (the three plans, the derivation review, deliberations
+024-DL/025-DL, features/tasks under 140-142, and the archived stash line this
+session wrote). No finding required a new deferred entry.
+
+Four defect classes, each fixed on EVERY duplicated surface so plan, review,
+deliberation and task contracts stay consistent:
+
+1. **Unsatisfiable containment AC** (threads 1-3 area): AC6/AC-F5 forbade every file
+   outside `docs/compound/` while the same task mandates creating
+   `tests/test_docs_compound_frontmatter_contract.py`. Exempted the contract test
+   as an in-scope deliverable in 140-F, 140.001-T and the plan.
+2. **Non-runnable exclusion protocol**: `python -m unittest` has no deselect flag,
+   so "rerun with the three modules excluded" was unexecutable. Replaced with a
+   deterministic POSITIVE dotted-name generator (82 of 85 modules, `Sort-Object`
+   for reproducible ordering) in 141.001-T, the isolation plan (incl. amendment A5
+   and the baseline wording) and 024-DL.
+3. **Model-routing contract inversions** (the substantive cluster). Re-verified
+   against `.github/skills/install-harness/SKILL.md` rows 414-453 and a FULL-TREE
+   consumer search:
+   * Scalar `orchestrator` keeps the **Tier 2** provider/effort fallback (rows
+     426-427, line 452); only TIER scalars empty their metadata. `ORCHESTRATOR_FAMILY`
+     keeps its own `gpt-5.4` default (row 428).
+   * `{{STAGE_*}}`/`{{SHIP_*}}` are **RESOLVED-FROM-SOURCE with per-sub-field tier
+     fallback**, NOT raw/empty. The prior claim that they occur only in
+     `harness-config.yaml.tmpl` was FALSE - `_orchestrator.agent.md.tmpl` lines
+     527-533 consume all six and its prose demands concrete values. Review finding
+     **P2-1 WITHDRAWN**, replaced by **P1-4**, RESOLVED.
+   * `graphtor_docs.binary_path: null` resolves through PATH -> local candidates ->
+     final `graphtor`, never `""` (rows 875/881, line 1088).
+   Surfaces corrected: 142.001-T, 142.002-T, 142.003-T, 142.005-T, the derivation
+   plan (B6 + Task 1 + Task 3) and the derivation review (P1-1 + P2-1/P1-4 + verdict).
+4. **Encoding corruption**: a lone `\b` in F73BA065's text decodes as BACKSPACE in
+   both the JSON stash line and 025-DL's double-quoted YAML scalar. Fixed at both
+   the archived source-of-truth and the deliberation; index re-synced (935 items)
+   after the out-of-band edit.
+
+**Lesson (candidate for `docs/compound/`).** The review's own P2-1 generalised from
+ONE template to the whole tree and inverted a contract as a result. A claim of the
+form "variable X occurs ONLY in file Y" is a full-tree search obligation, not an
+inference from the file you happened to open.
+
+**Re-gate.** Derivation review re-gated **PASS**, 0 unresolved P0/P1, cycle 1 of 3.
+The other two reviews needed no verdict change (their findings were AC-text defects,
+not verdict-bearing). Integrity re-verified after edits: all 13 YAML frontmatters *(point-in-time count at cycle 1)*
+parse, 0 leading/trailing-space references repo-wide, both stash JSONL files valid
+(176 archived / 12 active lines), manifests unchanged at 148-S (3) -> 149-S (6) ->
+150-S (7) with 148-S alone claimable, and no task ID or scope lost.
+
+**Residual risk (new, accepted and recorded, not silently resolved).** Storing a
+RESOLVED role-route value in `harness-config.yaml.tmpl` materialises a concrete
+value where the operator declared none, so later `tier3`/`tier2` changes stop
+propagating through that stored file. The contract mandates the fallback, and the
+template comment "falls back to tier3/tier2 when empty" describes CONSUMER
+behaviour on an empty field - so the two are consistent. Changing it would be a
+SKILL.md contract change and re-enters P-021 capture; it does not block 150-S.
+
+**Out of scope, verified benign.** Active entry `84D8E6AB` carries a `\r` inside a
+multi-line text field - legitimate CRLF, not corruption, and untouched by this
+work. Pre-existing `\\b` sequences elsewhere in the archive are correctly escaped
+Windows paths. `.mcp.json` preserved untouched.
+
+**Role boundary re-affirmed.** No commit, push, PR-body edit, thread reply/resolve,
+merge, shipment claim, source/test/template edit, build/test run, or branch/worktree
+creation. No new checkpoint created: the session checkpoint is already
+`resolved`/`complete` and must not become a recovery candidate for finished work.
+
+## Review-fix cycle 2 (PR #386, Copilot review at HEAD `c992b2bf` - 8 threads)
+
+Performed by Stage on staging artifacts only; CI green, P-018 blocked on the 8
+current-head threads. Corrections left UNCOMMITTED for Orchestrator. Route
+honoured: claude-opus-5 / anthropic / high (P-013.5).
+
+**P-021 C1 classification: all 8 = SAME-CONTRACT-SURFACE COMPLETION -> fix, not
+defer.** Verified from the diff rather than assumed: `git diff --name-only
+origin/main...HEAD` touches ONLY `.backlogit/**` and `docs/{plans,reviews,memory}`
+- zero `src/`, `templates/`, `tests/`, `schemas/` or `.github/` paths. Every
+flagged file is one this PR itself created. No finding required a new deferred
+entry.
+
+**One defect class, two symptom families.**
+
+*Family A - un-executable lifecycle (threads 1, 2, 3, 4, 8).* The E8158860 plan
+resolved a diagnostic hard stop by returning a task `blocked` while letting the
+shipment close partially. Read against the installed contract at
+`.github/agents/_ship.agent.md:325-340`, that is a deadlock, not a partial close:
+the manifest is the closure membership record and is "never mutated to make
+execution proceed", and any member status outside `queued`/`active`/`done`/
+pre-archived is a FAIL-CLOSED HALT, never a skip. Backlogit 1.8.0 also defines no
+shipment `blocked` status, and `backlogit_return_blocked` appears nowhere in the
+installed Ship contract - so the plan depended on an invented Ship behaviour.
+
+Fix (structural, not cosmetic): 149-S now carries ONLY unconditionally executable
+work; the conditional remediation moved to a NEW successor shipment 151-S under a
+NEW covering feature 143-F. 141.001-T gained a two-outcome terminal contract
+(`VERDICT: PAIR-ISOLATED` / `VERDICT: INCONCLUSIVE`, both closing `done`).
+141.005-T was SPLIT - its unconditional half into 143.001-T, its conditional half
+into 143.002-T with three always-terminating dispositions - then archived as
+SUPERSEDED with a full AC-to-AC mapping table. It deliberately REMAINS a member of
+the 149-S manifest as a pre-archived member, which the Ship contract defines as
+expected and tolerated (`pre_archived_skipped`), so no manifest was mutated.
+
+*Why a NEW covering feature rather than leaving 141.005-T under 141-F:* safe-close
+archives the manifest's item IDs, so leaving an open child under an archived
+141-F would orphan it, and an open 141-F carried into 150-S would trip Ship's
+P-001 "no other top-level release unit active" gate.
+
+*Family B - stale operative text contradicting its own amendment (threads 5, 6, 7).*
+Three plans carried an amendment that corrected a rule while the ORIGINAL rule
+remained in the operative section. Each was REWRITTEN in place, not amended again:
+the docline verification gate now demands zero required-field errors of ANY kind
+with enumerate-then-fix-or-capture disposition rules (C1); the isolation plan's
+Harvest note now states the guard is GREEN after every subtask (A4); and the
+derivation plan's Task 0 heading, T0b bullet and AC0c now describe the green
+monotone ratchet at bound 62 (B5).
+
+**Re-gate.** Isolation review re-gated **PASS**, 0 unresolved P0/P1, cycle 2 of 3.
+Docline and derivation reviews re-gated PASS with their stale-text findings
+recorded as resolved. Chain re-verified: `148-S -> 149-S -> 151-S -> 150-S`,
+acyclic, **148-S alone claimable**. Both new tasks carry `size` AND `complexity`
+as structured fields via the registry's separate mutually-exclusive update calls.
+
+**Residual risk (accepted and recorded).** 143.002-T's precondition is a recorded
+`VERDICT` token read by its Step 0 gate, NOT a backlogit dependency edge onto
+141.001-T. A hard edge was deliberately not created because 141.001-T is archived
+at 149-S close and the eligibility semantics of an edge onto an archived
+predecessor are unverified in backlogit 1.8.0; a wrong assumption there would
+re-create the deadlock this cycle removed. The shipment-level edge
+`151-S -> 149-S` supplies the ordering guarantee, and AC-0/AC5 make the token
+mandatory on both sides.
+
+**Retrieval-tooling status (operator directive received mid-cycle).** The operator
+directed Engram-CLI-first retrieval for all unified/graph/code-dependency search for
+the remainder of cycle 2. Engram CLI **is installed** (`C:\Tools\engram.exe`,
+v0.2.0+g6268c1ac-dirty) and the pack is active in the workspace profile
+(`agent_engram.detected: true`), but the workspace daemon **could not reach Ready**:
+`workspace-status` x3 and `health` x1 all failed with
+`daemon unavailable: Daemon failed to reach Ready state within 30000ms` over ~7
+minutes, including one retry with `--timeout 180` per the pack's 034-S
+retry-once rule. The internal 30s Ready bound is not overridden by `--timeout`.
+Three `engram` processes were present and Responding, so the documented
+`--direct` escape hatch was unusable (it fails while a daemon holds the workspace
+lock), and in any case `search` / `symbols` / `map-code` / `impact` / `query-graph`
+expose **no** daemon-free mode - an initial reading suggesting `query-graph
+--direct` existed was a FALSE POSITIVE (the pattern matched `--direction`).
+Circuit breaker opened after 4 consecutive substantially identical failures; no
+further retries. **`ENGRAM_DEGRADED` declared** per Step 0.1b and the pack's
+Fallback Protocol, which explicitly permits grep/glob/direct file reading when the
+daemon is unavailable. Daemon restart was NOT attempted: the engram processes may
+serve other workspaces and restarting them is an environment mutation outside
+Stage's remit - flagged for the operator instead.
+
+*Effect on cycle-2 conclusions: none, but one claim was TIGHTENED.* The single
+load-bearing NEGATIVE claim in P0-1 - that the installed Ship contract never
+instructs Ship to use `backlogit_return_blocked` - was re-verified under the
+fallback protocol across all `return_blocked` / `return-blocked` / `return blocked`
+variants over `.github/agents/`, `.github/instructions/` and `.github/skills/`.
+Result: `_ship.agent.md` has ZERO prose references (claim HOLDS), but Ship does hold
+tool ACCESS via the `'backlogit/*'` frontmatter wildcard, and the operation IS
+enumerated in Stage's own allowlist. The wording in the plan, hardening, review and
+the archived 141.005-T record was sharpened to "the contract never instructs Ship to
+use it / access is not instruction" so the finding cannot be refuted by pointing at
+the wildcard. This is the cycle-2 reviewer lesson applied to my own finding.
+
+**Role boundary re-affirmed.** No commit, push, PR-body edit, thread
+reply/resolve, merge, shipment claim, source/test/template edit, build/test run,
+or branch/worktree creation. `.mcp.json` untouched. No `.engram/` artifact was
+hand-edited (tool-managed state, per the pack's Data Ownership Rule).
+
+## Review-fix cycle 3 (PR #386, Copilot review at HEAD `8cae5e80` - 6 threads) - FINAL CYCLE
+
+Cycle limit reached: **3 of 3**. Corrections left UNCOMMITTED for Orchestrator.
+Route honoured: claude-opus-5 / anthropic / high. **`ENGRAM_DEGRADED` unchanged** -
+the same-operation circuit remained open and Engram was NOT invoked; no raw
+unified/graph/code-dependency search was used as a workaround. All reads were exact
+known-path/line reads under the direct-tool exemption.
+
+**P-021 C1: all 6 = SAME-CONTRACT-SURFACE -> fix, not defer.** Classified
+individually, not in bulk:
+
+| # | Thread | Surface | C1 |
+|---|---|---|---|
+| 1 | `…TZTM` | `verify_workspace.py` derivation/render + its contract tests - already 142-F's declared surface | SAME |
+| 2 | `…TZTe` | `143.002-T` body, created by this PR | SAME |
+| 3 | `…TZTp` | isolation plan, created by this PR | SAME |
+| 4 | `…TZTy` | checkpoint evidence for this PR's own work | SAME |
+| 5 | `…TZUC` | archived stash disposition this PR wrote | SAME |
+| 6 | `…TZUR` | `143-F` + scope reporting, created by this PR | SAME |
+
+No finding required a new deferred entry. Finding 1 was the only one with any
+deferral argument (it touches `src/`), and it was rejected: 142-F's declared surface
+IS `verify_workspace.py` derivation plus its contract tests, so a derivation-model
+defect is in-scope by construction. It does NOT touch SKILL.md or `_render_template`.
+
+**Finding 1 - the substantive one.** The plan assumed ONE global variable map
+suffices. Verified at exact call sites: `verify_workspace.py:4196` derives
+`variables` ONCE outside the artifact loop; `:4340` applies that same dict to EVERY
+artifact. But `_stage.agent.md.tmpl:946-947` and `_ship.agent.md.tmpl:898-899` both
+consume the same collapsed `{{ESCALATION_*}}` triple, while escalation resolves PER
+ROLE (nested `model_routing.<role>.escalation` -> flat -> `tier3`). Task 1 calls
+that value "acting-role-collapsed" - a collapse a role-less map cannot perform.
+**Latent today**: config lines 57-80 declare only the flat block, so both agents
+coincidentally render the same correct value and every proposed test passes; it
+activates silently the first time the documented nested per-role override is used.
+Resolved by amendment **B8** / plan **Task 1b** / hardening **H9** / task
+**142.007-T** (M, high): an artifact/role-aware selection+composition step in FRONT
+of a still-pure `_render_template` (C5 intact, asserted byte-identical), scoped
+strictly to the collapsed prose triple so the RAW families and C3 are untouched.
+Acceptance is a distinct Stage-vs-Ship override test asserting the two rendered
+triples are **NOT EQUAL** - an equality-only test would pass under the defect
+precisely because today's config makes them coincide.
+
+**Findings 2, 3 and the line-44 occurrence in 6 - one defect, three carriers.** The
+R2 disposition named 150-S as a possible intervening cause, which the graph forbids:
+`151-S` is ordered BEFORE `150-S`. Corrected in `143.002-T`, `143-F` and the
+isolation plan, replaced with only causes that can actually precede 151-S (149-S
+anchor work - the primary candidate; 143.001-T earlier in the same shipment; 148-S's
+docs/compound migration; an intervening merge from `main`).
+
+**Finding 4 - checkpoint.** Regenerated through the OFFICIAL create operation and
+resolved: `checkpoint-20260821-220209.json`, explicitly recording that it SUPERSEDES
+`checkpoint-20260821-203637.json`. The stale record was NOT hand-edited and NOT
+deleted - it remains as historical evidence, and `cleanup_checkpoints` was
+deliberately not run because retention-based cleanup would sweep unrelated sessions'
+checkpoints. Note `checkpoint-20260821-100303.json` appeared between cycles and is
+not Stage-authored; left untouched.
+
+**Finding 5 - archived stash.** `backlogit_stash_get E8158860` returned
+`not_found`: the official stash operations reach only the ACTIVE stash, not
+`.backlogit/archive/stash.jsonl`. The out-of-band edit was therefore unavoidable, as
+the directive anticipated. Performed via JSON parse -> field edit -> re-serialise in
+the file's existing compact separator style; full-file JSONL revalidated (**176
+lines, 0 invalid**) and the index re-synced (940). Forward refs now name 143-F,
+143.001-T, 143.002-T, the superseded 141.005-T, 151-S, and the corrected
+`149-S blocks 151-S` edge.
+
+**Finding 6 - scope counts.** An authoritative **SCOPE OF RECORD** table was added
+at the top of this document; every surviving earlier count is explicitly annotated
+POINT-IN-TIME so nothing reads as current. PR body text is Orchestrator-owned and is
+reported to the parent rather than edited here.
+
+**Re-gate.** Derivation review re-gated **PASS**, P1-6 raised and RESOLVED, cycles
+**3 of 3**. Isolation and docline reviews unchanged at PASS (cycle 2) - cycle-3
+findings 2/3/6 were factual corrections to already-accepted resolutions, not
+verdict-bearing. **0 unresolved P0/P1 across all three reviews.**
+
+## Review-fix cycle 4 (PR #386, HEAD `d098d8a2` - 7 threads) - OPERATOR-AUTHORIZED EXTENSION
+
+**Authorization (documented per P-005).** The Stage stop-condition table caps
+review-fix cycles at 3 per plan. Cycle 4 was performed under an EXPLICIT OPERATOR
+AUTHORIZATION extending the Stage review-fix budget for the seven current-head P-018
+blockers. Same-error-recurrence and universal circuit-breaker limits were NOT relaxed.
+`ENGRAM_DEGRADED` unchanged: Engram was NOT retried and no raw
+unified/graph/code-dependency search was used - exact known-path/line reads only.
+
+**P-021 C1: all 7 = SAME-CONTRACT-SURFACE -> fix, not defer.** Each classified
+individually. All seven correct THIS PR's own plan/task contract text. Findings 1-2
+touch a template CONTRACT specified by this PR's own Task 2 (no template file was
+edited by Stage); findings 3-7 correct acceptance predicates this PR authored or
+amplified. No new deferred entry required.
+
+**Findings 1-2 - base template must stay environment-agnostic.** Task 2 required the
+compound template to name `backlogit docs classify <path>` as the `doc_type`
+authority. `compound` is a base Primitive 1 artifact installed into workspaces with
+no backlogit - there the guidance is dead and a REQUIRED frontmatter field becomes
+unresolvable, reopening the very gap Task 2 exists to close. Replaced (amendment
+**C3**) with a capability-neutral authority order: tooling operation -> configured
+path map -> directory convention (`learning`). **Rung 3 always resolves**, so this is
+capability-CONDITIONED, not capability-DEPENDENT, and leaves no unresolved
+customization point. New **AC8b** enforces it MECHANICALLY (scan the template for
+tool names). The registry-variable route and the capability-pack overlay were both
+evaluated and REJECTED with reasons recorded - each would have forced a paired edit
+plus `harness-manifest.yaml` checksum churn (breaking AC10), and the variable route
+additionally reaches into **142-F's** `_derive_template_variables` surface, a
+cross-feature width breach under P-003. Choosing prose REMOVED surface, so
+`requires_plan_hardening: no` stands.
+
+**Findings 3-7 - one impossible predicate, seven carriers.** Amendment A1 required
+victim diffs "confined to `setUp`/`tearDown`/imports". Unsatisfiable: Task 2 anchors
+58 `TemporaryDirectory(...)` calls that sit INSIDE test method bodies, victim #2's
+module carries 34 of them and victim #1's carries 5, and 143.001-T rewrites a
+`check=True` git call inside victim #1's own test method. A1 forbade the plan's own
+work. Replaced by amendment **A1R** plus a canonical **assertion-integrity gate
+(AIG)** in the plan: **AIG-1** AST-extracted assertion callsite sets exactly equal
+(strictly stronger than "no assertion line changed" - catches reordering and argument
+edits); **AIG-2** no assertion semantic drift (anchor, never relocate a containment
+test to system temp); **AIG-3** an EXHAUSTIVE N1-N6 allowlist that explicitly permits
+in-method anchor edits (N1), injection wiring (N2), supporting imports (N3), cleanup
+(N4), 143.001-T subprocess/failure diagnostics (N5) and forced formatting (N6);
+**AIG-4** per-line CITATION, with uncited edits disallowed. Zero assertion-line edits
+remains absolutely binding.
+
+**Carriers fixed - including two the review did not flag.** Plan AC10, plan AC11b,
+plan A1->A1R, hardening H1/A1->A1R, 141-F AC-F2, 143-F AC-G4, 143.002-T AC-3,
+143.001-T AC-b, **141.002-T AC-d** and **141.004-T AC-e**. The last two are the
+anchor tasks that actually touch victim files; they carried the identical
+contradiction and would have failed at execution.
+
+**Scope UNCHANGED.** Still 4 features, 15 executable tasks, 1 superseded, chain
+`148-S -> 149-S -> 151-S -> 150-S`, 148-S alone claimable. Cycle 4 changed contract
+TEXT only - no item created, deleted, re-parented or re-sequenced.
+
+**Re-gate.** Isolation review **PASS**, P1-7 resolved. Docline review **PASS**, P1-3
+resolved. Derivation review unchanged (no cycle-4 thread landed there). **0 unresolved
+P0/P1 across all three.**
+
+## Next actions for Ship
+
+Claim **148-S** first. Do not claim 149-S, 151-S or 150-S until their predecessor
+has shipped - the dependency edges enforce this and the ready queue already
+reflects it. Order is `148-S -> 149-S -> 151-S -> 150-S`.
+
+When executing 149-S, expect 141.005-T to be reported as `pre_archived_skipped`;
+that is the designed outcome and must not be treated as an error, unarchived, or
+removed from the manifest. When executing 151-S, run 143.002-T's Step 0
+precondition gate FIRST and record the selected disposition before making any
+edit.
