@@ -87,7 +87,11 @@ class DocsFrontmatterDecodeTests(unittest.TestCase):
         checked = 0
         skipped = 0
         for path in doc_files:
-            text = path.read_text(encoding="utf-8")
+            # utf-8-sig transparently strips a leading UTF-8 BOM (if
+            # present) so a BOM-prefixed file is still recognized as
+            # opening with '---' rather than silently mis-skipped as
+            # having no frontmatter block.
+            text = path.read_text(encoding="utf-8-sig")
             frontmatter_text = _extract_frontmatter_text(text)
             if frontmatter_text is None:
                 # No frontmatter block present -- skipped, not failed.
