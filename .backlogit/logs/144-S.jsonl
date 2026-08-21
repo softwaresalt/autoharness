@@ -1,2 +1,3 @@
 {"timestamp":"2026-08-20T17:51:31.9967725-07:00","actor":"backlogit","item_id":"144-S","event_type":"shipment_created","delta":{"items":["136-F","136.001-T","136.002-T","136.003-T"],"title":"Restore workspace-wide docline lint (395EBE60)"}}
 {"timestamp":"2026-08-20T23:00:43.5129763-07:00","actor":"backlogit","item_id":"144-S","event_type":"shipment_item_added","delta":{"item_id":"136.001-T"}}
+{"timestamp":"2026-08-21T05:51:41.255993-07:00","actor":"backlogit","item_id":"144-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
