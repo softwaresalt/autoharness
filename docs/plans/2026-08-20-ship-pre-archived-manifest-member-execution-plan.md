@@ -194,8 +194,15 @@ Chain: `146-S -> <this shipment> -> 144-S -> 145-S`.
   context would re-expose the original failure. This is an Orchestrator
   sequencing obligation recorded in the shipment-order record and the staging
   handoff memory; there is no backlog-record mechanism that enforces it.
-* The direct `144-S -> 146-S` edge is replaced by the two-hop path so the chain
-  is a simple, self-enforcing line rather than a diamond.
+* The two-hop path `144-S -> 147-S -> 146-S` is the **critical path** and is
+  what actually orders execution. **CORRECTED 2026-08-21:** the direct
+  `144-S -> 146-S` edge is **retained, not replaced**, as a redundant
+  **topology-compatibility** edge. The `pipeline-topology --phase pre_claim`
+  gate's `_prior_shipment_id` heuristic recognizes only a DIRECT lower-numbered
+  dependency; without this edge it infers queued `145-S` as `146-S`'s
+  predecessor and blocks the first claim. Because the edge is transitively
+  implied by the two-hop path, it neither shortens the chain nor lets `144-S`
+  run before `147-S`.
 
 ## Risks
 

@@ -95,12 +95,18 @@ docstring.
 
 Dependency edges (direction = "depends on"):
 
+**Critical path** - these edges determine execution order:
+
 * `145-S -> 144-S (blocks)` - pre-existing, unchanged
 * `144-S -> 147-S (blocks)` - **NEW**
 * `147-S -> 146-S (blocks)` - **NEW**
-* `144-S -> 146-S (blocks)` - **REMOVED** (the direct edge was replaced by the
-  two-hop path so the chain is a simple, self-enforcing line rather than a
-  diamond)
+
+**Redundant topology-compatibility edge** - carries no scheduling meaning of
+its own:
+
+* `144-S -> 146-S (blocks)` - **PRESENT (restored 2026-08-21).** An earlier
+  revision of this record described this edge as **REMOVED**; that statement is
+  **superseded**. See the correction addendum at the end of this document.
 
 `146-S` has no outbound edge and remains the chain source and the only
 claimable shipment.
@@ -169,3 +175,79 @@ publication.
   archiving a `custom_fields.source_deliberation_id`-linked deliberation). It
   does not affect `147-S` - `139-F` carries no `source_deliberation_id` - and
   was deliberately not expanded into this bounded session.
+
+---
+
+## ADDENDUM 2026-08-21 - direct `144-S -> 146-S` edge RESTORED (topology-compatibility)
+
+**Supersedes** the "REMOVED" line in the Execution chain section above. The
+direct edge `144-S -> 146-S (blocks)` is **present**.
+
+### Why the two-hop-only graph was wrong
+
+The mandatory `pipeline-topology --phase pre_claim` gate blocks the intended
+first shipment `146-S`. Its `_prior_shipment_id` helper
+(`src/autoharness/gates/topology.py`) infers an implicit predecessor by NUMERIC
+ADJACENCY, and suppresses that inference only when a NUMERICALLY LOWER shipment
+declares the target **directly** in its own `dependencies`.
+
+With edges `144-S -> 147-S`, `147-S -> 146-S`, `145-S -> 144-S`, no
+lower-numbered shipment declared `146-S` directly. The heuristic therefore fell
+through to numeric adjacency and selected queued `145-S` as `146-S`'s
+predecessor, producing:
+
+```text
+PREDECESSOR_NOT_SHIPPED: predecessor 145-S is not in a shipped terminal state
+```
+
+The explicit chain is **transitively** correct but the heuristic does not walk
+transitive paths - it matches only a direct edge.
+
+### Correction applied
+
+Added the redundant `blocks` edge `144-S -> 146-S` via
+`backlogit_add_dependency`. `144-S` (numerically lower than `146-S`) now
+declares `146-S` directly, so `_prior_shipment_id("146-S")` returns `None` and
+the erroneous numeric-predecessor inference is suppressed.
+
+### Final edge set
+
+| Edge (direction = "depends on") | Role |
+|---|---|
+| `147-S -> 146-S (blocks)` | **critical path** |
+| `144-S -> 147-S (blocks)` | **critical path** |
+| `145-S -> 144-S (blocks)` | **critical path** |
+| `144-S -> 146-S (blocks)` | **redundant topology-compatibility edge** |
+
+**The redundant edge changes no ordering.** It is transitively implied by
+`144-S -> 147-S -> 146-S`. `144-S` still blocks on `147-S` and **can never run
+before `147-S`**. Effective execution order is unchanged:
+
+```text
+146-S  ->  147-S  ->  144-S  ->  145-S
+```
+
+The mandatory post-merge instruction reload before `144-S` (see above) is
+**unaffected and still required**.
+
+### Verification (read-only; no build, test, or linter run)
+
+* Acyclic: `compute_dag_readiness` -> `cycle_detected: False`.
+* `critical_path` -> `('146-S', '147-S', '144-S', '145-S')` - the redundant edge
+  does not shorten it.
+* `ready_set` -> `('146-S',)` - `146-S` is the ONLY eligible shipment.
+* `_prior_shipment_id("146-S")` -> `None` (was `145-S` before the fix).
+* `_shipment_readiness_check("pre_claim", "146-S", ...)` -> **passed**,
+  `predecessor_ids: []` (was `blocked / PREDECESSOR_NOT_SHIPPED`).
+* Readiness for `147-S`, `144-S`, `145-S` -> all still
+  `blocked / PREDECESSOR_NOT_SHIPPED`, as intended.
+* Full `topology.evaluate(mode=agent, phase=pre_claim, target=146-S)` on
+  `146-S`'s own branch -> `blocked: False`, `exit_code: 0`, all five checks
+  passed (`detect_before_consistency`, `active_shipment_invariant`,
+  `branch_ownership`, `worktree_topology`, `shipment_readiness`).
+* The `autoharness gate pipeline-topology ... --json` CLI could not itself
+  return PASS from this session: it short-circuits on `branch_ownership`
+  because Stage is on `chore/stage-144-s`, and branch switching is prohibited.
+  Equivalent direct gate-function evidence is recorded above.
+* Backlog delta: exactly one file, `.backlogit/queue/144-S.md` (one added
+  `dependencies` entry). No shipment membership, task, or manifest change.

@@ -407,3 +407,54 @@ unchanged and still acyclic:
 
 With Addendum 4 and this addendum applied, every shipment in the
 `146-S -> 144-S -> 145-S` chain classifies `cascade`.
+
+## Addendum 6 (Stage, 2026-08-21) - execution order superseded again: `147-S` inserted, plus a redundant topology-compatibility edge
+
+Additive; nothing above is modified. This addendum supersedes only the ordering
+statements it names.
+
+**Superseded statements.**
+
+* Addendum 2's "Corrected execution order" block `146-S -> 144-S -> 145-S`, and
+  its sentence "`144-S` is no longer claimable until `146-S` ships".
+* Addendum 3's "Execution order": "Unchanged from Addendum 2: `146-S` -> `144-S`
+  -> `145-S`."
+* Addendum 5's closing line "every shipment in the `146-S -> 144-S -> 145-S`
+  chain classifies `cascade`" - the per-shipment `cascade` conclusion still
+  holds; only the three-shipment order is superseded.
+* Addendum 5's "`144-S` blocks on `146-S` ... unchanged" - still true but
+  incomplete: `144-S` now also blocks on `147-S`.
+
+**Final critical path (four shipments):**
+
+```text
+146-S  ->  147-S  ->  144-S  ->  145-S
+```
+
+A prerequisite shipment `147-S` (Ship execution contract must exclude
+pre-archived manifest members; covering feature `139-F`) was inserted between
+`146-S` and `144-S`. Critical-path edges (direction = "depends on"):
+`147-S -> 146-S (blocks)`, `144-S -> 147-S (blocks)`, `145-S -> 144-S (blocks)`.
+
+**Redundant topology-compatibility edge:** `144-S -> 146-S (blocks)` is present
+and retained. It exists solely to satisfy the `pipeline-topology --phase
+pre_claim` gate, whose `_prior_shipment_id` heuristic recognizes only a DIRECT
+lower-numbered dependency and would otherwise infer queued `145-S` as `146-S`'s
+predecessor and block the first claim. It is transitively implied by
+`144-S -> 147-S -> 146-S`, so it adds no ordering constraint that was not
+already present.
+
+**It does not shorten the chain.** `144-S` still waits for `147-S` and can never
+run before it; `147-S` still waits for `146-S`. Any reading of the direct
+`144-S -> 146-S` edge that would let `144-S` precede `147-S` is wrong. `146-S`
+remains the chain source and the only claimable shipment.
+
+**MANDATORY** (unchanged): reload `main` agent instructions after `147-S` merges
+and its P-020 post-merge closure completes, **before** `144-S` is selected or
+claimed.
+
+Full records:
+`docs/memory/2026-08-20-stage-b19e9662-ship-pre-archived-execution-contract.md`
+(insertion of `147-S`) and
+`docs/memory/2026-08-21-stage-144-146-topology-compatibility-edge.md` (the
+redundant topology-compatibility edge).

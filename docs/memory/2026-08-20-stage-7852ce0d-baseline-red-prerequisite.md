@@ -136,6 +136,10 @@ shortfall, not a gate on anything downstream.
 * `backlogit_get_shipment 146-S` -> covering feature `138-F`, items
   `[138-F, 138.001-T]`, size composition `S:1`, unsized 0, skipped none
 * Graph is a three-node linear chain: acyclic by inspection, no orphans
+  (**accurate as of this session only - SUPERSEDED.** `147-S` was later
+  inserted, making the graph four-node, and the direct `144-S -> 146-S` edge
+  was retained as a redundant topology-compatibility edge rather than a
+  critical-path edge. Still acyclic, no orphans. See the addendum below.)
 * Plan frontmatter parsed with `yaml.safe_load` -> valid
 
 ## Boundary statement
@@ -276,10 +280,20 @@ Current chain:
   `139.001-T` + `139.002-T`. Manifest `[139-F, 139.001-T, 139.002-T]`, all
   queued, **no pre-archived members**, so it executes safely under the current
   unfixed contract.
-* Edge `144-S -> 146-S (blocks)` was **removed**; replaced by
-  `144-S -> 147-S (blocks)` and `147-S -> 146-S (blocks)` so the chain is a
-  simple, self-enforcing line. `146-S` remains the chain source and the only
-  claimable shipment.
+* **Critical path** (the edges that determine execution order):
+  `144-S -> 147-S (blocks)` and `147-S -> 146-S (blocks)`.
+* **CORRECTED 2026-08-21 - the direct edge `144-S -> 146-S (blocks)` is
+  PRESENT, not removed.** An earlier revision of this addendum recorded it as
+  removed; that is superseded. It was restored as a **redundant
+  topology-compatibility edge** required by the `pipeline-topology --phase
+  pre_claim` gate, whose `_prior_shipment_id` heuristic recognizes only a
+  DIRECT lower-numbered dependency and would otherwise infer queued `145-S` as
+  `146-S`'s predecessor and block the first claim. The edge is transitively
+  implied by the two-hop path, so it does **not** shorten the chain and does
+  **not** permit `144-S` to run before `147-S`: `144-S` still blocks on
+  `147-S`. Full record:
+  `docs/memory/2026-08-21-stage-144-146-topology-compatibility-edge.md`.
+* `146-S` remains the chain source and the only claimable shipment.
 * **MANDATORY**: reload `main` agent instructions after `147-S` merges and its
   P-020 post-merge closure completes, **before** `144-S` is selected or
   claimed.

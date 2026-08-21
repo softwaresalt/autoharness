@@ -162,10 +162,20 @@ Current chain:
   `139.001-T` + `139.002-T`. Manifest `[139-F, 139.001-T, 139.002-T]`, all
   queued, **no pre-archived members**, so it executes safely under the current
   unfixed contract.
-* Edge `144-S -> 146-S (blocks)` was **removed**; replaced by
-  `144-S -> 147-S (blocks)` and `147-S -> 146-S (blocks)` so the chain is a
-  simple, self-enforcing line. `146-S` remains the chain source and the only
-  claimable shipment.
+* **Critical path** (the edges that determine execution order):
+  `144-S -> 147-S (blocks)` and `147-S -> 146-S (blocks)`.
+* **CORRECTED 2026-08-21 - the direct edge `144-S -> 146-S (blocks)` is
+  PRESENT, not removed.** An earlier revision of this addendum recorded it as
+  removed; that is superseded. It was restored as a **redundant
+  topology-compatibility edge** required by the `pipeline-topology --phase
+  pre_claim` gate, whose `_prior_shipment_id` heuristic recognizes only a
+  DIRECT lower-numbered dependency and would otherwise infer queued `145-S` as
+  `146-S`'s predecessor and block the first claim. The edge is transitively
+  implied by the two-hop path, so it does **not** shorten the chain and does
+  **not** permit `144-S` to run before `147-S`: `144-S` still blocks on
+  `147-S`. Full record:
+  `docs/memory/2026-08-21-stage-144-146-topology-compatibility-edge.md`.
+* `146-S` remains the chain source and the only claimable shipment.
 * **MANDATORY**: reload `main` agent instructions after `147-S` merges and its
   P-020 post-merge closure completes, **before** `144-S` is selected or
   claimed.

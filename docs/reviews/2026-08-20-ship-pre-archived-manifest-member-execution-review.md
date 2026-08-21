@@ -101,6 +101,7 @@ Accepted as-is; called out in Task 1's notes.
 | Width isolation (no template + CLI + schema mixing) | PASS |
 | New shipment contains no pre-archived members (executable today) | PASS |
 | Chain `146-S -> new -> 144-S -> 145-S` stated and justified | PASS |
+| Topology-compatibility edge `144-S -> 146-S` retained alongside the critical path (corrected 2026-08-21; redundant, does not reorder the chain) | PASS |
 | Mandatory post-merge instruction reload recorded | PASS |
 | Duplicate coverage against the existing suite | **P1-1**, resolved |
 | Unresolved P0/P1 remaining | **0** |
