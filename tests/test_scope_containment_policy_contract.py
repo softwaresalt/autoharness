@@ -18,9 +18,7 @@ import ast
 import hashlib
 import re
 import tempfile
-import tokenize
 import unittest
-from io import StringIO
 from pathlib import Path
 
 import yaml
@@ -206,20 +204,20 @@ def _resolve_backlog_artifact(artifact_id: str, *, repo_root: Path = _REPO_ROOT)
 # 138.001-T Scope B Regression Guard 2 (structural): scan machinery.
 #
 # Confirms no P-021 contract module constructs a hardcoded, lifecycle-volatile
-# `queue/`-anchored artifact path outside the shared resolver. Scoped to CODE
-# lines only -- docstrings and inline comments legitimately cite
-# `.backlogit/queue/019-DL.md` in prose (see e.g. the historical-wording notes
-# in ``test_scope_containment_boundary_contract.py``) and must not
-# false-positive this scan.
+# `queue`-anchored artifact path outside the shared resolver. Walks the AST
+# rather than scanning raw text with a line-oriented regex (PR #376 Copilot
+# review, thread PRRT_kwDORzpWpM6bGnEd): a regex confined to the exact
+# textual shapes the removed code used missed structurally equivalent
+# constructions such as a `.joinpath("queue", ...)` call, especially one
+# whose arguments are split across lines. AST inspection naturally excludes
+# `#` comments (never part of the parsed tree) and this module additionally
+# skips standalone string-literal expression statements (module/class/
+# function docstrings, or any bare string used comment-style) -- both
+# legitimately cite `.backlogit/queue/019-DL.md` in prose (see e.g. the
+# historical-wording notes in ``test_scope_containment_boundary_contract.py``)
+# and must not false-positive this scan.
 # ---------------------------------------------------------------------------
 
-_QUEUE_PATH_CONSTRUCTION_PATTERN = re.compile(
-    r'["\']queue["\']\s*/'          # split path-join style: "queue" / <expr>
-    r'|/\s*["\']queue["\']'         # split path-join style: <expr> / "queue"
-    r'|f?["\'][^"\']*queue/[^"\']*["\']'   # a single string/f-string literal
-    r'|f?["\'][^"\']*/queue[^"\']*["\']'   # a single string/f-string literal
-                                            # embedding "/queue" (either style)
-)
 _RESOLVER_FUNCTION_NAME = "_resolve_backlog_artifact"
 
 # Regression Guard 1's own fixture tests deliberately construct SYNTHETIC
@@ -230,45 +228,52 @@ _RESOLVER_FUNCTION_NAME = "_resolve_backlog_artifact"
 # extended to this test-only fixture category).
 _GUARD2_EXEMPT_FUNCTION_NAMES = (
     _RESOLVER_FUNCTION_NAME,
+    "_is_queue_like_string",
     "test_regression_guard1_resolver_fails_loudly_on_simultaneous_presence",
     "test_regression_guard1_resolver_names_artifact_id_and_every_candidate_on_miss",
 )
 
 
-def _executable_code_lines(source: str) -> dict[int, str]:
-    """Maps 1-based line number -> line text, restricted to CODE lines.
+def _is_queue_like_string(value: str) -> bool:
+    """True if a string constant is either the bare path segment ``"queue"``
+    or embeds a ``"queue/"``/``"/queue"`` path fragment -- the two shapes a
+    hardcoded lifecycle-volatile artifact path construction can take,
+    regardless of whether it is joined via the `/` operator, a
+    `.joinpath(...)`/`.join(...)` call, or a single interpolated f-string
+    literal."""
+    return value == "queue" or "queue/" in value or "/queue" in value
 
-    Excludes: (a) lines wholly consumed by a standalone string-literal
-    expression statement (module/class/function docstrings, or any bare
-    string statement used comment-style), and (b) the comment portion of any
-    line carrying a trailing ``#`` comment (the code portion preceding the
-    comment, if any, is still scanned).
-    """
-    lines = source.splitlines()
-    docstring_lines: set[int] = set()
+
+class _QueuePathAstVisitor(ast.NodeVisitor):
+    """Walks the AST for string-literal constants matching
+    `_is_queue_like_string` -- catching a `/`-operator (BinOp Div) chain, a
+    `.joinpath(...)`/`.join(...)` call, and a bare interpolated f-string
+    literal alike, since all three surface the offending path segment as an
+    `ast.Constant` string reached by ordinary tree traversal. Skips
+    standalone string-literal expression statements (docstrings/comment-
+    style prose) entirely so prose citations never false-positive."""
+
+    def __init__(self) -> None:
+        self.violations: list[ast.Constant] = []
+
+    def visit_Expr(self, node: ast.Expr) -> None:
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            return  # docstring / standalone comment-style string statement
+        self.generic_visit(node)
+
+    def visit_Constant(self, node: ast.Constant) -> None:
+        if isinstance(node.value, str) and _is_queue_like_string(node.value):
+            self.violations.append(node)
+
+
+def _queue_path_violations(source: str) -> list[ast.Constant]:
+    """Every AST constant identified by `_QueuePathAstVisitor` as a
+    hardcoded, lifecycle-volatile "queue" path construction anywhere in
+    `source` (docstrings/comments excluded)."""
     tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Constant)
-            and isinstance(node.value.value, str)
-        ):
-            docstring_lines.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
-
-    comment_start_col: dict[int, int] = {}
-    for tok in tokenize.generate_tokens(StringIO(source).readline):
-        if tok.type == tokenize.COMMENT:
-            comment_start_col[tok.start[0]] = tok.start[1]
-
-    result: dict[int, str] = {}
-    for lineno, line in enumerate(lines, start=1):
-        if lineno in docstring_lines:
-            continue
-        text = line[: comment_start_col[lineno]] if lineno in comment_start_col else line
-        if text.strip() == "":
-            continue
-        result[lineno] = text
-    return result
+    visitor = _QueuePathAstVisitor()
+    visitor.visit(tree)
+    return visitor.violations
 
 
 def _function_definition_line_range(source: str, function_name: str) -> range:
@@ -281,24 +286,6 @@ def _function_definition_line_range(source: str, function_name: str) -> range:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name:
             return range(node.lineno, (node.end_lineno or node.lineno) + 1)
     raise AssertionError(f"function {function_name!r} not found in source")
-
-
-def _assignment_line_range(source: str, target_name: str) -> range:
-    """1-based inclusive line range of a module-level assignment statement
-    whose (sole) target is ``target_name``, identified BY NAME. Used to
-    exempt the Regression Guard 2 pattern constant's OWN definition (its raw
-    string source literally contains the substring it searches for) from its
-    own scan, alongside the function-name exemptions above."""
-    tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Assign)
-            and len(node.targets) == 1
-            and isinstance(node.targets[0], ast.Name)
-            and node.targets[0].id == target_name
-        ):
-            return range(node.lineno, (node.end_lineno or node.lineno) + 1)
-    raise AssertionError(f"assignment to {target_name!r} not found in source")
 
 
 def _template_variables() -> dict:
@@ -946,9 +933,12 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
 
     def test_regression_guard2_no_lifecycle_volatile_queue_path_outside_resolver(self) -> None:
         """No P-021 contract module constructs a hardcoded, lifecycle-volatile
-        `queue/`-anchored artifact path outside the shared resolver
-        `_resolve_backlog_artifact`. Scoped to CODE lines of the three named
-        modules so prose citations of `.backlogit/queue/019-DL.md` do not
+        `queue`-anchored artifact path outside the shared resolver
+        `_resolve_backlog_artifact`. Walks the AST of the three named modules
+        (PR #376 Copilot review, thread PRRT_kwDORzpWpM6bGnEd) rather than
+        scanning raw text with a regex, so a `.joinpath("queue", ...)` call
+        is caught alongside a `/`-operator chain or a bare interpolated
+        f-string -- so prose citations of `.backlogit/queue/019-DL.md` do not
         false-positive. The resolver's own definition is exempted explicitly
         and BY NAME (plan amendment A3) so the exemption is visible and
         cannot silently widen, as are this file's own Regression Guard 1
@@ -962,23 +952,20 @@ class ScopeContainmentPolicyContractTests(unittest.TestCase):
         ):
             with self.subTest(path=path.name):
                 source = path.read_text(encoding="utf-8")
-                code_lines = _executable_code_lines(source)
+                violations = _queue_path_violations(source)
                 if path == _POLICY_CONTRACT_TEST_SOURCE:
                     exempt_lines: set[int] = set()
                     for name in _GUARD2_EXEMPT_FUNCTION_NAMES:
                         exempt_lines.update(_function_definition_line_range(source, name))
-                    exempt_lines.update(
-                        _assignment_line_range(source, "_QUEUE_PATH_CONSTRUCTION_PATTERN")
-                    )
                 else:
                     exempt_lines = set()
-                for lineno, text in code_lines.items():
-                    if lineno in exempt_lines:
+                for node in violations:
+                    if node.lineno in exempt_lines:
                         continue
-                    self.assertIsNone(
-                        _QUEUE_PATH_CONSTRUCTION_PATTERN.search(text),
-                        f"{path.name}:{lineno} constructs a hardcoded lifecycle-"
-                        f"volatile backlog-artifact path outside the resolver: {text!r}",
+                    self.fail(
+                        f"{path.name}:{node.lineno} constructs a hardcoded "
+                        f"lifecycle-volatile backlog-artifact path outside "
+                        f"the resolver: {node.value!r}"
                     )
 
 
