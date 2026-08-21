@@ -3,8 +3,8 @@ title: "Stage session - three-bug triage, deliberation, planning and harvest (8F
 date: 2026-08-21
 agent: Stage
 route: "claude-opus-5 / anthropic / high (P-013.5, inherited)"
-shipments: [148-S, 149-S, 150-S]
-features: [140-F, 141-F, 142-F]
+shipments: [148-S, 149-S, 151-S, 150-S]
+features: [140-F, 141-F, 142-F, 143-F]
 deliberations: [023-DL, 024-DL, 025-DL]
 ---
 
@@ -37,17 +37,25 @@ isolation / `docs/` corpus), carry three different risk profiles, and grouping
 them would breach width isolation (P-003) and produce an incoherent release unit.
 
 Instead: an explicit dependency-ordered shipment sequence
-**148-S -> 149-S -> 150-S**, matching this repository's single-active serial
-operating model. Rationale for the order is genuine, not cosmetic:
+**148-S -> 149-S -> 151-S -> 150-S**, matching this repository's single-active
+serial operating model. (Review-fix cycle 2 inserted 151-S between 149-S and
+150-S; the sequence was originally `148-S -> 149-S -> 150-S`.) Rationale for the
+order is genuine, not cosmetic:
 
 1. **148-S first** - smallest, mechanical, zero-risk, and it restores a
    trustworthy `backlogit docs lint` signal that later shipments' Gate 1 evidence
    depends on. 72 of 73 files failing makes that gate's signal useless today.
-2. **149-S second** - makes the canonical local test gate green, so 150-S's
-   verification evidence is not contaminated by five pre-existing failures.
-3. **150-S last** - highest blast radius, and it EXTENDS
+2. **149-S second** - DIAGNOSIS plus the unconditional ambient-cwd decoupling.
+   Every member is unconditionally executable, so this shipment can always close.
+3. **151-S third** - the CONDITIONAL remediation, split out in review-fix cycle 2
+   because a conditional task cannot safely sit in a shipment Ship is expected to
+   complete. It sits BEFORE 150-S so that no variable-derivation change lands
+   between the bisect and the remediation, and it can never strand 150-S because
+   all of its tasks terminate `done`.
+4. **150-S last** - highest blast radius, and it EXTENDS
    `test_scope_containment_policy_contract.py`, the very module implicated as the
-   polluting set in 149-S. Landing both concurrently would confound the bisect.
+   polluting set in 149-S. Landing it before the test-isolation work completes
+   would confound the bisect and could invalidate the recorded reproducer.
 
 ## P-021 obligations discharged
 
@@ -208,8 +216,116 @@ merge, shipment claim, source/test/template edit, build/test run, or branch/work
 creation. No new checkpoint created: the session checkpoint is already
 `resolved`/`complete` and must not become a recovery candidate for finished work.
 
+## Review-fix cycle 2 (PR #386, Copilot review at HEAD `c992b2bf` - 8 threads)
+
+Performed by Stage on staging artifacts only; CI green, P-018 blocked on the 8
+current-head threads. Corrections left UNCOMMITTED for Orchestrator. Route
+honoured: claude-opus-5 / anthropic / high (P-013.5).
+
+**P-021 C1 classification: all 8 = SAME-CONTRACT-SURFACE COMPLETION -> fix, not
+defer.** Verified from the diff rather than assumed: `git diff --name-only
+origin/main...HEAD` touches ONLY `.backlogit/**` and `docs/{plans,reviews,memory}`
+- zero `src/`, `templates/`, `tests/`, `schemas/` or `.github/` paths. Every
+flagged file is one this PR itself created. No finding required a new deferred
+entry.
+
+**One defect class, two symptom families.**
+
+*Family A - un-executable lifecycle (threads 1, 2, 3, 4, 8).* The E8158860 plan
+resolved a diagnostic hard stop by returning a task `blocked` while letting the
+shipment close partially. Read against the installed contract at
+`.github/agents/_ship.agent.md:325-340`, that is a deadlock, not a partial close:
+the manifest is the closure membership record and is "never mutated to make
+execution proceed", and any member status outside `queued`/`active`/`done`/
+pre-archived is a FAIL-CLOSED HALT, never a skip. Backlogit 1.8.0 also defines no
+shipment `blocked` status, and `backlogit_return_blocked` appears nowhere in the
+installed Ship contract - so the plan depended on an invented Ship behaviour.
+
+Fix (structural, not cosmetic): 149-S now carries ONLY unconditionally executable
+work; the conditional remediation moved to a NEW successor shipment 151-S under a
+NEW covering feature 143-F. 141.001-T gained a two-outcome terminal contract
+(`VERDICT: PAIR-ISOLATED` / `VERDICT: INCONCLUSIVE`, both closing `done`).
+141.005-T was SPLIT - its unconditional half into 143.001-T, its conditional half
+into 143.002-T with three always-terminating dispositions - then archived as
+SUPERSEDED with a full AC-to-AC mapping table. It deliberately REMAINS a member of
+the 149-S manifest as a pre-archived member, which the Ship contract defines as
+expected and tolerated (`pre_archived_skipped`), so no manifest was mutated.
+
+*Why a NEW covering feature rather than leaving 141.005-T under 141-F:* safe-close
+archives the manifest's item IDs, so leaving an open child under an archived
+141-F would orphan it, and an open 141-F carried into 150-S would trip Ship's
+P-001 "no other top-level release unit active" gate.
+
+*Family B - stale operative text contradicting its own amendment (threads 5, 6, 7).*
+Three plans carried an amendment that corrected a rule while the ORIGINAL rule
+remained in the operative section. Each was REWRITTEN in place, not amended again:
+the docline verification gate now demands zero required-field errors of ANY kind
+with enumerate-then-fix-or-capture disposition rules (C1); the isolation plan's
+Harvest note now states the guard is GREEN after every subtask (A4); and the
+derivation plan's Task 0 heading, T0b bullet and AC0c now describe the green
+monotone ratchet at bound 62 (B5).
+
+**Re-gate.** Isolation review re-gated **PASS**, 0 unresolved P0/P1, cycle 2 of 3.
+Docline and derivation reviews re-gated PASS with their stale-text findings
+recorded as resolved. Chain re-verified: `148-S -> 149-S -> 151-S -> 150-S`,
+acyclic, **148-S alone claimable**. Both new tasks carry `size` AND `complexity`
+as structured fields via the registry's separate mutually-exclusive update calls.
+
+**Residual risk (accepted and recorded).** 143.002-T's precondition is a recorded
+`VERDICT` token read by its Step 0 gate, NOT a backlogit dependency edge onto
+141.001-T. A hard edge was deliberately not created because 141.001-T is archived
+at 149-S close and the eligibility semantics of an edge onto an archived
+predecessor are unverified in backlogit 1.8.0; a wrong assumption there would
+re-create the deadlock this cycle removed. The shipment-level edge
+`151-S -> 149-S` supplies the ordering guarantee, and AC-0/AC5 make the token
+mandatory on both sides.
+
+**Retrieval-tooling status (operator directive received mid-cycle).** The operator
+directed Engram-CLI-first retrieval for all unified/graph/code-dependency search for
+the remainder of cycle 2. Engram CLI **is installed** (`C:\Tools\engram.exe`,
+v0.2.0+g6268c1ac-dirty) and the pack is active in the workspace profile
+(`agent_engram.detected: true`), but the workspace daemon **could not reach Ready**:
+`workspace-status` x3 and `health` x1 all failed with
+`daemon unavailable: Daemon failed to reach Ready state within 30000ms` over ~7
+minutes, including one retry with `--timeout 180` per the pack's 034-S
+retry-once rule. The internal 30s Ready bound is not overridden by `--timeout`.
+Three `engram` processes were present and Responding, so the documented
+`--direct` escape hatch was unusable (it fails while a daemon holds the workspace
+lock), and in any case `search` / `symbols` / `map-code` / `impact` / `query-graph`
+expose **no** daemon-free mode - an initial reading suggesting `query-graph
+--direct` existed was a FALSE POSITIVE (the pattern matched `--direction`).
+Circuit breaker opened after 4 consecutive substantially identical failures; no
+further retries. **`ENGRAM_DEGRADED` declared** per Step 0.1b and the pack's
+Fallback Protocol, which explicitly permits grep/glob/direct file reading when the
+daemon is unavailable. Daemon restart was NOT attempted: the engram processes may
+serve other workspaces and restarting them is an environment mutation outside
+Stage's remit - flagged for the operator instead.
+
+*Effect on cycle-2 conclusions: none, but one claim was TIGHTENED.* The single
+load-bearing NEGATIVE claim in P0-1 - that the installed Ship contract never
+instructs Ship to use `backlogit_return_blocked` - was re-verified under the
+fallback protocol across all `return_blocked` / `return-blocked` / `return blocked`
+variants over `.github/agents/`, `.github/instructions/` and `.github/skills/`.
+Result: `_ship.agent.md` has ZERO prose references (claim HOLDS), but Ship does hold
+tool ACCESS via the `'backlogit/*'` frontmatter wildcard, and the operation IS
+enumerated in Stage's own allowlist. The wording in the plan, hardening, review and
+the archived 141.005-T record was sharpened to "the contract never instructs Ship to
+use it / access is not instruction" so the finding cannot be refuted by pointing at
+the wildcard. This is the cycle-2 reviewer lesson applied to my own finding.
+
+**Role boundary re-affirmed.** No commit, push, PR-body edit, thread
+reply/resolve, merge, shipment claim, source/test/template edit, build/test run,
+or branch/worktree creation. `.mcp.json` untouched. No `.engram/` artifact was
+hand-edited (tool-managed state, per the pack's Data Ownership Rule).
+
 ## Next actions for Ship
 
-Claim **148-S** first. Do not claim 149-S or 150-S until their predecessor has
-shipped - the dependency edges enforce this and the ready queue already reflects
-it.
+Claim **148-S** first. Do not claim 149-S, 151-S or 150-S until their predecessor
+has shipped - the dependency edges enforce this and the ready queue already
+reflects it. Order is `148-S -> 149-S -> 151-S -> 150-S`.
+
+When executing 149-S, expect 141.005-T to be reported as `pre_archived_skipped`;
+that is the designed outcome and must not be treated as an error, unarchived, or
+removed from the manifest. When executing 151-S, run 143.002-T's Step 0
+precondition gate FIRST and record the selected disposition before making any
+edit.

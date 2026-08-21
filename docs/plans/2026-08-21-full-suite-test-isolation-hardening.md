@@ -5,7 +5,7 @@ plan: docs/plans/2026-08-21-full-suite-test-isolation-plan.md
 stash_id: E8158860
 deliberation: ".backlogit/queue/024-DL.md"
 outcome: HARDENED
-amendments: [A1, A2, A3]
+amendments: [A1, A2R, A3]
 ---
 
 # Plan Hardening - full-suite test-isolation repair
@@ -37,19 +37,66 @@ task record must include the verbatim `git diff` of the five victim files showin
 either no change at all, or changes confined to `setUp`/`tearDown`/imports with
 zero assertion-line edits.
 
-## H2 - The "hard stop" must be a real stop, not a soft suggestion
+## H2R - The "hard stop" must be a real stop, and it must also be EXECUTABLE
 
-**Risk.** Task 1 step 5 says stop if the pair is not isolated. Under time
-pressure the natural failure mode is to skip to Task 2/3 and "fix it anyway,"
+*(Supersedes H2/amendment A2, rewritten in review-fix cycle 2, PR #386, thread
+`PRRT_kwDORzpWpM6bSzNF`.)*
+
+**Risk 1 (original).** Task 1 step 5 says stop if the pair is not isolated. Under
+time pressure the natural failure mode is to skip to Task 2/3 and "fix it anyway,"
 producing a change that may coincidentally green the suite for unrelated reasons
 and permanently hides the real defect.
 
-**Hardening.** **AMENDMENT A2** - Task 3 is BLOCKED on Task 1 producing AC1 (a
-minimal reproducing pair). If Task 1 hard-stops, Task 3 must be returned blocked
-via the official return-blocked operation with the narrowed candidate set, and
-the shipment closes with Tasks 1-2 only. Tasks 1 and 2 are independently
-valuable and independently mergeable; Task 3 is not. This is encoded as a real
-dependency edge at harvest, not as prose.
+**Risk 2 (discovered in review).** The original hardening created a WORSE failure
+than the one it prevented. A2 required Task 3 to be "returned blocked via the
+official return-blocked operation" while "the shipment closes with Tasks 1-2
+only". That resolution is not executable:
+
+* `.github/agents/_ship.agent.md:325-340` makes the shipment manifest the closure
+  membership record, explicitly "never mutated to make execution proceed";
+* its status rule is exhaustive and positive - KEEP `queued`/`active`,
+  SKIP-AND-REPORT pre-archived, REPORT `already_done`, and **any other status is a
+  FAIL-CLOSED HALT, never a skip**;
+* backlogit 1.8.0 defines no shipment `blocked` status
+  (`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`: only
+  `queued -> active`, `active -> shipped`, `active -> abandoned`);
+* the installed Ship contract never instructs Ship to use
+  `backlogit_return_blocked`: `.github/agents/_ship.agent.md` carries ZERO prose
+  references to it across all `return_blocked` / `return-blocked` / `return blocked`
+  variants. Ship holds tool ACCESS through the `'backlogit/*'` frontmatter wildcard,
+  but access is not instruction - the contract gives the operation no semantics on
+  any step, gate, or failure path, and the Step 2 derivation halts fail-closed on a
+  `blocked` member regardless of how it got there. (By contrast the operation IS
+  enumerated in Stage's own allowlist in `.github/agents/_stage.agent.md`, which is
+  a further sign it was never intended as a Ship-side lifecycle lever.) A2 therefore
+  relied on Ship behaviour its contract does not define.
+
+A `blocked` member therefore DEADLOCKS the whole shipment rather than permitting
+the intended partial close. A hardening that predictably deadlocks the shipment is
+a hardening defect, not an execution problem.
+
+**Hardening.** **AMENDMENT A2R** - separate conditional from unconditional work by
+a SHIPMENT BOUNDARY rather than by a task status:
+
+1. Tasks 1-2 (diagnosis + ambient-cwd decoupling) are unconditional and ship as
+   **149-S** / feature 141-F. Every member has exactly one terminal outcome, so
+   149-S can always close.
+2. Tasks 3a-3b (git self-diagnosis + conditional polluter remediation) ship as the
+   successor **151-S** / feature 143-F, gated by a shipment dependency edge.
+3. Task 1 has TWO terminal outcomes, both closing `done`: `VERDICT: PAIR-ISOLATED`
+   or `VERDICT: INCONCLUSIVE` (narrowed candidate set is the deliverable).
+4. Task 3b has THREE dispositions (R1 remediate / R2 no longer reproduces / R3 no
+   polluter isolated) and all three close `done` with recorded evidence.
+5. No task in either shipment can end `blocked`; neither shipment needs
+   abandonment; no manifest is ever mutated.
+
+**H2's original intent is preserved STRUCTURALLY, and more strongly than by A2.**
+There is no remediation work inside 149-S for a time-pressured agent to slip into,
+because remediation is not in that shipment at all. And Task 3b AC13 forbids ANY
+source edit, in ANY disposition, that does not cite Task 1's recorded minimal
+reproducing pair - a citation that a speculative fix cannot produce. A2 relied on a
+status transition an agent could mis-apply; A2R relies on work simply not being
+present, plus an evidence citation that is checkable at review.
 
 ## H3 - Task 2's anchor change can silently alter what a test asserts
 
@@ -108,11 +155,28 @@ capture is non-negotiable.
 `test_scope_containment_policy_contract.py`, one of the three modules implicated
 here. Landing both concurrently would confound the bisect.
 
-**Hardening.** Confirmed by sequencing: this shipment executes BEFORE the
-variable-derivation shipment, enforced by a shipment dependency edge. Recorded
-in both plans.
+**Hardening.** Confirmed by sequencing, enforced by shipment dependency edges:
+`148-S -> 149-S -> 151-S -> 150-S`. BOTH test-isolation shipments (149-S diagnosis
+and decoupling, 151-S remediation) execute BEFORE the variable-derivation shipment
+150-S, so 150-S cannot land changes to `test_scope_containment_policy_contract.py`
+either before the bisect (confounding the diagnosis) or between the bisect and the
+remediation (invalidating the recorded reproducer). Recorded in both plans.
+
+*(Updated in review-fix cycle 2: A2R split the test-isolation work across two
+shipments, so H7's "before the variable-derivation shipment" constraint now binds
+151-S as well as 149-S. Placing 151-S BEFORE 150-S rather than after it is
+deliberate. Because every task in 151-S terminates `done`, 151-S always reaches
+`shipped` and can never strand 150-S on an unsatisfied dependency edge - the
+compound record notes such an edge clears on predecessor SHIP, and an abandoned
+predecessor would have left 150-S permanently blocked. Task 3b's Step 0 gate still
+re-verifies the reproducer at 151-S's head, so the R2 disposition covers the case
+where Task 2's own anchor work already removed the defect.)*
 
 ## Outcome
 
-**HARDENED.** Amendments A1, A2, A3 to be applied to
-`docs/plans/2026-08-21-full-suite-test-isolation-plan.md` before plan-review.
+**HARDENED.** Amendments A1, A2R, A3 applied to
+`docs/plans/2026-08-21-full-suite-test-isolation-plan.md`. A1 and A3 were applied
+before plan-review; A2 was applied before plan-review and then WITHDRAWN AND
+REPLACED by A2R in review-fix cycle 2 (PR #386) after Copilot review established
+that A2's blocked-member resolution deadlocks the shipment rather than permitting
+a partial close. The plan carries A2R, not A2.

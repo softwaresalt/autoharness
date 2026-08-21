@@ -6,7 +6,7 @@ hardening: docs/plans/2026-08-21-verify-workspace-variable-derivation-hardening.
 stash_id: 8FA8FC22
 deliberation: "023-DL"
 verdict: PASS
-review_fix_cycle: 1
+review_fix_cycle: 2
 regated: 2026-08-21
 ---
 
@@ -33,7 +33,13 @@ was corrected from "derives to `\"\"`" to the documented PATH -> local-candidate
 -> `graphtor` fallback chain. All three corrections are folded into the plan's
 B6 clause and Task 3.
 
-**0 unresolved P0/P1.** P1-4 RESOLVED. Review-fix cycles used: 1 of 3.
+*Review-fix cycle 2* (Copilot review on PR #386 at HEAD `c992b2bf`; 1 of the 8
+current-head threads landed here - `PRRT_kwDORzpWpM6bSzOv`): **P1-5** raised -
+amendment B5 was recorded but never APPLIED to the plan's operative Task 0, whose
+heading, T0b bullet and AC0c still described a standing-RED baseline. RESOLVED by
+rewriting Task 0 in place.
+
+**0 unresolved P0/P1.** P1-4 and P1-5 RESOLVED. Review-fix cycles used: **2 of 3.**
 
 *Method note:* every corrected claim in this cycle was re-verified against the
 authoritative source (`.github/skills/install-harness/SKILL.md` rows 414-453,
@@ -135,6 +141,27 @@ is the acceptance surface, and each task lowers it. The final task sets the
 expected set to empty and T0b degenerates to the zero assertion. Every commit is
 green; a NEW unresolved variable still fails immediately because the expected set
 is exact, not an upper bound on count alone.
+
+**Follow-up (P1-5, RAISED and RESOLVED in review-fix cycle 2; thread
+`PRRT_kwDORzpWpM6bSzOv`).** B5 was recorded in the plan's amendment appendix, but
+the plan's OPERATIVE Task 0 was left untouched and still carried all three stale
+signals: the heading `(BASELINE RED)`, the T0b bullet reading "RED at the start of
+this shipment, GREEN only after the last derivation task", and `AC0c. T0a green;
+T0b red with exactly 62 remaining`. The harvested task 142.001-T had already been
+written to the corrected B5 semantics, so the plan and its own task disagreed - and
+an executing agent reading Task 0 would have checked in a deliberately-red test,
+re-creating exactly the P-018 intermediate-gate blockage P1-3 was raised to
+prevent.
+
+**Resolution.** Task 0 is REWRITTEN in place, not amended again: the heading now
+reads `(BASELINE GREEN AT 62)`, the T0b bullet describes the monotone ratchet
+explicitly (green from day one at bound 62, bound lowered by each task, degenerating
+to the literal zero assertion at the end, with T0a's exact expected set still
+catching any NEW unresolved variable), and AC0c now requires both T0a and T0b GREEN
+with neither test checked in red. The B5 bullet is marked APPLIED rather than merely
+recorded. AC3b (line ~179) already stated "T0b is GREEN" and needed no change - it
+was consistent with B5 and inconsistent only with the stale Task 0 text, which is
+what made the contradiction detectable.
 
 ## P2-1 (WITHDRAWN in review-fix cycle 1) - superseded by P1-4
 

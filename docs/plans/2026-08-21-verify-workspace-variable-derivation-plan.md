@@ -77,7 +77,7 @@ stash entry's own 4-pair / 21-occurrence measurement.
 
 ## Task breakdown
 
-### Task 0 - Variable inventory, classification, and the zero-unresolved guard (BASELINE RED)
+### Task 0 - Variable inventory, classification, and the unresolved-placeholder ratchet guard (BASELINE GREEN AT 62)
 
 **This task must run first and it changes no derivation logic.**
 
@@ -88,8 +88,17 @@ stash entry's own 4-pair / 21-occurrence measurement.
   with the current 62. This test is GREEN on day one and becomes the ratchet:
   every later task removes entries from the expected set, and a NEW unresolved
   variable appearing is an immediate failure.
-* T0b: a ZERO-UNRESOLVED test asserting the expected set is empty. RED at the
-  start of this shipment, GREEN only after the last derivation task.
+* T0b: the ZERO-UNRESOLVED assertion, expressed as a MONOTONE RATCHET over the
+  same checked-in expected set rather than as a standing red assertion
+  (amendment B5). It asserts that the expected set contains no more entries than
+  the checked-in bound, and each later task LOWERS that bound. T0b is therefore
+  GREEN from day one at 62 and stays green through every intermediate commit; the
+  final derivation task sets the bound to zero, at which point T0b degenerates
+  into the literal zero-unresolved assertion. A NEW unresolved variable still
+  fails immediately because T0a's expected set is EXACT, not a count bound.
+  (Rewritten in review-fix cycle 2: this bullet previously said T0b is "RED at the
+  start of this shipment", which contradicted B5 and would have checked in a
+  deliberately-red test that blocks the P-018 gate on every intermediate task.)
 
 **Steps.**
 1. Produce a per-variable classification table (checked into the plan's task
@@ -109,7 +118,9 @@ stash entry's own 4-pair / 21-occurrence measurement.
 * AC0a. Classification table covers all 62 variables with a cited SKILL.md row.
 * AC0b. The clean-pair intersection is recorded explicitly (including "empty" if
   empty) - an unrecorded result is not acceptable.
-* AC0c. T0a green; T0b red with exactly 62 remaining.
+* AC0c. T0a is GREEN with exactly 62 entries in the expected set, and T0b is
+  GREEN as a ratchet at bound 62. Neither test is checked in red. (Rewritten in
+  review-fix cycle 2 to match amendment B5.)
 
 ### Task 1 - Derive the model-routing and escalation family (~30 variables)
 
@@ -249,8 +260,10 @@ Source: `docs/plans/2026-08-21-verify-workspace-variable-derivation-hardening.md
 
 Source: `docs/reviews/2026-08-21-verify-workspace-variable-derivation-review.md` (PASS).
 
-* **B5 (P1-3)** - T0b becomes a MONOTONE RATCHET rather than a standing red
-  assertion. The checked-in expected-unresolved SET is the acceptance surface and
+* **B5 (P1-3; APPLIED to the operative Task 0 section in review-fix cycle 2 - it
+  had previously been recorded here as an amendment while Task 0's heading, its
+  T0b bullet and AC0c still described a standing-RED baseline)** - T0b becomes a
+  MONOTONE RATCHET rather than a standing red assertion. The checked-in expected-unresolved SET is the acceptance surface and
   each task lowers it; the final task sets it to empty, at which point T0b is the
   zero assertion. Every intermediate commit is green, and a NEW unresolved
   variable still fails immediately because the expected set is exact.

@@ -150,17 +150,37 @@ edit. They are deliberately separate tasks and must not be merged.
 * `tests/test_docs_compound_frontmatter_contract.py` green.
 * Canonical suite green per `docs/compound/097-S-canonical-unittest-gate.md`
   (`$env:PYTHONPATH='src'; python -m unittest discover -s tests`), allowing for
-  the known pre-existing failures tracked under `E8158860` if that shipment has
-  not yet merged.
-* `backlogit docs lint --path docs/compound` reports zero required-field errors
-  for `source`/`doc_type`. (Note: per active entry `90F2A9F8` the linter
-  hard-aborts on the first decode error anywhere in scope; use `--path` scoping.)
+  the five known pre-existing Windows-local failures tracked under `E8158860`
+  (shipments 149-S and 151-S). 148-S is FIRST in the chain
+  `148-S -> 149-S -> 151-S -> 150-S`, so those failures are expected to be present
+  during this shipment; they must be reported as the known pre-existing set and
+  never used to mask a NEW failure introduced here.
+* `backlogit docs lint --path docs/compound` reports **ZERO required-field errors
+  of ANY KIND** - not merely zero `source`/`doc_type` errors. This is the binding
+  operative predicate (rewritten in review-fix cycle 2 to match amendment C1; the
+  earlier `source`/`doc_type`-only wording contradicted C1 and would have let a
+  residual required-field error class pass the gate).
+  * Any residual error class MUST be enumerated by FIELD NAME in the task record.
+  * Each enumerated class is then either FIXED WITHIN TASK 1 when its value is
+    mechanically derivable, or CAPTURED as a NEW deferred stash entry under
+    P-021 C1 (a different required field is a different contract surface).
+  * SILENT ACCEPTANCE of a residual class is FORBIDDEN. "Zero `source`/`doc_type`
+    errors, other classes not inspected" does NOT satisfy this gate.
+  * A clean result must be recorded explicitly as such; an unrecorded lint result
+    is not acceptable, including a null result.
+  * (Note: per active entry `90F2A9F8` the linter hard-aborts on the first decode
+    error anywhere in scope; use `--path` scoping. If that hard-abort prevents a
+    complete enumeration, the gate is NOT met - record the abort and return to
+    Stage rather than reporting a partial pass.)
 
 ## Amendments applied from plan review
 
 Source: `docs/reviews/2026-08-21-docs-compound-docline-conformance-review.md` (PASS).
 
-* **C1 (P1-1)** - The shipment verification gate is rewritten to:
+* **C1 (P1-1; APPLIED to the operative "Verification gate for the shipment"
+  section in review-fix cycle 2 - it had previously been recorded here as an
+  amendment while the operative gate still read `source`/`doc_type` only)** - The
+  shipment verification gate is rewritten to:
   `backlogit docs lint --path docs/compound` reports **ZERO required-field errors
   of ANY kind** (not merely zero `source`/`doc_type` errors). Any residual error
   class must be enumerated by field name and either fixed within Task 1 when the
