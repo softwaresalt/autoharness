@@ -139,3 +139,38 @@ is unchanged at seven items, still classifies `cascade`, and its
 `144-S (blocks)` dependency is untouched. All three shipments in the chain
 (`146-S`, `144-S`, `145-S`) now classify `cascade`. Full record:
 `docs/memory/2026-08-20-stage-144-s-closure-valid-membership.md`.
+
+---
+
+## ADDENDUM 2026-08-20 - execution order SUPERSEDED (B19E9662 / 147-S)
+
+The `execution_order` recorded in this document's frontmatter
+(`146-S -> 144-S -> 145-S`) is **superseded**. A newly confirmed prerequisite
+blocker was staged after this session: the installed Ship contract
+`.github/agents/_ship.agent.md` iterates the shipment manifest unconditionally
+in its Step 2 task loop, with no `pre-archived` exclusion, so it would attempt
+to reactivate the archived superseded children that the closure-membership
+correction deliberately restored to `144-S` and `145-S`.
+
+Current chain:
+
+```text
+146-S  ->  147-S  ->  144-S  ->  145-S
+```
+
+* New shipment `147-S` (queued, high), covering feature `139-F`, tasks
+  `139.001-T` + `139.002-T`. Manifest `[139-F, 139.001-T, 139.002-T]`, all
+  queued, **no pre-archived members**, so it executes safely under the current
+  unfixed contract.
+* Edge `144-S -> 146-S (blocks)` was **removed**; replaced by
+  `144-S -> 147-S (blocks)` and `147-S -> 146-S (blocks)` so the chain is a
+  simple, self-enforcing line. `146-S` remains the chain source and the only
+  claimable shipment.
+* **MANDATORY**: reload `main` agent instructions after `147-S` merges and its
+  P-020 post-merge closure completes, **before** `144-S` is selected or
+  claimed.
+
+Full record: `docs/memory/2026-08-20-stage-b19e9662-ship-pre-archived-execution-contract.md`
+(stash `B19E9662`, deliberation `022-DL`, plan
+`docs/plans/2026-08-20-ship-pre-archived-manifest-member-execution-plan.md`,
+hardening HARDENED H1-H7, review PASS).
