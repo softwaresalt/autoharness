@@ -1,4 +1,3 @@
-++ D:\Source\GitHub\autoharness\docs\closure\146-S-138-F-post-merge-closure.md
 ---
 shipment: 146-S
 feature: 138-F

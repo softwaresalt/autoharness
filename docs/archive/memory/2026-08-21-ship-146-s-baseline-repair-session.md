@@ -1,4 +1,3 @@
-++ D:\Source\GitHub\autoharness\docs\memory\2026-08-21-ship-146-s-baseline-repair-session.md
 # Ship session — 146-S gate-atomic baseline repair (138-F / 138.001-T)
 
 Date: 2026-08-21

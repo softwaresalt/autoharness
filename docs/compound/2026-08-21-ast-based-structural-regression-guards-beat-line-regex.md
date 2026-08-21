@@ -1,4 +1,3 @@
-++ D:\Source\GitHub\autoharness\docs\compound\2026-08-21-ast-based-structural-regression-guards-beat-line-regex.md
 ---
 problem_type: structural_regression_guard_coverage_gap
 category: testing
