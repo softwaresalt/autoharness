@@ -102,12 +102,26 @@ dispositions*, and the manifest-derived exception. This clause was hardened
 deliberately (H2); do not simplify it while renaming the operation.
 
 For the registry: keep the `stash_remove` mapping present but marked deprecated,
-and ensure `stash_archive` is the operation the Ship contract resolves to.
+and ensure `stash_archive` is the operation **this registry** resolves to for the
+Ship post-merge stash-retirement path (MCP primary `backlogit_stash_archive`, CLI
+fallback `backlogit stash archive`).
+
+**Scope boundary**: Task B owns the policy clause and the registry mapping only.
+It does not edit - and does not *validate* - the Ship agent contract, verifier,
+contract tests, or manifest checksum; those belong to Task A (`137.003-T`). Every
+Task B acceptance criterion is therefore evaluated against Task B's own two files.
+That is what keeps Task B order-independent of Task A with no dependency edge in
+either direction.
 
 **Acceptance**
 * C5 still prohibits discretionary removal **and** discretionary archival.
 * The manifest-derived post-merge exception still reads as allowed.
-* Registry still resolves both operations; `stash_remove` marked deprecated.
+* Registry still describes both operations; `stash_remove` marked deprecated and
+  not resolved by any prescriptive execution path.
+* The registry's `stash_archive` mapping names `backlogit_stash_archive` (MCP
+  primary) and `backlogit stash archive` (CLI fallback) - evaluated against
+  `templates/backlog/registries/backlogit.registry.yaml` **only**, never against
+  the Ship agent contract.
 
 ## Task C - MERGED INTO TASK A (superseded 2026-08-20)
 

@@ -56,16 +56,44 @@ blast_radius: "elevated (result-integrity + multi-family: eval code / tests / do
 Scan every YAML frontmatter block under `docs/` for **unquoted** scalar values
 containing `": "`, and quote each one found, preserving content verbatim.
 
-**Method**: parse each `docs/**/*.md` frontmatter block; any file that fails to
-decode is a hit. Do not rely on a regex alone - decode failure is the ground truth.
+**Scope**: exactly one hazard - an **unquoted plain scalar** whose value contains
+`": "`. Nothing else.
+
+**Method**
+1. Parse each `docs/**/*.md` frontmatter block. A decode failure is a
+   **candidate**, not a confirmed hit - a YAML decode error is *not* by itself
+   evidence of this specific unquoted-colon hazard.
+2. **Confirm before editing**: read the parser's reported error location
+   (line/column) and the source line it points at, and verify that line is an
+   unquoted plain scalar whose value contains `": "`. Only a confirmed candidate
+   is in scope.
+3. Correct a confirmed hit by quoting the value verbatim; change nothing else.
+4. Do not rely on a regex alone as ground truth - it both misses cases and
+   produces false positives. Use a regex only to *locate* the candidate line in a
+   file the parser has already flagged, never to *decide* that a file is a hit.
+5. **Any other decode failure** (tab indentation, duplicate key, malformed block
+   scalar, unterminated quote, bad list or indentation, encoding fault, and so
+   on) is **out of scope**. Leave that file byte-unmodified and capture it
+   separately as a deferred stash entry under **P-021 C1**, naming the file path,
+   the parser error text, and the reported location - the same capture-only
+   boundary this plan's non-goals apply to newly surfaced docline findings.
 
 **Acceptance**
-* Every `docs/**/*.md` frontmatter block decodes successfully.
-* The count of files corrected is reported in the PR description (may legitimately
-  be zero beyond Task 1).
-* Only quoting changes; no semantic edits to any frontmatter value.
+* Every `docs/**/*.md` frontmatter block that fails to decode is triaged into
+  exactly one recorded disposition: **(a)** confirmed unquoted-plain-scalar
+  hazard, corrected by quoting only; or **(b)** other decode failure, left
+  unmodified and captured as a deferred stash entry under P-021 C1.
+* Every file corrected under (a) decodes successfully after the change.
+* Both counts - (a) corrected and (b) captured - are reported in the PR
+  description (either may legitimately be zero beyond Task 1).
+* Only quoting changes; no semantic edits to any frontmatter value. No (b) file
+  is modified by this task.
 * **Historical records** (`docs/closure/`, `docs/memory/`) are corrected **only**
-  if they fail to decode, and then only by quoting - never by rewording.
+  if they fail to decode **and** the failure is confirmed under (a), and then
+  only by quoting - never by rewording.
+* If any (b) file exists, state so explicitly and note that Task 3's guard cannot
+  pass repo-wide until those separately captured findings are resolved; do not
+  absorb a (b) file into Task 2 to make that guard green.
 
 ## Task 3 - Regression guard
 
@@ -84,6 +112,9 @@ decodes.
 * Test passes after Tasks 1-2.
 * Test demonstrably fails if the Task 1 quoting is reverted (verify by temporary
   local revert; do not commit the revert).
+* **Precondition**: Task 2 left no out-of-scope (b) decode failure behind. If it
+  did, halt and report - do not widen Task 3 to fix those files, and do not
+  weaken the guard to skip them.
 
 ## Verification (Ship)
 
