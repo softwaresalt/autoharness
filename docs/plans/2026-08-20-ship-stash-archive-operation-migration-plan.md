@@ -321,11 +321,43 @@ insufficient, because the gate is evaluated per **task**, not per PR.
 * `137.006-T` - **superseded by `137.003-T`**, stamped and archived.
 * `137.004-T` - unchanged; re-verified as independently gate-green.
 * `137.001-T`, `137.002-T` - unchanged.
-* Shipment `145-S` membership reduced to `137-F`, `137.002-T`, `137.001-T`,
-  `137.003-T`, `137.004-T`.
+* Shipment `145-S` membership: **all six children of `137-F` are manifest
+  members** - `137-F`, `137.002-T`, `137.001-T`, `137.003-T`, `137.004-T`,
+  `137.005-T`, `137.006-T`. An earlier revision of this bullet reduced the
+  manifest to five items; that reduction was **closure-invalid** and was
+  reverted 2026-08-20 (see "Closure-validity correction" below). The
+  **executable** set is unchanged and is still the four queued tasks.
 * Dependency edges removed: `137.006-T -> 137.005-T`, `137.006-T -> 137.004-T`,
   `137.005-T -> 137.003-T`. Remaining edges: `137.001-T -> 137.002-T`,
   `137.003-T -> 137.002-T`. Acyclic.
 
 **Scope preserved.** No approved work was dropped and none was added; the same
 edits are performed, redistributed so that no gate ever observes a red state.
+
+### Closure-validity correction (2026-08-20)
+
+Reducing `145-S`'s manifest to the four executable tasks made the shipment
+unclosable on **both** supported paths, so full-child membership was restored
+via the official `backlogit_add_to_shipment` operation.
+
+* **Cascade path.** `autoharness.gates.shipment_closure.classify_shipment_close_path`
+  enumerates a root feature's children across **both** `.backlogit/queue/` and
+  `.backlogit/archive/`. With `137.005-T` / `137.006-T` omitted it returned
+  `safe_close: feature member '137-F' has children outside the manifest`.
+* **Safe-close path.** P-015 then places every omitted child in the **protected
+  set**, whose baseline integrity gate requires each protected member to be
+  present in `queue/`. Both are already archived, which safe-close classifies as
+  a pre-existing cascade - closure halts before archiving any manifest item.
+  The `pre-archived` exemption applies to manifest items **only**; the protected
+  set has none.
+* **After restoration** the classifier returns
+  `cascade: every feature member is a verified fully-covered root`, and P-015
+  exception item 7 explicitly tolerates a pre-archived manifest member: the
+  cascade operation is idempotent and still returns it in `archived_ids`, so
+  shipment-reconcile's exact-match post-condition holds unchanged.
+* **Nothing became executable again.** `137.005-T` / `137.006-T` stay in
+  `.backlogit/archive/` with `status: archived`, keep their superseded-by
+  pointers to `137.003-T`, and declare no dependencies. Ship's pre-mode
+  reconcile classifies them `pre-archived` (valid); its Step 0.5 item 1a scan
+  halts only on `active`/`done`, never `archived`; and its Step 2 loop has no
+  queued or active record to claim. `137.003-T` retains sole atomic ownership.

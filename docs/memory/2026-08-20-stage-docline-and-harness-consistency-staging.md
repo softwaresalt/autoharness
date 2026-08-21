@@ -314,3 +314,96 @@ Unchanged from Addendum 2: `146-S` -> `144-S` -> `145-S`. What changed is that
 chain has a real starting point.
 
 Full record: `docs/memory/2026-08-20-stage-gate-cycle-correction.md`.
+
+## Addendum 4 - `145-S` manifest restored to full-child membership (closure validity)
+
+Raised as a Copilot review thread on PR #375 against `.backlogit/queue/145-S.md`
+and confirmed read-only against the closure implementation. The record above is
+left intact; this addendum supersedes the specific statement it names.
+
+**Superseded statement.** The "Corrected shipment line" in Addendum 1 -
+"`145-S` -> `137-F` + **4** tasks (`137.002-T`, `137.001-T`, `137.003-T`,
+`137.004-T`)" - was correct about the **executable** set but wrong as a
+**manifest** membership, and left the shipment unclosable.
+
+**Why a four-task manifest could not close.** `137-F` has six children, and both
+closure paths look at all of them:
+
+* `autoharness.gates.shipment_closure.classify_shipment_close_path` enumerates a
+  root feature's children across **both** `.backlogit/queue/` and
+  `.backlogit/archive/`. Run against the five-item manifest it returned
+  `safe_close: feature member '137-F' has children outside the manifest
+  ('137.005-T', '137.006-T')` - cascade refused.
+* P-015 safe-close then treats each omitted child as a **protected-set** member,
+  and its baseline integrity gate requires every protected member to be present
+  in `queue/`. Both are already archived, which safe-close classifies as a
+  pre-existing cascade and halts before archiving anything. The `pre-archived`
+  exemption covers manifest items only - the protected set has none.
+
+**Correction applied.** `137.005-T` and `137.006-T` were added back to
+`145-S.custom_fields.items` with the official `backlogit_add_to_shipment`
+operation. The classifier now returns
+`cascade: every feature member is a verified fully-covered root`, and P-015
+exception item 7 explicitly tolerates pre-archived manifest members (the cascade
+op is idempotent and still returns them in `archived_ids`, so
+shipment-reconcile's exact-match post-condition is unchanged).
+
+**Corrected shipment line** (supersedes Addendum 1's): `145-S` manifest =
+`137-F` + **all six** children (`137.002-T`, `137.001-T`, `137.003-T`,
+`137.004-T`, `137.005-T`, `137.006-T`); **executable scope is still the four
+queued tasks**. `145-S` blocks on `144-S` - unchanged.
+
+**Supersession preserved.** `137.005-T` / `137.006-T` remain in
+`.backlogit/archive/` with `status: archived`, their superseded-by pointers to
+`137.003-T`, and no dependencies. Manifest membership is not a schedule: Ship's
+pre-mode reconcile classifies them `pre-archived` (valid, PROCEED), its Step 0.5
+item 1a scan halts only on `active`/`done` (never `archived`), and its Step 2
+loop has no queued or active record to claim. `137.003-T` keeps sole atomic
+ownership. The dependency graph is unchanged and still acyclic:
+
+```
+137.002-T  (no deps)
+   |-> 137.001-T
+   |-> 137.003-T   [ATOMIC]
+137.004-T  (no deps, order-independent)
+```
+
+## Addendum 5 — `144-S` manifest restored to full-child membership (closure validity)
+
+Same defect as Addendum 4, same contract, same branch — this time on `144-S`.
+The record above is left intact; this addendum supersedes the statement it names.
+
+**Superseded statement.** Addendum 3, Finding 1: "`144-S` now carries **`136-F`
++ 2 tasks** (`136.002-T`, `136.003-T`)" — correct about the **executable** set,
+wrong as a **manifest** membership, and it left the shipment unclosable.
+
+**Why a two-task manifest could not close.** `136-F` has three children and both
+closure paths look at all of them: the P-015 classifier enumerates children across
+**both** `.backlogit/queue/` and `.backlogit/archive/` and refused cascade
+(`feature member '136-F' has children outside the manifest: ('136.001-T',)`), and
+safe-close then put the omitted child in the **protected set**, whose baseline
+integrity gate requires every protected member to be present in `queue/` —
+`136.001-T` is already archived, so closure halts before anything is archived.
+
+**Correction applied.** `136.001-T` was added back to `144-S.custom_fields.items`
+with the official `backlogit_add_to_shipment` operation. The classifier now
+returns `cascade: every feature member is a verified fully-covered root`, and
+P-015 exception item 7 tolerates the pre-archived manifest member.
+
+**Corrected shipment line** (supersedes Addendum 3's): `144-S` manifest =
+`136-F` + **all three** children (`136.002-T`, `136.003-T`, `136.001-T`);
+**executable scope is still the two queued tasks**. `144-S` blocks on `146-S`
+and is blocked-by `145-S` — unchanged.
+
+**Supersession preserved.** `136.001-T` remains in `.backlogit/archive/` with
+`status: archived`, its `[SUPERSEDED by 138.001-T]` stamp, and no dependency
+edges. Manifest membership is not a schedule. The `144-S` dependency graph is
+unchanged and still acyclic:
+
+```
+136.002-T  (no deps - FIRST task of 144-S)
+   |-> 136.003-T
+```
+
+With Addendum 4 and this addendum applied, every shipment in the
+`146-S -> 144-S -> 145-S` chain classifies `cascade`.

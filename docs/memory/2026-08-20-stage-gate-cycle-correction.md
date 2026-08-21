@@ -215,3 +215,99 @@ task in the chain - the first one able to leave every mandatory gate green.
 Ship must still verify the green transition empirically; Stage ran no tests, and
 every claim here rests on file reads, `git cat-file`, `Test-Path`,
 `Select-String`, and backlogit read operations.
+
+## Addendum - the manifest-reduction precedent is WITHDRAWN (2026-08-20)
+
+Raised as a Copilot review thread on PR #375 against `.backlogit/queue/145-S.md`.
+The record above is left intact; this addendum supersedes the specific
+statements it names.
+
+**Withdrawn: the "Tool-protocol note" precedent.** That note is correct that
+backlogit exposes no shipment-member **removal** operation, and correct that
+`return-blocked` must not be abused for it. Its conclusion - that a superseded
+member should therefore be hand-deleted from `custom_fields.items`, following
+commit `8fa8cf67` - is **withdrawn**. The absence of a removal operation is not
+a gap to be worked around by hand; for a superseded **child of a manifest's
+covering feature** it is the contract telling you not to remove the member at
+all. Removing one breaks closure:
+
+* the P-015 classifier
+  (`autoharness.gates.shipment_closure.classify_shipment_close_path`) enumerates
+  a root feature's children across **both** `.backlogit/queue/` and
+  `.backlogit/archive/`, so an omitted child means the covering feature is not a
+  fully-covered root and **cascade is refused**; and
+* safe-close then places that omitted child in the **protected set**, whose
+  baseline integrity gate requires every protected member to be present in
+  `queue/`. An already-archived protected member is classified as a pre-existing
+  cascade and **closure halts**. The `pre-archived` exemption applies to
+  manifest items only; the protected set has none.
+
+**Correct disposition instead:** leave the superseded child **in** the manifest
+and express supersession through the item's own state - archive it with
+`backlogit_archive_item`, stamp the superseded-by pointer, and drop its
+dependency edges. P-015 exception item 7 tolerates a pre-archived manifest
+member explicitly, and the cascade op is idempotent over it.
+
+**Superseded verification line.** `backlogit_get_shipment 145-S` now returns
+items `[137-F, 137.002-T, 137.001-T, 137.003-T, 137.004-T, 137.005-T,
+137.006-T]`. `137.005-T` / `137.006-T` were restored with the official
+`backlogit_add_to_shipment` operation; the classifier now returns
+`cascade: every feature member is a verified fully-covered root`.
+
+**Amends the "Known cosmetic artifact" note.** For `145-S` the divergence is
+resolved rather than cosmetic: `size_composition.members` and
+`custom_fields.items` now agree on all six children. The note still stands for
+`144-S`, whose manifest `[136-F, 136.002-T, 136.003-T]` omits archived
+`136.001-T`.
+
+**Observed, not changed - `144-S` carries the same closure defect.** Classifying
+`144-S`'s current manifest read-only returns
+`safe_close: feature member '136-F' has children outside the manifest
+('136.001-T',)`, and `136.001-T` is archived, so safe-close would halt on the
+protected-set baseline exactly as `145-S` would have. `144-S` was **not**
+modified - it is outside the bounded scope of the `145-S` review thread and is
+recorded here for a separate operator decision. (`146-S` was also checked and is
+already `cascade`-valid.)
+
+## Addendum 2 — `144-S` manifest restored to full-child membership (2026-08-20)
+
+Same-contract (P-021 C1) continuation of Addendum 1, on the same branch and the
+same review cycle. The record above is left intact; this addendum supersedes the
+specific statements it names.
+
+**Superseded statements.**
+
+* Finding 1's bullet "`136.001-T` **superseded by `138.001-T`** ... **archived
+  not deleted**, removed from `144-S` membership" — correct on supersession
+  and archival, **wrong** on the membership reduction, which is now reverted.
+* The verification line ``backlogit_get_shipment 144-S`` -> items
+  `[136-F, 136.002-T, 136.003-T]`. Current value:
+  `[136-F, 136.002-T, 136.003-T, 136.001-T]`.
+* Addendum 1's "Observed, not changed — `144-S` carries the same closure
+  defect ... recorded here for a separate operator decision" — the operator
+  decision was given and the defect is **fixed**, by the same mechanism used for
+  `145-S`.
+* Addendum 1's "Amends the Known cosmetic artifact note" sentence "The note
+  still stands for `144-S`" — it no longer does: `size_composition.members`
+  and `custom_fields.items` now agree on all three children of `136-F`, so the
+  divergence is resolved for every shipment in the chain.
+
+**Correction applied.** `136.001-T` was added back to `144-S.custom_fields.items`
+with the official `backlogit_add_to_shipment` operation (no hand-edit of the
+manifest). Classifying read-only, before and after:
+
+```
+before: safe_close | feature member '136-F' has children outside the manifest: ('136.001-T',)
+after:  cascade    | every feature member is a verified fully-covered root; cascade close is permitted
+```
+
+**The withdrawal in Addendum 1 now has no surviving exception.** With `144-S`
+corrected, no shipment in the `146-S -> 144-S -> 145-S` chain carries a reduced
+manifest, and the `8fa8cf67` hand-removal precedent is withdrawn workspace-wide,
+not merely for `145-S`.
+
+**Supersession preserved.** `136.001-T` stays archived, keeps its
+`[SUPERSEDED by 138.001-T]` stamp and superseded-by pointer, and declares no
+dependency edges in either direction. Executable scope of `144-S` is still
+`136.002-T -> 136.003-T`. Full record:
+`docs/memory/2026-08-20-stage-144-s-closure-valid-membership.md`.
