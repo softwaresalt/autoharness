@@ -3,7 +3,7 @@ title: "Plan hardening - Ship Step 7 stash-archive migration"
 date: 2026-08-20
 plan: docs/plans/2026-08-20-ship-stash-archive-operation-migration-plan.md
 stash_id: 8D570CF8
-status: "HARDENED (H1-H6)"
+status: "HARDENED (H1-H6); H1 mitigation superseded 2026-08-20 - atomic task restructure"
 ---
 
 # Plan Hardening - Ship Step 7 stash-archive migration
@@ -12,7 +12,8 @@ Date: 2026-08-20
 Agent: Stage (plan-harden gate, P-006)
 Plan: `docs/plans/2026-08-20-ship-stash-archive-operation-migration-plan.md`
 Stash source: `8D570CF8`
-Status: **HARDENED (H1-H6)**
+Status: **HARDENED (H1-H6)** - H1's mitigation superseded 2026-08-20 by the atomic
+task restructure (see H1); H6 absorbed into the same atomic task.
 
 Hardening was required because the change edits a **live policy clause**
 (P-021 C5), a **shipped agent contract**, and the **verifier that enforces
@@ -24,6 +25,8 @@ to prevent.
 
 ## H1 (P1) - Task A and Task C are mutually breaking if split
 
+> **Mitigation revised 2026-08-20** - see the superseding note at the end of this section.
+
 `verify_workspace.py` asserts that `.github/agents/_ship.agent.md` **contains**
 `backlogit_stash_remove`. So:
 
@@ -32,9 +35,27 @@ to prevent.
 
 Either ordering produces a red intermediate state.
 
-**Mitigation**: Tasks A and C land **in the same commit**, or in adjacent commits
+~~**Mitigation**: Tasks A and C land **in the same commit**, or in adjacent commits
 within a single PR that is never evaluated between them. Stated as an execution
-condition on the plan. Ship must not split them across PRs.
+condition on the plan. Ship must not split them across PRs.~~
+
+> **MITIGATION SUPERSEDED 2026-08-20 (Stage review-fix) - the original mitigation
+> was insufficient.** "Adjacent commits within a single PR that is never evaluated
+> between them" does not hold: Ship evaluates the full configured suite before
+> completing **each task**, not once per PR. Two tasks therefore means two gate
+> evaluations, and one of them necessarily observes the red intermediate state.
+> The same reasoning extends to Task D, which repaired assertions and a checksum
+> that Tasks A and C invalidated, and so could not itself go green until they had
+> landed - a deadlock.
+>
+> **Current mitigation: DISCHARGED BY CONSTRUCTION.** Tasks A, C and D are merged
+> into a single atomic task (backlog `137.003-T`; `137.005-T` and `137.006-T`
+> superseded and archived). With one task there is one gate, evaluated once, after
+> every mutually-breaking edit has landed. No intermediate state is observable.
+>
+> **Standing constraint**: do **not** re-split `137.003-T`. Any future split must
+> first show that each resulting task leaves the full configured suite green at its
+> own completion gate.
 
 ## H2 (P1) - The rename must not collapse the C5 removal/archival distinction
 
@@ -118,3 +139,34 @@ separate finding to capture, not to absorb.
   different artifact; recorded in the deliberation as noted-not-actioned.
 * Newly surfaced unrelated findings during execution are to be captured under
   P-021 C1, not absorbed.
+
+---
+
+## ADDENDUM (Stage review-fix, 2026-08-20) - H1 was under-scoped; H6 absorbed
+
+**H1 named the wrong boundary.** It framed the hazard as "same commit / same PR",
+but the binding constraint is Ship's **per-task** quality gate. A red state
+between two tasks in one PR is still a red gate. H1 should have concluded that
+the mutually-breaking set must be **one task**, not merely one PR.
+
+**H1 was also incomplete.** It named only Tasks A and C. Task D belonged to the
+same mutually-breaking set: it repaired the `test_verify_workspace.py` fixtures
+invalidated by C, the policy-contract assertion and manifest checksum invalidated
+by A, and could not go green before either. The set is {A, C, D}.
+
+**H6 is absorbed, not dropped.** With the checksum refresh in the same task as
+the byte change, the "forgot to refresh, got a parity-shaped failure message"
+mode is unreachable. The H6 discipline still applies: refresh the checksum
+because the bytes legitimately changed, never to silence unexplained drift, and
+capture any *other* stale checksum as a separate deferred entry.
+
+**A factual error is also corrected here** (same correction applied to archived
+stash record `8D570CF8`): backlogit v1.10.0 does **not** lack a `stash remove`
+CLI subcommand. Its canonical help lists `archive`, and `backlogit stash remove`
+remains reachable as a **deprecated alias** resolving to the same archive
+handler. Canonical execution stays MCP `backlogit_stash_archive` with CLI
+`backlogit stash archive`; the deprecated alias is descriptive context only and
+is never prescribed. This corrects a premise, not the conclusion - the migration
+is still warranted, because the operation is deprecated.
+
+**No new hardening findings.** Scope is unchanged; only task boundaries moved.

@@ -113,3 +113,75 @@ new and edited documentation can actually be validated workspace-wide.
 Orchestrator Step 1.5 staging-artifact gate. Stage did **not** commit or push -
 the working tree carries operator-managed `.backlogit` bookkeeping that must be
 preserved, and publication is the Orchestrator's step.
+
+---
+
+## ADDENDUM (Stage review-fix, 2026-08-20) - additive; nothing above is modified
+
+Two P1 review findings were confirmed against the artifacts staged in this
+session and resolved. The record above is left intact; this addendum supersedes
+the specific statements it names.
+
+### Finding 1 - the 137.* task graph could not pass Ship's per-task quality gate
+
+Line 76's note that "tasks `137.003-T` / `137.005-T`" must land together
+understated the problem, and line 105's "`145-S` -> `137-F` + 6 tasks" is now
+stale.
+
+Ship evaluates the full configured suite before completing **each** task, but the
+staged contracts admitted predecessor tasks would leave the verifier, contract
+tests, and manifest checksum red until a later task repaired them. The
+mutually-breaking set was {old 137.003-T, 137.005-T, 137.006-T}, and old
+137.006-T could not go green before its own predecessors - a deadlock.
+
+**Resolved** by collapsing that set into one atomic task:
+
+* `137.003-T` **survives**, rewritten as the atomic migration (template + dogfood
+  mirror + verifier marker + contract tests + manifest checksum). Size `S` -> `M`,
+  complexity `medium`.
+* `137.005-T`, `137.006-T` - **superseded by `137.003-T`**, stamped with
+  superseded-by pointers and archived (not deleted).
+* `137.004-T` re-verified as independently gate-green and order-independent; its
+  former inbound edge from `137.006-T` was not carried over.
+* `137.001-T`, `137.002-T` unchanged.
+
+**Corrected shipment line** (supersedes line 105): `145-S` -> `137-F` + **4**
+tasks (`137.002-T`, `137.001-T`, `137.003-T`, `137.004-T`). Line 106 still holds:
+`145-S` blocks on `144-S`.
+
+**Dependency graph after restructure** - acyclic, no orphans:
+
+```
+137.002-T  (no deps)
+   |-> 137.001-T
+   |-> 137.003-T   [ATOMIC]
+137.004-T  (no deps, order-independent)
+```
+
+Every remaining task leaves the full configured suite green at its own completion
+gate. No task depends on a temporarily red predecessor.
+
+### Finding 2 - archived provenance carried a false CLI-alias assertion
+
+Archived stash record `8D570CF8` asserted, in both its capture text and its
+reconciliation, that the backlogit CLI no longer exposes a `stash remove`
+subcommand. That is false.
+
+A clearly labeled **factual retraction** was appended to that record. All original
+capture text, source refs, reconciliation notes, forward destination refs, archive
+state, ID and timestamps are preserved unmodified; the retraction is purely
+additive. Corrected fact: v1.10.0's canonical `stash --help` lists `archive`, and
+`backlogit stash remove` remains reachable as a **deprecated alias** of archive.
+Canonical execution is MCP `backlogit_stash_archive` with CLI `backlogit stash
+archive`; the deprecated alias is not prescribed. The entry's conclusion is
+unaffected - the operation is deprecated, not absent, so the migration remains
+warranted.
+
+The same factual correction is carried into `137.003-T` (which must fix the
+matching false comments in `tests/test_scope_containment_boundary_contract.py`)
+and into the hardening record's addendum.
+
+### Disposition
+
+Both findings pass P-021 C1 (same contract surface as the staged work) and were
+fixed in place. **No deferred entries were created for either.**

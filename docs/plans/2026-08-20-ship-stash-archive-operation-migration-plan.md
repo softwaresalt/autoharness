@@ -33,11 +33,21 @@ every **historical** record untouched.
 * No change to the live `.autoharness/backlog-registry.yaml`.
 * No deletion of `stash_remove` from the registry - deprecate in place.
 
-## Task A - Ship agent template + dogfood mirror (paired edit)
+## Task A (ATOMIC) - Ship template + dogfood mirror + verifier + contract tests + manifest checksum
+
+> **REVISED 2026-08-20 (review-fix).** Tasks A, C and D were merged into this
+> single atomic task. See "REVISION - atomic task restructure" at the end of this
+> plan for the reason. Backlog IDs: surviving task `137.003-T`; superseded and
+> archived `137.005-T` (old Task C), `137.006-T` (old Task D).
 
 **Files**
 * `templates/agents/_ship.agent.md.tmpl` - line 38 (Role Boundary), line 819 (Step 7)
 * `.github/agents/_ship.agent.md` - line 47 (Role Boundary)
+* `src/autoharness/verify_workspace.py` - line 296 (`ship_source_artifact_cleanup` marker)
+* `tests/test_verify_workspace.py` - lines 1860, 3135 (marker-list fixtures)
+* `tests/test_scope_containment_policy_contract.py` - line 595
+* `tests/test_scope_containment_boundary_contract.py` - lines 79, 87, 332, 552 (comments only)
+* `.autoharness/harness-manifest.yaml` - checksum for `.github/agents/_ship.agent.md`
 
 Replace the operation name with `backlogit_stash_archive` at each site. Preserve
 the surrounding clause wording exactly, including the existing parenthetical
@@ -53,10 +63,32 @@ maintenance contract landed earlier in this shipment. The mirror carries only
 the Role Boundary site; that asymmetry is expected and is **not** to be
 "fixed" here.
 
+**Also performed here (absorbed from old Tasks C and D)**
+* Update the `ship_source_artifact_cleanup` `must_contain` marker to the archive
+  wording landed above; leave `source_stash_id`, `source_deliberation_id` and
+  `backlogit_archive_item` unchanged.
+* Update the two `tests/test_verify_workspace.py` marker-list fixtures to match.
+* Update `tests/test_scope_containment_policy_contract.py` line 595 without
+  weakening any C5 removal/archival assertion.
+* Correct the false "no `stash remove` subcommand" claim in the
+  `tests/test_scope_containment_boundary_contract.py` comments (lines 87, 552):
+  on v1.10.0 `stash remove` is a **deprecated alias** of `stash archive`, not absent.
+* Refresh the `.github/agents/_ship.agent.md` manifest checksum from the
+  LF-normalized committed blob (`git cat-file -p :<path>`).
+
 **Acceptance**
-* No prescriptive occurrence of `backlogit_stash_remove` remains in either file.
+* No prescriptive occurrence of `backlogit_stash_remove` remains in any edited file.
+* No file claims the CLI lacks a `stash remove` subcommand.
 * Role Boundary clause semantics unchanged apart from the operation name.
-* Both sides changed in one commit.
+* These assertions still pass unchanged: `workflow_policy_text` contains
+  "manifest-derived retirement of the source stash entry that fed the shipped scope";
+  both ship carriers contain "a manifest-derived closure operation, distinct from
+  discretionary removal", "discretionary removal or archival of stash entries", and
+  "create a capture-only stash entry (P-021 C5)".
+* `verify-workspace` clean AND the full configured suite green **at the single
+  completion gate for this task** - no red intermediate state at any point.
+* Manifest checksum matches the actual committed bytes of the edited mirror.
+* Everything lands in one commit.
 
 ## Task B - Policy registry + backlog registry templates
 
@@ -77,43 +109,41 @@ and ensure `stash_archive` is the operation the Ship contract resolves to.
 * The manifest-derived post-merge exception still reads as allowed.
 * Registry still resolves both operations; `stash_remove` marked deprecated.
 
-## Task C - Verifier marker assertion
+## Task C - MERGED INTO TASK A (superseded 2026-08-20)
 
-**File**: `src/autoharness/verify_workspace.py` - line 296
+**Was**: update `src/autoharness/verify_workspace.py` line 296 so the
+`ship_source_artifact_cleanup` check no longer requires `backlogit_stash_remove`.
 
-The `ship_source_artifact_cleanup` check requires
-`.github/agents/_ship.agent.md` to contain `backlogit_stash_remove`. Update the
-required marker to `backlogit_stash_archive`.
+**Status**: **merged into Task A.** Backlog task `137.005-T` is superseded by
+`137.003-T` and archived.
 
-**Ordering hazard**: this check and Task A must land together. If Task A lands
-alone, this check fails; if Task C lands alone, it fails immediately. Sequence
-them in the same commit or adjacent commits within the same PR.
+**Why merged**: this task and Task A were mutually breaking (H1). Task A alone
+removes the marker the verifier demands; Task C alone demands a marker the mirror
+does not yet carry. Either ordering leaves a red gate, and Ship evaluates the full
+configured suite before completing **each** task - so neither could ever complete.
+An "adjacent commits in one PR" mitigation is insufficient, because the gate is
+per-task, not per-PR.
 
-**Acceptance**
-* Marker list names the archive operation.
-* `verify-workspace` passes against this repository's own install.
+## Task D - MERGED INTO TASK A (superseded 2026-08-20)
 
-## Task D - Contract tests + manifest checksum refresh
+**Was**: update the contract tests and refresh the `.github/agents/_ship.agent.md`
+manifest checksum.
 
-**Files**
-* `tests/test_verify_workspace.py` - lines 1860, 3135
-* `tests/test_scope_containment_boundary_contract.py` - lines 79, 87, 332, 552
-* `tests/test_scope_containment_policy_contract.py` - line 595
-* `.autoharness/harness-manifest.yaml` - checksum for `.github/agents/_ship.agent.md`
+**Status**: **merged into Task A.** Backlog task `137.006-T` is superseded by
+`137.003-T` and archived.
 
-Update expectations to the archive operation. Refresh the manifest checksum for
-the mirrored file changed in Task A.
+**Why merged**: Task D existed only to repair assertions and a checksum that its
+own predecessors invalidated, so the dependency graph deadlocked - A and C could
+not go green without D, and D could not go green before them. All of Task D's
+content, including the H3 historical-record protections and the H6 checksum
+rationale, is carried into Task A.
 
-**Care required**: some of these assertions encode the P-021 C5 *clause
-semantics*, not merely the operation string. Update the operation name without
-weakening any assertion about the removal/archival distinction.
-
-**Acceptance**
-* Full test suite green.
-* Manifest checksum matches the actual committed bytes of the edited mirror
-  (this is the same property the divergent-pair contract test asserts).
-* No historical record modified - confirm with `git diff --name-only` that
-  nothing under `docs/closure/` or `docs/memory/` appears.
+**Dependency note**: old Task D also depended on Task B. That edge is **not**
+carried into Task A. Re-verified during this restructure: Task B touches only
+`templates/policies/workflow-policies.md.tmpl` and
+`templates/backlog/registries/backlogit.registry.yaml`; no assertion Task A
+touches reads either file, and B's H2 constraint preserves every asserted C5
+marker string. Task B is independently gate-green and order-independent.
 
 ## Verification (Ship)
 
@@ -128,6 +158,16 @@ weakening any assertion about the removal/archival distinction.
 
 Second within its shipment, **after** the paired-edit maintenance contract.
 
+Executable order after the atomic restructure (shipment `145-S`):
+
+1. `137.002-T` - maintenance contract document (no dependencies).
+2. `137.001-T` - parity contract test annotations (requires `137.002-T`).
+3. `137.003-T` - **atomic** stash_archive migration (requires `137.002-T`).
+4. `137.004-T` - policy clause + backlog registry (no dependencies; order-independent).
+
+No cycles. Every task is independently gate-green: each leaves `verify-workspace`
+and the full configured suite passing at its own completion gate.
+
 ## Plan Review (plan-review gate)
 
 **Verdict: PASS WITH CONDITIONS.** Reviewed 2026-08-20 by Stage.
@@ -136,16 +176,20 @@ Second within its shipment, **after** the paired-edit maintenance contract.
 |---|---|
 | Prescriptive vs historical boundary explicit | PASS - both lists enumerated by file and line |
 | Each task within the 2-hour rule | PASS |
-| Width isolation | PASS - A templates, B policy/registry, C CLI source, D tests/manifest |
+| Width isolation | **SUPERSEDED 2026-08-20** - the original A/B/C/D width split was the defect, not a virtue: it distributed a mutually-breaking change set across four tasks and deadlocked the per-task quality gate. Now: A (atomic migration, deliberate multi-family carve-out), B (policy/registry). Width isolation yields to gate-green atomicity where the two conflict |
 | Acceptance criteria falsifiable | PASS |
 | Blast radius honestly stated | PASS - elevated |
 | Hardening required (P-006) | **YES** - elevated blast radius, multiple template families, and a live policy clause. Hardening performed; see linked hardening record |
 | Coupling to `6D62077C` acknowledged | PASS - ordering stated and justified |
 
 **Conditions carried into execution** (from hardening):
-1. Tasks A and C must not land in isolation from one another (H1).
+1. ~~Tasks A and C must not land in isolation from one another (H1).~~
+   **DISCHARGED BY CONSTRUCTION 2026-08-20** - A and C are now one task, so no
+   intermediate red state is reachable. Do not re-split Task A.
 2. The C5 removal/archival distinction must survive the rename verbatim (H2).
 3. No historical record may be edited; verified by an explicit `git diff` check (H3).
+4. **Every task must leave the full configured suite green at its own completion
+   gate.** No task may depend on a temporarily red predecessor.
 
 ---
 
@@ -191,3 +235,45 @@ The Ship contract names both surfaces in P-012 MCP-first / CLI-fallback order:
 
 This preserves the deprecation intent (stop naming removal semantics) and keeps
 both P-012 legs satisfied by the replacement operation itself.
+
+---
+
+## REVISION - atomic task restructure (Stage review-fix, 2026-08-20)
+
+**Finding (P1).** The original A/B/C/D decomposition could not pass Ship's
+per-task quality gate. Ship runs the full configured suite before completing
+**each** task, but the staged contracts admitted that predecessor tasks would
+leave the verifier, the contract tests, and the manifest checksum **red** until a
+later task repaired them. Concretely:
+
+| Edit | Immediately invalidates | Repair originally deferred to |
+|---|---|---|
+| `.github/agents/_ship.agent.md` (Task A) | `verify_workspace.py` `ship_source_artifact_cleanup` marker | Task C |
+| `templates/agents/_ship.agent.md.tmpl` (Task A) | `test_scope_containment_policy_contract.py::test_post_merge_step7_source_artifact_cleanup_is_unweakened` | Task D |
+| `.github/agents/_ship.agent.md` bytes (Task A) | `test_manifest_checksum_matches_actual_dogfood_bytes_for_all_eight_pairs` | Task D |
+| `verify_workspace.py` (Task C) | `test_verify_workspace.py` marker-list fixtures (lines 1860, 3135) | Task D |
+
+Task D in turn could not go green before A and C landed. The graph deadlocked.
+
+**Resolution.** The mutually-breaking set was collapsed into **one atomic task**,
+so every invalidated assertion and checksum is repaired by the same task that
+invalidates it. The "adjacent commits within a single PR" mitigation in H1 was
+insufficient, because the gate is evaluated per **task**, not per PR.
+
+**Backlog effect** (all via official backlogit operations):
+
+* `137.003-T` - **survives**, rewritten as the atomic task; size `S` -> `M`,
+  complexity `medium` (two-axis 2h gate re-applied; still within the 2-hour rule
+  as ~11 mechanical, fully-specified edit sites plus one checksum refresh).
+* `137.005-T` - **superseded by `137.003-T`**, stamped and archived.
+* `137.006-T` - **superseded by `137.003-T`**, stamped and archived.
+* `137.004-T` - unchanged; re-verified as independently gate-green.
+* `137.001-T`, `137.002-T` - unchanged.
+* Shipment `145-S` membership reduced to `137-F`, `137.002-T`, `137.001-T`,
+  `137.003-T`, `137.004-T`.
+* Dependency edges removed: `137.006-T -> 137.005-T`, `137.006-T -> 137.004-T`,
+  `137.005-T -> 137.003-T`. Remaining edges: `137.001-T -> 137.002-T`,
+  `137.003-T -> 137.002-T`. Acyclic.
+
+**Scope preserved.** No approved work was dropped and none was added; the same
+edits are performed, redistributed so that no gate ever observes a red state.
