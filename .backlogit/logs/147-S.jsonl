@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-20T23:42:47.1921631-07:00","actor":"backlogit","item_id":"147-S","event_type":"shipment_created","delta":{"items":["139-F","139.001-T","139.002-T"],"title":"PREREQUISITE (contract fix): Ship execution contract must exclude pre-archived manifest members — MANDATORY post-merge instruction reload before 144-S (B19E9662)"}}
+{"timestamp":"2026-08-21T03:31:56.1708569-07:00","actor":"backlogit","item_id":"147-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
