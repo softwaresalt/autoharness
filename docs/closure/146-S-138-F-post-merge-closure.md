@@ -5,6 +5,7 @@ feature_pr: 376
 merge_commit: 77ee301a
 merged_at: "2026-08-21T09:38:35Z"
 closure_status: READY
+compaction_status: done
 ---
 
 # 146-S / 138-F Post-Merge Closure — Gate-Atomic Baseline Repair
@@ -122,3 +123,78 @@ active stash) — no further Ship-side retirement was needed.
 threads were resolved before merge, backlog cascade-close is complete and
 verified, and the full-suite test-isolation follow-up is tracked as stash
 entry `E8158860` under Stage/Ship role separation.
+
+## Post-Closure Correction Addendum (2026-08-21, Ship post-merge correction authority)
+
+**This section corrects, and does not retract, the closure record above.**
+`146-S` is archived/shipped and was not reopened, reclaimed, or re-triaged for
+this correction; no backlogit shipment or task was created, claimed, or
+touched. The correction below is delivered as an independent
+docs/backlog-only correction PR under Ship's post-merge correction authority,
+on its own dedicated branch, through the full Ship pipeline (local review,
+CI, P-018 Copilot review, P-014 readiness, merge-commit-only merge); this
+addendum will be updated with completed-gate evidence only once each gate
+has actually run and passed, not in advance of it.
+
+### Corrected defect
+
+The original closure record above set `closure_status: READY` but omitted
+the required `compaction_status` frontmatter field entirely. The
+successor-shipment pre-claim topology gate
+(`autoharness gate pipeline-topology --mode agent --shipment 147-S --phase
+pre_claim`) requires **both** a valid `compaction_status` (`done` or
+`degraded` — P-020 evidence) **and** a valid `closure_status` before it will
+register a predecessor shipment's closure as complete
+(`_closure_artifact_complete` in `src/autoharness/gates/topology.py`). With
+`compaction_status` absent, the gate correctly returned
+`PREDECESSOR_CLOSURE_INCOMPLETE: predecessor 146-S is terminal but missing
+required closure evidence`, blocking `147-S` pre-claim.
+
+### Evidence that P-020 compact-context was actually invoked and succeeded
+
+This correction adds the missing field rather than fabricating it. The
+underlying P-020 compact-context run for 146-S/138-F did occur and produced
+durable artifacts, confirmed present in the repository prior to this
+correction:
+
+- `docs/memory/compacted/2026-08-21-146S-138F-compacted.md` — the compacted
+  (Tier-1 consolidated) memory summary for this release unit, dated
+  2026-08-21, citing merge commit `77ee301a2cb91cda5c244d0d52363a8d95277dc7`
+  and PR #376, and explicitly consolidating the verbose session archive
+  below.
+- `docs/archive/memory/2026-08-21-ship-146-s-baseline-repair-session.md` —
+  the verbose original Ship execution session archived by the same
+  compact-context run, referenced from the compacted file's `consolidates:`
+  frontmatter field.
+- Neither artifact records a degradation, failure, or partial-run marker
+  **for the compact-context invocation itself**. The archived session file
+  does contain an unrelated `## Degraded capabilities` section
+  (`ENGRAM_DEGRADED`, `INTERCOM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`) describing
+  capability-pack unavailability during that session's earlier execution
+  work, and the compacted summary separately records the pre-existing,
+  already-deferred (P-021 stash entry `E8158860`) pytest failures — neither
+  is a compact-context degradation or failure signal. This narrower claim
+  supports `compaction_status: done` rather than `degraded`.
+
+### Corrected fix
+
+Added `compaction_status: done` to this file's frontmatter. No other field
+was altered; `closure_status: READY` is unchanged and remains correct per
+the closure verdict above. No source, test, template, config, or backlog
+state change was made — this is a docs-only frontmatter and narrative
+correction.
+
+### Verification
+
+- `autoharness gate pipeline-topology --mode agent --shipment 147-S --phase
+  pre_claim --json` reproduced `PREDECESSOR_CLOSURE_INCOMPLETE` against the
+  pre-correction file, and returns a passing verdict against the corrected
+  file (see correction PR readiness evidence for exact before/after output).
+- This correction does not claim, execute, or otherwise act on `147-S`; it
+  only removes the false-negative closure-evidence block so a future,
+  separately authorized pre-claim of `147-S` can proceed on its own merits.
+
+### Follow-ups / deferred
+
+None new. `146-S`'s existing residual follow-up (P-021 deferred stash entry
+`E8158860`) is unaffected by this correction.
