@@ -44,8 +44,13 @@ current-head threads landed here - `PRRT_kwDORzpWpM6bTZTM`): **P1-6** raised - t
 plan's single-global-variable-map model cannot serve role-distinct consumers of the
 same placeholder. RESOLVED by amendment B8 / new Task 1b / task 142.007-T.
 
+*Review-fix cycle 4* (operator-authorized extension; HEAD `d098d8a2`): **NO thread
+landed on this plan.** Verdict unchanged, no amendment required. Recorded so the
+PR-wide cycle count and this review's cycle count do not appear to disagree.
+
 **0 unresolved P0/P1.** P1-4, P1-5 and P1-6 RESOLVED. Review-fix cycles used:
-**3 of 3 (limit reached).**
+**4 PR-wide** (3 standard + 1 operator-authorized); this plan itself last changed at
+cycle 3.
 
 *Method note:* every corrected claim in this cycle was re-verified against the
 authoritative source (`.github/skills/install-harness/SKILL.md` rows 414-453,

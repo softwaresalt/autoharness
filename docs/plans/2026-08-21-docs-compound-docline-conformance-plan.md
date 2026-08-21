@@ -121,8 +121,28 @@ example contains both `source:` and `doc_type:` keys. RED before, GREEN after.
 1. Amend the Phase 3 YAML frontmatter example in
    `templates/skills/compound/SKILL.md.tmpl` to include `source` and
    `doc_type`, using the value semantics confirmed in Task 1 step 2.
-2. `doc_type` guidance MUST state that the value is path-derived and that
-   `backlogit docs classify <path>` is the authority - not a free-text choice.
+2. `doc_type` guidance MUST state that the value is PATH-DERIVED and never a
+   free-text choice, expressed in a **CAPABILITY-NEUTRAL AUTHORITY ORDER**. The
+   base template MUST NOT name any specific backlog tool or command
+   (amendment C3, review-fix cycle 4):
+
+   > `doc_type` is PATH-DERIVED. Resolve it in this order:
+   > 1. If the workspace's installed backlog/documentation tooling exposes a
+   >    documentation-classification operation, that operation is authoritative
+   >    for the path.
+   > 2. Otherwise, the workspace's configured documentation path map is
+   >    authoritative.
+   > 3. If neither is configured, apply the directory convention: a document
+   >    authored by this skill lives in the compound/learnings directory and is
+   >    therefore `learning`.
+   >
+   > Never invent the value and never copy it from a neighbouring document.
+
+   Rung 3 guarantees a concrete, resolvable answer in a workspace with NO backlog
+   tooling at all, so this leaves no unresolved customization point. The concrete
+   `backlogit docs classify <path>` / `backlogit docs scope` commands stay in THIS
+   plan and in 025-DL, which are workspace-local artifacts, and are deliberately
+   NOT propagated into the distributed base template.
 3. Add the two fields to the skill's "Quality Criteria" list.
 4. Confirm no `.github/skills/compound/` counterpart exists; if one has appeared
    since planning, STOP - a paired edit plus manifest checksum refresh is then
@@ -196,3 +216,41 @@ Source: `docs/reviews/2026-08-21-docs-compound-docline-conformance-review.md` (P
   If the corpus has changed since planning, the executing agent re-derives the
   list and records the delta. The contract test scope is `*.md` only;
   `docs/compound/.gitkeep` and any future non-markdown asset are out of scope.
+
+## Amendments applied in review-fix cycle 4 (PR #386, operator-authorized extension)
+
+Threads: `PRRT_kwDORzpWpM6bTooh`, `PRRT_kwDORzpWpM6bToo3`.
+
+* **C3 (P1-3)** - **The base template must stay environment-agnostic.** Task 2 step 2
+  originally required the template to name `backlogit docs classify <path>` as the
+  authority for `doc_type`. `compound` is a **base Primitive 1 artifact**: it
+  installs into workspaces that have no backlogit and possibly no backlog tool at
+  all, where that command is dead guidance and an author is left with no resolution
+  path. Hard-coding one tool into a distributed base artifact also breaks the
+  global-tool/local-output separation - the tool is global, the template is the
+  product. Replaced with a CAPABILITY-NEUTRAL AUTHORITY ORDER: (1) the workspace's
+  documentation-classification operation if its tooling exposes one; (2) otherwise
+  the configured documentation path map; (3) otherwise the directory convention,
+  which yields `learning` for this skill's own output. Rung 3 always resolves, so
+  no unresolved customization point is created. Enforced by new **AC8b**, a
+  MECHANICAL scan asserting the template contains no backlog-tool name or CLI
+  command in the `doc_type`/`source` guidance.
+
+  **No new template variable is introduced.** The variable route
+  (`{{OP_DOC_CLASSIFY_CLI}}` on the existing registry-backed `{{OP_*}}` pattern at
+  `.github/skills/install-harness/SKILL.md:240-254`, empty-string default) was
+  considered and REJECTED: it would force an `install-harness` variable-table row in
+  both the template and the installed `SKILL.md` (paired edit + manifest checksum,
+  breaking AC10), a `_derive_template_variables` change (**142-F's** surface - a
+  cross-feature width breach under P-003), and a registry schema key - while
+  contradicting AC8. A backlogit capability-pack overlay was also rejected: the pack
+  layer does not currently cover documentation classification, so it would require
+  the same paired edit plus checksum churn. `doc_type` is path-derived and needs no
+  tool indirection at all.
+
+  The concrete `backlogit docs classify` / `backlogit docs scope` commands remain in
+  THIS plan and in 025-DL - workspace-local artifacts where naming the installed
+  tool is correct - and are deliberately not propagated into the base template.
+  `requires_plan_hardening: no` is UNCHANGED: this amendment removes surface rather
+  than adding it, and still touches exactly one template file with no installed
+  counterpart.

@@ -5,8 +5,9 @@ plan: docs/plans/2026-08-21-docs-compound-docline-conformance-plan.md
 stash_id: F73BA065
 deliberation: "025-DL"
 verdict: PASS
-review_fix_cycle: 2
+review_fix_cycle: 4
 regated: 2026-08-21
+cycle_4_authorization: operator-authorized-extension
 ---
 
 # Plan Review - docs/compound docline conformance
@@ -28,7 +29,19 @@ amendment C1 was recorded but never APPLIED to the plan's operative verification
 gate, which still demanded zero errors for `source`/`doc_type` only. RESOLVED by
 rewriting the operative gate in place.
 
-**0 unresolved P0/P1.** Review-fix cycles used: **2 of 3.**
+*Review-fix cycle 4* (Copilot review on PR #386 at HEAD `d098d8a2`; 2 of the 7
+current-head threads landed here - `PRRT_kwDORzpWpM6bTooh`, `PRRT_kwDORzpWpM6bToo3`):
+**P1-3** raised - the planned base-template edit hard-codes a backlogit-only command
+into a base Primitive 1 artifact. RESOLVED by amendment C3.
+
+**0 unresolved P0/P1.** Review-fix cycles used: **4** (3 standard + 1 operator-authorized).
+
+**Cycle-4 authorization (documented per P-005).** The Stage stop-condition table
+caps review-fix cycles at 3 per plan. Cycle 4 was performed under an EXPLICIT
+OPERATOR AUTHORIZATION extending the Stage review-fix budget for the seven current-head
+P-018 blockers, granted 2026-08-21 with the instruction not to stop at planning or
+blockers. Same-error-recurrence and universal circuit-breaker limits were NOT relaxed
+and remain in force. This is an authorized budget extension, not a self-granted one.
 
 ## P1-1 (RESOLVED by amendment C1) - the verification gate proves too little
 
@@ -96,3 +109,50 @@ fail the guard spuriously.
   contract edit (Task 2) is correct and should not be collapsed for convenience.
 * The `requires_plan_hardening: no` determination is explicitly reasoned rather
   than defaulted, satisfying P-006's fail-safe intent.
+
+## P1-3 (RAISED in review-fix cycle 4; RESOLVED by amendment C3) - a base Primitive 1 template must not hard-code one backlog tool
+
+**Threads.** `PRRT_kwDORzpWpM6bTooh` (140.002-T), `PRRT_kwDORzpWpM6bToo3` (plan Task 2).
+
+**Finding.** Task 2 step 2 required the amended
+`templates/skills/compound/SKILL.md.tmpl` to state that `backlogit docs classify
+<path>` is the authority for `doc_type`. `compound` is a **base Primitive 1
+artifact**: it is installed into workspaces that may have no backlogit, and indeed
+no backlog tool at all. In such a workspace that instruction is dead guidance and
+the author is left with no resolution path for a REQUIRED frontmatter field - so the
+amendment intended to make new documents born-conformant would instead make them
+unresolvable. It also breaks autoharness's global-tool / local-output separation:
+the backlog tool is global and swappable, the template is the product.
+
+**Why it is P1.** It defeats the purpose of the task. Task 2 exists precisely so the
+next compound document is born conformant; guidance that cannot be followed without
+one specific tool reopens the gap in every non-backlogit workspace, and does so
+silently.
+
+**Resolution (C3).** The template states a CAPABILITY-NEUTRAL AUTHORITY ORDER and
+names no tool:
+
+1. the workspace's documentation-classification operation, if its tooling exposes one;
+2. otherwise the workspace's configured documentation path map;
+3. otherwise the directory convention - which yields `learning` for this skill's own
+   output.
+
+Rung 3 always resolves, so no unresolved customization point is left behind - this
+is the difference between "capability-conditioned" and "capability-dependent".
+Enforced by new **AC8b**: a MECHANICAL scan asserting the template contains no
+backlog-tool name or CLI command in the `doc_type`/`source` guidance, so a future
+edit cannot quietly reintroduce one.
+
+**Alternatives rejected, with reasons.** A registry-backed template variable
+(`{{OP_DOC_CLASSIFY_CLI}}`, following the existing `{{OP_*}}` family at
+`.github/skills/install-harness/SKILL.md:240-254` with its empty-string default) is
+the right pattern for genuinely tool-shaped values, but here it would require an
+install-harness variable-table row in both the template and the installed `SKILL.md`
+(paired edit + manifest checksum, breaking AC10), a `_derive_template_variables`
+change (**142-F's** surface - a cross-feature width breach under P-003) and a
+registry schema key, while contradicting AC8. A backlogit capability-pack overlay
+was likewise rejected: the pack layer does not currently cover documentation
+classification, so it would need the same paired edit and checksum churn.
+`doc_type` is path-derived; it needs no tool indirection at all. Choosing prose over
+a variable REMOVED surface rather than adding it, so `requires_plan_hardening: no`
+is unchanged.

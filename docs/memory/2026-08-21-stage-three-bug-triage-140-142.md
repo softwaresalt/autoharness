@@ -7,7 +7,8 @@ shipments: [148-S, 149-S, 151-S, 150-S]
 features: [140-F, 141-F, 142-F, 143-F]
 task_count_executable: 15
 task_count_superseded: 1
-review_fix_cycles_used: 3
+review_fix_cycles_used: 4
+cycle_4_authorization: operator-authorized-extension
 deliberations: [023-DL, 024-DL, 025-DL]
 ---
 
@@ -41,7 +42,7 @@ a POINT-IN-TIME record of the run that produced it and must not be read as curre
 | Shipments | **4** - 148-S, 149-S, **151-S**, 150-S | 3 (148-S, 149-S, 150-S) |
 | Executable tasks | **15** | 13 |
 | Superseded/archived tasks | **1** - 141.005-T | 0 |
-| Review-fix cycles used | **3 of 3 (limit reached)** | 0 |
+| Review-fix cycles used | **4** (3 standard + 1 operator-authorized) | 0 |
 
 Per-feature executable tasks: 140-F = 2 (140.001-T, 140.002-T); 141-F = 4
 (141.001-T - 141.004-T); 142-F = **7** (142.001-T - **142.007-T**); 143-F = 2
@@ -418,6 +419,66 @@ reported to the parent rather than edited here.
 **3 of 3**. Isolation and docline reviews unchanged at PASS (cycle 2) - cycle-3
 findings 2/3/6 were factual corrections to already-accepted resolutions, not
 verdict-bearing. **0 unresolved P0/P1 across all three reviews.**
+
+## Review-fix cycle 4 (PR #386, HEAD `d098d8a2` - 7 threads) - OPERATOR-AUTHORIZED EXTENSION
+
+**Authorization (documented per P-005).** The Stage stop-condition table caps
+review-fix cycles at 3 per plan. Cycle 4 was performed under an EXPLICIT OPERATOR
+AUTHORIZATION extending the Stage review-fix budget for the seven current-head P-018
+blockers. Same-error-recurrence and universal circuit-breaker limits were NOT relaxed.
+`ENGRAM_DEGRADED` unchanged: Engram was NOT retried and no raw
+unified/graph/code-dependency search was used - exact known-path/line reads only.
+
+**P-021 C1: all 7 = SAME-CONTRACT-SURFACE -> fix, not defer.** Each classified
+individually. All seven correct THIS PR's own plan/task contract text. Findings 1-2
+touch a template CONTRACT specified by this PR's own Task 2 (no template file was
+edited by Stage); findings 3-7 correct acceptance predicates this PR authored or
+amplified. No new deferred entry required.
+
+**Findings 1-2 - base template must stay environment-agnostic.** Task 2 required the
+compound template to name `backlogit docs classify <path>` as the `doc_type`
+authority. `compound` is a base Primitive 1 artifact installed into workspaces with
+no backlogit - there the guidance is dead and a REQUIRED frontmatter field becomes
+unresolvable, reopening the very gap Task 2 exists to close. Replaced (amendment
+**C3**) with a capability-neutral authority order: tooling operation -> configured
+path map -> directory convention (`learning`). **Rung 3 always resolves**, so this is
+capability-CONDITIONED, not capability-DEPENDENT, and leaves no unresolved
+customization point. New **AC8b** enforces it MECHANICALLY (scan the template for
+tool names). The registry-variable route and the capability-pack overlay were both
+evaluated and REJECTED with reasons recorded - each would have forced a paired edit
+plus `harness-manifest.yaml` checksum churn (breaking AC10), and the variable route
+additionally reaches into **142-F's** `_derive_template_variables` surface, a
+cross-feature width breach under P-003. Choosing prose REMOVED surface, so
+`requires_plan_hardening: no` stands.
+
+**Findings 3-7 - one impossible predicate, seven carriers.** Amendment A1 required
+victim diffs "confined to `setUp`/`tearDown`/imports". Unsatisfiable: Task 2 anchors
+58 `TemporaryDirectory(...)` calls that sit INSIDE test method bodies, victim #2's
+module carries 34 of them and victim #1's carries 5, and 143.001-T rewrites a
+`check=True` git call inside victim #1's own test method. A1 forbade the plan's own
+work. Replaced by amendment **A1R** plus a canonical **assertion-integrity gate
+(AIG)** in the plan: **AIG-1** AST-extracted assertion callsite sets exactly equal
+(strictly stronger than "no assertion line changed" - catches reordering and argument
+edits); **AIG-2** no assertion semantic drift (anchor, never relocate a containment
+test to system temp); **AIG-3** an EXHAUSTIVE N1-N6 allowlist that explicitly permits
+in-method anchor edits (N1), injection wiring (N2), supporting imports (N3), cleanup
+(N4), 143.001-T subprocess/failure diagnostics (N5) and forced formatting (N6);
+**AIG-4** per-line CITATION, with uncited edits disallowed. Zero assertion-line edits
+remains absolutely binding.
+
+**Carriers fixed - including two the review did not flag.** Plan AC10, plan AC11b,
+plan A1->A1R, hardening H1/A1->A1R, 141-F AC-F2, 143-F AC-G4, 143.002-T AC-3,
+143.001-T AC-b, **141.002-T AC-d** and **141.004-T AC-e**. The last two are the
+anchor tasks that actually touch victim files; they carried the identical
+contradiction and would have failed at execution.
+
+**Scope UNCHANGED.** Still 4 features, 15 executable tasks, 1 superseded, chain
+`148-S -> 149-S -> 151-S -> 150-S`, 148-S alone claimable. Cycle 4 changed contract
+TEXT only - no item created, deleted, re-parented or re-sequenced.
+
+**Re-gate.** Isolation review **PASS**, P1-7 resolved. Docline review **PASS**, P1-3
+resolved. Derivation review unchanged (no cycle-4 thread landed there). **0 unresolved
+P0/P1 across all three.**
 
 ## Next actions for Ship
 

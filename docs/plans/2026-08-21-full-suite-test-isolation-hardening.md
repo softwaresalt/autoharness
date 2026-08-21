@@ -31,11 +31,32 @@ telemetry gitignore assertions, or delete a victim. Every one of those turns the
 gate green while removing the protection the gate exists to provide.
 
 **Hardening.** AC10 already requires the five victims' assertions to be unchanged
-by diff. Strengthen it: **AMENDMENT A1** - Task 3 must additionally re-run the
-five victim tests IN ISOLATION and confirm identical pass/fail semantics, and the
-task record must include the verbatim `git diff` of the five victim files showing
-either no change at all, or changes confined to `setUp`/`tearDown`/imports with
-zero assertion-line edits.
+by diff. Strengthen it: **AMENDMENT A1R** (A1 CORRECTED in review-fix cycle 4) -
+Task 3b must additionally re-run the five victim tests IN ISOLATION and confirm
+identical pass/fail semantics, and the task record must include the verbatim
+`git diff` of the five victim files, evaluated against the **assertion-integrity
+gate (AIG)** defined in the plan.
+
+**Why A1's original predicate was withdrawn.** A1 required the victim diffs to show
+"either no change at all, or changes confined to `setUp`/`tearDown`/imports with
+zero assertion-line edits". That is UNSATISFIABLE against this plan's own work:
+Task 2 rewrites `tempfile.TemporaryDirectory(...)` anchors that sit INSIDE test
+method bodies, and victim #2 lives in `test_gates_topology.py` - one of the four
+modules being anchored; Task 3a rewrites a `check=True` git call inside victim #1's
+own test method and the `_git` helper in victim #5's module. A1 therefore forbade
+the very edits the plan mandates, and an executing agent would have had to either
+breach the hardening or abandon the anchor work in three of the four modules.
+
+**What replaces it.** AIG-1 makes assertion integrity MECHANICAL (AST-extracted
+assertion callsite sets must be exactly equal - stronger than "no assertion line
+changed", because it also catches reordering and argument edits). AIG-2 forbids
+assertion semantic drift. AIG-3 replaces the setup/teardown restriction with an
+EXHAUSTIVE allowlist (N1 anchors including in-method, N2 injection wiring, N3
+imports, N4 cleanup, N5 subprocess diagnostics for Task 3a, N6 forced formatting),
+and AIG-4 requires every changed non-assertion line to be CITED by class. The
+protected property is unchanged and the guarantee is strictly stronger: zero
+assertion-line edits remains absolutely binding, and uncited edits are now
+explicitly disallowed rather than merely undescribed.
 
 ## H2R - The "hard stop" must be a real stop, and it must also be EXECUTABLE
 

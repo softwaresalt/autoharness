@@ -179,8 +179,10 @@ own cause instead of surfacing as a bare `CalledProcessError`. Sites:
 
 **Acceptance criteria.**
 * AC11. Both `check=True` git sites surface captured stderr on failure.
-* AC11b. `git diff` shows ZERO assertion-line edits in either module; victims #1
-  and #5 live in these files and their assertions must be unchanged.
+* AC11b. The AIG passes for both modules: ZERO assertion-line edits (AIG-1), and
+  every changed non-assertion line is class **N5** (or N3/N6 in support) and cited
+  per AIG-4. Victims #1 and #5 live in these files and their assertions must be
+  unchanged.
 * AC11c. Both modules pass in isolation before and after with identical pass counts.
 
 ### Task 3b - Remediate the confirmed polluter, or record an evidenced no-remediation disposition
@@ -220,9 +222,13 @@ never returned blocked, and 151-S is never abandoned.
 * AC8. (R1 only) The canonical full-suite gate is GREEN on Windows: zero failures,
   zero errors (skips unchanged).
 * AC9. (R1 only) The minimal reproducing command from AC1 now passes.
-* AC10. All five victim tests retain their original assertions verbatim -
-  demonstrated by diff (no victim assertion line changed). Binding in EVERY
-  disposition.
+* AC10. **The assertion-integrity gate (AIG) passes** for all five victim files:
+  AIG-1 (assertion callsite sets exactly equal, verified by AST extraction), AIG-2
+  (no assertion semantic drift), AIG-3 (every changed non-assertion line falls in
+  the N1-N6 allowlist) and AIG-4 (every such line cited by class in the task
+  record). Binding in EVERY disposition. Superseded the earlier
+  "confined to setUp/tearDown/imports" wording, which forbade the anchor and
+  subprocess edits this plan itself requires.
 * AC12. Hosted CI remains green (no Linux regression from the anchor changes).
 * AC13. No source edit under `tests/` is made in any disposition without citing
   Task 1's recorded minimal reproducing pair. This is the structural replacement
@@ -230,6 +236,58 @@ never returned blocked, and 151-S is never abandoned.
   citation.
 * AC14. (R3-still-red only) A new deferred stash entry exists carrying the
   residual failure set and the narrowed candidate set.
+
+## Assertion-integrity gate (AIG) - canonical definition
+
+*(Introduced in review-fix cycle 4, PR #386, threads `PRRT_kwDORzpWpM6bTopC` /
+`…TopM` / `…Topb` / `…Topn` / `…Top2`. This REPLACES the earlier
+"changes confined to `setUp`/`tearDown`/imports" predicate, which was
+UNSATISFIABLE: the anchor edits in Task 2 change
+`tempfile.TemporaryDirectory(...)` calls that sit INSIDE test method bodies, and
+victim #2 lives in `test_gates_topology.py` - one of the modules being anchored -
+while Task 3a changes a `check=True` git call inside victim #1's own test method.
+The old wording therefore forbade the very edits the plan requires. All carriers
+now reference THIS gate by name.)*
+
+The protected property was never "only setup code may change". It is **the
+assertions must not move**. That is stated directly:
+
+**AIG-1 - assertion integrity (mechanical, not eyeballed).** For each victim file,
+extract the complete ORDERED set of assertion callsites before and after - every
+`self.assert*` / `assertRaises` / `pytest.raises` call with its full argument
+expressions and any `msg=`. The two sets MUST be EXACTLY EQUAL: no assertion added,
+removed, reordered, or textually altered; no expected value changed. Verify by AST
+extraction, not by reading a diff.
+
+**AIG-2 - no assertion semantic drift.** No authorized edit may change what an
+assertion OBSERVES. In particular a temp workspace that is inside the repository
+MUST stay inside the repository - anchoring is permitted, relocating to system temp
+is NOT - and no edit may change the value or type bound to any name an assertion
+reads.
+
+**AIG-3 - authorized non-assertion changes (EXHAUSTIVE ALLOWLIST).** Every changed
+non-assertion line MUST fall into exactly one class below. Anything else is an
+UNCITED EDIT and is DISALLOWED:
+
+| Class | Authorized change |
+|---|---|
+| **N1** | `tempfile.TemporaryDirectory(...)` anchor arguments: `dir=Path.cwd()` -> `dir=Path(__file__).resolve().parents[1]`, or removal of the `dir=` keyword. **Permitted anywhere the call occurs, INCLUDING inside a test method body.** |
+| **N2** | Workspace/cwd injection wiring: introducing or threading an explicit anchor/workspace parameter - constructor/factory arguments, helper-method parameters and their call sites, and `setUp`/`tearDown`/fixture wiring added to carry it. |
+| **N3** | Import statements added or removed SOLELY to support N1/N2 (e.g. `from pathlib import Path`). |
+| **N4** | Cleanup/teardown additions whose only effect is releasing a resource created by N1/N2. |
+| **N5** | **Task 3a / 143.001-T only** - at the two `check=True` git sites: adding `capture_output`/`text`/`stdout`/`stderr` arguments, and constructing a failure message embedding the captured stderr. Permitted inside a test method body and inside the `MetricsEmissionHardGateTests._git` helper. |
+| **N6** | Whitespace/line-wrapping changes mechanically forced by N1-N5. |
+
+**AIG-4 - citation.** The task record lists EVERY changed non-assertion line in a
+victim file with its class (N1-N6). An uncited change fails the gate. This is what
+makes "no speculative edit" checkable at review rather than trusted.
+
+**Applicability.** Victim #1 (`test_gate_pipeline_topology_cli.py`) can take N1 and
+N5; victim #2 (`test_gates_topology.py`) can take N1-N4; victim #5
+(`test_telemetry_gitignore_template.py`) can take N5. Victims #3 and #4
+(`test_repo_root_artifacts.py`, and the `MetricsGitignoreTests` case) are expected
+to need NO change at all - if either acquires a diff, that is a finding to record,
+not a routine edit.
 
 ## Width isolation (P-003)
 
@@ -261,11 +319,18 @@ as SUPERSEDED and remains a pre-archived member of the 149-S manifest, which
 
 Source: `docs/plans/2026-08-21-full-suite-test-isolation-hardening.md` (HARDENED).
 
-* **A1 (H1)** - Task 3 AC10 is extended: the five victim tests must additionally
-  be re-run IN ISOLATION with identical pass/fail semantics, and the task record
-  must carry the verbatim `git diff` of the five victim files showing either no
-  change, or changes confined to `setUp`/`tearDown`/imports with **zero
-  assertion-line edits**.
+* **A1R (H1; A1 CORRECTED in review-fix cycle 4)** - Task 3b AC10 is extended: the
+  five victim tests must additionally be re-run IN ISOLATION with identical
+  pass/fail semantics, and the task record must carry the verbatim `git diff` of
+  the five victim files. The allowed-diff predicate is now the **assertion-integrity
+  gate (AIG)** defined above - AIG-1 mechanical assertion equality plus the
+  EXHAUSTIVE N1-N6 allowlist with per-line citation - not the original
+  "confined to `setUp`/`tearDown`/imports" restriction. That original wording was
+  unsatisfiable: Task 2's anchor edits change `TemporaryDirectory(...)` calls inside
+  test method bodies (victim #2 lives in an anchored module), and Task 3a changes a
+  `check=True` git call inside victim #1's own test method. **Zero assertion-line
+  edits remains absolutely binding** - only the enumeration of permitted
+  NON-assertion changes was corrected.
 * **A2R (H2R; A2 SUPERSEDED in review-fix cycle 2)** - Conditional remediation is
   separated from unconditional work by a SHIPMENT BOUNDARY, not by a task status.
   Tasks 1-2 ship as 149-S; Tasks 3a-3b ship as the successor 151-S. Task 1 has two

@@ -6,8 +6,9 @@ hardening: docs/plans/2026-08-21-full-suite-test-isolation-hardening.md
 stash_id: E8158860
 deliberation: "024-DL"
 verdict: PASS
-review_fix_cycle: 2
+review_fix_cycle: 4
 regated: 2026-08-21
+cycle_4_authorization: operator-authorized-extension
 ---
 
 # Plan Review - full-suite test-isolation repair
@@ -31,7 +32,20 @@ the shipment. A2 is **WITHDRAWN** and replaced by **A2R** (shipment boundary +
 always-terminating outcomes). A second finding, **P1-5**, records that A4's
 correction was never applied to the plan's operative Harvest note. Both RESOLVED.
 
-**0 unresolved P0/P1.** Review-fix cycles used: **2 of 3.**
+*Review-fix cycle 4* (Copilot review on PR #386 at HEAD `d098d8a2`; 5 of the 7
+current-head threads landed on this plan/hardening/feature/task set -
+`PRRT_kwDORzpWpM6bTopC`, `…TopM`, `…Topb`, `…Topn`, `…Top2`): **P1-7** raised - the
+A1 allowed-diff predicate is UNSATISFIABLE against this plan's own work. RESOLVED by
+amendment **A1R** and the new **assertion-integrity gate (AIG)**.
+
+**0 unresolved P0/P1.** Review-fix cycles used: **4** (3 standard + 1
+operator-authorized).
+
+**Cycle-4 authorization (documented per P-005).** The Stage stop-condition table caps
+review-fix cycles at 3 per plan. Cycle 4 was performed under an EXPLICIT OPERATOR
+AUTHORIZATION extending the Stage review-fix budget for the seven current-head P-018
+blockers, granted 2026-08-21. Same-error-recurrence and universal circuit-breaker
+limits were NOT relaxed and remain in force.
 
 *Method note:* the P0 was established by reading the INSTALLED Ship contract
 (`.github/agents/_ship.agent.md:325-340`) and the backlogit shipment-status
@@ -204,3 +218,73 @@ the official return-blocked operation" because it sounded procedural and cited a
 "official operation"; that operation is absent from the Ship contract, and the status
 it sets is a fail-closed halt. **The phrase "via the official X operation" is a
 verification obligation, not evidence.**
+
+## P1-7 (RAISED in review-fix cycle 4; RESOLVED by amendment A1R + the AIG) - the allowed-diff predicate forbids the plan's own edits
+
+**Threads.** `PRRT_kwDORzpWpM6bTopC` (141-F AC-F2), `PRRT_kwDORzpWpM6bTopM`
+(hardening A1), `PRRT_kwDORzpWpM6bTopb` (plan AC10/A1), `PRRT_kwDORzpWpM6bTopn`
+(143-F AC-G4), `PRRT_kwDORzpWpM6bTop2` (143.002-T AC-3).
+
+**Finding.** Amendment A1 required each victim file's diff to show "either no change
+at all, or changes confined to `setUp`/`tearDown`/imports with zero assertion-line
+edits". That predicate is UNSATISFIABLE against this plan's own task breakdown:
+
+* Task 2 replaces 58 `tempfile.TemporaryDirectory(dir=Path.cwd())` call sites, and
+  those calls sit INSIDE test method bodies, not in `setUp`/`tearDown`/imports.
+* **Victim #2** lives in `test_gates_topology.py`, which carries 34 of those sites
+  (141.004-T); **victim #1** lives in `test_gate_pipeline_topology_cli.py`, which
+  carries 5 (141.002-T). Both victims' own files are therefore anchored in-method.
+* Task 3a (143.001-T) rewrites a `check=True` git call inside **victim #1's own test
+  method** and the `_git` helper in **victim #5's** module.
+
+So A1 forbade the edits the plan mandates. An executing agent would have had to
+either breach the hardening or abandon the anchor work in three of four modules -
+and the most likely real-world outcome is the third option: quietly reinterpret
+"confined to" and lose the guarantee entirely.
+
+**Why it is P1.** It is the same class as cycle 2's P0-1 and cycle 2/3's stale-text
+findings: an acceptance predicate that cannot be satisfied forces improvisation at
+execution time, and improvisation on THIS surface means editing regression-guard
+assertions - the single most dangerous outcome the hardening exists to prevent.
+
+**Resolution (A1R + AIG).** The protected property was never "only setup code may
+change"; it is "the assertions must not move". That is now stated directly, as a
+canonical **assertion-integrity gate** in the plan, referenced by every carrier:
+
+* **AIG-1** - assertion integrity, MECHANICAL: AST-extract the complete ordered set
+  of assertion callsites (call, full argument expressions, `msg=`) from each victim
+  file before and after; the sets must be EXACTLY EQUAL. This is strictly STRONGER
+  than the old "no assertion line changed" - it also catches reordering and argument
+  edits that a line-oriented diff can miss.
+* **AIG-2** - no assertion semantic drift: no authorized edit may change what an
+  assertion observes; a containment temp tree stays inside the repository (anchor,
+  never relocate to system temp).
+* **AIG-3** - an EXHAUSTIVE allowlist of authorized non-assertion changes: **N1**
+  `TemporaryDirectory(...)` anchor arguments *including inside test method bodies*,
+  **N2** workspace/cwd injection wiring (constructor/factory/helper params and
+  setUp/tearDown wiring), **N3** supporting imports, **N4** cleanup/teardown for
+  N1/N2 resources, **N5** subprocess and failure-diagnostic changes at the two
+  `check=True` git sites (143.001-T only), **N6** mechanically forced formatting.
+* **AIG-4** - CITATION: every changed non-assertion line in a victim file is listed
+  with its class. Uncited edits are DISALLOWED - which is what makes "no speculative
+  edit" checkable at review instead of merely asserted.
+
+Zero assertion-line edits remains ABSOLUTELY BINDING; only the enumeration of
+permitted non-assertion changes was corrected, and the guarantee is now both
+satisfiable and mechanically verifiable.
+
+**Carriers updated (all of them, not just the commented lines).** Plan AC10, plan
+AC11b, plan amendment A1 -> A1R, hardening H1/A1 -> A1R, 141-F AC-F2, 143-F AC-G4,
+143.002-T AC-3, 143.001-T AC-b, plus **141.002-T AC-d** and **141.004-T AC-e** -
+the two anchor tasks that actually touch victim files and which the review comments
+did not flag, but which would have hit the identical contradiction.
+
+## Reviewer lesson (candidate for `docs/compound/`)
+
+An acceptance criterion that describes WHERE a diff may appear ("confined to
+setUp/tearDown/imports") is a proxy for the property actually being protected
+("assertions unchanged"). Proxies drift out of alignment with the plan's own work as
+the task breakdown evolves - here the anchor decomposition (A4) and the git-diagnosis
+split (A2R) both moved edits into method bodies while the proxy stayed frozen. State
+the protected property directly and enumerate exceptions exhaustively; a location
+proxy will eventually forbid the work it was written to permit.
