@@ -828,4 +828,3 @@ This is a **reasoning escalation only** — it never self-authorizes a shipment
 claim, task claim, merge, admin fallback, or any mutation this agent's Role
 Boundary does not already permit; it does not alter dark-mode merge/approval
 semantics (P-001/P-009/P-014/P-017/P-020 preserved).
-++ .github/agents/_ship.agent.md
