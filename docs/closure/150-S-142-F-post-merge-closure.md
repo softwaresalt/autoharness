@@ -137,13 +137,18 @@ no API or UI surface changed.
 - Full build: `python -m unittest discover -s tests` (see above) is the
   canonical full local build for this Python CLI package; PASS modulo the
   documented pre-existing/out-of-scope failures.
-- Quality Gates 1-4: PASS. Gate 1 (YAML frontmatter): n/a, no new
-  `.tmpl`/`.md` frontmatter files. Gate 2 (Markdown structure): n/a for this
-  PR's source/test changes; the compound-learning doc edit preserves
-  heading hierarchy. Gate 3 (variable completeness): directly this
-  feature's headline criterion -- verified 0 unresolved. Gate 4
-  (cross-reference integrity): all cited SKILL.md rows, templates, and
-  test files exist and were read/verified during implementation.
+- Quality Gates 1-4: PASS. Gate 1 (YAML frontmatter): this closure PR
+  itself adds a new Markdown file with YAML frontmatter (this document) and
+  updates frontmatter in every archived `.backlogit/archive/*.md` record
+  touched by the cascade close -- explicitly validated by parsing each
+  file's frontmatter block with `yaml.safe_load` (this document plus all
+  seven `142.00N-T` task records, `142-F`, and `150-S`): all parse cleanly
+  with no schema violations. Gate 2 (Markdown structure): verified for this
+  document and the compound-learning doc edit -- heading hierarchy, code
+  fences, and tables are well-formed. Gate 3 (variable completeness):
+  directly this feature's headline criterion -- verified 0 unresolved.
+  Gate 4 (cross-reference integrity): all cited SKILL.md rows, templates,
+  and test files exist and were read/verified during implementation.
 
 ## Backlog Reconciliation (P-015)
 
