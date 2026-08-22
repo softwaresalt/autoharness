@@ -189,8 +189,8 @@ rather than a duplicate entry.
   -- no additional evidence beyond the runtime verification above is
   required for this workspace). Verified merge commit (two parents), green
   CI, P-018 `SATISFIED`, P-015 cascade-close independently re-verified
-  (including the `024-DL` revert), and P-020 compaction pending completion
-  below. No condition is outstanding beyond compaction.
+  (including the `024-DL` revert), and P-020 compaction `done` (see below).
+  No condition is outstanding.
 - **Residual follow-up (non-blocking)**:
   1. `141.001-T`'s `VERDICT: INCONCLUSIVE` (P-021/`E8158860` tracked) --
      remediation is 151-S's scope (feature 143-F), gated on this recorded
