@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-22T13:09:44.1526703-07:00","actor":"backlogit","item_id":"144-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-22T16:10:12.3452205-07:00","actor":"backlogit","item_id":"144-F","event_type":"status_changed","delta":{"_shipment_operation":"152-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-22T16:10:26.267718-07:00","actor":"backlogit","item_id":"144-F","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"f0cad43c04ad98809685db0fb247db1e9a287bb6","message":"feat: contain ambient GIT_CONFIG_* environment destruction on Windows (144-F / 152-S, mechanism A)"}}
+{"timestamp":"2026-08-22T16:11:49.1897264-07:00","actor":"backlogit","item_id":"144-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/144-F.md"}}
