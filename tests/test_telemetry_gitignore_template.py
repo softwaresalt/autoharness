@@ -68,7 +68,7 @@ class MetricsEmissionHardGateTests(unittest.TestCase):
         except subprocess.CalledProcessError as exc:
             self.fail(
                 f"git {' '.join(args)} failed (exit {exc.returncode}); "
-                f"captured stderr: {exc.stderr!r}"
+                f"captured stderr: {exc.stderr}"
             )
 
     def test_emitted_metrics_artifacts_are_never_tracked(self) -> None:
