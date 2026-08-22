@@ -102,20 +102,62 @@ class Phase3FrontmatterFieldsTests(unittest.TestCase):
         self.assertIn("{{DOCS_COMPOUND}}", source_line)
 
     def test_no_new_double_brace_variable_introduced(self) -> None:
-        """Every {{VAR}} token in the Phase 3 example must already exist
-        elsewhere in the template (pre-existing variable), proving the
-        source/doc_type addition did not introduce a new one."""
-        pre_existing_vars = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", self.template_text))
-        example_vars = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", self.yaml_block))
-        new_vars = example_vars - pre_existing_vars
+        """AC8: this task's diff added exactly two new lines to the
+        pre-existing Phase 3 yaml block (`source:` and `doc_type:`); every
+        `{{VAR}}` token appearing in THOSE TWO LINES must already be used
+        somewhere else in the template.
+
+        Scoping "new" to the two lines this task actually added (rather
+        than the whole yaml_block) is essential: the other ~16 fields in
+        the Phase 3 example (`{{TITLE}}`, `{{TYPE}}`, `{{CATEGORY}}`, ...)
+        are PRE-EXISTING placeholders that are legitimately used ONLY
+        inside this one example block -- excluding the whole block from
+        `pre_existing_vars` (as a naive fix would) makes every one of them
+        falsely register as "new". Confirmed against the template's
+        pre-140.002-T content (`git show 4fff68a2^:templates/skills/compound/SKILL.md.tmpl`),
+        which has neither a `source:` nor a `doc_type:` line in this block.
+        """
+        added_lines = [
+            line
+            for line in self.yaml_block.splitlines()
+            if line.startswith("source:") or line.startswith("doc_type:")
+        ]
+        self.assertEqual(len(added_lines), 2, "expected exactly source: and doc_type: lines")
+        added_text = "\n".join(added_lines)
+        added_vars = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", added_text))
+
+        rest_of_template = self.template_text
+        for line in added_lines:
+            rest_of_template = rest_of_template.replace(line, "", 1)
+        pre_existing_vars = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", rest_of_template))
+
+        new_vars = added_vars - pre_existing_vars
         self.assertEqual(
             new_vars,
             set(),
-            f"Phase 3 example introduced unexpected new template variable(s): {new_vars}",
+            f"source:/doc_type: lines introduced unexpected new template variable(s): {new_vars}",
         )
-        # DOCS_COMPOUND itself must be among the variables used, confirming
-        # the check is non-vacuous.
-        self.assertIn("DOCS_COMPOUND", example_vars)
+        # Non-vacuity: DOCS_COMPOUND is the only variable these two lines
+        # use, and it must genuinely be used elsewhere in the template too
+        # (not only by virtue of these two lines themselves).
+        self.assertEqual(added_vars, {"DOCS_COMPOUND"})
+        self.assertIn("DOCS_COMPOUND", pre_existing_vars)
+
+    def test_new_placeholder_in_added_lines_is_detected(self) -> None:
+        """Non-vacuity guard for the check above: a placeholder that
+        appears ONLY in a probe line standing in for source:/doc_type:
+        (nowhere else in the template) must be flagged as new, proving the
+        exclusion actually changes the outcome rather than being a no-op."""
+        rest_of_template = self.template_text
+        for line in self.yaml_block.splitlines():
+            if line.startswith("source:") or line.startswith("doc_type:"):
+                rest_of_template = rest_of_template.replace(line, "", 1)
+        pre_existing_vars = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", rest_of_template))
+
+        probe_line = 'new_probe_field: "{{TOTALLY_NEW_PROBE_VAR}}"'
+        probe_vars = set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", probe_line))
+        probe_new_vars = probe_vars - pre_existing_vars
+        self.assertEqual(probe_new_vars, {"TOTALLY_NEW_PROBE_VAR"})
 
     def test_template_has_no_malformed_or_unresolved_braces(self) -> None:
         """AC8: the template still renders -- every {{ has a matching }}."""
