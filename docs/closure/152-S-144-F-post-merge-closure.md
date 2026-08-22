@@ -278,10 +278,13 @@ gate release. Shipment 153-S remains queued and unclaimed.
 **This section corrects, and does not retract, the closure record above.**
 `152-S` is archived/shipped and was not reopened, reclaimed, or re-triaged
 for this correction; no backlogit shipment or task was created, claimed,
-or touched. The correction below was delivered as an independent
-docs-only correction PR under Ship's post-merge correction authority, on
-its own dedicated branch, through the full Ship pipeline (local review,
-CI, P-018 Copilot review, P-014 readiness, merge-commit-only merge).
+or touched. The correction below is delivered as an independent docs-only
+correction PR under Ship's post-merge correction authority, on its own
+dedicated branch, and remains subject to the full Ship pipeline (local
+review, CI, P-018 Copilot review, P-014 readiness, merge-commit-only
+merge) before it can land -- this document is authored as part of that
+still-unmerged correction PR, so those gates are prerequisites this PR
+must still satisfy, not completed events it can attest to about itself.
 
 ### Corrected defect
 
