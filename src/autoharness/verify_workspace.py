@@ -5,7 +5,10 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import os
 import re
+import shutil
+import subprocess
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2159,6 +2162,13 @@ def _language_defaults(language: str) -> dict[str, str]:
         "naming_conventions": "Follow the repository's established naming rules for files, types, and symbols.",
         "documentation_conventions": "Document public surfaces and non-obvious decisions close to the code that owns them.",
         "concurrency_patterns": "thread, lock, queue, worker, async",
+        # SKILL.md Step 1.2 variable-resolution table ({{ERROR_PATTERN}} /
+        # {{DOC_COMMENT_STYLE}} rows): language-specific error-handling idiom
+        # and doc-comment syntax. This generic branch (no dedicated language
+        # match below, e.g. Rust) uses the SKILL.md Rust example row verbatim
+        # since it is the only example given for a non-branched language.
+        "error_pattern": "Result<T, Error>",
+        "doc_comment_style": "/// doc comment",
     }
 
     language = language.lower()
@@ -2171,6 +2181,8 @@ def _language_defaults(language: str) -> dict[str, str]:
             "naming_conventions": "Use MixedCaps for exported Go identifiers and short, descriptive package names.",
             "documentation_conventions": "Write GoDoc comments on exported packages, types, and functions.",
             "concurrency_patterns": "goroutine, channel, mutex, WaitGroup, context.Context",
+            "error_pattern": "error return + errors.Is/errors.As",
+            "doc_comment_style": "// GoDoc comment",
         }
     if language == "python":
         return {
@@ -2181,6 +2193,8 @@ def _language_defaults(language: str) -> dict[str, str]:
             "naming_conventions": "Use snake_case for modules, functions, and variables; PascalCase for classes.",
             "documentation_conventions": "Use docstrings for public modules, classes, and functions.",
             "concurrency_patterns": "asyncio, task, queue, thread, process",
+            "error_pattern": "raise/except",
+            "doc_comment_style": '"""docstring"""',
         }
     if language in {"typescript", "javascript"}:
         return {
@@ -2191,8 +2205,384 @@ def _language_defaults(language: str) -> dict[str, str]:
             "naming_conventions": "Use camelCase for values and PascalCase for classes, components, and types.",
             "documentation_conventions": "Document exported APIs and non-obvious contracts with concise comments or JSDoc.",
             "concurrency_patterns": "Promise, async, await, worker, stream",
+            "error_pattern": "try/catch + custom errors",
+            "doc_comment_style": "/** JSDoc */",
         }
     return defaults
+
+
+# --- 142-F: model_routing / role-route / escalation derivation helpers ---
+#
+# `ROLE_ROUTE_TIER_FALLBACK`, `_resolve_role_route_field`, and
+# `_escalation_route_has_any_field` are defined later in this module
+# (immediately above `_add_role_route_resolution_check` /
+# `_add_escalation_route_resolution_check`) and are reused here unchanged --
+# module-level name lookups resolve at call time, so this forward reference
+# is safe. Reusing them keeps the {{STAGE_*}}/{{SHIP_*}}/{{ESCALATION_*}}
+# derivation and the P-013.5/P-013.6 installed-output verification checks
+# permanently in sync (they can never diverge).
+
+
+def _model_routing_tier_dict(model_routing: dict[str, Any], tier_key: str) -> dict[str, Any]:
+    """Normalise a `model_routing.<tier_key>` entry to a mapping regardless of
+    whether the live config declares it in scalar (legacy string) or object
+    form (SKILL.md rows 414-425, amendment B6). A plain string tier value is
+    treated as both `model` and `model_family`; all other tier sub-fields are
+    absent (they derive to the empty string per SKILL.md's "all other tier
+    sub-fields default to empty")."""
+    tier = model_routing.get(tier_key)
+    if isinstance(tier, str) and tier.strip():
+        return {"model": tier, "model_family": tier}
+    if isinstance(tier, dict):
+        return tier
+    return {}
+
+
+def _derive_tier_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
+    """Derive the nine MODEL_ROUTING_TIER*/TIER_*_FAMILY/PROVIDER/REASONING_EFFORT
+    variables (SKILL.md rows 414-425), normalising the polymorphic scalar-vs-
+    mapping `model_routing.tier1/tier2/tier3` shape (amendment B6)."""
+    variables: dict[str, str] = {}
+    tier_defaults = {
+        "tier1": ("MODEL_ROUTING_TIER1", "TIER_1", "gpt-5.4-mini"),
+        "tier2": ("MODEL_ROUTING_TIER2", "TIER_2", "claude-sonnet-5"),
+        "tier3": ("MODEL_ROUTING_TIER3", "TIER_3", "claude-opus-5"),
+    }
+    for tier_key, (model_var, prefix, own_default) in tier_defaults.items():
+        tier_dict = _model_routing_tier_dict(model_routing, tier_key)
+        model_value = tier_dict.get("model") or tier_dict.get("model_family") or own_default
+        family_value = tier_dict.get("model_family") or tier_dict.get("model") or own_default
+        provider_value = tier_dict.get("model_provider") or ""
+        effort_value = tier_dict.get("reasoning_effort") or ""
+        variables[model_var] = str(model_value)
+        variables[f"{prefix}_FAMILY"] = str(family_value)
+        variables[f"{prefix}_PROVIDER"] = str(provider_value)
+        variables[f"{prefix}_REASONING_EFFORT"] = str(effort_value)
+    return variables
+
+
+def _derive_orchestrator_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
+    """Derive ORCHESTRATOR_FAMILY/PROVIDER/REASONING_EFFORT (SKILL.md rows
+    426-428, amendment B6, corrected review-fix cycle 1). Scalar-form
+    `orchestrator` populates ONLY `model_family`; provider/effort ALWAYS fall
+    back to tier2 (never to empty), while `ORCHESTRATOR_FAMILY` keeps its OWN
+    `gpt-5.4` default and does NOT fall back to tier2."""
+    orchestrator = model_routing.get("orchestrator")
+    if isinstance(orchestrator, str) and orchestrator.strip():
+        route: dict[str, Any] = {"model_family": orchestrator}
+    elif isinstance(orchestrator, dict):
+        route = orchestrator
+    else:
+        route = {}
+    tier2_fallback = model_routing.get("tier2")
+    family = route.get("model_family")
+    if not (isinstance(family, str) and family.strip()):
+        family = "gpt-5.4"
+    provider = _resolve_role_route_field(route, tier2_fallback, "model_provider") or ""
+    effort = _resolve_role_route_field(route, tier2_fallback, "reasoning_effort") or ""
+    return {
+        "ORCHESTRATOR_FAMILY": str(family),
+        "ORCHESTRATOR_PROVIDER": str(provider),
+        "ORCHESTRATOR_REASONING_EFFORT": str(effort),
+    }
+
+
+def _derive_role_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
+    """Derive STAGE_*/SHIP_* (SKILL.md rows 429-434): RESOLVED-FROM-SOURCE with
+    the P-013.5 per-sub-field tier fallback applied (stage -> tier3, ship ->
+    tier2). Reuses `_resolve_role_route_field`/`ROLE_ROUTE_TIER_FALLBACK`
+    (defined later in this module) so this can never diverge from the
+    installed-output verification check."""
+    variables: dict[str, str] = {}
+    for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
+        route = model_routing.get(role) or {}
+        if not isinstance(route, dict):
+            route = {}
+        tier_fallback = model_routing.get(fallback_tier_key)
+        prefix = role.upper()
+        family = _resolve_role_route_field(route, tier_fallback, "model_family") or ""
+        provider = _resolve_role_route_field(route, tier_fallback, "model_provider") or ""
+        effort = _resolve_role_route_field(route, tier_fallback, "reasoning_effort") or ""
+        variables[f"{prefix}_FAMILY"] = str(family)
+        variables[f"{prefix}_PROVIDER"] = str(provider)
+        variables[f"{prefix}_REASONING_EFFORT"] = str(effort)
+    return variables
+
+
+def _raw_escalation_field(route: Any, field: str) -> str:
+    """Raw pass-through read of a single escalation sub-field with NO
+    resolution/fallback (SKILL.md rows 438-446, constraint C3): used only for
+    the `{{LEGACY_ESCALATION_*}}`/`{{STAGE_ESCALATION_*}}`/`{{SHIP_ESCALATION_*}}`
+    raw-storage families. Derives to the empty string when the field is
+    absent or blank -- never substitutes a resolved/collapsed value."""
+    if isinstance(route, dict):
+        value = route.get(field)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
+
+
+def _derive_raw_escalation_variables(model_routing: dict[str, Any]) -> dict[str, str]:
+    """Derive the nine RAW escalation pass-through variables (constraint C3):
+    LEGACY_ESCALATION_* mirrors the flat `model_routing.escalation` block
+    verbatim; STAGE_ESCALATION_*/SHIP_ESCALATION_* mirror the nested
+    `model_routing.<role>.escalation` blocks verbatim. Every one of these
+    DERIVES TO THE EMPTY STRING when its own raw field is unset -- they never
+    read a fallback chain and are never populated from the collapsed
+    `{{ESCALATION_*}}` value (that would reproduce the H2 flat+nested
+    ambiguity PR #316 round 3 fixed)."""
+    variables: dict[str, str] = {}
+    flat = model_routing.get("escalation") or {}
+    for field, suffix in (
+        ("model_family", "FAMILY"),
+        ("model_provider", "PROVIDER"),
+        ("reasoning_effort", "REASONING_EFFORT"),
+    ):
+        variables[f"LEGACY_ESCALATION_{suffix}"] = _raw_escalation_field(flat, field)
+    for role in ("stage", "ship"):
+        role_block = model_routing.get(role) or {}
+        nested = role_block.get("escalation") if isinstance(role_block, dict) else None
+        prefix = role.upper()
+        for field, suffix in (
+            ("model_family", "FAMILY"),
+            ("model_provider", "PROVIDER"),
+            ("reasoning_effort", "REASONING_EFFORT"),
+        ):
+            variables[f"{prefix}_ESCALATION_{suffix}"] = _raw_escalation_field(nested, field)
+    return variables
+
+
+def _effective_escalation_route_for_role(
+    model_routing: dict[str, Any], role: str
+) -> tuple[str, str, str]:
+    """Resolve the EFFECTIVE (model_family, model_provider, reasoning_effort)
+    escalation route for a single role, honoring the F02FD596 precedence: an
+    explicit nested `<role>.escalation` override (if it declares ANY field)
+    takes precedence over the legacy flat `model_routing.escalation` route IN
+    ITS ENTIRETY (amendment H4 -- a partial nested override never silently
+    defers to the shared legacy flat route for its own missing fields); when
+    neither the nested nor the flat route is present, all three sub-fields
+    fall back to `model_routing.tier3`.
+
+    This is shared with (and must never diverge from)
+    `_add_escalation_route_resolution_check` below, which performs the
+    identical per-role resolution for installed-output verification -- see
+    that function's docstring for the full F02FD596/H2/H3/H4 contract this
+    mirrors. 142.007-T (artifact/role-aware composition) is the only caller
+    that invokes this with a concrete role; the base/global derivation stays
+    role-neutral (see `_derive_escalation_prose_variables` below)."""
+    role_block = model_routing.get(role) or {}
+    if not isinstance(role_block, dict):
+        role_block = {}
+    nested = role_block.get("escalation") or {}
+    if not isinstance(nested, dict):
+        nested = {}
+    flat = model_routing.get("escalation") or {}
+    if not isinstance(flat, dict):
+        flat = {}
+    tier3_fallback = model_routing.get("tier3")
+
+    source_route = nested if _escalation_route_has_any_field(nested) else flat
+    family = _resolve_role_route_field(source_route, tier3_fallback, "model_family") or ""
+    provider = _resolve_role_route_field(source_route, tier3_fallback, "model_provider") or ""
+    effort = _resolve_role_route_field(source_route, tier3_fallback, "reasoning_effort") or ""
+    return str(family), str(provider), str(effort)
+
+
+def _derive_escalation_prose_variables(model_routing: dict[str, Any]) -> dict[str, str]:
+    """Derive the BASE (role-neutral) `{{ESCALATION_FAMILY}}`/`{{ESCALATION_PROVIDER}}`/
+    `{{ESCALATION_REASONING_EFFORT}}` collapsed prose triple: legacy flat
+    `model_routing.escalation` -> `model_routing.tier3` per-field fallback,
+    with NO nested per-role override considered (there is no "acting role" at
+    global-derivation time). This is the value every artifact without a
+    resolved role (per `_resolve_artifact_role`) renders, including the
+    role-neutral `escalation-protocol.instructions.md` (142.007-T design
+    constraint 5). `_compose_artifact_variables` overlays the role-scoped
+    resolution from `_effective_escalation_route_for_role` for
+    `_stage.agent.md`/`_ship.agent.md` only."""
+    flat = model_routing.get("escalation") or {}
+    if not isinstance(flat, dict):
+        flat = {}
+    tier3_fallback = model_routing.get("tier3")
+    family = _resolve_role_route_field(flat, tier3_fallback, "model_family") or ""
+    provider = _resolve_role_route_field(flat, tier3_fallback, "model_provider") or ""
+    effort = _resolve_role_route_field(flat, tier3_fallback, "reasoning_effort") or ""
+    return {
+        "ESCALATION_FAMILY": str(family),
+        "ESCALATION_PROVIDER": str(provider),
+        "ESCALATION_REASONING_EFFORT": str(effort),
+    }
+
+
+def _derive_anchor_review_variables(model_routing: dict[str, Any]) -> dict[str, str]:
+    """Derive ANCHOR_REVIEW_PROVIDER/FAMILY/REASONING_EFFORT (SKILL.md rows
+    447-449): always object-shaped, defaulting to openai/gpt-5.6-sol/high."""
+    anchor = model_routing.get("anchor_review") or {}
+    if not isinstance(anchor, dict):
+        anchor = {}
+    return {
+        "ANCHOR_REVIEW_PROVIDER": str(anchor.get("model_provider") or "openai"),
+        "ANCHOR_REVIEW_FAMILY": str(anchor.get("model_family") or "gpt-5.6-sol"),
+        "ANCHOR_REVIEW_REASONING_EFFORT": str(anchor.get("reasoning_effort") or "high"),
+    }
+
+
+def _yaml_flow_list(items: list[Any]) -> str:
+    """Render a Python list as an inline YAML flow-sequence literal, e.g.
+    `["web-app", "deployable-service"]`, or `[]` when empty."""
+    if not items:
+        return "[]"
+    return "[" + ", ".join(json.dumps(str(item)) for item in items) + "]"
+
+
+def _yaml_flow_map(mapping: dict[str, Any]) -> str:
+    """Render a Python string-valued mapping as an inline YAML flow-map
+    literal, e.g. `{key: "value"}`, or `{}` when empty."""
+    if not mapping:
+        return "{}"
+    parts = [f"{key}: {json.dumps(str(value))}" for key, value in mapping.items()]
+    return "{" + ", ".join(parts) + "}"
+
+
+def _shell_quoted_list(items: list[Any], *, separator: str) -> str:
+    """Render a Python list as shell/PowerShell array-literal CONTENTS (the
+    caller's template already supplies the surrounding `@(...)` / `(...)`),
+    quoted per item and joined by `separator` (", " for PowerShell, " " for
+    POSIX sh)."""
+    return separator.join(json.dumps(str(item)) for item in items)
+
+
+def _resolve_graphtor_sources_path(profile: dict[str, Any], workspace_path: Path) -> str:
+    """Resolve GRAPHTOR_SOURCES_PATH per SKILL.md rows 505/874: operator
+    `graphtor_docs.sources_path` first (config-first, C2), then an ordered
+    on-disk candidate check, then the documented final default."""
+    graphtor_docs = profile.get("graphtor_docs") or {}
+    if not isinstance(graphtor_docs, dict):
+        graphtor_docs = {}
+    declared = graphtor_docs.get("sources_path")
+    if isinstance(declared, str) and declared.strip():
+        return declared
+    for candidate in (".graphtor/config/sources.yaml", ".graphtor/sources.yaml"):
+        if (workspace_path / Path(candidate)).exists():
+            return candidate
+    return ".graphtor/config/sources.yaml"
+
+
+def _resolve_graphtor_binary_path(profile: dict[str, Any], workspace_path: Path) -> str:
+    """Resolve GRAPHTOR_BINARY_PATH per SKILL.md rows 506/875/1088: operator
+    `graphtor_docs.binary_path` first (config-first, C2; `null`/absent is NOT
+    the same as empty and does not short-circuit the chain), then `graphtor`
+    on PATH, then a local `.graphtor/bin/graphtor-docs[.exe]` candidate, then
+    the literal final default `graphtor`. This chain ALWAYS yields a
+    non-empty value -- never `""`, and never the literal string `"None"`
+    (142.005-T AC3c)."""
+    graphtor_docs = profile.get("graphtor_docs") or {}
+    if not isinstance(graphtor_docs, dict):
+        graphtor_docs = {}
+    declared = graphtor_docs.get("binary_path")
+    if isinstance(declared, str) and declared.strip():
+        return declared
+    on_path = shutil.which("graphtor")
+    if on_path:
+        return on_path
+    for candidate_name in ("graphtor-docs.exe", "graphtor-docs"):
+        candidate = workspace_path / ".graphtor" / "bin" / candidate_name
+        if candidate.exists():
+            return f".graphtor/bin/{candidate_name}"
+    return "graphtor"
+
+
+def _resolve_default_branch(workspace_path: Path) -> str:
+    """Resolve {{DEFAULT_BRANCH}} -- the target workspace's actual default
+    branch name (the same concept SKILL.md row 156 documents for
+    {{CI_DEFAULT_BRANCH}}; SKILL.md carries no separate {{DEFAULT_BRANCH}}
+    row because both variables denote the identical resolved concept for
+    different consuming templates -- agent/policy/skill prose here vs. the CI
+    workflow trigger filter there). Resolution order: (1) `git symbolic-ref
+    --short refs/remotes/origin/HEAD` (strip the `origin/` prefix); (2) `gh
+    repo view --json defaultBranchRef` when a `gh`-authenticated remote is
+    available. Never guesses `main` (SKILL.md row 156 / PR #302 finding);
+    when both methods fail this derives to the empty string rather than a
+    silent guess, consistent with the "never invent a value" rule (amendment
+    B4) -- an unresolved-but-real value is a documented residual risk, not a
+    fabricated one.
+
+    The subprocess environment strips any ambient `GIT_CONFIG_*` overrides
+    before invoking `git`/`gh`: an inherited `GIT_CONFIG_COUNT` with a
+    missing/malformed corresponding `GIT_CONFIG_KEY_N`/`GIT_CONFIG_VALUE_N`
+    (from an unrelated process-level source) would otherwise make git exit
+    non-zero (`missing config value ...`) regardless of this workspace's own
+    git state -- this derivation's correctness must not depend on ambient
+    environment hygiene it does not control."""
+    sanitized_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_CONFIG")}
+    try:
+        result = subprocess.run(
+            ["git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+            cwd=workspace_path,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            env=sanitized_env,
+        )
+        if result.returncode == 0:
+            remote_head = result.stdout.strip()
+            if remote_head and "/" in remote_head:
+                return remote_head.rsplit("/", 1)[-1]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        result = subprocess.run(
+            ["gh", "repo", "view", "--json", "defaultBranchRef", "-q", ".defaultBranchRef.name"],
+            cwd=workspace_path,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            env=sanitized_env,
+        )
+        if result.returncode == 0:
+            name = result.stdout.strip()
+            if name:
+                return name
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return ""
+
+
+def _resolve_artifact_role(relative_path: str) -> str | None:
+    """142.007-T: resolve the consuming ROLE for an artifact from its
+    identity (manifest `path`) alone -- never from ambient state (the
+    current session, the acting agent, or an env var), per Task 1b design
+    constraint 2. Driven by an explicit mapping table, not a substring
+    guess. Returns `None` (base map, unchanged) for every artifact with no
+    resolved role, including `escalation-protocol.instructions.md`
+    (design constraint 5: role-neutral)."""
+    artifact_role_map = {
+        ".github/agents/_stage.agent.md": "stage",
+        ".github/agents/_ship.agent.md": "ship",
+    }
+    return artifact_role_map.get(relative_path)
+
+
+def _compose_artifact_variables(
+    base_variables: dict[str, str], model_routing: dict[str, Any], artifact_role: str | None
+) -> dict[str, str]:
+    """142.007-T: return a NEW mapping = `base_variables` overlaid with the
+    role-scoped collapsed `{{ESCALATION_*}}` prose triple, WITHOUT mutating
+    `base_variables` (the same base is reused across every artifact in the
+    render loop, design constraint 1/3). Only the collapsed prose triple is
+    role-scoped -- the raw pass-through families
+    (`{{LEGACY_ESCALATION_*}}`/`{{STAGE_ESCALATION_*}}`/`{{SHIP_ESCALATION_*}}`)
+    are already global/raw in `base_variables` and are returned unchanged
+    (design constraint 3). Artifacts with no resolved role (`artifact_role is
+    None`) get the base map back unchanged (design constraint 4)."""
+    if artifact_role is None:
+        return base_variables
+    family, provider, effort = _effective_escalation_route_for_role(model_routing, artifact_role)
+    composed = dict(base_variables)
+    composed["ESCALATION_FAMILY"] = family
+    composed["ESCALATION_PROVIDER"] = provider
+    composed["ESCALATION_REASONING_EFFORT"] = effort
+    return composed
 
 
 def _derive_template_variables(
@@ -2221,6 +2611,99 @@ def _derive_template_variables(
         "CONTINUOUS_LEARNING_DIR",
         str((config.get("continuous_learning") or {}).get("directory") or ".autoharness/continuous-learning"),
     )
+
+    # 142-F: model_routing / role-route / escalation family (~30 variables).
+    # See the module-level helpers immediately above this function for the
+    # per-family SKILL.md citations and amendment provenance (B6, C3, F02FD596).
+    model_routing = config.get("model_routing") or {}
+    if not isinstance(model_routing, dict):
+        model_routing = {}
+    for _var_name, _var_value in _derive_tier_route_variables(model_routing).items():
+        variables.setdefault(_var_name, _var_value)
+    for _var_name, _var_value in _derive_orchestrator_route_variables(model_routing).items():
+        variables.setdefault(_var_name, _var_value)
+    for _var_name, _var_value in _derive_role_route_variables(model_routing).items():
+        variables.setdefault(_var_name, _var_value)
+    for _var_name, _var_value in _derive_raw_escalation_variables(model_routing).items():
+        variables.setdefault(_var_name, _var_value)
+    for _var_name, _var_value in _derive_escalation_prose_variables(model_routing).items():
+        variables.setdefault(_var_name, _var_value)
+    for _var_name, _var_value in _derive_anchor_review_variables(model_routing).items():
+        variables.setdefault(_var_name, _var_value)
+
+    # 142-F: install-shape family (~11 variables, config-first per C2). Each
+    # of these is a structured BLOCK value (YAML array, sh array, PowerShell
+    # array) injected by a plain string-substitution renderer that knows
+    # nothing about indentation (023-DL R4 / hardening H4) -- the
+    # corresponding contract tests additionally assert parse-level validity,
+    # not merely that the placeholder was replaced.
+    variables.setdefault("INSTALL_PRESET", json.dumps(str(config.get("preset") or "standard")))
+    variables.setdefault(
+        "PRIMARY_STACK_PACK", json.dumps(str(config.get("primary_stack_pack") or "web-app"))
+    )
+    variables.setdefault(
+        "STACK_PACKS_YAML",
+        _yaml_flow_list(config.get("stack_packs") or ["web-app", "deployable-service"]),
+    )
+    variables.setdefault(
+        "INSTALL_LAYERS_YAML",
+        _yaml_flow_list(
+            config.get("install_layers")
+            or ["foundation", "instructions", "workflow", "review", "runtime", "backlog", "knowledge"]
+        ),
+    )
+    variables.setdefault("CAPABILITY_PACKS_YAML", _yaml_flow_list(packs))
+    variables.setdefault("HARNESS_OVERRIDES_YAML", _yaml_flow_map(config.get("overrides") or {}))
+
+    raw_sidecars = config.get("sidecars")
+    if isinstance(raw_sidecars, list) and raw_sidecars:
+        sidecar_list = [str(item) for item in raw_sidecars]
+    else:
+        # SKILL.md ENABLED_SIDECARS_* rows: "Derived from enabled capability
+        # packs" when the resolved config does not already carry a `sidecars`
+        # list from a prior install/tune pass (config-first, C2).
+        pack_to_sidecar = {
+            "backlogit": "backlogit",
+            "agent-engram": "engram",
+            "graphtor-docs": "graphtor-docs",
+        }
+        sidecar_list = [pack_to_sidecar[pack] for pack in packs if pack in pack_to_sidecar]
+    variables.setdefault("ENABLED_SIDECARS_YAML", _yaml_flow_list(sidecar_list))
+    variables.setdefault("ENABLED_SIDECARS_PS1", _shell_quoted_list(sidecar_list, separator=", "))
+    variables.setdefault("ENABLED_SIDECARS_SH", _shell_quoted_list(sidecar_list, separator=" "))
+
+    copilot_cli_config = (config.get("ai_tools") or {}).get("copilot_cli") or {}
+    copilot_cli_args = [str(arg) for arg in (copilot_cli_config.get("args") or [])]
+    variables.setdefault("COPILOT_CLI_ARGS_YAML", _yaml_flow_list(copilot_cli_args))
+    variables.setdefault("COPILOT_CLI_ARGS_PS1", _shell_quoted_list(copilot_cli_args, separator=", "))
+    variables.setdefault("COPILOT_CLI_ARGS_SH", _shell_quoted_list(copilot_cli_args, separator=" "))
+
+    # 142-F: remaining profile-derived / misc-config family (~15 variables,
+    # amendment B4 -- config/profile field, SKILL.md documented default, or
+    # empty string only; never a value observed only in the dogfood copy).
+    strict_safety = config.get("strict_safety") or {}
+    variables.setdefault(
+        "STRICT_SAFETY_ENABLED",
+        str(bool(strict_safety.get("enabled", False))).lower() if isinstance(strict_safety, dict) else "false",
+    )
+    continuous_learning_cfg = config.get("continuous_learning") or {}
+    if not isinstance(continuous_learning_cfg, dict):
+        continuous_learning_cfg = {}
+    variables.setdefault(
+        "CONTINUOUS_LEARNING_CAPTURE_HOOKS",
+        str(bool(continuous_learning_cfg.get("capture_hooks", False))).lower(),
+    )
+    variables.setdefault(
+        "CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER",
+        str(continuous_learning_cfg.get("environment_adapter") or "none"),
+    )
+    variables.setdefault(
+        "CONTINUOUS_LEARNING_PROMOTION_THRESHOLD",
+        str(continuous_learning_cfg.get("promotion_threshold", 3)),
+    )
+    variables.setdefault("GRAPHTOR_SOURCES_PATH", _resolve_graphtor_sources_path(profile, workspace_path))
+    variables.setdefault("GRAPHTOR_BINARY_PATH", _resolve_graphtor_binary_path(profile, workspace_path))
+    variables.setdefault("DEFAULT_BRANCH", _resolve_default_branch(workspace_path))
 
     backlog_config = config.get("backlog") or {}
     suffix_map = backlog_config.get("suffix_map") or {}
@@ -2272,6 +2755,8 @@ def _derive_template_variables(
         variables.setdefault("NAMING_CONVENTIONS", language_defaults["naming_conventions"])
         variables.setdefault("DOCUMENTATION_CONVENTIONS", language_defaults["documentation_conventions"])
         variables.setdefault("CONCURRENCY_PATTERNS", language_defaults["concurrency_patterns"])
+        variables.setdefault("ERROR_PATTERN", language_defaults["error_pattern"])
+        variables.setdefault("DOC_COMMENT_STYLE", language_defaults["doc_comment_style"])
     if languages.get("version"):
         language_version = str(languages["version"])
         variables.setdefault("LANGUAGE_VERSION", language_version)
@@ -2304,6 +2789,23 @@ def _derive_template_variables(
         variables.setdefault("CI_NOTES", str(ci.get("notes") or f"Uses {ci_platform} for CI validation."))
         workflow_glob = "**/.github/workflows/*.yml" if ci_platform.lower() == "github actions" else ""
         variables.setdefault("CI_WORKFLOW_GLOB", workflow_glob)
+
+    # 142.005-T (amendment B4): rule for empty profile fields -- use the
+    # SKILL.md documented default where one exists (handled by the
+    # conditional blocks above); otherwise derive to the EMPTY STRING. Never
+    # invent a value, and never fall back to a literal observed in the
+    # current dogfood copy. These five variables have NO SKILL.md-documented
+    # non-empty default, so an absent/blank profile field (e.g. this
+    # workspace's `lint.tool: ""` / `format.tool: ""`) derives to "" here --
+    # the conditional blocks above only ever populate them from a genuinely
+    # declared, non-empty profile value.
+    variables.setdefault("LANGUAGE_VERSION", "")
+    variables.setdefault("LANGUAGE_NOTES", "")
+    variables.setdefault("LINTER", "")
+    variables.setdefault("FORMATTER", "")
+    variables.setdefault("FORMAT_CHECK_COMMAND", "")
+    variables.setdefault("ERROR_PATTERN", "")
+    variables.setdefault("DOC_COMMENT_STYLE", "")
 
     test_dir = variables.get("TEST_DIR", "tests/")
     test_command = variables.get("TEST_COMMAND", "")
@@ -2857,17 +3359,18 @@ def _add_escalation_route_resolution_check(
         if _escalation_route_has_any_field(nested):
             # H4: an explicit nested override falls back per-field to tier3
             # ONLY -- never to the legacy flat route.
-            effective_source_route = nested
             source = "nested"
         else:
-            effective_source_route = flat_escalation
             source = "legacy_flat" if flat_present else "tier3_fallback"
             if flat_present:
                 deprecated_flat_in_use = True
 
-        effective_family = _resolve_role_route_field(effective_source_route, tier3_fallback, "model_family")
-        effective_provider = _resolve_role_route_field(effective_source_route, tier3_fallback, "model_provider")
-        effective_effort = _resolve_role_route_field(effective_source_route, tier3_fallback, "reasoning_effort")
+        # Shared with `_derive_template_variables`'s {{ESCALATION_*}} family
+        # (via `_compose_artifact_variables`) so the two can never diverge --
+        # see `_effective_escalation_route_for_role`'s docstring above.
+        effective_family, effective_provider, effective_effort = _effective_escalation_route_for_role(
+            model_routing, role
+        )
 
         if not (isinstance(effective_family, str) and effective_family.strip()):
             errors.append(
@@ -4194,6 +4697,9 @@ def verify_workspace(
     ]
 
     variables = _derive_template_variables(workspace_path, manifest, config, profile, registry)
+    _model_routing_for_composition = config.get("model_routing") or {}
+    if not isinstance(_model_routing_for_composition, dict):
+        _model_routing_for_composition = {}
     report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
 
     report["blockers"].extend(_scan_manifest_scalar_placeholders(manifest, manifest_path))
@@ -4337,7 +4843,16 @@ def verify_workspace(
         _ensure_parent(stage_path)
         source_content = source_path.read_text(encoding="utf-8")
         if source_path.suffix == ".tmpl" or mode == "template":
-            stage_path.write_text(_render_template(source_content, variables), encoding="utf-8")
+            # 142.007-T: role-aware composition happens HERE, immediately
+            # before the still-pure `_render_template` call (constraint C5
+            # unchanged) -- `_derive_template_variables` above stays a single
+            # O(1) global derivation; only the per-artifact mapping passed to
+            # the renderer varies by resolved role.
+            artifact_role = _resolve_artifact_role(relative_path)
+            artifact_variables = _compose_artifact_variables(
+                variables, _model_routing_for_composition, artifact_role
+            )
+            stage_path.write_text(_render_template(source_content, artifact_variables), encoding="utf-8")
             render_mode = "rendered"
         else:
             stage_path.write_text(source_content, encoding="utf-8")
