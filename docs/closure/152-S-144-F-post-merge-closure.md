@@ -55,7 +55,7 @@ byte/per-key equality, and canonical subprocess count equivalence.
 | --- | --- |
 | CI | green at final HEAD `ef96eb72` (Windows canonical suite: 1830 tests, failures=0, errors=0, skipped=20; Linux CI parity confirmed) |
 | P-018 Copilot review (`autoharness gate copilot-review`) | `SATISFIED` (re-confirmed immediately before merge, unconditionally) |
-| Copilot review threads | 4 rounds, 9 total findings across rounds 1-3 fixed (5+2+1+1 -- see below), 1 round-4 finding accepted as residual risk; all threads replied-to and resolved |
+| Copilot review threads | 4 rounds, 9 total findings: 8 fixed across rounds 1-3 (5+2+1 -- see below), 1 round-4 finding (the 9th) accepted as residual risk rather than fixed; all threads replied-to and resolved |
 | P-014 local review readiness | `## Local Review Readiness` block present at reviewed HEAD `ef96eb72`, outcome `READY_WITH_FOLLOWUPS` (1 P2 residual finding) |
 | Operator merge authorization | Explicit: operator selected bug `E8158860`, directed autonomous end-to-end completion, and explicitly delegated the round-4 disposition (accept as residual risk, do not perform a 4th fix cycle) |
 
@@ -88,10 +88,15 @@ byte/per-key equality, and canonical subprocess count equivalence.
 **Surface**: `cli` -- the only workspace-configured runtime validator
 surface for this repository
 (`.autoharness/workspace-profile.yaml` `runtime_validation.validator_manifest`).
-This shipment touched only `tests/*.py` modules (env-mutation containment,
-the AST structural guard, and the restore-by-diff helper) plus official
-`.backlogit/` lifecycle metadata -- no `src/autoharness/` runtime, API, or
-UI code changed.
+This shipment's primary surface is `tests/*.py` modules (env-mutation
+containment, the AST structural guard, and the restore-by-diff helper).
+One task (`144.006-T`) also made a production fix in
+`src/autoharness/gates/topology.py`, stopping the `_run_git` git-
+infrastructure-failure path from being laundered into a false domain
+diagnosis (assertion-integrity hardening for the existing
+`pipeline-topology` gate's `check-ignore` invocation) -- this is a
+defensive diagnostics correction to existing gate code, not a new runtime
+surface or behavior change to the gate's pass/fail semantics.
 
 ### Structured Validator Evidence
 
@@ -104,16 +109,16 @@ UI code changed.
 | Canonical gate | `uv run python -m unittest discover -s tests` (Windows) |
 | Result | `Ran 1830 tests, OK (skipped=20)` -- 0 failures, 0 errors, at final reviewed HEAD `ef96eb72` |
 | Hosted CI | green at final HEAD `ef96eb72`; Linux CI parity independently confirmed |
-| Manual checkpoints | none required -- test-tooling-only artifact, no user-facing or operational behavior change |
+| Manual checkpoints | none required -- primarily a test-tooling artifact with one defensive diagnostics fix in existing gate code; no user-facing or operational behavior change |
 | Blocked prerequisites | none |
 | Verdict | **PASS** for runtime-verification purposes; mechanism A of the E8158860 chain is fully implemented and proven green on the canonical Windows suite |
 
 ### Other Gates
 
 - Full build: non-applicable in the compiled-artifact sense; this
-  shipment changed only test-suite tooling modules -- no compiled build
-  step applies. The canonical test suite above is the full local build
-  evidence.
+  shipment's changes are Python source (test-suite tooling plus one small
+  gate-code diagnostics fix) with no separate compiled build step. The
+  canonical test suite above is the full local build evidence.
 - Quality Gates 1-4: PASS (no YAML frontmatter or template surfaces
   touched by the feature change itself; markdown structure intact for
   the compound learning doc; no `{{VAR}}` placeholders involved; all
@@ -152,9 +157,11 @@ did not recur for this shipment's manifest).
   tracking) means a conditional/branch-dependent import alias could still
   theoretically bypass the guard -- no such pattern exists in the repo
   today, but this should be re-assessed if one is ever introduced.
-- **Pre-deploy audits**: not applicable -- this shipment changed only
-  test-suite tooling and official backlog metadata; no migration, feature
-  flag, configuration, or access-control surface was touched.
+- **Pre-deploy audits**: not applicable -- this shipment's changes are
+  test-suite tooling, one defensive diagnostics fix in existing gate code
+  (`src/autoharness/gates/topology.py`, `144.006-T`), and official backlog
+  metadata; no migration, feature flag, configuration, or access-control
+  surface was touched.
 - **Deployment / rollout path**: merge-only. The containment mechanism
   takes effect for any future contributor's next local or CI test run the
   moment `main` is synced; no separate deploy, canary, or phased-rollout

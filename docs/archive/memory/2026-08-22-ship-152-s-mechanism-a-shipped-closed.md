@@ -47,7 +47,11 @@ reasoning_effort=high; no ROUTING_DEGRADED).
   narrowly-shaped `GIT_CONFIG` normalizer, canonical unittest discovery
   in-process with before/after child probes and a mandatory negative
   control, byte/per-key equality, and canonical subprocess count
-  equivalence.
+  equivalence. This is not test-only: `144.006-T` also made a production
+  fix in `src/autoharness/gates/topology.py`, stopping the `_run_git`
+  git-infrastructure-failure path from being laundered into a false
+  domain diagnosis (assertion integrity for the existing
+  `pipeline-topology` gate's `check-ignore` invocation).
 - Feature PR #398 went through **4 rounds** of Copilot review on the
   `_EnvMutationVisitor` AST structural guard
   (`tests/test_test_suite_isolation_contract.py`) — see the companion
