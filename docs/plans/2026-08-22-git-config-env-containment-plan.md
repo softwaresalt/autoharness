@@ -7,7 +7,10 @@ requires_plan_hardening: yes
 hardening_artifact: docs/plans/2026-08-22-git-config-env-containment-hardening.md
 review_artifact: docs/reviews/2026-08-22-git-config-env-containment-review.md
 review_verdict: PASS
-amendments_binding: [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, R1, R2, R3, R4, R5, R6, R7, R8, R9]
+amendments_binding: [A1, A1R, A2R, A3, A4, A5, A6, A7, A8R, A9, A10, A11, R1, R2, R3, R4, R5R, R6, R7, R8, R9, R10, R11, R12]
+withdrawn_amendments: [A2, A8, R5]
+review_cycle: 2
+review_cycle_context: "PR #397 Copilot review-fix cycle 1 (artifact cycle 2 of 3)"
 features: [144-F, 145-F]
 shipments: [152-S, 153-S]
 source: docs/plans/2026-08-22-git-config-env-containment-plan.md
@@ -77,37 +80,79 @@ closed by asserting mechanism A's fix without the explicit re-measurement in
 **Deliverable:** a new module `tests/test_environ_restore_contract.py`
 containing an executable reproduction of the destruction mechanism.
 
+**Process topology (amendment A11, BINDING).** The blank sentinel CANNOT be
+established in-process: `os.environ[name] = ""` *is* the destructive operation
+under study and deletes the variable on Windows before the round trip runs.
+Every test below therefore uses a three-level topology in which L0 seeds the
+blank via an **explicit environment block**, L1 verifies it arrived and performs
+the operation under test, and L2 probes L1's real block.
+
+```text
+L0 CONTROLLER  (the unittest test method)
+  sentinel  := "AUTOHARNESS_ENVTEST_EMPTY_" + uuid4().hex
+  env_block := dict(os.environ) | {sentinel: ""} | {"PYTHONPATH": "src"}
+  spawn L1 with env=env_block, argv carrying the sentinel name + variant
+
+L1 RUNNER  (long-lived; the operation under test happens HERE)
+  a. pre := probe()                    # L2 child, env=None
+  b. PRECONDITION GATE: sentinel present in pre?
+     no -> emit {"status":"INVALID_PRECONDITION"}; exit   (HALT at L0)
+  c. operation under test (--variant):
+       destructive : bare unittest.mock.patch.dict(os.environ, {...}) enter/exit
+       fixed       : patched_environ(...) enter/exit      (from 144.002-T on)
+  d. post := probe()                   # L2 child, env=None
+  e. emit {"status":"OK","pre_has_sentinel":…,"post_has_sentinel":…}
+
+L2 PROBE  (child of L1, env=None -> inherits L1's REAL block)
+  python -c "import os,json,sys; sys.stdout.write(json.dumps(dict(os.environ), sort_keys=True))"
+```
+
+**ISOLATION (mandatory, A11.4).** Every destructive environment operation is
+confined to the **L1 child**. The L0 test process must never execute
+`patch.dict(os.environ, ...)`, `os.environ.clear()`, or an empty-value
+assignment — otherwise this module becomes a fourteenth polluting site and
+corrupts the very suite it measures, and is flagged by the Task 4 guard.
+
 **Required tests:**
 
+0. `test_blank_sentinel_survives_explicit_env_block_inheritance`
+   Runs L0 -> L1 and asserts only the precondition: `status == "OK"` and
+   `pre_has_sentinel is True`. This is the **non-vacuity lock** for the whole
+   module. **Expected GREEN on both platforms.** A failure here means the
+   platform did not carry a blank value through explicit-block inheritance, the
+   scenario proves nothing, and the design returns to Stage — see A2R for why
+   this is a separate green test rather than a branch inside a red one.
 1. `test_bulk_environ_restore_preserves_empty_valued_variable_in_child_process`
-   Set a uniquely-named sentinel variable (e.g.
-   `AUTOHARNESS_ENVTEST_EMPTY_<uuid4hex>`) to `""`. Enter and exit a bare
-   `unittest.mock.patch.dict(os.environ, {"AUTOHARNESS_ENVTEST_OTHER": "x"})`
-   block. Then spawn a child
-   `subprocess.run([sys.executable, "-c", "import os,sys; sys.exit(0 if '<name>' in os.environ else 1)"])`
-   with `env=None` and assert the child still sees the variable.
-   This asserts the **desired invariant**, so on Windows it is RED today and
-   on Linux it is GREEN today. It must NOT be platform-gated.
+   Runs the `destructive` variant and asserts `post_has_sentinel is True` —
+   the **desired invariant**, so on Windows it is RED today and on Linux it is
+   GREEN today. It must NOT be platform-gated, skipped, or `expectedFailure`d.
 2. `test_bulk_environ_restore_preserves_git_config_triple_for_child_git`
-   Construct a self-consistent three-pair `GIT_CONFIG_*` triple in the current
-   process with the last `VALUE_n` empty, exercise the same bare
-   `patch.dict` round-trip, then run `git config --get-regexp` (or
-   `git version`, which still parses command-line config) in a child and
-   assert exit status 0 with no `missing config value` in stderr. Skip **only**
-   if `shutil.which("git")` is None, matching the existing precedent at
+   Same topology. L0 puts a complete triple into the explicit block:
+   `GIT_CONFIG_COUNT=3`, `KEY_0=safe.bareRepository`/`VALUE_0=explicit`,
+   `KEY_1=credential.interactive`/`VALUE_1=never`,
+   `KEY_2=core.fsmonitor`/`VALUE_2=""`. L1's precondition probe runs
+   `git version` in L2 and requires exit 0; after the round trip it requires
+   exit 0 again with no `missing config value` in stderr. The triple is
+   **never** assembled by in-process assignment. Skip **only** if
+   `shutil.which("git")` is None, matching the existing precedent at
    `tests/test_repo_root_artifacts.py:23`.
 3. `test_sentinel_variables_are_removed_from_the_process_environment`
    `tearDown`-verified: every sentinel this module introduces is gone from
    `os.environ` **and** from a freshly spawned child's environment when the
-   module finishes.
+   module finishes. Because all seeding happens in L0's *explicit block* rather
+   than in `os.environ`, this should hold trivially — which is exactly what it
+   locks in. **Expected GREEN on both platforms.**
 
 **Halt condition (mandatory):** if test 1 does **not** fail on Windows at the
 current head, the deliberation's mechanism is not confirmed. Stop, record the
 observation on the task, and return the shipment blocked. Do not proceed to
-Task 2 on an unconfirmed hypothesis.
+Task 2 on an unconfirmed hypothesis. Separately, if test 0 fails, the
+measurement apparatus is invalid — also a HALT, and distinguishable from both
+pass and fail.
 
-**Acceptance:** RED on Windows (tests 1 and 2), GREEN on Linux, at the branch
-head *before* Task 2 lands. Record the verbatim failure output on the task.
+**Acceptance:** RED on Windows (tests 1 and 2), GREEN on Linux, tests 0 and 3
+GREEN on both, at the branch head *before* Task 2 lands. Record the verbatim
+failure output on the task.
 
 ---
 
@@ -212,19 +257,30 @@ import alias.
 
 **Required companion tests (mirroring the existing module's contract):**
 
-* `test_allowlist_is_exactly_expected` — allowlist pinned to
-  `frozenset({"tests/support/env_patch.py"})` (the helper is the one
-  legitimate place the underlying primitives may appear) and asserted exactly,
-  so it cannot silently grow.
+* `test_env_mutation_allowlist_is_exactly_expected` — allowlist pinned to
+  **`frozenset()`** (EMPTY) and asserted exactly, so it cannot silently grow.
+  **Amendment A1R (BINDING):** there is **no** path exemption for
+  `tests/_env_patch.py`. The guard forbids only the *destructive* forms
+  (`patch.dict(os.environ, ...)`, `os.environ.clear()`); the helper implements
+  *targeted set/delete* (`os.environ[k] = v`, `del os.environ[k]`), which is
+  not forbidden, so it needs no exemption. Exempting it by path would legalise
+  the destructive forms inside the one file most likely to reintroduce them,
+  inverting the guard's purpose.
 * Non-vacuity positive: a synthetic source string using each forbidden shape
-  (context-manager form, decorator form, aliased import, multi-line call) is
+  (context-manager form, decorator form, aliased import, multi-line call,
+  string-literal `'os.environ'` first argument, `os.environ.clear()`) is
   detected.
-* Non-vacuity negative: `patched_environ(...)` and
-  `patch.dict(some_other_dict, ...)` are **not** flagged.
+* Non-vacuity negative: `patched_environ(...)`,
+  `patch.dict(some_other_dict, ...)`, and — **mandatory under A1R** — the
+  targeted forms `os.environ[k] = v` and `del os.environ[k]` are **not**
+  flagged. Without this case the guard could not distinguish the helper's
+  legitimate implementation from the forbidden forms, which is what makes the
+  empty allowlist workable.
 * The failure message names every offending `path:line`.
 
-**Acceptance:** guard is GREEN at head (after Task 3), and provably fails if
-any migrated site is reverted.
+**Acceptance:** guard is GREEN at head (after Task 3) with an EMPTY allowlist —
+including over `tests/_env_patch.py`, which is scanned on equal terms — and
+provably fails if any migrated site is reverted.
 
 ---
 
@@ -304,10 +360,47 @@ simulated `returncode=128` and the original message for `returncode=1`.
    not greater than the pre-change baseline of 20.
 2. Run the canonical gate a second time in the **same** shell session to prove
    the fix is order- and repetition-stable.
-3. Prove environment restoration: capture the real process environment block
-   (via a child process, not `os.environ`) before and after a full suite run in
-   one shell; assert byte-identical, in particular that `GIT_CONFIG_COUNT`,
-   all `GIT_CONFIG_KEY_n`, and all `GIT_CONFIG_VALUE_n` are unchanged.
+3. Prove environment restoration **under amendment A8R** (the original A8 is
+   WITHDRAWN AS UNSOUND: three sibling probes spawned from one shell can never
+   observe a child runner's mutations, so `before == after` was trivially true
+   on every platform and would have reported PASS against the un-fixed code).
+
+   A8R requires a three-level topology in which the suite runs **in-process**
+   inside a controller, and the probes are that controller's **children**:
+
+   ```text
+   L0 LAUNCHER   env_block := dict(os.environ) | {"AUTOHARNESS_ENVPROBE_BLANK": "",
+                                                  "PYTHONPATH": "src"}
+                 spawn L1 with env=env_block
+
+   L1 CONTROLLER (long-lived; the suite runs HERE, in-process)
+     a. pre  := probe()                       # L2 child, env=None
+     b. PRECONDITION GATE: pre must contain AUTOHARNESS_ENVPROBE_BLANK and every
+        GIT_CONFIG_COUNT / KEY_n / VALUE_n L0 passed in; else INVALID_PRECONDITION -> HALT
+     c. prog = unittest.main(module=None,
+                             argv=["python -m unittest","discover","-s","tests"],
+                             exit=False)      # same code path as the canonical gate
+     d. post := probe()                       # L2 child, env=None
+     e. emit pre, post, and prog.result counts
+
+   L2 PROBE      python -c "import os,json,sys; sys.stdout.write(json.dumps(dict(os.environ), sort_keys=True))"
+                 spawned with env=None -> inherits L1's REAL block
+   ```
+
+   L0 asserts: (i) `status == "OK"`; (ii) `pre == post` byte-equality;
+   (iii) by **explicit key**, `AUTOHARNESS_ENVPROBE_BLANK` and every
+   `GIT_CONFIG_COUNT`/`KEY_n`/`VALUE_n` in `pre` is present in `post` with an
+   identical value — separate from (ii) because a whole-block comparison is
+   satisfied by two blocks that are **both** missing the variable;
+   (iv) **canonical equivalence**: the in-process run's `testsRun`, `failures`,
+   `errors` and skipped set equal proof 1's canonical subprocess run, else the
+   harness is not equivalent and the proof is void.
+
+   **Mandatory negative control:** re-run the identical topology with step (c)
+   replaced by a deliberate bare `patch.dict(os.environ, {"X": "y"})`
+   enter/exit; on Windows `post` MUST then lose the blank sentinel. Without it,
+   a green (ii)/(iii) could be vacuous. Throwaway local measurement, never
+   committed.
 4. Confirm Linux/CI parity: CI green on the PR with no new skips.
 5. Confirm no global/system git config was touched:
    `git config --global --list` and `git config --system --list` identical
@@ -389,14 +482,14 @@ verdicts and can be reverted independently of the rest.
 | --- | --- |
 | Win32 empty-value-delete hypothesis is wrong | `144.001-T` halt condition: no RED reproduction -> stop and re-deliberate |
 | `patched_environ` misses a restore edge case | Six explicit property tests including exception-safety and nesting |
-| Guard is over-broad and blocks legitimate future use | Pinned single-entry allowlist, asserted exactly; negative non-vacuity cases |
+| Guard is over-broad and blocks legitimate future use | **Empty** allowlist asserted exactly, plus mandatory negative non-vacuity cases proving targeted set/delete and `patch.dict(other_dict, ...)` are not flagged (A1R/R5R) |
 | Normalizer changes CI behavior | Provable-no-op property test asserts `==` on already-consistent input |
 | Assertion integrity work weakens a gate | `144.006-T` changes messages/diagnostics only; verdict-equality test required |
 | Mechanism B silently folded into A | `145.001-T` is a mandatory, separately-shipped, terminal-disposition measurement |
 
 ---
 
-## Binding Amendments (hardening A1–A10, review R1–R9)
+## Binding Amendments (hardening A1–A11, review R1–R12)
 
 This section is normative and **supersedes** the task text above wherever they
 differ. Full text: `docs/plans/2026-08-22-git-config-env-containment-hardening.md`
@@ -412,7 +505,8 @@ above are **superseded** by flat modules with **no new package and no new
 * `tests/_git_env.py` — `consistent_git_env`
 
 Imported as `from _env_patch import patched_environ`. Task 4's allowlist is
-`ENV_MUTATION_ALLOWLIST = frozenset({"_env_patch.py"})`, matched on `path.name`.
+`ENV_MUTATION_ALLOWLIST = frozenset()` — **EMPTY**, with no path exemption for
+`_env_patch.py` (amendment **A1R**, cycle 2).
 
 ### Canonical invocations (R3, BINDING — `pytest` substitution forbidden)
 
@@ -436,19 +530,27 @@ CI equivalent (unchanged, `.github/workflows/ci.yml:112`):
 | ID | Binding on | Requirement |
 | --- | --- | --- |
 | A1 / R4 | Tasks 2, 4, 5 | Flat `tests/_env_patch.py` + `tests/_git_env.py`; no new package or `__init__.py` |
-| A2 / R6 | Task 1 | Enumerated expected-red set (2 tests + 5 victims) and expected-GREEN set (sentinel-cleanup test); gate is failure-set **equality**, not `failures == 0`; one-task window |
+| **A1R** | Tasks 2, 4 | **Supersedes A1's allowlist clause.** `ENV_MUTATION_ALLOWLIST = frozenset()` — EMPTY, no path exemption for `_env_patch.py`; targeted set/delete is not a forbidden form, and an exemption would legalise the destructive forms in the file most likely to reintroduce them |
+| ~~A2 / R6~~ | — | Superseded by **A2R** |
+| **A2R** | Task 1 | Expected-RED set (tests 1–2 + 5 victims) **and** expected-GREEN set (test 0 precondition lock + test 3 sentinel cleanup); gate is failure-set **equality**, not `failures == 0`; one-task window |
 | A3 | Task 6 | `details['git_invocation_error']` additive, **absent** on success; verdict-equality test; consumer grep re-run at edit time |
 | A4 | Task 2 | `ValueError` on any `""` override, uniformly on all platforms, raised before any mutation |
 | A5 | Task 2 | `RuntimeError` at entry if any touched key's prior value is `""`; fail closed, no torn state |
 | A6 | Tasks 3, 6 | AIG-1..AIG-4 AST assertion-inventory equality, N1–N3 change allowlist, per-line citation |
 | A7 | Task 5 | Only the exact `GIT_CONFIG_{COUNT,KEY_n,VALUE_n}` triple; `GIT_CONFIG_PARAMETERS`/`GLOBAL`/`SYSTEM`/`NOSYSTEM` pass through untouched; never invent a count |
-| A8 | Task 7 | Specified child-probe byte-equality method **plus** explicit per-key `GIT_CONFIG_*` assertion |
+| ~~A8~~ | — | **WITHDRAWN AS UNSOUND** — three sibling shell probes cannot observe a child runner's mutations; `before == after` was trivially true |
+| **A8R** | Task 7 | L0/L1/L2 topology; suite runs **in-process** in L1 via `unittest.main(module=None, argv=[...], exit=False)`; probes are L1's children; precondition gate, byte-equality, per-key assertion, canonical-equivalence check, mandatory negative control |
 | A9 | Task 7 | Named skip-**set** subset check, not a bare count bound |
 | A10 | Task 8 | `SUBSUMED` requires standalone + all five pairings + a reverted-checkout negative control; otherwise `INCONCLUSIVE-VACUOUS` -> treat as `SURVIVES` |
+| **A11** | Task 1 | L0/L1/L2 topology for the reproduction; blank sentinel established **only** via an explicit env block and **verified inherited** before the round trip; adds expected-GREEN test 0; all destructive ops confined to L1 |
 | R1 | Tasks 1, 7 | Pin which module holds victim #1 from the verbatim baseline; assert **both** modules green at Task 7 |
 | R2 | Task 3 | Acceptance = AIG pass **and** (victims green **or** residual captured verbatim and routed to Tasks 5/6/7); `failures=0` lives at Task 7 |
 | R3 | all measurement tasks | Pinned PowerShell invocations above; `pytest` MUST NOT be substituted |
-| R5 | Task 4 | New `ENV_MUTATION_ALLOWLIST`; existing `ALLOWLIST` and its test left byte-identical |
+| ~~R5~~ | — | Superseded by **R5R** |
+| **R5R** | Task 4 | `ENV_MUTATION_ALLOWLIST` is EMPTY and pinned by its own test; existing `ALLOWLIST` and its test left byte-identical; mandatory negative case proving targeted set/delete is not flagged |
 | R7 | Task 9 | Return blocked for Stage re-decomposition rather than expand past the 2-hour rule |
 | R8 | Task 3 | Migration is **mechanism-A only**; `145.001-T` stays mandatory and unconditional; no `144-F` task records a mechanism-B disposition |
 | R9 | Task 2 | Module-top import in the contract test proves discovery importability; no `tests/__init__.py`, no `tests/conftest.py` |
+| **R10** | Task 1 | L0 test process performs **no** destructive env operation; the module must not become a fourteenth polluting site |
+| **R11** | Task 7 | A8R's in-process run must be **count-equivalent** to the canonical subprocess gate, else the proof is void |
+| **R12** | Task 2 | `tests/_env_patch.py` contains **zero** forbidden forms and is guarded with no exemption |

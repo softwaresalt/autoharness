@@ -6,7 +6,9 @@ reviews_hardening: docs/plans/2026-08-22-git-config-env-containment-hardening.md
 source_deliberation: docs/decisions/2026-08-22-ambient-git-config-env-destruction-containment-deliberation.md
 source_stash: 9DD9E323
 verdict: PASS
-cycle: 1
+cycle: 2
+cycle_context: "PR #397 Copilot review-fix cycle 1 (artifact cycle 2 of 3)"
+reviewed_head: 72bfdd9c3964f04d3287a8d67914cbcd33572fe6
 cycles_allowed: 3
 unresolved_p0: 0
 unresolved_p1: 0
@@ -17,9 +19,182 @@ agent: stage
 
 # Plan Review — `9DD9E323` / `144-F` + `145-F`
 
-**Verdict: PASS** — 0 unresolved P0, 0 unresolved P1. Review-fix cycle 1 of 3.
-Nine findings raised (2 pre-verified as non-issues, 7 resolved by amendments
-R1–R9 folded into the plan).
+**Verdict: PASS** — 0 unresolved P0, 0 unresolved P1.
+
+**Cycle 2** (PR #397 Copilot review-fix cycle 1) at head
+`72bfdd9c3964f04d3287a8d67914cbcd33572fe6`. Cycle 1 findings F1–F9 remain
+resolved and are retained below unchanged. Cycle 2 adds C1–C3 (hosted Copilot
+threads) and N1–N3 (findings this cycle raised while fixing them). Cycles used:
+2 of 3.
+
+---
+
+## Cycle 2 — PR #397 hosted review findings
+
+All three Copilot threads are **P-021 C1 same-contract-surface corrections**:
+each targets an artifact Stage owns (task carriers and the plan/hardening/review
+they derive from), on the same contract surface this shipment already governs.
+They are therefore fixed **in place** in this cycle — no deferred stash entry,
+no scope expansion, no new feature.
+
+Severity: **C1 and C2 are P0** — each would have produced a *false PASS* against
+un-fixed code, which is worse than a red gate because it manufactures
+unwarranted confidence. C3 is P1.
+
+### C1 (P0, RESOLVED by A11 + R10) — `PRRT_kwDORzpWpM6bXqlM`, `.backlogit/queue/144.001-T.md`
+
+**Thread:** the reproduction seeds the empty sentinel with `os.environ[name] = ""`,
+but the root-cause model says that call *already* deletes it from the Win32
+block. Seed the blank variable in an outer process's explicit environment block,
+verify a child sees it before the round trip, then run the before/after probe
+inside that process. Duplicate at ~line 41.
+
+**Confirmed, and it is worse than a redundancy.** `os.environ[name] = ""` **is**
+the destructive operation under study. On Windows it reaches
+`SetEnvironmentVariableW(name, L"")`, which deletes the variable outright. The
+sentinel would therefore be gone **before** the `patch.dict` round trip ever
+ran, and test 1 would observe "sentinel missing" *for the wrong reason* — a
+**false positive** confirming a mechanism it never exercised. The entire design
+rests on `144.001-T`'s halt condition; a reproduction that cannot fail honestly
+would have validated the whole feature on non-evidence.
+
+The duplicate at line 41 is the same defect in test 2: "Build a self-consistent
+three-pair `GIT_CONFIG_*` triple **in-process** with the last `VALUE_n` empty"
+is unconstructible on Windows for exactly the same reason.
+
+**Resolution — A11 (BINDING)** installs an executable three-level topology:
+L0 controller seeds the blank **only** via an explicit env block handed to
+`CreateProcessW`; L1 runner **verifies inheritance** with a probe before the
+round trip, performs the destructive/fixed operation, and probes again; L2
+probes are children of L1. A fourth test,
+`test_blank_sentinel_survives_explicit_env_block_inheritance`, is added as an
+expected-GREEN non-vacuity lock, and `INVALID_PRECONDITION` is a HALT
+distinguishable from both pass and fail.
+
+**R10 (BINDING)** adds the isolation constraint the thread implies but does not
+state: every destructive operation is confined to the **L1 child**. Without it,
+`tests/test_environ_restore_contract.py` would itself become a **fourteenth
+polluting site**, corrupting the suite it exists to measure — and would be
+flagged by the Task 4 guard it is supposed to satisfy.
+
+Carriers corrected: `.backlogit/queue/144.001-T.md` (both occurrences),
+`.backlogit/queue/144.002-T.md`, plan Task 1, hardening H12/A11 and A2R.
+
+### C2 (P0, RESOLVED by A8R + R11) — `PRRT_kwDORzpWpM6bXqlR`, `.backlogit/queue/144.007-T.md`
+
+**Thread:** the shell probes before/after the runner are siblings and cannot
+detect child-runner mutations. Run the suite in-process inside a controller that
+probes child inheritance before and after.
+
+**Confirmed; A8 is unsound and is WITHDRAWN.** A8's three steps were all
+children of the same shell. The canonical gate in step 2 runs in its own process
+and every mutation it makes dies with that process. The step-3 probe is a fresh
+child of the *shell*, whose block the runner never touched. `before == after` was
+therefore **trivially and unconditionally true on every platform, defect present
+or not** — proof 3 would have reported PASS against the un-fixed code, and would
+have done so most convincingly precisely when it mattered least.
+
+**Resolution — A8R (BINDING)** replaces A8 with the same L0/L1/L2 topology:
+L1 runs the canonical suite **in-process** via
+`unittest.main(module=None, argv=["python -m unittest", "discover", "-s", "tests"], exit=False)`
+— literally the code path `python -m unittest discover -s tests` takes, so
+discovery, ordering and execution are identical — and the probes are **L1's own
+children**, so L1's post-suite block is what gets measured. Adds a precondition
+gate, byte-equality, an explicit per-key `GIT_CONFIG_*` assertion, and a
+**mandatory negative control** (bare `patch.dict` in place of the suite must
+lose the blank sentinel on Windows) so a green result cannot be vacuous.
+
+**R11 (BINDING)** adds the equivalence obligation A8R creates: running the suite
+in-process is only a valid substitute for the canonical gate if it is
+**count-equivalent** to it. `testsRun`, `failures`, `errors` and the skipped set
+must match proof 1's subprocess run, else the harness has diverged and the proof
+is void.
+
+Carriers corrected: `.backlogit/queue/144.007-T.md`, plan Task 7 step 3,
+hardening H8 (withdrawn) / H8R.
+
+### C3 (P1, RESOLVED by A1R + R5R) — `PRRT_kwDORzpWpM6bXqlV`, `.backlogit/queue/144.004-T.md`
+
+**Thread:** `_env_patch.py` should not be path-allowlisted. Targeted set/delete
+is not forbidden; a path exemption would permit destructive forms. Keep the new
+allowlist empty.
+
+**Confirmed.** The guard forbids only `patch.dict(os.environ, ...)` and
+`os.environ.clear()`. The helper implements **targeted set/delete**
+(`os.environ[k] = v`, `del os.environ[k]`) — not a forbidden form, so it needs
+**no exemption at all**. Granting one would make the single file most likely to
+reintroduce the defect the one file in which the destructive forms are
+*permitted*, inverting the guard's purpose. The original justification ("the
+helper is the one legitimate place the underlying primitives may appear")
+conflated *the primitives the helper uses* with *the forms the guard forbids*;
+they are disjoint.
+
+**Resolution — A1R (BINDING):** `ENV_MUTATION_ALLOWLIST = frozenset()` — empty,
+pinned, asserted exactly, no exemption for anything. `tests/_env_patch.py` is
+scanned on equal terms.
+
+**R5R (BINDING, supersedes R5)** adds the consequence: the guard must now be
+able to tell targeted set/delete apart from the forbidden forms, so a
+non-vacuity **negative** case for `os.environ[k] = v` and `del os.environ[k]` is
+mandatory. Without it the empty allowlist would be unworkable.
+
+**R12 (BINDING)** corrects the downstream carrier: `144.002-T`'s acceptance
+"contains no `os.environ.clear()` and no `patch.dict(os.environ, ...)` *beyond
+what the guard allowlist authorizes*" becomes "contains **zero** forbidden forms
+and is subject to the guard with **no exemption**".
+
+Carriers corrected: `.backlogit/queue/144.004-T.md`,
+`.backlogit/queue/144.002-T.md`, plan Task 4 and the A1/R4 superseded-paths
+block, hardening A1R, review R4/R5 (below).
+
+---
+
+## Cycle 2 — findings raised while fixing the above
+
+### N1 (P1, RESOLVED by A2R) — the precondition outcome would have been swallowed by the failure-set-equality gate
+
+A11 introduces a third possible outcome, `INVALID_PRECONDITION`. Folded into the
+RED tests it would be **indistinguishable from a successful reproduction**, and
+A2's failure-set-equality gate would wave it through as "expected red" — a
+second false-PASS path opened by the fix for the first one.
+
+**A2R (BINDING)** makes the precondition its own **expected-GREEN** test. An
+invalid precondition then appears as a green-to-red flip *outside* the
+expected-red set, which the equality gate converts to an automatic HALT with no
+special-casing. A2 is superseded; the enumeration now carries both an
+expected-RED and an expected-GREEN set.
+
+### N2 (P2, RESOLVED in A8R text) — the in-process controller needs `PYTHONPATH` and programmatic counts
+
+`unittest.main(..., exit=False)` writes its summary to stderr; the controller
+must read counts from `prog.result`, not by scraping. And `discover -s tests`
+plus `import autoharness` requires `src` importable, which L0 must place in the
+explicit env block it is already constructing. Both are now stated in A8R.
+
+### N3 (P2, RESOLVED, no action) — A9's skip enumeration survives the topology change
+
+A9 references "the git-unavailable skip in `tests/test_environ_restore_contract.py`".
+Under A11 the `shutil.which("git")` check stays in L0, so the skip is still
+raised by the same module and A9's named-set contract is unaffected. Recorded so
+the reader does not have to re-derive it.
+
+---
+
+## Cycle 2 — verification
+
+| Check | Result |
+| --- | --- |
+| Shipment manifests unchanged | PASS — `152-S` = 8 items, `153-S` = 3 items, byte-identical to cycle 1 |
+| Dependency graph unchanged | PASS — 9 task edges + `153-S` -> `152-S`; acyclic |
+| Claimability unchanged | PASS — `152-S` alone claimable; `153-S` blocked |
+| Task sizing/complexity preserved | PASS — all 9 tasks retain `size` + `complexity` |
+| No backlog item created, deleted, or re-parented | PASS — cycle 2 changed **contract text only** |
+| Mechanism separation intact | PASS — no mechanism-B disposition added to `144-F` |
+| Stage role boundary | PASS — no source/test edit, no build/test run, no commit/push/PR/thread/merge |
+
+---
+
+## Cycle 1 — original findings (retained, all resolved)
 
 ## Gate Checklist
 
@@ -104,8 +279,8 @@ plan body still spell the old paths, and Task 4's allowlist still reads
 
 **R4 (BINDING).** A1's spelling supersedes every `tests/support/` reference in
 the plan. The harvested tasks carry only the A1 spelling; the Task 4 allowlist
-is `frozenset({"_env_patch.py"})`, matched on `path.name` to match the existing
-`ALLOWLIST` semantics in `tests/test_test_suite_isolation_contract.py`.
+is `frozenset()` — **EMPTY**, per **A1R (cycle 2)**, which withdraws this
+finding's original `frozenset({"_env_patch.py"})` value. See C3 above.
 
 ### F5 (P1, RESOLVED by R9) — Helper importability depends on a discovery-mode invariant
 
@@ -146,6 +321,12 @@ reasonably conflate them and relax the wrong one.
 pinned by its own `test_env_mutation_allowlist_is_exactly_expected`. The
 existing `ALLOWLIST` and `test_allowlist_is_exactly_expected` are left
 **byte-identical** (they are covered by AIG-1 as an untouched-assertion check).
+
+**SUPERSEDED BY R5R (cycle 2).** R5 originally pinned
+`ENV_MUTATION_ALLOWLIST` to `frozenset({"_env_patch.py"})`. Per C3/A1R it is
+now pinned **EMPTY**, and a non-vacuity negative case proving targeted
+set/delete is not flagged becomes mandatory. The naming and byte-identical
+clauses above stand unchanged.
 
 ### F8 (P2, RESOLVED by R7) — `145.002-T` is unbounded above
 
@@ -210,6 +391,22 @@ task has a mandatory measurement predecessor and an explicit return-blocked
 bound (R7), satisfying the two-axis granularity gate.
 
 ## Amendment Index (this review)
+
+### Cycle 2 (PR #397 review-fix cycle 1)
+
+| ID | Binding on | Summary |
+| --- | --- | --- |
+| A1R | `144.002-T`, `144.004-T` | `ENV_MUTATION_ALLOWLIST = frozenset()` — EMPTY; no path exemption for `_env_patch.py` |
+| A2R | `144.001-T` | Expected-RED **and** expected-GREEN sets; precondition lock is its own green test |
+| A8R | `144.007-T` | L0/L1/L2 topology; suite runs in-process in L1; probes are L1's children; negative control mandatory |
+| A11 | `144.001-T` | L0/L1/L2 reproduction topology; blank sentinel via explicit env block, inheritance verified before the round trip |
+| R5R | `144.004-T` | Empty allowlist + mandatory negative case for targeted set/delete |
+| R10 | `144.001-T` | All destructive env ops confined to the L1 child; L0 must not become a polluting site |
+| R11 | `144.007-T` | In-process run must be count-equivalent to the canonical subprocess gate |
+| R12 | `144.002-T` | Helper contains **zero** forbidden forms; guarded with no exemption |
+| — | — | **WITHDRAWN:** A2 (superseded by A2R), A8 (unsound), R5 (superseded by R5R) |
+
+### Cycle 1 (original local plan review)
 
 | ID | Binding on | Summary |
 | --- | --- | --- |

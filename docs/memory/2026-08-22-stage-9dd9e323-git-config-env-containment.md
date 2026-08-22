@@ -130,10 +130,29 @@ that constraint *perfectly* rather than approximately — it touches no
 
 Hardening **A1–A10** and review **R1–R9**. Highest-consequence ones:
 
-* **A2/R6** — `144.001-T` is **RED by design on Windows**. Its gate is
-  **failure-set equality** against an enumerated list, not `failures == 0`. The
-  expected-red window is exactly one task wide. It must never be closed by
-  `skipTest`, `expectedFailure`, deletion, or assertion weakening.
+* **A2R/R6** — `144.001-T` is **RED by design on Windows**. Its gate is
+  **failure-set equality** against an enumerated list (expected-RED **and**
+  expected-GREEN), not `failures == 0`. The expected-red window is exactly one
+  task wide. It must never be closed by `skipTest`, `expectedFailure`,
+  deletion, or assertion weakening.
+* **A11 + R10** — the reproduction uses an **L0/L1/L2 process topology**. The
+  blank sentinel is established **only** via an explicit environment block
+  handed to a child process and its arrival is **verified** before the round
+  trip; `os.environ[name] = ""` is *itself* the destructive operation and can
+  never seed it. All destructive operations are confined to the **L1 child** —
+  the L0 test process must not become a fourteenth polluting site.
+* **A8R + R11** — the original A8 environment-restoration proof is
+  **WITHDRAWN AS UNSOUND**: three probes spawned as siblings of the runner
+  could never observe the runner's mutations, so `before == after` was
+  trivially true on every platform. A8R runs the suite **in-process** inside an
+  L1 controller whose **own children** are the probes, with a precondition
+  gate, a mandatory negative control, and an R11 count-equivalence check
+  against the canonical subprocess gate.
+* **A1R + R5R + R12** — `ENV_MUTATION_ALLOWLIST` is **EMPTY**. There is **no**
+  path exemption for `tests/_env_patch.py`: targeted set/delete is not a
+  forbidden form, and an exemption would legalise the destructive forms in the
+  one file most likely to reintroduce them. A negative non-vacuity case proving
+  `os.environ[k] = v` / `del os.environ[k]` are not flagged is mandatory.
 * **R3** — canonical Windows invocation is
   `$env:PYTHONPATH = 'src'; python -m unittest discover -s tests`.
   **`pytest` MUST NOT be substituted** for any measurement — it changes
@@ -151,6 +170,35 @@ Hardening **A1–A10** and review **R1–R9**. Highest-consequence ones:
 * **A9** — named skip-**set** subset check, not a bare count bound (baseline 20).
 * **R7** — `145.002-T` returns blocked for Stage re-decomposition rather than
   expanding past the 2-hour rule.
+
+## Cycle 2 — PR #397 review-fix (2026-08-22, head `72bfdd9c`)
+
+Three hosted Copilot threads, all **P-021 C1 same-contract-surface** corrections,
+fixed in place. **Contract text only — no backlog item created, deleted,
+re-parented, or re-sequenced; manifests and dependencies unchanged.**
+
+| Thread | Carrier | Severity | Resolution |
+| --- | --- | --- | --- |
+| `PRRT_kwDORzpWpM6bXqlM` | `144.001-T` | **P0** | A11 + R10 — reproduction could not establish its own precondition; `os.environ[name] = ""` deletes the sentinel *before* the round trip, so the test would have confirmed the mechanism on non-evidence (false positive). Duplicate at line 41 (in-process `GIT_CONFIG_*` triple) fixed identically. |
+| `PRRT_kwDORzpWpM6bXqlR` | `144.007-T` | **P0** | A8R + R11 — A8's sibling shell probes could never observe the runner's mutations; `before == after` was trivially true and would have reported PASS against un-fixed code. |
+| `PRRT_kwDORzpWpM6bXqlV` | `144.004-T` | P1 | A1R + R5R + R12 — path-exempting `_env_patch.py` would legalise the destructive forms in the very file that exists to avoid them. Allowlist is now EMPTY. |
+
+Both P0s share a root cause worth remembering: **a verification mechanism was
+specified at the level of intent without tracing the process topology it would
+actually execute in.** Each would have produced a *false PASS*, which is worse
+than a red gate because it manufactures unwarranted confidence. A8R and A11 now
+state process levels (L0/L1/L2) explicitly so the topology is reviewable rather
+than implied.
+
+Three further findings were raised while fixing them: **N1** (P1) — A11's new
+`INVALID_PRECONDITION` outcome would have been swallowed by the failure-set
+equality gate, so the precondition became its own expected-GREEN test (A2R);
+**N2** (P2) — the in-process controller needs `PYTHONPATH` in the explicit block
+and must read counts from `prog.result`, not by scraping stderr; **N3** (P2) —
+A9's skip enumeration is unaffected by the topology change.
+
+Re-gate: plan/hardening/review **PASS**, 0 unresolved P0/P1, cycle 2 of 3.
+
 
 ## Verification performed
 
