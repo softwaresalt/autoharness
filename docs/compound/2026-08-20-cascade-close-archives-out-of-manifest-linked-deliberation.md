@@ -22,11 +22,14 @@ tags:
   - "141-F"
   - "151-S"
   - "143-F"
+  - "150-S"
+  - "142-F"
 citations:
   - "143-S/134-F post-merge closure session, 2026-08-20"
   - "148-S/140-F post-merge closure session, 2026-08-21 (recurrence via a plain `references` list entry, not `custom_fields.source_deliberation_id`)"
   - "149-S/141-F post-merge closure session, 2026-08-21 (third occurrence, same `references`-list mechanism, different feature/deliberation pair -- 024-DL)"
   - "151-S/143-F post-merge closure session, 2026-08-21 (fourth occurrence, same 024-DL deliberation as the third occurrence but a different sibling feature -- 143-F, not 141-F -- both derived from the same E8158860 deliberation)"
+  - "150-S/142-F post-merge closure session, 2026-08-22 (fifth occurrence, a fourth distinct deliberation ID -- 023-DL -- confirming the defect is per-feature/per-cascade-close, not tied to any one deliberation record)"
   - "templates/skills/shipment-reconcile/SKILL.md.tmpl:589-622 (Cascade Close Sub-Procedure steps 1-4)"
   - "src/autoharness/gates/shipment_closure.py: classify_shipment_close_path"
   - "docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md (related but distinct: that entry covers pre-archived manifest members, a documented/tolerated case; this entry covers a genuinely out-of-manifest artifact)"
@@ -296,3 +299,55 @@ Stage-owned follow-up (a bounded, documented tolerance in the Cascade Close
 Sub-Procedure's step 3 exact-match check for artifacts reachable only via a
 feature's own `references` list) an increasingly urgent priority rather
 than a low-frequency edge case.
+
+## Recurrence: 150-S / 142-F / 023-DL (fifth occurrence)
+
+A fifth occurrence, again during Ship's own post-merge closure (2026-08-22).
+Manifest: `142-F`, `142.001-T` through `142.007-T`.
+`classify_shipment_close_path` again correctly returned `CASCADE` (`142-F`
+is a root, fully covered by all seven manifest-member children).
+
+`backlogit shipment ship 150-S --sha 927272da...` returned:
+
+```json
+{
+  "shipment_id": "150-S",
+  "shipment_status": "shipped",
+  "archived_ids": [
+    "142.001-T", "142.002-T", "142.003-T", "142.004-T", "142.005-T",
+    "142.006-T", "142.007-T", "023-DL", "142-F", "150-S"
+  ],
+  "returned_ids": [],
+  "commit_sha": "927272da2cca01d43ccc109eb31fdf59c88db5dd"
+}
+```
+
+This is a FOURTH distinct deliberation ID (`023-DL`, distinct from the
+`019-DL`/`025-DL`/`024-DL` seen in the first four occurrences), confirming
+again that the defect is a per-feature, per-cascade-close behavior driven
+purely by whatever `references` a closing feature happens to carry, not
+tied to any specific deliberation record or shipment. `142-F`'s own
+`references` list independently carries `.backlogit/queue/023-DL.md`
+(142-F's own originating deliberation, per its description's "Deliberation:
+023-DL" line) alongside two plan documents and a review document — the
+cascade walked that list and archived the one entry that happened to still
+be a live `.backlogit` artifact.
+
+Applied the identical documented remediation: reverted only `023-DL` (`git
+restore --staged` + `git checkout` on `.backlogit/queue/023-DL.md`, removed
+the newly-created `.backlogit/archive/023-DL.md` and
+`.backlogit/logs/023-DL.jsonl`), confirmed `git diff` empty and `backlogit
+get 023-DL` reports `status: queued` unchanged. Independently re-verified
+the remaining post-conditions: exact `archived_ids` match (all seven tasks
+plus `142-F` plus `150-S`) after excluding `023-DL`; `returned_ids: []`;
+`parent_id: 142-F` preserved on all seven tasks; shipment
+`archived_status: shipped`; feature `archived_status: done`. No corrective
+action required for 150-S's own closure beyond the `023-DL` revert.
+
+This fifth occurrence, spanning FIVE shipments and FIVE features across
+FOUR distinct deliberation records over two calendar days, further
+confirms the defect is systemic to the cascade-close engine's own
+`references`-list traversal rather than an artifact of any one
+deliberation's lifecycle state, and reinforces the priority of the
+Stage-owned follow-up recorded above.
+
