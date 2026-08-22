@@ -21,31 +21,40 @@ compaction_status: done
 conditions:
     - id: "round4-control-flow-insensitive-alias-tracking-residual-risk"
       description: >-
-        The `_EnvMutationVisitor` AST guard's alias tracking
-        (`tests/test_test_suite_isolation_contract.py`) is not
-        control-flow-aware -- both branches of an `if`/`else` are visited
-        sequentially into the same mutable scope dict, so a conditional
-        import could in principle let a genuine `patch.dict(os.environ,
-        ...)` bypass the guard undetected. Flagged as PR #398 Copilot
-        review round 4 (thread `PRRT_kwDORzpWpM6bb2je`), correctly
-        classified P-021 C1 same-contract-surface in-scope, but the
-        3-cycle review-fix budget (Stop Conditions table) was already
-        exhausted.
+        The named condition for release readiness is that the round-4
+        finding on the `_EnvMutationVisitor` AST guard's alias tracking
+        (`tests/test_test_suite_isolation_contract.py`) has an explicit,
+        final operator disposition -- either a code fix, or a documented
+        acceptance of residual risk -- recorded before closure. It is
+        satisfied by disposition, not by a code change: the underlying
+        alias-tracking gap itself (both branches of an `if`/`else` are
+        visited sequentially into the same mutable scope dict, so a
+        conditional import could in principle let a genuine
+        `patch.dict(os.environ, ...)` bypass the guard undetected) remains
+        open as a non-blocking hardening follow-up (see "Residual
+        follow-up" below) and is NOT what `satisfied: true` attests to.
+        Flagged as PR #398 Copilot review round 4 (thread
+        `PRRT_kwDORzpWpM6bb2je`), correctly classified P-021 C1
+        same-contract-surface in-scope, but the 3-cycle review-fix budget
+        (Stop Conditions table) was already exhausted.
       satisfied: true
       evidence: >-
-        Disposition (not code fix) explicitly authorized by the operator:
-        accept as documented residual risk rather than perform a 4th
-        review-fix cycle, since no test file under `tests/` today uses a
-        conditional/branch-dependent import alias near an `os.environ`
-        mutation call, so the guard remains fully sound for every existing
-        offending shape; this is a hardening opportunity against a
-        hypothetical future pattern, not a live/active defect. Recorded in
-        PR #398's Local Review Readiness block (outcome
-        `READY_WITH_FOLLOWUPS`) and in the substantive reply posted to
-        thread `PRRT_kwDORzpWpM6bb2je` (which was then resolved) prior to
-        merging PR #398 as `f0cad43c04ad98809685db0fb247db1e9a287bb6`. This
-        disposition is final and complete (not a pending/open item); it is
-        not re-litigated by this closure or its corrections.
+        The disposition condition above is met: the operator explicitly
+        authorized accepting the round-4 finding as documented residual
+        risk rather than performing a 4th review-fix cycle, since no test
+        file under `tests/` today uses a conditional/branch-dependent
+        import alias near an `os.environ` mutation call, so the guard
+        remains fully sound for every existing offending shape -- this is
+        a hardening opportunity against a hypothetical future pattern, not
+        a live/active defect. Recorded in PR #398's Local Review Readiness
+        block (outcome `READY_WITH_FOLLOWUPS`) and in the substantive
+        reply posted to thread `PRRT_kwDORzpWpM6bb2je` (which was then
+        resolved) prior to merging PR #398 as
+        `f0cad43c04ad98809685db0fb247db1e9a287bb6`. This disposition is
+        final and complete (not a pending/open item); it is not
+        re-litigated by this closure or its corrections. The underlying
+        code gap remains tracked separately as a non-blocking follow-up
+        and is not claimed to be resolved.
 ---
 
 
@@ -230,11 +239,17 @@ did not recur for this shipment's manifest).
   -- no additional evidence beyond the runtime verification above is
   required for this workspace). Verified merge commit (two parents),
   green CI, P-018 `SATISFIED`, P-015 cascade-close independently
-  re-verified, and P-020 compaction `done` (see below). The single
-  outstanding condition is the accepted round-4 residual-risk finding
-  (`PRRT_kwDORzpWpM6bb2je`), which is non-blocking and does not gate
-  release.
-- **Residual follow-up (non-blocking)**:
+  re-verified, and P-020 compaction `done` (see below). The single named
+  release condition (`conditions:` frontmatter, id
+  `round4-control-flow-insensitive-alias-tracking-residual-risk`) is
+  satisfied: the round-4 finding has an explicit, final operator
+  disposition (accepted as documented residual risk). That disposition,
+  not a code fix, is what satisfies the condition; the underlying
+  alias-tracking hardening opportunity itself remains open as a
+  non-blocking follow-up (below) and does not gate release.
+- **Residual follow-up (non-blocking, underlying code gap not yet
+  hardened -- distinct from, and not contradicting, the satisfied release
+  condition above)**:
   1. `PRRT_kwDORzpWpM6bb2je`: the `_EnvMutationVisitor` structural guard's
      alias tracking is not control-flow-aware (both branches of an
      `if`/`else` are visited into the same mutable scope dict). No
@@ -270,8 +285,11 @@ all resolvable review threads were fixed and resolved across 3 review-fix
 cycles, the 4th finding was accepted as documented residual risk per
 explicit operator disposition, backlog cascade-close is complete and
 independently re-verified, and P-020 compaction is `done`. The single
-outstanding condition (round-4 residual risk) is non-blocking and does not
-gate release. Shipment 153-S remains queued and unclaimed.
+named release condition (round-4 finding disposition) is satisfied by
+that explicit operator disposition, is non-blocking, and does not gate
+release; the underlying alias-tracking hardening opportunity itself
+remains open as a non-blocking follow-up, distinct from the satisfied
+release condition. Shipment 153-S remains queued and unclaimed.
 
 ## Post-Closure Correction Addendum (2026-08-22, Ship post-merge correction authority)
 
