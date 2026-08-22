@@ -226,7 +226,7 @@ class PipelineTopologyStorageRootResolutionTests(unittest.TestCase):
     def test_backlog_only_workspace_succeeds(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / '.backlog')
             with mock.patch(
@@ -244,7 +244,7 @@ class PipelineTopologyStorageRootResolutionTests(unittest.TestCase):
     def test_both_roots_present_returns_structured_block_without_traceback(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / '.backlog')
             self._write_minimal_backlog_root(workspace / '.backlogit')
@@ -267,7 +267,7 @@ class PipelineTopologyStorageRootResolutionTests(unittest.TestCase):
         # override validator) that simply does not exist as a directory here --
         # this exercises the missing-directory-after-a-valid-override path,
         # distinct from a non-literal override value (covered elsewhere).
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / '.backlog')
             with mock.patch.dict(os.environ, {'BACKLOGIT_WORKSPACE_DIR': '.backlogit'}):
@@ -330,7 +330,7 @@ telemetry:
         from autoharness.telemetry.record import load_workspace_telemetry_config
         from autoharness.telemetry.tool_event_jsonl import journal_path_for_config
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._write_config(workspace, self._DISABLED_CONFIG)
             telemetry_path, warnings = _emit_pipeline_topology_telemetry(workspace, self._result())
@@ -358,7 +358,7 @@ telemetry:
         )
         for expected_status, result, audit_path in cases:
             with self.subTest(status=expected_status):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     self._write_config(workspace, self._ENABLED_CONFIG)
                     telemetry_path, warnings = _emit_pipeline_topology_telemetry(workspace, result, audit_path)
