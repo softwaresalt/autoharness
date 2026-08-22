@@ -2539,12 +2539,18 @@ def _resolve_default_branch(workspace_path: Path) -> str:
     row because both variables denote the identical resolved concept for
     different consuming templates -- agent/policy/skill prose here vs. the CI
     workflow trigger filter there). Resolution order: (1) `git symbolic-ref
-    --short refs/remotes/origin/HEAD` (strip the `origin/` prefix); (2) `gh
-    repo view --json defaultBranchRef` when a `gh`-authenticated remote is
-    available. Never guesses `main` (SKILL.md row 156 / PR #302 finding);
-    when both methods fail this derives to the empty string rather than a
-    silent guess, consistent with the "never invent a value" rule (amendment
-    B4) -- an unresolved-but-real value is a documented residual risk, not a
+    --short refs/remotes/origin/HEAD` (strip the `origin/` prefix) -- fast
+    and offline, but requires a LOCAL `refs/remotes/origin/HEAD` ref, which a
+    shallow/CI checkout (e.g. `actions/checkout`) commonly never sets up;
+    (2) `git ls-remote --symref origin HEAD`, which queries the remote
+    DIRECTLY over the repository's already-configured transport/credentials
+    and therefore does not depend on that local ref existing -- this is the
+    rung that makes CI resolution reliable; (3) `gh repo view --json
+    defaultBranchRef` when a `gh`-authenticated remote is available. Never
+    guesses `main` (SKILL.md row 156 / PR #302 finding); when all methods
+    fail this derives to the empty string rather than a silent guess,
+    consistent with the "never invent a value" rule (amendment B4) -- an
+    unresolved-but-real value is a documented residual risk, not a
     fabricated one.
 
     The subprocess environment strips any ambient `GIT_CONFIG_*` overrides
@@ -2572,6 +2578,24 @@ def _resolve_default_branch(workspace_path: Path) -> str:
         pass
     try:
         result = subprocess.run(
+            ["git", "ls-remote", "--symref", "origin", "HEAD"],
+            cwd=workspace_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=sanitized_env,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if line.startswith("ref:"):
+                    # "ref: refs/heads/main\tHEAD"
+                    ref_field = line[len("ref:"):].split("\t", 1)[0].strip()
+                    if ref_field.startswith("refs/heads/"):
+                        return ref_field[len("refs/heads/"):]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        result = subprocess.run(
             ["gh", "repo", "view", "--json", "defaultBranchRef", "-q", ".defaultBranchRef.name"],
             cwd=workspace_path,
             capture_output=True,
@@ -2586,6 +2610,7 @@ def _resolve_default_branch(workspace_path: Path) -> str:
     except (OSError, subprocess.SubprocessError):
         pass
     return ""
+
 
 
 def _resolve_artifact_role(relative_path: str) -> str | None:
