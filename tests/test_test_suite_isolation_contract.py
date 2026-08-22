@@ -212,6 +212,7 @@ class _EnvMutationVisitor(ast.NodeVisitor):
 
     def __init__(self) -> None:
         self._scopes: list[dict[str, str]] = [{}]
+        self._scope_kinds: list[str] = ["module"]
         self.offending_lines: list[int] = []
 
     def _current_alias_map(self) -> dict[str, str]:
@@ -240,60 +241,92 @@ class _EnvMutationVisitor(ast.NodeVisitor):
             self._scopes[-1][bound] = origin
         self.generic_visit(node)
 
-    def _visit_scoped(self, node: ast.AST) -> None:
+    def _visit_def_body_scoped(self, body_stmts: list[ast.stmt], kind: str) -> None:
+        """Visit a function/class definition's own BODY statements in a
+        freshly pushed ``kind`` scope (``"function"`` or ``"class"``).
+
+        Round-3 Copilot review finding on PR #398: a def's BODY must never
+        inherit an immediately-enclosing CLASS scope (Python class bodies
+        are not enclosing scopes for nested function or class bodies,
+        confirmed empirically: ``class A: x=1; class B: y=x`` raises
+        ``NameError`` inside ``B``), while it MUST still inherit any
+        enclosing FUNCTION scope (a real closure: ``def outer(): x=1;
+        class C: y=x`` correctly resolves). Because ``ClassDef`` dispatch
+        already pops-and-restores its OWN class scope around any nested
+        def before recursing (see below), at most one class scope can ever
+        be live on the stack at a time, so checking only the immediate top
+        of ``self._scope_kinds`` is sufficient -- it is never necessary to
+        walk further down the stack to find/remove an ancestor class scope.
+        """
+        popped: tuple[dict[str, str], str] | None = None
+        if self._scope_kinds[-1] == "class":
+            popped = (self._scopes.pop(), self._scope_kinds.pop())
+
         self._scopes.append({})
-        self.generic_visit(node)
+        self._scope_kinds.append(kind)
+        for stmt in body_stmts:
+            self.visit(stmt)
         self._scopes.pop()
+        self._scope_kinds.pop()
+
+        if popped is not None:
+            self._scopes.append(popped[0])
+            self._scope_kinds.append(popped[1])
+
+    def _visit_function_like(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        # Round-3 Copilot review finding on PR #398: decorators, parameter
+        # defaults, and annotations evaluate at *definition time*, in the
+        # CURRENT (enclosing) lexical scope -- which correctly INCLUDES an
+        # immediately-enclosing class's scope, since defining a method
+        # executes as a normal statement within that class body's own
+        # execution. The previous implementation visited decorators
+        # *inside* the function's own freshly pushed scope (via
+        # ``generic_visit`` on the whole node), and -- because
+        # ``ast.FunctionDef._fields`` orders ``body`` before
+        # ``decorator_list`` -- a LATER import inside the function's own
+        # body could silently overwrite an alias the decorator itself
+        # depends on before the decorator was even visited. Only the
+        # function's own runtime BODY is a genuine new scope, and it must
+        # never see an immediately-enclosing CLASS's namespace (though it
+        # DOES see any enclosing FUNCTION scope -- a real closure).
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        self.visit(node.args)
+        if node.returns is not None:
+            self.visit(node.returns)
+        self._visit_def_body_scoped(node.body, "function")
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
-        self._visit_scoped(node)
+        self._visit_function_like(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
-        self._visit_scoped(node)
+        self._visit_function_like(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
-        # Copilot review finding on PR #398: Python class bodies are NOT
-        # enclosing (LEGB) scopes for nested function or class definitions
-        # -- a method never sees a name bound directly in its own
-        # enclosing class's body (only module/enclosing-function/builtin
-        # scopes apply inside a method), even though the method is
-        # lexically written inside that class's body. The previous
-        # `_visit_scoped(node)` treated ClassDef exactly like FunctionDef,
-        # so a class-body-level import (e.g. `import json as p`) was
-        # incorrectly inherited by every method nested in that class,
-        # potentially SHADOWING a genuine module-level alias (e.g. `p` from
-        # `from unittest.mock import patch as p`) that Python itself would
-        # actually resolve from the module scope inside that method body --
-        # a false negative on the very offense this guard exists to catch.
+        # Copilot review finding on PR #398 (round 2): Python class bodies
+        # are NOT enclosing (LEGB) scopes for nested function or class
+        # BODIES -- a method never sees a name bound directly in its own
+        # enclosing class's body, even though the method is lexically
+        # written inside that class's body.
         #
         # Decorators/bases/keywords evaluate in the ENCLOSING scope (never
         # the class's own body scope), so they are visited before the
         # class scope is pushed. Direct class-body statements (e.g. a
-        # class-level `import ... as X` or a class attribute assignment)
-        # DO execute in the class's own namespace, so they see the pushed
-        # class scope. But a nested `FunctionDef`/`AsyncFunctionDef`/
-        # `ClassDef` child is visited with that class scope temporarily
-        # removed, since neither methods nor nested classes ever see their
-        # immediately enclosing class's own namespace.
+        # class-level `import ... as X` or a class attribute assignment),
+        # AND the header (decorators/bases/keywords/defaults/annotations)
+        # of any nested function/class def, DO execute as part of running
+        # the class's own body, so they correctly see the pushed class
+        # scope via `_visit_function_like`/this method visiting headers
+        # before delegating body-only visitation to
+        # `_visit_def_body_scoped`, which pops the class scope for BODY
+        # visitation only (round-3 fix) and restores it afterward.
         for decorator in node.decorator_list:
             self.visit(decorator)
         for base in node.bases:
             self.visit(base)
         for kw in node.keywords:
             self.visit(kw)
-
-        class_scope: dict[str, str] = {}
-        self._scopes.append(class_scope)
-        try:
-            for stmt in node.body:
-                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                    popped = self._scopes.pop()
-                    self.visit(stmt)
-                    self._scopes.append(popped)
-                else:
-                    self.visit(stmt)
-        finally:
-            self._scopes.pop()
+        self._visit_def_body_scoped(node.body, "class")
 
     def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
         resolved_func = _resolve_dotted(node.func, self._current_alias_map())
@@ -501,6 +534,79 @@ class EnvMutationContract(unittest.TestCase):
             "    def test_something(self):\n"
             "        with p.dict(os.environ, {'A': '1'}):  # OFFENSE resolves via module scope\n"
             "            pass\n"
+        )
+        expected = [
+            i + 1 for i, line in enumerate(sample.splitlines()) if "# OFFENSE" in line
+        ]
+        self.assertEqual(len(expected), 1, "sanity check: sample must carry exactly 1 marker")
+        tree = ast.parse(sample)
+        visitor = _EnvMutationVisitor()
+        visitor.visit(tree)
+        self.assertEqual(visitor.offending_lines, expected)
+
+    def test_decorator_alias_resolution_uses_enclosing_scope_not_the_decorated_functions_own_body(
+        self,
+    ) -> None:
+        """Non-vacuity POSITIVE (Copilot review finding on PR #398, round
+        3): a decorator expression evaluates at *definition time*, in the
+        ENCLOSING scope -- never inside the function it decorates. The
+        previous implementation visited ``decorator_list`` via
+        ``generic_visit`` INSIDE the function's own freshly pushed scope,
+        and because ``ast.FunctionDef._fields`` orders ``body`` before
+        ``decorator_list``, a LATER import inside the function's own body
+        could silently overwrite the decorator's alias before the
+        decorator was even visited. Here a module-level ``p`` (bound to
+        ``patch``) decorates a function whose OWN body locally shadows
+        ``p`` with an unrelated ``import json as p`` -- real Python
+        evaluates the decorator using the module scope (the local import
+        inside the body only takes effect when the function is later
+        CALLED, which never affects the decorator itself), so this is a
+        genuine offense that must still be detected."""
+        sample = (
+            "from unittest.mock import patch as p\n"
+            "import os\n"
+            "\n"
+            "\n"
+            "@p.dict(os.environ, {'A': '1'})  # OFFENSE decorator resolves via enclosing (module) scope\n"
+            "def test_something():\n"
+            "    import json as p  # local shadow -- must NOT affect the decorator above\n"
+            "    return p.dumps({})\n"
+        )
+        expected = [
+            i + 1 for i, line in enumerate(sample.splitlines()) if "# OFFENSE" in line
+        ]
+        self.assertEqual(len(expected), 1, "sanity check: sample must carry exactly 1 marker")
+        tree = ast.parse(sample)
+        visitor = _EnvMutationVisitor()
+        visitor.visit(tree)
+        self.assertEqual(visitor.offending_lines, expected)
+
+    def test_method_decorator_sees_its_enclosing_class_scope(self) -> None:
+        """Non-vacuity POSITIVE (Copilot review finding on PR #398, round
+        3 -- the "complementary problem"): a nested method's decorator IS
+        evaluated as part of executing its enclosing class's own body (the
+        class body runs top-to-bottom just like a function body, and a
+        name bound earlier in that same class body is visible to a later
+        statement in it, including a decorator expression on a `def`
+        reached further down). The previous fix popped the class scope for
+        the ENTIRE nested definition (decorators included), which would
+        have hidden this class-level alias from the decorator and produced
+        a false negative. Here the MODULE-level `p` is bound to something
+        harmless (`json`), while a CLASS-level `from unittest.mock import
+        patch as p` shadows it -- only by correctly resolving the
+        decorator using the class scope does the guard detect the genuine
+        offense."""
+        sample = (
+            "import json as p  # module-level 'p' is harmless here\n"
+            "import os\n"
+            "\n"
+            "\n"
+            "class SomeTestCase:\n"
+            "    from unittest.mock import patch as p  # class-body shadow: 'p' now means patch\n"
+            "\n"
+            "    @p.dict(os.environ, {'A': '1'})  # OFFENSE decorator resolves via enclosing class scope\n"
+            "    def test_something(self):\n"
+            "        pass\n"
         )
         expected = [
             i + 1 for i, line in enumerate(sample.splitlines()) if "# OFFENSE" in line
