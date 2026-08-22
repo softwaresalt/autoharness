@@ -252,7 +252,48 @@ class _EnvMutationVisitor(ast.NodeVisitor):
         self._visit_scoped(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
-        self._visit_scoped(node)
+        # Copilot review finding on PR #398: Python class bodies are NOT
+        # enclosing (LEGB) scopes for nested function or class definitions
+        # -- a method never sees a name bound directly in its own
+        # enclosing class's body (only module/enclosing-function/builtin
+        # scopes apply inside a method), even though the method is
+        # lexically written inside that class's body. The previous
+        # `_visit_scoped(node)` treated ClassDef exactly like FunctionDef,
+        # so a class-body-level import (e.g. `import json as p`) was
+        # incorrectly inherited by every method nested in that class,
+        # potentially SHADOWING a genuine module-level alias (e.g. `p` from
+        # `from unittest.mock import patch as p`) that Python itself would
+        # actually resolve from the module scope inside that method body --
+        # a false negative on the very offense this guard exists to catch.
+        #
+        # Decorators/bases/keywords evaluate in the ENCLOSING scope (never
+        # the class's own body scope), so they are visited before the
+        # class scope is pushed. Direct class-body statements (e.g. a
+        # class-level `import ... as X` or a class attribute assignment)
+        # DO execute in the class's own namespace, so they see the pushed
+        # class scope. But a nested `FunctionDef`/`AsyncFunctionDef`/
+        # `ClassDef` child is visited with that class scope temporarily
+        # removed, since neither methods nor nested classes ever see their
+        # immediately enclosing class's own namespace.
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        for base in node.bases:
+            self.visit(base)
+        for kw in node.keywords:
+            self.visit(kw)
+
+        class_scope: dict[str, str] = {}
+        self._scopes.append(class_scope)
+        try:
+            for stmt in node.body:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    popped = self._scopes.pop()
+                    self.visit(stmt)
+                    self._scopes.append(popped)
+                else:
+                    self.visit(stmt)
+        finally:
+            self._scopes.pop()
 
     def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
         resolved_func = _resolve_dotted(node.func, self._current_alias_map())
@@ -425,6 +466,41 @@ class EnvMutationContract(unittest.TestCase):
             "def unrelated_function_shadows_p_locally():\n"
             "    import json as p  # unrelated local shadow of the name 'p'\n"
             "    return p.dumps({})\n"
+        )
+        expected = [
+            i + 1 for i, line in enumerate(sample.splitlines()) if "# OFFENSE" in line
+        ]
+        self.assertEqual(len(expected), 1, "sanity check: sample must carry exactly 1 marker")
+        tree = ast.parse(sample)
+        visitor = _EnvMutationVisitor()
+        visitor.visit(tree)
+        self.assertEqual(visitor.offending_lines, expected)
+
+    def test_class_body_is_not_an_enclosing_scope_for_its_own_methods(self) -> None:
+        """Non-vacuity POSITIVE + correct-scoping (Copilot review finding
+        on PR #398): Python class bodies are NOT enclosing (LEGB) scopes
+        for their own nested methods -- a method never sees a name bound
+        directly in its immediately enclosing class's body, only the
+        module scope (or an enclosing FUNCTION scope, for a method defined
+        inside a function) applies inside it. With a module-level `p`
+        bound to `unittest.mock.patch`, a CLASS-level `import json as p`,
+        and `with p.dict(os.environ, ...)` inside a METHOD of that class,
+        real Python resolves the method's `p` from the MODULE scope (so
+        the forbidden `patch.dict(os.environ, ...)` genuinely executes at
+        runtime) -- the guard must resolve it the same way, not from the
+        class's own (invisible-to-methods) namespace, or it would produce
+        a false negative on a real offense."""
+        sample = (
+            "from unittest.mock import patch as p\n"
+            "import os\n"
+            "\n"
+            "\n"
+            "class SomeTestCase:\n"
+            "    import json as p  # class-body-only shadow of 'p' -- invisible to methods\n"
+            "\n"
+            "    def test_something(self):\n"
+            "        with p.dict(os.environ, {'A': '1'}):  # OFFENSE resolves via module scope\n"
+            "            pass\n"
         )
         expected = [
             i + 1 for i, line in enumerate(sample.splitlines()) if "# OFFENSE" in line
