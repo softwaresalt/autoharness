@@ -2095,23 +2095,104 @@ class BranchOwnershipGitInvocationErrorTests(unittest.TestCase):
         # written before this task) must not raise AttributeError and must
         # never gain the new key -- `_collect_git_invocation_error` looks it
         # up defensively via getattr.
-        class _NoErrorMethodReaders(_FakeReaders):
-            pass
+        #
+        # Copilot review finding on PR #398: the previous version of this
+        # test used `target_shipment_id=None` against `_NullReaders` (which
+        # has no shipments), so `_branch_ownership_check` returned at its
+        # EARLIER "ambient target did not resolve" skip path and never
+        # actually reached `_collect_git_invocation_error` at all -- the
+        # test only proved the skip path itself doesn't raise, not that the
+        # defensive getattr path is exercised. It also defined an unused
+        # `_NoErrorMethodReaders(_FakeReaders)` subclass that inherited
+        # `git_invocation_error` from `_FakeReaders` (so it could never have
+        # simulated the "method absent" case even if it had been used).
+        #
+        # This version defines a reader that implements every
+        # `TopologyReaders` method EXCEPT `git_invocation_error`, and
+        # supplies shipments/branch data so `_branch_ownership_check`
+        # actually reaches its `_collect_git_invocation_error(readers,
+        # "current_branch", "default_branch")` call (a matching target with
+        # `shipment is not None`), and so `_worktree_uniqueness_check`
+        # reaches its own `_collect_git_invocation_error(readers,
+        # "worktree_porcelain")` call too -- proving the defensive `getattr`
+        # guard is genuinely exercised on both checks, not skipped past.
+        class _ReaderWithoutGitInvocationErrorMethod:
+            def list_shipments(self):
+                return (_shipment('114-S', 'queued'),)
 
-        # _FakeReaders itself always defines git_invocation_error now
-        # (returning None by default), so simulate the "doesn't exist at
-        # all" case directly against the module's own null reader.
+            def read_artifact(self, artifact_id: str):
+                return None
+
+            def current_branch(self) -> str:
+                return 'feat/114-s'
+
+            def default_branch(self) -> str:
+                return 'main'
+
+            def worktree_porcelain(self) -> str:
+                return (
+                    'worktree C:/repo\n'
+                    'HEAD 0000000000000000000000000000000000000000\n'
+                    'branch refs/heads/feat/114-s\n\n'
+                )
+
+            def read_worktree_marker(self, worktree_path: str):
+                return None
+
+            def closure_complete(self, shipment_id: str):
+                return None
+
+            # Deliberately NO `git_invocation_error` method defined.
+
+        baseline_readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s',
+        )
+        baseline = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=baseline_readers,
+        )
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_ReaderWithoutGitInvocationErrorMethod(),
+        )
+        baseline_branch_check = _check(baseline, 'branch_ownership')
+        result_branch_check = _check(result, 'branch_ownership')
+        baseline_worktree_check = _check(baseline, 'worktree_topology')
+        result_worktree_check = _check(result, 'worktree_topology')
+
+        # Both checks actually ran (were NOT skipped), proving the reader
+        # lacking the method did reach the `_collect_git_invocation_error`
+        # call site in each -- not merely that `evaluate()` as a whole
+        # didn't raise.
+        self.assertNotEqual(result_branch_check.status, 'skipped')
+        self.assertNotEqual(result_worktree_check.status, 'skipped')
+
+        # No AttributeError propagated (evaluate() completed and returned),
+        # and neither check gained the new key when the reader cannot
+        # report one.
+        self.assertNotIn('git_invocation_error', result_branch_check.details)
+        self.assertNotIn('git_invocation_error', result_worktree_check.details)
+        self.assertEqual(result_branch_check.details, baseline_branch_check.details)
+        self.assertEqual(result_worktree_check.details, baseline_worktree_check.details)
+        self.assertEqual(result.exit_code, baseline.exit_code)
+
+        # Also cover the REAL production `_NullReaders` (which likewise
+        # defines no `git_invocation_error` method): worktree_topology has
+        # no target-shipment skip gate, so it reaches
+        # `_collect_git_invocation_error(readers, "worktree_porcelain")`
+        # even under `_NullReaders`, proving the defensive getattr guard
+        # handles the actual shipped null-reader implementation too, not
+        # just this test's synthetic stand-in.
         from autoharness.gates.topology import _NullReaders
 
-        result = evaluate(
+        null_result = evaluate(
             TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
             readers=_NullReaders(),
         )
-        # `_NullReaders` has no shipments, so branch_ownership is skipped
-        # rather than evaluated -- this proves only that no AttributeError
-        # is raised when the reader lacks the method, exercising the
-        # defensive getattr path used across every check.
-        self.assertEqual(_check(result, 'branch_ownership').status, 'skipped')
+        null_worktree_check = _check(null_result, 'worktree_topology')
+        self.assertNotEqual(null_worktree_check.status, 'skipped')
+        self.assertNotIn('git_invocation_error', null_worktree_check.details)
+        self.assertEqual(_check(null_result, 'branch_ownership').status, 'skipped')
 
 
 class WorktreeGitInvocationErrorTests(unittest.TestCase):

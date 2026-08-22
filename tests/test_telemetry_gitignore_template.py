@@ -38,8 +38,16 @@ def _check_ignore_failure_message(rel: str, returncode: int, stderr: str) -> str
     still fail that assertion exactly as before. This function exists solely
     so the failure is diagnosed correctly instead of always being reported
     as "not gitignored" when git itself actually died.
+
+    A NEGATIVE `returncode` (Copilot review finding on PR #398) is also a
+    genuine invocation failure, not a documented domain result: on POSIX,
+    `subprocess.CompletedProcess.returncode` is negative when the child was
+    terminated by a signal (`returncode == -signal_number`), which `>= 2`
+    alone does not catch. Only exactly `0` (ignored) or exactly `1` (not
+    ignored) are the documented domain results; every other value --
+    positive `>= 2` OR negative -- is an invocation failure.
     """
-    if returncode >= 2:
+    if returncode not in (0, 1):
         return (
             f"git check-ignore invocation failed for {rel} (exit {returncode}): "
             f"{stderr.strip()}"
@@ -212,6 +220,25 @@ class CheckIgnoreDiagnosisMessageTests(unittest.TestCase):
         self.assertEqual(
             message, ".autoharness/metrics/execution_epochs.db is not gitignored",
         )
+
+    def test_negative_returncode_signal_termination_produces_invocation_failure_message(
+        self,
+    ) -> None:
+        """Copilot review finding on PR #398: on POSIX, a child process
+        terminated by a signal reports a NEGATIVE `returncode`
+        (`returncode == -signal_number`), which is a genuine invocation
+        failure just like `>= 2`, but `returncode >= 2` alone never catches
+        it (a negative number always fails that comparison). Only `0`/`1`
+        are documented domain results; every other value, positive or
+        negative, must be diagnosed as an invocation failure."""
+        message = _check_ignore_failure_message(
+            ".autoharness/metrics/execution_epochs.db",
+            -9,
+            "",
+        )
+        self.assertIn("invocation failed", message)
+        self.assertIn("-9", message)
+        self.assertNotIn("is not gitignored", message)
 
 
 if __name__ == "__main__":

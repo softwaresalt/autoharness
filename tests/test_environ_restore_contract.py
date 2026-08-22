@@ -466,6 +466,32 @@ class PatchedEnvironPropertyTests(unittest.TestCase):
         finally:
             os.environ.pop(key, None)
 
+    def test_partial_mutation_failure_still_restores_via_try_finally(self) -> None:
+        """Copilot review finding on PR #398: the mutation phase must be
+        INSIDE the try/finally, not before it -- otherwise a real failure
+        partway through a multi-key ``overrides`` mutation leaves the
+        already-applied earlier keys unrestored and the process polluted.
+        Uses a genuine (not mocked) mutation failure: an embedded NUL byte
+        in an env var value raises ``ValueError`` on every platform. The
+        first key is applied successfully (dict/kwargs preserve insertion
+        order) before the second key's assignment raises; ``finally`` must
+        still restore the first key to its exact prior value and must not
+        leave the second (never-successfully-set) key behind."""
+        key_ok = self._new_key("PARTOK")
+        key_bad = self._new_key("PARTBAD")
+        os.environ[key_ok] = "original_ok"
+        try:
+            with self.assertRaises(ValueError):
+                with patched_environ(
+                    **{key_ok: "temporary_ok", key_bad: "bad\x00value"}
+                ):
+                    self.fail("body must never run: mutation phase must raise first")
+            self.assertEqual(os.environ[key_ok], "original_ok")
+            self.assertNotIn(key_bad, os.environ)
+        finally:
+            os.environ.pop(key_ok, None)
+            os.environ.pop(key_bad, None)
+
 
 if __name__ == "__main__":
     unittest.main()

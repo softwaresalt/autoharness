@@ -190,20 +190,46 @@ def _resolve_dotted(expr: ast.expr, alias_map: dict[str, str]) -> str | None:
     return None
 
 
-class _ImportAliasCollector(ast.NodeVisitor):
-    """Collects every ``import``/``from ... import`` binding anywhere in the
-    module (not just at module top level -- a function-local import is still
-    a valid Python idiom) into ``alias_map``: local bound name -> canonical
-    dotted origin."""
+class _EnvMutationVisitor(ast.NodeVisitor):
+    """Find every ``patch.dict(os.environ, ...)`` (however spelled: bare,
+    ``mock.``-qualified, ``unittest.mock.``-qualified, any import alias,
+    string-literal first argument, positional OR keyword (``in_dict=``)
+    target argument, decorator or context-manager form) and every
+    ``os.environ.clear()`` call.
+
+    Alias resolution is SCOPE-AWARE (Copilot review finding on PR #398):
+    import bindings are tracked on a stack of per-scope dicts (module scope
+    at the bottom, pushed/popped for every function/async-function/class
+    body), and resolution at any given call site merges only the scopes
+    lexically enclosing that call site -- outermost first, so an inner
+    scope's binding correctly SHADOWS an outer one of the same name, exactly
+    as genuine Python name resolution works. A single flat whole-module map
+    (the pre-review design) let an unrelated, later, function-local import
+    silently overwrite an earlier, valid module-level alias binding for the
+    same name, corrupting resolution for call sites that have nothing to do
+    with that later import.
+    """
 
     def __init__(self) -> None:
-        self.alias_map: dict[str, str] = {}
+        self._scopes: list[dict[str, str]] = [{}]
+        self.offending_lines: list[int] = []
+
+    def _current_alias_map(self) -> dict[str, str]:
+        merged: dict[str, str] = {}
+        for scope in self._scopes:
+            merged.update(scope)
+        return merged
+
+    def _is_env_expr(self, node: ast.expr) -> bool:
+        if isinstance(node, ast.Constant) and node.value == "os.environ":
+            return True
+        return _resolve_dotted(node, self._current_alias_map()) == "os.environ"
 
     def visit_Import(self, node: ast.Import) -> None:  # noqa: N802
         for alias in node.names:
             bound = alias.asname or alias.name.split(".")[0]
-            origin = alias.asname and alias.name or alias.name.split(".")[0]
-            self.alias_map[bound] = origin
+            origin = alias.name if alias.asname else alias.name.split(".")[0]
+            self._scopes[-1][bound] = origin
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:  # noqa: N802
@@ -211,49 +237,48 @@ class _ImportAliasCollector(ast.NodeVisitor):
         for alias in node.names:
             bound = alias.asname or alias.name
             origin = f"{module}.{alias.name}" if module else alias.name
-            self.alias_map[bound] = origin
+            self._scopes[-1][bound] = origin
         self.generic_visit(node)
 
+    def _visit_scoped(self, node: ast.AST) -> None:
+        self._scopes.append({})
+        self.generic_visit(node)
+        self._scopes.pop()
 
-def _collect_alias_map(tree: ast.AST) -> dict[str, str]:
-    collector = _ImportAliasCollector()
-    collector.visit(tree)
-    return collector.alias_map
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+        self._visit_scoped(node)
 
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+        self._visit_scoped(node)
 
-def _is_os_environ_expr(node: ast.expr, alias_map: dict[str, str]) -> bool:
-    """True if ``node`` is ``os.environ`` (attribute access, through any
-    import alias of ``os``) or the string literal ``'os.environ'``."""
-    if isinstance(node, ast.Constant) and node.value == "os.environ":
-        return True
-    return _resolve_dotted(node, alias_map) == "os.environ"
-
-
-class _EnvMutationVisitor(ast.NodeVisitor):
-    """Find every ``patch.dict(os.environ, ...)`` (however spelled: bare,
-    ``mock.``-qualified, ``unittest.mock.``-qualified, any import alias,
-    string-literal first argument, decorator or context-manager form) and
-    every ``os.environ.clear()`` call."""
-
-    def __init__(self, alias_map: dict[str, str]) -> None:
-        self.alias_map = alias_map
-        self.offending_lines: list[int] = []
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
+        self._visit_scoped(node)
 
     def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
-        resolved_func = _resolve_dotted(node.func, self.alias_map)
+        resolved_func = _resolve_dotted(node.func, self._current_alias_map())
         if resolved_func is not None and resolved_func.endswith("patch.dict"):
-            if node.args and _is_os_environ_expr(node.args[0], self.alias_map):
+            # `patch.dict`'s target is its first POSITIONAL argument, but it
+            # may also be passed by its keyword name `in_dict` (Copilot
+            # review finding on PR #398: `patch.dict(in_dict=os.environ,
+            # values={...})` bypassed the guard when only `node.args[0]` was
+            # checked).
+            target: ast.expr | None = node.args[0] if node.args else None
+            if target is None:
+                for kw in node.keywords:
+                    if kw.arg == "in_dict":
+                        target = kw.value
+                        break
+            if target is not None and self._is_env_expr(target):
                 self.offending_lines.append(node.lineno)
         elif isinstance(node.func, ast.Attribute) and node.func.attr == "clear":
-            if _is_os_environ_expr(node.func.value, self.alias_map):
+            if self._is_env_expr(node.func.value):
                 self.offending_lines.append(node.lineno)
         self.generic_visit(node)
 
 
 def _find_env_mutation_offenses(path: Path) -> list[int]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    alias_map = _collect_alias_map(tree)
-    visitor = _EnvMutationVisitor(alias_map)
+    visitor = _EnvMutationVisitor()
     visitor.visit(tree)
     return visitor.offending_lines
 
@@ -350,10 +375,65 @@ class EnvMutationContract(unittest.TestCase):
         )
         self.assertEqual(len(expected), 7, "sanity check: sample must carry exactly 7 markers")
         tree = ast.parse(sample)
-        alias_map = _collect_alias_map(tree)
-        visitor = _EnvMutationVisitor(alias_map)
+        visitor = _EnvMutationVisitor()
         visitor.visit(tree)
         self.assertEqual(sorted(visitor.offending_lines), expected)
+
+    def test_guard_detects_keyword_argument_target_form(self) -> None:
+        """Non-vacuity POSITIVE (Copilot review finding on PR #398):
+        ``patch.dict`` accepts its target as the keyword argument
+        ``in_dict``, not only positionally. A call spelled
+        ``patch.dict(in_dict=os.environ, values={...})`` must still be
+        detected -- checking only ``node.args[0]`` missed this shape."""
+        sample = (
+            "from unittest.mock import patch\n"
+            "import os\n"
+            "\n"
+            "\n"
+            "def keyword_target_form():\n"
+            "    with patch.dict(in_dict=os.environ, values={'A': '1'}):  # OFFENSE keyword in_dict=\n"
+            "        pass\n"
+        )
+        expected = [
+            i + 1 for i, line in enumerate(sample.splitlines()) if "# OFFENSE" in line
+        ]
+        tree = ast.parse(sample)
+        visitor = _EnvMutationVisitor()
+        visitor.visit(tree)
+        self.assertEqual(visitor.offending_lines, expected)
+
+    def test_alias_resolution_is_scope_aware_not_a_flat_whole_module_map(self) -> None:
+        """Non-vacuity POSITIVE + shadowing (Copilot review finding on PR
+        #398): a VALID module-level offense using ``patch as p`` must still
+        be detected even when some UNRELATED, LATER function defines its own
+        local ``import other_module as p`` that shadows the name ``p``
+        within that function's own scope only. A flat whole-module alias
+        map would let the later local import overwrite the earlier
+        module-level binding and cause the module-level offense to be
+        missed (a false negative) -- scope-aware resolution must not let a
+        sibling function's local import affect resolution anywhere outside
+        that function's own body."""
+        sample = (
+            "from unittest.mock import patch as p\n"
+            "import os\n"
+            "\n"
+            "\n"
+            "with p.dict(os.environ, {'A': '1'}):  # OFFENSE module-level, alias p\n"
+            "    pass\n"
+            "\n"
+            "\n"
+            "def unrelated_function_shadows_p_locally():\n"
+            "    import json as p  # unrelated local shadow of the name 'p'\n"
+            "    return p.dumps({})\n"
+        )
+        expected = [
+            i + 1 for i, line in enumerate(sample.splitlines()) if "# OFFENSE" in line
+        ]
+        self.assertEqual(len(expected), 1, "sanity check: sample must carry exactly 1 marker")
+        tree = ast.parse(sample)
+        visitor = _EnvMutationVisitor()
+        visitor.visit(tree)
+        self.assertEqual(visitor.offending_lines, expected)
 
     def test_guard_ignores_authorized_forms(self) -> None:
         """Non-vacuity NEGATIVE (R5R, MANDATORY -- without it an empty
@@ -385,8 +465,7 @@ class EnvMutationContract(unittest.TestCase):
             "    del os.environ['X']\n"
         )
         tree = ast.parse(sample)
-        alias_map = _collect_alias_map(tree)
-        visitor = _EnvMutationVisitor(alias_map)
+        visitor = _EnvMutationVisitor()
         visitor.visit(tree)
         self.assertEqual(visitor.offending_lines, [])
 

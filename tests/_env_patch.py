@@ -81,19 +81,29 @@ def patched_environ(**overrides: "str | None") -> Iterator[None]:
             )
         prior[key] = current
 
-    # Mutation phase: only the named keys, no clear().
-    for key, value in overrides.items():
-        if value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = value
-
     try:
+        # Mutation phase: only the named keys, no clear(). This is INSIDE
+        # the try/finally (Copilot review finding on PR #398) so that if
+        # any individual assignment in a multi-key ``overrides`` raises
+        # partway through (e.g. an unexpected OS-level rejection of one
+        # key's name/value), the keys already touched by earlier
+        # iterations are still restored by the ``finally`` below -- the
+        # process never remains polluted by a partially applied mutation.
+        for key, value in overrides.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
         yield
     finally:
         # Restoration by targeted diff: keys absent before are deleted,
         # keys present before are re-set to their prior value. No
-        # os.environ.clear() anywhere in this module.
+        # os.environ.clear() anywhere in this module. Only keys recorded in
+        # ``prior`` (i.e. captured before ANY mutation) are ever touched
+        # here, so a mutation that failed partway through still restores
+        # correctly: every key up to and including the one that raised was
+        # already snapshotted into ``prior`` before the mutation loop ran.
         for key, previous_value in prior.items():
             if previous_value is None:
                 os.environ.pop(key, None)
