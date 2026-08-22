@@ -196,7 +196,26 @@ class TopologyResult:
         }
 
 
-def _run_git(argv: list[str], cwd: Path) -> str:
+def _run_git(
+    argv: list[str],
+    cwd: Path,
+    expected_absence_codes: frozenset[int] = frozenset(),
+    error_sink: dict[str, str] | None = None,
+    error_key: str = "",
+) -> str:
+    """Run a git subprocess, returning stdout on success and ``""`` on any
+    nonzero exit (return contract UNCHANGED -- A3R).
+
+    ``expected_absence_codes`` names exit codes that are the DESIGNED way a
+    caller asks "does X exist?" (e.g. ``git symbolic-ref --quiet`` exiting 1
+    when the ref is absent) -- not a git infrastructure failure. When the
+    caller supplies ``error_sink``/``error_key``, a nonzero exit NOT in
+    ``expected_absence_codes`` records the captured stderr (or, if stderr is
+    empty, the exit code itself -- never an empty-string diagnostic) under
+    ``error_sink[error_key]``. An expected-absence exit, or a zero exit,
+    never populates the sink -- so a caller who never inspects the sink
+    observes byte-identical behavior to before this diagnostic existed.
+    """
     completed = subprocess.run(
         argv,
         cwd=cwd,
@@ -208,6 +227,15 @@ def _run_git(argv: list[str], cwd: Path) -> str:
         check=False,
     )
     if completed.returncode != 0:
+        if (
+            completed.returncode not in expected_absence_codes
+            and error_sink is not None
+            and error_key
+        ):
+            stderr_text = (completed.stderr or "").strip()
+            error_sink[error_key] = (
+                stderr_text if stderr_text else f"git exited with status {completed.returncode}"
+            )
         return ""
     return completed.stdout.strip()
 
@@ -365,6 +393,13 @@ class FilesystemTopologyReaders:
     def __init__(self, workspace: Path | str = ".") -> None:
         self.workspace = Path(workspace)
         self._backlog_dir: Path | None = None
+        # Per-call-site captured git INVOCATION failures (A3R), keyed by the
+        # semantic call-site name ("current_branch" / "default_branch" /
+        # "worktree_porcelain"). Populated only on an unexpected nonzero git
+        # exit; absent otherwise. Consulted via ``git_invocation_error`` by
+        # checks that want to surface it in ``CheckResult.details`` without
+        # widening ``_run_git``'s own return contract.
+        self._git_invocation_errors: dict[str, str] = {}
 
     @property
     def backlog_dir(self) -> Path:
@@ -568,19 +603,46 @@ class FilesystemTopologyReaders:
         return self._artifact_from_paths(artifact_id)
 
     def current_branch(self) -> str:
-        return _run_git(["git", "--no-pager", "branch", "--show-current"], self.workspace)
+        self._git_invocation_errors.pop("current_branch", None)
+        return _run_git(
+            ["git", "--no-pager", "branch", "--show-current"],
+            self.workspace,
+            error_sink=self._git_invocation_errors,
+            error_key="current_branch",
+        )
 
     def default_branch(self) -> str:
+        self._git_invocation_errors.pop("default_branch", None)
         remote_head = _run_git(
             ["git", "--no-pager", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
             self.workspace,
+            # `git symbolic-ref --quiet` exits 1 as the DESIGNED way to ask
+            # "does refs/remotes/origin/HEAD exist?" -- that is expected
+            # absence, not a git invocation failure (A3R).
+            expected_absence_codes=frozenset({1}),
+            error_sink=self._git_invocation_errors,
+            error_key="default_branch",
         )
         if remote_head and "/" in remote_head:
             return remote_head.rsplit("/", 1)[-1]
         return "main"
 
+    def git_invocation_error(self, name: str) -> str | None:
+        """Return the captured stderr (or exit-code fallback message) for an
+        unexpected nonzero git exit at the named call site
+        (``"current_branch"`` / ``"default_branch"`` / ``"worktree_porcelain"``),
+        or ``None`` if the most recent call at that site succeeded or returned
+        a declared expected-absence code."""
+        return self._git_invocation_errors.get(name)
+
     def worktree_porcelain(self) -> str:
-        return _run_git(["git", "--no-pager", "worktree", "list", "--porcelain"], self.workspace)
+        self._git_invocation_errors.pop("worktree_porcelain", None)
+        return _run_git(
+            ["git", "--no-pager", "worktree", "list", "--porcelain"],
+            self.workspace,
+            error_sink=self._git_invocation_errors,
+            error_key="worktree_porcelain",
+        )
 
     def read_worktree_marker(self, worktree_path: str) -> str | None:
         marker_path = Path(worktree_path) / '.autoharness' / 'stage-worktree-marker.yaml'
@@ -989,37 +1051,63 @@ def _is_stage_spike_research_worktree(entry: WorktreeEntry, readers: TopologyRea
     return expires_at is not None and expires_at > datetime.now(timezone.utc)
 
 
+def _collect_git_invocation_error(readers: TopologyReaders, *names: str) -> str | None:
+    """Best-effort lookup of a captured git INVOCATION failure (A3R) for any
+    of the named call sites. Uses ``getattr`` defensively so readers that do
+    not expose ``git_invocation_error`` (e.g. fakes/nulls used throughout the
+    test suite) are unaffected -- their checks simply never gain the new
+    ``details`` key, preserving byte-identical success-path output."""
+    getter = getattr(readers, "git_invocation_error", None)
+    if not callable(getter):
+        return None
+    for name in names:
+        error = getter(name)
+        if error:
+            return error
+    return None
+
+
 def _worktree_uniqueness_check(readers: TopologyReaders) -> CheckResult:
     entries = parse_worktree_porcelain(readers.worktree_porcelain())
     spike_research = [entry for entry in entries if _is_stage_spike_research_worktree(entry, readers)]
     implementation = [entry for entry in entries if entry not in spike_research]
+    git_invocation_error = _collect_git_invocation_error(readers, "worktree_porcelain")
     if len(implementation) == 1:
+        details = {
+            "implementation_worktrees": [entry.path for entry in implementation],
+            "spike_research_worktrees": [entry.path for entry in spike_research],
+        }
+        if git_invocation_error:
+            details["git_invocation_error"] = git_invocation_error
         return CheckResult(
             name="worktree_topology",
             status="passed",
             token="WORKTREE_TOPOLOGY_OK",
-            details={
-                "implementation_worktrees": [entry.path for entry in implementation],
-                "spike_research_worktrees": [entry.path for entry in spike_research],
-            },
+            details=details,
         )
     if len(implementation) == 0:
+        details = {"spike_research_worktrees": [entry.path for entry in spike_research]}
+        if git_invocation_error:
+            details["git_invocation_error"] = git_invocation_error
         return CheckResult(
             name="worktree_topology",
             status="blocked",
             token="NO_IMPLEMENTATION_WORKTREE",
             message="NO_IMPLEMENTATION_WORKTREE: topology gate requires exactly one implementation worktree",
-            details={"spike_research_worktrees": [entry.path for entry in spike_research]},
+            details=details,
         )
+    details = {
+        "implementation_worktrees": [entry.path for entry in implementation],
+        "spike_research_worktrees": [entry.path for entry in spike_research],
+    }
+    if git_invocation_error:
+        details["git_invocation_error"] = git_invocation_error
     return CheckResult(
         name="worktree_topology",
         status="blocked",
         token="MULTIPLE_IMPLEMENTATION_WORKTREES",
         message="MULTIPLE_IMPLEMENTATION_WORKTREES: topology gate allows exactly one implementation worktree",
-        details={
-            "implementation_worktrees": [entry.path for entry in implementation],
-            "spike_research_worktrees": [entry.path for entry in spike_research],
-        },
+        details=details,
     )
 
 
@@ -1235,8 +1323,23 @@ def _branch_ownership_check(
     canonical = tuple(f"feat/{alias}" for alias in _branch_aliases(shipment)) + tuple(
         f"chore/{alias}" for alias in _branch_aliases(shipment)
     )
+    # A3R: an unexpected git INVOCATION failure at either call site above is
+    # surfaced additively -- never in place of, or instead of, the existing
+    # keys below, and never present at all when both calls succeeded (or the
+    # `symbolic-ref` call returned its declared expected-absence code 1).
+    git_invocation_error = _collect_git_invocation_error(readers, "current_branch", "default_branch")
 
     if not current_branch:
+        details = {
+            "current_branch": current_branch,
+            "expected_branches": list(canonical),
+            "detached_head": True,
+            "resolved_via_ci_env_fallback": ci_fallback_used,
+            "default_branch": default_branch,
+            "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+        }
+        if git_invocation_error:
+            details["git_invocation_error"] = git_invocation_error
         return CheckResult(
             name="branch_ownership",
             status="blocked",
@@ -1244,18 +1347,20 @@ def _branch_ownership_check(
             message=(
                 f"BRANCH_MISMATCH: detached HEAD does not match target {target}"
             ),
-            details={
-                "current_branch": current_branch,
-                "expected_branches": list(canonical),
-                "detached_head": True,
-                "resolved_via_ci_env_fallback": ci_fallback_used,
-                "default_branch": default_branch,
-                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
-            },
+            details=details,
         )
 
     ci_pull_request_active = mode == "ci" and _ci_pull_request_event_active()
     if current_branch == default_branch and not ci_pull_request_active:
+        details = {
+            "current_branch": current_branch,
+            "expected_branches": list(canonical),
+            "resolved_via_ci_env_fallback": ci_fallback_used,
+            "default_branch": default_branch,
+            "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+        }
+        if git_invocation_error:
+            details["git_invocation_error"] = git_invocation_error
         return CheckResult(
             name="branch_ownership",
             status="passed",
@@ -1263,16 +1368,19 @@ def _branch_ownership_check(
             message=(
                 f"BRANCH_CREATE_ELIGIBLE: current branch {current_branch} is the default branch for target {target}"
             ),
-            details={
-                "current_branch": current_branch,
-                "expected_branches": list(canonical),
-                "resolved_via_ci_env_fallback": ci_fallback_used,
-                "default_branch": default_branch,
-                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
-            },
+            details=details,
         )
 
     if current_branch.startswith(_POST_MERGE_BRANCH_PREFIX):
+        details = {
+            "current_branch": current_branch,
+            "expected_branches": list(canonical),
+            "resolved_via_ci_env_fallback": ci_fallback_used,
+            "default_branch": default_branch,
+            "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+        }
+        if git_invocation_error:
+            details["git_invocation_error"] = git_invocation_error
         return CheckResult(
             name="branch_ownership",
             status="passed",
@@ -1282,30 +1390,36 @@ def _branch_ownership_check(
                 f"post-merge closure branch; ownership is not matched by shipment-branch alias "
                 f"(post-merge branches are feature-scoped, not shipment-scoped) for target {target}"
             ),
-            details={
-                "current_branch": current_branch,
-                "expected_branches": list(canonical),
-                "resolved_via_ci_env_fallback": ci_fallback_used,
-                "default_branch": default_branch,
-                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
-            },
+            details=details,
         )
 
     if _resolve_shipment_from_branch(current_branch, (shipment,)) == target:
+        details = {
+            "current_branch": current_branch,
+            "expected_branches": list(canonical),
+            "resolved_via_ci_env_fallback": ci_fallback_used,
+            "default_branch": default_branch,
+            "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+        }
+        if git_invocation_error:
+            details["git_invocation_error"] = git_invocation_error
         return CheckResult(
             name="branch_ownership",
             status="passed",
             token="BRANCH_OK",
             message=f"BRANCH_OK: current branch {current_branch} matches target {target}",
-            details={
-                "current_branch": current_branch,
-                "expected_branches": list(canonical),
-                "resolved_via_ci_env_fallback": ci_fallback_used,
-                "default_branch": default_branch,
-                "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
-            },
+            details=details,
         )
 
+    details = {
+        "current_branch": current_branch,
+        "expected_branches": list(canonical),
+        "resolved_via_ci_env_fallback": ci_fallback_used,
+        "default_branch": default_branch,
+        "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
+    }
+    if git_invocation_error:
+        details["git_invocation_error"] = git_invocation_error
     return CheckResult(
         name="branch_ownership",
         status="blocked",
@@ -1313,13 +1427,7 @@ def _branch_ownership_check(
         message=(
             f"BRANCH_MISMATCH: current branch {current_branch} does not match target {target}"
         ),
-        details={
-            "current_branch": current_branch,
-            "expected_branches": list(canonical),
-            "resolved_via_ci_env_fallback": ci_fallback_used,
-            "default_branch": default_branch,
-            "default_branch_resolved_via_ci_env_fallback": default_branch_ci_fallback_used,
-        },
+        details=details,
     )
 
 def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str | None:

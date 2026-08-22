@@ -10,6 +10,7 @@ from pathlib import Path
 
 from jsonschema import Draft7Validator
 
+from _git_env import consistent_git_env
 from autoharness.telemetry.epoch import (
     AbsoluteOutcome,
     EconomicPayload,
@@ -24,6 +25,34 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _GITIGNORE = _REPO_ROOT / ".gitignore"
 _CONFIG_TEMPLATE = _REPO_ROOT / "templates" / "harness-config.yaml.tmpl"
 _SCHEMA_PATH = _REPO_ROOT / "schemas" / "validation-gates" / "1.0.0.schema.json"
+
+
+def _check_ignore_failure_message(rel: str, returncode: int, stderr: str) -> str:
+    """Diagnose a nonzero `git check-ignore` exit (144.006-T Part 2 / A6-AIG-2).
+
+    `git check-ignore` uses 0 = ignored, 1 = not ignored, >=2 = a genuine git
+    INVOCATION failure (fatal error), per its documented exit-status
+    contract. Only the MESSAGE branches on this distinction -- the assertion
+    this message feeds (`assertEqual(result.returncode, 0, ...)`) is
+    completely unchanged and unweakened; a `returncode` of 1 or of >=2 both
+    still fail that assertion exactly as before. This function exists solely
+    so the failure is diagnosed correctly instead of always being reported
+    as "not gitignored" when git itself actually died.
+
+    A NEGATIVE `returncode` (Copilot review finding on PR #398) is also a
+    genuine invocation failure, not a documented domain result: on POSIX,
+    `subprocess.CompletedProcess.returncode` is negative when the child was
+    terminated by a signal (`returncode == -signal_number`), which `>= 2`
+    alone does not catch. Only exactly `0` (ignored) or exactly `1` (not
+    ignored) are the documented domain results; every other value --
+    positive `>= 2` OR negative -- is an invocation failure.
+    """
+    if returncode not in (0, 1):
+        return (
+            f"git check-ignore invocation failed for {rel} (exit {returncode}): "
+            f"{stderr.strip()}"
+        )
+    return f"{rel} is not gitignored"
 
 
 class MetricsGitignoreTests(unittest.TestCase):
@@ -44,8 +73,17 @@ class MetricsGitignoreTests(unittest.TestCase):
                 cwd=_REPO_ROOT,
                 capture_output=True,
                 text=True,
+                env=consistent_git_env(),
             )
-            self.assertEqual(result.returncode, 0, f"{rel} is not gitignored")
+            # AIG-2 (BINDING, single authorized assertion-argument
+            # divergence in the whole feature): only the MESSAGE argument
+            # is computed via `_check_ignore_failure_message`; the
+            # non-message arguments (`result.returncode`, `0`) are
+            # byte-identical to the pre-144.006-T assertion.
+            self.assertEqual(
+                result.returncode, 0,
+                _check_ignore_failure_message(rel, result.returncode, result.stderr),
+            )
 
 
 class MetricsEmissionHardGateTests(unittest.TestCase):
@@ -63,7 +101,12 @@ class MetricsEmissionHardGateTests(unittest.TestCase):
     def _git(self, repo: Path, *args: str) -> subprocess.CompletedProcess:
         try:
             return subprocess.run(
-                ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+                ["git", *args],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+                env=consistent_git_env(),
             )
         except subprocess.CalledProcessError as exc:
             self.fail(
@@ -107,6 +150,7 @@ class MetricsEmissionHardGateTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=True,
+                env=consistent_git_env(),
             )
             offending = [
                 line
@@ -150,6 +194,51 @@ class TelemetryTemplateActivationTests(unittest.TestCase):
             }
         }
         self.assertEqual(list(validator.iter_errors(activated)), [])
+
+
+class CheckIgnoreDiagnosisMessageTests(unittest.TestCase):
+    """144.006-T Part 2: prove the new invocation-failure message appears
+    only for a genuine git invocation failure (returncode >= 2), and the
+    ORIGINAL domain message is preserved for a normal not-ignored result
+    (returncode == 1)."""
+
+    def test_returncode_128_produces_invocation_failure_message(self) -> None:
+        message = _check_ignore_failure_message(
+            ".autoharness/metrics/execution_epochs.db",
+            128,
+            "fatal: bad config line 3 in file .git/config\n",
+        )
+        self.assertIn("invocation failed", message)
+        self.assertIn("128", message)
+        self.assertIn("fatal: bad config line 3 in file .git/config", message)
+        self.assertNotIn("is not gitignored", message)
+
+    def test_returncode_1_preserves_original_message(self) -> None:
+        message = _check_ignore_failure_message(
+            ".autoharness/metrics/execution_epochs.db", 1, "",
+        )
+        self.assertEqual(
+            message, ".autoharness/metrics/execution_epochs.db is not gitignored",
+        )
+
+    def test_negative_returncode_signal_termination_produces_invocation_failure_message(
+        self,
+    ) -> None:
+        """Copilot review finding on PR #398: on POSIX, a child process
+        terminated by a signal reports a NEGATIVE `returncode`
+        (`returncode == -signal_number`), which is a genuine invocation
+        failure just like `>= 2`, but `returncode >= 2` alone never catches
+        it (a negative number always fails that comparison). Only `0`/`1`
+        are documented domain results; every other value, positive or
+        negative, must be diagnosed as an invocation failure."""
+        message = _check_ignore_failure_message(
+            ".autoharness/metrics/execution_epochs.db",
+            -9,
+            "",
+        )
+        self.assertIn("invocation failed", message)
+        self.assertIn("-9", message)
+        self.assertNotIn("is not gitignored", message)
 
 
 if __name__ == "__main__":
