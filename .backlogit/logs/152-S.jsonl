@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-22T01:24:32.1086734-07:00","actor":"backlogit","item_id":"152-S","event_type":"shipment_created","delta":{"items":["144-F","144.001-T","144.002-T","144.003-T","144.004-T","144.005-T","144.006-T","144.007-T"],"title":"Mechanism A — contain ambient GIT_CONFIG_* environment destruction and restore the canonical Windows full-suite gate (9DD9E323 / E8158860 residual)"}}
+{"timestamp":"2026-08-22T13:09:39.7643299-07:00","actor":"backlogit","item_id":"152-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
