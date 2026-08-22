@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-21T15:56:18.58892-07:00","actor":"backlogit","item_id":"140-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-21T18:51:44.7169832-07:00","actor":"backlogit","item_id":"140-F","event_type":"status_changed","delta":{"_shipment_operation":"148-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-21T18:52:09.6362713-07:00","actor":"backlogit","item_id":"140-F","event_type":"commit_tracked","delta":{"author":"softwaresalt","commit_sha":"291dafd8cd5c1ff937c6499476161ae450fb2f0a","message":"docs(compound): docline conformance — backfill source/doc_type and align the authoring contract (148-S)"}}
+{"timestamp":"2026-08-21T18:53:15.6009911-07:00","actor":"backlogit","item_id":"140-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/140-F.md"}}

@@ -16,8 +16,11 @@ tags:
   - "143-S"
   - "134-F"
   - "cascade-close"
+  - "148-S"
+  - "140-F"
 citations:
   - "143-S/134-F post-merge closure session, 2026-08-20"
+  - "148-S/140-F post-merge closure session, 2026-08-21 (recurrence via a plain `references` list entry, not `custom_fields.source_deliberation_id`)"
   - "templates/skills/shipment-reconcile/SKILL.md.tmpl:589-622 (Cascade Close Sub-Procedure steps 1-4)"
   - "src/autoharness/gates/shipment_closure.py: classify_shipment_close_path"
   - "docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md (related but distinct: that entry covers pre-archived manifest members, a documented/tolerated case; this entry covers a genuinely out-of-manifest artifact)"
@@ -138,3 +141,49 @@ archived backlog state (13 tasks + `134-F` + `143-S`, all with confirmed
 correct provenance and preserved `parent_id`) is exactly the manifest-scoped
 outcome required by P-015, independently re-verified after the `019-DL`
 revert. `019-DL` itself is confirmed byte-identical to its pre-cascade state.
+
+## Recurrence: 148-S / 140-F / 025-DL
+
+The identical signature recurred during 148-S's post-merge closure
+(2026-08-21). Manifest: `140-F`, `140.001-T`, `140.002-T`.
+`classify_shipment_close_path` again correctly returned `CASCADE` (`140-F` is
+a root feature whose only `parent_id`-linked children, `140.001-T` and
+`140.002-T`, are both manifest members).
+
+`backlogit shipment ship 148-S --sha 291dafd8...` returned:
+
+```json
+{
+  "shipment_id": "148-S",
+  "shipment_status": "shipped",
+  "archived_ids": ["140.001-T", "140.002-T", "025-DL", "140-F", "148-S"],
+  "returned_ids": [],
+  "commit_sha": "291dafd8cd5c1ff937c6499476161ae450fb2f0a"
+}
+```
+
+`025-DL` — the deliberation `140-F` originated from — was again swept in via a
+plain `references` list entry (`.backlogit/queue/025-DL.md`), never a
+`parent_id` edge; `025-DL` itself carries no `parent_id` pointing at `140-F`.
+Same root cause, different feature/deliberation pair.
+
+Applied the exact documented remediation: reverted only `025-DL` (`git
+restore --staged` + `git checkout` on `.backlogit/queue/025-DL.md`, removed
+the newly-created `.backlogit/archive/025-DL.md` and
+`.backlogit/logs/025-DL.jsonl`, unstaged the resulting `AD` archive entry),
+confirmed `git diff` empty and `backlogit get 025-DL` reports `status: queued`
+unchanged. Independently re-verified the remaining post-conditions: exact
+`archived_ids` match ({`140.001-T`, `140.002-T`, `140-F`, `148-S`}) after
+excluding `025-DL`; `returned_ids: []`; `parent_id: 140-F` preserved on both
+tasks against the Step 0(b) pre-close snapshot; shipment `archived_status:
+shipped`. No corrective action required for 148-S's own closure beyond the
+`025-DL` revert.
+
+This second occurrence reinforces that the gap is the engine's own
+reference-link cascade behavior (not specific to `custom_fields.
+source_deliberation_id` — this time the link was a plain `references` list
+entry), strengthening the case for the Stage-owned follow-up option 2 above
+(a bounded, documented tolerance in the Cascade Close Sub-Procedure's step 3
+exact-match check) over option 1 (extending the classifier's coverage
+check), since the reference shape varies across features and is not limited
+to one specific field name.
