@@ -26,14 +26,10 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _TESTS_DIR = _REPO_ROOT / "tests"
 
-# Amendment A4: shrinks as 141.002-T / 141.003-T / 141.004-T land. Each task
-# removes exactly the module(s) it fixes in the SAME change that fixes their
-# call sites, so the guard is green at the end of every task and no commit
-# carries a deliberately-red test. Current state (post-141.003-T):
-# test_gate_pipeline_topology_cli.py, test_gate_dag_readiness_cli.py, and
-# test_backlog_root.py are fixed and removed; only test_gates_topology.py
-# remains (141.004-T). Final state (post-141.004-T): EMPTY.
-ALLOWLIST: frozenset[str] = frozenset({"test_gates_topology.py"})
+# Amendment A4: shrinks as 141.002-T / 141.003-T / 141.004-T land. This task
+# (141.004-T) empties it -- no allowlist entry survives as a permanent
+# escape hatch.
+ALLOWLIST: frozenset[str] = frozenset()
 
 
 class _CwdAnchoredTempDirVisitor(ast.NodeVisitor):
@@ -107,9 +103,10 @@ class TestSuiteIsolationContract(unittest.TestCase):
 
     def test_allowlist_is_exactly_expected(self) -> None:
         """Pins the allowlist so it cannot silently grow or survive as a
-        permanent escape hatch (amendment A4). Update this alongside
-        ALLOWLIST as each task shrinks it."""
-        self.assertEqual(ALLOWLIST, frozenset({"test_gates_topology.py"}))
+        permanent escape hatch (amendment A4). Final state (post-141.004-T):
+        EMPTY -- no module may anchor a temp workspace inside the live
+        working tree via dir=Path.cwd()."""
+        self.assertEqual(ALLOWLIST, frozenset())
 
     def test_guard_detects_a_known_offending_shape(self) -> None:
         """Non-vacuity: the visitor must actually be able to detect the

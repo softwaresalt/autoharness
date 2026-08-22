@@ -93,7 +93,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_missing_backlog_dir_blocks_in_agent_and_ci_modes(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             reader = FilesystemTopologyReaders(workspace)
             cases = (
@@ -112,7 +112,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_empty_queue_and_archive_dirs_pass_as_zero_shipments(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as tmp:
             workspace = Path(tmp)
             (workspace / '.backlogit' / 'queue').mkdir(parents=True)
             (workspace / '.backlogit' / 'archive').mkdir(parents=True)
@@ -130,7 +130,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
 
         for missing_folder in ('queue', 'archive'):
             with self.subTest(missing_folder=missing_folder):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     backlog_dir = workspace / '.backlogit'
                     backlog_dir.mkdir(parents=True)
@@ -147,7 +147,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_closure_complete_accepts_done_or_degraded_only(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             closure_dir = workspace / 'docs' / 'closure'
             closure_dir.mkdir(parents=True)
@@ -223,7 +223,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
                 True,
             ),
         )
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             closure_dir = workspace / 'docs' / 'closure'
             closure_dir.mkdir(parents=True)
@@ -237,7 +237,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_closure_complete_malformed_frontmatter_raises_backlog_unavailable(self) -> None:
         from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             closure_dir = workspace / 'docs' / 'closure'
             closure_dir.mkdir(parents=True)
@@ -259,7 +259,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, content in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -287,7 +287,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, (filename, content) in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -308,7 +308,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_non_shipment_shaped_record_without_artifact_type_is_skipped(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -323,7 +323,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_malformed_task_frontmatter_blocks_via_detect_before_consistency(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -353,7 +353,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, content in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -381,7 +381,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, content in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -404,7 +404,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
 
         for status in ('queued', 'active', 'shipped', 'abandoned'):
             with self.subTest(status=status):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -421,7 +421,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_archived_record_present_tracked_independently_of_archived_status_content(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             archive = workspace / '.backlogit' / 'archive'
@@ -458,7 +458,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, content in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -474,7 +474,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
 
         for status in ('queued', 'active', 'blocked', 'review', 'done', 'accepted', 'rejected', 'archived'):
             with self.subTest(status=status):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -491,7 +491,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_archive_only_task_has_no_live_status_requirement(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             (workspace / '.backlogit' / 'queue').mkdir(parents=True)
             archive = workspace / '.backlogit' / 'archive'
@@ -509,7 +509,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_malformed_queue_task_status_blocks_via_detect_before_consistency(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -547,7 +547,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
             '',
             '   ',
         )
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             (workspace / '.backlogit' / 'queue').mkdir(parents=True)
             (workspace / '.backlogit' / 'archive').mkdir(parents=True)
@@ -567,7 +567,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
 
         for artifact_id in ('114-S', '109-F', '109.001-T'):
             with self.subTest(artifact_id=artifact_id):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     (workspace / '.backlogit' / 'queue').mkdir(parents=True)
                     (workspace / '.backlogit' / 'archive').mkdir(parents=True)
@@ -580,7 +580,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_duplicate_queue_shipment_record_blocks(self) -> None:
         from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -605,7 +605,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_duplicate_archive_shipment_record_blocks(self) -> None:
         from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             (workspace / '.backlogit' / 'queue').mkdir(parents=True)
             archive = workspace / '.backlogit' / 'archive'
@@ -627,7 +627,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_single_live_and_archive_pair_for_same_id_is_not_a_duplicate(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -659,7 +659,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, content in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -688,7 +688,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, content in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -705,7 +705,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_custom_fields_present_but_not_a_mapping_blocks(self) -> None:
         from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -721,7 +721,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_missing_dependencies_and_custom_fields_default_to_empty(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -739,7 +739,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_valid_dependencies_and_custom_fields_items_still_resolve(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -768,7 +768,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, deps_yaml in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -797,7 +797,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         }
         for label, items_yaml in cases.items():
             with self.subTest(label=label):
-                with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+                with tempfile.TemporaryDirectory() as tmp:
                     workspace = Path(tmp)
                     queue = workspace / '.backlogit' / 'queue'
                     queue.mkdir(parents=True)
@@ -813,7 +813,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_shipment_typed_record_with_non_shipment_shaped_id_blocks(self) -> None:
         from autoharness.gates.topology import BacklogUnavailableError, FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             queue = workspace / '.backlogit' / 'queue'
             queue.mkdir(parents=True)
@@ -834,7 +834,7 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
     def test_read_worktree_marker_reads_repo_local_marker(self) -> None: 
         from autoharness.gates.topology import FilesystemTopologyReaders
 
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             worktree = workspace / 'spike-research'
             marker_dir = worktree / '.autoharness'
@@ -1135,7 +1135,7 @@ class BranchOwnershipTests(unittest.TestCase):
             branch='',
             default_branch='main',  # simulates the git-based main-fallback bug
         )
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             event_path = Path(tmp) / 'event.json'
             event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
             with patch.dict(
@@ -1260,7 +1260,7 @@ class BranchOwnershipTests(unittest.TestCase):
             branch='master',
             default_branch='main',
         )
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             event_path = Path(tmp) / 'event.json'
             event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
             with patch.dict('os.environ', {'GITHUB_EVENT_PATH': str(event_path)}, clear=False):
