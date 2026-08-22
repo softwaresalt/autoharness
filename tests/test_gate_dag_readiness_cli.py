@@ -180,7 +180,7 @@ class DagReadinessStorageRootResolutionTests(unittest.TestCase):
         (root / "archive").mkdir(parents=True)
 
     def test_backlog_only_workspace_succeeds(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / ".backlog")
 
@@ -193,7 +193,7 @@ class DagReadinessStorageRootResolutionTests(unittest.TestCase):
         self.assertIsNone(payload["degraded_reason"])
 
     def test_both_roots_present_reports_degraded_without_traceback(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / ".backlog")
             self._write_minimal_backlog_root(workspace / ".backlogit")
@@ -211,7 +211,7 @@ class DagReadinessStorageRootResolutionTests(unittest.TestCase):
         # override validator) that simply does not exist as a directory here --
         # this exercises the missing-directory-after-a-valid-override path,
         # distinct from a non-literal override value (covered elsewhere).
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / ".backlog")
             with mock.patch.dict(os.environ, {"BACKLOGIT_WORKSPACE_DIR": ".backlogit"}):
