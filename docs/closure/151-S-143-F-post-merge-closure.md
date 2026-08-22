@@ -181,8 +181,8 @@ entry.
   -- no additional evidence beyond the runtime verification above is
   required for this workspace). Verified merge commit (two parents), green
   CI, P-018 `SATISFIED`, P-015 cascade-close independently re-verified
-  (including the `024-DL` revert), and P-020 compaction pending completion
-  below. No condition is outstanding beyond compaction.
+  (including the `024-DL` revert), and P-020 compaction `done` (see
+  below). No condition is outstanding.
 - **Residual follow-up (non-blocking)**:
   1. P-021 deferred stash entry `9DD9E323` (new): the E8158860 defect
      remains unresolved -- root cause is an ambient `GIT_CONFIG_*`
@@ -198,6 +198,10 @@ entry.
      by four independent observations across two calendar days.
   3. This shipment chain (148-S -> 149-S -> 151-S) is now fully closed.
      150-S remains queued and unclaimed, per operator instruction.
+  4. The Ship resume checkpoint for this session
+     (`checkpoint-20260822-043451.json`) is resolved as part of this
+     closure PR -- no active recovery candidate is left for this completed
+     work.
 
 ## Compaction (P-020)
 
