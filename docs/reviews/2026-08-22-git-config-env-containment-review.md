@@ -413,7 +413,8 @@ $env:PYTHONPATH = 'src'; python -m unittest discover -s tests
 $env:PYTHONPATH = 'src'; python -m unittest discover -s tests -p test_gates_topology.py
 
 # canonical single-test / ordered-pair run (used by 145.001-T)
-$env:PYTHONPATH = 'src'; python -m unittest test_gates_topology.BranchOwnershipTests.<name> `
+# needs tests/ on the path: dotted names bypass discovery, which is what puts tests/ on sys.path
+$env:PYTHONPATH = 'src;tests'; python -m unittest test_gates_topology.BranchOwnershipTests.<name> `
     test_gates_topology.FilesystemTopologyReadersTests.test_empty_queue_and_archive_dirs_pass_as_zero_shipments
 ```
 
