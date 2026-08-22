@@ -41,6 +41,19 @@ import unittest
 import uuid
 from pathlib import Path
 
+# R9 (BINDING, 144.002-T): placed at MODULE TOP LEVEL so canonical discovery
+# itself proves importability -- a broken import becomes a collection ERROR
+# in the canonical gate rather than a silent skip. Resolves under both
+# supported invocations:
+#   PYTHONPATH=src; python -m unittest discover -s tests
+#     (`discover -s tests` sets top_level_dir to tests/ and inserts it at
+#     sys.path[0] because there is no tests/__init__.py)
+#   python tests/test_environ_restore_contract.py
+#     (running a script directly inserts its own directory at sys.path[0])
+# Do NOT add an __init__.py/conftest.py to make this import work under any
+# other invocation style -- that is explicitly forbidden (A1/R4).
+from _env_patch import patched_environ
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TESTS_DIR = REPO_ROOT / "tests"
 
@@ -230,28 +243,30 @@ class EnvironRestoreContractTests(unittest.TestCase):
     def test_bulk_environ_restore_preserves_empty_valued_variable_in_child_process(
         self,
     ) -> None:
-        """Desired invariant. Expected RED on Windows today (A2R), GREEN on
-        Linux today. Must never be platform-gated, skipped, or
-        expectedFailure'd."""
+        """Desired invariant (property test 6 of 144.002-T: non-destruction,
+        A11 topology). Was RED on Windows through 144.001-T (destructive
+        variant); GREEN on both platforms from 144.002-T on, now that the
+        L1 runner uses the ``fixed`` variant (``patched_environ``) instead
+        of the bare ``patch.dict``. Must never be platform-gated, skipped,
+        or expectedFailure'd."""
         sentinel = self._new_sentinel()
-        result = self._run_l1(sentinel=sentinel, variant="destructive", check_git=False)
+        result = self._run_l1(sentinel=sentinel, variant="fixed", check_git=False)
         self.assertEqual(result["status"], "OK")
         self.assertTrue(result["pre_has_sentinel"])
         self.assertTrue(
             result["post_has_sentinel"],
-            "an empty-valued sentinel did not survive a bulk "
-            "unittest.mock.patch.dict(os.environ, ...) restore round trip "
-            "in the L1 child -- this is the ambient destruction under "
-            "reproduction",
+            "an empty-valued sentinel did not survive a patched_environ(...) "
+            "restore round trip in the L1 child",
         )
 
     @unittest.skipIf(shutil.which("git") is None, "git is not installed")
     def test_bulk_environ_restore_preserves_git_config_triple_for_child_git(
         self,
     ) -> None:
-        """Desired invariant. Expected RED on Windows today (A2R), GREEN on
-        Linux today. The GIT_CONFIG_* triple is established ONLY via the L0
-        explicit env block, never by in-process assignment."""
+        """Desired invariant. Was RED on Windows through 144.001-T
+        (destructive variant); GREEN on both platforms from 144.002-T on.
+        The GIT_CONFIG_* triple is established ONLY via the L0 explicit env
+        block, never by in-process assignment."""
         sentinel = self._new_sentinel()
         extra_env = {
             "GIT_CONFIG_COUNT": "3",
@@ -264,7 +279,7 @@ class EnvironRestoreContractTests(unittest.TestCase):
         }
         result = self._run_l1(
             sentinel=sentinel,
-            variant="destructive",
+            variant="fixed",
             check_git=True,
             extra_env=extra_env,
         )
@@ -310,6 +325,146 @@ class EnvironRestoreContractTests(unittest.TestCase):
         child_env = json.loads(proc.stdout)
         for sentinel in self._SENTINELS_USED:
             self.assertNotIn(sentinel, child_env)
+
+
+class PatchedEnvironPropertyTests(unittest.TestCase):
+    """Required property tests for ``patched_environ`` (144.002-T)."""
+
+    @staticmethod
+    def _new_key(label: str) -> str:
+        # Uppercase per the case-normalization lesson recorded on
+        # 144.001-T: Windows os.environ uppercases keys on ingestion, so
+        # synthetic names are minted uppercase from the start to keep every
+        # comparison unambiguous.
+        return f"AUTOHARNESS_ENVTEST_{label}_" + uuid.uuid4().hex.upper()
+
+    def test_restores_a_pre_existing_key_to_its_exact_prior_value(self) -> None:
+        key = self._new_key("PRE")
+        os.environ[key] = "original_value"
+        try:
+            with patched_environ(**{key: "temporary_value"}):
+                self.assertEqual(os.environ[key], "temporary_value")
+            self.assertEqual(os.environ[key], "original_value")
+        finally:
+            os.environ.pop(key, None)
+
+    def test_deletes_a_key_that_did_not_exist_before_the_block(self) -> None:
+        key = self._new_key("NEW")
+        self.assertNotIn(key, os.environ)
+        with patched_environ(**{key: "temporary_value"}):
+            self.assertEqual(os.environ[key], "temporary_value")
+        self.assertNotIn(key, os.environ)
+
+    def test_restores_a_key_that_existed_before_and_was_deleted_inside_the_block(
+        self,
+    ) -> None:
+        key = self._new_key("DEL")
+        os.environ[key] = "original_value"
+        try:
+            with patched_environ(**{key: None}):
+                self.assertNotIn(key, os.environ)
+            self.assertEqual(os.environ[key], "original_value")
+        finally:
+            os.environ.pop(key, None)
+
+    def test_is_reentrant_and_nestable_without_cross_talk(self) -> None:
+        key = self._new_key("NEST")
+        os.environ[key] = "level0"
+        try:
+            with patched_environ(**{key: "level1"}):
+                self.assertEqual(os.environ[key], "level1")
+                with patched_environ(**{key: "level2"}):
+                    self.assertEqual(os.environ[key], "level2")
+                self.assertEqual(os.environ[key], "level1")
+            self.assertEqual(os.environ[key], "level0")
+        finally:
+            os.environ.pop(key, None)
+
+        # Distinct keys nested simultaneously must not cross-talk either.
+        key_a = self._new_key("NESTA")
+        key_b = self._new_key("NESTB")
+        with patched_environ(**{key_a: "outer"}):
+            with patched_environ(**{key_b: "inner"}):
+                self.assertEqual(os.environ[key_a], "outer")
+                self.assertEqual(os.environ[key_b], "inner")
+            self.assertEqual(os.environ[key_a], "outer")
+            self.assertNotIn(key_b, os.environ)
+        self.assertNotIn(key_a, os.environ)
+        self.assertNotIn(key_b, os.environ)
+
+    def test_is_exception_safe_and_propagates_the_exception_unchanged(self) -> None:
+        key = self._new_key("EXC")
+        os.environ[key] = "original_value"
+
+        class _MarkerError(Exception):
+            pass
+
+        try:
+            with self.assertRaises(_MarkerError):
+                with patched_environ(**{key: "temporary_value"}):
+                    raise _MarkerError("boom")
+            self.assertEqual(os.environ[key], "original_value")
+        finally:
+            os.environ.pop(key, None)
+
+    def test_non_destruction_of_untouched_blank_sentinel_is_covered_by_144_001_t(
+        self,
+    ) -> None:
+        """Property 6 (A11 topology, BINDING) is
+        ``test_bulk_environ_restore_preserves_empty_valued_variable_in_child_process``
+        in ``EnvironRestoreContractTests`` above, re-pointed at the ``fixed``
+        variant -- not duplicated here. This test exists only to make that
+        cross-reference explicit and discoverable."""
+        self.assertTrue(
+            hasattr(
+                EnvironRestoreContractTests,
+                "test_bulk_environ_restore_preserves_empty_valued_variable_in_child_process",
+            )
+        )
+
+    def test_no_op_leaves_a_spawned_childs_environment_byte_identical(self) -> None:
+        def _serialize_child_env() -> str:
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import os, json, sys; "
+                    "sys.stdout.write(json.dumps(dict(os.environ), sort_keys=True))",
+                ],
+                env=None,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return proc.stdout
+
+        before = _serialize_child_env()
+        with patched_environ():
+            pass
+        after = _serialize_child_env()
+        self.assertEqual(before, after)
+
+    def test_a4_rejects_empty_string_override_on_every_platform_before_mutation(
+        self,
+    ) -> None:
+        key = self._new_key("A4")
+        self.assertNotIn(key, os.environ)
+        with self.assertRaises(ValueError):
+            with patched_environ(**{key: ""}):
+                pass
+        self.assertNotIn(key, os.environ)
+
+    def test_a5_rejects_touching_a_key_whose_prior_value_is_empty(self) -> None:
+        key = self._new_key("A5")
+        os.environ[key] = ""
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                with patched_environ(**{key: "new_value"}):
+                    pass
+            self.assertIn(key, str(ctx.exception))
+            self.assertEqual(os.environ[key], "")
+        finally:
+            os.environ.pop(key, None)
 
 
 if __name__ == "__main__":
