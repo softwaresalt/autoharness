@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+from _env_patch import patched_environ
 from autoharness.cli import main
 from autoharness.gates.topology import BacklogUnavailableError, ShipmentState
 
@@ -214,7 +214,7 @@ class DagReadinessStorageRootResolutionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / ".backlog")
-            with mock.patch.dict(os.environ, {"BACKLOGIT_WORKSPACE_DIR": ".backlogit"}):
+            with patched_environ(BACKLOGIT_WORKSPACE_DIR=".backlogit"):
                 out, err, code = _run("gate", "dag-readiness", "--workspace", str(workspace), "--json")
 
         self.assertEqual(code, 0)

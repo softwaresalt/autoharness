@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
+from _env_patch import patched_environ
 from autoharness.cli import _emit_pipeline_topology_telemetry, main
 
 
@@ -270,7 +270,7 @@ class PipelineTopologyStorageRootResolutionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._write_minimal_backlog_root(workspace / '.backlog')
-            with mock.patch.dict(os.environ, {'BACKLOGIT_WORKSPACE_DIR': '.backlogit'}):
+            with patched_environ(BACKLOGIT_WORKSPACE_DIR='.backlogit'):
                 with mock.patch(
                     'autoharness.gates.topology.FilesystemTopologyReaders',
                     side_effect=lambda _workspace: FilesystemTopologyReaders(workspace),

@@ -5,8 +5,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
+from _env_patch import patched_environ
 from autoharness.gates.topology import (
     ArtifactState,
     ShipmentState,
@@ -1001,9 +1001,8 @@ class BranchOwnershipTests(unittest.TestCase):
         topology-check entrypoint (Gate C) permanently non-functional for its
         stated purpose."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
-        with patch.dict(
-            'os.environ',
-            {'GITHUB_HEAD_REF': 'feat/116-s-topology-gate-c-remote-ci-validation-backstop'},
+        with patched_environ(
+            GITHUB_HEAD_REF='feat/116-s-topology-gate-c-remote-ci-validation-backstop',
         ):
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
@@ -1020,12 +1019,9 @@ class BranchOwnershipTests(unittest.TestCase):
         instead (e.g. `main` for a push to the default branch), disambiguated
         from a tag push via `GITHUB_REF_TYPE == 'branch'`."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='', default_branch='main')
-        with patch.dict(
-            'os.environ', {'GITHUB_REF_NAME': 'main', 'GITHUB_REF_TYPE': 'branch'}, clear=False
+        with patched_environ(
+            GITHUB_REF_NAME='main', GITHUB_REF_TYPE='branch', GITHUB_HEAD_REF=None,
         ):
-            import os as _os
-
-            _os.environ.pop('GITHUB_HEAD_REF', None)
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                 readers=readers,
@@ -1042,14 +1038,11 @@ class BranchOwnershipTests(unittest.TestCase):
         convention) as a non-branch merge-ref and fail closed. Disambiguation
         must use `GITHUB_REF_TYPE`, not a substring check on the name."""
         readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
-        with patch.dict(
-            'os.environ',
-            {'GITHUB_REF_NAME': 'feat/114-s', 'GITHUB_REF_TYPE': 'branch'},
-            clear=False,
+        with patched_environ(
+            GITHUB_REF_NAME='feat/114-s',
+            GITHUB_REF_TYPE='branch',
+            GITHUB_HEAD_REF=None,
         ):
-            import os as _os
-
-            _os.environ.pop('GITHUB_HEAD_REF', None)
             result = evaluate(
                 TopologyInput(mode='ci', phase='pre_claim', target_shipment_id='114-S'),
                 readers=readers,
@@ -1066,12 +1059,9 @@ class BranchOwnershipTests(unittest.TestCase):
         (detached HEAD, unresolvable) rather than treating a tag as ownership
         evidence."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
-        with patch.dict(
-            'os.environ', {'GITHUB_REF_NAME': 'v1.2.3', 'GITHUB_REF_TYPE': 'tag'}, clear=False
+        with patched_environ(
+            GITHUB_REF_NAME='v1.2.3', GITHUB_REF_TYPE='tag', GITHUB_HEAD_REF=None,
         ):
-            import os as _os
-
-            _os.environ.pop('GITHUB_HEAD_REF', None)
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                 readers=readers,
@@ -1087,12 +1077,9 @@ class BranchOwnershipTests(unittest.TestCase):
         resolves a usable branch name (e.g. a CI platform this fallback does
         not recognize, or genuinely malformed environment)."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
-        with patch.dict('os.environ', {}, clear=False):
-            import os as _os
-
-            _os.environ.pop('GITHUB_HEAD_REF', None)
-            _os.environ.pop('GITHUB_REF_NAME', None)
-            _os.environ.pop('GITHUB_REF_TYPE', None)
+        with patched_environ(
+            GITHUB_HEAD_REF=None, GITHUB_REF_NAME=None, GITHUB_REF_TYPE=None,
+        ):
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                 readers=readers,
@@ -1109,7 +1096,7 @@ class BranchOwnershipTests(unittest.TestCase):
         before even if a `GITHUB_HEAD_REF`-shaped variable happens to be set
         in the environment (e.g. a local shell that inherited it)."""
         readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
-        with patch.dict('os.environ', {'GITHUB_HEAD_REF': 'feat/114-s'}):
+        with patched_environ(GITHUB_HEAD_REF='feat/114-s'):
             result = evaluate(
                 TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
                 readers=readers,
@@ -1138,18 +1125,12 @@ class BranchOwnershipTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             event_path = Path(tmp) / 'event.json'
             event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
-            with patch.dict(
-                'os.environ',
-                {
-                    'GITHUB_REF_NAME': 'master',
-                    'GITHUB_REF_TYPE': 'branch',
-                    'GITHUB_EVENT_PATH': str(event_path),
-                },
-                clear=False,
+            with patched_environ(
+                GITHUB_REF_NAME='master',
+                GITHUB_REF_TYPE='branch',
+                GITHUB_EVENT_PATH=str(event_path),
+                GITHUB_HEAD_REF=None,
             ):
-                import os as _os
-
-                _os.environ.pop('GITHUB_HEAD_REF', None)
                 result = evaluate(
                     TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                     readers=readers,
@@ -1170,11 +1151,7 @@ class BranchOwnershipTests(unittest.TestCase):
             branch='main',
             default_branch='main',
         )
-        with patch.dict('os.environ', {}, clear=False):
-            import os as _os
-
-            _os.environ.pop('GITHUB_EVENT_PATH', None)
-            _os.environ.pop('GITHUB_HEAD_REF', None)
+        with patched_environ(GITHUB_EVENT_PATH=None, GITHUB_HEAD_REF=None):
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                 readers=readers,
@@ -1204,14 +1181,10 @@ class BranchOwnershipTests(unittest.TestCase):
             branch='',  # actions/checkout always leaves CI on detached HEAD
             default_branch='main',
         )
-        with patch.dict(
-            'os.environ',
-            {'GITHUB_HEAD_REF': 'main'},
-            clear=False,
+        with patched_environ(
+            GITHUB_HEAD_REF='main',
+            GITHUB_EVENT_PATH=None,
         ):
-            import os as _os
-
-            _os.environ.pop('GITHUB_EVENT_PATH', None)
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                 readers=readers,
@@ -1233,15 +1206,12 @@ class BranchOwnershipTests(unittest.TestCase):
             branch='',
             default_branch='main',
         )
-        with patch.dict(
-            'os.environ',
-            {'GITHUB_REF_NAME': 'main', 'GITHUB_REF_TYPE': 'branch'},
-            clear=False,
+        with patched_environ(
+            GITHUB_REF_NAME='main',
+            GITHUB_REF_TYPE='branch',
+            GITHUB_HEAD_REF=None,
+            GITHUB_EVENT_PATH=None,
         ):
-            import os as _os
-
-            _os.environ.pop('GITHUB_HEAD_REF', None)
-            _os.environ.pop('GITHUB_EVENT_PATH', None)
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
                 readers=readers,
@@ -1263,7 +1233,7 @@ class BranchOwnershipTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             event_path = Path(tmp) / 'event.json'
             event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
-            with patch.dict('os.environ', {'GITHUB_EVENT_PATH': str(event_path)}, clear=False):
+            with patched_environ(GITHUB_EVENT_PATH=str(event_path)):
                 result = evaluate(
                     TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
                     readers=readers,
