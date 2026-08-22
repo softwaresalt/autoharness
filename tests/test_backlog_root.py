@@ -25,7 +25,7 @@ class ResolveBacklogRootTests(unittest.TestCase):
         # A valid literal override (one of the two supported candidate
         # names) takes precedence over the default .backlog-first auto-detect
         # order, even when both candidate roots are also present.
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._make_root(workspace, ".backlog")
             legacy = self._make_root(workspace, ".backlogit")
@@ -38,7 +38,7 @@ class ResolveBacklogRootTests(unittest.TestCase):
         self.assertEqual(resolved, legacy)
 
     def test_missing_override_fails_closed_without_fallthrough(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._make_root(workspace, ".backlog")
 
@@ -52,7 +52,7 @@ class ResolveBacklogRootTests(unittest.TestCase):
         self.assertEqual(exc.exception.reason, "configured backlog directory is unavailable")
 
     def test_backlog_only_workspace_uses_new_default(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             backlog_root = self._make_root(workspace, ".backlog")
 
@@ -61,7 +61,7 @@ class ResolveBacklogRootTests(unittest.TestCase):
         self.assertEqual(resolved, backlog_root)
 
     def test_backlogit_only_workspace_uses_legacy_root(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             legacy_root = self._make_root(workspace, ".backlogit")
 
@@ -70,7 +70,7 @@ class ResolveBacklogRootTests(unittest.TestCase):
         self.assertEqual(resolved, legacy_root)
 
     def test_both_roots_present_is_ambiguous(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._make_root(workspace, ".backlog")
             self._make_root(workspace, ".backlogit")
@@ -81,7 +81,7 @@ class ResolveBacklogRootTests(unittest.TestCase):
         self.assertEqual(exc.exception.candidates, (str(workspace / ".backlog"), str(workspace / ".backlogit")))
 
     def test_neither_root_present_is_unavailable(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
 
             with self.assertRaises(BacklogUnavailableError) as exc:
@@ -105,7 +105,7 @@ class OverrideValidationRejectionTests(unittest.TestCase):
         return root
 
     def test_arbitrary_name_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._make_root(workspace, "custom-root")
 
@@ -115,7 +115,7 @@ class OverrideValidationRejectionTests(unittest.TestCase):
         self.assertIn("must be one of", exc.exception.reason)
 
     def test_path_separator_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._make_root(workspace, ".backlog")
 
@@ -125,7 +125,7 @@ class OverrideValidationRejectionTests(unittest.TestCase):
         self.assertIn("must be one of", exc.exception.reason)
 
     def test_absolute_path_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             backlog_root = self._make_root(workspace, ".backlog")
 
@@ -137,7 +137,7 @@ class OverrideValidationRejectionTests(unittest.TestCase):
         self.assertIn("must be one of", exc.exception.reason)
 
     def test_dot_and_dotdot_are_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._make_root(workspace, ".backlog")
 
@@ -147,7 +147,7 @@ class OverrideValidationRejectionTests(unittest.TestCase):
                 self.assertIn("must be one of", exc.exception.reason)
 
     def test_case_alias_is_rejected_with_distinct_message(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._make_root(workspace, ".backlog")
 
@@ -158,7 +158,7 @@ class OverrideValidationRejectionTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "win32", "drive-letter override paths are meaningful on Windows only")
     def test_drive_prefix_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._make_root(workspace, ".backlog")
 
@@ -181,7 +181,7 @@ class CandidateSymlinkRejectionTests(unittest.TestCase):
             self.skipTest(f"symlink creation unsupported in this environment: {exc}")
 
     def test_symlinked_candidate_is_rejected_on_auto_detect(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             real_target = workspace / "elsewhere"
             real_target.mkdir()
@@ -194,7 +194,7 @@ class CandidateSymlinkRejectionTests(unittest.TestCase):
         self.assertIn("symlink", exc.exception.reason)
 
     def test_symlinked_override_target_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             real_target = workspace / "elsewhere"
             real_target.mkdir()
@@ -228,7 +228,7 @@ class CandidateJunctionRejectionTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "win32", "directory junctions are a Windows-only filesystem feature")
     def test_junction_candidate_is_rejected_on_auto_detect(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             real_target = workspace / "elsewhere"
             real_target.mkdir()
@@ -242,7 +242,7 @@ class CandidateJunctionRejectionTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "win32", "directory junctions are a Windows-only filesystem feature")
     def test_junction_override_target_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             real_target = workspace / "elsewhere"
             real_target.mkdir()

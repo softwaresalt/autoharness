@@ -29,11 +29,11 @@ _TESTS_DIR = _REPO_ROOT / "tests"
 # Amendment A4: shrinks as 141.002-T / 141.003-T / 141.004-T land. Each task
 # removes exactly the module(s) it fixes in the SAME change that fixes their
 # call sites, so the guard is green at the end of every task and no commit
-# carries a deliberately-red test. Current state (post-141.002-T):
-# test_gate_pipeline_topology_cli.py and test_gate_dag_readiness_cli.py are
-# fixed and removed; test_gates_topology.py and test_backlog_root.py remain
-# (141.003-T / 141.004-T). Final state (post-141.004-T): EMPTY.
-ALLOWLIST: frozenset[str] = frozenset({"test_gates_topology.py", "test_backlog_root.py"})
+# carries a deliberately-red test. Current state (post-141.003-T):
+# test_gate_pipeline_topology_cli.py, test_gate_dag_readiness_cli.py, and
+# test_backlog_root.py are fixed and removed; only test_gates_topology.py
+# remains (141.004-T). Final state (post-141.004-T): EMPTY.
+ALLOWLIST: frozenset[str] = frozenset({"test_gates_topology.py"})
 
 
 class _CwdAnchoredTempDirVisitor(ast.NodeVisitor):
@@ -109,7 +109,7 @@ class TestSuiteIsolationContract(unittest.TestCase):
         """Pins the allowlist so it cannot silently grow or survive as a
         permanent escape hatch (amendment A4). Update this alongside
         ALLOWLIST as each task shrinks it."""
-        self.assertEqual(ALLOWLIST, frozenset({"test_gates_topology.py", "test_backlog_root.py"}))
+        self.assertEqual(ALLOWLIST, frozenset({"test_gates_topology.py"}))
 
     def test_guard_detects_a_known_offending_shape(self) -> None:
         """Non-vacuity: the visitor must actually be able to detect the
