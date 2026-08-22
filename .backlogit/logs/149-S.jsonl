@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-21T13:29:38.3818655-07:00","actor":"backlogit","item_id":"149-S","event_type":"shipment_created","delta":{"items":["141-F","141.001-T","141.002-T","141.003-T","141.004-T","141.005-T"],"title":"Full-suite test-isolation repair — bisect then fix at source (E8158860)"}}
+{"timestamp":"2026-08-21T19:34:08.95067-07:00","actor":"backlogit","item_id":"149-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
