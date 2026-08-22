@@ -20,10 +20,13 @@ tags:
   - "140-F"
   - "149-S"
   - "141-F"
+  - "151-S"
+  - "143-F"
 citations:
   - "143-S/134-F post-merge closure session, 2026-08-20"
   - "148-S/140-F post-merge closure session, 2026-08-21 (recurrence via a plain `references` list entry, not `custom_fields.source_deliberation_id`)"
   - "149-S/141-F post-merge closure session, 2026-08-21 (third occurrence, same `references`-list mechanism, different feature/deliberation pair -- 024-DL)"
+  - "151-S/143-F post-merge closure session, 2026-08-21 (fourth occurrence, same 024-DL deliberation as the third occurrence but a different sibling feature -- 143-F, not 141-F -- both derived from the same E8158860 deliberation)"
   - "templates/skills/shipment-reconcile/SKILL.md.tmpl:589-622 (Cascade Close Sub-Procedure steps 1-4)"
   - "src/autoharness/gates/shipment_closure.py: classify_shipment_close_path"
   - "docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md (related but distinct: that entry covers pre-archived manifest members, a documented/tolerated case; this entry covers a genuinely out-of-manifest artifact)"
@@ -242,3 +245,54 @@ documented tolerance in the Cascade Close Sub-Procedure's step 3 exact-match
 check for artifacts reachable only via a feature's own `references` list)
 remains open and is now reinforced by three independent, consistent
 observations.
+
+## Recurrence: 151-S / 143-F / 024-DL (fourth occurrence)
+
+A fourth occurrence, again during Ship's own post-merge closure
+(2026-08-21, same day as the third occurrence above). Manifest: `143-F`,
+`143.001-T`, `143.002-T`. `classify_shipment_close_path` again correctly
+returned `CASCADE` (`143-F` is a root, fully covered by both manifest-member
+children).
+
+`backlogit shipment ship 151-S --sha f389fd59...` returned:
+
+```json
+{
+  "shipment_id": "151-S",
+  "shipment_status": "shipped",
+  "archived_ids": ["143.001-T", "143.002-T", "024-DL", "143-F", "151-S"],
+  "returned_ids": [],
+  "commit_sha": "f389fd59d9d196d9ce8cf28cc75c5a1d1e6378ab"
+}
+```
+
+Notably, this is the **same deliberation ID** (`024-DL`) as the third
+occurrence, not a new one — `143-F` is a sibling feature to `141-F` (both
+split from the same original `E8158860` stash entry via the same `024-DL`
+deliberation), and `143-F`'s own `references` list independently carries
+`.backlogit/queue/024-DL.md`, exactly like `141-F`'s did. This confirms the
+engine walks each closing feature's OWN `references` list independently at
+cascade time — it is not a one-time quirk tied to a single deliberation
+record, but a per-feature, per-cascade-close behavior that recurs for
+every feature referencing an as-yet-unarchived deliberation, even when that
+deliberation was already reverted-and-restored once in an unrelated
+shipment's closure earlier the same day.
+
+Applied the identical documented remediation: reverted only `024-DL` (`git
+restore --staged` + `git checkout` on `.backlogit/queue/024-DL.md`, removed
+the newly-created `.backlogit/archive/024-DL.md` and
+`.backlogit/logs/024-DL.jsonl`, unstaged the resulting `AD` archive entry),
+confirmed `git diff` empty and `backlogit get 024-DL` reports `status:
+queued` unchanged. Independently re-verified the remaining post-conditions:
+exact `archived_ids` match ({`143.001-T`, `143.002-T`, `143-F`, `151-S`})
+after excluding `024-DL`; `returned_ids: []`; `parent_id: 143-F` preserved
+on both tasks against the Step 0(b) pre-close snapshot; shipment
+`archived_status: shipped`; feature `archived_status: done`. No corrective
+action required for 151-S's own closure beyond the `024-DL` revert.
+
+This fourth occurrence, spanning FOUR shipments and FOUR features over two
+calendar days (two of which share the same deliberation record), makes the
+Stage-owned follow-up (a bounded, documented tolerance in the Cascade Close
+Sub-Procedure's step 3 exact-match check for artifacts reachable only via a
+feature's own `references` list) an increasingly urgent priority rather
+than a low-frequency edge case.
