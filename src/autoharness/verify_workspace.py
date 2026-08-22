@@ -2164,11 +2164,16 @@ def _language_defaults(language: str) -> dict[str, str]:
         "concurrency_patterns": "thread, lock, queue, worker, async",
         # SKILL.md Step 1.2 variable-resolution table ({{ERROR_PATTERN}} /
         # {{DOC_COMMENT_STYLE}} rows): language-specific error-handling idiom
-        # and doc-comment syntax. This generic branch (no dedicated language
-        # match below, e.g. Rust) uses the SKILL.md Rust example row verbatim
-        # since it is the only example given for a non-branched language.
-        "error_pattern": "Result<T, Error>",
-        "doc_comment_style": "/// doc comment",
+        # and doc-comment syntax. This is the GENERIC fallback for any
+        # `languages.primary` value with no dedicated branch below (e.g.
+        # Java, C#, Ruby) -- it MUST stay language-neutral prose, not a
+        # concrete syntax example from one specific language (Copilot review
+        # finding on this feature's own PR: hard-coding Rust's `Result<T,
+        # Error>` / `/// doc comment` here would render Rust syntax into an
+        # unrelated language's constitution). Rust itself gets its own
+        # branch below with the concrete SKILL.md example values.
+        "error_pattern": "the language's idiomatic error-propagation construct (exceptions, explicit error returns, or a result/outcome type), with context preserved at the boundary where failures matter",
+        "doc_comment_style": "the language's standard doc-comment convention for public APIs",
     }
 
     language = language.lower()
@@ -2207,6 +2212,18 @@ def _language_defaults(language: str) -> dict[str, str]:
             "concurrency_patterns": "Promise, async, await, worker, stream",
             "error_pattern": "try/catch + custom errors",
             "doc_comment_style": "/** JSDoc */",
+        }
+    if language == "rust":
+        return {
+            "unsafe_policy": "#![forbid(unsafe_code)] unless the repository explicitly requires an audited unsafe block.",
+            "lint_policy": "clippy warnings are treated as real defects.",
+            "error_handling_policy": "Return Result<T, Error> and propagate with `?`; reserve panics for unrecoverable programmer errors.",
+            "error_handling_conventions": "Use explicit Result/Option propagation with contextual error types instead of panicking in library code.",
+            "naming_conventions": "Use snake_case for functions/modules/variables and PascalCase for types/traits.",
+            "documentation_conventions": "Write /// doc comments on public items, including examples where useful.",
+            "concurrency_patterns": "thread, Mutex, channel, async, tokio",
+            "error_pattern": "Result<T, Error>",
+            "doc_comment_style": "/// doc comment",
         }
     return defaults
 
