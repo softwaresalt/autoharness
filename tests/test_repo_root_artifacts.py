@@ -14,6 +14,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from _git_env import consistent_git_env
+
 ALLOWED_ROOT_JSON = frozenset({".mcp.json", "plugin.json"})
 
 
@@ -36,6 +38,7 @@ class RepoRootTrackedJsonAllowlistTest(unittest.TestCase):
                 cwd=repo_root,
                 capture_output=True,
                 check=True,
+                env=consistent_git_env(),
             )
         except subprocess.CalledProcessError as exc:
             stderr_text = (exc.stderr or b"").decode("utf-8", errors="replace")

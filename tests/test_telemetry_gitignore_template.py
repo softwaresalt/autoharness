@@ -10,6 +10,7 @@ from pathlib import Path
 
 from jsonschema import Draft7Validator
 
+from _git_env import consistent_git_env
 from autoharness.telemetry.epoch import (
     AbsoluteOutcome,
     EconomicPayload,
@@ -44,6 +45,7 @@ class MetricsGitignoreTests(unittest.TestCase):
                 cwd=_REPO_ROOT,
                 capture_output=True,
                 text=True,
+                env=consistent_git_env(),
             )
             self.assertEqual(result.returncode, 0, f"{rel} is not gitignored")
 
@@ -63,7 +65,12 @@ class MetricsEmissionHardGateTests(unittest.TestCase):
     def _git(self, repo: Path, *args: str) -> subprocess.CompletedProcess:
         try:
             return subprocess.run(
-                ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+                ["git", *args],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                check=True,
+                env=consistent_git_env(),
             )
         except subprocess.CalledProcessError as exc:
             self.fail(
@@ -107,6 +114,7 @@ class MetricsEmissionHardGateTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=True,
+                env=consistent_git_env(),
             )
             offending = [
                 line
