@@ -6,6 +6,8 @@ root_cause: "profile.get('tools') is an object with markdownlint properties; ite
 tags: [verify_workspace, workspace-profile, schema, browser-tooling, runtime_surfaces]
 shipment: 007-S
 date: 2026-05-05
+source: docs/compound/2026-05-05-runtime-surfaces-browser-tooling-detection.md
+doc_type: learning
 ---
 
 ## Problem

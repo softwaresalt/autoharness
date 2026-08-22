@@ -17,6 +17,8 @@ citations:
   - "PR #357 (second Copilot review round)"
   - ".github/agents/_stage.agent.md Step 6 Session Continuity"
   - "Shipment 139-S"
+source: docs/compound/2026-08-18-stage-agent-checkpoint-index-sync-ordering-self-contradiction.md
+doc_type: learning
 ---
 
 # A "Final Action" Claim Must Be Re-Verified Whenever a Later Step Is Inserted Into the Same List

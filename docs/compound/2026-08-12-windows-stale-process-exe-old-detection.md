@@ -2,6 +2,8 @@
 title: "An updater-renamed *.exe.old image is a useful, corroborating signal for a stale process holding a replaced Windows binary — not a platform guarantee"
 tags: [windows, mcp, backlogit, engine-attestation, operations]
 provenance: "127-S / 118-F post-merge closure, dynamic engine attestation"
+source: docs/compound/2026-08-12-windows-stale-process-exe-old-detection.md
+doc_type: learning
 ---
 
 ## Summary

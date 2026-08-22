@@ -6,6 +6,8 @@ root_cause: "The install-harness SKILL.md resolution note said 'detect from work
 tags: [install-harness, resolution-order, documentation, config-override, BROWSER_CLI]
 shipment: 007-S
 date: 2026-05-05
+source: docs/compound/2026-05-05-resolution-order-config-first-not-detection-first.md
+doc_type: learning
 ---
 
 ## Problem

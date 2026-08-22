@@ -20,6 +20,8 @@ citations:
   - "templates/skills/shipment-reconcile/SKILL.md.tmpl:403-410,736-738"
   - "templates/policies/workflow-policies.md.tmpl:445"
   - "src/autoharness/gates/shipment_closure.py: classify_shipment_close_path, _read_artifact_record"
+source: docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md
+doc_type: learning
 ---
 
 # 140-S Closure Overrode a CASCADE Classifier Verdict — Tracked Residual

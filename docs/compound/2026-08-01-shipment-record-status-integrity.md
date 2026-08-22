@@ -7,6 +7,9 @@ shipment: 109-S
 feature: 105-F
 source_stash: 2970FA4E
 tokens: [CLAIM_VERIFY_FAILED, SHIPMENT_STATE_INCONSISTENT, record-consistent, record-queued-with-active-work, record-blocked-with-active-work, record-blocked-with-done-work]
+source: docs/compound/2026-08-01-shipment-record-status-integrity.md
+doc_type: learning
+title: "109-S / 105-F: Shipment-Record-Status Integrity — the Long-Term Home in `shipment-reconcile`"
 ---
 
 # 109-S / 105-F: Shipment-Record-Status Integrity — the Long-Term Home in `shipment-reconcile`

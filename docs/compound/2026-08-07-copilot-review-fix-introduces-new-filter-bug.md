@@ -1,3 +1,9 @@
+---
+title: "Compound Learning: Copilot Review Fixes Can Introduce a New, Subtly Unsafe Filter"
+source: docs/compound/2026-08-07-copilot-review-fix-introduces-new-filter-bug.md
+doc_type: learning
+---
+
 # Compound Learning: Copilot Review Fixes Can Introduce a New, Subtly Unsafe Filter
 
 **Origin**: PR #310 (119-S / 111-F, crash-resumption + prune-on-restore protocol),

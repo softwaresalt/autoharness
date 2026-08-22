@@ -7,6 +7,9 @@ shipment: 096-S
 feature: 091-F
 pr: 238
 merged_at: "2026-07-28T06:22:42Z"
+source: docs/compound/096-S-template-vs-global-skill-placeholders.md
+doc_type: learning
+title: "Template Placeholders Do Not Resolve in Global Skills"
 ---
 
 # Template Placeholders Do Not Resolve in Global Skills

@@ -6,6 +6,8 @@ root_cause: "New template variables documented in install-harness SKILL.md resol
 tags: [install-harness, harness-config, config-writeback, round-trip, template-variables]
 shipment: 007-S
 date: 2026-05-05
+source: docs/compound/2026-05-05-harness-config-round-trip-requirement.md
+doc_type: learning
 ---
 
 ## Problem

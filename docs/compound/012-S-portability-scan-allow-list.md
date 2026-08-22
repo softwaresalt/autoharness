@@ -6,6 +6,9 @@ tags: [portability-scan, allow-list, verify-workspace, dogfood]
 status: active
 created: 2026-05-07
 shipment: 012-S
+source: docs/compound/012-S-portability-scan-allow-list.md
+doc_type: learning
+title: "Portability Scan Allow-List Design Pattern"
 ---
 
 # Portability Scan Allow-List Design Pattern

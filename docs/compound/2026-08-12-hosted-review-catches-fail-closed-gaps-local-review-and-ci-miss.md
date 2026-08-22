@@ -2,6 +2,8 @@
 title: "Hosted (Copilot) PR review caught real safety-critical bugs that local review and CI both missed"
 tags: [review, safety, fail-closed, locking, redaction, backlogit, shipment-closure]
 provenance: "127-S / 118-F, PR #326"
+source: docs/compound/2026-08-12-hosted-review-catches-fail-closed-gaps-local-review-and-ci-miss.md
+doc_type: learning
 ---
 
 ## Summary

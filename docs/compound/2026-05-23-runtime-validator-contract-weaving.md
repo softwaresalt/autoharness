@@ -8,6 +8,8 @@ tags: [runtime-validation, releasability, schema-drift, verify-workspace, workfl
 created: 2026-05-23
 shipment: 050-S
 merge_sha: be70c8c51831976723c7c094e92fe5a6420a423f
+source: docs/compound/2026-05-23-runtime-validator-contract-weaving.md
+doc_type: learning
 ---
 
 # Runtime validator contracts must be woven across schema, verifier, and workflow artifacts together

@@ -2,6 +2,8 @@
 title: "Multiple implementation worktrees block the pipeline-topology gate globally, regardless of shipment target"
 date: 2026-08-16
 tags: [ship, topology-gate, worktree, P-016]
+source: docs/compound/2026-08-16-multiple-implementation-worktrees-blocks-topology-gate-globally.md
+doc_type: learning
 ---
 
 ## Problem

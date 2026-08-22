@@ -7,6 +7,9 @@ shipment: 096-S
 feature: 091-F
 pr: 238
 merged_at: "2026-07-28T06:22:42Z"
+source: docs/compound/096-S-canonical-subagent-install-path.md
+doc_type: learning
+title: "Non-Top-Level Agents Install Flat Under `.github/agents/subagents/`"
 ---
 
 # Non-Top-Level Agents Install Flat Under `.github/agents/subagents/`

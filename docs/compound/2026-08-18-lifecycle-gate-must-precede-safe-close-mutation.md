@@ -16,6 +16,8 @@ tags:
 citations:
   - "Shipment 140-S post-merge closure"
   - "src/autoharness/gates/topology.py: VALID_PHASES, _phase_requirement, LIFECYCLE_NO_ACTIVE_SHIPMENT"
+source: docs/compound/2026-08-18-lifecycle-gate-must-precede-safe-close-mutation.md
+doc_type: learning
 ---
 
 # Lifecycle Topology Gate Must Precede Safe-Close, Not Follow It

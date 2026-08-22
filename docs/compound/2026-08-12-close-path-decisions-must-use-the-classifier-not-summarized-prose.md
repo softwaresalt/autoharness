@@ -2,6 +2,8 @@
 title: "Select a shipment close path from the classifier's verdict, never from a partial or summarized reading of the exception prose"
 tags: [shipment-closure, p-015, review-protocol, safe-close, cascade]
 provenance: "127-S / 118-F post-merge closure"
+source: docs/compound/2026-08-12-close-path-decisions-must-use-the-classifier-not-summarized-prose.md
+doc_type: learning
 ---
 
 ## Summary

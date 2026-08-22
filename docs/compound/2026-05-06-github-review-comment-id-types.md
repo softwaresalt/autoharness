@@ -5,6 +5,9 @@ root_cause: GitHub review comment reply API requires the numeric integer comment
 tags: [github-api, review-comments, graphql, node-id, numeric-id]
 shipment: 008-S
 date: 2026-05-06
+source: docs/compound/2026-05-06-github-review-comment-id-types.md
+doc_type: learning
+title: "GitHub PR Review: Numeric ID vs GraphQL Node ID"
 ---
 
 # GitHub PR Review: Numeric ID vs GraphQL Node ID

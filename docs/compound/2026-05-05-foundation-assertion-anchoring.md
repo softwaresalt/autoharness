@@ -6,6 +6,8 @@ root_cause: "A filename-only assertion (e.g., 'browser-automation/SKILL.md') pas
 tags: [verify_workspace, FOUNDATION_ASSERTIONS, assertion-anchoring, regression-coverage]
 shipment: 007-S
 date: 2026-05-05
+source: docs/compound/2026-05-05-foundation-assertion-anchoring.md
+doc_type: learning
 ---
 
 ## Problem

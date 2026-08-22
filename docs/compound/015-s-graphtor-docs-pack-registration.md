@@ -8,6 +8,8 @@ tags: [capability-pack, graphtor-docs, workspace-profile, sources_path, config_p
 created: 2026-05-09
 shipment: 015-S
 merge_sha: d8b039e14d119fe2a7b226e5be662040a9a1091e
+source: docs/compound/015-s-graphtor-docs-pack-registration.md
+doc_type: learning
 ---
 
 # Capability Pack Registration: graphtor-docs overlay pattern

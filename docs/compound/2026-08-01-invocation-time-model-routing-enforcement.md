@@ -10,6 +10,8 @@ pr: TBD
 merge_commit: TBD
 merged_at: TBD
 date: "2026-08-01"
+source: docs/compound/2026-08-01-invocation-time-model-routing-enforcement.md
+doc_type: learning
 ---
 
 ## Problem

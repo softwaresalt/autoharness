@@ -18,6 +18,8 @@ citations:
   - "PR #357 (suppressed review comments, never resolved as threads)"
   - "src/autoharness/gates/topology.py::_prior_shipment_id"
   - "Shipment 139-S post-merge closure session, 2026-08-18"
+source: docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md
+doc_type: learning
 ---
 
 # RESIDUAL DEFECT: Forward Dependents Wrongly Suppress the Topology Gate's Implicit-Predecessor Fallback

@@ -5,6 +5,9 @@ root_cause: Double-brace {{VARIABLE}} syntax used in documentation examples insi
 tags: [templates, variable-residue, documentation, escaping]
 shipment: 008-S
 date: 2026-05-06
+source: docs/compound/2026-05-06-template-variable-escaping-in-docs.md
+doc_type: learning
+title: "Escaping `{{VARIABLE}}` in Template Documentation"
 ---
 
 # Escaping `{{VARIABLE}}` in Template Documentation

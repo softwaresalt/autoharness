@@ -4,6 +4,8 @@ tags: [topology-gate, fail-closed, backlog-parsing, path-traversal, review-fix, 
 related_pr: 297
 related_shipment: 114-S
 related_feature: 109-F
+source: docs/compound/114-S-109-F-copilot-review-fix-patterns.md
+doc_type: learning
 ---
 
 # Compound Learning: The "silent fail-open" defect class in `topology.py`'s backlog parsing

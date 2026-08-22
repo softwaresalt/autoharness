@@ -18,6 +18,8 @@ tags: [telemetry, tool-telemetry-event, evidence-mapping, engram, graphtor-docs,
 shipment: 120-S
 feature: 082-F
 pr: 314
+source: docs/compound/2026-08-08-state-vs-call-outcome-conflation-in-telemetry-mapping.md
+doc_type: learning
 ---
 
 # Compound Learning: A Subsystem's Reported State Is Not the Same as the Call's Own Outcome

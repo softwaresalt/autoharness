@@ -6,6 +6,8 @@ root_cause: "Using 'git checkout <hash>' to restore a branch to a winning commit
 tags: [git, template-authoring, iterative-experiment, detached-HEAD, branch-safety]
 shipment: 007-S
 date: 2026-05-05
+source: docs/compound/2026-05-05-git-reset-hard-vs-checkout-hash.md
+doc_type: learning
 ---
 
 ## Problem

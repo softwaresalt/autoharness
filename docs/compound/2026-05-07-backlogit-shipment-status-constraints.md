@@ -5,6 +5,9 @@ root_cause: Shipment artifacts in backlogit accept queued/blocked/active/shipped
 tags: [backlogit, shipment, status, schema, header-def]
 shipment: 011-S
 date: 2026-05-07
+source: docs/compound/2026-05-07-backlogit-shipment-status-constraints.md
+doc_type: learning
+title: "backlogit Shipment Status Constraints"
 ---
 
 # backlogit Shipment Status Constraints

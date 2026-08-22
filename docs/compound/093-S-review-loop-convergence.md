@@ -6,6 +6,9 @@ tags: [copilot-review, p-018, review-loop, circuit-breaker, containment, evidenc
 shipment: 093-S
 pr: 229
 merged_at: "2026-07-26T06:15:16Z"
+source: docs/compound/093-S-review-loop-convergence.md
+doc_type: learning
+title: "093-S / PR #229: Bounding an Auto-Triggered Copilot Review Loop"
 ---
 
 # 093-S / PR #229: Bounding an Auto-Triggered Copilot Review Loop

@@ -7,6 +7,9 @@ shipment: 106-S
 feature: 102-F
 pr: 270
 tokens: [CLAIM_VERIFY_FAILED, SHIPMENT_STATE_INCONSISTENT]
+source: docs/compound/106-S-claim-integrity-guards.md
+doc_type: learning
+title: "106-S / 102-F: Ship Claim-Integrity Guards (queued/blocked-with-active-work)"
 ---
 
 # 106-S / 102-F: Ship Claim-Integrity Guards (queued/blocked-with-active-work)

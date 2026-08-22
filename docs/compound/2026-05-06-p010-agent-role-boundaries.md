@@ -6,6 +6,8 @@ category: harness-design
 root_cause: Stage agent was observed executing code, running builds, or creating PRs — work that belongs to Ship
 tags: [p-010, role-boundary, stage-agent, ship-agent, allow-deny-table]
 shipment: 009-S
+source: docs/compound/2026-05-06-p010-agent-role-boundaries.md
+doc_type: learning
 ---
 
 # Agent Role Boundaries: P-010 Stage vs Ship Enforcement

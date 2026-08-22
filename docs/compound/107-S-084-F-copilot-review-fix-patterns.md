@@ -4,6 +4,8 @@ tags: [telemetry, tool-event, review-fix, path-validation, composition]
 related_pr: 273
 related_shipment: 107-S
 related_feature: 084-F
+source: docs/compound/107-S-084-F-copilot-review-fix-patterns.md
+doc_type: learning
 ---
 
 # Compound Learning: Six hardening fixes for `ToolTelemetryEvent` ingestion and composition

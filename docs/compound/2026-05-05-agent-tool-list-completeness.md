@@ -5,6 +5,9 @@ root_cause: incomplete-tool-declaration
 tags: [agent, frontmatter, tools, write-permission, sentinel]
 created: 2026-05-05
 shipment: 006-S
+source: docs/compound/2026-05-05-agent-tool-list-completeness.md
+doc_type: learning
+title: "Agent Frontmatter Tool List Must Include Write Tools"
 ---
 
 # Agent Frontmatter Tool List Must Include Write Tools

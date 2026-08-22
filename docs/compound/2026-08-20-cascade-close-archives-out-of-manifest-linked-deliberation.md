@@ -21,6 +21,8 @@ citations:
   - "templates/skills/shipment-reconcile/SKILL.md.tmpl:589-622 (Cascade Close Sub-Procedure steps 1-4)"
   - "src/autoharness/gates/shipment_closure.py: classify_shipment_close_path"
   - "docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md (related but distinct: that entry covers pre-archived manifest members, a documented/tolerated case; this entry covers a genuinely out-of-manifest artifact)"
+source: docs/compound/2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md
+doc_type: learning
 ---
 
 # Cascade Close Archived an Out-of-Manifest Linked Deliberation — Tracked Residual

@@ -3,6 +3,9 @@ shipment: 128-S
 feature: 119-F
 category: review-process
 tags: [copilot-review, mis-triage, frozen-spec, task-acceptance-criteria, ship-agent, p-018, review-loop, quote-dont-paraphrase]
+source: docs/compound/2026-08-12-verify-hosted-review-findings-against-frozen-task-spec.md
+doc_type: learning
+title: "Quote the exact hosted-review comment text before triaging it as a false positive"
 ---
 
 # Quote the exact hosted-review comment text before triaging it as a false positive

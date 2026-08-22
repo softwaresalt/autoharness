@@ -5,6 +5,9 @@ root_cause: config-driven-subprocess-execution-and-yaml-killswitch-semantics
 tags: [gates, subprocess, command-injection, argv-array, kill-switch, yaml-null, fail-open]
 created: 2026-07-01
 shipment: 052-S
+source: docs/compound/2026-07-01-subprocess-validation-gating.md
+doc_type: learning
+title: "Config-Driven Subprocess Validation Gates: Injection Safety and Kill-Switch Semantics"
 ---
 
 # Config-Driven Subprocess Validation Gates: Injection Safety and Kill-Switch Semantics

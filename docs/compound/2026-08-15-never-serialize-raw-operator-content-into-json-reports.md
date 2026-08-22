@@ -1,3 +1,9 @@
+---
+title: "Never serialize raw operator-controlled content into JSON verification/report artifacts"
+source: docs/compound/2026-08-15-never-serialize-raw-operator-content-into-json-reports.md
+doc_type: learning
+---
+
 # Never serialize raw operator-controlled content into JSON verification/report artifacts
 
 **Context**: shipment 134-S / feature 125-F (startup-script contract migration,

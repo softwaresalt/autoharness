@@ -16,6 +16,8 @@ tags:
 citations:
   - "PR #359 (140-S staging), review threads on comment IDs 3801315727 and two others"
   - "Shipment 140-S"
+source: docs/compound/2026-08-18-ship-role-boundary-copilot-findings-in-forbidden-artifacts.md
+doc_type: learning
 ---
 
 # Ship Replies-Not-Edits When Copilot Flags Valid Defects in Forbidden Artifacts

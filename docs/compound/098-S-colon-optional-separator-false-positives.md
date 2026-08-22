@@ -7,6 +7,9 @@ shipment: 098-S
 feature: 093-F
 pr: 244
 merged_at: "2026-07-29T01:13:50Z"
+source: docs/compound/098-S-colon-optional-separator-false-positives.md
+doc_type: learning
+title: "098-S / PR #244: Colon-Optional Separators Silently Widen a Failure Detector Too Far"
 ---
 
 # 098-S / PR #244: Colon-Optional Separators Silently Widen a Failure Detector Too Far

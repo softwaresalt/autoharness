@@ -5,6 +5,9 @@ root_cause: The harness manifest has two distinct fields named similarly — `ar
 tags: [harness-manifest, schema, artifacts, entries-added, vscode-settings]
 shipment: 008-S
 date: 2026-05-06
+source: docs/compound/2026-05-06-harness-manifest-artifacts-vs-entries-added.md
+doc_type: learning
+title: "Harness Manifest: `artifacts` vs `entries_added`"
 ---
 
 # Harness Manifest: `artifacts` vs `entries_added`

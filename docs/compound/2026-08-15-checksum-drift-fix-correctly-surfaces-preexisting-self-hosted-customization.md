@@ -1,3 +1,9 @@
+---
+title: "A checksum-drift fix can correctly surface a self-hosting repo's own long-standing customization"
+source: docs/compound/2026-08-15-checksum-drift-fix-correctly-surfaces-preexisting-self-hosted-customization.md
+doc_type: learning
+---
+
 # A checksum-drift fix can correctly surface a self-hosting repo's own long-standing customization
 
 **Context**: shipment 134-S / feature 125-F (startup-script contract

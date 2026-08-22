@@ -16,6 +16,8 @@ tags:
 citations:
   - "PR #348"
   - "docs/closure/pr348-circuit-breaker-diagnostic-escalation-policy-closure.md"
+source: docs/compound/2026-08-16-bounded-review-fix-cycle-scope-and-mechanical-consequence-judgment.md
+doc_type: learning
 ---
 
 # Bounded Review-Fix Cycle Scope: Distinguishing "Same Contract Surface" from "Same File"
