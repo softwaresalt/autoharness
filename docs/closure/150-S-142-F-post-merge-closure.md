@@ -69,7 +69,7 @@ shipment: **0 unresolved / 0 blockers / 0 warnings**
 | --- | --- |
 | CI (`gh pr checks`) | `ci gate` pass, `detect code changes` pass, `pipeline-topology (ambient)` pass, `test` pass (reproduced at final HEAD `ee4c035b`) |
 | P-018 Copilot review (`autoharness gate copilot-review`) | `SATISFIED` (re-confirmed immediately before merge, unconditionally) |
-| Copilot review threads | 4 threads across 2 review rounds, all resolved with substantive fixing replies |
+| Copilot review threads | 3 threads across 2 review rounds, all resolved with substantive fixing replies |
 | P-014 local review readiness | `## Local Review Readiness` block present at reviewed HEAD `ee4c035b`, outcome `READY` |
 | Operator merge authorization | Explicit: operator selected bugs `8FA8FC22`, `E8158860`, `F73BA065` and directed autonomous completion, explicitly authorizing normal merge-commit merges for this shipment and its closure PR |
 
@@ -103,7 +103,7 @@ shipment: **0 unresolved / 0 blockers / 0 warnings**
   reported success; fixed by leaving the placeholder genuinely unresolved
   (and therefore detectable) instead of defaulting to empty, per SKILL.md's
   "never guess main... halt" contract for this variable.
-- All 4 threads replied-to (citing the fixing commit) and resolved via
+- All 3 threads replied-to (citing the fixing commit) and resolved via
   GraphQL before merge; `autoharness gate copilot-review` returned
   `SATISFIED` at the final reviewed HEAD.
 
@@ -125,7 +125,7 @@ no API or UI surface changed.
 | Runtime probe | `uv run autoharness --help` |
 | Result | **PASS** -- exit 0 |
 | Zero-unresolved verification | `autoharness verify-workspace --workspace .` -- 0 unresolved, 0 blockers, 0 warnings (was 83/62/10 at baseline) |
-| Targeted tests | `pytest tests/test_template_variable_derivation_contract.py tests/test_verify_workspace.py tests/test_scope_containment_policy_contract.py` -- 259 passed, 490 subtests passed |
+| Targeted tests | `pytest tests/test_template_variable_derivation_contract.py tests/test_verify_workspace.py tests/test_scope_containment_policy_contract.py` -- 260 passed, 490 subtests passed |
 | Canonical gate | `uv run python -m unittest discover -s tests` -- 1780 tests, 5 pre-existing failures (the already-diagnosed `GIT_CONFIG_VALUE_2` full-suite test-order pollution defect, E8158860, captured as P-021 deferred stash entry `9DD9E323` by shipment 151-S; reproducible identically on `main`, out of this feature's scope), 20 skipped |
 | Hosted CI | `ci gate`, `detect code changes`, `pipeline-topology (ambient)`, `test` -- all green at final HEAD `ee4c035b` |
 | Manual checkpoints | none required -- pure derivation-logic + test-file change, no user-facing or operational behavior change beyond correct variable resolution |
@@ -159,7 +159,7 @@ documented in
 `docs/compound/2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md`
 (first: 143-S/134-F/019-DL; second: 148-S/140-F/025-DL; third:
 149-S/141-F/024-DL; fourth: 151-S/143-F/024-DL, same deliberation as the
-third; fifth: this shipment, a THIRD distinct deliberation ID -- `023-DL`,
+third; fifth: this shipment, a FOURTH distinct deliberation ID -- `023-DL`,
 142-F's own originating deliberation). Applied the identical documented
 remediation: reverted only `023-DL` (confirmed byte-identical to its
 pre-cascade state via empty `git diff` and `backlogit get 023-DL` reporting
@@ -177,7 +177,7 @@ post-conditions.
 `backlogit shipment ship 150-S --sha 927272da...` was used in place of
 manual safe-close, per the P-015 verified fully-covered-root exception.
 This is the fifth observed occurrence of the out-of-manifest linked-
-deliberation surprise, spanning five shipments and three distinct
+deliberation surprise, spanning five shipments and four distinct
 deliberation records over two calendar days; recorded as a new disposition
 section on the existing compound learning doc rather than a duplicate
 entry.
@@ -205,7 +205,7 @@ entry.
   re-run `tests/test_scope_containment_policy_contract.py` and confirm the
   clean-pair byte-identity contract remains green.
 - **Healthy signals**: PR #395 merged with a verified 2-parent merge
-  commit; P-018 `SATISFIED` at final HEAD; all 4 Copilot review threads
+  commit; P-018 `SATISFIED` at final HEAD; all 3 Copilot review threads
   resolved before merge with substantive fixing replies; backlog
   cascade-close archived exactly the manifest's seven tasks, feature, and
   shipment records (after reverting the one out-of-manifest deliberation
@@ -241,7 +241,7 @@ entry.
      fifth-occurrence disposition added -- the Stage-owned follow-up to
      add a bounded, documented tolerance to the Cascade Close
      Sub-Procedure's step 3 exact-match check remains open, now reinforced
-     by five independent observations across three distinct deliberation
+     by five independent observations across four distinct deliberation
      records.
   2. This shipment (150-S) is the final selected shipment in the operator's
      chosen sequence (148-S -> 149-S -> 151-S -> 150-S). No successor
@@ -261,7 +261,7 @@ the verbose original now at
 `docs/archive/memory/2026-08-22-ship-150-s-execution-and-closure-session.md`.
 No compaction degradation or failure signal.
 
-**Closure verdict: READY.** Runtime verification passed, all 4 Copilot
+**Closure verdict: READY.** Runtime verification passed, all 3 Copilot
 review threads were resolved before merge, backlog cascade-close is
 complete and independently re-verified (including the fifth `023-DL`
 revert), and P-020 compaction is `done`. The residual follow-ups (the

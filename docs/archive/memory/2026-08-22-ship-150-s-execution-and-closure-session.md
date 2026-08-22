@@ -92,7 +92,7 @@ shipment claim (not a recovery of the prior one).
 deliberation, referenced only via `references:`, never `parent_id`) --
 the FIFTH occurrence of the documented recurring defect
 (`docs/compound/2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md`),
-and a THIRD distinct deliberation ID across the five occurrences,
+and a FOURTH distinct deliberation ID across the five occurrences,
 reinforcing that this is a per-feature/per-cascade-close engine behavior,
 not tied to any single deliberation. Reverted via the now-established
 procedure (git restore + delete the newly-created archive/log entries);

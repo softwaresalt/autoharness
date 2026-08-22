@@ -29,7 +29,7 @@ citations:
   - "148-S/140-F post-merge closure session, 2026-08-21 (recurrence via a plain `references` list entry, not `custom_fields.source_deliberation_id`)"
   - "149-S/141-F post-merge closure session, 2026-08-21 (third occurrence, same `references`-list mechanism, different feature/deliberation pair -- 024-DL)"
   - "151-S/143-F post-merge closure session, 2026-08-21 (fourth occurrence, same 024-DL deliberation as the third occurrence but a different sibling feature -- 143-F, not 141-F -- both derived from the same E8158860 deliberation)"
-  - "150-S/142-F post-merge closure session, 2026-08-22 (fifth occurrence, a third distinct deliberation ID -- 023-DL -- confirming the defect is per-feature/per-cascade-close, not tied to any one deliberation record)"
+  - "150-S/142-F post-merge closure session, 2026-08-22 (fifth occurrence, a fourth distinct deliberation ID -- 023-DL -- confirming the defect is per-feature/per-cascade-close, not tied to any one deliberation record)"
   - "templates/skills/shipment-reconcile/SKILL.md.tmpl:589-622 (Cascade Close Sub-Procedure steps 1-4)"
   - "src/autoharness/gates/shipment_closure.py: classify_shipment_close_path"
   - "docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md (related but distinct: that entry covers pre-archived manifest members, a documented/tolerated case; this entry covers a genuinely out-of-manifest artifact)"
@@ -322,7 +322,7 @@ is a root, fully covered by all seven manifest-member children).
 }
 ```
 
-This is a THIRD distinct deliberation ID (`023-DL`, distinct from the
+This is a FOURTH distinct deliberation ID (`023-DL`, distinct from the
 `019-DL`/`025-DL`/`024-DL` seen in the first four occurrences), confirming
 again that the defect is a per-feature, per-cascade-close behavior driven
 purely by whatever `references` a closing feature happens to carry, not
@@ -345,7 +345,7 @@ plus `142-F` plus `150-S`) after excluding `023-DL`; `returned_ids: []`;
 action required for 150-S's own closure beyond the `023-DL` revert.
 
 This fifth occurrence, spanning FIVE shipments and FIVE features across
-THREE distinct deliberation records over two calendar days, further
+FOUR distinct deliberation records over two calendar days, further
 confirms the defect is systemic to the cascade-close engine's own
 `references`-list traversal rather than an artifact of any one
 deliberation's lifecycle state, and reinforces the priority of the
