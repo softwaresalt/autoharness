@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from _env_patch import patched_environ
 from autoharness.gates.topology import (
@@ -12,13 +14,23 @@ from autoharness.gates.topology import (
     ShipmentState,
     TopologyInput,
     _active_invariant_check,
+    _run_git,
     _shipment_readiness_check,
     evaluate,
 )
 
 
 class _FakeReaders:
-    def __init__(self, shipments=(), artifacts=None, branch='main', default_branch='main', worktrees=None, worktree_markers=None):
+    def __init__(
+        self,
+        shipments=(),
+        artifacts=None,
+        branch='main',
+        default_branch='main',
+        worktrees=None,
+        worktree_markers=None,
+        git_errors=None,
+    ):
         if shipments and isinstance(shipments[0], (list, tuple)):
             self._snapshots = [tuple(snapshot) for snapshot in shipments]
         else:
@@ -32,6 +44,13 @@ class _FakeReaders:
             f'branch refs/heads/{branch}\n\n'
         )
         self._worktree_markers = dict(worktree_markers or {})
+        # A3R: simulated captured git-invocation-failure state, keyed by
+        # call-site name ("current_branch" / "default_branch" /
+        # "worktree_porcelain"). Empty by default so every pre-existing
+        # `_FakeReaders`-based test is completely unaffected (this reader
+        # never exposed `git_invocation_error` before; now it exposes it but
+        # it always returns `None` unless a test explicitly opts in).
+        self._git_errors = dict(git_errors or {})
         self._calls = 0
 
     def list_shipments(self):
@@ -53,6 +72,9 @@ class _FakeReaders:
 
     def read_worktree_marker(self, worktree_path: str):
         return self._worktree_markers.get(worktree_path)
+
+    def git_invocation_error(self, name: str):
+        return self._git_errors.get(name)
 
     def closure_complete(self, shipment_id: str):
         return None
@@ -1899,3 +1921,221 @@ class AmbientResolutionTests(unittest.TestCase):
         self.assertEqual(_check(result, 'shipment_readiness').status, 'skipped')
         self.assertEqual(_check(result, 'worktree_topology').token, 'WORKTREE_TOPOLOGY_OK')
 
+
+
+class RunGitDiagnosticTests(unittest.TestCase):
+    """Direct tests of `_run_git`'s A3R diagnostic seam via a simulated
+    (mocked) subprocess result -- no real git invocation failure is needed
+    or reliably reproducible cross-platform, so the nonzero exit is
+    constructed directly, exactly as the plan's own language ("for a
+    simulated nonzero git exit") anticipates."""
+
+    def test_expected_absence_code_produces_no_error_and_returns_empty(self) -> None:
+        fake = subprocess.CompletedProcess(args=['git'], returncode=1, stdout='', stderr='')
+        with mock.patch('autoharness.gates.topology.subprocess.run', return_value=fake):
+            errors: dict[str, str] = {}
+            result = _run_git(
+                ['git', '--no-pager', 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'],
+                Path('.'),
+                expected_absence_codes=frozenset({1}),
+                error_sink=errors,
+                error_key='default_branch',
+            )
+        self.assertEqual(result, '')
+        self.assertNotIn('default_branch', errors)
+
+    def test_unexpected_exit_populates_error_sink_with_captured_stderr(self) -> None:
+        fake = subprocess.CompletedProcess(
+            args=['git'], returncode=128, stdout='',
+            stderr='fatal: bad config line 3 in file .git/config\n',
+        )
+        with mock.patch('autoharness.gates.topology.subprocess.run', return_value=fake):
+            errors: dict[str, str] = {}
+            result = _run_git(
+                ['git', '--no-pager', 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'],
+                Path('.'),
+                expected_absence_codes=frozenset({1}),
+                error_sink=errors,
+                error_key='default_branch',
+            )
+        self.assertEqual(result, '')
+        self.assertEqual(errors['default_branch'], 'fatal: bad config line 3 in file .git/config')
+
+    def test_unexpected_exit_with_no_stderr_records_exit_code_not_empty_string(self) -> None:
+        fake = subprocess.CompletedProcess(args=['git'], returncode=128, stdout='', stderr='')
+        with mock.patch('autoharness.gates.topology.subprocess.run', return_value=fake):
+            errors: dict[str, str] = {}
+            result = _run_git(
+                ['git', '--no-pager', 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'],
+                Path('.'),
+                expected_absence_codes=frozenset({1}),
+                error_sink=errors,
+                error_key='default_branch',
+            )
+        self.assertEqual(result, '')
+        self.assertIn('default_branch', errors)
+        self.assertNotEqual(errors['default_branch'], '')
+        self.assertIn('128', errors['default_branch'])
+
+    def test_success_never_populates_error_sink(self) -> None:
+        fake = subprocess.CompletedProcess(args=['git'], returncode=0, stdout='main\n', stderr='')
+        with mock.patch('autoharness.gates.topology.subprocess.run', return_value=fake):
+            errors: dict[str, str] = {}
+            result = _run_git(
+                ['git', '--no-pager', 'branch', '--show-current'],
+                Path('.'),
+                error_sink=errors,
+                error_key='current_branch',
+            )
+        self.assertEqual(result, 'main')
+        self.assertNotIn('current_branch', errors)
+
+    def test_no_sink_supplied_is_a_silent_noop(self) -> None:
+        # Callers that never pass error_sink/error_key (the plain two-arg
+        # call shape used everywhere before this task) see EXACTLY the
+        # pre-change behavior -- no AttributeError, no accidental key.
+        fake = subprocess.CompletedProcess(args=['git'], returncode=128, stdout='', stderr='fatal: x')
+        with mock.patch('autoharness.gates.topology.subprocess.run', return_value=fake):
+            result = _run_git(['git', '--no-pager', 'branch', '--show-current'], Path('.'))
+        self.assertEqual(result, '')
+
+
+class BranchOwnershipGitInvocationErrorTests(unittest.TestCase):
+    """Propagation tests: `_branch_ownership_check`'s `CheckResult.details`
+    gains `git_invocation_error` ONLY when the reader reports one, and every
+    pre-existing key/verdict is byte-identical either way (A3/A3R)."""
+
+    def test_no_git_error_leaves_details_byte_identical_to_baseline(self) -> None:
+        baseline_readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s',
+        )
+        baseline = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=baseline_readers,
+        )
+        errored_readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s', git_errors={},
+        )
+        errored = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=errored_readers,
+        )
+        baseline_check = _check(baseline, 'branch_ownership')
+        errored_check = _check(errored, 'branch_ownership')
+        self.assertEqual(baseline.exit_code, errored.exit_code)
+        self.assertEqual(baseline_check.token, errored_check.token)
+        self.assertEqual(baseline_check.details, errored_check.details)
+        self.assertNotIn('git_invocation_error', baseline_check.details)
+        self.assertNotIn('git_invocation_error', errored_check.details)
+
+    def test_git_invocation_error_present_is_additive_on_branch_mismatch(self) -> None:
+        # Verdict-equality test (A3): a simulated invocation-error reader
+        # produces the IDENTICAL exit_code/token/pre-existing-details keys
+        # as the pre-change (no-error) reader, PLUS the new key carrying the
+        # captured stderr.
+        baseline_readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
+        baseline = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=baseline_readers,
+        )
+        errored_readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued'),),
+            branch='',
+            git_errors={'default_branch': 'fatal: bad config line 3 in file .git/config'},
+        )
+        errored = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=errored_readers,
+        )
+        baseline_check = _check(baseline, 'branch_ownership')
+        errored_check = _check(errored, 'branch_ownership')
+
+        self.assertEqual(errored.exit_code, baseline.exit_code)
+        self.assertEqual(errored_check.token, baseline_check.token)
+        self.assertEqual(errored_check.status, baseline_check.status)
+        for key, value in baseline_check.details.items():
+            self.assertEqual(errored_check.details[key], value)
+        self.assertNotIn('git_invocation_error', baseline_check.details)
+        self.assertEqual(
+            errored_check.details['git_invocation_error'],
+            'fatal: bad config line 3 in file .git/config',
+        )
+
+    def test_git_invocation_error_present_is_additive_on_branch_ok(self) -> None:
+        baseline_readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued'),), branch='feat/114-s',
+        )
+        baseline = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=baseline_readers,
+        )
+        errored_readers = _FakeReaders(
+            shipments=(_shipment('114-S', 'queued'),),
+            branch='feat/114-s',
+            git_errors={'current_branch': 'git exited with status 128'},
+        )
+        errored = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=errored_readers,
+        )
+        baseline_check = _check(baseline, 'branch_ownership')
+        errored_check = _check(errored, 'branch_ownership')
+
+        self.assertEqual(errored.exit_code, baseline.exit_code)
+        self.assertEqual(errored_check.token, baseline_check.token)
+        for key, value in baseline_check.details.items():
+            self.assertEqual(errored_check.details[key], value)
+        self.assertEqual(
+            errored_check.details['git_invocation_error'], 'git exited with status 128',
+        )
+
+    def test_reader_without_git_invocation_error_method_is_unaffected(self) -> None:
+        # A reader that does not expose `git_invocation_error` at all (e.g.
+        # `_NullReaders`, or any third-party TopologyReaders implementation
+        # written before this task) must not raise AttributeError and must
+        # never gain the new key -- `_collect_git_invocation_error` looks it
+        # up defensively via getattr.
+        class _NoErrorMethodReaders(_FakeReaders):
+            pass
+
+        # _FakeReaders itself always defines git_invocation_error now
+        # (returning None by default), so simulate the "doesn't exist at
+        # all" case directly against the module's own null reader.
+        from autoharness.gates.topology import _NullReaders
+
+        result = evaluate(
+            TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
+            readers=_NullReaders(),
+        )
+        # `_NullReaders` has no shipments, so branch_ownership is skipped
+        # rather than evaluated -- this proves only that no AttributeError
+        # is raised when the reader lacks the method, exercising the
+        # defensive getattr path used across every check.
+        self.assertEqual(_check(result, 'branch_ownership').status, 'skipped')
+
+
+class WorktreeGitInvocationErrorTests(unittest.TestCase):
+    def test_git_invocation_error_present_is_additive_on_worktree_topology_ok(self) -> None:
+        baseline_readers = _FakeReaders(shipments=())
+        baseline = evaluate(
+            TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
+            readers=baseline_readers,
+        )
+        errored_readers = _FakeReaders(
+            shipments=(), git_errors={'worktree_porcelain': 'fatal: unable to read worktree config'},
+        )
+        errored = evaluate(
+            TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
+            readers=errored_readers,
+        )
+        baseline_check = _check(baseline, 'worktree_topology')
+        errored_check = _check(errored, 'worktree_topology')
+        self.assertEqual(errored.exit_code, baseline.exit_code)
+        self.assertEqual(errored_check.token, baseline_check.token)
+        for key, value in baseline_check.details.items():
+            self.assertEqual(errored_check.details[key], value)
+        self.assertNotIn('git_invocation_error', baseline_check.details)
+        self.assertEqual(
+            errored_check.details['git_invocation_error'],
+            'fatal: unable to read worktree config',
+        )

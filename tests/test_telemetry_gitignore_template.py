@@ -27,6 +27,26 @@ _CONFIG_TEMPLATE = _REPO_ROOT / "templates" / "harness-config.yaml.tmpl"
 _SCHEMA_PATH = _REPO_ROOT / "schemas" / "validation-gates" / "1.0.0.schema.json"
 
 
+def _check_ignore_failure_message(rel: str, returncode: int, stderr: str) -> str:
+    """Diagnose a nonzero `git check-ignore` exit (144.006-T Part 2 / A6-AIG-2).
+
+    `git check-ignore` uses 0 = ignored, 1 = not ignored, >=2 = a genuine git
+    INVOCATION failure (fatal error), per its documented exit-status
+    contract. Only the MESSAGE branches on this distinction -- the assertion
+    this message feeds (`assertEqual(result.returncode, 0, ...)`) is
+    completely unchanged and unweakened; a `returncode` of 1 or of >=2 both
+    still fail that assertion exactly as before. This function exists solely
+    so the failure is diagnosed correctly instead of always being reported
+    as "not gitignored" when git itself actually died.
+    """
+    if returncode >= 2:
+        return (
+            f"git check-ignore invocation failed for {rel} (exit {returncode}): "
+            f"{stderr.strip()}"
+        )
+    return f"{rel} is not gitignored"
+
+
 class MetricsGitignoreTests(unittest.TestCase):
     def test_metrics_dir_is_listed_in_gitignore(self) -> None:
         self.assertIn(".autoharness/metrics/", _GITIGNORE.read_text(encoding="utf-8"))
@@ -47,7 +67,15 @@ class MetricsGitignoreTests(unittest.TestCase):
                 text=True,
                 env=consistent_git_env(),
             )
-            self.assertEqual(result.returncode, 0, f"{rel} is not gitignored")
+            # AIG-2 (BINDING, single authorized assertion-argument
+            # divergence in the whole feature): only the MESSAGE argument
+            # is computed via `_check_ignore_failure_message`; the
+            # non-message arguments (`result.returncode`, `0`) are
+            # byte-identical to the pre-144.006-T assertion.
+            self.assertEqual(
+                result.returncode, 0,
+                _check_ignore_failure_message(rel, result.returncode, result.stderr),
+            )
 
 
 class MetricsEmissionHardGateTests(unittest.TestCase):
@@ -158,6 +186,32 @@ class TelemetryTemplateActivationTests(unittest.TestCase):
             }
         }
         self.assertEqual(list(validator.iter_errors(activated)), [])
+
+
+class CheckIgnoreDiagnosisMessageTests(unittest.TestCase):
+    """144.006-T Part 2: prove the new invocation-failure message appears
+    only for a genuine git invocation failure (returncode >= 2), and the
+    ORIGINAL domain message is preserved for a normal not-ignored result
+    (returncode == 1)."""
+
+    def test_returncode_128_produces_invocation_failure_message(self) -> None:
+        message = _check_ignore_failure_message(
+            ".autoharness/metrics/execution_epochs.db",
+            128,
+            "fatal: bad config line 3 in file .git/config\n",
+        )
+        self.assertIn("invocation failed", message)
+        self.assertIn("128", message)
+        self.assertIn("fatal: bad config line 3 in file .git/config", message)
+        self.assertNotIn("is not gitignored", message)
+
+    def test_returncode_1_preserves_original_message(self) -> None:
+        message = _check_ignore_failure_message(
+            ".autoharness/metrics/execution_epochs.db", 1, "",
+        )
+        self.assertEqual(
+            message, ".autoharness/metrics/execution_epochs.db is not gitignored",
+        )
 
 
 if __name__ == "__main__":
