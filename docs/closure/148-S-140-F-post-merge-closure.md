@@ -153,7 +153,7 @@ post-conditions.
 | `returned_ids` | `[]` |
 | `archived_ids` (after excluding the reverted `025-DL`) | exact match: `140.001-T`, `140.002-T`, `140-F`, `148-S` |
 | `parent_id` preservation | `140.001-T.parent_id` / `140.002-T.parent_id` re-read as `140-F`, unchanged from the Step 0(b) pre-close snapshot |
-| Live status | `140-F` archived (`archived_status: archived`... record `status: archived`); `148-S` archived (`archived_status: shipped`) |
+| Live status | `140-F` archived (`archived_status: done`; `status: archived`); `148-S` archived (`archived_status: shipped`) |
 | `025-DL` | restored to pre-cascade state, `status: queued`, byte-identical (`git diff` empty) |
 
 `backlogit shipment ship 148-S --sha 291dafd8...` was used in place of
