@@ -15,6 +15,13 @@ fix), and NAMES every offending file and line in its failure message
 A4): a module on the allowlist is exempt from the anti-pattern check, but the
 allowlist itself is asserted to be exactly the expected set at each stage, so
 it cannot silently grow or survive as a permanent escape hatch.
+
+Scope is EVERY ``*.py`` file under ``tests/``, scanned RECURSIVELY (Copilot
+review finding on PR #390, thread PRRT_kwDORzpWpM6bWClz): the guard's own
+stated invariant is "no module under tests/", not "no top-level
+test_*.py-named module" -- a non-recursive ``test_*.py``-only glob would
+silently exempt any nested test package or non-``test_``-prefixed helper
+module from the very check it exists to enforce.
 """
 
 from __future__ import annotations
@@ -88,7 +95,7 @@ class TestSuiteIsolationContract(unittest.TestCase):
 
     def test_no_cwd_anchored_temp_directories_outside_allowlist(self) -> None:
         offenses: list[str] = []
-        for path in sorted(_TESTS_DIR.glob("test_*.py")):
+        for path in sorted(_TESTS_DIR.rglob("*.py")):
             if path.name in ALLOWLIST:
                 continue
             for lineno in _find_offenses(path):
