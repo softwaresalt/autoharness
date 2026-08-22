@@ -5,7 +5,7 @@ tasks:
     - 140.001-T
     - 140.002-T
 feature_pr: 387
-closure_pr: null
+closure_pr: 388
 merge_commit: 291dafd8cd5c1ff937c6499476161ae450fb2f0a
 merged_at: "2026-08-22T01:47:17Z"
 reviewed_head: 598c7303d81d45c9ee32ba2feb0501ed16f2125c
@@ -218,8 +218,8 @@ existing compound learning doc rather than a duplicate entry.
   -- no additional evidence beyond the runtime verification above is
   required for this workspace). Verified merge commit (two parents), green
   CI, P-018 `SATISFIED`, P-015 cascade-close independently re-verified
-  (including the `025-DL` revert), and P-020 compaction pending completion
-  below. No condition is outstanding beyond compaction.
+  (including the `025-DL` revert), and P-020 compaction `done` (see below).
+  No condition is outstanding. Closure PR: #388.
 - **Residual follow-up (non-blocking)**:
   1. P-021 deferred scope expansion stash entry `FAE1E7B7` (pre-existing
      `source:` value semantic mismatch in one docs/compound file) remains
