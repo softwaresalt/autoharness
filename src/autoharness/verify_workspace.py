@@ -2501,12 +2501,44 @@ def _yaml_flow_map(mapping: dict[str, Any]) -> str:
     return "{" + ", ".join(parts) + "}"
 
 
-def _shell_quoted_list(items: list[Any], *, separator: str) -> str:
-    """Render a Python list as shell/PowerShell array-literal CONTENTS (the
-    caller's template already supplies the surrounding `@(...)` / `(...)`),
-    quoted per item and joined by `separator` (", " for PowerShell, " " for
-    POSIX sh)."""
-    return separator.join(json.dumps(str(item)) for item in items)
+def _posix_shell_quote(value: str) -> str:
+    """Quote a single value as a POSIX sh single-quoted string LITERAL: single
+    quotes suppress ALL expansion inside a double-quoted context would
+    otherwise trigger (`$(...)` command substitution, `` ` ``, `$VAR`,
+    globbing), unlike double-quoted strings, which still evaluate `$(...)`
+    and `` ` `` (Copilot review finding on this feature's own PR:
+    `json.dumps`-based double-quoting is NOT shell quoting -- a configured
+    `ai_tools.copilot_cli.args` value containing `$(...)` would still be
+    evaluated as a command substitution when the generated `start.sh` runs,
+    turning config DATA into executable script content). An embedded single
+    quote cannot appear inside a single-quoted POSIX string at all, so it is
+    escaped by closing the quote, inserting a separately single-quoted
+    escaped quote, and reopening: `it's` -> `'it'\\''s'`."""
+    return "'" + value.replace("'", "'\\''") + "'"
+
+
+def _powershell_shell_quote(value: str) -> str:
+    """Quote a single value as a PowerShell single-quoted string LITERAL:
+    single-quoted strings perform NO interpolation or subexpression
+    evaluation at all (unlike PowerShell double-quoted strings, which DO
+    evaluate `$(...)` subexpressions and `$variable` references) -- the same
+    injection class the POSIX rung above guards against. An embedded single
+    quote is escaped by doubling it: `it's` -> `'it''s'`."""
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _posix_quoted_list(items: list[Any], *, separator: str = " ") -> str:
+    """Render a Python list as POSIX sh array-literal CONTENTS (the caller's
+    template already supplies the surrounding `(...)`), each item quoted via
+    `_posix_shell_quote` and joined by `separator`."""
+    return separator.join(_posix_shell_quote(str(item)) for item in items)
+
+
+def _powershell_quoted_list(items: list[Any], *, separator: str = ", ") -> str:
+    """Render a Python list as PowerShell array-literal CONTENTS (the
+    caller's template already supplies the surrounding `@(...)`), each item
+    quoted via `_powershell_shell_quote` and joined by `separator`."""
+    return separator.join(_powershell_shell_quote(str(item)) for item in items)
 
 
 def _resolve_graphtor_sources_path(profile: dict[str, Any], workspace_path: Path) -> str:
@@ -2751,14 +2783,14 @@ def _derive_template_variables(
         }
         sidecar_list = [pack_to_sidecar[pack] for pack in packs if pack in pack_to_sidecar]
     variables.setdefault("ENABLED_SIDECARS_YAML", _yaml_flow_list(sidecar_list))
-    variables.setdefault("ENABLED_SIDECARS_PS1", _shell_quoted_list(sidecar_list, separator=", "))
-    variables.setdefault("ENABLED_SIDECARS_SH", _shell_quoted_list(sidecar_list, separator=" "))
+    variables.setdefault("ENABLED_SIDECARS_PS1", _powershell_quoted_list(sidecar_list))
+    variables.setdefault("ENABLED_SIDECARS_SH", _posix_quoted_list(sidecar_list))
 
     copilot_cli_config = (config.get("ai_tools") or {}).get("copilot_cli") or {}
     copilot_cli_args = [str(arg) for arg in (copilot_cli_config.get("args") or [])]
     variables.setdefault("COPILOT_CLI_ARGS_YAML", _yaml_flow_list(copilot_cli_args))
-    variables.setdefault("COPILOT_CLI_ARGS_PS1", _shell_quoted_list(copilot_cli_args, separator=", "))
-    variables.setdefault("COPILOT_CLI_ARGS_SH", _shell_quoted_list(copilot_cli_args, separator=" "))
+    variables.setdefault("COPILOT_CLI_ARGS_PS1", _powershell_quoted_list(copilot_cli_args))
+    variables.setdefault("COPILOT_CLI_ARGS_SH", _posix_quoted_list(copilot_cli_args))
 
     # 142-F: remaining profile-derived / misc-config family (~15 variables,
     # amendment B4 -- config/profile field, SKILL.md documented default, or

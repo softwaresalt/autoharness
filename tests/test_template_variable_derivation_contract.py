@@ -531,6 +531,36 @@ class InstallShapeTests(unittest.TestCase):
         self.assertIn("enabled_sidecars=(", sh_text)
         self.assertNotIn("{{", sh_text.split("enabled_sidecars=")[1].split("\n")[0])
 
+    def test_copilot_cli_args_are_single_quoted_not_json_double_quoted(self) -> None:
+        """Copilot review finding (PR #395): json.dumps-based double-quoting
+        is NOT shell quoting -- a configured ai_tools.copilot_cli.args value
+        containing `$(...)` would still be evaluated as a command
+        substitution inside a JSON/double-quoted string when the generated
+        start.sh/start.ps1 runs, turning config DATA into executable script
+        content. Both POSIX and PowerShell renders must use single-quoted
+        literals (which suppress ALL expansion), never double quotes."""
+        from autoharness.verify_workspace import _posix_quoted_list, _powershell_quoted_list
+
+        dangerous_args = ["$(rm -rf /)", "`whoami`", "$HOME"]
+        posix_rendered = _posix_quoted_list(dangerous_args)
+        ps1_rendered = _powershell_quoted_list(dangerous_args)
+        self.assertNotIn('"', posix_rendered)
+        self.assertNotIn('"', ps1_rendered)
+        self.assertIn("'$(rm -rf /)'", posix_rendered)
+        self.assertIn("'$(rm -rf /)'", ps1_rendered)
+
+    def test_posix_quote_escapes_embedded_single_quote(self) -> None:
+        from autoharness.verify_workspace import _posix_quoted_list
+
+        rendered = _posix_quoted_list(["it's"])
+        self.assertEqual(rendered, "'it'\\''s'")
+
+    def test_powershell_quote_escapes_embedded_single_quote(self) -> None:
+        from autoharness.verify_workspace import _powershell_quoted_list
+
+        rendered = _powershell_quoted_list(["it's"])
+        self.assertEqual(rendered, "'it''s'")
+
     def test_idempotent_round_trip_amendment_b3(self) -> None:
         """derive -> render -> parse -> RE-DERIVE from the re-parsed config
         -> the second derivation equals the first."""
