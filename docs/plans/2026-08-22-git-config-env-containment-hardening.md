@@ -308,6 +308,114 @@ that way. An explicit environment block handed to `CreateProcessW` carries a
 `NAME=\0` entry and is inherited as a genuinely empty value. This asymmetry is
 the entire reason the topology has an L0.
 
+### H7R — The normalizer's drop rule must be symmetric (Amendment A7R, BINDING — cycle 3, Copilot thread `PRRT_kwDORzpWpM6bXxuS`)
+
+A7's deliverable states the rule symmetrically — "only `(KEY_n, VALUE_n)` pairs
+where **BOTH** are present are kept" — but its binding property 2 states the
+drop criterion **asymmetrically**: "only a pair whose `VALUE_n` is genuinely
+ABSENT is dropped".
+
+**These contradict.** For a pair where `GIT_CONFIG_KEY_n` is absent but
+`GIT_CONFIG_VALUE_n` is present, the deliverable drops it (not both present)
+while property 2 requires it to be **kept** (its `VALUE_n` is not absent). An
+implementer following property 2 would emit a `VALUE_n` with no matching
+`KEY_n` and a `GIT_CONFIG_COUNT` that counts it — reproducing the exact class
+of malformed triple the normalizer exists to eliminate, in mirror image.
+
+Git's contract is symmetric: for every `n` in `0 .. COUNT-1` it requires
+**both** `GIT_CONFIG_KEY_<n>` and `GIT_CONFIG_VALUE_<n>`. A missing key raises
+`missing config key GIT_CONFIG_KEY_<n>`; a missing value raises
+`missing config value GIT_CONFIG_VALUE_<n>`. Both are fatal and both end in
+`fatal: unable to parse command-line config`. The captured failure in
+`9DD9E323` is the value-side instance of a two-sided rule, not the whole rule.
+
+**Amendment A7R (BINDING).** Property 2 is replaced by:
+
+> **2. Narrowness (symmetric).** Pair `n` is dropped **if and only if**
+> `GIT_CONFIG_KEY_<n>` is absent **OR** `GIT_CONFIG_VALUE_<n>` is absent.
+> Absence means the name is not present in the mapping at all. A pair whose
+> key and value are both present is **kept**, including when the value is
+> present-but-empty on a platform that can represent it — empty is not absent,
+> and that distinction is what keeps the normalizer from discarding a
+> legitimate injection.
+
+Required test coverage becomes symmetric too. In addition to the existing
+value-absent case, `144.005-T` must test:
+
+* `KEY_n` absent, `VALUE_n` present -> pair dropped, survivors renumbered,
+  `GIT_CONFIG_COUNT` reduced;
+* both absent -> pair dropped;
+* both present with an empty value -> pair **kept** verbatim.
+
+The renumber-and-recount behavior is unchanged; only the predicate that selects
+survivors becomes symmetric.
+
+### H3R — `_run_git`'s diagnostic must distinguish expected absence from invocation failure (Amendment A3R, BINDING — cycle 3, Copilot thread `PRRT_kwDORzpWpM6bXxuh`)
+
+A3 binds `details['git_invocation_error']` to be populated on **nonzero exit**
+and to be **absent whenever every git invocation succeeded**. Verified against
+the actual call sites in `src/autoharness/gates/topology.py`:
+
+```text
+L571  _run_git(["git","--no-pager","branch","--show-current"], ...)
+L574  _run_git(["git","--no-pager","symbolic-ref","--quiet","--short",
+               "refs/remotes/origin/HEAD"], ...)
+L583  _run_git(["git","--no-pager","worktree","list","--porcelain"], ...)
+```
+
+`git symbolic-ref --quiet` exits **1** when the ref does not exist, and
+`--quiet` means precisely "do not print an error, just exit nonzero". That is
+the *designed* way to ask whether `refs/remotes/origin/HEAD` exists. In any
+clone where `origin/HEAD` is not set, exit 1 is the **normal, expected**
+answer and `default_branch()` correctly falls through to its next resolution
+rung.
+
+Under A3 as written, that ordinary path would populate
+`git_invocation_error` on **every run**, making A3's own binding claim
+("absent whenever every git invocation succeeded") false in routine operation
+and converting the diagnostic from signal into noise at the exact site it was
+added to clarify. Worse, because `--quiet` suppresses stderr, the key would be
+populated with the **empty string** — a present-but-meaningless diagnostic.
+
+**Amendment A3R (BINDING).** `_run_git` gains an explicit caller-declared
+expected-absence set:
+
+```python
+def _run_git(argv: list[str], cwd: Path,
+             expected_absence_codes: frozenset[int] = frozenset()) -> str:
+```
+
+* The **return contract is unchanged**: `""` on every nonzero exit. Gate
+  tokens, `exit_code`, and all pre-existing `details` keys remain identical on
+  every path, so A3's verdict-preservation guarantee is fully retained.
+* `details['git_invocation_error']` is populated **only** when the exit code is
+  nonzero **and not** in `expected_absence_codes`.
+* Call-site declarations are exhaustive and explicit:
+  * `branch --show-current` -> `frozenset()` (exit 0 even on detached HEAD,
+    which reports empty stdout; any nonzero is a real failure)
+  * `symbolic-ref --quiet --short refs/remotes/origin/HEAD` -> `frozenset({1})`
+  * `worktree list --porcelain` -> `frozenset()`
+* The key is **never** populated with an empty string. If an unexpected nonzero
+  exit produced no stderr, record the exit code instead, so the diagnostic is
+  always meaningful when present.
+
+Required tests: expected-absence exit 1 at the `symbolic-ref` site produces
+**no** `git_invocation_error` key and the identical verdict as today; an
+unexpected exit (e.g. 128) at the same site **does** populate it; a
+no-stderr unexpected exit records the exit code rather than `""`.
+
+
+
+`144.007-T` accepts "skips not greater than the baseline of 20". A bound alone
+allows a *substitution* — a newly skipped real test offset by a no-longer-skipped
+one.
+
+**Amendment A9 (BINDING).** Record the **named set** of skipped tests before and
+after. The post set must be a subset of the pre set, plus at most the
+git-unavailable skip in `tests/test_environ_restore_contract.py`, which must be
+enumerated explicitly and must **not** trigger on a machine where
+`shutil.which("git")` is non-None. Any newly skipped canonical test is a HALT.
+
 ### H9 — Skip-count baseline must be enumerated, not just bounded (Amendment A9, BINDING)
 
 `144.007-T` accepts "skips not greater than the baseline of 20". A bound alone
@@ -320,7 +428,42 @@ git-unavailable skip in `tests/test_environ_restore_contract.py`, which must be
 enumerated explicitly and must **not** trigger on a machine where
 `shutil.which("git")` is non-None. Any newly skipped canonical test is a HALT.
 
-### H10 — Mechanism-B subsumption must not be provable by mechanism-A's own runner (Amendment A10, BINDING)
+### H9R — The named skip set needs a source that actually emits names (Amendment A9R, BINDING — cycle 3, Copilot thread `PRRT_kwDORzpWpM6bXxur`)
+
+A9 requires a **named** skip set but never says where the names come from, and
+R11 compounds the gap by requiring the in-process run's *skipped set* to equal
+"proof 1's canonical subprocess run". Proof 1 is
+`python -m unittest discover -s tests`, whose summary tail is **counts only**:
+
+```text
+OK (skipped=20)
+FAILED (failures=5, skipped=20)
+```
+
+There are no test names in that output, so the comparison R11 mandates is
+**not merely difficult, it is impossible** — an obligation no implementer can
+discharge, which in practice gets silently downgraded to a count comparison
+while the contract still claims a named one.
+
+**Amendment A9R (BINDING).** The named skip set has explicit, distinct sources:
+
+* **POST set** — `prog.result.skipped` from the A8R in-process controller,
+  which yields `(test, reason)` pairs; the test IDs are the names. This is
+  already being collected under A8R, so no extra run is required.
+* **PRE / baseline set** — `python -m unittest discover -s tests -v`, whose
+  verbose output emits one line per test terminating in `skipped '<reason>'`.
+  This is the only canonical invocation that emits names, and it is still the
+  stdlib unittest runner, so R3's `pytest` prohibition is unaffected.
+
+The A9 subset assertion is then performed **name-to-name** between two sets that
+genuinely contain names.
+
+**R11R (BINDING, defined in the review, stated here for coherence).** R11's
+equivalence check against proof 1 is reduced to what proof 1 can actually
+supply: `testsRun`, `failures`, `errors`, and the skipped **count**. The named
+comparison is removed from R11 and lives solely in A9R.
+
+
 
 `145.001-T`'s `SUBSUMED` disposition could be recorded from a single full-suite
 green run, which proves nothing about the *intra-file* order dependence that
@@ -414,7 +557,39 @@ Binding consequences:
    block inheritance, so the scenario proves nothing and the design returns to
    Stage.
 
-### H11 — Residual risk accepted, recorded
+### H13 — Cycle withdrawals leave stale binding references in downstream carriers (Amendment A12, BINDING — cycle 3, threads `PRRT_kwDORzpWpM6bXxu2` / `XqlXxu7` / `XqlXxu-`)
+
+Cycle 2 withdrew `A2`, `A8`, `R5` and added `A1R`, `A2R`, `A8R`, `A11`, `R5R`,
+`R10`, `R11`, `R12`. The plan, hardening and review were updated; three
+**downstream summary carriers** were not, and each still asserted the cycle-1
+set as authoritative:
+
+* `.backlogit/queue/144-F.md:33` — "`(A1-A10 BINDING)`" / "`(R1-R9 BINDING)`".
+* `docs/memory/...-containment.md:131` — "Hardening **A1–A10** and review
+  **R1–R9**" as the *header* of the Ship handoff section, contradicting the
+  cycle-2 bullets printed directly beneath it.
+* `.backlogit/memories.json` key
+  `stage-2026-08-22-9dd9e323-git-config-env-containment` — "P-006 hardening
+  A1-A10 ... cycle 1 of 3, amendments R1-R9".
+
+These are the three surfaces Ship reads **first** on pickup, so the stale set
+was the one most likely to be acted on. A summary that names a withdrawn
+amendment is worse than one that names none, because it reads as current.
+
+**Amendment A12 (BINDING).** Every cycle that withdraws or supersedes an
+amendment MUST, in the same cycle, update **all** of:
+
+1. the covering feature carrier (`144-F`, `145-F`),
+2. the Ship-handoff section of `docs/memory/`,
+3. the structured `backlogit_save_memory` record,
+
+and each MUST state the amendment set by **explicit enumeration of the current
+binding IDs plus the withdrawn IDs**, never by an open range such as
+"`A1-A10`". Ranges cannot express withdrawals and silently re-authorize
+superseded contract text. A cycle is not complete until these three carriers
+agree with the plan/hardening/review triad.
+
+
 
 * The Win32 empty-value-delete behavior is inferred from documented platform
   behavior plus the captured failure signature. `144.001-T`'s halt condition is
@@ -443,13 +618,17 @@ Binding consequences:
 | **A1R** | Tasks 2, 4 | **Supersedes A1's allowlist clause.** `ENV_MUTATION_ALLOWLIST = frozenset()` — EMPTY. No path exemption for `_env_patch.py`: targeted set/delete is not a forbidden form, and an exemption would legalise the destructive forms in the one file most likely to reintroduce them |
 | ~~A2~~ | — | Superseded by A2R |
 | **A2R** | Task 1 | Enumerated expected-red set **plus** an expected-GREEN set (precondition lock + sentinel cleanup); gate is failure-set equality; one-task window |
-| A3 | Task 6 | `details['git_invocation_error']` additive-and-absent-on-success; verdict-equality test; consumer grep |
+| ~~A3~~ | — | Nonzero-exit clause superseded by **A3R** |
+| **A3R** | Task 6 | `_run_git(argv, cwd, expected_absence_codes)`; diagnostic populated ONLY on nonzero exits NOT declared as expected absence (`symbolic-ref --quiet` exit 1 is expected); never populated with an empty string; return contract and verdicts unchanged |
 | A4 | Task 2 | `ValueError` on `""` overrides, uniformly on all platforms, before mutation |
 | A5 | Task 2 | `RuntimeError` at entry if any touched key's prior value is `""`; fail closed, no torn state |
 | A6 | Tasks 3, 6 | AIG-1..AIG-4 AST assertion-inventory equality with per-line citation |
 | A7 | Task 5 | Exact `GIT_CONFIG_{COUNT,KEY_n,VALUE_n}` shape only; other `GIT_CONFIG*` pass through; never invent a count |
+| **A7R** | Task 5 | **Supersedes A7 property 2.** Drop pair `n` **iff** `KEY_n` absent **OR** `VALUE_n` absent (symmetric). Present-but-empty is KEPT — empty is not absent. Adds key-absent and both-absent test cases |
 | ~~A8~~ | — | **WITHDRAWN AS UNSOUND** — sibling shell probes cannot observe a child runner's mutations; `before == after` was trivially true |
 | **A8R** | Task 7 | L0/L1/L2 topology; suite runs **in-process** in L1; probes are L1's children; precondition gate, per-key assertion, canonical-equivalence check, mandatory negative control |
 | A9 | Task 7 | Named skip-set subset check, not a bare count bound |
+| **A9R** | Task 7 | Named-set SOURCES specified: POST from `prog.result.skipped` (A8R in-process); PRE from `python -m unittest discover -s tests -v`. Name-to-name subset assertion |
 | A10 | Task 8 | `SUBSUMED` requires standalone + all five pairings + a reverted-checkout negative control |
+| **A12** | all cycles | Every withdrawal/supersession MUST update the feature carrier, the memory Ship-handoff, and the structured memory record in the SAME cycle, by EXPLICIT ID enumeration — never an open range like `A1-A10` |
 | **A11** | Task 1 | L0/L1/L2 topology for the reproduction; blank sentinel established **only** via an explicit env block and **verified inherited** before the round trip; adds a fourth expected-GREEN precondition test; all destructive ops confined to L1 |

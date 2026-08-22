@@ -128,7 +128,37 @@ that constraint *perfectly* rather than approximately — it touches no
 
 ## Binding amendments Ship must honour
 
-Hardening **A1–A10** and review **R1–R9**. Highest-consequence ones:
+**Current binding set (A12/R13 — explicit enumeration, never an open range):**
+
+* Hardening BINDING: `A1`, `A1R`, `A2R`, `A3R`, `A4`, `A5`, `A6`, `A7`, `A7R`,
+  `A8R`, `A9`, `A9R`, `A10`, `A11`, `A12`
+* Review BINDING: `R1`, `R2`, `R3`, `R4`, `R5R`, `R6`, `R7`, `R8`, `R9`, `R10`,
+  `R11R`, `R12`, `R13`
+* **WITHDRAWN — do NOT act on:** `A2` (→ A2R), `A8` (→ A8R, unsound),
+  `R5` (→ R5R), `A3` nonzero-exit clause (→ A3R), `A7` property 2 (→ A7R),
+  `R11` (→ R11R, impossible as written)
+
+An open range like "A1–A10" cannot express withdrawals and silently
+re-authorizes superseded text — that is exactly the defect cycle 3 finding 5
+caught in this very section.
+
+Highest-consequence amendments:
+
+* **A7R** — the normalizer's drop rule is **symmetric**: drop pair `n` iff
+  `KEY_n` **or** `VALUE_n` is absent. The old asymmetric wording contradicted
+  the task's own deliverable and would have emitted a `VALUE_n` with no
+  matching `KEY_n` — the same malformed triple in mirror image. Present-but-
+  empty is **kept**; empty is not absent.
+* **A3R** — `_run_git` takes `expected_absence_codes`. `symbolic-ref --quiet`
+  exit **1** is an *expected absence* (the designed way to ask whether
+  `origin/HEAD` exists), not an invocation failure. Without this the diagnostic
+  would fire on every ordinary run — and, because `--quiet` suppresses stderr,
+  fire with an empty string. Never populate the key with `""`; record the exit
+  code instead.
+* **A9R + R11R** — R11's demand that the in-process skipped **set** equal proof
+  1's was impossible: `python -m unittest discover -s tests` emits counts only.
+  R11R compares counts; A9R sources the **named** set from
+  `prog.result.skipped` (post) and `... -v` (baseline).
 
 * **A2R/R6** — `144.001-T` is **RED by design on Windows**. Its gate is
   **failure-set equality** against an enumerated list (expected-RED **and**
@@ -198,6 +228,28 @@ and must read counts from `prog.result`, not by scraping stderr; **N3** (P2) —
 A9's skip enumeration is unaffected by the topology change.
 
 Re-gate: plan/hardening/review **PASS**, 0 unresolved P0/P1, cycle 2 of 3.
+
+## Cycle 3 — PR #397 review-fix (2026-08-22, head `374672c8`) — FINAL PERMITTED CYCLE
+
+Six hosted Copilot findings. **All six classified P-021 C1 PASS; zero required
+C2 capture.** Contract text only — manifests, dependencies and claimability
+unchanged for the third consecutive cycle.
+
+| # | Thread | Carrier | Resolution |
+| --- | --- | --- | --- |
+| 1 | `PRRT_kwDORzpWpM6bXxuS` | `144.005-T:62` | **A7R** — drop rule made symmetric. The task's deliverable ("both present are kept") contradicted its own property 2 ("only `VALUE_n` absence drops"); following property 2 would emit a `VALUE_n` with no matching `KEY_n` — the same malformed triple in mirror image. Property 2 was written from the `9DD9E323` capture (value side) instead of git's two-sided rule. |
+| 2 | `PRRT_kwDORzpWpM6bXxuh` | `144.006-T:45` | **A3R** — `expected_absence_codes`. `symbolic-ref --quiet` exit 1 is the *designed* existence probe for `origin/HEAD`, not a failure; A3 would have fired the diagnostic on every ordinary run, and — since `--quiet` suppresses stderr — fired it with an empty string. |
+| 3 | `PRRT_kwDORzpWpM6bXxur` | `144.007-T:82` | **R11R + A9R** — R11's named-set comparison was *impossible* (proof 1 emits counts only). R11R compares counts; A9R sources the named set from `prog.result.skipped` and `... -v`. Also closed a latent gap: A9 had never specified a source at all. |
+| 4–6 | `...Xxu2` / `...Xxu7` / `...Xxu-` | `144-F:33`, memory `:131`, `memories.json` | **A12 + R13** — the three carriers Ship reads *first* still asserted the cycle-1 set. An open range cannot express a withdrawal, so "A1-A10" silently re-authorized the unsound A8. All three now enumerate binding **and** withdrawn IDs explicitly. |
+
+The recurring lesson across cycles 2 and 3: **a contract clause written from a
+single captured instance generalises wrongly.** A8 generalised "probe the
+environment" without tracing process topology; A7 property 2 and A3's
+nonzero-exit rule both generalised from one observed symptom. A7R, A3R and A8R
+now state the rule and the counter-cases, not the instance.
+
+**Cycle budget exhausted.** Any further finding must be captured as a deferred
+entry under P-021 C2, not fixed in a fourth cycle.
 
 
 ## Verification performed

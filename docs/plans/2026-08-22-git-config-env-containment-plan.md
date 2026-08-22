@@ -7,10 +7,10 @@ requires_plan_hardening: yes
 hardening_artifact: docs/plans/2026-08-22-git-config-env-containment-hardening.md
 review_artifact: docs/reviews/2026-08-22-git-config-env-containment-review.md
 review_verdict: PASS
-amendments_binding: [A1, A1R, A2R, A3, A4, A5, A6, A7, A8R, A9, A10, A11, R1, R2, R3, R4, R5R, R6, R7, R8, R9, R10, R11, R12]
-withdrawn_amendments: [A2, A8, R5]
-review_cycle: 2
-review_cycle_context: "PR #397 Copilot review-fix cycle 1 (artifact cycle 2 of 3)"
+amendments_binding: [A1, A1R, A2R, A3R, A4, A5, A6, A7, A7R, A8R, A9, A9R, A10, A11, A12, R1, R2, R3, R4, R5R, R6, R7, R8, R9, R10, R11R, R12, R13]
+withdrawn_amendments: [A2, A8, R5, "A3 (nonzero-exit clause)", "A7 (property 2)", R11]
+review_cycle: 3
+review_cycle_context: "PR #397 Copilot review-fix cycle 2 (artifact cycle 3 of 3 — FINAL PERMITTED)"
 features: [144-F, 145-F]
 shipments: [152-S, 153-S]
 source: docs/plans/2026-08-22-git-config-env-containment-plan.md
@@ -302,9 +302,18 @@ def consistent_git_env(base: Mapping[str, str] | None = None) -> dict[str, str]:
 * **Preservation:** every well-formed pair survives with its key and value
   unchanged, in original relative order. `safe.bareRepository=explicit` and
   `credential.interactive=never` specifically must survive.
-* **Narrowness:** only a pair whose `VALUE_n` is genuinely **absent** is
-  dropped. A pair whose value is present-but-empty on a platform that can
-  represent it is **kept**.
+* **Narrowness (A7R, symmetric — supersedes the original asymmetric wording):**
+  pair `n` is dropped **if and only if** `GIT_CONFIG_KEY_<n>` is absent **OR**
+  `GIT_CONFIG_VALUE_<n>` is absent. Git requires both for every `n` in
+  `0 .. COUNT-1` — `missing config key GIT_CONFIG_KEY_<n>` and
+  `missing config value GIT_CONFIG_VALUE_<n>` are both fatal — so an
+  asymmetric rule would emit a `VALUE_n` with no matching `KEY_n`, reproducing
+  the same malformed-triple class in mirror image. A pair whose key and value
+  are **both** present is **kept**, including when the value is
+  present-but-empty on a platform that can represent it: empty is not absent.
+  Test coverage is symmetric — key-absent, value-absent and both-absent (all
+  dropped, survivors renumbered, `GIT_CONFIG_COUNT` reduced), and
+  both-present-with-empty-value (kept verbatim).
 * **Provable no-op:** when the input triple is already self-consistent, the
   returned mapping is `==` to the input, including `GIT_CONFIG_COUNT` and key
   ordering. This is what makes the change a no-op on Linux and in CI, and it
@@ -392,9 +401,13 @@ simulated `returncode=128` and the original message for `returncode=1`.
    `GIT_CONFIG_COUNT`/`KEY_n`/`VALUE_n` in `pre` is present in `post` with an
    identical value — separate from (ii) because a whole-block comparison is
    satisfied by two blocks that are **both** missing the variable;
-   (iv) **canonical equivalence**: the in-process run's `testsRun`, `failures`,
-   `errors` and skipped set equal proof 1's canonical subprocess run, else the
-   harness is not equivalent and the proof is void.
+   (iv) **canonical equivalence (R11R)**: the in-process run's `testsRun`,
+   `failures`, `errors` and skipped **COUNT** equal proof 1's canonical
+   subprocess run, else the harness is not equivalent and the proof is void.
+   The original "skipped set" wording was **impossible**: proof 1's tail
+   (`OK (skipped=20)` / `FAILED (failures=5, skipped=20)`) emits counts only,
+   never names. The **named** skip set is handled by A9R from sources that
+   actually emit names.
 
    **Mandatory negative control:** re-run the identical topology with step (c)
    replaced by a deliberate bare `patch.dict(os.environ, {"X": "y"})`
@@ -489,7 +502,7 @@ verdicts and can be reverted independently of the rest.
 
 ---
 
-## Binding Amendments (hardening A1–A11, review R1–R12)
+## Binding Amendments (hardening A1–A12, review R1–R13)
 
 This section is normative and **supersedes** the task text above wherever they
 differ. Full text: `docs/plans/2026-08-22-git-config-env-containment-hardening.md`
@@ -533,15 +546,19 @@ CI equivalent (unchanged, `.github/workflows/ci.yml:112`):
 | **A1R** | Tasks 2, 4 | **Supersedes A1's allowlist clause.** `ENV_MUTATION_ALLOWLIST = frozenset()` — EMPTY, no path exemption for `_env_patch.py`; targeted set/delete is not a forbidden form, and an exemption would legalise the destructive forms in the file most likely to reintroduce them |
 | ~~A2 / R6~~ | — | Superseded by **A2R** |
 | **A2R** | Task 1 | Expected-RED set (tests 1–2 + 5 victims) **and** expected-GREEN set (test 0 precondition lock + test 3 sentinel cleanup); gate is failure-set **equality**, not `failures == 0`; one-task window |
-| A3 | Task 6 | `details['git_invocation_error']` additive, **absent** on success; verdict-equality test; consumer grep re-run at edit time |
+| ~~A3~~ | — | Nonzero-exit clause superseded by **A3R** |
+| **A3R** | Task 6 | `_run_git(argv, cwd, expected_absence_codes)`; diagnostic populated ONLY on nonzero exits NOT declared expected (`symbolic-ref --quiet` exit 1 IS expected); never populated with an empty string — record the exit code instead; return contract and all verdicts unchanged; consumer grep re-run at edit time |
 | A4 | Task 2 | `ValueError` on any `""` override, uniformly on all platforms, raised before any mutation |
 | A5 | Task 2 | `RuntimeError` at entry if any touched key's prior value is `""`; fail closed, no torn state |
 | A6 | Tasks 3, 6 | AIG-1..AIG-4 AST assertion-inventory equality, N1–N3 change allowlist, per-line citation |
 | A7 | Task 5 | Only the exact `GIT_CONFIG_{COUNT,KEY_n,VALUE_n}` triple; `GIT_CONFIG_PARAMETERS`/`GLOBAL`/`SYSTEM`/`NOSYSTEM` pass through untouched; never invent a count |
+| **A7R** | Task 5 | **Supersedes A7 property 2.** Drop pair `n` **iff** `KEY_n` absent **OR** `VALUE_n` absent (symmetric); present-but-empty is KEPT; key-absent and both-absent tests added |
 | ~~A8~~ | — | **WITHDRAWN AS UNSOUND** — three sibling shell probes cannot observe a child runner's mutations; `before == after` was trivially true |
 | **A8R** | Task 7 | L0/L1/L2 topology; suite runs **in-process** in L1 via `unittest.main(module=None, argv=[...], exit=False)`; probes are L1's children; precondition gate, byte-equality, per-key assertion, canonical-equivalence check, mandatory negative control |
 | A9 | Task 7 | Named skip-**set** subset check, not a bare count bound |
+| **A9R** | Task 7 | Named-set SOURCES: POST from `prog.result.skipped` (A8R in-process), PRE from `python -m unittest discover -s tests -v`; name-to-name subset assertion |
 | A10 | Task 8 | `SUBSUMED` requires standalone + all five pairings + a reverted-checkout negative control; otherwise `INCONCLUSIVE-VACUOUS` -> treat as `SURVIVES` |
+| **A12** | all cycles | Withdrawals MUST update the feature carrier, memory Ship-handoff and structured memory in the SAME cycle, by EXPLICIT ID enumeration — never an open range |
 | **A11** | Task 1 | L0/L1/L2 topology for the reproduction; blank sentinel established **only** via an explicit env block and **verified inherited** before the round trip; adds expected-GREEN test 0; all destructive ops confined to L1 |
 | R1 | Tasks 1, 7 | Pin which module holds victim #1 from the verbatim baseline; assert **both** modules green at Task 7 |
 | R2 | Task 3 | Acceptance = AIG pass **and** (victims green **or** residual captured verbatim and routed to Tasks 5/6/7); `failures=0` lives at Task 7 |
@@ -552,5 +569,7 @@ CI equivalent (unchanged, `.github/workflows/ci.yml:112`):
 | R8 | Task 3 | Migration is **mechanism-A only**; `145.001-T` stays mandatory and unconditional; no `144-F` task records a mechanism-B disposition |
 | R9 | Task 2 | Module-top import in the contract test proves discovery importability; no `tests/__init__.py`, no `tests/conftest.py` |
 | **R10** | Task 1 | L0 test process performs **no** destructive env operation; the module must not become a fourteenth polluting site |
-| **R11** | Task 7 | A8R's in-process run must be **count-equivalent** to the canonical subprocess gate, else the proof is void |
+| ~~R11~~ | — | Superseded by **R11R** — the named-set comparison it mandated was impossible against proof 1 |
+| **R11R** | Task 7 | A8R's in-process run must be **count-equivalent** to the canonical subprocess gate: `testsRun`, `failures`, `errors` and skipped **COUNT** only; the named set moves to A9R |
 | **R12** | Task 2 | `tests/_env_patch.py` contains **zero** forbidden forms and is guarded with no exemption |
+| **R13** | all carriers | Cycle-coherence: the feature carrier, the memory Ship-handoff and the structured memory record must enumerate the current binding **and** withdrawn IDs explicitly — never an open range |

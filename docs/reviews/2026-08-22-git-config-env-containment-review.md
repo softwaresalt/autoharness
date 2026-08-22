@@ -6,8 +6,8 @@ reviews_hardening: docs/plans/2026-08-22-git-config-env-containment-hardening.md
 source_deliberation: docs/decisions/2026-08-22-ambient-git-config-env-destruction-containment-deliberation.md
 source_stash: 9DD9E323
 verdict: PASS
-cycle: 2
-cycle_context: "PR #397 Copilot review-fix cycle 1 (artifact cycle 2 of 3)"
+cycle: 3
+cycle_context: "PR #397 Copilot review-fix cycle 2 (artifact cycle 3 of 3 — FINAL PERMITTED)"
 reviewed_head: 72bfdd9c3964f04d3287a8d67914cbcd33572fe6
 cycles_allowed: 3
 unresolved_p0: 0
@@ -21,11 +21,155 @@ agent: stage
 
 **Verdict: PASS** — 0 unresolved P0, 0 unresolved P1.
 
-**Cycle 2** (PR #397 Copilot review-fix cycle 1) at head
-`72bfdd9c3964f04d3287a8d67914cbcd33572fe6`. Cycle 1 findings F1–F9 remain
-resolved and are retained below unchanged. Cycle 2 adds C1–C3 (hosted Copilot
-threads) and N1–N3 (findings this cycle raised while fixing them). Cycles used:
-2 of 3.
+**Cycle 3 of 3 — FINAL PERMITTED** (PR #397 Copilot review-fix cycle 2) at head
+`374672c897a7188f942489d9bbef15af3ee8074c`. Cycles 1 and 2 remain resolved and
+are retained below unchanged. **The Stage review-fix cycle budget is now
+exhausted**; any further finding must be captured as a deferred entry under
+P-021 C2 rather than fixed in a fourth cycle.
+
+---
+
+## Cycle 3 — PR #397 hosted review findings (six)
+
+### P-021 C1 classification
+
+All six were tested against C1 individually. **All six PASS; zero require C2
+capture.** C1 asks whether the finding is a same-contract correction to a
+*currently authorized* carrier, or whether discharging it requires a surface
+this shipment has not authorized.
+
+| # | Thread | Carrier | C1 test | Verdict |
+| --- | --- | --- | --- | --- |
+| 1 | `PRRT_kwDORzpWpM6bXxuS` | `144.005-T:62` | Internal contradiction between the task's own deliverable and its own property 2. No new surface — the normalizer, its property tests and its four wirings are all already in this task. | **C1 PASS** |
+| 2 | `PRRT_kwDORzpWpM6bXxuh` | `144.006-T:45` | Corrects the already-authorized A3 diagnostic so its own binding claim holds against the call sites this task already governs. `144.006-T` is the one task authorized to touch `gates/topology.py`'s `_run_git` seam. | **C1 PASS** |
+| 3 | `PRRT_kwDORzpWpM6bXxur` | `144.007-T:82` | Makes an existing obligation executable against evidence proof 1 already produces. Same task, same proofs. | **C1 PASS** |
+| 4 | `PRRT_kwDORzpWpM6bXxu2` | `144-F:33` | Carrier coherence after cycle-2 withdrawals. | **C1 PASS** |
+| 5 | `PRRT_kwDORzpWpM6bXxu7` | memory `:131` | Stage-owned memory artifact. | **C1 PASS** |
+| 6 | `PRRT_kwDORzpWpM6bXxu-` | `memories.json:35` | Stage-owned structured memory, written via the official `save_memory` operation. | **C1 PASS** |
+
+Note on finding 2 specifically, since it is the only one touching `src/`: adding an
+`expected_absence_codes` parameter and one call-site declaration stays **inside**
+`144.006-T`'s declared `_run_git` diagnostic seam and preserves its scope-guard
+exclusion ("no change to gate verdict semantics, tokens, or exit codes") — the
+return contract remains `""` on every nonzero exit. No scope expansion, so no
+C2 trigger.
+
+### C3-1 (P1, RESOLVED by A7R) — normalizer contract contradiction, `144.005-T:62`
+
+The task's deliverable says only pairs where **both** `KEY_n` and `VALUE_n` are
+present are kept — symmetric. Its binding property 2 said "only a pair whose
+`VALUE_n` is genuinely ABSENT is dropped" — asymmetric. **They contradict.**
+
+For a pair with `KEY_n` absent but `VALUE_n` present, the deliverable drops it
+while property 2 requires keeping it. Keeping it emits a `VALUE_n` with no
+matching `KEY_n` and a `GIT_CONFIG_COUNT` that counts it — **the exact
+malformed-triple class the normalizer exists to eliminate, in mirror image.**
+An implementer following property 2 would have built a normalizer that
+manufactures the defect on the key side while fixing it on the value side.
+
+Root of the error: `9DD9E323` captured the *value-side instance*
+(`missing config value GIT_CONFIG_VALUE_2`) and property 2 was written from the
+capture rather than from git's rule. Git requires **both** names for every `n`
+in `0 .. COUNT-1`; `missing config key GIT_CONFIG_KEY_<n>` and
+`missing config value GIT_CONFIG_VALUE_<n>` are both fatal and both terminate in
+`fatal: unable to parse command-line config`.
+
+**A7R (BINDING)** replaces property 2 with a symmetric predicate — drop pair `n`
+**iff** `KEY_n` is absent **or** `VALUE_n` is absent — retains the empty-vs-absent
+distinction (present-but-empty is **kept**; empty is not absent), and adds
+key-absent, both-absent and both-present-empty test cases.
+
+### C3-2 (P1, RESOLVED by A3R) — `_run_git` nonzero-exit language, `144.006-T:45`
+
+A3 bound `details['git_invocation_error']` to fire on **any** nonzero exit and
+to be absent "whenever every git invocation succeeded". Checked against the
+three real call sites:
+
+```text
+L571  branch --show-current
+L574  symbolic-ref --quiet --short refs/remotes/origin/HEAD
+L583  worktree list --porcelain
+```
+
+`git symbolic-ref --quiet` exits **1** when the ref is absent, and `--quiet`
+means precisely "don't print an error, just exit nonzero" — it is the *designed*
+existence probe. In any clone where `origin/HEAD` is unset, exit 1 is the
+**normal** answer and `default_branch()` correctly falls through.
+
+So A3 would have populated the diagnostic on **every ordinary run**, making its
+own binding claim false in routine operation and converting the key from signal
+into noise at the one site it was added to clarify. And because `--quiet`
+suppresses stderr, it would have been populated with the **empty string** — a
+present-but-meaningless diagnostic, which is strictly worse than absence.
+
+**A3R (BINDING)** adds `expected_absence_codes: frozenset[int]` to `_run_git`,
+populates the diagnostic only for nonzero codes **not** declared expected,
+declares all three call sites exhaustively (`symbolic-ref` → `{1}`, the other
+two → `frozenset()`), and forbids populating the key with `""` — record the exit
+code instead. A3's verdict-preservation guarantee is fully retained: `""` is
+still returned on every nonzero exit, so tokens and `exit_code` are unchanged.
+
+### C3-3 (P1, RESOLVED by R11R + A9R) — impossible named-set comparison, `144.007-T:82`
+
+R11 required the in-process run's `testsRun`, `failures`, `errors` **and skipped
+set** to equal proof 1's canonical subprocess run. Proof 1 is
+`python -m unittest discover -s tests`, whose summary tail is counts only —
+`OK (skipped=20)` / `FAILED (failures=5, skipped=20)` — with **no test names
+anywhere in the output**. The comparison is not merely awkward, it is
+**impossible**.
+
+The practical failure mode of an impossible obligation is worse than a missing
+one: it gets silently downgraded to a count comparison at execution time while
+the contract still claims a named one, so the record overstates what was
+verified.
+
+The finding also exposed a latent gap: **A9 required a named skip set but never
+said where the names come from.**
+
+**R11R (BINDING)** reduces the equivalence check to what proof 1 can supply —
+`testsRun`, `failures`, `errors`, skipped **count**. **A9R (BINDING)** gives the
+named set real sources: `prog.result.skipped` (which yields `(test, reason)`
+pairs) for the POST set, and `python -m unittest discover -s tests -v` (whose
+verbose output emits `... skipped '<reason>'` per test) for the baseline. Both
+are stdlib unittest, so R3's `pytest` prohibition is unaffected.
+
+### C3-4 / C3-5 / C3-6 (P1, RESOLVED by A12 + R13) — stale amendment sets in the three pickup carriers
+
+Cycle 2 withdrew `A2`, `A8`, `R5` and added eight amendments. The plan,
+hardening and review were updated; the three **downstream summary carriers**
+were not:
+
+* `144-F:33` — "`(A1-A10 BINDING)`" / "`(R1-R9 BINDING)`".
+* memory `:131` — "Hardening **A1–A10** and review **R1–R9**" as the *header* of
+  the Ship handoff section, **contradicting the cycle-2 bullets printed directly
+  beneath it**.
+* `memories.json` — "P-006 hardening A1-A10 ... cycle 1 of 3, amendments R1-R9".
+
+These are the three surfaces Ship reads **first** on pickup, so the stale set was
+the one most likely to be acted on — and a summary naming a withdrawn amendment
+is worse than one naming none, because it reads as current. In particular, an
+open range **cannot express a withdrawal**: "A1-A10" silently re-authorizes the
+unsound A8 that cycle 2 withdrew precisely because it would have reported PASS
+against un-fixed code.
+
+**A12 (BINDING)** requires every cycle that withdraws or supersedes an amendment
+to update all three carriers **in the same cycle**, and to state the set by
+**explicit enumeration of current binding IDs plus withdrawn IDs** — never an
+open range. **R13** carries the same obligation on the review side. All three
+carriers now enumerate explicitly.
+
+### Cycle-3 verification
+
+| Check | Result |
+| --- | --- |
+| Shipment manifests unchanged | PASS — `152-S` = 8, `153-S` = 3, byte-identical to cycles 1–2 |
+| Dependency graph unchanged | PASS — 9 task edges + `153-S` → `152-S`; acyclic |
+| Claimability unchanged | PASS — `152-S` alone claimable |
+| Sizing/complexity preserved | PASS — all 9 tasks retain both axes |
+| No item created/deleted/re-parented | PASS — contract text only |
+| Mechanism separation intact | PASS |
+| C2 captures required | **NONE** — all six findings passed C1 |
+| Stage boundary | PASS — no P-018 run, no thread reply/resolve, no PR-body mutation, no merge, no shipment claim, no source/test implementation |
 
 ---
 
@@ -178,6 +322,13 @@ Under A11 the `shutil.which("git")` check stays in L0, so the skip is still
 raised by the same module and A9's named-set contract is unaffected. Recorded so
 the reader does not have to re-derive it.
 
+> **Superseded in part by cycle 3 (C3-3 / A9R).** N3 confirmed A9's named-set
+> contract was *unaffected by the topology change* — which was true, but it
+> stopped short. A9 never specified **where the names come from**, and cycle 3's
+> hosted review caught that gap via R11's impossible comparison. N3's "no action"
+> disposition was correct for the question it asked and incomplete for the
+> question it should have asked. A9R now names the sources.
+
 ---
 
 ## Cycle 2 — verification
@@ -201,8 +352,8 @@ the reader does not have to re-derive it.
 | Gate | Result |
 | --- | --- |
 | Deliberation exists and is cited (P-021 C6) | PASS — `docs/decisions/2026-08-22-ambient-git-config-env-destruction-containment-deliberation.md` |
-| P-006 hardening applied where required | PASS — `requires_plan_hardening: yes`, reasoned not defaulted; A1–A10 binding |
-| Options considered and rejections reasoned | PASS — R1–R9 in the deliberation, each with a criterion-linked rejection |
+| P-006 hardening applied where required | PASS — `requires_plan_hardening: yes`, reasoned not defaulted; for the **current** binding set see the Cycle 3 amendment index (open ranges are prohibited by A12/R13) |
+| Options considered and rejections reasoned | PASS — the **deliberation's** options `R1`–`R9` (a separate namespace from this review's `R`-prefixed amendments: deliberation `R1` = accept-permanent-red … `R9` = the accepted design), each with a criterion-linked rejection |
 | Success criterion is falsifiable | PASS — `failures=0, errors=0` on the named canonical command, both platforms |
 | No hidden failures (skip / xfail / weakened assertion) | PASS — prohibited in the plan, mechanically enforced by A6 (AIG-1..4) and A9 |
 | Global/system config untouched | PASS — forbidden by scope guard; verified by `144.007-T` step 5 |
