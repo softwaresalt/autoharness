@@ -30,12 +30,19 @@ class RepoRootTrackedJsonAllowlistTest(unittest.TestCase):
         if not (repo_root / ".git").exists():
             self.skipTest("not a git checkout")
 
-        result = subprocess.run(
-            [git, "ls-files", "-z", "--", "*.json"],
-            cwd=repo_root,
-            capture_output=True,
-            check=True,
-        )
+        try:
+            result = subprocess.run(
+                [git, "ls-files", "-z", "--", "*.json"],
+                cwd=repo_root,
+                capture_output=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            stderr_text = (exc.stderr or b"").decode("utf-8", errors="replace")
+            self.fail(
+                f"git ls-files failed (exit {exc.returncode}) while checking the "
+                f"root-level tracked JSON allowlist; captured stderr: {stderr_text!r}"
+            )
         raw_paths = result.stdout.decode("utf-8", errors="replace").split("\0")
         depth0_json = {p for p in raw_paths if p and "/" not in p}
 

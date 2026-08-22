@@ -61,9 +61,15 @@ class MetricsEmissionHardGateTests(unittest.TestCase):
         )
 
     def _git(self, repo: Path, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["git", *args], cwd=repo, capture_output=True, text=True, check=True
-        )
+        try:
+            return subprocess.run(
+                ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+            )
+        except subprocess.CalledProcessError as exc:
+            self.fail(
+                f"git {' '.join(args)} failed (exit {exc.returncode}); "
+                f"captured stderr: {exc.stderr!r}"
+            )
 
     def test_emitted_metrics_artifacts_are_never_tracked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
