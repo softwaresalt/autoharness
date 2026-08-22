@@ -2817,7 +2817,21 @@ def _derive_template_variables(
     )
     variables.setdefault("GRAPHTOR_SOURCES_PATH", _resolve_graphtor_sources_path(profile, workspace_path))
     variables.setdefault("GRAPHTOR_BINARY_PATH", _resolve_graphtor_binary_path(profile, workspace_path))
-    variables.setdefault("DEFAULT_BRANCH", _resolve_default_branch(workspace_path))
+    # DEFAULT_BRANCH (SKILL.md row 156's "never guess main" contract, applied
+    # to this variable's identical resolved concept): when resolution
+    # genuinely fails (no local origin/HEAD ref, no reachable remote, no gh
+    # auth), do NOT populate the variable with "" -- an empty string would
+    # remove the placeholder from every consuming template (e.g. rendering
+    # the literal broken command "git checkout " with a trailing space) and
+    # the zero-unresolved sweep would report success over detectably-broken
+    # output (Copilot review finding on this feature's own PR). Instead,
+    # LEAVE the {{DEFAULT_BRANCH}} placeholder unresolved so the existing
+    # unresolved-placeholder scan (_find_unresolved_placeholders) surfaces it
+    # as a genuine, detectable blocker -- consistent with "halt and request
+    # the actual branch" rather than silently inventing a value.
+    _default_branch = _resolve_default_branch(workspace_path)
+    if _default_branch:
+        variables.setdefault("DEFAULT_BRANCH", _default_branch)
 
     backlog_config = config.get("backlog") or {}
     suffix_map = backlog_config.get("suffix_map") or {}

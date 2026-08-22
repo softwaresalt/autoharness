@@ -693,6 +693,24 @@ class ProfileDerivedMiscConfigTests(unittest.TestCase):
         self.assertNotEqual(resolved, "")
         self.assertEqual(resolved, "main")
 
+    def test_default_branch_left_unresolved_rather_than_empty_string_when_resolution_fails(self) -> None:
+        """Copilot review finding (PR #395): silently storing "" for
+        DEFAULT_BRANCH would remove the placeholder from every consuming
+        template (e.g. rendering the literal broken command "git checkout "
+        with a trailing space) while the zero-unresolved sweep reports
+        success over detectably-broken output. SKILL.md row 156's "never
+        guess main... halt installation" contract requires this variable be
+        left as a DETECTABLE unresolved placeholder when it cannot
+        legitimately resolve, not silently defaulted to empty."""
+        import unittest.mock as _mock
+
+        with _mock.patch(
+            "autoharness.verify_workspace._resolve_default_branch", return_value=""
+        ):
+            manifest, config, profile, registry = _load_live_fixtures()
+            variables = _derive_template_variables(_REPO_ROOT, manifest, config, profile, registry)
+        self.assertNotIn("DEFAULT_BRANCH", variables)
+
     def test_provenance_categories_never_include_observed_in_dogfood(self) -> None:
         """Amendment B4: forbidden provenance category (iv) 'observed in the
         current dogfood copy' must never appear as a classification source."""
