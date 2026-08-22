@@ -2238,6 +2238,41 @@ def _model_routing_tier_dict(model_routing: dict[str, Any], tier_key: str) -> di
     return {}
 
 
+# Each tier's OWN literal SKILL.md-documented default model_family (rows
+# 419/422/425), used only when the tier route is absent/empty entirely --
+# mirrors `_derive_tier_route_variables`'s `own_default` composition so a
+# STAGE_*/SHIP_*/ESCALATION_* fallback to an unset tier3/tier2 resolves
+# IDENTICALLY to that tier's own `{{TIER_*_FAMILY}}` variable, rather than
+# silently falling through to the empty string (P0/P1 review finding on this
+# feature's own PR: STAGE_FAMILY/SHIP_FAMILY/ESCALATION_FAMILY previously
+# resolved to "" instead of the documented claude-opus-5/claude-sonnet-5 when
+# the referenced tier was entirely unset in config).
+_TIER_OWN_FAMILY_DEFAULT = {
+    "tier1": "gpt-5.4-mini",
+    "tier2": "claude-sonnet-5",
+    "tier3": "claude-opus-5",
+}
+
+
+def _tier_fallback_dict(model_routing: dict[str, Any], tier_key: str) -> dict[str, Any]:
+    """Return a `model_routing.<tier_key>` route dict suitable as the
+    `tier_fallback` argument to `_resolve_role_route_field`, with
+    `model_family` defaulting to that tier's OWN documented literal default
+    (see `_TIER_OWN_FAMILY_DEFAULT`) whenever the tier route does not itself
+    declare a non-empty `model_family` (including when the tier is absent
+    entirely). This keeps every STAGE_*/SHIP_*/ESCALATION_* fallback chain
+    consistent with `_derive_tier_route_variables`'s own `TIER_*_FAMILY`
+    resolution -- a role/escalation route falling back to an unset tier3
+    must resolve the SAME family value `{{TIER_3_FAMILY}}` itself would."""
+    tier_dict = dict(_model_routing_tier_dict(model_routing, tier_key))
+    family = tier_dict.get("model_family")
+    if not (isinstance(family, str) and family.strip()):
+        own_default = _TIER_OWN_FAMILY_DEFAULT.get(tier_key)
+        if own_default:
+            tier_dict["model_family"] = tier_dict.get("model") or own_default
+    return tier_dict
+
+
 def _derive_tier_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive the nine MODEL_ROUTING_TIER*/TIER_*_FAMILY/PROVIDER/REASONING_EFFORT
     variables (SKILL.md rows 414-425), normalising the polymorphic scalar-vs-
@@ -2298,7 +2333,7 @@ def _derive_role_route_variables(model_routing: dict[str, Any]) -> dict[str, str
         route = model_routing.get(role) or {}
         if not isinstance(route, dict):
             route = {}
-        tier_fallback = model_routing.get(fallback_tier_key)
+        tier_fallback = _tier_fallback_dict(model_routing, fallback_tier_key)
         prefix = role.upper()
         family = _resolve_role_route_field(route, tier_fallback, "model_family") or ""
         provider = _resolve_role_route_field(route, tier_fallback, "model_provider") or ""
@@ -2380,7 +2415,7 @@ def _effective_escalation_route_for_role(
     flat = model_routing.get("escalation") or {}
     if not isinstance(flat, dict):
         flat = {}
-    tier3_fallback = model_routing.get("tier3")
+    tier3_fallback = _tier_fallback_dict(model_routing, "tier3")
 
     source_route = nested if _escalation_route_has_any_field(nested) else flat
     family = _resolve_role_route_field(source_route, tier3_fallback, "model_family") or ""
@@ -2403,7 +2438,7 @@ def _derive_escalation_prose_variables(model_routing: dict[str, Any]) -> dict[st
     flat = model_routing.get("escalation") or {}
     if not isinstance(flat, dict):
         flat = {}
-    tier3_fallback = model_routing.get("tier3")
+    tier3_fallback = _tier_fallback_dict(model_routing, "tier3")
     family = _resolve_role_route_field(flat, tier3_fallback, "model_family") or ""
     provider = _resolve_role_route_field(flat, tier3_fallback, "model_provider") or ""
     effort = _resolve_role_route_field(flat, tier3_fallback, "reasoning_effort") or ""
@@ -2437,10 +2472,15 @@ def _yaml_flow_list(items: list[Any]) -> str:
 
 def _yaml_flow_map(mapping: dict[str, Any]) -> str:
     """Render a Python string-valued mapping as an inline YAML flow-map
-    literal, e.g. `{key: "value"}`, or `{}` when empty."""
+    literal, e.g. `{key: "value"}`, or `{}` when empty. A `None` value (an
+    explicit YAML `null` override) renders as the bare YAML `null` literal,
+    never the Python string `"None"`."""
     if not mapping:
         return "{}"
-    parts = [f"{key}: {json.dumps(str(value))}" for key, value in mapping.items()]
+    parts = [
+        f"{key}: null" if value is None else f"{key}: {json.dumps(str(value))}"
+        for key, value in mapping.items()
+    ]
     return "{" + ", ".join(parts) + "}"
 
 
@@ -2699,7 +2739,7 @@ def _derive_template_variables(
     )
     variables.setdefault(
         "CONTINUOUS_LEARNING_PROMOTION_THRESHOLD",
-        str(continuous_learning_cfg.get("promotion_threshold", 3)),
+        str(promotion_threshold) if (promotion_threshold := continuous_learning_cfg.get("promotion_threshold")) is not None else "3",
     )
     variables.setdefault("GRAPHTOR_SOURCES_PATH", _resolve_graphtor_sources_path(profile, workspace_path))
     variables.setdefault("GRAPHTOR_BINARY_PATH", _resolve_graphtor_binary_path(profile, workspace_path))

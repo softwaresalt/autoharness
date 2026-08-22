@@ -33,6 +33,7 @@ import yaml
 from autoharness.verify_workspace import (
     _compose_artifact_variables,
     _derive_anchor_review_variables,
+    _derive_escalation_prose_variables,
     _derive_orchestrator_route_variables,
     _derive_raw_escalation_variables,
     _derive_role_route_variables,
@@ -423,6 +424,24 @@ class RoleRouteAndEscalationTests(unittest.TestCase):
         self.assertNotEqual(variables["STAGE_FAMILY"], "")
         self.assertNotEqual(variables["SHIP_FAMILY"], "")
 
+    def test_role_route_falls_back_to_tiers_own_literal_default_when_tier_entirely_absent(self) -> None:
+        """Review finding (this feature's own PR): STAGE_FAMILY/SHIP_FAMILY
+        previously resolved to "" instead of the SKILL.md-documented tier
+        own-default (claude-opus-5/claude-sonnet-5) when model_routing.tier3/
+        tier2 was absent entirely -- inconsistent with TIER_3_FAMILY/
+        TIER_2_FAMILY themselves, which always resolve to their own default."""
+        variables = _derive_role_route_variables({})
+        self.assertEqual(variables["STAGE_FAMILY"], "claude-opus-5")
+        self.assertEqual(variables["SHIP_FAMILY"], "claude-sonnet-5")
+
+    def test_escalation_prose_falls_back_to_tier3_own_default_when_tier3_absent(self) -> None:
+        variables = _derive_escalation_prose_variables({})
+        self.assertEqual(variables["ESCALATION_FAMILY"], "claude-opus-5")
+
+    def test_effective_escalation_route_for_role_falls_back_to_tier3_own_default(self) -> None:
+        family, _provider, _effort = _effective_escalation_route_for_role({}, "stage")
+        self.assertEqual(family, "claude-opus-5")
+
     def test_raw_escalation_negative_test_flat_empty_nested_present(self) -> None:
         """Amendment B2 (must be NEGATIVE as well as positive): given a
         nested stage.escalation override and an UNSET flat escalation, the
@@ -651,6 +670,24 @@ class ProfileDerivedMiscConfigTests(unittest.TestCase):
             with self.subTest(citation=citation):
                 self.assertNotIn("observed in the current dogfood", citation.lower())
                 self.assertNotIn("dogfood copy", citation.lower())
+
+    def test_continuous_learning_promotion_threshold_null_uses_the_documented_default(self) -> None:
+        """Review finding: an explicit YAML `null` (a PRESENT key) must not
+        render the Python literal string "None" -- `dict.get(key, default)`
+        only applies `default` when the key is ABSENT, not when it is
+        present with a `None` value."""
+        manifest, config, profile, registry = _load_live_fixtures()
+        config = dict(config)
+        config["continuous_learning"] = {"promotion_threshold": None}
+        variables = _derive_template_variables(_REPO_ROOT, manifest, config, profile, registry)
+        self.assertEqual(variables["CONTINUOUS_LEARNING_PROMOTION_THRESHOLD"], "3")
+
+    def test_harness_overrides_yaml_null_value_renders_yaml_null_not_python_none(self) -> None:
+        from autoharness.verify_workspace import _yaml_flow_map
+
+        rendered = _yaml_flow_map({"SOME_KEY": None})
+        self.assertNotIn("None", rendered)
+        self.assertIn("null", rendered)
 
 
 # ---------------------------------------------------------------------------
