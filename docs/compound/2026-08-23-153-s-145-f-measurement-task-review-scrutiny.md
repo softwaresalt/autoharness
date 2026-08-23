@@ -2,7 +2,19 @@
 type: compound-learning
 shipment: 153-S
 feature: 145-F
+task: 145.001-T
 date: 2026-08-23
+problem_type: evidence_record_review_scrutiny_gap
+category: testing
+root_cause: A measurement/diagnosis-only backlog record synthesized one-line test-output summaries instead of verbatim transcripts, and stated a plausible-sounding but wrong causal chain without cross-checking it against the already-established mechanism documented in sibling backlog records, making the disposition unverifiable and inaccurate even though no source code was touched.
+resolution_type: workaround
+severity: medium
+source: docs/compound/2026-08-23-153-s-145-f-measurement-task-review-scrutiny.md
+doc_type: learning
+title: "Evidence-recording tasks are still subject to full review scrutiny — verbatim transcripts and causal accuracy are load-bearing"
+citations:
+  - .backlogit/archive/145.001-T.md
+  - docs/closure/153-S-145-F-post-merge-closure.md
 tags:
     - copilot-review
     - evidence-quality

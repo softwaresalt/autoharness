@@ -67,7 +67,8 @@ deliverable) and fixed directly, well within the 3-cycle review-fix budget:
    the leaked state to the per-test `GITHUB_HEAD_REF`/`GITHUB_REF_NAME`/
    `GITHUB_REF_TYPE` overrides. Corrected to match the established
    mechanism-A record (`.backlogit/archive/144-F.md:45-61`,
-   `.backlogit/queue/145-F.md:50-54` at time of measurement): the ambient,
+   `.backlogit/archive/145-F.md:53-57` -- the "Recorded prediction"
+   section, at its now-archived post-cascade-close location): the ambient,
    ephemeral-shell `GIT_CONFIG_VALUE_2` is destructively deleted from the
    real Win32 environment block by `patch.dict`'s clear-then-update
    restore path on context-exit; the victim's git subprocess then fails
