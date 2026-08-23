@@ -10,7 +10,7 @@ merge_commit: fed1319bac9e1ac3c2f2eeb448390fbfc192f155
 merged_at: "2026-08-23T00:32:27Z"
 reviewed_head: d33dc898181d97055d70908f7820854659ff34f9
 closure_merge_commit: null
-closure_reviewed_head: null
+closure_reviewed_head: 94fd131407aa576bad863d2c358b1ee97d0b2b86
 closure_status: READY
 compaction_status: done
 ---
