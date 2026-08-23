@@ -10,7 +10,7 @@ merge_commit: fed1319bac9e1ac3c2f2eeb448390fbfc192f155
 merged_at: "2026-08-23T00:32:27Z"
 reviewed_head: d33dc898181d97055d70908f7820854659ff34f9
 closure_merge_commit: null
-closure_reviewed_head: 94fd131407aa576bad863d2c358b1ee97d0b2b86
+closure_reviewed_head: null
 closure_status: READY
 compaction_status: done
 ---
@@ -201,28 +201,56 @@ here).
 ### Note on self-referential closure fields
 
 `closure_pr` is populated once this closure PR is created (a normal,
-externally-assigned GitHub PR number -- not self-referential).
-`closure_reviewed_head` is populated once the final pre-merge commit on
-this branch is known (the commit that Copilot/local review actually
-evaluates -- also not self-referential, since no further edits are made
-after that point). `closure_merge_commit`, by contrast, genuinely cannot
-be known before GitHub creates the merge commit for this exact PR at
-merge time, and this document cannot embed its own future hash without a
-literal self-reference paradox (embedding the SHA would change the
-content, which would change the SHA). Per `_closure_artifact_complete` in
-`src/autoharness/gates/topology.py`, `closure_complete` for predecessor-
-gating purposes depends ONLY on `compaction_status` and
-`closure_status`/`conditions` -- never on `closure_pr`/
-`closure_merge_commit`/`closure_reviewed_head` -- so leaving
-`closure_merge_commit: null` here does not block any future predecessor-
-closure check. If a future shipment's closure record ever needs this
-field populated for traceability, it should be corrected via a small,
-dedicated correction PR, exactly per the precedent established for
-152-S/144-F (PR #400,
-`docs/closure/152-S-144-F-post-merge-closure.md`), rather than invented
-here.
+externally-assigned GitHub PR number -- not self-referential, and stable
+once assigned). `merge_commit` and `reviewed_head` above refer to the
+**already-merged feature PR #401** and are likewise stable, immutable
+facts about a closed prior PR.
 
-## Compaction (P-020)
+`closure_merge_commit` and `closure_reviewed_head`, by contrast, both
+describe facts about *this very closure PR's own, still-open* history,
+and both are subject to the same underlying self-reference tension:
+populating either field requires a new commit to this file, and that new
+commit itself immediately becomes the new HEAD, one hop ahead of
+whatever SHA was just recorded. For `closure_merge_commit` this is a hard
+impossibility (the merge commit does not exist until GitHub creates it at
+merge time, and no commit can embed its own future descendant's hash).
+For `closure_reviewed_head` it is a softer version of the same problem: a
+literal SHA recorded here is stale the instant the recording commit
+itself becomes HEAD, and Copilot's own review of this file has
+concretely flagged that staleness once already (see the Review-Fix
+History addendum below).
+
+The resolution adopted here, consistent for both fields: leave
+`closure_merge_commit` and `closure_reviewed_head` **permanently `null`**
+in this file. The **authoritative, always-current reviewed-HEAD record
+lives in this closure PR's own body** (`## Local Review Readiness`
+section, PR #402), which -- unlike a commit to this file -- can be edited
+via the GitHub API without shifting the branch HEAD, exactly as ordinary
+feature-PR readiness blocks already work. Per `_closure_artifact_complete`
+in `src/autoharness/gates/topology.py`, `closure_complete` for
+predecessor-gating purposes depends ONLY on `compaction_status` and
+`closure_status`/`conditions` -- never on `closure_pr`/
+`closure_merge_commit`/`closure_reviewed_head` -- so leaving both fields
+`null` here does not block any future predecessor-closure check. If a
+future need ever arises for durable, in-repo traceability of either field
+(mirroring the 152-S/144-F/PR #400 precedent for `closure_merge_commit`),
+correct it via a small, dedicated correction PR after this PR has settled,
+rather than chasing a moving target here.
+
+### Closure PR review-fix history (PR #402 itself)
+
+Round 1 (1 finding, this commit), classified P-021 C1 in-scope (a
+same-contract-surface accuracy completion of this closure document's own
+deliverable):
+
+1. `PRRT_kwDORzpWpM6bcSRb`: Copilot correctly observed that recording a
+   literal, moving-target commit SHA for `closure_reviewed_head` inside
+   this very file is self-contradicting the instant the recording commit
+   itself becomes the new branch HEAD. Fixed by adopting the permanent-
+   `null` convention documented immediately above (extending the same
+   rationale already used for `closure_merge_commit`) and pointing to the
+   PR body's `## Local Review Readiness` block as the authoritative,
+   non-self-referential, always-current reviewed-HEAD record instead.
 
 `compact-context --target all` was invoked on this post-merge closure
 branch (per `templates/skills/compact-context/SKILL.md.tmpl` -- not
