@@ -193,10 +193,11 @@ here).
   pre- and post-merge, and P-020 compaction (see below). No residual
   risk, no accepted conditions, no open follow-ups requiring a
   `conditions:` block.
-- **Follow-ups**: none outstanding for 153-S itself. `closure_pr`,
-  `closure_merge_commit`, and `closure_reviewed_head` above are recorded
-  truthfully at each stage of authorship (see note below) rather than
-  invented in advance.
+- **Follow-ups**: none outstanding for 153-S itself. `closure_pr` is
+  fixed at `402`; `closure_merge_commit` and `closure_reviewed_head` are
+  permanently `null` per the adopted convention (see note below) -- this
+  is the final, settled closure-field state, not an interim placeholder
+  awaiting further updates.
 
 ### Note on self-referential closure fields
 
@@ -267,12 +268,13 @@ age/count/size thresholds this cycle, so no additional compaction was
 performed. `compaction_status: done` above reflects this outcome.
 
 **Closure verdict: READY.** Runtime verification passed, all review
-findings were fixed and resolved in a single review-fix cycle, backlog
-cascade-close is complete and independently re-verified both pre- and
-post-merge, and P-020 compaction is complete. No residual risk or
-accepted conditions are outstanding. No successor shipment was claimed in
-this invocation. `closure_pr` and `closure_reviewed_head` will be filled
-in via a small follow-up commit on this same branch once this closure
-PR's number and final pre-merge commit are known (see note above);
-`closure_merge_commit` remains permanently `null` per the self-referential
-rationale documented above.
+findings were fixed and resolved (2 review-fix cycles, well within the
+3-cycle budget), backlog cascade-close is complete and independently
+re-verified both pre- and post-merge, and P-020 compaction is complete.
+No residual risk or accepted conditions are outstanding. No successor
+shipment was claimed in this invocation. `closure_pr` is settled at
+`402`; `closure_merge_commit` and `closure_reviewed_head` are
+permanently `null` per the adopted convention documented above -- this
+is the final closure-field state, with the closure PR's own `## Local
+Review Readiness` body block serving as the authoritative reviewed-HEAD
+record.
