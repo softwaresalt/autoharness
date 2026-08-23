@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-22T17:05:41.7671959-07:00","actor":"backlogit","item_id":"145-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-22T17:34:17.4156383-07:00","actor":"backlogit","item_id":"145-F","event_type":"status_changed","delta":{"_shipment_operation":"153-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-22T17:34:30.7927107-07:00","actor":"backlogit","item_id":"145-F","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"fed1319bac9e1ac3c2f2eeb448390fbfc192f155","message":"test(measurement): mechanism-B BranchOwnershipTests order pollution — SUBSUMED (153-S/145-F)"}}
+{"timestamp":"2026-08-22T17:34:57.0110111-07:00","actor":"backlogit","item_id":"145-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/145-F.md"}}
