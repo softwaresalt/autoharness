@@ -5,7 +5,7 @@ tasks:
     - 145.001-T
     - 145.002-T
 feature_pr: 401
-closure_pr: null
+closure_pr: 402
 merge_commit: fed1319bac9e1ac3c2f2eeb448390fbfc192f155
 merged_at: "2026-08-23T00:32:27Z"
 reviewed_head: d33dc898181d97055d70908f7820854659ff34f9
