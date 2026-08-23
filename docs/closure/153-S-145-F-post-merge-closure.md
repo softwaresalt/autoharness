@@ -12,7 +12,7 @@ reviewed_head: d33dc898181d97055d70908f7820854659ff34f9
 closure_merge_commit: null
 closure_reviewed_head: null
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 ---
 
 # 153-S / 145-F Post-Merge Closure -- Mechanism B: BranchOwnershipTests Intra-File Order Pollution (Re-Measure at Mechanism-A Head)
@@ -224,15 +224,27 @@ here.
 
 ## Compaction (P-020)
 
-`compact-context --target all` is invoked as part of this closure PR
-before merge; `compaction_status` above will be updated from `pending` to
-`done` (or `degraded`, non-blocking, if the run fails) once that
-invocation completes, and the actual `closure_pr`/`closure_reviewed_head`
-values will be filled in at that same commit.
+`compact-context --target all` was invoked on this post-merge closure
+branch (per `templates/skills/compact-context/SKILL.md.tmpl` -- not
+installed as a resolved `.github/skills/` copy in this self-hosting
+repo). Candidate selection is threshold-gated; the just-closed release
+unit's own fresh session memory qualified under the completed-work rule
+(Phase 2). A bounded Tier-1 consolidation was performed: the verbose
+session-memory file was summarized into
+`docs/memory/compacted/2026-08-23-153s-145f-compacted.md` and the verbose
+original moved to
+`docs/archive/memory/2026-08-23-ship-153-s-mechanism-b-shipped-closure-in-progress.md`.
+No plan-with-appended-review or closure-record candidates exceeded the
+age/count/size thresholds this cycle, so no additional compaction was
+performed. `compaction_status: done` above reflects this outcome.
 
-**Closure verdict: READY** (pending the compaction step above completing
-in this same PR before merge). Runtime verification passed, all review
+**Closure verdict: READY.** Runtime verification passed, all review
 findings were fixed and resolved in a single review-fix cycle, backlog
 cascade-close is complete and independently re-verified both pre- and
-post-merge, and no residual risk or accepted conditions are outstanding.
-No successor shipment was claimed in this invocation.
+post-merge, and P-020 compaction is complete. No residual risk or
+accepted conditions are outstanding. No successor shipment was claimed in
+this invocation. `closure_pr` and `closure_reviewed_head` will be filled
+in via a small follow-up commit on this same branch once this closure
+PR's number and final pre-merge commit are known (see note above);
+`closure_merge_commit` remains permanently `null` per the self-referential
+rationale documented above.
