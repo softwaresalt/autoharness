@@ -10,17 +10,53 @@ tasks:
     - 144.006-T
     - 144.007-T
 feature_pr: 398
-closure_pr: null
+closure_pr: 399
 merge_commit: f0cad43c04ad98809685db0fb247db1e9a287bb6
 merged_at: "2026-08-22T23:05:49Z"
 reviewed_head: ef96eb72f88e529f4212ed4b02b5a532ad8fc977
-closure_merge_commit: null
-closure_reviewed_head: null
+closure_merge_commit: 0c8464774423c3789b978680767898d8d944bbf4
+closure_reviewed_head: 93c3023f460b78bbe03104e7cb0c8ea4ce07f2c4
 closure_status: READY_WITH_CONDITIONS
 compaction_status: done
 conditions:
-    - "PRRT_kwDORzpWpM6bb2je: control-flow-insensitive alias tracking in _EnvMutationVisitor (P2, accepted operator-directed residual risk, not a P-021 C2 capture)"
+    - id: "round4-control-flow-insensitive-alias-tracking-residual-risk"
+      description: >-
+        The named condition for release readiness is that the round-4
+        finding on the `_EnvMutationVisitor` AST guard's alias tracking
+        (`tests/test_test_suite_isolation_contract.py`) has an explicit,
+        final operator disposition -- either a code fix, or a documented
+        acceptance of residual risk -- recorded before closure. It is
+        satisfied by disposition, not by a code change: the underlying
+        alias-tracking gap itself (both branches of an `if`/`else` are
+        visited sequentially into the same mutable scope dict, so a
+        conditional import could in principle let a genuine
+        `patch.dict(os.environ, ...)` bypass the guard undetected) remains
+        open as a non-blocking hardening follow-up (see "Residual
+        follow-up" below) and is NOT what `satisfied: true` attests to.
+        Flagged as PR #398 Copilot review round 4 (thread
+        `PRRT_kwDORzpWpM6bb2je`), correctly classified P-021 C1
+        same-contract-surface in-scope, but the 3-cycle review-fix budget
+        (Stop Conditions table) was already exhausted.
+      satisfied: true
+      evidence: >-
+        The disposition condition above is met: the operator explicitly
+        authorized accepting the round-4 finding as documented residual
+        risk rather than performing a 4th review-fix cycle, since no test
+        file under `tests/` today uses a conditional/branch-dependent
+        import alias near an `os.environ` mutation call, so the guard
+        remains fully sound for every existing offending shape -- this is
+        a hardening opportunity against a hypothetical future pattern, not
+        a live/active defect. Recorded in PR #398's Local Review Readiness
+        block (outcome `READY_WITH_FOLLOWUPS`) and in the substantive
+        reply posted to thread `PRRT_kwDORzpWpM6bb2je` (which was then
+        resolved) prior to merging PR #398 as
+        `f0cad43c04ad98809685db0fb247db1e9a287bb6`. This disposition is
+        final and complete (not a pending/open item); it is not
+        re-litigated by this closure or its corrections. The underlying
+        code gap remains tracked separately as a non-blocking follow-up
+        and is not claimed to be resolved.
 ---
+
 
 # 152-S / 144-F Post-Merge Closure -- Contain Ambient GIT_CONFIG_* Environment Destruction on Windows (Mechanism A)
 
@@ -203,11 +239,17 @@ did not recur for this shipment's manifest).
   -- no additional evidence beyond the runtime verification above is
   required for this workspace). Verified merge commit (two parents),
   green CI, P-018 `SATISFIED`, P-015 cascade-close independently
-  re-verified, and P-020 compaction `done` (see below). The single
-  outstanding condition is the accepted round-4 residual-risk finding
-  (`PRRT_kwDORzpWpM6bb2je`), which is non-blocking and does not gate
-  release.
-- **Residual follow-up (non-blocking)**:
+  re-verified, and P-020 compaction `done` (see below). The single named
+  release condition (`conditions:` frontmatter, id
+  `round4-control-flow-insensitive-alias-tracking-residual-risk`) is
+  satisfied: the round-4 finding has an explicit, final operator
+  disposition (accepted as documented residual risk). That disposition,
+  not a code fix, is what satisfies the condition; the underlying
+  alias-tracking hardening opportunity itself remains open as a
+  non-blocking follow-up (below) and does not gate release.
+- **Residual follow-up (non-blocking, underlying code gap not yet
+  hardened -- distinct from, and not contradicting, the satisfied release
+  condition above)**:
   1. `PRRT_kwDORzpWpM6bb2je`: the `_EnvMutationVisitor` structural guard's
      alias tracking is not control-flow-aware (both branches of an
      `if`/`else` are visited into the same mutable scope dict). No
@@ -243,5 +285,104 @@ all resolvable review threads were fixed and resolved across 3 review-fix
 cycles, the 4th finding was accepted as documented residual risk per
 explicit operator disposition, backlog cascade-close is complete and
 independently re-verified, and P-020 compaction is `done`. The single
-outstanding condition (round-4 residual risk) is non-blocking and does not
-gate release. Shipment 153-S remains queued and unclaimed.
+named release condition (round-4 finding disposition) is satisfied by
+that explicit operator disposition, is non-blocking, and does not gate
+release; the underlying alias-tracking hardening opportunity itself
+remains open as a non-blocking follow-up, distinct from the satisfied
+release condition. Shipment 153-S remains queued and unclaimed.
+
+## Post-Closure Correction Addendum (2026-08-22, Ship post-merge correction authority)
+
+**This section corrects, and does not retract, the closure record above.**
+`152-S` is archived/shipped and was not reopened, reclaimed, or re-triaged
+for this correction; no backlogit shipment or task was created, claimed,
+or touched. The correction below is delivered as an independent docs-only
+correction PR under Ship's post-merge correction authority, on its own
+dedicated branch, and remains subject to the full Ship pipeline (local
+review, CI, P-018 Copilot review, P-014 readiness, merge-commit-only
+merge) before it can land -- this document is authored as part of that
+still-unmerged correction PR, so those gates are prerequisites this PR
+must still satisfy, not completed events it can attest to about itself.
+
+### Corrected defect
+
+The Orchestrator reloaded `main` at `0c8464774423c3789b978680767898d8d944bbf4`
+and ran `autoharness gate pipeline-topology --mode agent --shipment 153-S
+--phase pre_claim --json`, which returned exit 1 BLOCK,
+`PREDECESSOR_CLOSURE_INCOMPLETE: predecessor 152-S is terminal but missing
+required closure evidence` (`closure_complete: false`).
+
+Root cause, confirmed by reading `_closure_artifact_complete` and
+`_closure_conditions_satisfied` in `src/autoharness/gates/topology.py`:
+this file's `closure_status` is `READY_WITH_CONDITIONS`, which requires the
+`conditions:` frontmatter field to be a non-empty sequence of **mappings**,
+each with `satisfied: true` (the literal boolean) and a non-empty
+`evidence` string. The original record's `conditions:` field was instead a
+bare list of **strings** (a single quoted sentence naming the round-4
+residual-risk thread) -- a well-formed-looking but code-incompatible
+shape, so `_closure_conditions_satisfied` returned `False` regardless of
+`compaction_status: done`, and the gate correctly fail-closed.
+
+Separately (not itself gate-blocking per the function above, but a real
+inaccuracy caught by the same review): `closure_pr`, `closure_merge_commit`,
+and `closure_reviewed_head` were all `null`, even though the closure PR
+(#399) had already been created, reviewed, and merged before this
+correction began. Unlike a still-open closure PR (where these fields
+necessarily remain unknown/self-referential until that PR's own eventual
+merge -- see prior precedent `9c76db69`, which correctly left
+`closure_merge_commit`/`closure_reviewed_head` null for that reason), this
+was a case where the true values were already fully determined and simply
+never backfilled.
+
+### Corrected fix
+
+- Rewrote `conditions:` into the established list-of-mappings shape
+  (`id`/`description`/`satisfied: true`/`evidence`; see
+  `docs/closure/114-S-109-F-post-merge-closure.md` and
+  `docs/closure/139-S-130-F-post-merge-closure.md` for the precedent this
+  follows), citing the same round-4 residual-risk disposition evidence
+  already described in the body of this closure record (PR #398's Local
+  Review Readiness block and the resolved reply on thread
+  `PRRT_kwDORzpWpM6bb2je`) -- no new or different disposition is
+  introduced, only the machine-checkable shape is corrected.
+- Set `closure_pr: 399` (the closure PR is #399), `closure_merge_commit:
+  0c8464774423c3789b978680767898d8d944bbf4` (PR #399's merge commit,
+  2 parents `f0cad43c04ad98809685db0fb247db1e9a287bb6` +
+  `93c3023f460b78bbe03104e7cb0c8ea4ce07f2c4` verified, confirmed ancestor
+  of `origin/main` via `git merge-base --is-ancestor`), and
+  `closure_reviewed_head: 93c3023f460b78bbe03104e7cb0c8ea4ce07f2c4` (PR
+  #399's reviewed HEAD at P-018 `SATISFIED`, the full SHA resolved via
+  `git rev-parse`). All three values were already fully determined and
+  independently verifiable at correction time -- none of them describe
+  this correction PR's own (still-undetermined) eventual merge, avoiding
+  the self-referential-impossible-evidence trap.
+- No other field was altered. `closure_status: READY_WITH_CONDITIONS` is
+  unchanged and remains the correct verdict. No source, test, template,
+  config, or backlog state change was made -- this is a docs-only
+  frontmatter correction.
+
+### Verification
+
+- `python -c "from autoharness.gates.topology import _frontmatter,
+  _closure_artifact_complete; ..."` reproduced `complete: False` against
+  the pre-correction file and confirmed `complete: True` against the
+  corrected file.
+- `autoharness gate pipeline-topology --mode agent --shipment 153-S
+  --phase pre_claim --json` reproduced `PREDECESSOR_CLOSURE_INCOMPLETE`
+  (exit 1) against the pre-correction working tree, and returns exit 0
+  (`shipment_readiness: passed`, no blocking token) against the corrected
+  working tree.
+- Targeted suite `tests/test_gates_topology.py`: 104/104 passed (0
+  failures, 0 errors) -- unmodified by this correction, confirming no
+  regression to the gate's own behavior.
+- This correction does not claim, execute, or otherwise act on `153-S`; it
+  only removes the false-negative closure-evidence block so a future,
+  separately authorized pre-claim of `153-S` can proceed on its own
+  merits. `153-S` remains `queued` and was not claimed by this correction.
+
+### Follow-ups / deferred
+
+None new. `152-S`'s existing residual follow-up (the round-4
+control-flow-insensitivity finding, now recorded in the corrected
+`conditions:` block above) is unaffected by this correction.
+
