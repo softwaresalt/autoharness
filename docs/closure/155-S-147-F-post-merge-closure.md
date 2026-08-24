@@ -285,8 +285,8 @@ Consistent with the adopted convention (see
 and `closure_reviewed_head` are left permanently `null` in this file. The
 authoritative, always-current reviewed-HEAD record for the closure PR
 itself lives in that PR's own body (`## Local Review Readiness` section),
-which can be edited without shifting the branch HEAD. `closure_pr` will be
-populated once this closure PR is opened.
+which can be edited without shifting the branch HEAD. `closure_pr` is now
+populated (`408`), reflecting this closure PR's actual number.
 
 **Closure verdict: READY.** Runtime verification passed, P-015 cascade-close
 is complete and fully verified with no discrepancy, source stash `5CFA8198`
