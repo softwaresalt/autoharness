@@ -14,6 +14,10 @@ closure_merge_commit: null
 closure_reviewed_head: null
 closure_status: READY_WITH_CONDITIONS
 compaction_status: done
+conditions:
+    - id: 5CFA8198-archived-ids-contract-reconciliation
+      satisfied: true
+      evidence: "5CFA8198 (P-021 deferred scope expansion, captured at this closure) triaged and formally deliberated by Stage as 027-DL, planned as 147-F, and queued for execution as 155-S -- the capture-and-ownership handoff for this condition is complete; successor shipment 155-S owns implementation of the reconciliation itself"
 ---
 
 # 154-S / 146-F Post-Merge Closure -- docs/compound `source` Value Semantics
