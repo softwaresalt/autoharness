@@ -306,6 +306,11 @@ Scenario 7 is mandatory: it pins the exact confusion that invalidated the
 artifact`) in the template text, so deleting either condition breaks a test
 rather than silently widening the gate.
 
+Also assert that the shipment record is an unconditional member of
+`required_ids`, independent of Step 0(b)'s manifest-member entries, and that
+the declared statuses of qualifying feature members are captured after Step
+0(c) identifies them and before the cascade invocation.
+
 **(A4, BINDING)** Add scenario 8: a case in which a POST-close status read
 would pass but the Step 0(b) snapshot correctly HALTs - pinning the
 snapshot-timing failure mode by test, not only by prose.
