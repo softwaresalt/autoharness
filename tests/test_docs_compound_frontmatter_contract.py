@@ -45,19 +45,22 @@ SOURCE_VALUE_SHAPE_EXEMPTIONS: frozenset[str] = frozenset()
 
 
 def _value_shape_matches_path(source_value: object, expected_rel_posix: str) -> bool:
-    """Return True iff `source_value`, with surrounding quotes stripped and
-    whitespace trimmed, equals `expected_rel_posix` exactly.
+    """Return True iff `source_value`, with whitespace trimmed, equals
+    `expected_rel_posix` exactly.
 
-    `source_value` is expected to already be YAML-parsed (quotes resolved by
-    `yaml.safe_load`); the extra quote-stripping here is defense in depth for
-    any raw scalar text that still carries literal quote characters.
+    `source_value` is already YAML-parsed by `_frontmatter_value` (via
+    `yaml.safe_load`), so YAML's own syntactic quoting has already been
+    resolved -- any quote character still present in the parsed string is
+    semantic DATA, not a delimiter. Quote characters are deliberately NEVER
+    stripped here (Copilot review, PR #404): doing so would let a malformed
+    value such as the parsed string ``"'docs/compound/file.md'"`` (i.e. a
+    `source` scalar that is itself wrapped in an extra, unintended layer of
+    quotes) falsely compare equal to the correct unquoted path, letting the
+    value-shape guard pass on invalid frontmatter.
     """
     if not isinstance(source_value, str):
         return False
-    candidate = source_value.strip()
-    if len(candidate) >= 2 and candidate[0] == candidate[-1] and candidate[0] in ('"', "'"):
-        candidate = candidate[1:-1].strip()
-    return candidate == expected_rel_posix
+    return source_value.strip() == expected_rel_posix
 
 
 def _frontmatter_block(text: str):
@@ -174,8 +177,10 @@ class TestDocsCompoundFrontmatterContract(unittest.TestCase):
         """146.002-T (026-DL, amendments A1/A2): ratchet from non-emptiness
         to a location-derived value-shape assertion.
 
-        `source` MUST equal the file's own repo-relative POSIX path (quotes
-        stripped, whitespace trimmed). The expected path is derived from the
+        `source` MUST equal the file's own repo-relative POSIX path
+        (whitespace trimmed; quote characters are semantic data already
+        resolved by YAML parsing, never additionally stripped -- see
+        `_value_shape_matches_path`). The expected path is derived from the
         file's ACTUAL location via `relative_to(...).as_posix()` -- never a
         hard-coded flat `docs/compound/` prefix -- so a legal future
         `{category}/` subdirectory (already modeled by the authoring
@@ -266,6 +271,31 @@ class TestDocsCompoundFrontmatterContract(unittest.TestCase):
                 )
             self.assertIn(expected_rel, str(ctx.exception))
             self.assertIn(str(source_value), str(ctx.exception))
+
+    def test_value_shape_predicate_does_not_strip_semantic_quote_characters(
+        self,
+    ) -> None:
+        """Copilot review (PR #404): `_frontmatter_value` already resolves
+        YAML's own syntactic quoting via `yaml.safe_load`, so any quote
+        character still present in the parsed string is semantic DATA, not
+        a YAML delimiter. The predicate must compare the parsed value
+        directly (whitespace-trimmed only) and must NEVER strip quote
+        characters -- otherwise a malformed value that is itself wrapped in
+        an extra, unintended layer of quotes would falsely compare equal to
+        the correct unquoted path, letting invalid frontmatter pass the
+        value-shape guard.
+        """
+        expected_rel = (
+            "docs/compound/2026-08-09-next-eligible-detail-scoping-and-"
+            "vacuous-tiebreak-tests.md"
+        )
+        malformed_with_embedded_quotes = f"'{expected_rel}'"
+        self.assertFalse(
+            _value_shape_matches_path(malformed_with_embedded_quotes, expected_rel),
+            "a value with literal embedded quote characters must NOT match "
+            "the unquoted path -- those quotes are semantic data, not YAML "
+            "syntax, because _frontmatter_value already parsed the scalar",
+        )
 
     def test_frontmatter_value_negative_cases_still_treated_as_missing(self) -> None:
         """AC2.3: negative-case table proving every pre-existing failure
