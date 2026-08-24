@@ -169,6 +169,28 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         self.assertIn("empty (no required artifact left unarchived)", content)
         self.assertNotIn("archived_ids` matches exactly", content)
 
+    def test_no_live_guidance_anywhere_still_asserts_exact_match(self) -> None:
+        """Copilot review (PR #407): a live '## Quality Criteria' bullet
+        previously survived the step-3/preamble rewrite and kept asserting
+        the withdrawn exact-match claim as current execution guidance, even
+        though the Cascade Close Sub-Procedure text itself had already been
+        corrected. Guard the whole document (not just the sub-procedure
+        section) against any surviving "matches ... exactly" /
+        "idempotent ... returns it in `archived_ids`" phrasing tied to
+        archived_ids, wherever it appears."""
+        content = _flatten(_skill_content())
+        self.assertNotIn("archived_ids` matches the manifest exactly", content)
+        self.assertNotIn(
+            "the cascade operation is idempotent and still returns it in "
+            "`archived_ids`",
+            content,
+        )
+        # The Quality Criteria bullet must reference the two-set gate.
+        quality_idx = content.index("## Quality Criteria")
+        quality_section = content[quality_idx:]
+        self.assertIn("allowed_ids", quality_section)
+        self.assertIn("required_ids", quality_section)
+
     def test_report_records_allowed_required_and_both_differences(self) -> None:
         content = _flatten(_skill_content())
         self.assertIn("`allowed_ids`, `required_ids`, and both set differences", content)
