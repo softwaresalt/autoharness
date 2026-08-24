@@ -53,7 +53,10 @@ Yes - if every allowed artifact were already truly archived. But in that case
 the cascade genuinely has nothing to do, and the allowed-set check plus the
 preserved persisted-final-state and shipment-status checks still apply. The
 shipment record itself is never pre-archived on a live close, so `required_ids`
-contains at least the shipment record in every real invocation.
+contains at least the shipment record in every real invocation. The normative
+contract now makes the shipment record an unconditional member of
+`required_ids`, rather than relying on iteration over Step 0(b)'s
+manifest-member snapshot.
 
 The plan's step 5 report already records `required_ids`, so a vacuous case is
 VISIBLE in the report rather than silent. Sufficient. **Addressed, no

@@ -169,14 +169,18 @@ the control arm. The invariant was never exercised.
    `status` is the very field the cascade mutates. A post-close read would
    report `archived` for everything the cascade just archived, collapsing
    `required_ids` to empty and silently disabling the completeness check.
+   Once Step 0(c) identifies qualifying feature members, record their declared
+   pre-close statuses in the same status map before invoking the cascade.
 2. `allowed_ids` = manifest task items + qualifying feature members + the
    shipment record.
    **(A3, BINDING)** "Qualifying feature members" means the set the Step 0(c)
    classifier already determines as qualifying - defined at the point of use,
    and deliberately independent of HOW the engine happens to transition them.
    The contract asserts SET MEMBERSHIP, never a mechanism.
-3. `required_ids` = allowed artifacts NOT truly `status: archived` in the
-   pre-close snapshot.
+3. `required_ids` = the shipment record (unconditionally) + every other
+   allowed artifact NOT truly `status: archived` in the pre-close status map.
+   The shipment record MUST NOT be omitted by deriving this set only from
+   Step 0(b)'s manifest-member entries.
 4. FAIL when `archived_ids - allowed_ids` is non-empty ->
    `HALT - cascade archived unexpected artifact {id}` + P-005.
 5. FAIL when `required_ids - archived_ids` is non-empty ->
@@ -254,9 +258,12 @@ File: `templates/skills/shipment-reconcile/SKILL.md.tmpl`
   against the Step 0(b) snapshot), the protected-set rules and their absence
   of any pre-archived exemption, the no-substitution rule, and persisted
   final-state verification.
-* Grep `templates/`, `docs/`, `.github/` for restatements of the false claim
-  (`nothing more, nothing less`, `never be relaxed`, `full item set`,
-  `archived_ids`) and correct any stale copy found (027-DL Q2).
+* Run a diagnostic grep over `templates/`, `docs/`, `.github/` for
+  restatements of the false claim (`nothing more, nothing less`, `never be
+  relaxed`, `full item set`, `archived_ids`). T2 corrects only the skill
+  template; route policy-template findings to T1 and documentation findings to
+  T4. Record any other-family finding for its owning task rather than editing
+  it in T2 (027-DL Q2).
 * **(A1, BINDING)** Carry the same explicit supersession note at the skill's
   point of change (the L557-L567 paragraph that pins the never-relax rule).
 * **(A3, BINDING)** Define "qualifying feature members" at the point of use by
@@ -365,9 +372,12 @@ its implementation has not shipped.
 
 ## Verification (Ship)
 
-* `pytest tests/test_cascade_close_archived_ids_postcondition.py` green, plus
-  the existing `tests/test_shipment_reconcile_*.py` and
-  `tests/test_shipment_closure_classification.py` still green.
+* Targeted contract coverage for
+  `tests/test_cascade_close_archived_ids_postcondition.py`, the existing
+  `tests/test_shipment_reconcile_*.py`, and
+  `tests/test_shipment_closure_classification.py` is green.
+* `PYTHONPATH=src python -m unittest discover -s tests` is green as the
+  repository's canonical full test gate.
 * `verify-workspace` shows no new schema blockers, blockers, warnings, or
   unresolved placeholders.
 * Manual read-through confirming every PRESERVED check is textually intact.
