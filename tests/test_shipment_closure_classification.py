@@ -114,7 +114,7 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
     def test_childlessness_query_failure_falls_back_to_safe_close_not_treated_as_childless(self) -> None:
         _write_artifact(self.backlog_dir, "queue", "207-F", "feature")
         # An unrelated malformed record (no frontmatter delimiters at all) sits
-        # in the same queue directory. `_enumerate_children` must scan every
+        # in the same queue directory. `_build_children_index` must scan every
         # queue/archive record to positively verify childlessness for 207-F, so
         # this malformed record makes that enumeration untrustworthy -- it must
         # NOT be silently skipped and treated as "no children found" (that would
@@ -329,6 +329,46 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
         assert decision.close_path is ClosePath.SAFE_CLOSE
         assert "228.002-T" in decision.reason
 
+
+    def test_out_of_manifest_grandchild_falls_back_to_safe_close(self) -> None:
+        # Regression (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b2MJv):
+        # the "fully covered" precondition must walk the FULL descendant
+        # tree, not just direct children of the feature. Backlogit's own
+        # `releaseScopeItemIDs` recursively adds every descendant of each
+        # manifest item before `collectArchiveCandidateIDs` archives terminal
+        # descendants -- a classifier that only checks the feature's direct
+        # children would wrongly select CASCADE here even though the
+        # manifest task has an out-of-manifest subtask (grandchild of the
+        # feature) that the live engine would archive.
+        _write_artifact(self.backlog_dir, "queue", "230-F", "feature")
+        _write_artifact(self.backlog_dir, "queue", "230.001-T", "task", parent_id="230-F")
+        # 230.001-002-T is a real child of the MANIFEST TASK 230.001-T (a
+        # grandchild of 230-F) and is NOT listed in the manifest.
+        _write_artifact(
+            self.backlog_dir, "queue", "230.001.001-T", "task", parent_id="230.001-T"
+        )
+
+        decision = classify_shipment_close_path(["230-F", "230.001-T"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+        assert "230.001.001-T" in decision.reason
+
+    def test_full_descendant_tree_present_in_manifest_still_selects_cascade(self) -> None:
+        # Positive counterpart: when every descendant at every depth IS a
+        # manifest member, CASCADE is still correctly selected -- the fix
+        # must not regress the ordinary multi-level-but-fully-covered case.
+        _write_artifact(self.backlog_dir, "queue", "231-F", "feature")
+        _write_artifact(self.backlog_dir, "queue", "231.001-T", "task", parent_id="231-F")
+        _write_artifact(
+            self.backlog_dir, "queue", "231.001.001-T", "task", parent_id="231.001-T"
+        )
+
+        decision = classify_shipment_close_path(
+            ["231-F", "231.001-T", "231.001.001-T"], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.qualifying_feature_ids == ("231-F",)
 
     def test_pre_archived_non_root_feature_falls_back_to_safe_close(self) -> None:
         # Negative case: a feature member that declares a parent_id (is not a
