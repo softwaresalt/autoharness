@@ -30,6 +30,8 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 _SKILL_TEMPLATE = _ROOT / "templates" / "skills" / "shipment-reconcile" / "SKILL.md.tmpl"
 _POLICY_TEMPLATE = _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
+_SPIKE_DOC = _ROOT / "docs" / "spikes" / "2026-08-18-cascade-close-pre-archived-member-behavior.md"
+_COMPOUND_DOC = _ROOT / "docs" / "compound" / "2026-08-18-p015-cascade-classifier-override-deviation.md"
 
 _HALT_UNEXPECTED = "cascade archived unexpected artifact"
 _HALT_MISSING = "cascade did not archive required artifact"
@@ -54,10 +56,28 @@ def _policy_content() -> str:
     return _POLICY_TEMPLATE.read_text(encoding="utf-8")
 
 
+def _spike_content() -> str:
+    return _SPIKE_DOC.read_text(encoding="utf-8")
+
+
+def _compound_content() -> str:
+    return _COMPOUND_DOC.read_text(encoding="utf-8")
+
+
 def _flatten(text: str) -> str:
     """Collapse newlines/indentation so a phrase that wraps across lines in
     the authored markdown can still be matched as a contiguous substring."""
     return re.sub(r"\s+", " ", text)
+
+
+def _flatten_blockquote(text: str) -> str:
+    """Like `_flatten`, but additionally strips a leading Markdown
+    blockquote marker (`> `) from every line before collapsing whitespace,
+    so a phrase that wraps across blockquoted lines (e.g. a spike doc's
+    `> **SUPERSEDED ...**` banner) can still be matched as a contiguous
+    substring without embedded `>` characters splitting words apart."""
+    unquoted = re.sub(r"(?m)^>\s?", "", text)
+    return _flatten(unquoted)
 
 
 class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
@@ -758,6 +778,65 @@ class CascadeCloseFrontmatterAndVariableTests(unittest.TestCase):
                     token,
                     r"^\{\{(STATUS|OP|BACKLOG_DIRECTORY|SUFFIX)[A-Z_]*\}\}$",
                 )
+
+
+class CascadeCloseEvidenceTrailScopeTests(unittest.TestCase):
+    """PR #407 review cycle 10 (threads PRRT_kwDORzpWpM6b00dS /
+    PRRT_kwDORzpWpM6b00d-): the evidence-trail docs (spike + compound
+    learning) must scope their own "correctly absent" restatements the same
+    way the live skill/policy contract does -- never generalized to every
+    manifest member, since a qualifying feature member is forced through
+    `status: done` before archive-candidate collection and is therefore
+    never "correctly absent" the way a task or linked deliberation is.
+    """
+
+    def test_spike_supersession_note_scopes_correctly_absent_to_task_and_linked_deliberation(
+        self,
+    ) -> None:
+        content = _flatten_blockquote(_spike_content())
+        self.assertIn(
+            "truly `status: archived` **manifest task item, or a "
+            "qualifying feature member's validated linked deliberation,** "
+            "has no transition to report and is correctly **absent** from "
+            "`archived_ids`",
+            content,
+        )
+        self.assertIn("PRRT_kwDORzpWpM6b00dS", content)
+        self.assertIn(
+            "never extends to the qualifying feature member itself", content
+        )
+
+    def test_spike_supersession_note_never_restates_blanket_member_claim(self) -> None:
+        content = _flatten_blockquote(_spike_content())
+        self.assertNotIn(
+            "truly `status: archived` member has no transition to report "
+            "and is correctly **absent** from `archived_ids`",
+            content,
+        )
+
+    def test_compound_doc_correction_scopes_correctly_absent_to_task_and_linked_deliberation(
+        self,
+    ) -> None:
+        content = _flatten(_compound_content())
+        self.assertIn(
+            "truly `status: archived` **manifest task item, or a "
+            "qualifying feature member's validated linked deliberation,** "
+            "has **no transition to report** and is **correctly absent** "
+            "from `archived_ids`",
+            content,
+        )
+        self.assertIn("PRRT_kwDORzpWpM6b00d-", content)
+        self.assertIn(
+            "never extends to the qualifying feature member itself", content
+        )
+
+    def test_compound_doc_never_restates_blanket_member_claim(self) -> None:
+        content = _flatten(_compound_content())
+        self.assertNotIn(
+            "truly `status: archived` manifest member has **no transition "
+            "to report** and is **correctly absent** from `archived_ids`",
+            content,
+        )
 
 
 if __name__ == "__main__":

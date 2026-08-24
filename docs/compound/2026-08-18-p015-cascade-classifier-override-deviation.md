@@ -221,11 +221,20 @@ result shape" finding is valid only for relocated-but-`done` records.
 
 Read directly against the backlogit engine source
 (`internal/core/shipment_lifecycle.go` `archiveItems()`), a truly
-`status: archived` manifest member has **no transition to report** and is
+`status: archived` **manifest task item, or a qualifying feature member's
+validated linked deliberation,** has **no transition to report** and is
 **correctly absent** from `archived_ids` — the original point-3 speculation
 in this document (an exact-match check may need adjustment for
 already-archived items) was closer to correct than the "disproven"
-conclusion that superseded it. Shipment `155-S` (feature `147-F`,
+conclusion that superseded it. **This never extends to the qualifying
+feature member itself** (155-S, PR #407 review, thread
+PRRT_kwDORzpWpM6b00d-): `ShipShipment` unconditionally forces every
+explicit qualifying feature member through `status: done` before
+archive-candidate collection runs, regardless of its own pre-close
+declared status, so it is always re-archived and always present in
+`archived_ids` — the updated contract requires a qualifying feature
+member's ID in `required_ids` unconditionally, exactly like the shipment
+record. Shipment `155-S` (feature `147-F`,
 deliberation `.backlogit/archive/027-DL.md`) corrects the contract: the
 `archived_ids` exact-match post-condition is replaced with a two-set
 `allowed_ids` / `required_ids` gate (see
