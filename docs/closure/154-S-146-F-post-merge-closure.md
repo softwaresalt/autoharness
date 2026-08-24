@@ -251,3 +251,16 @@ exact-match contract text (see Conditions above) -- deferred scope
 expansion `5CFA8198` captures the reconciliation work as a follow-up for
 Stage. No other residual risk is outstanding. No successor shipment was
 claimed in this invocation.
+
+## Forward Cross-Reference (155-S, appended post-hoc, 2026-08-24)
+
+The condition recorded above (`5CFA8198-archived-ids-contract-reconciliation`)
+is now fully implemented, not merely triaged: deliberation `027-DL` produced
+`docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-plan.md`
+(hardened per `docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-hardening.md`,
+reviewed PASS in `docs/reviews/2026-08-24-cascade-close-archived-ids-postcondition-review.md`),
+which shipment `155-S` (feature `147-F`) executed. This closure record's
+narrative, its `READY_WITH_CONDITIONS` verdict, and every field above are
+**unchanged** by this note -- it is an append-only forward pointer to where
+the reconciliation work landed, not a revision of this shipment's own
+historical account.

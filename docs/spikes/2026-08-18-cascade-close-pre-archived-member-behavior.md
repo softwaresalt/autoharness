@@ -1,5 +1,33 @@
 # Spike — Does `backlogit shipment ship` tolerate pre-archived manifest members?
 
+> **⚠️ SUPERSEDED (155-S / 147-F, 2026-08-24).** This spike's arms were
+> constructed with `backlogit move <id> --status done`, which **relocates** a
+> record into `archive/` but leaves it declaring `status: done` — never truly
+> `status: archived`. Against the engine's own `archiveItems()` guard in
+> `internal/core/shipment_lifecycle.go` (`if item.Status == models.StatusArchived
+> { continue }`), `done != archived`, so every "pre-archived" artifact in every
+> arm below **was archived by the call** and legitimately transited into
+> `archived_ids` — it never had the "already archived, nothing to transition"
+> case this spike set out to test. **All three arms were, at the guard that
+> matters, the control arm.** The spike therefore never once exercised a truly
+> `status: archived` input, and its "byte-identical result shape across all
+> three arms" finding is valid **only** for relocated-but-`done` records, not
+> for genuinely pre-archived ones.
+>
+> Its **recommendation against adjusting the post-condition** (§ "Consequence
+> for the proposed remedy", below) is **RETRACTED**. `docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-plan.md`
+> (deliberation `027-DL`, corrected by shipment `155-S`) replaces the
+> `archived_ids` exact-match post-condition with a two-set `allowed_ids` /
+> `required_ids` gate keyed on DECLARED pre-close `status`, precisely because a
+> truly `status: archived` member has no transition to report and is
+> correctly **absent** from `archived_ids` (verified directly against
+> `internal/core/shipment_lifecycle.go` source, not a black-box re-run of this
+> spike's method).
+>
+> The body below is preserved unmodified as the historical record of what was
+> actually run and observed; read it as evidence about relocated-but-`done`
+> records only.
+
 Date: 2026-08-18
 Agent: Stage (spike, read-only against live workspace)
 Stash source: `EDE3CC2D`
