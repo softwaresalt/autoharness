@@ -231,15 +231,19 @@ class QualityCriteriaTests(unittest.TestCase):
 
     def test_quality_criteria_source_bullet_states_value_shape_rule(self) -> None:
         """146.003-T (026-DL): directly-affected regression coverage for the
-        Quality Criteria ratchet (Copilot review, PR #404).
+        Quality Criteria ratchet (Copilot review, PR #404, rounds 1-2).
         `test_quality_criteria_mentions_source_and_doc_type` above only
         checks that both field-name tokens occur somewhere in the section --
         the old, weaker non-emptiness-only bullet also satisfied that check,
         so it cannot detect a regression back to the old wording. This test
-        asserts the `source` bullet itself states the VALUE-SHAPE rule
-        (the document's own repo-relative path), not mere non-emptiness,
-        while `doc_type` remains described as presence/non-emptiness
-        (026-DL R3).
+        pins the FULL normative clause -- "equals this document's own
+        repo-relative path" -- so that dropping either the self-referential
+        equality ("equals ... this document's own") or the path-shape noun
+        ("repo-relative path") fails the test; a weaker generic-path
+        rewording such as "`source` may be any repo-relative path" is
+        explicitly rejected by this stronger substring, not just a bare
+        "repo-relative path" containment check. `doc_type` remains
+        described as presence/non-emptiness (026-DL R3).
         """
         quality_idx = self.template_text.index(_QUALITY_CRITERIA_MARKER)
         quality_section = self.template_text[quality_idx:]
@@ -262,9 +266,13 @@ class QualityCriteriaTests(unittest.TestCase):
             "non-emptiness-only wording",
         )
         self.assertIn(
-            "repo-relative path",
+            "equals this document's own repo-relative path",
             bullet,
-            "Quality Criteria bullet must state the source value-shape rule",
+            "Quality Criteria bullet must pin the full normative "
+            "self-referential-equality clause, not just a bare "
+            "'repo-relative path' mention -- a generic-path rewording "
+            "such as '`source` may be any repo-relative path' must fail "
+            "this test",
         )
         self.assertIn("`doc_type`", bullet)
         self.assertIn("present and non-empty", bullet)
