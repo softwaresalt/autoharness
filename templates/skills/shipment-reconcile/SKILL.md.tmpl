@@ -649,13 +649,20 @@ artifacts it **actually transitioned** to archived during that invocation
 (backlogit engine source, `internal/core/shipment_lifecycle.go`
 `archiveItems()`: an item whose declared `status` is already `archived` is
 skipped and never appended to the slice that becomes `archived_ids`). A
-manifest member that was already truly `status: archived` before the call
+manifest task item, or a qualifying feature member's validated linked
+deliberation, that was already truly `status: archived` before the call
 therefore has no transition to report and is **correctly absent** from
 `archived_ids` — this is expected engine behavior, not an anomaly and not a
-cascade failure. The live fail-closed guard over this result is the
-two-set `allowed_ids` / `required_ids` gate specified in step 3 below,
-evaluated **against the Step 0(b)/(c) pre-close declared-status snapshot**
-— never against location, and never against a post-close re-read.
+cascade failure. **This never extends to the shipment record or to a
+qualifying feature member itself** (155-S, PR #407 review, thread
+PRRT_kwDORzpWpM6b0kit): step 3 below makes both unconditionally required
+regardless of their own pre-close declared status, so neither can ever be
+"correctly absent" the way a task item or linked deliberation can — see
+step 3 for the full statement of that rule. The live fail-closed guard
+over this result is the two-set `allowed_ids` / `required_ids` gate
+specified in step 3 below, evaluated **against the Step 0(b)/(c) pre-close
+declared-status snapshot** — never against location, and never against a
+post-close re-read.
 
    **SUPERSESSION NOTE (155-S, 2026-08-24).** This paragraph previously
    claimed the cascade operation "is idempotent over pre-archived members",

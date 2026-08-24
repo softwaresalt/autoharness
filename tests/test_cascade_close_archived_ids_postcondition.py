@@ -543,6 +543,39 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
             content,
         )
 
+    def test_item_7_omission_sentence_scoped_to_task_and_linked_deliberation(
+        self,
+    ) -> None:
+        # PR #407 review (thread PRRT_kwDORzpWpM6bzlGL / follow-up
+        # PRRT_kwDORzpWpM6b0kjI): item 7's own "correctly absent" sentence
+        # must be scoped the same way the skill's is -- otherwise item 7 is
+        # internally contradictory with its own later unconditional
+        # qualifying-feature rule on the same line.
+        content = _flatten(_policy_content())
+        self.assertIn(
+            "A manifest task item, or a qualifying feature member's "
+            "validated linked deliberation, whose declared `status` is "
+            "already truly `archived` before the invocation has no "
+            "transition to report and is **correctly absent** from "
+            "`archived_ids`",
+            content,
+        )
+
+    def test_item_7_never_restates_blanket_manifest_member_omission_claim(
+        self,
+    ) -> None:
+        # Negative assertion: the unqualified "A member whose declared
+        # `status` is already truly `archived` ... correctly absent" phrase
+        # must never reappear -- it contradicted the unconditional
+        # qualifying-feature required_ids rule stated later in the same
+        # item.
+        content = _flatten(_policy_content())
+        self.assertNotIn(
+            "A member whose declared `status` is already truly `archived` "
+            "before the invocation",
+            content,
+        )
+
     def test_changelog_1_23_0_row_present_and_additive(self) -> None:
         content = _policy_content()
         idx_1_22 = content.index("| 1.22.0")
@@ -607,14 +640,33 @@ class CascadeCloseTwoSetGateScenarioTests(unittest.TestCase):
         # A truly pre-archived member is excluded from required_ids, so its
         # absence from archived_ids does not trigger the missing-required
         # halt. This is exactly what the withdrawn full-set-equality claim
-        # got wrong.
+        # got wrong. Scoped to manifest task items and a qualifying
+        # feature's validated linked deliberation only (PR #407 review,
+        # thread PRRT_kwDORzpWpM6b0kit) -- never the qualifying feature
+        # member itself, which step 3 makes unconditionally required.
         self.assertIn(
-            "A manifest member that was already truly `status: archived` "
-            "before the call therefore has no transition to report and is "
-            "**correctly absent** from `archived_ids`",
+            "A manifest task item, or a qualifying feature member's "
+            "validated linked deliberation, that was already truly "
+            "`status: archived` before the call therefore has no "
+            "transition to report and is **correctly absent** from "
+            "`archived_ids`",
             content,
         )
         self.assertIn("this is expected engine behavior", content)
+
+    def test_scenario_2_preamble_never_restates_blanket_manifest_member_claim(
+        self,
+    ) -> None:
+        # Negative assertion (PR #407 review, thread PRRT_kwDORzpWpM6b0kit):
+        # the withdrawn, over-broad "A manifest member ... correctly absent"
+        # phrasing must never reappear unqualified -- it would let an agent
+        # accept the exact qualifying-feature omission step 3 now rejects.
+        content = _flatten(_skill_content())
+        self.assertNotIn(
+            "A manifest member that was already truly `status: archived` "
+            "before the call",
+            content,
+        )
 
     def test_scenario_3_included_pre_archived_member_still_passes(self) -> None:
         content = _flatten(_skill_content())
