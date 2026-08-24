@@ -145,9 +145,15 @@ Surface: corpus data (`docs/compound/`, one file).
 Steps:
 
 1. **RE-MEASURE FIRST** (026-DL R5). Re-run the full-frontmatter parse over
-   `docs/compound/*.md` at execution HEAD and record the counts. The corpus is
-   growing at roughly one document per day, so the 74/75 baseline above MUST NOT
-   be trusted blind.
+   `docs/compound/**/*.md` at execution HEAD and record the counts. Discovery
+   MUST be RECURSIVE - `Path("docs/compound").rglob("*.md")` - which is the same
+   corpus domain the existing guard in
+   `tests/test_docs_compound_frontmatter_contract.py` already uses and the same
+   domain Task 2 asserts over. The authoring template writes new learnings to a
+   `{category}` subdirectory, so a non-recursive `docs/compound/*.md` scan could
+   miss a legal nested outlier and hand Task 2 an incomplete exemption
+   allowlist. The corpus is growing at roughly one document per day, so the
+   74/75 baseline above MUST NOT be trusted blind.
    * If exactly one non-conforming file is found and it is the expected one,
      proceed. **(A2)** Record explicitly that Task 2's exemption allowlist must
      therefore be EMPTY.
@@ -200,7 +206,8 @@ Acceptance criteria:
 * AC1.4 Exactly ONE file is modified. Evidence: `git diff --name-only`.
 * AC1.5 `backlogit docs lint --path docs/compound` passes.
 * AC1.6 The re-measurement from step 1 is recorded in the task evidence with its
-  counts, including the case where the finding no longer reproduces.
+  counts and the recursive `docs/compound/**/*.md` discovery it used, including
+  the case where the finding no longer reproduces.
 
 ### Task 2 - Ratchet the structural guard from non-emptiness to value shape
 
