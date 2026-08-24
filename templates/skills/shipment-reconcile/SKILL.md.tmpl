@@ -686,11 +686,21 @@ above.
        is non-empty, halt with
        `HALT — cascade did not archive required artifact {id}` and emit a
        **P-005** violation.
-   * An `allowed_ids` member that was already truly `status: archived` in
-     the pre-close snapshot MAY be included in or omitted from
+   * An `allowed_ids` **non-shipment** member (a manifest task item or a
+     qualifying feature member) that was already truly `status: archived`
+     in the pre-close snapshot MAY be included in or omitted from
      `archived_ids` by the engine — neither outcome fails either check (it
      is outside `required_ids` by construction, and if present in
-     `archived_ids` it is still inside `allowed_ids`).
+     `archived_ids` it is still inside `allowed_ids`). **This tolerance
+     never extends to the shipment record itself**, which is unconditionally
+     a `required_ids` member per the computation above regardless of its own
+     pre-close declared status: if the shipment record were ever reported
+     pre-close as already truly `status: archived` — an anomalous state for
+     an artifact this same closure step is actively transitioning to
+     `shipped` — its absence from `archived_ids` still fails the
+     missing-required-artifact check exactly as any other missing
+     `required_ids` member would; no engine behavior toward the shipment
+     record ever gets a pass under this tolerance.
 4. **Verify no `parent_id` was cleared**: re-read every archived task's
    frontmatter and confirm `parent_id` is unchanged from the pre-close
    snapshot captured in Step 0(b) — never a freshly-read or assumed value,
@@ -894,7 +904,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `mode: pre` with `expected_status: {{STATUS_QUEUED}}` (or `{{STATUS_ACTIVE}}` for already-claimed shipments) runs at Ship Step 0.5 intake
 * `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself — **except** when Step 0's P-015 verified fully-covered-root classification selects `CASCADE`, in which case the Cascade Close Sub-Procedure runs instead and safe-close steps 1–10 are skipped entirely
 * Close-path selection is made **only** from the machine-checkable classification result (Step 0), never inferred from prose or manifest shape alone; any classifier error, ambiguity, or unresolved precondition falls back to safe-close
-* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` against the two-set `allowed_ids` / `required_ids` gate (step 3: `allowed_ids` = manifest tasks + qualifying feature members + the shipment record; `required_ids` = the shipment record unconditionally plus every other allowed member NOT truly `status: archived` in the Step 0(b)/(c) pre-close declared-status snapshot; `archived_ids - allowed_ids` non-empty halts with `HALT — cascade archived unexpected artifact {id}`, `required_ids - archived_ids` non-empty halts with `HALT — cascade did not archive required artifact {id}`, evaluated as two independent, never-merged conditions — a truly pre-archived allowed member has no transition to report and is correctly, expectedly absent from `archived_ids`, never a mismatch), and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
+* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` against the two-set `allowed_ids` / `required_ids` gate (step 3: `allowed_ids` = manifest tasks + qualifying feature members + the shipment record; `required_ids` = the shipment record unconditionally plus every other allowed member NOT truly `status: archived` in the Step 0(b)/(c) pre-close declared-status snapshot; `archived_ids - allowed_ids` non-empty halts with `HALT — cascade archived unexpected artifact {id}`, `required_ids - archived_ids` non-empty halts with `HALT — cascade did not archive required artifact {id}`, evaluated as two independent, never-merged conditions — a truly pre-archived **non-shipment** allowed member has no transition to report and is correctly, expectedly absent from `archived_ids`, never a mismatch, but this tolerance never extends to the shipment record itself, which remains unconditionally required regardless of its own pre-close declared status), and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
 * Safe-close computes the protected set (parent feature + unshipped siblings) from expected IDs and proves it is fully present in queue at a baseline gate before archiving anything
 * Safe-close verifies the protected set survives after every single-item archival (verify-after-each invariant), with no pre-archived exemption for protected-set members
 * Safe-close moves the shipment record to live `shipped`, verifies it, explicitly archives only that record, and verifies `archived_status: shipped` before closure completes

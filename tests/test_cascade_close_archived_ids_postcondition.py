@@ -205,6 +205,17 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         content = _flatten(_skill_content())
         self.assertIn("MAY be included in or omitted from", content)
         self.assertIn("neither outcome fails either check", content)
+        # Copilot review (PR #407): the tolerance must be explicitly scoped
+        # to non-shipment allowed_ids members and must not silently cover
+        # the shipment record, which is unconditionally required regardless
+        # of its own pre-close declared status.
+        self.assertIn("non-shipment", content)
+        self.assertIn("never extends to the shipment record itself", content)
+        self.assertIn(
+            "remains unconditionally required regardless of its own "
+            "pre-close declared status",
+            content,
+        )
 
     def test_supersession_note_present_at_point_of_change(self) -> None:
         content = _skill_content()
