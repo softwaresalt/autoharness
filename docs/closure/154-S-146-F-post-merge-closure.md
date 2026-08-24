@@ -6,13 +6,13 @@ tasks:
     - 146.002-T
     - 146.003-T
 feature_pr: 404
-closure_pr: null
+closure_pr: 405
 merge_commit: 98e2d7264c8089250a0cf442aef362c98287ef77
 merged_at: "2026-08-24T01:56:19Z"
 reviewed_head: 01968b1239cd81a6eef11592c222c21695fd8e72
 closure_merge_commit: null
 closure_reviewed_head: null
-closure_status: READY
+closure_status: READY_WITH_CONDITIONS
 compaction_status: done
 ---
 
@@ -111,17 +111,33 @@ fully-covered-root exception.
 | `parent_id` preservation | all three tasks re-read with `parent_id: 146-F`, unchanged from the pre-close snapshot |
 | Archived provenance | `146-F`/`146.001-T`/`146.002-T`/`146.003-T`: `status: archived`, `archived_status: done`; `154-S`: `status: archived`, `archived_status: shipped`, `commit: 98e2d7264c...` |
 
-**Note on the `archived_ids` discrepancy**: the raw JSON response from
-`shipment ship` under `backlogit 1.10.1-...-b07729386a31` listed only
-`146-F` and `154-S`, omitting the three pre-archived task items. This
-contradicts the byte-identical-shape invariant the 2026-08-18 spike
-recorded against `backlogit 1.9.0` (where `archived_ids` always included
-every manifest member regardless of pre-archive state). Live-workspace
-verification (queue/archive presence, `parent_id`, `archived_status`/
-`commit` provenance) was used as the authoritative check instead of the
-raw response field, and confirmed the operation was fully correct with no
-protected-set violation and no out-of-manifest mutation. Recorded as a new
-compound learning:
+**Note on the `archived_ids` discrepancy (CONDITION -- see below)**: the raw
+JSON response from `shipment ship` under `backlogit
+1.10.1-...-b07729386a31` listed only `146-F` and `154-S`, omitting the
+three pre-archived task items. This contradicts the byte-identical-shape
+invariant the 2026-08-18 spike recorded against `backlogit 1.9.0` (where
+`archived_ids` always included every manifest member regardless of
+pre-archive state). The currently documented Cascade Close Sub-Procedure
+contract (`templates/skills/shipment-reconcile/SKILL.md.tmpl:600-622`,
+P-015 at `templates/policies/workflow-policies.md.tmpl:444`) states the
+exact-match check on `archived_ids` "must never be relaxed" and treats a
+verification failure as a halt condition. This closure did **not** amend
+that contract -- amending it is out of scope for 154-S/146-F (docs/compound
+source value semantics) under P-021 C1. Instead, live-workspace
+verification (queue/archive presence for all five artifacts, `parent_id`
+preservation on all three tasks against the pre-close snapshot,
+`archived_status`/`commit` provenance on every artifact) was performed as
+an independent, multi-angle correctness check, and confirmed no
+protected-set violation and no out-of-manifest mutation occurred. This
+closure records that verification honestly rather than silently declaring
+the documented exact-match contract satisfied. The discrepancy itself, and
+the need to reconcile the documented contract against observed
+backlogit-1.10.1 engine behavior (via contract text update, a fresh spike,
+or both), is captured as deferred scope expansion `5CFA8198` (P-021 C2,
+`requires_deliberation: true`) for Stage triage -- this is the
+`READY_WITH_CONDITIONS` condition for this closure. See the compound
+learning (revised to an observed-anomaly framing rather than a prescriptive
+override of the documented contract):
 `docs/compound/2026-08-23-cascade-close-archived-ids-omits-pre-archived-tasks-on-1101.md`.
 
 All backlog reconciliation and closure-document commits were made on a
@@ -169,18 +185,32 @@ Post-Merge Branch Protocol.
   needed.
 - **Owner**: Ship agent for closure evidence; operator `@softwaresalt` for
   merge approval and release follow-up routing.
-- **Releasability evidence**: **READY**
+- **Releasability evidence**: **READY_WITH_CONDITIONS**
   (`.autoharness/workspace-profile.yaml` `runtime_validation.releasability`:
   `required: false`, `status_when_satisfied: READY`, `required_evidence: []`
   -- no additional evidence beyond the runtime verification above is
   required for this workspace). Verified merge commit (two parents), green
-  CI, P-018 `SATISFIED`, P-015 cascade-close independently verified against
-  live workspace state, and P-020 compaction (see below). No residual risk,
-  no accepted conditions, no open follow-ups requiring a `conditions:`
-  block.
-- **Follow-ups**: none outstanding for 154-S itself. External backlogit
-  entry `B57F9E24` remains active and is unrelated to this shipment's
-  scope -- it was neither touched nor implemented here.
+  CI, P-018 `SATISFIED`, and P-020 compaction (see below) are all
+  unconditionally satisfied. P-015 cascade-close was independently verified
+  against live workspace state (queue/archive presence, `parent_id`,
+  `archived_status`/`commit` provenance across all five archived
+  artifacts), but the raw `archived_ids` response did not literally satisfy
+  the documented exact-match contract text -- see condition below.
+- **Conditions**: the `archived_ids` discrepancy noted in the Backlog
+  Reconciliation section above is a genuine open item: the currently
+  documented shipment-reconcile contract states the exact-match check
+  "must never be relaxed," and this closure relied on independent
+  live-workspace verification rather than a literal contract match.
+  Captured as P-021 deferred scope expansion `5CFA8198`
+  (`requires_deliberation: true`) for Stage to triage -- either reconcile
+  the contract text with observed backlogit-1.10.1 behavior, commission a
+  fresh spike, or both, before a future closure relies on the same
+  live-state-verification reasoning without an explicit contract
+  amendment.
+- **Follow-ups**: `5CFA8198` (see Conditions above) is the only open
+  follow-up for 154-S. External backlogit entry `B57F9E24` remains active
+  and is unrelated to this shipment's scope -- it was neither touched nor
+  implemented here.
 
 ## Compaction (P-020)
 
@@ -206,10 +236,14 @@ Consistent with the adopted convention (see `docs/closure/153-S-145-F-post-merge
 `null` in this file. The authoritative, always-current reviewed-HEAD record
 for the closure PR itself lives in that PR's own body (`## Local Review
 Readiness` section), which can be edited without shifting the branch HEAD.
-`closure_pr` will be populated once the closure PR is opened.
+`closure_pr` is populated at `405` (assigned when this closure PR was
+opened).
 
-**Closure verdict: READY.** Runtime verification passed, backlog
-cascade-close is complete and independently verified against live
-workspace state, and P-020 compaction is complete. No residual risk or
-accepted conditions are outstanding. No successor shipment was claimed in
-this invocation.
+**Closure verdict: READY_WITH_CONDITIONS.** Runtime verification passed
+and P-020 compaction is complete. Backlog cascade-close is complete and
+independently verified against live workspace state, but the raw
+`archived_ids` response did not literally satisfy the currently documented
+exact-match contract text (see Conditions above) -- deferred scope
+expansion `5CFA8198` captures the reconciliation work as a follow-up for
+Stage. No other residual risk is outstanding. No successor shipment was
+claimed in this invocation.
