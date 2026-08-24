@@ -1,5 +1,43 @@
 # Spike — Does `backlogit shipment ship` tolerate pre-archived manifest members?
 
+> **⚠️ SUPERSEDED (155-S / 147-F, 2026-08-24).** This spike's arms were
+> constructed with `backlogit move <id> --status done`, which **relocates** a
+> record into `archive/` but leaves it declaring `status: done` — never truly
+> `status: archived`. Against the engine's own `archiveItems()` guard in
+> `internal/core/shipment_lifecycle.go` (`if item.Status == models.StatusArchived
+> { continue }`), `done != archived`, so every "pre-archived" artifact in every
+> arm below **was archived by the call** and legitimately transited into
+> `archived_ids` — it never had the "already archived, nothing to transition"
+> case this spike set out to test. **All three arms were, at the guard that
+> matters, the control arm.** The spike therefore never once exercised a truly
+> `status: archived` input, and its "byte-identical result shape across all
+> three arms" finding is valid **only** for relocated-but-`done` records, not
+> for genuinely pre-archived ones.
+>
+> Its **recommendation against adjusting the post-condition** (§ "Consequence
+> for the proposed remedy", below) is **RETRACTED**. `docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-plan.md`
+> (deliberation `027-DL`, corrected by shipment `155-S`) replaces the
+> `archived_ids` exact-match post-condition with a two-set `allowed_ids` /
+> `required_ids` gate keyed on DECLARED pre-close `status`, precisely because a
+> truly `status: archived` **manifest task item, or a qualifying feature
+> member's validated linked deliberation,** has no transition to report and is
+> correctly **absent** from `archived_ids` (verified directly against
+> `internal/core/shipment_lifecycle.go` source, not a black-box re-run of this
+> spike's method). **This never extends to the qualifying feature member
+> itself** (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b00dS): this
+> spike's own "Full" arm relocated `001-F` with `move --status done` rather
+> than truly archiving it, so it never actually exercised a truly
+> `status: archived` feature; against the live engine, `ShipShipment`
+> unconditionally forces every explicit qualifying feature member through
+> `status: done` before archive-candidate collection runs, so it is always
+> re-archived and always present in `archived_ids` regardless of its own
+> pre-close declared status — a qualifying feature member is an
+> unconditional `required_ids` member, never eligible for this tolerance.
+>
+> The body below is preserved unmodified as the historical record of what was
+> actually run and observed; read it as evidence about relocated-but-`done`
+> records only.
+
 Date: 2026-08-18
 Agent: Stage (spike, read-only against live workspace)
 Stash source: `EDE3CC2D`

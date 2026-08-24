@@ -202,3 +202,47 @@ decision: `CLOSED`.
 **Follow-up status**: implemented and closed. No further Stage-owned
 backlog item is needed for the recommendation in the original "Follow-up"
 section above.
+
+## Correction (155-S / 147-F, deliberation 027-DL, 2026-08-24): the "disproven" conclusion above itself relied on a flawed spike
+
+The "Update (141-S / 132-F closure...)" section above cites
+`docs/spikes/2026-08-18-cascade-close-pre-archived-member-behavior.md` as
+proof that the `archived_ids` exact-match post-condition needed no
+adjustment and "applies **unchanged**, evaluated against the full manifest
+as it always has been." **That spike is now SUPERSEDED** (see its own
+banner) — its three arms were built with `backlogit move --status done`,
+which relocates a record into `archive/` but leaves it declaring
+`status: done`, never truly `status: archived`. Against the engine's
+`archiveItems()` guard (`status == archived` → skip), `done != archived`,
+so every arm's "pre-archived" input **was archived by the call** and
+legitimately transited into `archived_ids` — none of the three arms ever
+exercised a truly `status: archived` input. The spike's "byte-identical
+result shape" finding is valid only for relocated-but-`done` records.
+
+Read directly against the backlogit engine source
+(`internal/core/shipment_lifecycle.go` `archiveItems()`), a truly
+`status: archived` **manifest task item, or a qualifying feature member's
+validated linked deliberation,** has **no transition to report** and is
+**correctly absent** from `archived_ids` — the original point-3 speculation
+in this document (an exact-match check may need adjustment for
+already-archived items) was closer to correct than the "disproven"
+conclusion that superseded it. **This never extends to the qualifying
+feature member itself** (155-S, PR #407 review, thread
+PRRT_kwDORzpWpM6b00d-): `ShipShipment` unconditionally forces every
+explicit qualifying feature member through `status: done` before
+archive-candidate collection runs, regardless of its own pre-close
+declared status, so it is always re-archived and always present in
+`archived_ids` — the updated contract requires a qualifying feature
+member's ID in `required_ids` unconditionally, exactly like the shipment
+record. Shipment `155-S` (feature `147-F`,
+deliberation `.backlogit/archive/027-DL.md`) corrects the contract: the
+`archived_ids` exact-match post-condition is replaced with a two-set
+`allowed_ids` / `required_ids` gate (see
+`templates/policies/workflow-policies.md.tmpl` P-015 item 7 and
+`templates/skills/shipment-reconcile/SKILL.md.tmpl`'s Cascade Close
+Sub-Procedure step 3), keyed on declared pre-close `status` rather than a
+full-set echo of the manifest. This does not reopen 141-S's own closure —
+its manifest happened to contain no truly pre-archived members at closure
+time, so its observed `archived_ids` exact match remains accurate as a
+historical record — but the general invariant this document previously
+endorsed is corrected.

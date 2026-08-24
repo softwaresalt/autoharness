@@ -1,8 +1,8 @@
 ---
 problem_type: cascade_close_archived_ids_incomplete_on_pre_archived_tasks
 category: backlogit
-root_cause: "backlogit 1.10.1's `shipment ship` (cascade close) omits already-archived TASK manifest members from its returned `archived_ids` list, even though it still correctly leaves them archived in the final workspace state. This contradicts the byte-identical-shape invariant recorded by the 2026-08-18 spike against backlogit 1.9.0, where `archived_ids` included every pre-archived member regardless of artifact type."
-tags: [backlogit, shipment, cascade-close, p-015, archived_ids, regression]
+root_cause: "The defect was the autoharness exact-match expectation, not the backlogit engine: the `archived_ids` exact-match post-condition asserted in `shipment-reconcile` step 3 and P-015 item 7 wrongly required every pre-archived TASK manifest member to be re-listed in `archived_ids`. Reading the backlogit engine source directly (`internal/core/shipment_lifecycle.go` `archiveItems()`: `if item.Status == models.StatusArchived { continue }`) shows the guard that excludes a truly `status: archived` item from `archived_ids` is longstanding, unconditional, and correct, and the 2026-08-18 spike's byte-identical-shape baseline never actually exercised a truly `status: archived` input in the first place."
+tags: [backlogit, shipment, cascade-close, p-015, archived_ids]
 shipment: 154-S
 date: 2026-08-23
 source: "docs/compound/2026-08-23-cascade-close-archived-ids-omits-pre-archived-tasks-on-1101.md"
@@ -11,6 +11,46 @@ title: "Cascade close `archived_ids` omits pre-archived TASK members on backlogi
 ---
 
 # Cascade close `archived_ids` omits pre-archived TASK members on backlogit 1.10.1
+
+> **⚠️ CORRECTED / RETRACTED IN PART (155-S / 147-F, deliberation `027-DL`,
+> 2026-08-24).** The "1.10.1 regression" framing below is **RETRACTED**.
+> Reading the backlogit engine source directly
+> (`internal/core/shipment_lifecycle.go` `archiveItems()`:
+> `if item.Status == models.StatusArchived { continue }`) shows the guard
+> that excludes a truly `status: archived` item from `archived_ids` is
+> **longstanding, unconditional, and CORRECT** — it is not a behavior change
+> between `1.9.0` and `1.10.1`, and it is not a regression. The
+> `2026-08-18` spike this document originally compared against
+> (`docs/spikes/2026-08-18-cascade-close-pre-archived-member-behavior.md`,
+> now itself superseded) never actually exercised a truly `status: archived`
+> input — its arms used `move --status done`, which the guard does not
+> match — so its "byte-identical shape including pre-archived members"
+> baseline was never a valid comparison point in the first place. **The
+> defect was the autoharness EXPECTATION** (the exact-match post-condition
+> asserted in `shipment-reconcile` step 3 and P-015 item 7), not the engine.
+> The ad hoc "operating rule" this document floated below (that
+> live-workspace re-verification may stand in for the documented
+> `archived_ids` exact-match gate) is likewise **RETRACTED** — PR #405
+> review threads (`PRRT_kwDORzpWpM6bj72w`, `PRRT_kwDORzpWpM6bj72-`) correctly
+> flagged it as an undocumented bypass of the gate rather than a sanctioned
+> substitute. Deferred scope expansion `5CFA8198` is now **RESOLVED**: the
+> `archived_ids` exact-match post-condition itself is replaced with a
+> two-set `allowed_ids` / `required_ids` gate keyed on declared pre-close
+> `status` (see `templates/policies/workflow-policies.md.tmpl` P-015 item 7
+> and `templates/skills/shipment-reconcile/SKILL.md.tmpl`'s Cascade Close
+> Sub-Procedure), which correctly treats a truly pre-archived **manifest
+> task item's, or a qualifying feature member's validated linked
+> deliberation's,** absence from `archived_ids` as expected, not a
+> fail-closed halt condition. **This never extends to the shipment record
+> or to a qualifying feature member itself** (155-S, PR #407 review, thread
+> PRRT_kwDORzpWpM6b1Dh_): both remain unconditional `required_ids` members
+> regardless of their own pre-close declared status, so neither can ever be
+> "correctly absent" the way a task item or linked deliberation can — see
+> P-015 item 7 and the skill's Cascade Close Sub-Procedure step 3 for the
+> full statement of that rule.
+> The physical-verification observations in this document (live workspace
+> state, `parent_id`, provenance) remain accurate historical fact and are
+> preserved unmodified below.
 
 ## Problem
 

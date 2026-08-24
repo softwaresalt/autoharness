@@ -19,22 +19,31 @@ authoritative wording):
 * The predicate is quantified over EVERY feature member of the manifest, not
   a single covering feature.
 * Each feature member MUST be a ROOT (no ``parent_id``) AND MUST be FULLY
-  COVERED (every one of its children -- enumerated by scanning the live
-  backlog for records whose ``parent_id`` matches the feature -- is also a
-  manifest member).
-* Childlessness for a root feature member with zero children is POSITIVELY
-  VERIFIED against the live workspace (enumerate children, assert the count
-  is exactly zero) -- NEVER inferred from "no missing children found". A
-  feature whose children cannot be enumerated (unreadable backlog directory,
-  a malformed record encountered during the scan, etc.) is NOT verified
-  childless, and the WHOLE manifest falls back to safe-close.
+  COVERED (every one of its DESCENDANTS -- at every depth, not just direct
+  children -- enumerated by walking the live backlog's full ``parent_id``
+  graph from the feature, is also a manifest member). Backlogit's own
+  ``releaseScopeItemIDs`` recursively adds every descendant of each manifest
+  item before ``collectArchiveCandidateIDs`` archives terminal descendants,
+  so a check that only inspected direct children could wrongly qualify a
+  manifest such as ``[feature, task]`` when that task has an out-of-manifest
+  subtask (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b2MJv) -- see
+  ``_enumerate_descendants`` for the full rationale.
+* Childlessness for a root feature member with zero descendants is
+  POSITIVELY VERIFIED against the live workspace (enumerate the full
+  descendant tree, assert the count is exactly zero) -- NEVER inferred from
+  "no missing descendants found". A feature whose descendant tree cannot be
+  enumerated (unreadable backlog directory, a malformed record encountered
+  during the scan, etc.) is NOT verified childless, and the WHOLE manifest
+  falls back to safe-close.
 * A childless-root member must additionally be TERMINAL: it parents nothing
-  (already implied by zero enumerated children), and no member also declares
-  it as ``parent_id`` (a redundant safety net over the backlog-wide scan).
+  (already implied by zero enumerated descendants), and no member also
+  declares it as ``parent_id`` (a redundant safety net over the
+  backlog-wide index).
 * The manifest MUST contain NOTHING beyond qualifying root feature members
-  and their children. Any other manifest member (a non-root feature, or a
-  task whose parent is not one of the qualifying root features) forces the
-  whole manifest back to safe-close.
+  and their descendants (at every depth). Any other manifest member (a
+  non-root feature, or a task whose ancestry does not lead back to one of
+  the qualifying root features) forces the whole manifest back to
+  safe-close.
 * If ANY feature member fails ANY precondition, the WHOLE MANIFEST falls back
   to the default safe-close prohibition -- qualification is never per-member.
 * There is NO id-specific special case for any particular feature id
@@ -181,23 +190,27 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
     return matches[0]
 
 
-def _enumerate_children(backlog_dir: Path, feature_id: str) -> tuple[str, ...] | None:
-    """Return every backlog artifact id whose ``parent_id`` is ``feature_id``.
+def _build_children_index(backlog_dir: Path) -> dict[str, list[str]] | None:
+    """Scan the FULL backlog once and return a ``parent_id -> [child_id, ...]`` index.
 
-    Returns ``None`` (rather than raising or returning an empty tuple) when
-    the enumeration itself could not be trusted -- an unreadable backlog
-    directory, or a malformed record encountered anywhere during the full
-    queue+archive scan. Childlessness must be POSITIVELY VERIFIED; it must
-    never be inferred from an enumeration that merely failed to find
-    anything.
+    This is the shared basis for :func:`_enumerate_descendants` below: rather
+    than re-scanning ``queue``/``archive`` once per feature member for direct
+    children only, the whole backlog's parent/child edges are indexed a
+    single time and then walked transitively per qualifying-root candidate.
+
+    Returns ``None`` (rather than raising or returning a partial index) when
+    the scan itself could not be trusted -- an unreadable backlog directory,
+    or a malformed record encountered anywhere during the full queue+archive
+    scan. Coverage/childlessness must be POSITIVELY VERIFIED against a
+    complete index; it must never be inferred from a partial or failed scan.
     """
 
-    children: list[str] = []
+    index: dict[str, list[str]] = {}
     for folder in ("queue", "archive"):
         base = backlog_dir / folder
         if not base.exists() or not base.is_dir():
             # A missing/unreadable backlog directory can never positively
-            # prove childlessness for any feature.
+            # prove coverage or childlessness for any feature.
             return None
         try:
             candidates = sorted(base.glob("*.md"))
@@ -214,17 +227,58 @@ def _enumerate_children(backlog_dir: Path, feature_id: str) -> tuple[str, ...] |
                 # A record declares a parent_id field that does not
                 # normalize to a valid non-empty string. Silently treating
                 # this the same as "no parent declared" could hide a
-                # malformed-but-real child of `feature_id` from this
-                # enumeration, letting a feature with actual children be
-                # wrongly verified childless. Childlessness must be
+                # malformed-but-real descendant edge from this index,
+                # letting a feature with actual descendants be wrongly
+                # verified fully covered/childless. Coverage must be
                 # POSITIVELY verified, so a record whose parentage cannot be
-                # trusted makes the whole enumeration untrustworthy.
+                # trusted makes the whole index untrustworthy.
                 return None
-            if parent_id != feature_id:
+            if parent_id is None:
                 continue
             child_id = _normalize_id(fm.get("id")) or candidate.stem
-            children.append(child_id)
-    return tuple(sorted(set(children)))
+            index.setdefault(parent_id, []).append(child_id)
+    for parent_id, child_ids in index.items():
+        index[parent_id] = sorted(set(child_ids))
+    return index
+
+
+def _enumerate_descendants(
+    children_index: dict[str, list[str]], root_id: str
+) -> tuple[str, ...]:
+    """Return every backlog artifact id transitively descended from ``root_id``.
+
+    This walks the FULL descendant tree (children, grandchildren, ... at
+    every depth) via ``children_index``, not just direct children of
+    ``root_id``. Backlogit's own ``releaseScopeItemIDs`` recursively adds
+    every descendant of each manifest item before
+    ``collectArchiveCandidateIDs`` archives terminal descendants (155-S, PR
+    #407 review, thread PRRT_kwDORzpWpM6b2MJv) -- a "fully covered" check
+    that only inspected direct children of the feature could accept a
+    manifest such as ``[feature, task]`` even when that task has an
+    out-of-manifest subtask, wrongly select CASCADE, and let the destructive
+    cascade archive that subtask before the Cascade Close Sub-Procedure's
+    step 3 post-condition gate ever sees it -- halting only AFTER the
+    mutation. Walking the full descendant tree here, before CASCADE is ever
+    selected, closes that gap for descendants of ANY type at ANY depth, not
+    only direct task children of the feature.
+
+    A visited-set guard makes this robust against a malformed cyclic
+    ``parent_id`` chain: it can never loop forever, and a cycle can never
+    cause a genuine descendant to be silently omitted either, since every id
+    reachable from ``root_id`` is visited exactly once.
+    """
+
+    visited: set[str] = set()
+    frontier = [root_id]
+    while frontier:
+        next_frontier: list[str] = []
+        for node in frontier:
+            for child_id in children_index.get(node, ()):
+                if child_id not in visited:
+                    visited.add(child_id)
+                    next_frontier.append(child_id)
+        frontier = next_frontier
+    return tuple(sorted(visited))
 
 
 def classify_shipment_close_path(
@@ -299,6 +353,20 @@ def classify_shipment_close_path(
             reason="manifest contains no feature member; the exception requires at least one",
         )
 
+    # Build the full parent/child index ONCE, up front, for the whole
+    # manifest -- it is the single trusted basis every feature member's
+    # coverage check below walks transitively (all depths), not just direct
+    # children (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b2MJv).
+    children_index = _build_children_index(backlog_dir)
+    if children_index is None:
+        return ClosePathDecision(
+            close_path=ClosePath.SAFE_CLOSE,
+            reason=(
+                "descendant coverage/childlessness could not be verified against the "
+                "live workspace; falling back to safe-close"
+            ),
+        )
+
     qualifying_feature_ids: list[str] = []
     accounted_ids: set[str] = {feature.artifact_id for feature in feature_members}
 
@@ -312,31 +380,29 @@ def classify_shipment_close_path(
                 ),
             )
 
-        children = _enumerate_children(backlog_dir, feature.artifact_id)
-        if children is None:
-            return ClosePathDecision(
-                close_path=ClosePath.SAFE_CLOSE,
-                reason=(
-                    f"childlessness of feature member {feature.artifact_id!r} could not "
-                    "be verified against the live workspace; falling back to safe-close"
-                ),
-            )
+        # Walks the FULL descendant tree (children, grandchildren, ... at
+        # every depth), never just direct children -- see
+        # `_enumerate_descendants` for why a direct-children-only check is
+        # unsafe here.
+        descendants = _enumerate_descendants(children_index, feature.artifact_id)
 
-        missing = tuple(child for child in children if child not in manifest_id_set)
+        missing = tuple(
+            descendant for descendant in descendants if descendant not in manifest_id_set
+        )
         if missing:
             return ClosePathDecision(
                 close_path=ClosePath.SAFE_CLOSE,
                 reason=(
-                    f"feature member {feature.artifact_id!r} has children outside the "
+                    f"feature member {feature.artifact_id!r} has descendants outside the "
                     f"manifest: {missing}"
                 ),
             )
 
-        if not children:
+        if not descendants:
             # Verified-childless root: additionally require it be TERMINAL --
             # no manifest member declares it as parent either (a redundant
-            # cross-check over the backlog-wide scan above, guarding against
-            # a scan/manifest inconsistency).
+            # cross-check over the backlog-wide index above, guarding
+            # against a scan/manifest inconsistency).
             declared_as_parent_by = tuple(
                 record.artifact_id
                 for record in records.values()
@@ -347,13 +413,13 @@ def classify_shipment_close_path(
                     close_path=ClosePath.SAFE_CLOSE,
                     reason=(
                         f"feature member {feature.artifact_id!r} has zero enumerated "
-                        f"children but is declared as parent by manifest member(s) "
+                        f"descendants but is declared as parent by manifest member(s) "
                         f"{declared_as_parent_by}"
                     ),
                 )
 
         qualifying_feature_ids.append(feature.artifact_id)
-        accounted_ids.update(children)
+        accounted_ids.update(descendants)
 
     extras = tuple(item_id for item_id in manifest_ids if item_id not in accounted_ids)
     if extras:

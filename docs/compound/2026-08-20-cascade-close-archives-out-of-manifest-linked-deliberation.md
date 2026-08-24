@@ -1,5 +1,5 @@
 ---
-title: "Cascade shipment close (backlogit shipment ship) archived an out-of-manifest linked deliberation (019-DL) via custom_fields.source_deliberation_id, not a parent_id hierarchy edge — caught by the exact-match post-condition, reverted"
+title: "Cascade shipment close (backlogit shipment ship) archived an out-of-manifest linked deliberation (019-DL) via custom_fields.source_deliberation_id, not a parent_id hierarchy edge — caught by the exact-match post-condition, reverted (halt/revert instruction superseded 2026-08-24 by a bounded linked-deliberation allowance — see supersession note)"
 description: "During 143-S's P-015 verified fully-covered-root CASCADE close, backlogit shipment ship's archived_ids included 019-DL — a deliberation record referenced only via 134-F's custom_fields.source_deliberation_id, never a parent_id child. classify_shipment_close_path's coverage check only walks parent_id-based hierarchy, so it could not have predicted this. The Cascade Close Sub-Procedure's step 3 exact-match verification caught the discrepancy; the unintended archival was reverted, the legitimate closure retained."
 problem_type: "engine-behavior-surprise"
 category: "shipment-reconcile-close-path-contract"
@@ -24,12 +24,16 @@ tags:
   - "143-F"
   - "150-S"
   - "142-F"
+  - "155-S"
+  - "147-F"
+  - "superseded-partially"
 citations:
   - "143-S/134-F post-merge closure session, 2026-08-20"
   - "148-S/140-F post-merge closure session, 2026-08-21 (recurrence via a plain `references` list entry, not `custom_fields.source_deliberation_id`)"
   - "149-S/141-F post-merge closure session, 2026-08-21 (third occurrence, same `references`-list mechanism, different feature/deliberation pair -- 024-DL)"
   - "151-S/143-F post-merge closure session, 2026-08-21 (fourth occurrence, same 024-DL deliberation as the third occurrence but a different sibling feature -- 143-F, not 141-F -- both derived from the same E8158860 deliberation)"
   - "150-S/142-F post-merge closure session, 2026-08-22 (fifth occurrence, a fourth distinct deliberation ID -- 023-DL -- confirming the defect is per-feature/per-cascade-close, not tied to any one deliberation record)"
+  - "155-S/147-F, PR #407 (2026-08-24): implements the Stage-owned option 2 follow-up -- a bounded, validated linked-deliberation allowance in the two-set allowed_ids/required_ids gate -- see Supersession note below"
   - "templates/skills/shipment-reconcile/SKILL.md.tmpl:589-622 (Cascade Close Sub-Procedure steps 1-4)"
   - "src/autoharness/gates/shipment_closure.py: classify_shipment_close_path"
   - "docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md (related but distinct: that entry covers pre-archived manifest members, a documented/tolerated case; this entry covers a genuinely out-of-manifest artifact)"
@@ -350,4 +354,56 @@ confirms the defect is systemic to the cascade-close engine's own
 `references`-list traversal rather than an artifact of any one
 deliberation's lifecycle state, and reinforces the priority of the
 Stage-owned follow-up recorded above.
+
+## Supersession note (added during 155-S's PR #407 fix cycle, prior to post-merge closure, 2026-08-24)
+
+**The "correct and required behavior" instruction above — halt on this
+signature, revert the linked deliberation, and disclose here — is
+SUPERSEDED for the specific case this section documents.** 155-S (PR #407,
+Copilot review threads `PRRT_kwDORzpWpM6bo8m2` / `PRRT_kwDORzpWpM6bpEZc`,
+plus a subsequent same-cycle finding on this document) implemented exactly
+the Stage-owned follow-up **option 2** proposed under "The gap" section
+above: `templates/skills/shipment-reconcile/SKILL.md.tmpl`'s Step 0(c) now
+independently collects, for every qualifying feature member, its linked
+deliberation IDs using precisely the engine-defined sources this document's
+five occurrences empirically confirmed (`custom_fields.source_deliberation_id`
+for the first occurrence, a plain `references` list entry for the second
+through fifth) — mirroring Backlogit's own `collectArchiveCandidateIDs` /
+`linkedDeliberationIDs` (`internal/core/shipment_lifecycle.go`) — validated
+by existence plus `artifact_type: deliberation` (never a blanket allowance
+for arbitrary IDs). These validated linked deliberation IDs are now folded
+into both `allowed_ids` and `required_ids` (the latter only when the
+deliberation was not truly `status: archived` pre-close) in the Cascade
+Close Sub-Procedure's step 3 two-set gate.
+
+**Retired instruction**: a future Ship session hitting this exact
+signature (a linked-but-not-`parent_id`-child deliberation appearing in
+`archived_ids`, reachable via `custom_fields.source_deliberation_id`,
+feature description, or a feature's `references` list) MUST NOT halt or
+revert it, provided Step 0(c)'s existence-plus-`artifact_type` validation
+accepts it. This is no longer an "unintended `archived_ids` extra" — it is
+an `allowed_ids` member by construction. **This retirement is narrowly
+scoped to validated linked deliberations only.** The general
+unexpected-artifact halt this document's original guidance exemplified
+remains in full force for any archived ID that is NOT a manifest task item,
+a qualifying feature member, a qualifying feature member's *validated*
+linked deliberation, or the shipment record itself — the safety property
+this residual-risk record protected (nothing genuinely out-of-scope is
+silently accepted) is preserved at full strength by the two-set gate, not
+weakened.
+
+147-F / 155-S itself is a live instance of the tolerated case: `147-F`
+references `.backlogit/archive/027-DL.md` (already truly `status: archived`
+pre-close), illustrating the pre-archived-allowed branch of the same
+allowance.
+
+See `templates/skills/shipment-reconcile/SKILL.md.tmpl` (Step 0(c)
+"Linked-deliberation snapshot extension" and the Cascade Close
+Sub-Procedure's step 3 `allowed_ids`/`required_ids` computation) and
+`templates/policies/workflow-policies.md.tmpl` (P-015 changelog row 1.22.0)
+for the current, binding contract text. All historical occurrence records
+above (143-S/134-F/019-DL through 150-S/142-F/023-DL) are preserved
+unchanged as historical evidence of the engine behavior this allowance now
+accounts for; read them as evidence of *why* the allowance exists, not as
+current required procedure.
 
