@@ -75,16 +75,20 @@ governed this very closure.
 
 Result: `shipment_status: shipped`,
 `archived_ids: ["147.001-T","147.002-T","147.003-T","147.004-T","147-F","155-S"]`
-(all six manifest+shipment artifacts, correctly INCLUDING the four
-pre-archived task members this time -- contrast with 154-S/146-F, where
-`archived_ids` omitted its three pre-archived tasks under the then-buggy
-contract). `returned_ids: []`. Live workspace verification confirmed:
-`155-S` archived_status=shipped; `147-F` archived_status=done; all four
-tasks archived_status=done with `parent_id: 147-F` preserved; linked
-deliberation `027-DL` was already truly archived pre-close and correctly
-not re-added to `archived_ids`. No discrepancy, no condition, no follow-up
-required for this check (unlike 154-S/146-F's `5CFA8198` condition, which
-this very shipment resolves).
+(all six manifest+shipment artifacts). Pre-close, `147.001-T`..`147.004-T`
+were declared `status: done` -- directory-relocated to
+`.backlogit/archive/` by PR #407's own commits, but **not** truly archived
+-- so the corrected two-set gate made their inclusion in `archived_ids`
+**mandatory** (`required_ids`), not the optional pre-archived-omission
+case; only linked deliberation `027-DL` was truly pre-archived
+(`status: archived`) pre-close and correctly exercised that optional
+tolerance by omission. `returned_ids: []`. Live workspace verification
+confirmed: `155-S` archived_status=shipped; `147-F` archived_status=done;
+all four tasks archived_status=done with `parent_id: 147-F` preserved;
+linked deliberation `027-DL` was already truly archived pre-close and
+correctly not re-added to `archived_ids`. No discrepancy, no condition, no
+follow-up required for this check (unlike 154-S/146-F's `5CFA8198`
+condition, which this very shipment resolves).
 
 All backlog mutation work was committed to a new
 `post-merge/155-s-p015-cascade-close-archived-ids-postcondition` branch

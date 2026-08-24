@@ -7,7 +7,7 @@ tasks:
     - 147.003-T
     - 147.004-T
 feature_pr: 407
-closure_pr: null
+closure_pr: 408
 merge_commit: a7aa820e3c7dbb96e95bb8376e3022a229b55cb1
 merged_at: "2026-08-24T22:06:39Z"
 reviewed_head: 4552a11369acc73ae49016a9db535fb61b33bfa2
@@ -101,28 +101,41 @@ was used in place of manual safe-close, per the P-015 verified
 fully-covered-root exception -- this shipment's own newly-shipped
 `shipment-reconcile` two-set gate governs this closure.
 
+**Pre-close declared-status snapshot** (captured before the cascade
+invocation, per Step 0(b)/(c) of the shipment-reconcile skill): `147-F`
+`status: active`; `147.001-T`/`147.002-T`/`147.003-T`/`147.004-T` were each
+**already relocated to `.backlogit/archive/`** by PR #407's own
+task-completion commits, but each declared `status: done` -- **not**
+`status: archived` -- i.e. directory-archived but not truly (hard-)
+archived, the identical "relocated via `move --status done`, never stamped
+`archived`" pattern the 154-S/146-F closure and this shipment's own
+corrected contract both describe. Linked deliberation `027-DL` (referenced
+by `147-F`) was the only member already truly `status: archived`
+pre-close.
+
 | Check | Result |
 | --- | --- |
 | `returned_ids` | `[]` |
-| `archived_ids` (raw response) | `["147.001-T","147.002-T","147.003-T","147.004-T","147-F","155-S"]` -- ALL SIX manifest+shipment artifacts, **including** the four pre-archived task members |
+| `archived_ids` (raw response) | `["147.001-T","147.002-T","147.003-T","147.004-T","147-F","155-S"]` -- ALL SIX manifest+shipment artifacts |
 | Live workspace archive presence | ALL SIX artifacts confirmed archived: `147-F`, `147.001-T`, `147.002-T`, `147.003-T`, `147.004-T`, `155-S`; none remain in `.backlogit/queue/` |
 | `parent_id` preservation | all four tasks re-read with `parent_id: 147-F`, unchanged from the pre-close snapshot |
 | Archived provenance | `147-F`/`147.001-T`/`147.002-T`/`147.003-T`/`147.004-T`: `status: archived`, `archived_status: done`; `155-S`: `status: archived`, `archived_status: shipped`, `commit: a7aa820e3c7d...` |
 | Linked deliberation `027-DL` | already truly `status: archived` pre-close (`archived_status: queued`); correctly NOT re-added to `archived_ids` (no transition to report) |
 
-**Note on the corrected `archived_ids` behavior**: unlike 154-S/146-F
-(where `archived_ids` omitted the three pre-archived task members, per the
-now-corrected documented contract), this closure's `archived_ids` response
-correctly **includes** all four pre-archived task members (`147.001-T`
-through `147.004-T`) alongside the feature and shipment record. This is
-the expected, verified behavior of the shipment-reconcile two-set gate that
-155-S itself shipped: `required_ids` unconditionally includes the shipment
-record and every qualifying feature member, while a pre-archived manifest
-task item or a qualifying feature's validated linked deliberation MAY be
-included or omitted from `archived_ids` without failing the gate -- and in
-this invocation the engine happened to include them (consistent with
-`ShipShipment` forcing every explicit member through a transition). No
-discrepancy, no condition, no follow-up required for this check.
+**Note on the corrected `archived_ids` behavior**: `147.001-T` through
+`147.004-T` were **not** truly pre-archived pre-close (declared
+`status: done`, only directory-relocated) -- under the corrected two-set
+gate, `required_ids` therefore **mandatorily** includes all four of them,
+the qualifying feature `147-F`, and the shipment record `155-S` itself.
+Their appearance in `archived_ids` is not the optional pre-archived-omission
+behavior tolerated by the gate; it is the **required** transition the gate
+demands, and the engine correctly delivered it. Only the linked
+deliberation `027-DL` was truly pre-archived pre-close, and it is the one
+member here that correctly exercises the gate's optional
+included-or-omitted tolerance (by being omitted, having no transition to
+report). `returned_ids: []` confirms no unexpected substitution. No
+discrepancy between the raw response and the required/allowed sets, no
+condition, no follow-up required for this check.
 
 All backlog reconciliation and closure-document commits were made on a
 dedicated `post-merge/155-s-p015-cascade-close-archived-ids-postcondition`
