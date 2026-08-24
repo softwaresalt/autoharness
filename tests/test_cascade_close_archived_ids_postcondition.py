@@ -32,6 +32,12 @@ _SKILL_TEMPLATE = _ROOT / "templates" / "skills" / "shipment-reconcile" / "SKILL
 _POLICY_TEMPLATE = _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
 _SPIKE_DOC = _ROOT / "docs" / "spikes" / "2026-08-18-cascade-close-pre-archived-member-behavior.md"
 _COMPOUND_DOC = _ROOT / "docs" / "compound" / "2026-08-18-p015-cascade-classifier-override-deviation.md"
+_COMPOUND_DOC_1101 = (
+    _ROOT
+    / "docs"
+    / "compound"
+    / "2026-08-23-cascade-close-archived-ids-omits-pre-archived-tasks-on-1101.md"
+)
 
 _HALT_UNEXPECTED = "cascade archived unexpected artifact"
 _HALT_MISSING = "cascade did not archive required artifact"
@@ -62,6 +68,10 @@ def _spike_content() -> str:
 
 def _compound_content() -> str:
     return _COMPOUND_DOC.read_text(encoding="utf-8")
+
+
+def _compound_content_1101() -> str:
+    return _COMPOUND_DOC_1101.read_text(encoding="utf-8")
 
 
 def _flatten(text: str) -> str:
@@ -835,6 +845,46 @@ class CascadeCloseEvidenceTrailScopeTests(unittest.TestCase):
         self.assertNotIn(
             "truly `status: archived` manifest member has **no transition "
             "to report** and is **correctly absent** from `archived_ids`",
+            content,
+        )
+
+
+class CascadeCloseCorrectedBannerScopeTests(unittest.TestCase):
+    """PR #407 review (thread PRRT_kwDORzpWpM6b1Dh_): the CORRECTED /
+    RETRACTED banner in the 2026-08-23 `archived_ids` compound-learning
+    document must scope its own "correctly treats ... absence ... as
+    expected" restatement the same way the live skill/policy contract and
+    the other two evidence-trail docs (cycle 9/10) do -- never generalized
+    to every pre-archived manifest member, since a qualifying feature member
+    (and the shipment record) are unconditional `required_ids` members and
+    can never be "correctly absent" the way a task item or linked
+    deliberation can.
+    """
+
+    def test_banner_scopes_correctly_treats_to_task_and_linked_deliberation(
+        self,
+    ) -> None:
+        content = _flatten_blockquote(_compound_content_1101())
+        self.assertIn(
+            "which correctly treats a truly pre-archived **manifest task "
+            "item's, or a qualifying feature member's validated linked "
+            "deliberation's,** absence from `archived_ids` as expected, "
+            "not a fail-closed halt condition.",
+            content,
+        )
+        self.assertIn("PRRT_kwDORzpWpM6b1Dh_", content)
+        self.assertIn(
+            "never extends to the shipment record or to a qualifying "
+            "feature member itself",
+            content,
+        )
+
+    def test_banner_never_restates_blanket_member_claim(self) -> None:
+        content = _flatten_blockquote(_compound_content_1101())
+        self.assertNotIn(
+            "which correctly treats a truly pre-archived member's absence "
+            "from `archived_ids` as expected, not a fail-closed halt "
+            "condition.",
             content,
         )
 

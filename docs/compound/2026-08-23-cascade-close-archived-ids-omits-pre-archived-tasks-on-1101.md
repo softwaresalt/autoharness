@@ -38,8 +38,16 @@ title: "Cascade close `archived_ids` omits pre-archived TASK members on backlogi
 > two-set `allowed_ids` / `required_ids` gate keyed on declared pre-close
 > `status` (see `templates/policies/workflow-policies.md.tmpl` P-015 item 7
 > and `templates/skills/shipment-reconcile/SKILL.md.tmpl`'s Cascade Close
-> Sub-Procedure), which correctly treats a truly pre-archived member's
-> absence from `archived_ids` as expected, not a fail-closed halt condition.
+> Sub-Procedure), which correctly treats a truly pre-archived **manifest
+> task item's, or a qualifying feature member's validated linked
+> deliberation's,** absence from `archived_ids` as expected, not a
+> fail-closed halt condition. **This never extends to the shipment record
+> or to a qualifying feature member itself** (155-S, PR #407 review, thread
+> PRRT_kwDORzpWpM6b1Dh_): both remain unconditional `required_ids` members
+> regardless of their own pre-close declared status, so neither can ever be
+> "correctly absent" the way a task item or linked deliberation can — see
+> P-015 item 7 and the skill's Cascade Close Sub-Procedure step 3 for the
+> full statement of that rule.
 > The physical-verification observations in this document (live workspace
 > state, `parent_id`, provenance) remain accurate historical fact and are
 > preserved unmodified below.
