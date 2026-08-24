@@ -84,12 +84,30 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         # A2 cites the concrete same-session precedent that justifies the rule.
         self.assertIn("B57F9E24", content)
 
-    def test_shipment_record_is_unconditional_member_of_required_ids(self) -> None:
+    def test_shipment_record_and_qualifying_feature_are_unconditional_required_ids_members(
+        self,
+    ) -> None:
+        # PR #407 review (threads PRRT_kwDORzpWpM6bzlFl /
+        # PRRT_kwDORzpWpM6bzlGL): a pre-archived qualifying feature member
+        # cannot use the same tolerance as a pre-archived task or linked
+        # deliberation, because Backlogit's ShipShipment forces every
+        # explicit qualifying feature member to status: done first
+        # (unconditionally, regardless of its own pre-close status) before
+        # collectArchiveCandidateIDs ever runs -- so the shipment record and
+        # every qualifying feature member are BOTH unconditional
+        # required_ids members.
         content = _flatten(_skill_content())
         self.assertIn(
-            "**Compute `required_ids`** = the shipment record (**unconditionally** "
-            "— never omitted, and never derived only by iterating Step 0(b)'s "
-            "manifest-task entries)",
+            "**Compute `required_ids`** = the shipment record and every "
+            "qualifying feature member (**both unconditionally** — never "
+            "omitted, and never conditioned on either artifact's own "
+            "pre-close declared status)",
+            content,
+        )
+        self.assertIn(
+            "every other `allowed_ids` member (a manifest task item, or a "
+            "qualifying feature member's validated linked deliberation) "
+            "that was **not** truly `status: archived`",
             content,
         )
 
@@ -215,6 +233,57 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         self.assertIn(
             "remains unconditionally required regardless of its own "
             "pre-close declared status",
+            content,
+        )
+
+    def test_tolerance_list_excludes_bare_qualifying_feature_member(self) -> None:
+        # PR #407 review (thread PRRT_kwDORzpWpM6bzlFl): a bare qualifying
+        # feature member must no longer be offered as an eligible-for-
+        # tolerance option in the parenthetical list -- only a manifest
+        # task item or a qualifying feature member's *validated linked
+        # deliberation* may be already truly archived pre-close.
+        content = _flatten(_skill_content())
+        self.assertIn(
+            "(a manifest task item, or a qualifying feature member's "
+            "validated linked deliberation — never the qualifying feature "
+            "member itself",
+            content,
+        )
+        self.assertNotIn(
+            "(a manifest task item, a qualifying feature member, or a "
+            "qualifying feature member's validated linked deliberation)",
+            content,
+        )
+
+    def test_tolerance_never_extends_to_qualifying_feature_member(self) -> None:
+        # PR #407 review (thread PRRT_kwDORzpWpM6bzlFl): Backlogit's own
+        # ShipShipment (internal/core/shipment_lifecycle.go) unconditionally
+        # forces every explicit qualifying feature member through
+        # setArtifactStatus(..., StatusDone, ...) BEFORE
+        # collectArchiveCandidateIDs runs, regardless of that feature's own
+        # pre-close declared status -- including an already truly
+        # status: archived one. By the time collectArchiveCandidateIDs
+        # loads the feature its status is always done, never still
+        # archived, so it is always appended to the archive candidate list.
+        # A qualifying feature member can therefore never be "correctly
+        # absent" from archived_ids the way a truly pre-archived task or
+        # linked deliberation can.
+        content = _flatten(_skill_content())
+        self.assertIn(
+            "Nor does it extend to a qualifying feature member itself",
+            content,
+        )
+        self.assertIn("PRRT_kwDORzpWpM6bzlFl", content)
+        self.assertIn("setArtifactStatus", content)
+        self.assertIn("models.StatusDone", content)
+        self.assertIn("collectArchiveCandidateIDs", content)
+        self.assertIn(
+            "can therefore never be \"correctly absent\" from `archived_ids`",
+            content,
+        )
+        self.assertIn(
+            "unconditional `required_ids` member exactly like the shipment "
+            "record",
             content,
         )
 
@@ -452,6 +521,44 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
             "this policy summary and the skill's binding rule are the same "
             "contract and MUST NOT diverge",
             content,
+        )
+
+    def test_policy_required_ids_summary_states_qualifying_feature_unconditional(
+        self,
+    ) -> None:
+        # PR #407 review (threads PRRT_kwDORzpWpM6bzlFl / PRRT_kwDORzpWpM6bzlGL):
+        # the policy-level summary must state the same unconditional rule for
+        # a qualifying feature member that it already states for the shipment
+        # record, and must stay in lockstep with the skill.
+        content = _flatten(_policy_content())
+        self.assertIn(
+            "The same unconditional-required_ids rule applies to every "
+            "qualifying feature member",
+            content,
+        )
+        self.assertIn("ShipShipment", content)
+        self.assertIn(
+            "no pre-close status ever exempts a qualifying feature member "
+            "from this requirement either",
+            content,
+        )
+
+    def test_changelog_1_23_0_row_present_and_additive(self) -> None:
+        content = _policy_content()
+        idx_1_22 = content.index("| 1.22.0")
+        idx_1_23 = content.index("| 1.23.0")
+        self.assertLess(idx_1_22, idx_1_23)
+        row_match = re.search(r"^\| 1\.23\.0 .*\|$", content, re.MULTILINE)
+        self.assertIsNotNone(row_match)
+        row = row_match.group(0)
+        self.assertIn("required_ids", row)
+        self.assertIn("qualifying feature", row)
+        # 1.22.0 row preserved, not rewritten.
+        row_1_22_match = re.search(r"^\| 1\.22\.0 .*\|$", content, re.MULTILINE)
+        self.assertIsNotNone(row_1_22_match)
+        self.assertIn(
+            "the shipment record is a `required_ids` member unconditionally",
+            row_1_22_match.group(0),
         )
 
     def test_changelog_1_22_0_row_present_and_does_not_rewrite_1_21_0(self) -> None:
