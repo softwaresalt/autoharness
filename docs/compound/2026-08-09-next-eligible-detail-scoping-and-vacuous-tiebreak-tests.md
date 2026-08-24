@@ -1,7 +1,9 @@
 ---
 title: "next_eligible_detail field scoping and vacuous tie-break regression tests"
 date: 2026-08-09
-source: "123-S / 115-F (PR #323 Copilot review)"
+source: "docs/compound/2026-08-09-next-eligible-detail-scoping-and-vacuous-tiebreak-tests.md"
+citations:
+  - "123-S / 115-F (PR #323 Copilot review)"
 tags: [testing, contract-fidelity, tie-break, regression-tests, dag-readiness]
 doc_type: learning
 ---
