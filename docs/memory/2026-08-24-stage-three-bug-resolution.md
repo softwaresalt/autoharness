@@ -181,3 +181,65 @@ land as separate, narrow, pre-claim Ship work.
    dependency order; `T4`'s append-only cross-reference to `027-DL` stays a
    body-only addition and does not overlap step 1.
 5. After merge, archive stash `5CFA8198` (work-contract item 5).
+
+## Supersession - second narrow Stage follow-up (2026-08-24)
+
+A later narrow Stage correction supersedes two items above. Planning/backlog
+scope only; no source, template, schema, or CLI file touched; no commit,
+branch, push, build, test run, or PR; no lifecycle state changed
+(`5CFA8198` active, `155-S` queued/unclaimed, `84D8E6AB` archived,
+`B57F9E24` active - all preserved).
+
+### Supersedes "2. `155-S` is BLOCKED pre-claim by a `154-S` closure-evidence gap"
+
+**No longer blocked.** Ship completed the predecessor-closure evidence repair
+in commit `470eff090780dda59344061ece7196e7a18428d3`
+(*docs(closure): add machine-readable conditions block to 154-S closure
+evidence*). `docs/closure/154-S-146-F-post-merge-closure.md` now carries a
+`conditions:` list whose single entry
+(`5CFA8198-archived-ids-contract-reconciliation`) records the
+**capture-and-ownership handoff** as `satisfied: true` with the
+`5CFA8198` -> `027-DL` -> `147-F` / `155-S` chain as `evidence:`, and states
+that `155-S` owns implementation of the reconciliation itself. The
+`READY_WITH_CONDITIONS` verdict value is unchanged; the historical narrative
+was not rewritten.
+
+Re-verified read-only at HEAD `470eff09`: `conditions` non-empty,
+`_closure_conditions_satisfied=True`, `_closure_artifact_complete=True`. The
+`PREDECESSOR_CLOSURE_INCOMPLETE` block for `155-S` is cleared.
+
+**Corrected handoff steps 1-2 are DONE.** Steps 3-5 stand unchanged: claim
+`155-S`, execute `147.001-T` -> `147.004-T`, then archive `5CFA8198`. The
+satisfied condition covers the *handoff*, not the correction work - `155-S`
+implementation has **not** shipped, so `5CFA8198` correctly stays active.
+
+### Supersedes the "left as-is" path-pointer decision in "1. `027-DL` archived"
+
+The earlier decision to leave `.backlogit/queue/027-DL.md` pointers unchanged
+(on the `023-DL` / `142-F` precedent) was reversed by local review: stale
+lineage paths no longer resolve. All four live references now point at
+`.backlogit/archive/027-DL.md`:
+
+* `.backlogit/queue/147-F.md` (`references[3]`)
+* `docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-plan.md`
+  (`deliberation:`)
+* `docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-hardening.md`
+  (`source_deliberation:`)
+* `docs/reviews/2026-08-24-cascade-close-archived-ids-postcondition-review.md`
+  (`deliberation:`)
+
+**Tooling gap (reported, not worked around silently).** backlogit 1.10.1
+(`b0772938`) exposes `references` only at create time
+(`backlogit add --references`). `backlogit update` has no `--references` flag
+and `backlogit_update_item` has no references parameter; `link add/remove`
+operates on the ID-keyed semantic-links table, not the path-valued
+`references` frontmatter field, so it cannot repair a stale path. Recreating
+the item was rejected as destructive. Applied the repository-approved narrow
+workaround: direct edit of the one frontmatter line in the markdown source of
+truth (Data Ownership Rule - markdown is current-state truth; only generated
+*cache* artifacts are off-limits to direct editing), followed by index
+rehydration per the Index Freshness Rule, then verification. A traceability
+comment recording the gap and the workaround was appended to `147-F`'s log.
+
+The historical `023-DL` / `142-F` precedent is noted but **not** changed here
+(out of scope): `142-F` still carries `.backlogit/queue/023-DL.md`.

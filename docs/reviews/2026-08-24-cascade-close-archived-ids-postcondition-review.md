@@ -5,7 +5,7 @@ source: "docs/reviews/2026-08-24-cascade-close-archived-ids-postcondition-review
 doc_type: "review"
 reviews: docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-plan.md
 hardening: docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-hardening.md
-deliberation: .backlogit/queue/027-DL.md
+deliberation: .backlogit/archive/027-DL.md
 stash_id: 5CFA8198
 verdict: PASS
 cycles: 1

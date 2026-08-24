@@ -4,14 +4,16 @@ date: 2026-08-24
 source: "docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-plan.md"
 doc_type: "plan"
 stash_id: 5CFA8198
-deliberation: ".backlogit/queue/027-DL.md"
+deliberation: ".backlogit/archive/027-DL.md"
 requires_plan_hardening: yes
 hardening_present: yes
 hardening: docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-hardening.md
 review: docs/reviews/2026-08-24-cascade-close-archived-ids-postcondition-review.md
 review_verdict: PASS
 amendments: "A1, A2, A3, A4 (binding, applied in place)"
-execution_prerequisite: "BLOCKING - 154-S predecessor-closure evidence repair (Ship-owned, OUTSIDE 155-S); see 'Execution prerequisite' section"
+execution_prerequisite: "SATISFIED 2026-08-24 by commit 470eff090780dda59344061ece7196e7a18428d3 - 154-S predecessor-closure evidence repair (Ship-owned, OUTSIDE 155-S) landed; was BLOCKING. See 'Execution prerequisite' section"
+execution_prerequisite_status: satisfied
+execution_prerequisite_satisfied_by: 470eff090780dda59344061ece7196e7a18428d3
 blast_radius: "elevated (two template families: templates/policies/workflow-policies.md.tmpl P-015 clause + changelog, and templates/skills/shipment-reconcile/SKILL.md.tmpl cascade-close step 3 and its preamble; one new repo-side regression test module; three evidence documents under docs/spikes and docs/compound. No installed dogfood counterpart exists for either template. No schema, no CLI, no backlogit engine change.)"
 ---
 
@@ -26,59 +28,80 @@ Route: claude-opus-5 / anthropic / high (P-013.5, inherited)
 Source refs: feature `146-F` (archived), shipment `154-S` (shipped), PR #405,
 review threads `PRRT_kwDORzpWpM6bj72w` and `PRRT_kwDORzpWpM6bj72-`
 
-## Execution prerequisite (BLOCKING, Ship-owned, OUTSIDE this shipment)
+## Execution prerequisite (SATISFIED 2026-08-24, Ship-owned, OUTSIDE this shipment)
 
-Added 2026-08-24 by a narrow Stage follow-up, after the original handoff.
-**`155-S` cannot be claimed in its current state.**
+**Status: SATISFIED.** Ship landed the narrow predecessor-closure evidence
+repair in commit `470eff090780dda59344061ece7196e7a18428d3`
+(*docs(closure): add machine-readable conditions block to 154-S closure
+evidence*). `docs/closure/154-S-146-F-post-merge-closure.md` now carries a
+machine-readable `conditions:` list whose single entry
+(`5CFA8198-archived-ids-contract-reconciliation`) records the
+**capture-and-ownership handoff** as `satisfied: true` with concrete
+`evidence:` - the `5CFA8198` -> `027-DL` -> `147-F` / `155-S` chain - and
+explicitly states that successor shipment `155-S` owns implementation of the
+reconciliation itself. The `READY_WITH_CONDITIONS` verdict value is unchanged
+and the historical closure narrative was not rewritten.
+
+Re-verified read-only against the installed gate helpers at this HEAD:
+`closure_status=READY_WITH_CONDITIONS`, `compaction_status=done`,
+`conditions` non-empty, `_closure_conditions_satisfied=True`,
+`_closure_artifact_complete=True`. The `PREDECESSOR_CLOSURE_INCOMPLETE`
+pre-claim block for `155-S` is therefore cleared.
+
+**Scope note (unchanged).** What the condition records as satisfied is the
+capture-and-ownership handoff, **not** the correction work itself. `155-S`
+has **not** shipped: `147.001-T`-`147.004-T` remain unexecuted and `155-S`
+remains queued and unclaimed. Clearing this prerequisite makes `155-S`
+*claimable*; it does not make it *done*, and stash `5CFA8198` still must not
+be archived until the corrections have shipped (work-contract item 5).
+
+### Historical record - why this was BLOCKING (retained, superseded)
+
+Added 2026-08-24 by a narrow Stage follow-up, after the original handoff, and
+true until commit `470eff09`. At that time **`155-S` could not be claimed in
+its then-current state.**
 
 The installed pre-claim topology gate
-(`src/autoharness/gates/topology.py`, `shipment_readiness`) returns:
+(`src/autoharness/gates/topology.py`, `shipment_readiness`) returned:
 
 ```text
 PREDECESSOR_CLOSURE_INCOMPLETE: predecessor 154-S is terminal but missing
 required closure evidence
 ```
 
-**Cause (read-only evidence, reproduced 2026-08-24).**
-`docs/closure/154-S-146-F-post-merge-closure.md` declares
+**Cause (read-only evidence, reproduced 2026-08-24, since remediated).**
+`docs/closure/154-S-146-F-post-merge-closure.md` declared
 `closure_status: READY_WITH_CONDITIONS` and `compaction_status: done`, but
-carries **no machine-readable `conditions:` frontmatter list**.
+carried **no machine-readable `conditions:` frontmatter list**.
 `_closure_artifact_complete` (`topology.py:294`) accepts
 `READY_WITH_CONDITIONS` only when `_closure_conditions_satisfied` finds a
 non-empty `conditions:` list in which every entry is a mapping with
 `satisfied: true` and a non-empty `evidence:` string. With `conditions` absent
-(`None`) the helper returns `False`, so `closure_complete("154-S")` is `False`
-and `shipment_readiness` blocks. Direct evaluation confirms
-`closure_status=READY_WITH_CONDITIONS`, `compaction_status=done`,
+(`None`) the helper returned `False`, so `closure_complete("154-S")` was
+`False` and `shipment_readiness` blocked. Direct evaluation at the time
+confirmed `closure_status=READY_WITH_CONDITIONS`, `compaction_status=done`,
 `conditions=None`, `complete=False`.
 
-The closure artifact's **body** does record the captured follow-up
+The closure artifact's **body** already recorded the captured follow-up
 (`5CFA8198`, now deliberation `027-DL` -> feature `147-F` / shipment `155-S`).
-So this is an evidence-**form** gap in Ship-owned closure frontmatter, not a
-genuinely unmet release condition, and not a defect in this plan.
+So this was an evidence-**form** gap in Ship-owned closure frontmatter, not a
+genuinely unmet release condition, and not a defect in this plan. The repair
+in `470eff09` closed exactly that form gap.
 
-**Required action, before Orchestrator claims `155-S`:** Ship must perform a
-narrow predecessor-closure evidence repair that adds the machine-readable
-`conditions:` list to the 154-S closure artifact - one entry per condition the
-`READY_WITH_CONDITIONS` verdict already asserts in prose, each with
-`satisfied: true` and concrete `evidence:` (the
-`5CFA8198` -> `027-DL` -> `147-F` / `155-S` chain is the evidence for the
-captured-follow-up condition). The verdict value itself does not change.
-
-**Constraints (non-negotiable):**
+**Constraints that governed the repair (honoured, retained for the record):**
 
 * Stage did **not** modify the Ship-owned closure artifact and did **not**
-  bypass, disable, or weaken the gate. The gate is behaving correctly; the
-  frontmatter is incomplete.
-* This repair is deliberately **not** added to `T1`-`T4` and **not** added to
-  the `155-S` manifest. Doing so would be **circular**: the gate blocks the
-  claim of `155-S`, so no work item inside `155-S` can ever unblock it. It must
-  land as separate, narrow, pre-claim Ship work.
+  bypass, disable, or weaken the gate. The gate behaved correctly throughout;
+  only the frontmatter was incomplete, and Ship supplied it.
+* The repair was deliberately **not** added to `T1`-`T4` and **not** added to
+  the `155-S` manifest. Doing so would have been **circular**: the gate blocks
+  the claim of `155-S`, so no work item inside `155-S` could ever unblock it.
+  It landed as separate, narrow, pre-claim Ship work, as required.
 * It does **not** overlap `T4`. `T4`'s append-only forward cross-reference to
   `027-DL` and this plan stays inside `155-S` and remains a body-only addition;
-  the prerequisite repair touches only the frontmatter `conditions:` block and
-  happens first.
-* It does not rewrite the historical 154-S closure narrative or its verdict
+  the prerequisite repair touched only the frontmatter `conditions:` block and
+  happened first.
+* It did not rewrite the historical 154-S closure narrative or its verdict
   (plan non-goal preserved).
 
 ## Goal
@@ -320,7 +343,10 @@ Size S / complexity low.
 ## Sequencing
 
 PREREQUISITE (outside this shipment, Ship-owned, before the `155-S` claim):
-154-S predecessor-closure evidence repair - see "Execution prerequisite" above.
+154-S predecessor-closure evidence repair - **SATISFIED 2026-08-24 by commit
+`470eff090780dda59344061ece7196e7a18428d3`**; see "Execution prerequisite"
+above. No pre-claim work remains. `155-S` itself is still queued/unclaimed and
+its implementation has not shipped.
 
 `T1 -> T2 -> T3`, with `T4` after `T3`.
 

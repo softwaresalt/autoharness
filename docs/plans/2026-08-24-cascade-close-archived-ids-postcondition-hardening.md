@@ -3,7 +3,7 @@ title: "Plan Hardening: cascade-close archived_ids post-condition correction (P-
 date: 2026-08-24
 policy: P-006
 hardens: docs/plans/2026-08-24-cascade-close-archived-ids-postcondition-plan.md
-source_deliberation: .backlogit/queue/027-DL.md
+source_deliberation: .backlogit/archive/027-DL.md
 source_stash: 5CFA8198
 features: [147-F]
 shipments: [155-S]
