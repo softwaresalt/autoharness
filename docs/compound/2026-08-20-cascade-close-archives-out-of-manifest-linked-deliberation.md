@@ -355,7 +355,7 @@ confirms the defect is systemic to the cascade-close engine's own
 deliberation's lifecycle state, and reinforces the priority of the
 Stage-owned follow-up recorded above.
 
-## Supersession note (added during 155-S post-merge closure of PR #407, 2026-08-24)
+## Supersession note (added during 155-S's PR #407 fix cycle, prior to post-merge closure, 2026-08-24)
 
 **The "correct and required behavior" instruction above — halt on this
 signature, revert the linked deliberation, and disclose here — is

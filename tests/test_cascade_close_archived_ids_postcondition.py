@@ -321,6 +321,25 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
         self.assertIn("collectArchiveCandidateIDs", content)
         self.assertIn("linkedDeliberationIDs", content)
 
+    def test_linked_deliberation_torn_state_halts_fail_closed(self) -> None:
+        # PR #407 follow-up review round: the linked-deliberation snapshot
+        # must carry forward Step 0(b)'s torn-state (both queue/ and
+        # archive/) / missing-record halt discipline, never guessing which
+        # copy is authoritative before the destructive cascade invocation.
+        content = _flatten(_skill_content())
+        self.assertIn(
+            "resolve its record location the identical way Step 0(b) "
+            "resolves a manifest task item",
+            content,
+        )
+        self.assertIn("RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS", content)
+        self.assertIn("RECONCILE_FAIL_SNAPSHOT_MISSING", content)
+        self.assertIn(
+            "never compute `required_ids` from an arbitrary copy before "
+            "the destructive cascade invocation",
+            content,
+        )
+
     def test_linked_deliberation_sources_match_engine_exactly(self) -> None:
         content = _flatten(_skill_content())
         self.assertIn("custom_fields.source_deliberation_id", content)

@@ -458,8 +458,18 @@ completion.
       using exactly those same three engine-defined sources and the
       identical existence / `artifact_type: deliberation` validation — never
       any other ID, and never an ID that fails either check. For each
-      validated linked deliberation ID, read its own declared `status` field
-      (frontmatter only, never location-inferred) into the same combined
+      validated linked deliberation ID, resolve its record location the
+      identical way Step 0(b) resolves a manifest task item: if found in
+      **both** `{{BACKLOG_DIRECTORY}}/queue/` and
+      `{{BACKLOG_DIRECTORY}}/archive/` (an ambiguous/torn state) or in
+      **neither** (missing), halt immediately with
+      `RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS` or
+      `RECONCILE_FAIL_SNAPSHOT_MISSING` respectively — never guess which
+      copy or location is authoritative, and never compute `required_ids`
+      from an arbitrary copy before the destructive cascade invocation.
+      Once resolved to its single authoritative location, read its own
+      declared `status` field (frontmatter only, never location-inferred)
+      into the same combined
       pre-close declared-status snapshot as the qualifying feature statuses
       above. The further-extended combined map (manifest task statuses from
       (b), qualifying feature statuses, and now qualifying-feature
