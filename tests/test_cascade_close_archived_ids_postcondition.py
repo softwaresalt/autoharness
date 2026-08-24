@@ -409,6 +409,32 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
             content,
         )
 
+    def test_linked_deliberation_matcher_specified_exactly(self) -> None:
+        # PR #407 review (thread PRRT_kwDORzpWpM6byLno): the description/
+        # references sources must cite Backlogit's own exact regex matcher
+        # (`internal/core.deliberationIDPattern`, verified against the
+        # installed backlogit.exe binary) rather than a broader "any
+        # embedded deliberation ID" reading. An agent applying the broader
+        # wording could add an ID the engine will never archive, poisoning
+        # `required_ids` and causing a false halt after the destructive
+        # cascade has already run. `custom_fields.source_deliberation_id`
+        # must likewise be specified as a complete literal string, never
+        # regex-scanned, to keep both candidate-set derivations identical.
+        content = _flatten(_skill_content())
+        matcher = r"\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b"
+        self.assertEqual(
+            content.count(matcher),
+            2,
+            "the exact engine matcher must be specified at both cited "
+            "locations (the narrative Step 0(c) extension and the Quality "
+            "Criteria allowed_ids bullet), not merely described in prose",
+        )
+        self.assertIn("deliberationIDPattern", content)
+        self.assertIn(
+            "taken as a complete literal ID string, never regex-scanned",
+            content,
+        )
+
     def test_quality_criteria_bullet_mentions_linked_deliberations(self) -> None:
         content = _flatten(_skill_content())
         quality_idx = content.index("## Quality Criteria")

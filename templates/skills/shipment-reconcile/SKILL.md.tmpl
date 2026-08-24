@@ -445,9 +445,15 @@ completion.
       Backlogit's own cascade engine (`internal/core/shipment_lifecycle.go`
       `collectArchiveCandidateIDs`) appends, for every explicit qualifying
       feature member, that feature's `linkedDeliberationIDs` — collected
-      from the feature's `custom_fields.source_deliberation_id`, any
+      from the feature's `custom_fields.source_deliberation_id` (taken as a
+      complete literal ID string, never regex-scanned), plus any
       deliberation ID embedded in the feature's description, and any
-      deliberation the feature references, de-duplicated, and restricted to
+      deliberation the feature references — the latter two, and only the
+      latter two, scanned with the engine's own
+      `internal/core.deliberationIDPattern` matcher (given exactly below) —
+      never a broader "any embedded deliberation ID" reading, which can
+      match a substring the engine's own matcher would not — de-duplicated,
+      and restricted to
       IDs that resolve to an **existing** artifact whose own `artifact_type`
       is `deliberation` — before `archiveItems` runs. A qualifying feature
       with such a live linked deliberation therefore archives it during the
@@ -455,7 +461,11 @@ completion.
       blanket allowance for arbitrary IDs, extend Step 0(c)'s classification
       here, still **before** the cascade invocation: for each qualifying
       feature member, independently collect its linked deliberation IDs
-      using exactly those same three engine-defined sources and the
+      using exactly those same three engine-defined sources — the literal
+      `custom_fields.source_deliberation_id` string taken as-is, and the
+      description/references text scanned with the identical
+      `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` matcher, never a wording-level
+      approximation of it — and the
       identical existence / `artifact_type: deliberation` validation — never
       any other ID, and never an ID that fails either check. For each
       validated linked deliberation ID, resolve its record location the
@@ -955,7 +965,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `mode: pre` with `expected_status: {{STATUS_QUEUED}}` (or `{{STATUS_ACTIVE}}` for already-claimed shipments) runs at Ship Step 0.5 intake
 * `mode: safe-close` runs **in place of** the cascade `{{OP_SHIP_SHIPMENT_MCP}}` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself — **except** when Step 0's P-015 verified fully-covered-root classification selects `CASCADE`, in which case the Cascade Close Sub-Procedure runs instead and safe-close steps 1–10 are skipped entirely
 * Close-path selection is made **only** from the machine-checkable classification result (Step 0), never inferred from prose or manifest shape alone; any classifier error, ambiguity, or unresolved precondition falls back to safe-close
-* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` against the two-set `allowed_ids` / `required_ids` gate (step 3: `allowed_ids` = manifest tasks + qualifying feature members + each qualifying feature member's validated linked deliberation IDs (Step 0(c), same engine-defined `source_deliberation_id` / description / references sources and existence-and-`artifact_type: deliberation` validation Backlogit's own `collectArchiveCandidateIDs` uses — never a blanket allowance for arbitrary IDs) + the shipment record; `required_ids` = the shipment record unconditionally plus every other allowed member NOT truly `status: archived` in the Step 0(b)/(c) pre-close declared-status snapshot; `archived_ids - allowed_ids` non-empty halts with `HALT — cascade archived unexpected artifact {id}`, `required_ids - archived_ids` non-empty halts with `HALT — cascade did not archive required artifact {id}`, evaluated as two independent, never-merged conditions — a truly pre-archived **non-shipment** allowed member (including a qualifying feature's linked deliberation, e.g. 147-F's already-archived 027-DL) has no transition to report and is correctly, expectedly absent from `archived_ids`, never a mismatch, but this tolerance never extends to the shipment record itself, which remains unconditionally required regardless of its own pre-close declared status), and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
+* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` against the two-set `allowed_ids` / `required_ids` gate (step 3: `allowed_ids` = manifest tasks + qualifying feature members + each qualifying feature member's validated linked deliberation IDs (Step 0(c), same engine-defined `source_deliberation_id` (taken as a complete literal string, never regex-scanned) / description / references sources — the latter two scanned with the exact `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` matcher Backlogit's own `internal/core.deliberationIDPattern` uses, never a broader "any embedded deliberation ID" reading — and existence-and-`artifact_type: deliberation` validation Backlogit's own `collectArchiveCandidateIDs` uses — never a blanket allowance for arbitrary IDs) + the shipment record; `required_ids` = the shipment record unconditionally plus every other allowed member NOT truly `status: archived` in the Step 0(b)/(c) pre-close declared-status snapshot; `archived_ids - allowed_ids` non-empty halts with `HALT — cascade archived unexpected artifact {id}`, `required_ids - archived_ids` non-empty halts with `HALT — cascade did not archive required artifact {id}`, evaluated as two independent, never-merged conditions — a truly pre-archived **non-shipment** allowed member (including a qualifying feature's linked deliberation, e.g. 147-F's already-archived 027-DL) has no transition to report and is correctly, expectedly absent from `archived_ids`, never a mismatch, but this tolerance never extends to the shipment record itself, which remains unconditionally required regardless of its own pre-close declared status), and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
 * Safe-close computes the protected set (parent feature + unshipped siblings) from expected IDs and proves it is fully present in queue at a baseline gate before archiving anything
 * Safe-close verifies the protected set survives after every single-item archival (verify-after-each invariant), with no pre-archived exemption for protected-set members
 * Safe-close moves the shipment record to live `shipped`, verifies it, explicitly archives only that record, and verifies `archived_status: shipped` before closure completes
