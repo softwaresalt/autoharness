@@ -1,8 +1,8 @@
 ---
 problem_type: cascade_close_archived_ids_incomplete_on_pre_archived_tasks
 category: backlogit
-root_cause: "backlogit 1.10.1's `shipment ship` (cascade close) omits already-archived TASK manifest members from its returned `archived_ids` list, even though it still correctly leaves them archived in the final workspace state. This contradicts the byte-identical-shape invariant recorded by the 2026-08-18 spike against backlogit 1.9.0, where `archived_ids` included every pre-archived member regardless of artifact type."
-tags: [backlogit, shipment, cascade-close, p-015, archived_ids, regression]
+root_cause: "The defect was the autoharness exact-match expectation, not the backlogit engine: the `archived_ids` exact-match post-condition asserted in `shipment-reconcile` step 3 and P-015 item 7 wrongly required every pre-archived TASK manifest member to be re-listed in `archived_ids`. Reading the backlogit engine source directly (`internal/core/shipment_lifecycle.go` `archiveItems()`: `if item.Status == models.StatusArchived { continue }`) shows the guard that excludes a truly `status: archived` item from `archived_ids` is longstanding, unconditional, and correct, and the 2026-08-18 spike's byte-identical-shape baseline never actually exercised a truly `status: archived` input in the first place."
+tags: [backlogit, shipment, cascade-close, p-015, archived_ids]
 shipment: 154-S
 date: 2026-08-23
 source: "docs/compound/2026-08-23-cascade-close-archived-ids-omits-pre-archived-tasks-on-1101.md"

@@ -889,5 +889,56 @@ class CascadeCloseCorrectedBannerScopeTests(unittest.TestCase):
         )
 
 
+class CascadeCloseFrontmatterMetadataScopeTests(unittest.TestCase):
+    """PR #407 review (thread PRRT_kwDORzpWpM6b1bmy): the 2026-08-23
+    compound document's CORRECTED/RETRACTED body banner (pinned by
+    ``CascadeCloseCorrectedBannerScopeTests`` above) retracted the
+    "1.10.1-vs-1.9.0 behavior change" / "regression" diagnosis, but the
+    document's own searchable YAML frontmatter still asserted the
+    retracted framing verbatim in ``root_cause`` and still classified the
+    entry via a ``regression`` tag. Compound retrieval indexes frontmatter
+    directly, so a corrected body banner does not stop the retracted
+    diagnosis from being surfaced through frontmatter-only retrieval.
+    This pins that the frontmatter now names the autoharness exact-match
+    expectation as the defect (not an engine behavior change) and no
+    longer carries the ``regression`` tag.
+    """
+
+    @staticmethod
+    def _frontmatter() -> dict:
+        import yaml
+
+        raw = _compound_content_1101()
+        assert raw.startswith("---\n")
+        end = raw.index("\n---", 4)
+        frontmatter = raw[4:end]
+        parsed = yaml.safe_load(frontmatter)
+        assert isinstance(parsed, dict)
+        return parsed
+
+    def test_frontmatter_parses(self) -> None:
+        parsed = self._frontmatter()
+        self.assertIsInstance(parsed, dict)
+
+    def test_root_cause_names_autoharness_expectation_as_the_defect(self) -> None:
+        root_cause = self._frontmatter()["root_cause"]
+        self.assertIn("autoharness", root_cause.lower())
+        self.assertIn("exact-match", root_cause.lower())
+        self.assertIn("expectation", root_cause.lower())
+        self.assertIn("defect", root_cause.lower())
+
+    def test_root_cause_no_longer_asserts_1_10_1_vs_1_9_0_behavior_change(
+        self,
+    ) -> None:
+        root_cause = self._frontmatter()["root_cause"]
+        self.assertNotIn("1.10.1", root_cause)
+        self.assertNotIn("1.9.0", root_cause)
+        self.assertNotIn("behavior change", root_cause.lower())
+
+    def test_tags_no_longer_include_regression(self) -> None:
+        tags = self._frontmatter()["tags"]
+        self.assertNotIn("regression", tags)
+
+
 if __name__ == "__main__":
     unittest.main()
