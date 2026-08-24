@@ -21,6 +21,7 @@ value must not be treated as populated.
 
 from __future__ import annotations
 
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -28,6 +29,35 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COMPOUND_DIR = REPO_ROOT / "docs" / "compound"
+
+# 146.002-T (026-DL, amendment A2): value-shape exemption allowlist.
+#
+# Exempts a file from the VALUE-SHAPE assertion below only -- never from the
+# non-emptiness assertion above. EMPTY here because 146.001-T re-measured
+# recursively at execution HEAD and found exactly one non-conforming file
+# (the expected known outlier), which that task corrected. Per the plan's
+# amendment A2, the allowlist is populated ONLY when 146.001-T records
+# additional non-conforming files beyond the expected one; each such entry
+# must be annotated with its deferring P-021 capture ID and may only shrink
+# (per the precedent of 141.002-T), never grow, without new Stage
+# authorization.
+SOURCE_VALUE_SHAPE_EXEMPTIONS: frozenset[str] = frozenset()
+
+
+def _value_shape_matches_path(source_value: object, expected_rel_posix: str) -> bool:
+    """Return True iff `source_value`, with surrounding quotes stripped and
+    whitespace trimmed, equals `expected_rel_posix` exactly.
+
+    `source_value` is expected to already be YAML-parsed (quotes resolved by
+    `yaml.safe_load`); the extra quote-stripping here is defense in depth for
+    any raw scalar text that still carries literal quote characters.
+    """
+    if not isinstance(source_value, str):
+        return False
+    candidate = source_value.strip()
+    if len(candidate) >= 2 and candidate[0] == candidate[-1] and candidate[0] in ('"', "'"):
+        candidate = candidate[1:-1].strip()
+    return candidate == expected_rel_posix
 
 
 def _frontmatter_block(text: str):
@@ -139,6 +169,129 @@ class TestDocsCompoundFrontmatterContract(unittest.TestCase):
                 matched_by_glob,
                 f"{name} is non-markdown but was matched by the *.md scope",
             )
+
+    def test_source_value_matches_own_repo_relative_path(self) -> None:
+        """146.002-T (026-DL, amendments A1/A2): ratchet from non-emptiness
+        to a location-derived value-shape assertion.
+
+        `source` MUST equal the file's own repo-relative POSIX path (quotes
+        stripped, whitespace trimmed). The expected path is derived from the
+        file's ACTUAL location via `relative_to(...).as_posix()` -- never a
+        hard-coded flat `docs/compound/` prefix -- so a legal future
+        `{category}/` subdirectory (already modeled by the authoring
+        template) does not become a false failure.
+
+        This assertion is ADDITIVE: `test_all_compound_docs_have_source_and_doc_type`
+        above and `test_no_non_markdown_assets_are_in_scope` above are both
+        unchanged and still enforced in full.
+        """
+        md_files = sorted(COMPOUND_DIR.rglob("*.md"))
+        self.assertGreater(
+            len(md_files), 0, "expected docs/compound/**/*.md files to exist"
+        )
+
+        mismatches: list[str] = []
+        for path in md_files:
+            rel = path.relative_to(REPO_ROOT).as_posix()
+            if rel in SOURCE_VALUE_SHAPE_EXEMPTIONS:
+                continue
+            text = path.read_text(encoding="utf-8")
+            source_value = _frontmatter_value(text, "source")
+            if not _value_shape_matches_path(source_value, rel):
+                mismatches.append(f"{rel}: source={source_value!r} expected={rel!r}")
+
+        self.assertFalse(
+            mismatches,
+            "source value-shape mismatch (expected self-referential "
+            "repo-relative path) in:\n" + "\n".join(mismatches),
+        )
+
+    def test_source_value_shape_exemption_allowlist_is_empty(self) -> None:
+        """AC2.7: the exemption allowlist MUST be EMPTY in the expected
+        exactly-one-outlier case (146.001-T re-measured recursively and
+        found exactly one, matching the expected outlier, which it
+        corrected). Asserted explicitly so the allowlist cannot silently
+        grow without this assertion catching it."""
+        self.assertEqual(
+            SOURCE_VALUE_SHAPE_EXEMPTIONS,
+            frozenset(),
+            "exemption allowlist must be empty for this shipment's measured "
+            "baseline; if additional non-conforming files were recorded by "
+            "146.001-T, each entry here must be annotated with its "
+            "deferring P-021 capture ID",
+        )
+
+    def test_value_shape_predicate_discriminates_wrong_source_isolated_fixture(
+        self,
+    ) -> None:
+        """AC2.2 (amendment A1): discriminating power proven with an
+        ISOLATED FIXTURE only. No tracked file under docs/ is mutated (nor
+        mutated-then-reverted) for this purpose -- see
+        docs/compound/2026-08-15-torn-archive-log-entry-without-file-mutation-must-not-be-committed.md.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            fixture_file = tmp_root / "compound" / "2099-01-01-fixture.md"
+            fixture_file.parent.mkdir(parents=True, exist_ok=True)
+            fixture_file.write_text(
+                "---\n"
+                'title: "fixture"\n'
+                "date: 2099-01-01\n"
+                'source: "999-S / 000-F (fixture provenance, not a path)"\n'
+                "tags: [fixture]\n"
+                "doc_type: learning\n"
+                "---\n\n# Fixture\n\nBody text.\n",
+                encoding="utf-8",
+            )
+
+            text = fixture_file.read_text(encoding="utf-8")
+            source_value = _frontmatter_value(text, "source")
+            expected_rel = fixture_file.relative_to(tmp_root).as_posix()
+
+            # The predicate itself must correctly discriminate: the wrong
+            # (provenance-string) value must NOT match the fixture's own path.
+            self.assertFalse(
+                _value_shape_matches_path(source_value, expected_rel),
+                "fixture's non-path source value must not match its own path",
+            )
+
+            # And an assertion built on the predicate must actually fail
+            # (recorded failure output) when the value is wrong, proving the
+            # ratchet has real discriminating power rather than being
+            # green-by-construction.
+            with self.assertRaises(AssertionError) as ctx:
+                self.assertTrue(
+                    _value_shape_matches_path(source_value, expected_rel),
+                    f"expected source {source_value!r} to equal {expected_rel!r}",
+                )
+            self.assertIn(expected_rel, str(ctx.exception))
+            self.assertIn(str(source_value), str(ctx.exception))
+
+    def test_frontmatter_value_negative_cases_still_treated_as_missing(self) -> None:
+        """AC2.3: negative-case table proving every pre-existing failure
+        mode of `_frontmatter_value` is unchanged by the ratchet -- YAML
+        null, `~` null, comment-only, and empty-string `source` values must
+        all still evaluate as "not populated". Isolated in-memory fixtures
+        only; no tracked file is touched.
+
+        The remaining two pre-existing behaviours -- corpus-wide
+        non-emptiness and the `*.md`-only scope guard -- are covered by
+        `test_all_compound_docs_have_source_and_doc_type` and
+        `test_no_non_markdown_assets_are_in_scope` above, both left
+        unmodified by this ratchet.
+        """
+        cases = {
+            "yaml_null": "---\nsource: null\ndoc_type: learning\n---\n\nbody\n",
+            "tilde_null": "---\nsource: ~\ndoc_type: learning\n---\n\nbody\n",
+            "comment_only": "---\nsource: # missing\ndoc_type: learning\n---\n\nbody\n",
+            "empty_string": '---\nsource: ""\ndoc_type: learning\n---\n\nbody\n',
+        }
+        for label, text in cases.items():
+            with self.subTest(case=label):
+                self.assertIsNone(
+                    _frontmatter_value(text, "source"),
+                    f"{label} must still evaluate as missing/not-populated",
+                )
 
 
 if __name__ == "__main__":
