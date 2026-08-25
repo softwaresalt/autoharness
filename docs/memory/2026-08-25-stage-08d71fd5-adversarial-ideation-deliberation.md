@@ -45,27 +45,64 @@ linked ideation artifact. **If descoped, the recommendation inverts to DO NOT BU
 
 ## THE KEY FINDING (durability — reusable beyond this design)
 
-**The repeat-deferral trigger does not exist.** Verified against the live schema, not prose:
+**The repeat-deferral trigger does not exist.** Verified against `.backlogit/stash.jsonl`
+— the markdown/JSONL **source of truth** (13 active entries, field union
+`created_at, deliberation_id, id, kind, priority, text`):
 
-- `stash_entries(stash_id, priority, kind, text, deliberation_id, state, source_path, updated_at)`
 - `deliberation_id` is a **scalar** — `34AAF1C7` holds only `028-DL` despite 4+ documented
   re-triages. Prior deliberation IDs are **destroyed by the schema**.
-- No `triage_count`, no `deferral_count`, no `created_at`.
-- `updated_at` is identical across all three active entries (`2026-08-25T20:55:46.09`) —
-  a **re-index stamp**, not a mutation stamp. Zero deferral signal.
+- No `triage_count`, no `deferral_count`, no per-triage event record.
+- `created_at` **exists and is correctly populated** (distinct, monotonic: `34AAF1C7`
+  08-12, `08D71FD5` 08-25 20:08, `7628C291` 08-25 21:05); the CLI even derives `age_days`.
+  **But age is not triage count** — it cannot distinguish "deferred five times over two
+  weeks" from "sat untouched for two weeks," which is the discrimination the trigger needs.
 - Deferral history survives only as Stage-narrated prose (`[STAGE DARK-FACTORY RE-TRIAGE …]`)
   inside the `text` blob = `029-DL` cell 3 (read-but-tolerated, 0→18→59→**41%**, decaying).
-- **Root cause: surface asymmetry.** `items` have `item_log_entries`; `stash_entries` has
-  **no log table at all**. Deferrals happen on the one surface with no history.
+- **Root cause: surface asymmetry.** `items` have `item_log_entries` (a full event log);
+  stash entries have exactly one timestamp and **no log table**. Age is a *point*, deferral
+  count is a *sequence* — no point-valued field encodes a sequence however correctly
+  populated. The missing thing is an **event log**, not a broken field.
 
 Producer precedent already live in `.backlogit/hooks.yaml`:
 `event_thresholds.blocked_stale_days: 7` + `agent_subscriptions.stage: [blocked_stale]`.
+It works on items because it thresholds over an event history the stash surface lacks.
 
-Durability options: **D1** upstream stash schema change — rejected as a *dependency*
+Durability options: **D1** upstream schema change — rejected as a *dependency*
 (backlogit is external; `tool_name: backlogit`, v1.10.1; no source in repo — all 66 `.go`
 files are in gitignored `references/`). **D2** counter via `item_log_entries`
 `event_type='deferred'` + **D3** `verify-harness` FAIL check (verify-harness IS installed
 here) → ship with the agent.
+
+## CORRECTION ROUND — cache-vs-source-of-truth hazard, demonstrated
+
+The first version of this finding claimed "no `created_at`" and "`updated_at` is identical
+across all three live entries — a re-index stamp." **Both were wrong**, because both were
+read from the **SQLite index** rather than `stash.jsonl`. Operator caught it. Verdict
+unaffected; the corrected facts are *stronger*.
+
+The three surfaces disagree, and the cache diverges in **both directions**:
+
+| Surface | Fields |
+|---|---|
+| `stash.jsonl` (**source of truth**) | `created_at`, `deliberation_id`, `id`, `kind`, `priority`, `text` |
+| CLI `stash get` | `id`, `priority`, `kind`, `text`, `age_days` (+`deliberation_id`) |
+| SQLite `stash_entries` (**cache**) | `stash_id`, `priority`, `kind`, `text`, `deliberation_id`, `state`, `source_path`, `updated_at` |
+
+The cache **invents** `updated_at` (absent from source — rehydration bookkeeping) and
+**drops** `created_at` (present in source), which produced the false negative.
+
+**The clincher**: the uniform timestamp cited as evidence (`20:55:46.09`) was written by
+**my own Step 0.1 `backlogit sync`** at session start; on re-query it had moved to
+`21:07:10.12`. The column also mixes timezone representations across rows. I measured my
+own tool invocation and reported it as a property of the domain — two sessions after
+writing the `029-DL` storage correction that says exactly this.
+
+**Transferable rule**: *the SQLite index may be used to find and count things; it may
+never be used to establish **absence** of a field, because it is lossy in both directions.
+Schema absence claims must be verified against markdown/JSONL.* A field whose values are
+suspiciously uniform across unrelated rows is rehydration bookkeeping until proven
+otherwise. Confidence in a schema claim may not exceed the authority of the surface it was
+read from. → Candidate for `docs/compound/`, independent of whether the agent is built.
 
 ## Termination rule (reuses 028-DL)
 

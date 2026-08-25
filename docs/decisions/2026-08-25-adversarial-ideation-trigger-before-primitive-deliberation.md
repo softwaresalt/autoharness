@@ -18,7 +18,9 @@ shipping its trigger in the same unit of work**.
 The design question that matters is not "agent or skill" — that is answerable in a
 paragraph. It is: **what machine invokes this thing?** Today the answer is *nothing*,
 and the trigger the intake assumed already exists (repeat-deferral detection) **does
-not exist**. I verified this against the live schema, not against prose.
+not exist**. I verified this against `.backlogit/stash.jsonl`, the markdown/JSONL source
+of truth, not against prose — and, after a correction round, not against the SQLite cache
+either (§4.1b, §4.1c).
 
 Under `029-DL`'s law, an ideation agent shipped without a producer or penalizer is a
 cell-4 artifact with a measured decay trajectory. So this deliberation's real output is
@@ -236,30 +238,100 @@ ABSENCE. Being read is neither necessary nor sufficient.*
 
 ### 4.1 The proposed trigger does not exist. I checked the schema.
 
+> **CORRECTED 2026-08-25 (round 2).** The first version of this section rested on three
+> facts, two of which were wrong because they were read from the **SQLite cache instead
+> of the markdown/JSONL source of truth**. The conclusion is unchanged and the corrected
+> facts make it *stronger*. See §4.1b for the correction and §4.1c for the worked example.
+
 The task proposed repeat-deferral as the trigger, on the basis that `34AAF1C7` was
 re-triaged four times and that this is "mechanically detectable from stash/deliberation
-history." **It is not.** Live schema:
+history." **It is not.**
 
-```sql
-CREATE TABLE stash_entries (
-  stash_id TEXT PRIMARY KEY, priority TEXT NOT NULL, kind TEXT NOT NULL,
-  text TEXT NOT NULL, deliberation_id TEXT, state TEXT NOT NULL,
-  source_path TEXT NOT NULL, updated_at DATETIME NOT NULL
-)
+Source of truth — `.backlogit/stash.jsonl`, 13 active entries, field union:
+
+```
+created_at, deliberation_id, id, kind, priority, text
 ```
 
-Three independent findings, each sufficient on its own:
+Two findings, each sufficient on its own:
 
 1. **`deliberation_id` is a scalar, not a list.** `34AAF1C7` holds exactly one value —
    `028-DL` — despite four-plus documented re-triages. Every prior deliberation ID was
    overwritten or never written. The history is *destroyed by the schema*, not merely
-   unqueried.
-2. **There is no counter and no created_at.** No `triage_count`, no `deferral_count`, no
-   creation timestamp. Nothing to threshold against.
-3. **`updated_at` carries zero signal.** All three live entries (`08D71FD5`,
-   `34AAF1C7`, `8AC574F1`) share the identical timestamp `2026-08-25T20:55:46.0919694Z`
-   — a re-index stamp, not a mutation stamp. An entry deferred five times and one
-   created today are indistinguishable.
+   unqueried. **(This finding was correct in v1 and stands unchanged.)**
+2. **There is no triage or deferral counter.** No `triage_count`, no `deferral_count`, no
+   per-triage event record. Nothing to threshold against.
+
+And the fact that replaces the two withdrawn ones:
+
+3. **`created_at` exists, is correctly populated, and still cannot answer the
+   question.** Values are genuine and monotonic — `34D50F2D` 08-02, `34AAF1C7` 08-12,
+   `08D71FD5` 08-25 20:08, `8AC574F1` 08-25 20:51, `7628C291` 08-25 21:05. The CLI even
+   surfaces a derived `age_days`. But **age is not triage count.** `created_at` cannot
+   distinguish "deferred five times over two weeks" from "sat untouched for two weeks" —
+   and that discrimination is precisely what the trigger needs. A `blocked_stale`-style
+   age threshold over `created_at` would fire on every old entry regardless of whether
+   anyone ever looked at it, which is a different and much weaker signal than
+   repeat-deferral.
+
+This is the sharper form of the argument: the stash surface has a **working, accurate
+timestamp that is still structurally incapable of expressing the predicate**. The gap is
+not a missing or broken field — it is a missing *event log*. See §4.3.
+
+### 4.1b Correction of record
+
+| v1 claim | Status | Actual |
+|---|---|---|
+| "no `created_at`" | ❌ **WRONG** | `created_at` exists in `stash.jsonl` and is correctly populated with distinct, monotonic values |
+| "`updated_at` is identical across all three live entries — a re-index stamp" | ❌ **WRONG** | `updated_at` **does not exist** on stash entries in the source of truth, nor on the CLI surface. There was nothing to be identical. |
+| "`deliberation_id` is a scalar" | ✅ **STANDS** | Confirmed against `stash.jsonl`; `34AAF1C7` holds only `028-DL` |
+
+Neither withdrawn fact was load-bearing for the conclusion, and fact 3 above is a
+stronger replacement than either.
+
+### 4.1c Worked example: the cache-vs-source-of-truth hazard, demonstrated
+
+`029-DL` established that **the SQLite index is a disposable cache rehydrated from
+markdown; markdown is the source of truth.** This section committed exactly that error,
+two sessions after that correction was written, *by the same agent that wrote it*. It is
+recorded here because a hazard that catches its own author is better evidence than any
+assertion of the rule.
+
+**What happened.** I queried `sqlite_master` and `stash_entries` in the backlogit index
+and reported the result as "the live schema." The three surfaces do not agree:
+
+| Surface | Fields |
+|---|---|
+| `.backlogit/stash.jsonl` (**source of truth**) | `created_at`, `deliberation_id`, `id`, `kind`, `priority`, `text` |
+| CLI `stash get` | `id`, `priority`, `kind`, `text`, `age_days` (+ `deliberation_id` when set) |
+| SQLite `stash_entries` (**cache**) | `stash_id`, `priority`, `kind`, `text`, `deliberation_id`, `state`, `source_path`, `updated_at` |
+
+The cache diverges from source in **both directions at once**:
+
+* it **invents** `updated_at`, which exists nowhere in source — it is rehydration
+  bookkeeping, not domain data;
+* it **drops** `created_at`, which does exist in source — which is why the cache-derived
+  reading produced the false negative "there is no creation timestamp."
+
+**The clincher — the evidence was manufactured by the act of measuring.** The uniform
+timestamp I cited (`2026-08-25T20:55:46.09`, identical across the three entries I
+sampled) was written by **my own Step 0.1 `backlogit sync`** at session start. On
+re-query after this session's later writes, `08D71FD5.updated_at` had moved to
+`2026-08-25T21:07:10.12`. The column also carries mixed timezone representations across
+rows (older entries at `-07:00`, freshly-touched ones `Z`-normalized), which is
+incidental cache metadata leaking through. **I measured my own tool invocation and
+reported it as a property of the domain.**
+
+**Transferable rule, stated for reuse:** *a claim about what a schema does or does not
+record must be verified against the markdown/JSONL source of truth. The SQLite index may
+be used to find and count things; it may never be used to establish absence of a field,
+because it is lossy in both directions — it drops source fields and adds its own.* A
+field whose values are suspiciously uniform across unrelated rows should be treated as
+rehydration bookkeeping until proven otherwise.
+
+This belongs in `docs/compound/` independently of whether the ideation agent is built.
+
+### 4.1d The residual finding
 
 The only record of the deferral history is **append-only prose inside the `text` blob**,
 self-narrated by Stage under an ad-hoc header it invented:
@@ -304,15 +376,25 @@ working cell-1/cell-2 mechanism in the same config file, and it is the exact tem
 the ideation trigger should copy. The design does not need a novel mechanism — it needs
 the existing one extended to a surface that currently lacks it.
 
-**The root cause is a surface asymmetry**: `items` have `item_log_entries`
-(`item_id, timestamp, actor, event_type, content, delta_json`) — a full event log.
-**`stash_entries` have no log table at all.** Deferrals happen on the stash surface,
-which is the one surface with no history. That is why the counter is missing.
+**The root cause is a surface asymmetry, and the correction in §4.1 sharpens it.**
+Items have a full event log — `item_log_entries(item_id, timestamp, actor, event_type,
+content, delta_json)` — so an item's history is a *sequence of recorded events*. A stash
+entry has exactly **one** timestamp, `created_at`, and no log table at all. That single
+timestamp is accurate and usable; it simply answers a different question. Age is a
+**point**, deferral count is a **sequence**, and no point-valued field can encode a
+sequence no matter how correctly it is populated.
+
+That is why `blocked_stale_days` works on items and has no stash analogue: it thresholds
+over an event history that the stash surface does not keep. Deferrals happen on the one
+surface with no log. **The missing thing is an event log, not a missing or broken
+field** — which is precisely why D2 (§4.4) attaches the counter to `item_log_entries`
+rather than trying to add another column to the stash.
 
 ### 4.4 Three durability options, ranked
 
 **D1 — Upstream schema change (strongest, not owned).**
-Add `deferral_count` + append-only `deliberation_ids` to `stash_entries`; emit a
+Add `deferral_count` + an append-only `deliberation_ids` list to the **stash
+source-of-truth record** (`stash.jsonl`, not merely the index projection); emit a
 `repeat_deferral` hook at threshold ≥ 2, subscribed by Stage exactly as `blocked_stale`
 is. Cell 1 (produced).
 **Blocking risk: autoharness does not own backlogit.** `.autoharness/backlog-registry.yaml`
@@ -597,17 +679,22 @@ the primitive map slot while decaying.
 
 ### 7.1 What would falsify this recommendation
 
-- Evidence that `deferral_count` already exists somewhere I did not query. I checked
-  `stash_entries`, `stash_links`, `item_log_entries`, `gate_evidence`, `hooks.yaml`,
-  `registry.yaml`, and the live values for all three active stash entries.
+- Evidence that `deferral_count` already exists somewhere I did not query. Checked in the
+  **source of truth**: `.backlogit/stash.jsonl` (all 13 active entries, full field union).
+  Checked in the index and config: `stash_entries`, `stash_links`, `item_log_entries`,
+  `gate_evidence`, `hooks.yaml`, `registry.yaml`. Checked on the CLI surface:
+  `stash get`. Per §4.1c, only the first of these can establish **absence** of a field.
 - A backlogit upstream commitment to D1 on a bounded timeline — would supersede D2.
 - A demonstration that a skill can declare and *verify* its own route tuple, which would
   reopen §2.2's conclusion (though not its corrected premise).
 
 ### 7.2 Confidence
 
-**High** on §1 (verified against files), §2.2 (direct citation), and §4.1–4.3 (live
-schema and data).
+**High** on §1 (verified against files), §2.2 (direct citation), and §4.1 **as corrected**
+(re-verified against `stash.jsonl`, the source of truth). The v1 confidence rating on this
+section was itself miscalibrated — it read "High … (live schema and data)" while resting
+on cache reads, which is the precise failure §4.1c documents. Confidence in a schema claim
+may not exceed the authority of the surface it was read from.
 **Medium-high** on §5 (measure is provably well-founded; calibration rests on a single
 trace).
 **Medium** on §4.4's D2/D3 split — `verify-harness`'s check-extension surface was
@@ -636,3 +723,14 @@ claude-opus-5/anthropic/high. Deliberation-only: no harvest, no shipment, no bra
 worktree (P-016). `.mcp.json` and `.backlogit/runtime/` untouched. `INDEX_SYNC_OK`
 (967 artifacts). Intake stash `08D71FD5` remains **active** — not archived, since it is
 not yet consumed into a backlog item.
+
+**Correction round (2026-08-25, same session).** The operator challenged §4.1 and was
+correct. Two of its three supporting facts were withdrawn — "no `created_at`" (false;
+it exists and is correctly populated) and "`updated_at` is identical across entries"
+(false; the field does not exist on stash entries in the source of truth). Both errors
+originated in reading the SQLite cache rather than `.backlogit/stash.jsonl`. The scalar
+`deliberation_id` finding stands. The **verdict is unchanged**: CONDITIONAL BUILD, with
+inversion to DO NOT BUILD if the durability mechanism is descoped. The corrected facts
+strengthen the argument — §4.1 now rests on a *working* timestamp that still cannot
+express the predicate, which is a sharper claim than a broken one. The error itself is
+recorded as §4.1c, a worked example of the `029-DL` cache-vs-source-of-truth hazard.
