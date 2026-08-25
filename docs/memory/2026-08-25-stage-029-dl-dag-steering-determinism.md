@@ -201,13 +201,13 @@ harvest), then **Ship**.
 
 ---
 
-# ADDENDUM — Pushback Round 1 (Orchestrator adversarial review)
+## ADDENDUM — Pushback Round 1 (Orchestrator adversarial review)
 
 Eight adversarial positions. **Five adopted, one adopted with a material
 precision, one refuted with data, one reversed my own #1.** Full analysis in the
 decision artifact's `ADDENDUM — Pushback Round 1` section.
 
-## What changed
+### What changed
 
 | # | Position | Outcome |
 |---|---|---|
@@ -221,7 +221,7 @@ decision artifact's `ADDENDUM — Pushback Round 1` section.
 | 6 | Pipeline is already a prose DAG | **CONFIRMED** — now the organizing frame |
 | 7 | Their first-slice candidate | **THEIRS WINS** — conceded on measurement |
 
-## New measurements taken this round
+### New measurements taken this round
 
 * **Order determinacy**: declared edges **0.34%**, with C13's lift **0.55%**,
   numeric-ID convention **100%** of 11,026 shipment pairs — **never contradicted**
@@ -236,7 +236,7 @@ decision artifact's `ADDENDUM — Pushback Round 1` section.
 * **`R#` requirement IDs**: mandated by the brainstorm skill ("never renumbered"),
   present in 18/71 plans.
 
-## The single most important result — a natural experiment
+### The single most important result — a natural experiment
 
 Two structurally identical prose conventions, one repository, same authors, same
 period. One acquired a mechanical reader; the other did not.
@@ -256,7 +256,7 @@ while projecting rigor.
 **Law 2 is therefore not hygiene. It is the load-bearing finding**, and Law 1
 (derive, never persist) is merely the cheapest way to satisfy it.
 
-## Self-falsification recorded
+### Self-falsification recorded
 
 My §5 ranked C13 (edge lift) **#1** and credited it with **D2 / choice
 elimination**. Measurement withdraws that credit: it moves order determinacy
@@ -265,7 +265,7 @@ already orders 100% correctly. **C13 survives only as a bug fix** (retire
 `_prior_shipment_id`'s *adjacency heuristic* — not the numeric convention, which
 has never been wrong) **and an auditability check.**
 
-## Revised #1
+### Revised #1
 
 **`autoharness gate coverage-integrity`** — read-only, report-only, merging the
 computable coverage checks with the new **convention-decay detector** (flag any
@@ -280,7 +280,7 @@ mechanically **needs no operator consent**.
 **Not computable today**: `AC_WITHOUT_COVERING_TASK` — only 4/612 tasks carry AC
 IDs. Needs plan-unit identity (C1) first ⇒ **C1 becomes phase 2, not an option.**
 
-## Revised falsification (genuinely refutable)
+### Revised falsification (genuinely refutable)
 
 * **Law 2 falsified** if the decay detector flags a declining convention that
   *does* have a reader, or a readerless convention proves stable/rising across ≥4 bands.
@@ -288,7 +288,7 @@ IDs. Needs plan-unit identity (C1) first ⇒ **C1 becomes phase 2, not an option
   review-finding rate** than the 166 with criteria ⇒ the gap is cosmetic ⇒ close
   the program rather than stage it.
 
-## Revised disposition
+### Revised disposition
 
 * **Q1 — WITHDRAWN** as a gate. Law 2 is now evidence, not a proposal.
 * **Q4 — ANSWERED by measurement**: keep the numeric-ID convention; retire
@@ -303,13 +303,13 @@ precondition.**
 
 ---
 
-# ADDENDUM — Pushback Round 2
+## ADDENDUM — Pushback Round 2
 
 **The round-1 #1 was withdrawn.** Position 1 correctly identified that the Law 2
 evidence could not distinguish "has a reader" from "has a reader with teeth."
 I ran the experiment that separates them.
 
-## The isolating experiment
+### The isolating experiment
 
 Same gate (`pipeline-topology`), same corpus, same period, same authors, both
 conventions introduced in the same band. Only difference: whether **absence** is
@@ -327,7 +327,7 @@ adjacency, so the blocking gate tolerates the field's absence.
 
 **Readership is not the variable.**
 
-## Law 2, corrected
+### Law 2, corrected
 
 > **A convention survives iff a machine either PRODUCES it or PENALIZES ITS
 > ABSENCE. Being read is neither necessary nor sufficient.**
@@ -345,7 +345,7 @@ Four measured cells:
 "advisory and must never block," yet 100% — because `sizing.py` L343 writes the
 field. **Generation is as durable as enforcement and needs no consent.**
 
-## What was withdrawn and why
+### What was withdrawn and why
 
 * **`coverage-integrity` (round-1 #1) — WITHDRAWN**, two independent grounds:
   1. Report-only = cell 3 = the cell that decayed.
@@ -354,7 +354,7 @@ field. **Generation is as durable as enforcement and needs no consent.**
      shipments, AC-rich 0.20 vs AC-poor 0.18 compound records, task counts
      matched, underpowered at base rate 0.2.
 
-## New #1 — `autoharness gate convention-durability`
+### New #1 — `autoharness gate convention-durability`
 
 Classify all conventions into the four cells and **predict** decay.
 Enumeration is **derived, not curated**: 48 frontmatter keys + 18 delimited body
@@ -371,7 +371,7 @@ convention decaying over ≥2 bands, or any unread/tolerated one stable/rising o
 
 **#2** — AC-ID **generator** (cell-1 shape, `gate size` pattern), gated on #1.
 
-## Other adoptions
+### Other adoptions
 
 * **Authority test v2**: obligation novelty **OR** activation blast radius.
 * **Migration solved**: the harvest-output gate is intrinsically
@@ -379,16 +379,16 @@ convention decaying over ≥2 bands, or any unread/tolerated one stable/rising o
 * **P-021 reframe** — labelled **INSIGHT**; one narrow sequencing mechanism only
   (coverage proofs must run after C2 capture, else the node set is still open).
 
-## Next actor
+### Next actor
 
 **OPERATOR** — no ratification gate remains. New #1 is read-only, zero authority,
 ready for impl-plan against §B4.
 
 ---
 
-# ADDENDUM — Pushback Round 3 (final)
+## ADDENDUM — Pushback Round 3 (final)
 
-## Artifact retitled
+### Artifact retitled
 
 `docs/decisions/2026-08-25-dag-as-steering-mechanism-determinism-opportunity-map.md`
 → **`docs/decisions/2026-08-25-machine-produced-structure-determinism-and-the-surviving-dag-partition.md`**
@@ -397,12 +397,12 @@ New title: *Machine-Produced Structure, Not Graph Structure, Is the Binding
 Constraint on Determinism — with the DAG partition that survives.*
 Abstract rewritten; `original_title` / `original_filename` preserved in frontmatter.
 
-## Headline finding, stated plainly
+### Headline finding, stated plainly
 
 > **The DAG is not the lever. The lever is whether a machine PRODUCES the
 > artifact or PENALIZES ITS ABSENCE.**
 
-## The DAG question: ANSWERED, not abandoned
+### The DAG question: ANSWERED, not abandoned
 
 The law and the DAG question are **orthogonal**: the law governs whether a
 representation *persists*; a DAG governs what you can *prove* once it exists.
@@ -414,14 +414,14 @@ Required Steps (conditional).
 **2 die** — impl-plan units (`R#` 18/71), acceptance criteria (`ACn` 4/612) —
 exactly the two needing authors to mint new identifiers.
 
-## DAG-shaped challenger tested and pruned on data
+### DAG-shaped challenger tested and pruned on data
 
 Cross-reference integrity graph: 400 links, 343 local, **4 dangling (1.2%), all
 documentation placeholders → real defect rate 0%.** The 131 unresolved backlog
 `references:` are historical link rot on archived artifacts. **A gate with a 0%
 defect rate is ceremony.** Pruned on measurement.
 
-## Produced cell split (n question)
+### Produced cell split (n question)
 
 * **Store-produced** (backlogit writes it): ~10 members, 100%, **full 4-month
   corpus, zero decay**.
@@ -430,12 +430,12 @@ defect rate is ceremony.** Pruned on measurement.
 #2 is a bet on a pattern replicated **once**, inside a class replicated ~10
 times. **#1 is now a formal prerequisite for #2.**
 
-## Correction to §B3
+### Correction to §B3
 
 Underpowered null = **"no supporting evidence found," not evidence of absence.**
 No longer counted as an independent demotion. Coverage demoted on §B1.2 alone.
 
-## GATE VERDICT: BLOCKED — three named criteria
+### GATE VERDICT: BLOCKED — three named criteria
 
 1. **`impl-plan` skill not installed.** `.github/skills/` = **4**;
    `templates/skills/` = **29** including impl-plan/plan-harden/plan-review/harvest.
@@ -453,7 +453,7 @@ No longer counted as an independent demotion. Coverage demoted on §B1.2 alone.
 **Recommended unblock (operator, one action):** install `impl-plan`,
 `plan-review`, `harvest` from the templates this repo already ships.
 
-## Outcome
+### Outcome
 
 **Deliberation-only. No harvest. No shipment.** Blocked on a named harness gap,
 not deferred by habit.

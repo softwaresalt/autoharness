@@ -192,7 +192,7 @@ path.
 
 ---
 
-# Correction pass — 2026-08-17 (post-Orchestrator review)
+## Correction pass — 2026-08-17 (post-Orchestrator review)
 
 The verdict above was issued over a plan carrying **two P1 defects that this
 review missed**. Orchestrator review found them. This appended pass re-runs the
@@ -207,9 +207,9 @@ staging hazards but never read the rollback section's `git checkout -- .` as an
 in-scope destructive breadth question. Both are review-coverage gaps, now
 closed by adding containment and destructive-authority to the persona charters.
 
-## Persona 7 — Security / containment (Principle IV)
+### Persona 7 — Security / containment (Principle IV)
 
-### F9 (P1, RESOLVED) — Out-of-repository backup violated CLI containment
+#### F9 (P1, RESOLVED) — Out-of-repository backup violated CLI containment
 
 The plan, **H4**, **H15**, `129.004-T`, the Ship handoff and the rollback all
 mandated a backup under `$env:TEMP` — outside the working directory tree. This
@@ -235,9 +235,9 @@ Escape-hatch abuse is closed explicitly: a failed gate does **not** authorize
 relocating outside cwd; it requires selecting another existing ignored in-repo
 path (`.autoharness/staging/`) and re-running all six gates.
 
-## Persona 8 — Backlog-root / self-hosting specialist
+### Persona 8 — Backlog-root / self-hosting specialist
 
-### F10 (P1, RESOLVED) — The obvious in-repo fix would have created a second root
+#### F10 (P1, RESOLVED) — The obvious in-repo fix would have created a second root
 
 The original H4's stated justification was real: a naive in-repo backup made by
 `Copy-Item .backlogit -Destination X -Recurse` creates `X\.backlogit` — a
@@ -256,9 +256,9 @@ the directory itself, plus a post-copy recursive assertion that zero
 `.backlog`/`.backlogit` directories exist at any depth inside the backup. The
 copied `config.yaml` landing in a non-candidate-named directory is inert.
 
-## Persona 9 — Git / VCS specialist
+### Persona 9 — Git / VCS specialist
 
-### F11 (P1, RESOLVED) — In-repo backup must not be able to enter git
+#### F11 (P1, RESOLVED) — In-repo backup must not be able to enter git
 
 The original H4's second justification — committing ~14 MB of binary SQLite
 state — is also real.
@@ -269,7 +269,7 @@ not surface it and `git add` without `-f` exits **1** with nothing staged;
 **H11** independently forbids `git add -A` in Commit B and requires explicit
 path staging. Three independent layers.
 
-### F12 (P1, RESOLVED) — `git clean -x` would silently destroy the backup
+#### F12 (P1, RESOLVED) — `git clean -x` would silently destroy the backup
 
 **Newly found in this pass.** Being gitignored is what makes the backup safe
 for git — and simultaneously makes it a target for `git clean -x`/`-X`, which
@@ -281,9 +281,9 @@ destroy the **primary recovery artifact**, and nothing in the plan forbade it.
 disposal, alongside the H15 session-state preservation rule and a mandatory
 backup re-assertion immediately before `T006`.
 
-## Persona 10 — Reliability / durability
+### Persona 10 — Reliability / durability
 
-### F13 (P2, ACCEPTED with mitigation) — The backup lives in CLI-managed state
+#### F13 (P2, ACCEPTED with mitigation) — The backup lives in CLI-managed state
 
 `.copilot/session-state/` is managed by the Copilot CLI, and the chosen
 subdirectory belongs to **Stage's** session while Ship executes in a different
@@ -299,9 +299,9 @@ irreversible step, so a vanished backup HALTS rather than silently proceeding;
 the absolute path is recorded in the task record, runbook and handoff.
 `.autoharness/staging/` remains the documented fallback.
 
-## Persona 11 — Destructive-operation governance
+### Persona 11 — Destructive-operation governance
 
-### F14 (P1, RESOLVED) — The automatic rollback was both unauthorized and incorrect
+#### F14 (P1, RESOLVED) — The automatic rollback was both unauthorized and incorrect
 
 The rollback directed `delete .backlog` and `git checkout -- .`
 **automatically**. Two independent defects:
@@ -325,7 +325,7 @@ an **enumerated pathspec list** and a named source/destination copy-back only.
 The plan's "Rollback" section is replaced by "Failure recovery"; `T006` and
 `129.006-T` now route to H16.
 
-## Persona 12 — Devil's advocate against the correction
+### Persona 12 — Devil's advocate against the correction
 
 *Challenge 1: "This trades a policy violation for a safety regression — the
 out-of-tree backup was genuinely safer."*
@@ -354,7 +354,7 @@ halt gates **deletion and restoration**, not operability. Halting with both
 roots and a verified backup intact strictly dominates halting with a root
 already destroyed.
 
-## Correction-pass findings summary
+### Correction-pass findings summary
 
 | ID | Severity | Persona | Status |
 |---|---|---|---|
@@ -372,7 +372,7 @@ approved; `138-S` is shippable.
 
 ---
 
-## SUPERSEDED — SUBJECT CANCELLED BY OPERATOR SCOPE CORRECTION (2026-08-18)
+### SUPERSEDED — SUBJECT CANCELLED BY OPERATOR SCOPE CORRECTION (2026-08-18)
 
 > **APPEND-ONLY NOTICE. Both verdicts above stand as issued.** No finding,
 > severity, resolution or verdict has been altered or withdrawn.

@@ -7,6 +7,8 @@ baseline_commit: 56376db9f943ce9e85fd11dc5877556cdbb5d1b6
 tools: backlogit MCP (TOOL_OK); engram/intercom/graphtor operator-declared DEGRADED (not probed)
 ---
 
+# Stage session — remaining approved dark-factory P-017 scope
+
 > [!WARNING]
 > **SUPERSEDED — DO NOT RELY ON THE FACTS BELOW.** This dark-factory scope memory ends
 > with **stale pre-P1-7 semantics** and predates the final publication-review repair and
@@ -44,8 +46,6 @@ tools: backlogit MCP (TOOL_OK); engram/intercom/graphtor operator-declared DEGRA
 >   and is **installed by 111.005-T** (standard single `artifacts[].checksum`).
 >
 > Original text is preserved below for append-only provenance.
-
-# Stage session — remaining approved dark-factory P-017 scope
 
 Staged the exactly-three bounded in-scope items into a strictly serial Stage->Ship
 sequence. No source/template/config mutated, no commit/push, no shipment claim,

@@ -52,7 +52,7 @@ route: claude-opus-5 / anthropic / high
 > concluding something else is the silent-drift failure this program exists to
 > detect.
 
-# DAG as Steering Mechanism: A Determinism Opportunity Map
+## DAG as Steering Mechanism: A Determinism Opportunity Map
 
 * **Stash (living tracker)**: `34AAF1C7` — annotated, linked, **not archived**
 * **Deliberation artifact**: `029-DL`
@@ -64,7 +64,7 @@ route: claude-opus-5 / anthropic / high
 
 ---
 
-## 0. Executive answer
+### 0. Executive answer
 
 The prior deliberation's conclusion — "the DAG here is a diagnostic layer" — is
 **sound for its question and too narrow as a general claim**, in one precise
@@ -105,7 +105,7 @@ It has already shipped bugs.
 
 ---
 
-## 1. Disambiguating "determinism in outcome delivery"
+### 1. Disambiguating "determinism in outcome delivery"
 
 The operator's phrase bundles six distinct properties. They have different
 mechanisms and different feasibility. Telling them apart is the first
@@ -140,7 +140,7 @@ first case.
 
 ---
 
-## 2. What a DAG structurally provides — and what it does not
+### 2. What a DAG structurally provides — and what it does not
 
 **Provides (topology and provenance only):** partial order; reachability and
 transitive closure; ready-set computation; frontier/cut semantics; critical
@@ -157,7 +157,7 @@ that already exists for an independent reason, or subject asserted edges to a
 consistency check against independently-derived ones. Proposals that invent
 edges by fiat are ceremony.
 
-### 2.1 The build-graph hypothesis, evaluated honestly
+#### 2.1 The build-graph hypothesis, evaluated honestly
 
 > *Hypothesis under test: the autoharness pipeline is already a build graph
 > executed by a nondeterministic agent, and the determinism gap is that its
@@ -225,11 +225,11 @@ See candidate **C5**.
 
 ---
 
-## 3. Ground truth: the existing DAG surface (measured, not assumed)
+### 3. Ground truth: the existing DAG surface (measured, not assumed)
 
 Established by direct inspection this session. **Do not propose what already exists.**
 
-### 3.1 Already implemented
+#### 3.1 Already implemented
 
 | Surface | What it is | Determinism property |
 |---|---|---|
@@ -244,7 +244,7 @@ Established by direct inspection this session. **Do not propose what already exi
 | P-003 | Decomposition chain integrity — **already a graph-integrity policy**, enforced by prose + doctor's orphan check only. | D3 (asserted) |
 | P-017 `DARK_MODE_SCOPE` | Ordered shipment sequence + restart cursor, reconstructed by traversing `item_deps`. | D2, D6 |
 
-### 3.2 Measured state of that surface — the findings that drive everything below
+#### 3.2 Measured state of that surface — the findings that drive everything below
 
 | Measurement | Value | Significance |
 |---|---|---|
@@ -265,7 +265,7 @@ Established by direct inspection this session. **Do not propose what already exi
 | Tasks with no parent (P-003) | **3** | Detected by doctor |
 | Tasks in no shipment manifest | **11** | Undetected by anything |
 
-### 3.3 The load-bearing consequence
+#### 3.3 The load-bearing consequence
 
 Because 84% of shipment ordering is undeclared, `pipeline-topology` cannot read
 the order from the graph. It instead **reverse-engineers the numeric-ID
@@ -286,7 +286,7 @@ That heuristic has produced **two consecutive recorded correctness defects**:
 > produced is a determinism defect caused by absent graph structure. Materializing
 > the derivable edges removes the need for the heuristic entirely.
 
-### 3.4 The prose-vs-graph gap, in the planning path
+#### 3.4 The prose-vs-graph gap, in the planning path
 
 Three graph predicates are stated as **quality criteria** in
 `templates/skills/impl-plan/SKILL.md.tmpl` and evaluated by **a model reading
@@ -307,12 +307,12 @@ dependency graph"* and writes them to backlogit as real `blocks` edges. So:
 
 ---
 
-## 4. The opportunity map — 15 candidates, generated then pruned
+### 4. The opportunity map — 15 candidates, generated then pruned
 
 Node identity is called out explicitly for each, because it is the hard part and
 it is where most graph proposals die.
 
-### KEEP — near-term, bounded, zero new authority
+#### KEEP — near-term, bounded, zero new authority
 
 ---
 
@@ -372,7 +372,7 @@ it is where most graph proposals die.
 
 ---
 
-### KEEP — strategic, larger, still no new authority
+#### KEEP — strategic, larger, still no new authority
 
 ---
 
@@ -430,7 +430,7 @@ rather than a graph. That is what makes it the exception, not the rule.
 
 ---
 
-### PRUNE — cargo-cult DAG
+#### PRUNE — cargo-cult DAG
 
 A credible expansive analysis rejects some of its own ideas. These three add
 ceremony without determinism.
@@ -466,7 +466,7 @@ only** (C5), because that executor is hermetic.
 
 ---
 
-## 5. Ranked opportunity map
+### 5. Ranked opportunity map
 
 Ranked by **determinism yield ÷ (blast radius × authority required)**.
 
@@ -502,7 +502,7 @@ Ranked by **determinism yield ÷ (blast radius × authority required)**.
 
 ---
 
-## 6. Recommended architecture: one node namespace, several typed edge families
+### 6. Recommended architecture: one node namespace, several typed edge families
 
 **Answer to "one graph or several?": one *node namespace*, several *edge
 families*, and explicitly NOT one graph.**
@@ -534,7 +534,7 @@ L2  ANALYZERS — pure functions over ONE edge subset. Read-only. No persistence
 L3  BINDINGS  — the agent-contract sentence that makes an analyzer's output authoritative.
 ```
 
-### Two architectural laws
+#### Two architectural laws
 
 **Law 1 — DERIVE, NEVER PERSIST.** The source of truth is always the
 markdown/config that already exists for an independent reason. Analyzers compute
@@ -555,7 +555,7 @@ reader is dark data — which is **the present, measured condition of the 452
 task→task edges** and precisely the F5 failure mode. C6 makes violations of Law 2
 mechanically detectable, which is why it ranks so high for its size.
 
-### Where determinism actually comes from
+#### Where determinism actually comes from
 
 The DAG is never sufficient on its own. Each property requires a named pairing:
 
@@ -570,7 +570,7 @@ The DAG is never sufficient on its own. Each property requires a named pairing:
 
 ---
 
-## 7. Cross-repo boundary
+### 7. Cross-repo boundary
 
 Consistent with and extending `028-DL` §8.
 
@@ -596,9 +596,9 @@ immune to index staleness.
 
 ---
 
-## 8. Recommended FIRST SLICE
+### 8. Recommended FIRST SLICE
 
-### `autoharness gate backlog-graph-integrity` — read-only, report-only, exit 0 in v0
+#### `autoharness gate backlog-graph-integrity` — read-only, report-only, exit 0 in v0
 
 A read-only analyzer over the **already-existing** backlog graph, modelled
 directly on the proven `dag-readiness` contract (existence-guarded, `--json`,
@@ -639,7 +639,7 @@ parentheses):
 **Scope guard:** report-only, always exit 0 in v0. It governs nothing. Promotion
 to a blocking gate is a separate, authority-touching decision (§10, Q2).
 
-### 8.1 Falsification test — pre-registered
+#### 8.1 Falsification test — pre-registered
 
 The broader DAG program is **SUPPORTED** only if all four hold:
 
@@ -671,7 +671,7 @@ burden rather than removing choice).
 
 ---
 
-## 9. Anti-patterns and failure modes
+### 9. Anti-patterns and failure modes
 
 * **A1 — The written-but-unread graph (F5).** The measured, present condition:
   452 task edges with no reader. Any new edge family repeats this unless Law 2 is
@@ -709,7 +709,7 @@ burden rather than removing choice).
 
 ---
 
-## 10. Open questions requiring operator authority
+### 10. Open questions requiring operator authority
 
 * **Q1 — Ratify the two architectural laws?** *Derive, never persist* and *no
   graph without a reader; no reader without a binding* are policy-shaped
@@ -738,7 +738,7 @@ burden rather than removing choice).
 
 ---
 
-## 11. Honest assessment: was "DAG is diagnostic only" too narrow?
+### 11. Honest assessment: was "DAG is diagnostic only" too narrow?
 
 **Yes — in three specific respects, and sound in a fourth.**
 
@@ -771,7 +771,7 @@ measurable amount of determinism it could already have had.
 
 ---
 
-## 12. Stage gate conclusion and disposition
+### 12. Stage gate conclusion and disposition
 
 **Deliberation-only this session — by choice, and stated plainly.**
 
@@ -800,7 +800,7 @@ deliberation and **not archived**. Its frame is now three-stranded (Q5).
 ---
 ---
 
-# ADDENDUM — Pushback Round 1 (2026-08-25, Orchestrator adversarial review)
+## ADDENDUM — Pushback Round 1 (2026-08-25, Orchestrator adversarial review)
 
 Eight adversarial positions were put to this deliberation. **Five are adopted,
 one is adopted with a material precision, one is refuted with data, and one
@@ -808,7 +808,7 @@ reverses this document's own #1 recommendation.** New measurements were taken to
 settle three of them empirically. §A6 below is the most important result in this
 document.
 
-## A0. The manufactured gate — WITHDRAWN
+### A0. The manufactured gate — WITHDRAWN
 
 **Position:** *do not produce a fifth deferral.*
 
@@ -823,7 +823,7 @@ precondition.
 > genuine operator decision remaining is **§A3's enforcement level**, and even
 > that has a default that needs no consent.
 
-## A1. Does the termination objection transfer? — CONFIRMED, with one precision that matters
+### A1. Does the termination objection transfer? — CONFIRMED, with one precision that matters
 
 **Position:** an impl-plan task graph is a closed, finite, fixed node set;
 acyclicity + finiteness *does* imply termination there; topological order +
@@ -846,7 +846,7 @@ The plan graph is authored by an LLM, so the graph itself varies run to run.
 **Freezing the graph as an artifact is what makes the order reproducible** — which
 is precisely §A6's thesis.
 
-### A1.1 The closed/open partition
+#### A1.1 The closed/open partition
 
 | Surface | Node set | Closed at |
 |---|---|---|
@@ -867,7 +867,7 @@ is precisely §A6's thesis.
 **Nine closed surfaces, four open ones.** `028-DL` generalized from the open
 minority to the whole harness.
 
-### A1.2 Bonus finding — P-021 is a closed-world-preservation policy
+#### A1.2 Bonus finding — P-021 is a closed-world-preservation policy
 
 **P-021 (Bounded Fix-Cycle Scope Containment and Deferred Expansion Capture)
 exists precisely to keep the active node set closed.** Its C2 capture routes
@@ -877,7 +877,7 @@ closed-world maintenance mechanism — it has simply never been described in gra
 terms. Any future graph work over the shipment surface should cite P-021 as its
 closure guarantee rather than inventing one.
 
-## A2. Steering vs scheduling — ADOPTED, and the precedent is stronger than stated
+### A2. Steering vs scheduling — ADOPTED, and the precedent is stronger than stated
 
 **Position:** P-001/P-016 forbid *parallel execution*, not *deterministic
 selection of the single next action*.
@@ -900,7 +900,7 @@ The `dag-readiness` non-goal ("visibility/reporting only") binds **that gate's o
 contract**, not the category. A different gate may be fail-closed, because one
 already is.
 
-## A3. Enforcement — CONFRONTED, with a principle that dissolves most of the objection
+### A3. Enforcement — CONFRONTED, with a principle that dissolves most of the objection
 
 **Position:** only level (c), enforced, is genuinely steering; stop deferring it.
 
@@ -932,7 +932,7 @@ That gate needs **no operator consent** under the authority test. Only row 3 —
 constraining which work is taken next — does, and it is explicitly **not**
 proposed here.
 
-## A4. Are tie-breaks the bottleneck? — REFUTED, and the refutation reverses my own claim
+### A4. Are tie-breaks the bottleneck? — REFUTED, and the refutation reverses my own claim
 
 **Position:** determinism may be bottlenecked on missing tie-break rules rather
 than missing graph structure.
@@ -969,9 +969,9 @@ Three consequences, stated plainly:
 > convention itself) produced the two recorded defects. Worth doing. **Not worth
 > ranking first.**
 
-## A5. The two untouched levers
+### A5. The two untouched levers
 
-### A5a. Coverage as reachability — ADOPTED and promoted to #1 (see §A7)
+#### A5a. Coverage as reachability — ADOPTED and promoted to #1 (see §A7)
 
 Measured, and the numbers are decisive:
 
@@ -988,7 +988,7 @@ survives into 25% of plans; backlog task IDs exist universally. **The only missi
 link in the whole `R# → unit → task → evidence → closure` chain is the plan-unit
 ID** — which is exactly C1's fix, and it is one identifier, not a scheme.
 
-### A5b. Memoization — PRUNE DEFENDED for the strong form, CONCEDED for the weak form
+#### A5b. Memoization — PRUNE DEFENDED for the strong form, CONCEDED for the weak form
 
 The strong form (skip work when the input hash matches) stays pruned: agent nodes
 are non-hermetic, outputs are not content-addressable, the executor is stochastic.
@@ -1009,7 +1009,7 @@ it is the precondition for trusting *any* of the other graph properties over tim
 Precedent already exists and is proven — `gate_evidence.head_sha`,
 `copilot_review`'s HEAD-pinning.
 
-## A6. The central thesis — CONFIRMED, and it now dominates
+### A6. The central thesis — CONFIRMED, and it now dominates
 
 **Thesis:** *the pipeline is already a DAG, encoded in prose, re-derived by a
 stochastic reader every session; the deficit is re-derivation variance, so the
@@ -1060,7 +1060,7 @@ inverts. **Law 2 (no graph without a reader) is not a hygiene rule — it is the
 load-bearing finding.** Law 1 (derive, never persist) is merely the cheapest way
 to satisfy it.
 
-## A7. The competing first slice — the pushback's candidate WINS
+### A7. The competing first slice — the pushback's candidate WINS
 
 **Direct answer: the plan-graph structural linter beats this document's
 `backlog-graph-integrity`, and the data says so unambiguously.**
@@ -1087,7 +1087,7 @@ coverage is not solved at all.
   commit SHAs that resolve** (3/3 and 2/2); they are merely embedded in prose
   strings rather than typed fields.
 
-### A7.1 Something sharper than either — the CONVENTION-DECAY DETECTOR
+#### A7.1 Something sharper than either — the CONVENTION-DECAY DETECTOR
 
 §A6's natural experiment generalizes into a check neither candidate proposed:
 
@@ -1107,7 +1107,7 @@ coverage is not solved at all.
   convention it flags as declining must, on inspection, have no mechanical
   reader. A declining convention that *does* have a reader refutes Law 2 outright.
 
-### A7.2 Revised FIRST SLICE
+#### A7.2 Revised FIRST SLICE
 
 **`autoharness gate coverage-integrity` — read-only, report-only, exit 0 in v0**,
 merging the computable parts of both candidates plus the decay detector:
@@ -1142,7 +1142,7 @@ experiment supplies a genuinely refutable one:
 > difference ⇒ the coverage hole is not costing anything ⇒ this program should be
 > closed, not staged.**
 
-## A8. Symmetric pruning — one addition
+### A8. Symmetric pruning — one addition
 
 Prunes from §4 stand (quality-gate DAG, policy-interaction DAG, memoization's
 strong form). **One prune is added against this document itself:** C13's claim to
@@ -1154,7 +1154,7 @@ Skepticism has not been used to recommend nothing: §A3 proposes a **concrete
 fail-closed gate** requiring **no operator consent**, and §A7.2 names a single
 revised #1 with a refutable prediction.
 
-## A9. Revised disposition
+### A9. Revised disposition
 
 * **Q1 (ratify the laws) — WITHDRAWN** as a gate (§A0). Law 2 is now evidence, not
   a proposal.
@@ -1178,14 +1178,14 @@ recommendation on evidence, so `impl-plan` should run against §A7.2 rather than
 
 ---
 
-# ADDENDUM — Pushback Round 2 (Orchestrator adversarial review)
+## ADDENDUM — Pushback Round 2 (Orchestrator adversarial review)
 
 **Outcome: the round-1 #1 is withdrawn.** Position 1 was correct that my Law 2
 evidence did not rule out the teeth hypothesis. I ran the experiment that
 separates the variables. It refutes Law 2 as I stated it, and it also refutes
 the round-1 slice. A new #1 follows from the corrected law.
 
-## B1 — Law 2 REFUTED as stated. The variable is not readership.
+### B1 — Law 2 REFUTED as stated. The variable is not readership.
 
 The objection was that "has a reader" and "has a reader with teeth" were
 perfectly collinear at n=2. Correct. So I found the cell that separates them.
@@ -1203,7 +1203,7 @@ for its absence*.
 
 That yields a paired comparison with the confound removed:
 
-### The isolating experiment — same gate, same corpus, same period
+#### The isolating experiment — same gate, same corpus, same period
 
 | Shipment band | **Closure artifact** (absence **blocks**) | **`dependencies:`** (absence **silently compensated**) |
 |---|---|---|
@@ -1224,7 +1224,7 @@ Mature bands (117-S+, n=39): closure present 37/39, `dependencies:` present
 
 **Readership is not the variable.** The Orchestrator is right.
 
-## B1.1 — But the corrected law has TWO durable mechanisms, not one
+### B1.1 — But the corrected law has TWO durable mechanisms, not one
 
 The teeth hypothesis says "penalize absence." That is one durable cell. The data
 show a second, and `gate size` is the proof:
@@ -1254,7 +1254,7 @@ bands of life). The AC block also looked healthy at band 3 (62%) before
 collapsing. The 100% is consistent with the generation mechanism but not yet
 proof of it over a long horizon.
 
-## B1.2 — Consequence: the round-1 slice would have rotted
+### B1.2 — Consequence: the round-1 slice would have rotted
 
 `autoharness gate coverage-integrity` as specified in §A7.2 is **report-only** —
 cell 3, the `dependencies:` cell, the one that decayed. **The objection lands.
@@ -1267,7 +1267,7 @@ maintained per artifact has **no per-artifact convention to decay**. That
 distinction is what the new #1 is built on, and it is testable rather than
 asserted.
 
-## B2 — ADOPTED. The authority test needs an activation-blast-radius dimension.
+### B2 — ADOPTED. The authority test needs an activation-blast-radius dimension.
 
 Correct, and I measured the gap without connecting it. De jure / de facto is a
 real distinction:
@@ -1290,7 +1290,7 @@ Sequencing that actually works, given 73%:
 
 Absent step 1, step 3 is undeployable. The Orchestrator is right that this was missing.
 
-## B3 — CONCEDED: the falsifier is NOT computable. Replaced, and the replacement reads null.
+### B3 — CONCEDED: the falsifier is NOT computable. Replaced, and the replacement reads null.
 
 `copilot_review.py` operates on PR-level `reviewThreads`, storing thread IDs and
 `isResolved` (L81, L297-314). **There is no per-task attribution of review
@@ -1322,7 +1322,7 @@ records/shipment with n=20/38, only an enormous effect is detectable.
 and the best available local test cannot supply any.** That is a second,
 independent reason to demote it — on top of B1.2.
 
-## B4 — B1 + B3 together produce a new #1
+### B4 — B1 + B3 together produce a new #1
 
 Coverage was round-1's #1 on the strength of a large *structural* gap (73%).
 B3 shows that gap has **no measurable outcome consequence**, and B1.2 shows the
@@ -1332,7 +1332,7 @@ longer #1.**
 The best-evidenced finding in this entire document is now **the durability law
 itself** (p≈2e-5, confound isolated). The intervention that follows from it:
 
-### NEW #1 — `autoharness gate convention-durability` (read-only, retrospective)
+#### NEW #1 — `autoharness gate convention-durability` (read-only, retrospective)
 
 Classify **every** structured convention in the corpus into the four durability
 cells and **predict** which will decay.
@@ -1370,7 +1370,7 @@ any convention in the *unread* or *tolerated* cell is stable or rising across
 **Authority: none.** Read-only, retrospective, zero corpus impact, no new
 obligation, no consent.
 
-### #2 — AC-ID **generator**, not AC-ID reporter (gated on #1)
+#### #2 — AC-ID **generator**, not AC-ID reporter (gated on #1)
 
 If #1 says coverage is worth investment, the instrument is **not** a report. It
 is `gate size`'s shape applied to criteria: advisory, fail-open, never blocking —
@@ -1381,7 +1381,7 @@ mechanically assign stable `ACn` IDs to the criteria **already present** in the
 flatly: slice 1 could never have performed its flagship check, and I let the
 slice inherit rhetorical weight it had not earned.
 
-## B5 — P-021 reframe: one narrow mechanism, otherwise insight. Labelled.
+### B5 — P-021 reframe: one narrow mechanism, otherwise insight. Labelled.
 
 Fair challenge. Honest answer: **one operational consequence, and it is small.**
 
@@ -1394,7 +1394,7 @@ Beyond that sequencing constraint, **it is a description, not a mechanism.** It
 is hereby labelled **INSIGHT**, not architecture, and must not accrete further
 weight.
 
-## B6 — Revised disposition
+### B6 — Revised disposition
 
 * **Round-1 #1 (`coverage-integrity`) — WITHDRAWN** on two independent grounds (B1.2 decay, B3 null outcome).
 * **NEW #1 — `gate convention-durability`**, read-only, retrospective, zero authority, already-validated prediction, sharp falsifier.
@@ -1410,9 +1410,9 @@ running the experiment rather than defending the position.
 
 ---
 
-# ADDENDUM — Pushback Round 3 (final round)
+## ADDENDUM — Pushback Round 3 (final round)
 
-## C1 — Scope drift: the DAG question is **ANSWERED**, not abandoned or superseded
+### C1 — Scope drift: the DAG question is **ANSWERED**, not abandoned or superseded
 
 I pick **answered**, and I will defend it — but only after conceding the charge
 is partly correct.
@@ -1425,7 +1425,7 @@ and it happened across rounds rather than by decision. Naming it explicitly:
 > lever. The lever is whether a machine produces the artifact or penalizes its
 > absence.**
 
-### C1.1 — But the durability law does NOT subsume the DAG question
+#### C1.1 — But the durability law does NOT subsume the DAG question
 
 The two are **orthogonal axes**, and conflating them would be a second drift in
 the opposite direction:
@@ -1438,7 +1438,7 @@ It answers "what will survive being represented," never "what is worth
 representing." A graph that survives still has to earn its keep; a graph that
 cannot survive never gets the chance.
 
-### C1.2 — The nine closed surfaces, with the durability filter applied
+#### C1.2 — The nine closed surfaces, with the durability filter applied
 
 Round 3 asked precisely which survive. The discriminator is **where node
 identity comes from**:
@@ -1460,7 +1460,7 @@ and the two that die are precisely the two that round 2 had promoted. That is
 the answer to "does the law dissolve them too": **it dissolves exactly the ones
 that require authors to mint new identifiers, and no others.**
 
-### C1.3 — I tested whether a DAG-shaped candidate beats my non-DAG #1. It lost, on data.
+#### C1.3 — I tested whether a DAG-shaped candidate beats my non-DAG #1. It lost, on data.
 
 The fairest challenger was the **cross-reference integrity graph** (C6): a
 genuine DAG, derived from existing data, zero authority, retrospective — it
@@ -1485,7 +1485,7 @@ and had not previously applied to a DAG candidate.
 precondition, the headline is the durability law, and the document is retitled
 accordingly.**
 
-## C2 — The produced cell: n is not 1, but the cell #2 needs **is**
+### C2 — The produced cell: n is not 1, but the cell #2 needs **is**
 
 Round 3 is right that I buried this. Splitting the cell resolves it:
 
@@ -1506,7 +1506,7 @@ durability report must emit produced-cell membership and trend, **split by
 store-produced vs gate-produced**, so #2's bet is evaluated against measured
 gate-produced durability rather than assumed.
 
-## C3 — The underpowered null is downgraded
+### C3 — The underpowered null is downgraded
 
 Adopted without reservation. An underpowered null cannot distinguish *no effect*
 from *insufficient power*.
@@ -1518,12 +1518,12 @@ from *insufficient power*.
 > alone**, which is sufficient. Any later reader who treats §B3 as showing
 > coverage does not matter is over-reading it.
 
-## C4 — Stage gate conclusion: **1a ready in substance, gate NOT cleared. Criteria named.**
+### C4 — Stage gate conclusion: **1a ready in substance, gate NOT cleared. Criteria named.**
 
 Under the standing authorization I ran my own gates honestly. They do not clear,
 and here is exactly why — three measured criteria, not a habit deferral.
 
-### C4.1 — The #1 slice must split, because it fails its own law
+#### C4.1 — The #1 slice must split, because it fails its own law
 
 Building the classifier surfaced a genuine self-application failure:
 
@@ -1550,7 +1550,7 @@ and decays by its own law.** Distinguishing "penalizes absence" from "tolerates
 absence" is not mechanizable at all: finding it in `_prior_shipment_id` required
 reading the fallback logic.
 
-### C4.2 — The Step-3 planning gate cannot be executed in this workspace
+#### C4.2 — The Step-3 planning gate cannot be executed in this workspace
 
 `.github/skills/` contains **four** installed skills: `install-harness`,
 `tune-harness`, `verify-harness`, `workspace-discovery`.
@@ -1565,7 +1565,7 @@ I will not hand-write a document and label it an impl-plan output. Substituting
 prose for an absent mechanism is the exact failure this document spent three
 rounds diagnosing, and doing it here would falsify the finding by example.
 
-### C4.3 — Gate verdict
+#### C4.3 — Gate verdict
 
 **BLOCKED — unmet criteria, all measured:**
 
@@ -1589,7 +1589,7 @@ the same class of finding as everything else in this document: **the mechanism
 exists as a template and is not installed, so the step is re-derived in prose
 instead of executed.**
 
-## C5 — Closing
+### C5 — Closing
 
 Three rounds. Two of my own #1s withdrawn on measurement, one DAG candidate
 pruned on a measured 0% defect rate, one of my own laws refuted and corrected,

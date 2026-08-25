@@ -1,0 +1,12 @@
+# Vendored third-party submodules (see .gitmodules) — not first-party Markdown.
+references/
+
+# Virtual environments and package trees
+.venv/
+venv/
+node_modules/
+
+# Build/coverage output
+build/
+dist/
+htmlcov/
