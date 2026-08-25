@@ -104,6 +104,64 @@ suspiciously uniform across unrelated rows is rehydration bookkeeping until prov
 otherwise. Confidence in a schema claim may not exceed the authority of the surface it was
 read from. → Candidate for `docs/compound/`, independent of whether the agent is built.
 
+## ROUND-2 ADDENDUM — the trigger substrate was wrong; replaced
+
+**Operator found a real hole.** Stash entries have **no `status` field**, so `blocked_stale`
+(a blocked-status staleness threshold) can never fire on one. And `item_log_entries` is an
+*items* table — `34AAF1C7` accrued its re-triages while still a stash entry, never
+harvested, so it would have zero rows. **The trigger as specified would not have fired on
+the case it was designed to catch.** Same error class as the cache read, one layer up:
+there I read the wrong *storage* surface; here I proposed against the wrong *entity* surface.
+
+**Replacement substrate — the reverse index, which already has a machine producer.**
+`backlogit deliberate <stash-id>` writes `custom_fields.linked_stash_id` into the `-DL`
+item. Measured across all 33 `-DL` items:
+
+| Creation path | Carries `linked_stash_id` |
+|---|---|
+| `backlogit deliberate <stash-id>` | **29 / 29 (100%)** |
+| generic `create_item` / `add` | **0 / 4 (0%)** (`029-DL`, `044.001`, `045.001`, `053.001`) |
+| **Total** | **29 / 33 (88%)** |
+
+The producer never fails when invoked — it is simply **bypassable**. This session is the
+controlled demo: `030-DL` created via `create_item` (no ref), deleted, re-created via
+`deliberate 08D71FD5` (ref present).
+
+**Two corrections to the addendum itself:** (1) `-DL` items are **not** at 0 back-references
+— they are at 88%; the operator grepped for `source_stash`/`stash_id` and the field is
+`custom_fields.linked_stash_id`. (2) The durability requirement is therefore **not**
+"make `source_stash` machine-produced from 7%" but **"mandate the existing code path and
+penalize the bypass, from 88%"** — materially cheaper. `source_stash:` in `docs/decisions/`
+(3/43, 7%) is retained as a secondary human-readable index only.
+
+**Undercount, two layers (both recorded honestly):**
+- **Layer 1 — bypass (fixable).** 4/33 = 12% missing. `34AAF1C7` has two formal
+  deliberations (`028-DL`, `029-DL`) but `linked_stash_id` finds only `028-DL`;
+  `source_stash` finds both. **Neither index alone returns 2 — only their union does.**
+- **Layer 2 — structural (NOT fixable by the index).** A re-triage that produces no
+  deliberation artifact is invisible to any deliberation-artifact counter. `34AAF1C7`'s
+  08-14 and 08-15 re-triages emitted only prose. True count ~5, union index returns 2.
+  **The counter counts deliberations, not deferrals.** Closing this requires making the
+  *defer decision itself* producing — which promotes the P-006 analogue from complement to
+  necessary second half (gate component C).
+- Bias is adverse and compounds: both layers undercount worst on old, repeatedly-deferred
+  entries — the ones most needing the trigger.
+- Threshold ≥2 is a **lower bound**: safe against false positives, prone to false negatives.
+  Correct failure direction for a gate that forces extra work. Do not lower to 1.
+
+**Gate expands from 2 components to 4** (§4.6): (A) the union counter; (B) the bypass
+penalty — `verify-harness` FAILs on a new `-DL` without `linked_stash_id`, enforce-on-new-only
+so day-one blast radius is zero; (C) defer-emits-an-artifact, per Layer 2; (D) the
+`verify-harness` FAIL on ≥2 deferrals with no ideation artifact.
+
+**VERDICT RE-CONFIRMED UNCHANGED: CONDITIONAL BUILD.** The hole was in the substrate, not
+the argument — it is one more surface that cannot see the phenomenon, reinforcing §4.1.
+The replacement is *cheaper* (88% producer already exists vs. building one). The one thing
+that genuinely got harder: Layer 2 was invisible in v1, and component (C) is new work.
+
+Also: this artifact now carries its own `source_stash: 08D71FD5` frontmatter, dogfooding
+the convention it mandates.
+
 ## Termination rule (reuses 028-DL)
 
 `B₀ = R_max = 3`; `B_r = min(B_{r−1} − 1, N_r)`; terminate at `B_r ≤ 0`, where `N_r` counts

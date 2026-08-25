@@ -1,3 +1,17 @@
+---
+title: "Adversarial Ideation: The Primitive Is Sound, Its Trigger Does Not Exist — Build the Deferral Counter or Do Not Build the Agent"
+date: 2026-08-25
+status: decided
+source_stash: 08D71FD5
+deliberation_id: 030-DL
+related_artifacts: [028-DL, 029-DL, 34AAF1C7, 8AC574F1, 7628C291]
+source: docs/decisions/2026-08-25-adversarial-ideation-trigger-before-primitive-deliberation.md
+doc_type: decision
+artifact_kind: deliberation
+agent: stage
+route: claude-opus-5 / anthropic / high
+---
+
 # Adversarial ideation: the primitive is sound, its trigger does not exist — build the deferral counter or do not build the agent
 
 **Date**: 2026-08-25
@@ -357,7 +371,14 @@ remembering to.
 I am not recommending against building. I am recommending that **the trigger is the
 deliverable and the agent is the payload**, and that they ship together.
 
-### 4.3 The producer precedent already exists in this workspace
+### 4.3 The producer precedent — and why `blocked_stale` cannot be the trigger
+
+> **CORRECTED 2026-08-25 (round 2 addendum).** v1 named `blocked_stale` + an
+> `item_log_entries` counter as the trigger substrate. **The operator found a hole and
+> was right: neither can reach a stash entry.** The substrate is replaced below. The
+> *shape* of the mechanism — machine crosses threshold, emits event, pushes to Stage —
+> survives intact, and the replacement producer turned out to already exist at 88%
+> adoption. See §4.3b.
 
 `.backlogit/hooks.yaml`, live and enabled:
 
@@ -370,27 +391,118 @@ agent_subscriptions:
         - blocked_stale
 ```
 
-This is a **machine crossing a threshold, emitting an event, and pushing it to Stage**.
-Stage does not remember to check for stale blocked items; it is *told*. That is a
-working cell-1/cell-2 mechanism in the same config file, and it is the exact template
-the ideation trigger should copy. The design does not need a novel mechanism — it needs
-the existing one extended to a surface that currently lacks it.
+This is the right *shape*: a **machine crossing a threshold, emitting an event, and
+pushing it to Stage**. Stage does not remember to check for stale blocked items; it is
+*told*.
 
-**The root cause is a surface asymmetry, and the correction in §4.1 sharpens it.**
-Items have a full event log — `item_log_entries(item_id, timestamp, actor, event_type,
-content, delta_json)` — so an item's history is a *sequence of recorded events*. A stash
-entry has exactly **one** timestamp, `created_at`, and no log table at all. That single
-timestamp is accurate and usable; it simply answers a different question. Age is a
-**point**, deferral count is a **sequence**, and no point-valued field can encode a
-sequence no matter how correctly it is populated.
+**But it cannot fire on the motivating case.** The stash source-of-truth field union is
+`created_at, deliberation_id, id, kind, priority, text` — **there is no `status` field**.
+A stash entry can never be `blocked`, so a blocked-status staleness threshold can never
+reach one. The `item_log_entries` counter has the matching defect: it is an *items*
+table, and `34AAF1C7` accumulated its re-triages **while still a stash entry**, never
+harvested. It would have accrued exactly zero rows.
 
-That is why `blocked_stale_days` works on items and has no stash analogue: it thresholds
-over an event history that the stash surface does not keep. Deferrals happen on the one
-surface with no log. **The missing thing is an event log, not a missing or broken
-field** — which is precisely why D2 (§4.4) attaches the counter to `item_log_entries`
-rather than trying to add another column to the stash.
+As originally specified, **the trigger would not have fired on the one case it was
+designed to catch** — a mechanism proposed against a surface where the phenomenon does
+not live. Same error class as §4.1c, one layer up: there I read the wrong *storage
+surface*; here I proposed against the wrong *entity surface*.
 
-### 4.4 Three durability options, ranked
+**The root cause statement holds and is now precise.** Items have a full event log —
+`item_log_entries(item_id, timestamp, actor, event_type, content, delta_json)` — so an
+item's history is a *sequence of recorded events*. A stash entry has exactly **one**
+timestamp, `created_at`, no status, and no log table. That timestamp is accurate and
+usable; it simply answers a different question. Age is a **point**, deferral count is a
+**sequence**, and no point-valued field encodes a sequence no matter how correctly it is
+populated. `blocked_stale` works on items *because* it thresholds over an event history
+the stash surface does not keep.
+
+**Disposition of `blocked_stale`**: retained for the **post-harvest item case only** — a
+harvested feature that stalls in `blocked` is a genuine and distinct signal, and the
+subscription already exists. It is **not** the repeat-deferral trigger and must not be
+described as one.
+
+### 4.3b The replacement substrate: the reverse index, which already has a machine producer
+
+The right predicate is **"how many distinct deliberation artifacts name this stash
+entry?"** — it counts *deliberation events*, not elapsed time, which is exactly the
+discrimination §4.1 established as necessary.
+
+The operator proposed building this on `source_stash:` in `docs/decisions/` frontmatter.
+That convention is real but sits at **3 of 43 decision docs (7%)** — itself a cell-4
+convention, which would make the trigger's durability recursive on establishing it.
+
+**It does not need to be.** A second reverse index already exists, and it is
+**machine-produced**:
+
+```
+backlogit deliberate <stash-id>   →   writes custom_fields.linked_stash_id
+                                       into the -DL item's frontmatter
+```
+
+Measured adoption across all 33 `-DL` items in `queue/` + `archive/`:
+
+| Creation path | Carries `linked_stash_id` |
+|---|---|
+| `backlogit deliberate <stash-id>` | **29 / 29 (100%)** |
+| generic `create_item` / `add` | **0 / 4 (0%)** |
+| **Total** | **29 / 33 (88%)** |
+
+The four misses are `029-DL`, `044.001-DL`, `045.001-DL`, `053.001-DL` — every one
+created through the generic path (the `.001` suffixes are child items created with
+`parent_id`). The correlation is total: **the producer never fails when invoked; it is
+simply bypassable.**
+
+**This session is a controlled demonstration of exactly that.** I first created `030-DL`
+with `backlogit_create_item` — no back-reference. I deleted it and re-created it with
+`backlogit deliberate 08D71FD5` — back-reference present. Same artifact, same session,
+both paths, opposite outcomes.
+
+So the durability problem is **not** "establish a new convention from 7%." It is
+**"mandate the existing code path and penalize the bypass"** — starting from 88%, on a
+producer that already works. That is materially cheaper than the proposed route and puts
+the field in `029-DL` cell 1 (produced), whose measured trajectory is 0→48→100→**100%**.
+
+`source_stash:` in `docs/decisions/` is retained as a **secondary, human-readable index**,
+not the substrate. Its 7% is a known limitation, not a dependency.
+
+### 4.3c The undercount, recorded honestly — two layers, not one
+
+The counter is a **lower bound**. It undercounts in two distinct ways, and only the first
+is fixable by the gate.
+
+**Layer 1 — bypass undercount (fixable).** 4 of 33 `-DL` items (12%) lack the reference
+because they were created through the generic path. Concretely: `34AAF1C7` has **two**
+formal deliberations (`028-DL`, `029-DL`), but `linked_stash_id` finds only `028-DL`
+because `029-DL` bypassed. The `source_stash:` index finds **both**. Neither surface
+alone returns the correct answer of 2; their **union** does. Penalizing the bypass closes
+this layer.
+
+**Layer 2 — structural undercount (NOT fixable by the reverse index).** This is the
+deeper limit and it must not be glossed. **A re-triage that produces no deliberation
+artifact is invisible to any deliberation-artifact counter.** `34AAF1C7`'s 2026-08-14 and
+2026-08-15 re-triages emitted only prose annotations into the `text` blob — no `-DL` item,
+no decision doc, nothing to count. So the true figure is ~5 deferrals, the union index
+returns 2, and no amount of back-reference hygiene closes that gap. **The counter counts
+deliberations, not deferrals.** Closing Layer 2 requires making the *defer decision itself*
+a producing action — which is precisely the P-006-analogue in §4.5, and is why that
+section is a complement rather than a nice-to-have.
+
+**The bias is adverse, as the operator noted, and it compounds.** Both layers undercount
+worst on old, repeatedly-deferred entries — the conventions post-date them and informal
+re-triage was the norm. The entries most needing the trigger are the least visible to it.
+
+**Threshold implication.** Because the count is a lower bound that never overcounts, a
+threshold of ≥ 2 is **safe against false positives and prone to false negatives**. For a
+gate whose consequence is *forcing additional work*, that is the correct failure
+direction: a missed trigger costs a deferral, a spurious one costs an unnecessary
+multi-model dialectic. Do not compensate by lowering the threshold to 1 — that converts a
+lower-bound counter into a noise source.
+
+### 4.4 Durability options, ranked
+
+> **CORRECTED (round 2 addendum).** v1's D2 counted `deferred` events in
+> `item_log_entries`. Per §4.3, that surface cannot see a stash-resident deferral, so D2
+> is **replaced** by the reverse-index counter. D1 and D3 are unchanged in shape.
 
 **D1 — Upstream schema change (strongest, not owned).**
 Add `deferral_count` + an append-only `deliberation_ids` list to the **stash
@@ -403,26 +515,35 @@ source exists in this repo (all 66 `.go` files are in the gitignored `references
 checkout, which does not contain it). This is an upstream feature request with unbounded
 latency. **Do not make the build depend on it.**
 
-**D2 — Harness-owned counter via item materialization (the substrate).**
-On a defer decision, Stage materializes the entry as a deferred item and appends a
-`deferred` event to `item_log_entries` — a table that already exists and already records
-`actor` and `event_type`. The counter becomes a one-line query:
+**D2 (REPLACED) — Reverse-index counter over the existing producer.**
+Count distinct deliberation artifacts naming the stash entry, taking the **union of both
+reverse indices** (§4.3c Layer 1 shows neither alone is sufficient):
 
 ```sql
-SELECT item_id, count(*) AS deferrals FROM item_log_entries
-WHERE event_type = 'deferred' GROUP BY item_id HAVING deferrals >= 2
+-- primary: machine-produced by `backlogit deliberate <stash-id>`, 88% adoption today
+SELECT count(*) FROM items
+WHERE artifact_type = 'deliberation'
+  AND json_extract(custom_fields, '$.linked_stash_id') = :stash_id
 ```
 
-No upstream change. Machine-written, not narrated. **This is the substrate D3 checks.**
+union with `source_stash:` matches in `docs/decisions/*.md` frontmatter. Threshold ≥ 2.
+**No upstream change, no new convention, no new producer** — the producer exists and
+works; §4.6-B closes the bypass. Machine-written, not narrated.
 
 **D3 — Penalizer via `verify-harness` (the durable minimum).**
 `verify-harness` is **installed in this workspace** (one of only four engine skills) and
 is already a PASS / PASS-WITH-WARNINGS / **FAIL** machine with adversarial multi-reviewer
-consensus. Add a check: *any item with ≥ 2 `deferred` events and no linked ideation
-artifact → FAIL.* Absence penalized. Cell 2 — the closure-artifact trajectory
-0→68→91→**100%**, the strongest measured curve after machine production.
+consensus. Two checks:
 
-**Ruling: D2 + D3 ship with the agent. D1 is filed upstream and is not a dependency.**
+* *any stash entry at ≥ 2 counted deliberations with no linked ideation artifact* → **FAIL**;
+* *any newly created `-DL` item lacking `linked_stash_id`* → **FAIL** (this is the bypass
+  penalty; see §4.6-B).
+
+Absence penalized. Cell 2 — the closure-artifact trajectory 0→68→91→**100%**, the
+strongest measured curve after machine production.
+
+**Ruling: D2 (as replaced) + D3 ship with the agent. D1 is filed upstream and is not a
+dependency.**
 
 ### 4.5 A second, stronger producer — the P-006 analogue
 
@@ -442,17 +563,47 @@ long-term mechanism and the weaker short-term one. D3 does not share this limita
 `verify-harness` is installed — which is why D3 is the durable minimum and this is the
 complement.
 
+**Elevated by the round-2 addendum**: §4.3c Layer 2 shows this is the *only* mechanism
+that can close the structural undercount, because it is the only one that makes the
+**defer decision itself** a producing action. The reverse-index counter can never see a
+deferral that produced no artifact. That moves §4.5 from "better long-term complement" to
+**the necessary second half**, and it is why it appears in the gate below as component C
+rather than as an aspiration.
+
 ### 4.6 Gate criterion (the named condition on the build)
 
 > **The `adversarial-ideation` agent MUST NOT be harvested or shipped unless the same
-> unit of work also delivers (a) a machine-written deferral counter (D2) and (b) a
-> `verify-harness` check that FAILS on ≥ 2 deferrals without a linked ideation artifact
-> (D3).**
+> unit of work also delivers all four of:**
 >
-> **If (a) and (b) are descoped, the recommendation inverts to DO NOT BUILD** — because
+> **(A) The counter.** A machine-computable repeat-deferral count over the union of the
+> two reverse indices, threshold ≥ 2 (D2 as replaced, §4.4).
+>
+> **(B) The bypass penalty — the recursive requirement.** The `linked_stash_id`
+> back-reference must be *guaranteed*, not merely usual. Deliberation creation MUST go
+> through `backlogit deliberate <stash-id>`, and `verify-harness` MUST **FAIL** on any
+> newly created `-DL` item lacking `linked_stash_id`. **The trigger's durability rests on
+> this**: a counter over a bypassable index silently undercounts, and by this artifact's
+> own inversion rule, a rotting trigger flips the verdict. Enforce-on-new-only, so day-one
+> blast radius is zero and the 4 legacy misses are grandfathered rather than blocking.
+>
+> **(C) The defer-emits-an-artifact rule.** A Stage defer decision on a stash entry MUST
+> emit a countable artifact (a `-DL` item at minimum), per §4.3c Layer 2. Without this the
+> counter measures deliberations rather than deferrals and structurally cannot see the
+> `34AAF1C7` pattern that motivated the design.
+>
+> **(D) The penalizer.** A `verify-harness` check that FAILS on ≥ 2 counted deferrals with
+> no linked ideation artifact (D3, §4.4).
+>
+> **If any of (A)–(D) is descoped, the recommendation inverts to DO NOT BUILD** — because
 > a correct, elegant, uninvoked ideation agent is strictly worse than no agent: it
 > consumes maintenance and review budget, appears in the primitive map as a solved
 > problem, and suppresses future attempts at the same capability.
+
+**Note the asymmetry in cost**: (B) starts from a producer already at **88%** and only
+has to close a bypass. (C) is the genuinely new work. v1's gate had two components and
+understated (C) entirely; the addendum's correction makes the true shape visible. The
+total is still materially cheaper than v1 implied, because (A) no longer requires
+building a counter substrate from scratch.
 
 This is checkable at harvest time by a human or a gate, and it is a named criterion —
 not a spike-first punt.
@@ -666,16 +817,43 @@ workspace (four engine skills only: `install-harness`, `tune-harness`, `verify-h
 plan-review verdict is claimed. Deliberation itself was achievable without the
 `deliberate` skill, as instructed.
 
-**Recommendation: CONDITIONAL BUILD.**
+**Recommendation: CONDITIONAL BUILD.** *(Re-confirmed after the round-2 addendum — see
+§7.0.)*
 
 **Build** `adversarial-ideation` as an agent (§2), with the loop of §3 and the
-termination rule of §5 — **conditional on the §4.6 gate criterion**. The precondition
-(D2 counter + D3 `verify-harness` check) is independently valuable: it makes *any*
-repeat-deferral policy enforceable, including ones unrelated to ideation.
+termination rule of §5 — **conditional on the §4.6 gate criterion (A)–(D)**. The
+precondition is independently valuable: it makes *any* repeat-deferral policy
+enforceable, including ones unrelated to ideation, and component (B) fixes a
+back-reference bypass that already causes real undercounting today regardless of whether
+this agent is ever built.
 
-**Do not build** if the durability mechanism is descoped. Reasoned negative with named
-criteria per §4.6 — an uninvoked ideation agent is worse than none, because it occupies
-the primitive map slot while decaying.
+**Do not build** if any of (A)–(D) is descoped. Reasoned negative with named criteria per
+§4.6 — an uninvoked ideation agent is worse than none, because it occupies the primitive
+map slot while decaying.
+
+### 7.0 Does the addendum change the verdict? No — and the operator's reasoning holds
+
+The operator asked explicitly whether the trigger-substrate correction flips the
+recommendation, and declined to answer it for me. It does not, for three reasons, and the
+mechanism ends up **better**, not weaker:
+
+1. **The hole was in the substrate, not the argument.** §4.1's finding — repeat-deferral
+   is not mechanically detectable from the stash surface — is *reinforced* by the
+   discovery that neither `blocked_stale` nor `item_log_entries` can reach a stash entry.
+   That is one more surface that cannot see the phenomenon, not a counterexample.
+2. **The replacement is cheaper than what it replaces.** v1 required building a counter
+   substrate from scratch. The replacement runs on a producer that already exists and
+   already achieves **88%** — and the operator's proposed `source_stash` route (7%, cell
+   4) turned out not to be needed as the primary. The gate got *more* achievable.
+3. **The inversion rule is untouched and now has more teeth.** Gate components (B) and (C)
+   are named precisely so that descoping them triggers the documented inversion rather
+   than quietly shipping a decaying trigger.
+
+The one thing that genuinely got harder is honest to state: **§4.3c Layer 2 revealed a
+structural undercount that v1 did not see at all**, and closing it (component C) is new
+work. That raises the true cost of the gate while lowering the cost of the counter. Net:
+the recommendation stands unchanged, with a more accurate and slightly larger
+precondition.
 
 ### 7.1 What would falsify this recommendation
 
@@ -734,3 +912,22 @@ inversion to DO NOT BUILD if the durability mechanism is descoped. The corrected
 strengthen the argument — §4.1 now rests on a *working* timestamp that still cannot
 express the predicate, which is a sharper claim than a broken one. The error itself is
 recorded as §4.1c, a worked example of the `029-DL` cache-vs-source-of-truth hazard.
+
+**Round-2 addendum (same round, folded in).** The operator found a hole in the proposed
+producer and was right: stash entries have **no `status` field**, so `blocked_stale`
+cannot fire on one, and `item_log_entries` is items-only, so a stash-resident deferral
+accrues zero rows. **The trigger as specified would not have fired on the case it was
+designed to catch.** §4.3 is rewritten; the substrate is replaced by a reverse-index
+count (§4.3b); the undercount is recorded in two layers (§4.3c); D2 is replaced (§4.4);
+and the gate criterion expands from two components to four (§4.6-A–D).
+
+Two of the addendum's own claims were corrected in turn, both verified against the
+repository: (1) `-DL` items **do** carry a stash back-reference — `custom_fields.linked_stash_id`,
+present in **29 of 33 (88%)**, not 0 of 3 — and it is **machine-produced** by
+`backlogit deliberate <stash-id>`; the 4 misses are all generic-path creations.
+(2) Consequently the durability requirement is *not* "make `source_stash` machine-produced
+from 7%" but "mandate the existing code path and penalize the bypass from 88%", which is
+materially cheaper. This session is itself the controlled demonstration: `030-DL` was
+created both ways and only the `deliberate <stash-id>` path produced the reference.
+**Verdict re-confirmed unchanged (§7.0).** This artifact now carries its own
+`source_stash:` frontmatter, dogfooding the convention it mandates.
