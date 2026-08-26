@@ -16,7 +16,11 @@ from pathlib import Path
 
 from _git_env import consistent_git_env
 
-ALLOWED_ROOT_JSON = frozenset({".mcp.json", "plugin.json"})
+# Deliberate, permanent root-level configs only -- not scratch dumps.
+# .markdownlint.json must live at depth 0: the P-019 pre-push hook invokes
+# `markdownlint '**/*.md'` with no --config, so the rule set is picked up purely
+# by root auto-discovery. Moving it deeper silently disables the P-008 gate.
+ALLOWED_ROOT_JSON = frozenset({".markdownlint.json", ".mcp.json", "plugin.json"})
 
 
 class RepoRootTrackedJsonAllowlistTest(unittest.TestCase):
