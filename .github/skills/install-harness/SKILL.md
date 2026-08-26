@@ -1669,7 +1669,13 @@ For each enabled capability pack:
 4. Verify file paths in cross-references resolve to actual files
 5. **Markdownlint config verification** (when markdownlint config was installed):
    a. Confirm `.markdownlint.json` is present at workspace root
-   b. Confirm it contains `"MD001": true`, `"MD025": true`, `"MD041": true`
+   b. Confirm it enables `MD001`, `MD025`, and `MD041`. Each rule must be either
+      `true` or a JSON object configuring that rule (an object enables the rule
+      while tuning it). The canonical config ships
+      `"MD025": { "front_matter_title": "" }`, which enables MD025 while
+      disabling its default frontmatter-`title:`-counts-as-H1 heuristic — treat
+      that object form as satisfying the requirement, not as drift. Report FAIL
+      only when a rule is absent or explicitly `false`.
    c. Confirm `scripts/pre-commit-markdownlint.sh` and `scripts/pre-commit-markdownlint.ps1`
       are present in `{workspace}/scripts/`
    d. Report FAIL for any missing artifact
