@@ -205,9 +205,9 @@ When the `backlogit` capability pack is installed and the backlog tool supports
 * Reference the artifact path in the description or a comment
 
 When `backlog-md` is the installed backlog tool, create a queue entry using
-`backlogit_create_item` with `title` derived from the deliberation topic,
+`task_create` with `title` derived from the deliberation topic,
 `description` linking to the decision artifact path,
-`status: "queued"`, and `labels: ["deliberation-outcome"]`.
+`status: "To Do"`, and `labels: ["deliberation-outcome"]`.
 
 When no backlog tool is available, append a structured entry to
 `.backlogit/queue/.stash.md`:

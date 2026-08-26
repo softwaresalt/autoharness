@@ -30,13 +30,31 @@ class ShipSafeClosePointerTests(unittest.TestCase):
                 self.assertIn('thin pointer', content)
                 self.assertIn('step-by-step safe-close algorithm lives in the `shipment-reconcile` skill', content)
 
-    def test_self_hosting_note_is_dogfood_only_in_installed_mirror(self) -> None:
+    def test_installed_mirror_directs_to_installed_skills_not_templates(self) -> None:
+        """The dogfood mirror must point Ship at the installed, manifest-tracked skills.
+
+        This workspace originally lacked resolved `.github/skills/` copies of
+        `shipment-reconcile` and Ship's other referenced skills, so the mirror carried a
+        dogfood-only fallback telling the reader to read `templates/skills/...tmpl`
+        instead. Those copies are now installed and manifest-tracked, which makes the old
+        fallback actively harmful: following it would bypass the installed artifacts and
+        their checksum verification. This test pins the corrected direction and guards
+        against the stale "not installed" wording being reintroduced.
+        """
         normalized = ' '.join(_mirror_text().split())
+
+        # Context and provenance are still explained.
         self.assertIn('self-hosting repository', normalized)
-        self.assertIn('templates/skills/shipment-reconcile/SKILL.md.tmpl', normalized)
-        self.assertIn('not installed as resolved `.github/skills/` copies', normalized)
-        self.assertIn('dogfood-only addition', normalized)
         self.assertIn('PR #297 Copilot review', normalized)
+
+        # The skills are stated as installed, and the reader is sent to them.
+        self.assertIn('installed as resolved, manifest-tracked', normalized)
+        self.assertIn('manifest-tracked artifacts and their checksum verification', normalized)
+
+        # The stale claims and the misdirection must not come back.
+        self.assertNotIn('not installed as resolved `.github/skills/` copies', normalized)
+        self.assertNotIn('is not installed as a resolved `.github/skills/` copy', normalized)
+        self.assertNotIn('read the authored template at', normalized)
 
     def test_generic_template_does_not_name_dogfood_templates_tree(self) -> None:
         self.assertNotIn('templates/skills/', _template_text())
