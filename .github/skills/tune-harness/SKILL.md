@@ -276,9 +276,14 @@ For each installed artifact, check:
   6. If `skill-search/SKILL.md` is installed but `search.ps1`/`search.sh` is missing, flag as P0 Breaking
 * **Markdownlint config drift** (when `.markdownlint.json` is manifest-tracked):
   1. Verify `.markdownlint.json` exists at workspace root; flag as P1 Degrading if missing
-  2. Parse the config and verify `"MD001": true`, `"MD025": true`, `"MD041": true` are present;
-     flag as P1 Degrading if any rule is absent, set to `false`, or set to a weaker
-     configuration (e.g., `{"heading-increment": false}`)
+  2. Parse the config and verify `MD001`, `MD025`, and `MD041` are each enabled —
+     that is, set to `true` **or** to a JSON object configuring the rule (an object
+     enables the rule while tuning it). Flag as P1 Degrading if any rule is absent,
+     set to `false`, or set to a weaker configuration (e.g.,
+     `{"heading-increment": false}`). Do **not** flag
+     `"MD025": { "front_matter_title": "" }` — that is the canonical shipped value,
+     which enables MD025 while disabling its default heuristic of counting a
+     frontmatter `title:` as an H1.
   3. Verify `scripts/pre-commit-markdownlint.sh` and `scripts/pre-commit-markdownlint.ps1`
      exist; flag as P1 Degrading if either is missing
   4. If all three checks pass, classify as `unchanged` or `user-modified` (checksum comparison)

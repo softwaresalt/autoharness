@@ -8,6 +8,8 @@ operation: Copilot P-018 review-fix-push loop for PR #238
 attempts: 3
 ---
 
+# Circuit Breaker — Copilot P-018 review-fix loop (PR #238)
+
 ## Failure Chain
 
 ### Cycle 1

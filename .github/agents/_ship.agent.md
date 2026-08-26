@@ -301,10 +301,12 @@ is prohibited (P-001 role separation).
     `mode: pre` and `expected_status: queued` (or `active` if already claimed). This verifies every manifest item is
     present in `.backlogit/queue/` with the expected status, and scans for orphan items. A `RECONCILE_FAIL` here means
     Stage swept non-harvest items into the manifest; reconcile before proceeding to Step 1. (Lock is not held at
-    intake — this is a lightweight early-warning check only.) In this self-hosting repository, `shipment-reconcile` is
-    not installed as a resolved `.github/skills/` copy; read the authored template at
-    `templates/skills/shipment-reconcile/SKILL.md.tmpl` directly when operating here — the template already carries
-    this same intake reconciliation reference at its own Step 0.5 item 6.
+    intake — this is a lightweight early-warning check only.) In this self-hosting repository,
+    `shipment-reconcile` is now installed as a resolved, manifest-tracked `.github/skills/shipment-reconcile/SKILL.md`
+    copy; invoke that installed skill directly. (Historical note: this workspace previously lacked the resolved copy
+    and this step directed the reader to `templates/skills/shipment-reconcile/SKILL.md.tmpl` instead; that fallback is
+    obsolete and reading the template in preference to the installed skill would now bypass the manifest-tracked
+    artifact and its checksum verification.)
     **Scope note**: this single-`expected_status` check applies to true session-start intake, where every manifest
     task still shares one uniform status (all `queued` pre-claim, or all `active` immediately after this session's
     own claim). `shipment-reconcile`'s `mode: pre` accepts only one `expected_status` value and classifies any other
@@ -662,15 +664,18 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    Invoke `shipment-reconcile` in `mode: safe-close` with the `shipment_id` and
    `merge_commit_sha`. Keep this agent file at pointer level only — the authoritative,
    step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and must
-   not be re-derived here. In this self-hosting repository, `shipment-reconcile` plus
+   not be re-derived here. In this self-hosting repository, `shipment-reconcile` and
    Ship's other referenced skills (`review`, `fix-ci`, `pr-lifecycle`,
-   `operational-closure`, `runtime-verification`, `compact-context`) are not installed
-   as resolved `.github/skills/` copies; read the authored template at
-   `templates/skills/shipment-reconcile/SKILL.md.tmpl` directly when operating here.
-   This sentence is a dogfood-only addition and does not appear in the generic
-   `templates/agents/_ship.agent.md.tmpl` source because external consuming
-   workspaces receive a resolved `.github/skills/shipment-reconcile/SKILL.md`
-   via install-harness (PR #297 Copilot review).
+   `operational-closure`, `runtime-verification`, `compact-context`) are now all
+   installed as resolved, manifest-tracked `.github/skills/` copies; invoke the
+   installed skills directly. (Historical note: this workspace previously lacked those
+   resolved copies, and this step carried a dogfood-only instruction to read
+   `templates/skills/shipment-reconcile/SKILL.md.tmpl` instead. That divergence from the
+   generic `templates/agents/_ship.agent.md.tmpl` source existed solely because the
+   resolved copies were missing here — external consuming workspaces always received them
+   via install-harness (PR #297 Copilot review). With the copies installed, the divergence
+   is resolved and the template fallback is obsolete; preferring the templates now would
+   bypass the manifest-tracked artifacts and their checksum verification.)
    At the summary level, the skill:
    a. archives only the shipment manifest's explicit item IDs;
    b. closes only the shipment record via the non-cascading sequence

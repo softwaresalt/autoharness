@@ -8,6 +8,8 @@ operation: Stage PR 296 review-fix cycle
 attempts: 3
 ---
 
+# Circuit Breaker — Stage PR 296 review-fix cycle
+
 ## Failure Chain
 
 ### Attempt 1

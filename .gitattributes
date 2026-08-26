@@ -17,3 +17,19 @@
 .github/instructions/circuit-breaker.instructions.md text eol=lf
 AGENTS.md text eol=lf
 start.ps1 text eol=lf
+
+# Every installed skill and concurrency-pack script is checksummed in the
+# manifest too. These are globs rather than a per-file list so that newly
+# installed skills/scripts inherit the LF pin automatically -- an unpinned
+# checksummed artifact silently records a platform-specific checksum (CRLF on
+# Windows) that then fails verification on an LF checkout.
+.github/skills/**/SKILL.md text eol=lf
+scripts/acquire_lock.ps1 text eol=lf
+scripts/acquire_lock.sh text eol=lf
+scripts/release_lock.ps1 text eol=lf
+scripts/release_lock.sh text eol=lf
+
+# Root markdownlint config: manifest-checksummed so tune-harness can detect
+# rule weakening or deletion deterministically, therefore it needs the same
+# LF pin as every other checksummed artifact.
+.markdownlint.json text eol=lf
