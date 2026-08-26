@@ -40,3 +40,7 @@
 [submodule "references/tokenmasterx"]
 	path = references/tokenmasterx
 	url = https://github.com/All-The-Vibes/TokenMasterX.git
+[submodule "references/backlog-md"]
+	path = references/backlog-md
+	url = https://github.com/MrLesk/Backlog.md.git
+	branch = main
