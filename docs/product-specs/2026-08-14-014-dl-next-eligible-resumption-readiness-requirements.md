@@ -10,7 +10,7 @@ source_research:
   - ".backlogit/queue/014-DL.md"
   - ".backlogit/archive/115-F.md"
   - ".backlogit/archive/123-S.md"
-  - "docs/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md"
+  - "docs/archive/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md"
 scope: "lightweight"
 handoff_status: "deferred"
 dark_factory_ready: false

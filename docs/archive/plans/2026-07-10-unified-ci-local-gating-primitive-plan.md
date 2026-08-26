@@ -2,7 +2,7 @@
 title: "Unified CI + Local-Gating Harness Primitive — Implementation Plan"
 description: "Impl-plan, plan-hardening (P-006), and plan-review verdict for the unified CI-workflow template, cross-platform pre-push hook template, autoharness dogfood CI + hook instances, workspace-discovery wiring, and policy P-019."
 doc_type: plan
-source: docs/plans/2026-07-10-unified-ci-local-gating-primitive-plan.md
+source: docs/archive/plans/2026-07-10-unified-ci-local-gating-primitive-plan.md
 decision_doc: docs/decisions/2026-07-10-unified-ci-local-gating-primitive-deliberation.md
 source_stash_ids:
   - "EFA0CA31"

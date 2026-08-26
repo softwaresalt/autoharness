@@ -28,7 +28,7 @@ width-isolated external stash entry, matching the existing disposition of
 
 ## Problem statement
 
-`docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12 reads:
+`docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12 reads:
 
 ```yaml
 blast_radius: elevated (result-integrity + multi-family: eval code / tests / docs / fixtures)

@@ -13,7 +13,7 @@ model_route:
   model_provider: anthropic
   reasoning_effort: high
 linked_artifacts:
-  - "docs/plans/2026-08-07-082F-cross-pack-measurability-plan.md"
+  - "docs/archive/plans/2026-08-07-082F-cross-pack-measurability-plan.md"
   - "docs/decisions/2026-08-07-082F-cross-pack-measurability-evidence.md"
 tags: ["082-F", "plan-review"]
 ---
@@ -24,7 +24,7 @@ tags: ["082-F", "plan-review"]
 
 ## Scope of review
 
-Reviewed `docs/plans/2026-08-07-082F-cross-pack-measurability-plan.md` against the
+Reviewed `docs/archive/plans/2026-08-07-082F-cross-pack-measurability-plan.md` against the
 ratified telemetry ownership contract, the 082-F DoD, the 108-F precedent, and the
 Stage role boundary (P-010) / dark-factory policy (P-017).
 

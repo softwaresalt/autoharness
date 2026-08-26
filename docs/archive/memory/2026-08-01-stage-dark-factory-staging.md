@@ -33,7 +33,7 @@ Route: claude-opus-4.8 / anthropic / high (P-013.5). Visibility: local session
   EXTERNAL backlogit guard referral); 34D50F2D edited (deferred, links 011-DL).
 
 ## Planning artifacts (uncommitted; operator said do NOT commit)
-- docs/plans/2026-08-01-shipment-reconcile-record-status-classification-plan.md
+- docs/archive/plans/2026-08-01-shipment-reconcile-record-status-classification-plan.md
   (requires_plan_hardening: no — single template family, additive, fail-safe)
 - docs/reviews/2026-08-01-shipment-reconcile-record-status-classification-review.md
   (verdict PASS, P0=0, P1=0, 2×P2 folded into T1)

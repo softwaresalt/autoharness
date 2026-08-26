@@ -30,7 +30,7 @@ telemetry/GPT-5.6-Sol/rename/etc. items, left untouched).
    `pr*.json`) were preserved untouched throughout.
 2. Read source (`workspace.py`, `benchmark.py`, `hook_cli.py`) to confirm both
    findings reproduce exactly as described in the stash text.
-3. Wrote plan: `docs/plans/2026-07-26-088-f-review-followup-hardening-plan.md`.
+3. Wrote plan: `docs/archive/plans/2026-07-26-088-f-review-followup-hardening-plan.md`.
 4. Ran plan-review inline (no subagent spawn — task too small to justify it;
    applied each persona's lens directly). Found one P1 (Task 1 originally
    spanned 3 files, violating the 2-Hour Rule) and fixed it in-session by

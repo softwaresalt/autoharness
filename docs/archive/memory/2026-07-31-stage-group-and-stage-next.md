@@ -3,7 +3,7 @@ title: "Stage Session — Group and Stage Next"
 date: "2026-07-31"
 description: "Session continuity for queue reconciliation, 084-F planning/harvest, and queued shipment 107-S."
 doc_type: memory
-source: docs/memory/2026-07-31-stage-group-and-stage-next.md
+source: docs/archive/memory/2026-07-31-stage-group-and-stage-next.md
 feature: "084-F"
 shipment: "107-S"
 ---

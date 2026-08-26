@@ -25,7 +25,7 @@ evidence-backed annotations. One shipment created: **`123-S`** (queued,
 ## Created artifacts
 
 * `014-DL` — deliberation, Option C (advisory-only deterministic resumption cursor)
-* `docs/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md` — impl-plan
+* `docs/archive/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md` — impl-plan
   + P-006 hardening (H1–H6, H3b)
 * `115-F` — covering feature
 * `115.001-T` (M/medium) analyzer · `115.002-T` (S/low) CLI · `115.003-T` (S/medium) docs

@@ -4,7 +4,7 @@ type: plan-review
 date: 2026-08-03
 revised: 2026-08-03 (re-review after Copilot PR #291 findings 3708167171 / 3708167225 / 3708167265 / 3708167293)
 route: claude-opus-4.8 / anthropic / high (P-013.5, inherited)
-plan: docs/plans/2026-08-03-size-complexity-telemetry-staging-plan.md
+plan: docs/archive/plans/2026-08-03-size-complexity-telemetry-staging-plan.md
 deliberation: docs/decisions/2026-08-03-size-complexity-telemetry-staging-deliberation.md
 scope_reviewed: 9 published tasks — S1/112-S {107.001-T,107.002-T,107.003-T,107.004-T,107.005-T}; S2/113-S {108.001-T,108.002-T,108.003-T,108.004-T}
 verdict: PASS

@@ -3,7 +3,7 @@ title: "088 Compression — Failure-Content-in-Success Decline: Spec Reconciliat
 date: "2026-07-28"
 description: "Follow-up implementation plan for stash 3D8724BA: reconcile the 088-F compression plan spec to the shipped failure-bearing-success decline invariant and close a colon-anchored coverage gap in the decline detector, with positive and negative controls. Throwaway, flag-gated experiment only; no default install."
 doc_type: plan
-source: docs/plans/2026-07-28-088-failure-content-in-success-decline-followup-plan.md
+source: docs/archive/plans/2026-07-28-088-failure-content-in-success-decline-followup-plan.md
 deliberation_source: "008-DL"
 stash_source: "3D8724BA"
 feature: "093-F"
@@ -11,7 +11,7 @@ relates_to:
   - "088-F"
   - "086-F"
 references:
-  - "docs/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md"
+  - "docs/archive/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md"
   - "docs/decisions/2026-07-25-copilot-cli-output-compression-experiment-findings.md"
   - "experiments/088-compression-experiment/brainspace/policy.py"
   - "experiments/088-compression-experiment/brainspace/hook.py"
@@ -58,7 +58,7 @@ no longer reachable.
 Two residuals from the stash entry remain **genuinely open**:
 
 1. **Spec drift.** The compression plan
-   (`docs/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md`,
+   (`docs/archive/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md`,
    last touched 2026-07-23, before the detector landed) still describes
    `088.004-T` only in terms of secret / gate / stack-trace / operator decline
    cases plus "confirm failure outputs are untouched" — which refers to the
@@ -141,7 +141,7 @@ code, hook/oracle code, and doc reconciliation.
   oracle. Depends on 093.001-T so the pattern sets stay identical.
 
 * **093.003-T** — Update
-  `docs/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md`: the
+  `docs/archive/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md`: the
   `088.004-T` Work-breakdown row, the `088.004-T` Task-detail bullet, and the
   Plan Hardening "Evidence oracle gates every safe win" / decline bullets to
   **explicitly enumerate** the failure-bearing-**success** decline invariant

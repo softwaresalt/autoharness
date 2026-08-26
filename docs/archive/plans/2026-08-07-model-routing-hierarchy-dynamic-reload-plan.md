@@ -3,7 +3,7 @@ title: "Implementation Plan — Model-Routing Hierarchy + Dynamic Reload (F02FD5
 date: "2026-08-07"
 description: "Implementation plan for nested per-role escalation routing (F02FD596) and session-start dynamic config reload (E8B5B3C5), with fail-closed migration and P-013.5/P-013.6 compatibility."
 doc_type: plan
-source: docs/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-plan.md
+source: docs/archive/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-plan.md
 stash_ids: ["F02FD596", "E8B5B3C5"]
 model_route:
   model_family: claude-opus-4.8
@@ -88,4 +88,4 @@ human-hours.
 **Yes.** Elevated blast radius: JSON-schema evolution, routing semantics the harness
 itself depends on (this session's escalation route resolves from `model_routing`),
 multiple template families, and a fail-closed migration. See the paired hardening
-doc `docs/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-hardening.md`.
+doc `docs/archive/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-hardening.md`.

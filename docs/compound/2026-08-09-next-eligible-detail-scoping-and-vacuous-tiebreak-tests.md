@@ -15,7 +15,7 @@ doc_type: learning
 Feature `115-F` added a `compute_next_eligible` analyzer with six branches,
 each populating a `next_eligible_detail` object of exactly
 `{"candidate_ids": [...], "offending_ids": [...]}`. The implementation
-plan (`docs/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md:160`)
+plan (`docs/archive/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md:160`)
 was explicit and normative about *which* branches populate *which* array,
 but the first-pass implementation over-populated both arrays "for
 helpfulness" on two branches where the plan required them empty. A

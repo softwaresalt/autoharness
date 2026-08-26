@@ -46,7 +46,7 @@ blocked each other in effect:
 
 | Blocker | Gate | Former owner |
 | --- | --- | --- |
-| `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12 unquoted YAML scalar | Gate 1 - YAML frontmatter validity | `136.001-T` in `144-S` |
+| `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12 unquoted YAML scalar | Gate 1 - YAML frontmatter validity | `136.001-T` in `144-S` |
 | Stale `.backlogit/queue/019-DL.md` load in two P-021 contract modules | configured pytest suite | `138.001-T` in `146-S` |
 
 `146-S` repaired only the pytest blocker, so its own first task would have
@@ -176,7 +176,7 @@ depends on a temporarily red predecessor.
 * Frontmatter of every artifact touched this session parsed with
   `yaml.safe_load` -> valid (the review document has no frontmatter block, which
   the `136.003-T` guard skips by design)
-* `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12
+* `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12
   re-read -> still unquoted, confirming Scope A is still needed
 
 ### Known cosmetic artifact (pre-existing, not introduced)

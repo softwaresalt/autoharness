@@ -71,7 +71,7 @@ malformed/missing/unknown value** instead of raising
    *different* defect class from the one below (a design/plumbing gap and a
    telemetry-status mapping gap, not silent-fail-open parsing) and were
    **not** fixed as part of PR #297 — they are documented as required
-   follow-ups in `docs/closure/114-S-109-F-post-merge-closure.md`'s "Known
+   follow-ups in `docs/archive/closure/114-S-109-F-post-merge-closure.md`'s "Known
    Residual Findings" section. Lesson: "zero new threads" only proves the
    thread-based gate is satisfied; it does not prove the review's free-text
    body raised nothing outstanding — always read the full review body, not

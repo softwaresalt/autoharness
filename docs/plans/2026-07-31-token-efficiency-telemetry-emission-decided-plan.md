@@ -151,4 +151,4 @@ merge commit `364f6b07abc2418ec9f696603d5da4b9cf879256`.
 
 Shipped as shipment `107-S` / feature `084-F`, PR #273, merge commit
 `364f6b07abc2418ec9f696603d5da4b9cf879256`. Full operational closure evidence:
-`docs/closure/107-S-084-F-post-merge-closure.md`.
+`docs/archive/closure/107-S-084-F-post-merge-closure.md`.

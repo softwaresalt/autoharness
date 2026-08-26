@@ -163,7 +163,7 @@ scope boundary.
 * `schemas/tool-telemetry-event.schema.json` — authoritative field/safety definitions.
 * `docs/decisions/2026-08-07-082F-cross-pack-measurability-evidence.md` — the evidence-gathering
   session this report and its two companion documents formalize.
-* `docs/plans/2026-08-07-082F-cross-pack-measurability-plan.md` and
+* `docs/archive/plans/2026-08-07-082F-cross-pack-measurability-plan.md` and
   `docs/reviews/2026-08-07-082F-cross-pack-measurability-review.md` — the harvested plan and
   its PASS review (findings F1/F2/F3 addressed above).
 * `docs/decisions/2026-07-13-telemetry-metrics-reporting-ownership.md` — the ratified 079-F

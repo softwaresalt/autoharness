@@ -376,7 +376,7 @@ gates B/C remain queued in `115-S`/`116-S`):
   branch `feat/115-s-topology-gate-b-hooks-install-adapters` ahead of any
   of that shipment's activation tasks, per this document's own
   Releasability condition and the intra-shipment `depends_on` edges
-  recorded in `docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md`.
+  recorded in `docs/archive/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md`.
 - **Follow-ups**: `none` carried from the PR #297 Local Review Readiness
   block itself (explicitly `none` at merge time). **Three new follow-ups
   identified during this closure PR's own review** (see Known Residual

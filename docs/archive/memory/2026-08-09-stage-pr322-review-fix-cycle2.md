@@ -67,7 +67,7 @@ Other contract corrections:
 
 ## Artifacts changed
 
-* `docs/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md` —
+* `docs/archive/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md` —
   resolution-order ownership split + reachability proof, tie-break heading
   corrected to branch 6, detail-shape row tightened, new hardening item **H4b**.
 * `.backlogit/queue/115-F.md` — description + DoD reconciled.
@@ -79,7 +79,7 @@ Other contract corrections:
   so the stash log and index stay coherent. Entry **remains ACTIVE**.
 * `.backlogit/archive/115.001-R-*.md` — cycle-2 findings, re-review, structural
   checks, decisions, summary, title.
-* `docs/memory/2026-08-09-stage-pr322-review-fix-cycle2.md` — this file.
+* `docs/archive/memory/2026-08-09-stage-pr322-review-fix-cycle2.md` — this file.
 
 ## Verdict and validation
 

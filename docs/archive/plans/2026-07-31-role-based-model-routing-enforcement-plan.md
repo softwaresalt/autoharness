@@ -20,7 +20,7 @@ requires_plan_hardening: "yes"
   fallback: degradation declared per P-012.
 * `TOOL_DEGRADED: reviewer-subagent-dispatch — inline single-agent persona pass`;
   plan review performed inline (no reviewer sub-agent dispatch surface reachable),
-  matching the precedent set by `docs/plans/2026-07-27-multi-model-adversarial-review-routing-plan.md`.
+  matching the precedent set by `docs/archive/plans/2026-07-27-multi-model-adversarial-review-routing-plan.md`.
 
 ## Problem Frame
 

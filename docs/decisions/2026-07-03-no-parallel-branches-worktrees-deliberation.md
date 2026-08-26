@@ -4,7 +4,7 @@ description: "Decision for stash CE080560: make single-branch/single-worktree ex
 topic: "How should autoharness prevent agents from operating across parallel branches or worktrees while preserving a narrow Stage research exception?"
 depth: "deep"
 decision_status: "accepted"
-promoted_to: "docs/plans/2026-07-03-no-parallel-branches-worktrees-policy-plan.md"
+promoted_to: "docs/archive/plans/2026-07-03-no-parallel-branches-worktrees-policy-plan.md"
 linked_artifacts:
   - "templates/foundation/constitution.instructions.md.tmpl"
   - "templates/policies/workflow-policies.md.tmpl"

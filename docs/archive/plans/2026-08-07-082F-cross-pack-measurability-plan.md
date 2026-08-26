@@ -3,7 +3,7 @@ title: "082-F Implementation Plan — Cross-Pack Measurability Documentation (En
 date: "2026-08-07"
 description: "Implementation plan decomposing 082-F into documentation/mapping deliverables that formalize the Engram and graphtor-docs telemetry evidence mapping to ToolTelemetryEvent v1.0. Documentation-only; no pack, schema, CLI, or template mutation."
 doc_type: plan
-source: docs/plans/2026-08-07-082F-cross-pack-measurability-plan.md
+source: docs/archive/plans/2026-08-07-082F-cross-pack-measurability-plan.md
 backlog_items:
   - "082-F"
 model_route:

@@ -227,7 +227,7 @@ shipment's three deliverables. `082-F` was moved `status: active` -> `done`
 - Compacted memory: `docs/memory/compacted/2026-08-08-120S-082F-compacted.md`
   (decisions, files modified, key learnings/cross-references to the new
   compound doc, outcomes, provenance chain).
-- The Stage-authored plan `docs/plans/2026-08-07-082F-cross-pack-measurability-plan.md`
+- The Stage-authored plan `docs/archive/plans/2026-08-07-082F-cross-pack-measurability-plan.md`
   was **not** consolidated this pass — it has no appended review section
   (the review is a separate artifact, `082.001-R`), so it does not meet the
   "plan has appended review content ready for consolidation" candidate

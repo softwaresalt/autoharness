@@ -55,7 +55,7 @@ the source frontmatter, each entry now `satisfied: true`):
 All three conditions were fixed and evidenced by **115-S** before that
 shipment's own activation tasks proceeded, per an intra-shipment
 `depends_on` ordering recorded in
-`docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md`. This
+`docs/archive/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md`. This
 condition/evidence chain is the primary reason 114-S's closure carries a
 `conditions:` block at all — it is preserved here verbatim rather than
 paraphrased, consistent with the machine-read nature of the field.

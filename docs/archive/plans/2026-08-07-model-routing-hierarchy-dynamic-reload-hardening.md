@@ -3,14 +3,14 @@ title: "Plan Hardening — Model-Routing Hierarchy + Dynamic Reload (F02FD596 + 
 date: "2026-08-07"
 description: "P-006 plan hardening for the model-routing hierarchy + dynamic reload plan. Enumerates blast-radius controls, fail-closed invariants, backward-compatibility guarantees, and de-risking for high-complexity tasks."
 doc_type: plan-hardening
-source: docs/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-hardening.md
+source: docs/archive/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-hardening.md
 stash_ids: ["F02FD596", "E8B5B3C5"]
 model_route:
   model_family: claude-opus-4.8
   model_provider: anthropic
   reasoning_effort: high
 linked_artifacts:
-  - "docs/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-plan.md"
+  - "docs/archive/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-plan.md"
 tags: ["P-006", "hardening", "model-routing", "F02FD596", "E8B5B3C5"]
 ---
 

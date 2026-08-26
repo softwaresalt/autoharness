@@ -69,7 +69,7 @@ scope was a single-shipment bounded sequence `[123-S]`.
    field-scoping contract deviation**: `resume_active` was populating
    `candidate_ids` with the single active cursor, and `cycle_detected`
    was populating `offending_ids` with the cycle's nodes — the plan
-   (`docs/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md:160`)
+   (`docs/archive/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md:160`)
    specifies `candidate_ids` is non-empty **only** for `ready_set_head`
    and `offending_ids` is non-empty **only** for `multi_active_anomaly`/
    `ambiguous_provenance`. **Fix**: both branches now report empty arrays;

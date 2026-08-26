@@ -3,7 +3,7 @@ title: "Telemetry & Evaluation Engine (Phase 2) — autoharness Implementation P
 description: "Phase 2 of the Deterministic Gates, Telemetry & Evaluation Engine design (§4) — autoharness portion only"
 source_documents:
   - "docs/design-docs/autoharness-evals-gates-design.md"
-  - "docs/plans/2026-06-30-deterministic-validation-gates-phase1-plan.md"
+  - "docs/archive/plans/2026-06-30-deterministic-validation-gates-phase1-plan.md"
   - "docs/compound/2026-07-01-subprocess-validation-gating.md"
 epic: "93E85A44"
 feature: "051-F"

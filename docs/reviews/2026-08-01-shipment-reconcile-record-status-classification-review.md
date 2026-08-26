@@ -3,7 +3,7 @@ title: "plan-review — shipment-reconcile record-status classification"
 type: plan-review
 date: 2026-08-01
 route: claude-opus-4.8 / anthropic / high (P-013.5)
-plan: docs/plans/2026-08-01-shipment-reconcile-record-status-classification-plan.md
+plan: docs/archive/plans/2026-08-01-shipment-reconcile-record-status-classification-plan.md
 source_stash: 2970FA4E
 verdict: PASS
 p0_count: 0

@@ -49,7 +49,7 @@ merge commit, P-009 satisfied). Merge confirmation gate passed
    inspection) that no corruption occurred because 093-S's manifest is
    exactly 088-F's complete task set (no siblings to protect). Recorded as a
    compound learning and in the closure doc for future awareness.
-5. Wrote `docs/closure/093-S-088-F-post-merge-closure.md` (runtime
+5. Wrote `docs/archive/closure/093-S-088-F-post-merge-closure.md` (runtime
    verification evidence + `READY_WITH_CONDITIONS` operational-closure
    verdict, 2 residual follow-ups for Orchestrator → Stage routing).
 6. Wrote `docs/compound/093-S-review-loop-convergence.md` (push-cap protocol

@@ -127,7 +127,7 @@ blocking on it.
 * `.backlogit/archive/004-SP.md` — new spike artifact (status `done`; auto-archived on completion)
 * `.backlogit/stash.jsonl` — `34D50F2D` appended, still ACTIVE
 * `docs/decisions/2026-08-09-composability-single-source-of-truth-spike.md` — new
-* `docs/memory/2026-08-09-stage-34d50f2d-candidate-a-composability-spike.md` — this file
+* `docs/archive/memory/2026-08-09-stage-34d50f2d-candidate-a-composability-spike.md` — this file
 
 ---
 
@@ -183,7 +183,7 @@ remote services are excluded** and deferred to Plan 2.
 * `docs/plans/2026-08-09-copilot-cli-supervisor-control-plane-hardening.md` — P-006, HARDENED
 * `docs/reviews/2026-08-09-copilot-cli-supervisor-control-plane-review.md` — PASS (0 P0 / 0 P1)
 * `docs/design-docs/2026-08-09-deferred-gradio-devtunnel-remote-control-plan.md` — Plan 2, DEFERRED
-* `docs/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md` — session memory for the fast-track
+* `docs/archive/memory/2026-08-09-stage-copilot-supervisor-plan1-fasttrack.md` — session memory for the fast-track
 * `.backlogit/archive/004-SP.md`, `docs/decisions/2026-08-09-composability-single-source-of-truth-spike.md`,
   `.backlogit/checkpoints/checkpoint-20260810-005125.json` — reconciled append-only
 

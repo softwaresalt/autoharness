@@ -18,7 +18,7 @@ implementation, no branch/PR, no commit/push.
 
 - Spike: `docs/spikes/2026-08-02-structural-navigation-benchmark-feasibility.md`
 - Deliberation: `docs/decisions/2026-08-02-structural-navigation-benchmark-design-deliberation.md`
-- Plan (+hardening): `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
+- Plan (+hardening): `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
 - Review: `docs/reviews/2026-08-02-structural-navigation-benchmark-suite-review.md`
 - This memory file.
 

@@ -6,7 +6,7 @@
 ## Outcome (reviewed, dependency-correct backlog)
 - **Gate chain:** deliberate → impl-plan → plan-harden (P-006 APPLIED, schema blast radius) → plan-review **PASS**.
   - Deliberation: `docs/decisions/2026-08-03-size-complexity-telemetry-staging-deliberation.md`
-  - Plan: `docs/plans/2026-08-03-size-complexity-telemetry-staging-plan.md`
+  - Plan: `docs/archive/plans/2026-08-03-size-complexity-telemetry-staging-plan.md`
   - Review: `docs/reviews/2026-08-03-size-complexity-telemetry-staging-review.md`
 - **Ordered shipment chain (only 112-S eligible; 113-S blocked on 112-S):**
   - **112-S** = S1 "size+complexity first-class in staging" — feature **107-F** — tasks 107.001-T, 107.002-T, 107.003-T, 107.004-T, 107.005-T (sizes M:2/S:3)

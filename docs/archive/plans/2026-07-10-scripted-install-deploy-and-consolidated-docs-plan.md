@@ -2,7 +2,7 @@
 title: "Scripted Install/Deploy Automation + Consolidated Installation Guide — Implementation Plan"
 description: "Impl-plan, plan-hardening (P-006), and plan-review verdict for the capability-pack registry (schema + data), the cross-platform deploy-harness script templates, the autoharness dogfood deploy instances, the install-harness/discovery wiring, and the consolidated installation guide."
 doc_type: plan
-source: docs/plans/2026-07-10-scripted-install-deploy-and-consolidated-docs-plan.md
+source: docs/archive/plans/2026-07-10-scripted-install-deploy-and-consolidated-docs-plan.md
 decision_doc: docs/decisions/2026-07-10-scripted-install-deploy-and-consolidated-docs-deliberation.md
 source_stash_ids:
   - "EF1EFEE1"

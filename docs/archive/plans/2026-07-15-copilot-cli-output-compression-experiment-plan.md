@@ -3,7 +3,7 @@ title: "Copilot CLI Tool-Output Compression Experiment — Implementation Plan"
 date: "2026-07-15"
 description: "Plan for a bounded, opt-in experiment/benchmark validating postToolUse-based tool-output compression on GitHub Copilot CLI. Prototype is throwaway and flag-gated; no default install."
 doc_type: plan
-source: docs/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md
+source: docs/archive/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md
 spike_source: "docs/spikes/2026-07-15-copilot-cli-output-compression-experiment.md"
 stash_source: "AF767A44"
 feature: "088-F"
@@ -101,7 +101,7 @@ measurement, and analysis work.
     semantic parity for these broadened forms (defense in depth), keeping benchmark
     evidence-preservation fidelity for any future non-declined path.
   * **Traceability:** stash `3D8724BA` → deliberation `008-DL` → follow-up plan
-    `docs/plans/2026-07-28-088-failure-content-in-success-decline-followup-plan.md`
+    `docs/archive/plans/2026-07-28-088-failure-content-in-success-decline-followup-plan.md`
     → feature `093-F` → `brainspace/policy.py`, `brainspace/hook.py`,
     `brainspace/evidence_oracle.py` + tests.
 * **088.005-T** — AUC measurement harness: raw vs compressed tokens under model

@@ -12,7 +12,7 @@ model_route:
   model_provider: anthropic
   reasoning_effort: high
 linked_artifacts:
-  - "docs/plans/2026-08-07-capability-pack-runtime-installer-plan.md"
+  - "docs/archive/plans/2026-08-07-capability-pack-runtime-installer-plan.md"
   - "docs/decisions/2026-08-07-capability-pack-runtime-installer-deliberation.md"
 tags: ["plan-review", "47971057"]
 ---

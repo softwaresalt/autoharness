@@ -153,7 +153,7 @@ command `backlogit shipment ship 108-S` was **not** run.
   Repointed references: the live/active `104-F` feature record and the
   compound-learning doc now point to the decided-plan; the already-archived
   duplicate feature `103-F` and Stage's dated session memory
-  (`docs/memory/2026-07-31-stage-role-model-routing.md`) now point to the
+  (`docs/archive/memory/2026-07-31-stage-role-model-routing.md`) now point to the
   archived original-plan path (historical fidelity — that is what those
   artifacts referenced at the time they were written/archived).
 - **Closure-record thresholds**: no `docs/closure` artifacts other than this

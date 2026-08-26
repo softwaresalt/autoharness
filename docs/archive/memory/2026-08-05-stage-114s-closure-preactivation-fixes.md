@@ -63,7 +63,7 @@ build/branch/PR; serial cursor held at Stage handoff.
 
 ## Staging artifacts (committed by Orchestrator to main; Stage did NOT commit/push)
 - `docs/decisions/2026-08-05-114s-closure-preactivation-fixes-deliberation.md`
-- `docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md` (incl. P-006 hardening)
+- `docs/archive/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md` (incl. P-006 hardening)
 - `docs/reviews/2026-08-05-114s-closure-preactivation-fixes-review.md` (verdict PASS)
 - Backlog files: `.backlogit/queue/109.021-T.md|109.022-T.md|109.023-T.md`,
   updated `.backlogit/queue/109-F.md` and `115-S.md`, `.backlogit/stash.jsonl`,
@@ -83,7 +83,7 @@ build/branch/PR; serial cursor held at Stage handoff.
    three). **Ship scope (RESOLVED 2026-08-05b):** `109.017-T` (Ship wiring) now
    explicitly consumes the `CLAIM_NOT_OBSERVED` retry-required token via a bounded
    reclaim-and-reverify sequence — no longer a handoff caveat.
-3. After the three fixes land, amend `docs/closure/114-S-109-F-post-merge-closure.md`
+3. After the three fixes land, amend `docs/archive/closure/114-S-109-F-post-merge-closure.md`
    to `READY` (or add a verified machine-readable `conditions:` block) — a handoff
    note, not part of any fix task's scope.
 4. External follow-up 84D8E6AB (backlogit audit-log event emission) tracked in stash
@@ -138,9 +138,9 @@ review doc gained a Re-Review (2026-08-05b) section; both re-affirm PASS.
   `--complexity`)
 - `.backlogit/queue/109-F.md` (DoD bullet — via `backlogit update --section`)
 - `.backlogit/logs/109.017-T.jsonl`, `.backlogit/logs/109-F.jsonl` (CLI event log)
-- `docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md` (Re-Review Addendum)
+- `docs/archive/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md` (Re-Review Addendum)
 - `docs/reviews/2026-08-05-114s-closure-preactivation-fixes-review.md` (F-4 escalation + Re-Review section + frontmatter counts)
-- `docs/memory/2026-08-05-stage-114s-closure-preactivation-fixes.md` (this addendum)
+- `docs/archive/memory/2026-08-05-stage-114s-closure-preactivation-fixes.md` (this addendum)
 
 Stage-only, CLI-only backlogit. No commit/push. Serial cursor still at Stage handoff.
 
@@ -193,10 +193,10 @@ resolved 2026-08-05c).
 - `.backlogit/queue/109.021-T.md` (description — via `backlogit update --description`)
 - `.backlogit/queue/109-F.md` (DoD Ship-ordering bullet — via `backlogit update --section dod`)
 - `.backlogit/logs/109.021-T.jsonl`, `.backlogit/logs/109-F.jsonl` (CLI event log)
-- `docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md` (109.021-T section + Re-Review Addendum 2026-08-05c)
+- `docs/archive/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md` (109.021-T section + Re-Review Addendum 2026-08-05c)
 - `docs/decisions/2026-08-05-114s-closure-preactivation-fixes-deliberation.md` (Decision 1 Correction 2026-08-05c)
 - `docs/reviews/2026-08-05-114s-closure-preactivation-fixes-review.md` (F-5 Re-Review 2026-08-05c + frontmatter counts)
-- `docs/memory/2026-08-05-stage-114s-closure-preactivation-fixes.md` (this addendum)
+- `docs/archive/memory/2026-08-05-stage-114s-closure-preactivation-fixes.md` (this addendum)
 
 `109.017-T` unchanged (already owned the terminal side). Stage-only, CLI-only
 backlogit. No commit/push. Serial cursor still at Stage handoff.

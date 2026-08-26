@@ -21,7 +21,7 @@ age-based rollover, **no** retention window, and **no** compaction. The mirror
 therefore grows unbounded beside the authoritative SQLite store. This was
 explicitly deferred as out-of-scope from shipment 097-S / feature 092-F to keep
 that shipment width-isolated (see
-`docs/plans/2026-07-28-telemetry-followup-hardening-plan.md` §Out of scope).
+`docs/archive/plans/2026-07-28-telemetry-followup-hardening-plan.md` §Out of scope).
 
 The sink is a **best-effort human-readable mirror**; SQLite is the authoritative
 first-write-immutable store. Even so, the sink enforces two replay invariants on

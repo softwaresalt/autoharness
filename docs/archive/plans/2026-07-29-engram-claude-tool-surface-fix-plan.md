@@ -5,7 +5,7 @@ status: reviewed
 created: 2026-07-29
 source_stash_id: CBE3684E
 prior_work: 036.005-T, 094-F (612f47d)
-sibling_precedent: docs/plans/2026-07-29-engram-claude-instructions-transport-fix-plan.md
+sibling_precedent: docs/archive/plans/2026-07-29-engram-claude-instructions-transport-fix-plan.md
 ---
 
 # Plan: Correct stale engram tool-surface table + workflow in `.claude/instructions.md`

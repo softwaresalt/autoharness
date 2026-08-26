@@ -30,7 +30,7 @@ Rename the always-running aggregation-gate job in the dogfood workflow
 Authority:
 
 - `docs/decisions/2026-07-10-ci-gate-rename-decision.md`
-- `docs/plans/2026-07-10-ci-gate-rename-plan.md`
+- `docs/archive/plans/2026-07-10-ci-gate-rename-plan.md`
 
 ## What shipped
 

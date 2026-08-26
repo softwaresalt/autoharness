@@ -36,7 +36,7 @@ feature backlog artifacts were correctly safe-closed and archived at the
 time (`117-S` → `archived_status: shipped`; `110-F` → `archived_status:
 done`; P-020 compaction recorded at
 `docs/memory/compacted/2026-08-06-117S-110F-compacted.md`). However, the
-canonical `docs/closure/117-S-110-F-post-merge-closure.md` artifact
+canonical `docs/archive/closure/117-S-110-F-post-merge-closure.md` artifact
 itself was never written during that session, leaving
 `autoharness gate pipeline-topology`'s `closure_complete()` predecessor
 check with no closure-artifact evidence to find for `117-S` — which then

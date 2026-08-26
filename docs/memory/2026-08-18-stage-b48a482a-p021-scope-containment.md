@@ -159,7 +159,7 @@ enforces a closed `doc_type` vocabulary — `plan` and `review` are both members
   absent from **every** authored doc in this repository, including the
   conforming `2026-08-17` precedent — it is populated by the ingestion pipeline,
   not at authoring time. Not a regression introduced here; not in scope.
-* `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` has
+* `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` has
   malformed YAML frontmatter (an unquoted scalar containing a colon-space
   sequence in `blast_radius:`) that makes the **workspace-wide**
   `backlogit docs lint` abort
@@ -248,7 +248,7 @@ frontmatter-title / body-H1 conflicts. All four were resolved with the
 repository-established scoped suppression
 `<!-- markdownlint-disable-next-line MD025 -->` placed immediately before the
 affected body H1, matching the existing precedent in
-`docs/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md` and
+`docs/archive/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md` and
 `docs/spikes/2026-07-13-brainspace-compression-feasibility.md`.
 
 A repo-wide baseline was taken first to separate genuine defects from house
@@ -275,7 +275,7 @@ defects introduced by these Stage artifacts and corrected:
 **Result:** the targeted gate is clean (exit `0`, zero violations) across all
 seven changed Stage Markdown artifacts. No unrelated pre-existing Markdown was
 touched, including the known malformed frontmatter in
-`docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
+`docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
 (deferred as `395EBE60`).
 
 ### Current state at handoff

@@ -2,7 +2,7 @@
 title: "Rename Dogfood CI Aggregation Gate to ci gate — Implementation Plan"
 description: "Single-task, single-file plan to rename the build-named CI aggregation gate in .github/workflows/ci.yml to ci-gate / ci gate and rewrite its two justifying comment blocks. Trivial, near-zero-risk dogfood correction."
 doc_type: plan
-source: docs/plans/2026-07-10-ci-gate-rename-plan.md
+source: docs/archive/plans/2026-07-10-ci-gate-rename-plan.md
 decision_doc: docs/decisions/2026-07-10-ci-gate-rename-decision.md
 source_stash_ids: []
 requires_plan_hardening: "no"

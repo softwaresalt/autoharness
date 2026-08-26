@@ -6,7 +6,7 @@ shipment_id: 098-S
 covering_feature: 093-F
 source_stash_id: 3D8724BA
 deliberation_id: 008-DL
-plan_doc: docs/plans/2026-07-28-088-failure-content-in-success-decline-followup-plan.md
+plan_doc: docs/archive/plans/2026-07-28-088-failure-content-in-success-decline-followup-plan.md
 status: staged-queued
 ---
 

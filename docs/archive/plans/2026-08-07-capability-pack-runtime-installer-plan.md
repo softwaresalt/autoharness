@@ -3,7 +3,7 @@ title: "Implementation Plan — Capability-Pack Runtime Detection & Checklist In
 date: "2026-08-07"
 description: "Bounded, provisioning-free increment for 47971057: interactive pre-merge-install TUI checklist + per-pack scan/detect/version + recommended-action report + explicit provision-before-compose ordering. No runtime install/upgrade executed."
 doc_type: plan
-source: docs/plans/2026-08-07-capability-pack-runtime-installer-plan.md
+source: docs/archive/plans/2026-08-07-capability-pack-runtime-installer-plan.md
 stash_ids: ["47971057"]
 model_route:
   model_family: claude-opus-4.8

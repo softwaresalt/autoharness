@@ -37,7 +37,7 @@ route is an `ESCALATION_DEGRADED` trigger (operator-halt), enforced by T7/T8.
 
 ## Artifacts
 - Spike: `docs/spikes/2026-08-02-telemetry-driven-auto-escalation-protocol-spike.md`
-- Plan (hardened, P-006): `docs/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-plan.md`
+- Plan (hardened, P-006): `docs/archive/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-plan.md`
 - Review: `docs/reviews/2026-08-02-telemetry-driven-auto-escalation-protocol-review.md` (PASS, 0 P0 / 0 P1 / 2 folded P2)
 
 ## Backlog (feature 106-F → shipment 110-S, queued)

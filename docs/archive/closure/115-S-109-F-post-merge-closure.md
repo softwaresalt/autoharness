@@ -198,7 +198,7 @@ gate C remains queued in `116-S`):
   - `114-S`'s three `READY_WITH_CONDITIONS` closure conditions are now
     satisfied with commits confirmed present in `main`'s history
     (`bdbca2d`, `b3a6ad7`, `6df3abb`, `e446f73`) — no further amendment to
-    `docs/closure/114-S-109-F-post-merge-closure.md` was needed this
+    `docs/archive/closure/114-S-109-F-post-merge-closure.md` was needed this
     session; its existing machine-readable `conditions:` block (amended in
     a prior session) remains accurate.
 - **Failure signals to watch**: none specific to this shipment's scope.

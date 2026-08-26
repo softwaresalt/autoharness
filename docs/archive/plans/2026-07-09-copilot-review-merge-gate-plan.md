@@ -2,7 +2,7 @@
 title: "Copilot-Review Merge Gate — Implementation Plan"
 description: "Impl-plan, hardening, and review verdict for stash 0B278CEE: a deterministic fail-closed pre-merge gate enforcing Copilot-review completion and iterative bot-thread resolution, non-bypassable by --admin."
 doc_type: plan
-source: docs/plans/2026-07-09-copilot-review-merge-gate-plan.md
+source: docs/archive/plans/2026-07-09-copilot-review-merge-gate-plan.md
 source_stash_ids:
   - "0B278CEE"
 decision: docs/decisions/2026-07-09-copilot-review-merge-gate-deliberation.md

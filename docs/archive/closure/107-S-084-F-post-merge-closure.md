@@ -152,7 +152,7 @@ Safe-close used per-item / single-artifact operations only. The cascade command
   now point at the **decided-plan**, while **historical** records (the 8
   archived task snapshots `.backlogit/archive/084.001-T.md`–`084.008-T.md` and
   the historical Stage session memory
-  `docs/memory/2026-07-31-stage-group-and-stage-next.md`) point at the
+  `docs/archive/memory/2026-07-31-stage-group-and-stage-next.md`) point at the
   **archived** path. The append-only audit log
   `.backlogit/logs/084-F.jsonl` was left untouched (immutable historical
   record, same treatment as git history). No dangling reference to the old

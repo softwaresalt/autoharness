@@ -33,7 +33,7 @@ harvested an execution-ready backlog, and assembled the primary Phase-1 shipment
   (atomic all-or-nothing task gating; absolute default + operator-only `--force`;
   3-failure block+requeue aligned to circuit-breaker; forward-slash path norm; local
   telemetry for Phase 1 per §6.3).
-- Plan → `docs/plans/2026-06-30-deterministic-validation-gates-phase1-plan.md`
+- Plan → `docs/archive/plans/2026-06-30-deterministic-validation-gates-phase1-plan.md`
   (impl-plan + Plan Hardening + Plan Review PASS). Key reframing: autoharness CLI has
   NO in-process execution loop — gate delivered as `autoharness gate check` CLI +
   documented harness integration contract.

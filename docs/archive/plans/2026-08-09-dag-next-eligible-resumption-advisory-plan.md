@@ -2,7 +2,7 @@
 title: Deterministic next-eligible resumption advisory (33CC445C Phase 2)
 description: Implementation plan for a read-only, advisory-only deterministic resumption cursor layered additively on the shipped dag-readiness substrate — analyzer, CLI field, and non-goal reconciliation docs
 doc_type: plan
-source: docs/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md
+source: docs/archive/plans/2026-08-09-dag-next-eligible-resumption-advisory-plan.md
 status: reviewed
 deliberation: 014-DL
 stash: 33CC445C

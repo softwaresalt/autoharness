@@ -5,7 +5,7 @@ date: 2026-08-09
 branch: chore/spike-unified-surfaces-20260809
 pr: 325
 tracker: 34D50F2D
-supersedes: docs/memory/2026-08-09-stage-34d50f2d-candidate-a-composability-spike.md
+supersedes: docs/archive/memory/2026-08-09-stage-34d50f2d-candidate-a-composability-spike.md
 status: complete
 ---
 

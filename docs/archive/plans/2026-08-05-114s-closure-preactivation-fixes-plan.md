@@ -2,10 +2,10 @@
 title: "114-S Closure Pre-Activation Fixes — Implementation Plan"
 description: "Decomposes the three mandatory 114-S closure follow-up code defects into three width-isolated, two-axis-sized tasks under feature 109-F, sequenced BEFORE the 115-S topology-gate activation tasks via explicit intra-shipment blocks dependencies. Covers the post-claim retry outcome-contract fix, the cli.py telemetry outcome mapping fix, and the closure_complete() releasability enforcement fix, plus the external disposition of the 114-S audit-log discrepancy."
 doc_type: plan
-source: docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md
+source: docs/archive/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md
 source_documents:
   - "docs/decisions/2026-08-05-114s-closure-preactivation-fixes-deliberation.md"
-  - "docs/closure/114-S-109-F-post-merge-closure.md"
+  - "docs/archive/closure/114-S-109-F-post-merge-closure.md"
   - "docs/compound/114-S-109-F-copilot-review-fix-patterns.md"
 feature: "109-F"
 tasks:
